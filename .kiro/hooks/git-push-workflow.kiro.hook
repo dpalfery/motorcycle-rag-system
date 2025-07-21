@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Git Push Workflow",
+  "description": "Automatically saves all files, stages changes, commits with a descriptive message, and pushes to origin when /push is entered",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The user has entered /push. Please perform the following git workflow steps in order: 1) Save all open/modified files, 2) Stage all changes (git add .), 3) Create a descriptive commit message based on the changes made and commit them (git commit -m \"message\"), 4) Push the changes to origin (git push origin). Make sure to analyze the staged changes to create a meaningful commit message that describes what was modified, added, or removed."
+  }
+}

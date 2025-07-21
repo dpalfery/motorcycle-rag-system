@@ -32,6 +32,16 @@ public interface IAzureOpenAIClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Process multimodal content using GPT-4 Vision
+    /// </summary>
+    Task<string> ProcessMultimodalContentAsync(
+        string deploymentName,
+        string textPrompt,
+        byte[] imageData,
+        string imageContentType = "image/jpeg",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Check if the client is healthy
     /// </summary>
     Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default);

@@ -281,8 +281,8 @@ Honda,CBR600RR,2023,Quick Shifter";
         // Assert
         Assert.True(result.Success);
         Assert.Equal(1, result.DocumentsIndexed);
-        Assert.Equal("motorcycle-specifications", result.IndexName);
-        Assert.Contains("Indexed 1 documents successfully", result.Message);
+        Assert.Equal("motorcycle-csv-index", result.IndexName);
+        Assert.Contains("Indexed 1 CSV documents successfully", result.Message);
     }
 
     [Fact]

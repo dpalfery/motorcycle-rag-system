@@ -1,0 +1,174 @@
+# Motorcycle RAG System - Cursor Rules
+
+## Project Overview
+This is a Motorcycle RAG System built on Azure AI Foundry platform, implementing a sophisticated multi-agent architecture that orchestrates intelligent search across heterogeneous data sources (CSV specifications, PDF manuals, web sources) using a sequential search pattern.
+
+## Architecture Principles
+
+### Multi-Agent Architecture
+- Use Semantic Kernel Agent Framework for multi-agent coordination
+- Implement specialized agents: QueryPlannerAgent, VectorSearchAgent, WebSearchAgent, PDFSearchAgent
+- Follow sequential search pattern: Vector DB → Web Augmentation → PDF Fallback
+- Each agent should implement ISearchAgent interface
+
+### Layer Separation
+- **API Layer**: ASP.NET Core Web API (MotorcycleRAG.API)
+- **Core Layer**: Business logic and interfaces (MotorcycleRAG.Core)
+- **Infrastructure Layer**: Azure service integrations (MotorcycleRAG.Infrastructure)
+- **Shared Layer**: Common utilities (MotorcycleRAG.Shared)
+
+## Technology Stack Requirements
+
+### Azure Services
+- Use Azure OpenAI: GPT-4o (query planning), GPT-4o-mini (chat completion), text-embedding-3-large (embeddings)
+- Use Azure AI Search for hybrid vector/keyword search
+- Use Azure Document Intelligence for PDF processing
+- Use Application Insights for monitoring
+- Use DefaultAzureCredential for authentication
+
+### Framework Requirements
+- ASP.NET Core Web API (.NET)
+- Semantic Kernel Agent Framework
+- Async/await patterns for all I/O operations
+- Dependency injection for all services
+
+## Code Quality Standards
+
+### Interface-Based Design
+- All major components must implement interfaces
+- Place interfaces in MotorcycleRAG.Core/Interfaces/
+- Use dependency injection for all service registrations
+- Follow naming convention: IServiceName for interfaces
+
+### Error Handling & Resilience
+- Implement circuit breaker patterns for Azure service calls using Polly
+- Use exponential backoff retry policies for rate limits
+- Implement graceful degradation with fallback mechanisms
+- Log all errors with correlation IDs to Application Insights
+
+### Data Processing Rules
+- CSV: Use row-based chunking to preserve relational integrity
+- PDF: Implement semantic chunking with embedding-based boundary detection
+- Batch processing: 100-1000 documents per batch
+- Support up to 100 columns in CSV files with header detection
+
+## Naming Conventions
+
+### Classes and Interfaces
+- Interfaces: Prefix with `I` (e.g., `IMotorcycleRAGService`)
+- Agents: Suffix with `Agent` (e.g., `VectorSearchAgent`)
+- Processors: Suffix with `Processor` (e.g., `MotorcycleCSVProcessor`)
+- Services: Suffix with `Service` (e.g., `MotorcycleRAGService`)
+
+### File Organization
+- Controllers: `src/MotorcycleRAG.API/Controllers/`
+- Interfaces: `src/MotorcycleRAG.Core/Interfaces/`
+- Models: `src/MotorcycleRAG.Core/Models/`
+- Agents: `src/MotorcycleRAG.Core/Agents/`
+- Azure clients: `src/MotorcycleRAG.Infrastructure/Azure/`
+- Data processors: `src/MotorcycleRAG.Infrastructure/DataProcessing/`
+
+## Testing Requirements
+
+### Test Structure
+- Unit tests: `tests/MotorcycleRAG.UnitTests/`
+- Integration tests: `tests/MotorcycleRAG.IntegrationTests/`
+- Performance tests: Load testing for 100 concurrent users
+- Target: < 3 seconds response time for 95th percentile
+
+### Testing Patterns
+- Mock Azure service dependencies using interfaces
+- Test query planning logic with various input scenarios
+- Validate search result ranking and fusion algorithms
+- Test error handling and retry mechanisms
+
+## Performance & Cost Optimization
+
+### Cost Guidelines
+- Use GPT-4o-mini for standard chat completion
+- Implement query caching for common motorcycle information
+- Use vector compression for storage efficiency
+- Monitor costs with Azure Cost Management integration
+
+### Performance Requirements
+- Support 100 concurrent users
+- < 3 seconds response time for 95th percentile
+- Implement connection pooling and HTTP client management
+- Use batch processing for data ingestion
+
+## Security & Monitoring
+
+### Authentication
+- Use managed identity with DefaultAzureCredential
+- No hardcoded credentials in code
+- Environment-specific configuration files
+
+### Monitoring
+- Integrate with Application Insights for telemetry
+- Track query metrics with correlation IDs
+- Implement health check endpoints
+- Monitor error rates by component
+
+## Code Style Rules
+
+### General
+- Don't put two classes in the same file
+- Don't use && to run two commands on the same line
+- Use async/await for all I/O operations
+- Prefer explicit configuration over magic strings
+
+### Models
+- Use validation attributes on domain models
+- Implement proper JSON serialization configuration
+- Include comprehensive metadata in search results
+- Support Dictionary<string, object> for additional specifications
+
+### API Design
+- Follow RESTful principles
+- Implement proper HTTP status code handling
+- Use request/response models for all endpoints
+- Include Swagger/OpenAPI documentation
+
+## Development Workflow
+
+### Git Workflow
+- Use descriptive commit messages based on changes made
+- Stage all changes before committing
+- Push to origin after successful commits
+- Follow the git-push-workflow hook pattern
+
+### Documentation
+- Maintain comprehensive inline code comments
+- Document all public interfaces and methods
+- Keep README files updated with setup instructions
+- Document configuration requirements
+
+## Key Models to Reference
+
+### Core Interfaces
+```csharp
+IMotorcycleRAGService - Main service contract
+IAgentOrchestrator - Multi-agent coordination
+ISearchAgent - Search agent contract
+IDataProcessor<T> - Data processing contract
+```
+
+### Domain Models
+```csharp
+MotorcycleSpecification - Core motorcycle data
+MotorcycleDocument - Document with vector embeddings
+SearchResult - Unified search result format
+MotorcycleQueryRequest/Response - API contracts
+```
+
+## Implementation Priority
+Follow the task order from tasks.md:
+1. Core interfaces and models ✓
+2. Azure service clients ✓
+3. Data processors ✓
+4. Search agents
+5. Agent orchestrator
+6. API controllers
+7. Monitoring and deployment
+
+Remember: This is a production-ready system requiring robust error handling, comprehensive testing, and cost optimization throughout all implementations. 

@@ -1,0 +1,202 @@
+# Motorcycle RAG System Context
+
+## System Overview
+The Motorcycle RAG System is an AI-powered information retrieval system built on Azure AI Foundry platform. It implements a sophisticated multi-agent architecture that orchestrates intelligent search across heterogeneous data sources including CSV specifications, PDF manuals, and web sources.
+
+## Key Architecture Components
+
+### Multi-Agent Search Pattern
+```
+Sequential Search Flow: Vector DB → Web Augmentation → PDF Fallback
+
+1. QueryPlannerAgent (GPT-4o)
+   - Analyzes user queries and conversation context
+   - Breaks complex queries into focused subqueries
+   - Determines optimal search strategy
+
+2. VectorSearchAgent
+   - Executes hybrid search in Azure AI Search
+   - Combines keyword and semantic search
+   - Handles both CSV and embedded content
+
+3. WebSearchAgent
+   - Augments results with authoritative web sources
+   - Implements web scraping with rate limiting
+   - Validates source credibility
+
+4. PDFSearchAgent
+   - Searches processed PDF manual content
+   - Maintains document structure context
+   - Provides section and page citations
+```
+
+### Data Processing Pipeline
+```
+CSV Processing:
+- Row-based chunking for relational integrity
+- Support for 100+ columns with header detection
+- Embedding generation using text-embedding-3-large
+- Metadata augmentation and field mapping
+
+PDF Processing:
+- Azure Document Intelligence Layout model
+- Semantic chunking with embedding-based boundaries
+- Multimodal content processing with GPT-4 Vision
+- Hierarchical structure preservation
+```
+
+## Project Structure Context
+
+### Core Layers
+```
+src/MotorcycleRAG.API/          - Entry point, controllers, request/response models
+src/MotorcycleRAG.Core/         - Business logic, interfaces, domain models, agents
+src/MotorcycleRAG.Infrastructure/ - Azure service integrations, data processors
+src/MotorcycleRAG.Shared/       - Common utilities, extensions, constants
+```
+
+### Key Interfaces Already Implemented
+- `IMotorcycleRAGService` - Main service contract
+- `IAgentOrchestrator` - Multi-agent coordination
+- `ISearchAgent` - Search agent contract  
+- `IAzureOpenAIClient` - OpenAI client wrapper
+- `IAzureSearchClient` - Search service client
+- `IDocumentIntelligenceClient` - Document processing client
+- `IDataProcessor<T>` - Generic data processing contract
+
+### Current Implementation Status
+✅ **Completed (Tasks 1-5)**:
+- Project structure and core interfaces
+- Azure service clients with authentication
+- Core domain models and validation
+- CSV data processor (MotorcycleCSVProcessor)
+- PDF document processor (MotorcyclePDFProcessor)
+
+🚧 **In Progress (Task 6)**:
+- Azure AI Search indexing service (MotorcycleIndexingService)
+
+📋 **Remaining Tasks**:
+- Search agents implementation (Vector, Web, PDF)
+- Query planner agent
+- Agent orchestrator with Semantic Kernel
+- API controllers and endpoints
+- Resilience patterns and monitoring
+
+## Key Domain Models
+
+### MotorcycleSpecification
+```csharp
+- Id, Make, Model, Year
+- EngineSpecification, PerformanceMetrics
+- SafetyFeatures, PricingInformation
+- Dictionary<string, object> AdditionalSpecs
+```
+
+### MotorcycleDocument
+```csharp
+- Id, Title, Content, Type
+- DocumentMetadata, ContentVector
+- Used for PDF and processed text content
+```
+
+### SearchResult
+```csharp
+- Id, Content, RelevanceScore
+- SearchSource, Metadata dictionary
+- Unified result format across all agents
+```
+
+## Azure Services Configuration
+
+### Required Azure Resources
+- **Azure OpenAI**: GPT-4o, GPT-4o-mini, text-embedding-3-large, GPT-4 Vision
+- **Azure AI Search**: Hybrid vector/keyword search with custom indexing
+- **Azure Document Intelligence**: Layout model for PDF processing
+- **Application Insights**: Monitoring, telemetry, and cost tracking
+- **Azure Container Apps**: Scalable deployment platform
+
+### Authentication Pattern
+```csharp
+// Use DefaultAzureCredential for all Azure services
+services.AddSingleton<DefaultAzureCredential>();
+services.AddScoped<IAzureOpenAIClient, AzureOpenAIClientWrapper>();
+```
+
+## Error Handling Patterns
+
+### Resilience Implementation
+```csharp
+// Circuit breaker for Azure OpenAI
+CircuitBreakerPolicy with 5 failures, 1-minute break
+
+// Retry with exponential backoff
+3 retries, 2^attempt seconds delay
+
+// Graceful degradation
+Fallback to cached results or partial responses
+```
+
+## Performance Targets
+
+### Response Time Requirements
+- < 3 seconds for 95th percentile queries
+- Support 100 concurrent users
+- Batch processing: 100-1000 documents per operation
+
+### Cost Optimization Strategies
+- Use GPT-4o-mini for standard chat completion
+- Implement query result caching
+- Vector compression for storage efficiency
+- Azure Cost Management integration
+
+## Testing Strategy
+
+### Test Coverage Requirements
+```
+Unit Tests: Mock Azure dependencies, test business logic
+Integration Tests: Real Azure services, end-to-end workflows  
+Performance Tests: Load testing, concurrent user scenarios
+```
+
+### Key Test Scenarios
+- Multi-agent coordination under various conditions
+- Data processing with real CSV and PDF files
+- Error handling and retry mechanisms
+- Search result ranking and fusion algorithms
+
+## Common Development Patterns
+
+### Async Operations
+```csharp
+// All I/O operations must be async
+public async Task<SearchResult[]> SearchAsync(string query, SearchOptions options)
+```
+
+### Dependency Injection
+```csharp
+// Register all services in Program.cs
+builder.Services.AddScoped<IMotorcycleRAGService, MotorcycleRAGService>();
+```
+
+### Configuration Management
+```csharp
+// Environment-specific configuration
+appsettings.json, appsettings.Development.json, appsettings.Production.json
+```
+
+## API Design Patterns
+
+### RESTful Endpoints
+```
+POST /api/motorcycle/query - Submit search query
+GET /api/motorcycle/health - Health check
+POST /api/motorcycle/index - Trigger data indexing
+```
+
+### Request/Response Models
+```csharp
+MotorcycleQueryRequest -> MotorcycleQueryResponse
+Include QueryId for correlation, Sources for transparency
+```
+
+This context should guide development decisions and help understand the overall system architecture and implementation approach. 

@@ -107,7 +107,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     }
 
     /// <summary>
-    /// Index processed data into Azure AI Search
+    /// Index processed data into Azure AI Search using the dedicated indexing service
     /// </summary>
     public async Task<IndexingResult> IndexAsync(ProcessedData data)
     {
@@ -116,9 +116,10 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
 
         try
         {
-            _logger.LogInformation("Starting indexing of {DocumentCount} documents", data.Documents.Count);
+            _logger.LogInformation("Starting CSV indexing of {DocumentCount} documents", data.Documents.Count);
 
-            // Index documents in batches
+            // Use the search client for basic indexing (backward compatibility)
+            // In production, this would be replaced with IMotorcycleIndexingService
             var batchSize = 100; // Optimal batch size for Azure AI Search
             var batches = data.Documents.Chunk(batchSize);
             var totalIndexed = 0;
@@ -148,14 +149,14 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
             result.Success = totalIndexed > 0;
             result.DocumentsIndexed = totalIndexed;
             result.Errors = errors;
-            result.Message = $"Indexed {totalIndexed} documents successfully";
-            result.IndexName = "motorcycle-specifications";
+            result.Message = $"Indexed {totalIndexed} CSV documents successfully";
+            result.IndexName = "motorcycle-csv-index";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fatal error during indexing");
+            _logger.LogError(ex, "Fatal error during CSV indexing");
             result.Success = false;
-            result.Message = $"Indexing failed: {ex.Message}";
+            result.Message = $"CSV indexing failed: {ex.Message}";
             result.Errors.Add(ex.Message);
         }
         finally

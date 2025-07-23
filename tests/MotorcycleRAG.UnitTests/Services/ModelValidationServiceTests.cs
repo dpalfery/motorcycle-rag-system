@@ -140,7 +140,7 @@ public class ModelValidationServiceTests
     [Theory]
     [InlineData("")]
     [InlineData(null)]
-    public void ValidateMotorcycleSpecification_WithInvalidMake_ShouldReturnInvalid(string make)
+    public void ValidateMotorcycleSpecification_WithInvalidMake_ShouldReturnInvalid(string? make)
     {
         // Arrange
         var specification = CreateValidMotorcycleSpecification();
@@ -191,7 +191,7 @@ public class ModelValidationServiceTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
-    public void ValidateMotorcycleDocument_WithEmptyContent_ShouldReturnInvalid(string content)
+    public void ValidateMotorcycleDocument_WithEmptyContent_ShouldReturnInvalid(string? content)
     {
         // Arrange
         var document = CreateValidMotorcycleDocument();
@@ -283,7 +283,7 @@ public class ModelValidationServiceTests
     [Theory]
     [InlineData("")]
     [InlineData(null)]
-    public void ValidateMotorcycleDocument_WithInvalidTitle_ShouldReturnInvalid(string title)
+    public void ValidateMotorcycleDocument_WithInvalidTitle_ShouldReturnInvalid(string? title)
     {
         // Arrange
         var document = CreateValidMotorcycleDocument();
@@ -334,7 +334,7 @@ public class ModelValidationServiceTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
-    public void ValidateQueryRequest_WithEmptyQuery_ShouldReturnInvalid(string query)
+    public void ValidateQueryRequest_WithEmptyQuery_ShouldReturnInvalid(string? query)
     {
         // Arrange
         var request = CreateValidQueryRequest();

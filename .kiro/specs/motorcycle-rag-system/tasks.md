@@ -70,7 +70,7 @@
   - Create unit tests for PDF processing with sample documents
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 6. Create Azure AI Search indexing service
+- [x] 6. Create Azure AI Search indexing service
 
   - Implement search index creation with hybrid vector/keyword capabilities
   - Create indexing service for CSV and PDF processed data
@@ -79,7 +79,7 @@
   - Write integration tests for indexing operations
   - _Requirements: 2.4, 3.4, 6.3_
 
-- [ ] 7. Implement Vector Search Agent
+- [x] 7. Implement Vector Search Agent
 
   - Create VectorSearchAgent class implementing ISearchAgent interface
   - Implement hybrid search combining keyword and semantic search

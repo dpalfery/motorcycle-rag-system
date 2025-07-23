@@ -1,8 +1,12 @@
+using Azure.Identity;
+using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MotorcycleRAG.Core.Agents;
 using MotorcycleRAG.Core.Interfaces;
 using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Infrastructure.Search;
 
 namespace MotorcycleRAG.Infrastructure.Azure;
 
@@ -34,6 +38,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAzureOpenAIClient, AzureOpenAIClientWrapper>();
         services.AddSingleton<IAzureSearchClient, AzureSearchClientWrapper>();
         services.AddSingleton<IDocumentIntelligenceClient, DocumentIntelligenceClientWrapper>();
+
+        // Register SearchIndexClient for direct Azure Search operations
+        services.AddSingleton<SearchIndexClient>(serviceProvider =>
+        {
+            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIConfiguration>>().Value;
+            var credential = new DefaultAzureCredential();
+            return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), credential);
+        });
+
+        // Register indexing service
+        services.AddScoped<IMotorcycleIndexingService, MotorcycleIndexingService>();
+
+        // Register search agents
+        services.AddScoped<ISearchAgent, VectorSearchAgent>();
 
         // Configure HTTP clients for external services
         services.AddHttpClient();

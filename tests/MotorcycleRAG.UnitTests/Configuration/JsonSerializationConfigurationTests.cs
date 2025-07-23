@@ -368,8 +368,8 @@ public class FloatArrayConverterTests
 
         // Assert
         result.Should().NotBeNull();
-        result.Should().HaveCount(3);
-        result[0].Should().Be(1.0f);
+        result!.Should().HaveCount(3);
+        result![0].Should().Be(1.0f);
         result[1].Should().Be(2.0f);
         result[2].Should().Be(3.0f);
     }

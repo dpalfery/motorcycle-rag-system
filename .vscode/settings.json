@@ -1,0 +1,12 @@
+{
+  "cursor.autocomplete.enabled": true,
+  "cursor.chat.enabled": true,
+  "git.enableSmartCommit": true,
+  "git.confirmSync": false,
+  "git.postCommitCommand": "sync",
+  "files.autoSave": "onFocusChange",
+  "files.autoSaveDelay": 1000,
+  "editor.formatOnSave": true,
+  "git.autofetch": true,
+  "git.autofetchPeriod": 180
+} 

@@ -2,6 +2,7 @@ using Azure;
 using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
+using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Interfaces;
@@ -107,12 +108,31 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         {
             _logger.LogDebug("Indexing {DocumentCount} documents", documents.Length);
 
-            // Simplified implementation - in a real scenario, you would use the actual Azure Search SDK
-            // For now, simulate indexing operation
-            await Task.Delay(200, cancellationToken); // Simulate indexing operation
+            var result = await _retryPolicy.ExecuteAsync(async () =>
+            {
+                var indexDocumentsAction = IndexDocumentsBatch.Upload(documents);
+                var response = await _searchClient.IndexDocumentsAsync(indexDocumentsAction, new IndexDocumentsOptions(), cancellationToken);
+                
+                // Check if all documents were successfully indexed
+                var failedCount = response.Value.Results.Count(r => !r.Succeeded);
+                if (failedCount > 0)
+                {
+                    _logger.LogWarning("Failed to index {FailedCount} out of {TotalCount} documents", 
+                        failedCount, documents.Length);
+                    
+                    // Log specific failures
+                    foreach (var result in response.Value.Results.Where(r => !r.Succeeded))
+                    {
+                        _logger.LogWarning("Document indexing failed - Key: {Key}, Status: {Status}, Error: {Error}",
+                            result.Key, result.Status, result.ErrorMessage);
+                    }
+                }
+                
+                return failedCount == 0;
+            });
 
             _logger.LogDebug("Successfully indexed {DocumentCount} documents", documents.Length);
-            return true;
+            return result;
         }
         catch (RequestFailedException ex)
         {

@@ -259,7 +259,6 @@ public class VectorSearchAgentTests : IDisposable
             MaxResults = 10,
             MinRelevanceScore = 0.5f,
             IncludeMetadata = true,
-            Fields = new List<string>(),
             Filters = new Dictionary<string, object>()
         };
     }

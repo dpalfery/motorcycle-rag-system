@@ -579,17 +579,24 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
                 filteredDocuments.Count, indexName);
 
             // Process documents in batches (100-1000 per batch as per requirements)
-            var batchSize = Math.Min(_searchConfig.BatchSize, 1000);
+            var batchSize = ValidateBatchSize(_searchConfig.BatchSize, filteredDocuments.Count);
             var batches = filteredDocuments.Chunk(batchSize);
             var totalIndexed = 0;
             var errors = new List<string>();
+            var batchNumber = 0;
 
             foreach (var batch in batches)
             {
+                batchNumber++;
+                var batchStartTime = DateTime.UtcNow;
+                
                 try
                 {
                     var batchArray = batch.ToArray();
                     var indexDocuments = ConvertToIndexDocuments(batchArray, indexName);
+                    
+                    _logger.LogDebug("Processing batch {BatchNumber} with {BatchSize} documents for {IndexName}",
+                        batchNumber, batchArray.Length, indexName);
                     
                     // Use the search client to index the batch
                     var batchSuccess = await _searchClient.IndexDocumentsAsync(indexDocuments, cancellationToken);
@@ -597,20 +604,22 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
                     if (batchSuccess)
                     {
                         totalIndexed += batchArray.Length;
-                        _logger.LogDebug("Successfully indexed batch of {BatchSize} documents", batchArray.Length);
+                        var batchTime = DateTime.UtcNow - batchStartTime;
+                        _logger.LogDebug("Successfully indexed batch {BatchNumber} of {BatchSize} documents in {BatchTime:F2}s", 
+                            batchNumber, batchArray.Length, batchTime.TotalSeconds);
                     }
                     else
                     {
-                        var errorMsg = $"Failed to index batch of {batchArray.Length} documents";
+                        var errorMsg = $"Failed to index batch {batchNumber} of {batchArray.Length} documents";
                         errors.Add(errorMsg);
                         _logger.LogWarning(errorMsg);
                     }
                 }
                 catch (Exception ex)
                 {
-                    var errorMsg = $"Error indexing batch: {ex.Message}";
+                    var errorMsg = $"Error indexing batch {batchNumber}: {ex.Message}";
                     errors.Add(errorMsg);
-                    _logger.LogError(ex, "Error indexing batch to {IndexName}", indexName);
+                    _logger.LogError(ex, "Error indexing batch {BatchNumber} to {IndexName}", batchNumber, indexName);
                 }
             }
 
@@ -620,6 +629,9 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             result.Message = result.Success
                 ? $"Successfully indexed {totalIndexed}/{filteredDocuments.Count} documents"
                 : $"Failed to index documents to {indexName}";
+
+            // Log indexing metrics
+            LogIndexingMetrics(indexName, totalIndexed, DateTime.UtcNow - startTime, errors);
 
             _logger.LogInformation("Batch indexing completed for {IndexName}. Indexed: {IndexedCount}/{TotalCount}",
                 indexName, totalIndexed, filteredDocuments.Count);
@@ -661,12 +673,16 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
 
     private object CreateIndexDocument(MotorcycleDocument doc, string indexName)
     {
-        // Extract motorcycle information from metadata
-        var make = ExtractMetadataValue(doc.Metadata, "Make", "");
-        var model = ExtractMetadataValue(doc.Metadata, "Model", "");
-        var year = ExtractMetadataValue(doc.Metadata, "Year", "");
+        // Apply field mapping and metadata management
+        var fieldMapping = GetFieldMappingForIndex(indexName);
+        var metadataConfig = GetMetadataConfigurationForIndex(indexName);
+        
+        // Extract motorcycle information from metadata with field mapping
+        var make = ApplyFieldMapping(doc.Metadata, "Make", "", fieldMapping);
+        var model = ApplyFieldMapping(doc.Metadata, "Model", "", fieldMapping);
+        var year = ApplyFieldMapping(doc.Metadata, "Year", "", fieldMapping);
 
-        // Base document structure
+        // Base document structure with required fields
         var indexDoc = new Dictionary<string, object>
         {
             ["id"] = doc.Id,
@@ -685,18 +701,18 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             ["metadata"] = JsonSerializer.Serialize(doc.Metadata.AdditionalProperties)
         };
 
-        // Add index-specific fields
+        // Add index-specific fields with metadata management
         if (indexName == PDF_INDEX_NAME || indexName == UNIFIED_INDEX_NAME)
         {
             indexDoc["pageNumber"] = doc.Metadata.PageNumber;
             indexDoc["sourceUrl"] = doc.Metadata.SourceUrl;
             indexDoc["author"] = doc.Metadata.Author;
             indexDoc["publishedDate"] = doc.Metadata.PublishedDate;
-            indexDoc["language"] = ExtractMetadataValue(doc.Metadata, "Language", "en");
+            indexDoc["language"] = ApplyFieldMapping(doc.Metadata, "Language", "en", fieldMapping);
             
             if (indexName == PDF_INDEX_NAME)
             {
-                indexDoc["chunkType"] = ExtractMetadataValue(doc.Metadata, "ChunkType", "Text");
+                indexDoc["chunkType"] = ApplyFieldMapping(doc.Metadata, "ChunkType", "Text", fieldMapping);
             }
         }
 
@@ -705,7 +721,91 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             indexDoc["sourceType"] = doc.Type == DocumentType.Specification ? "CSV" : "PDF";
         }
 
+        // Apply metadata configuration
+        ApplyMetadataConfiguration(indexDoc, doc, metadataConfig);
+
         return indexDoc;
+    }
+
+    private FieldMappingConfiguration GetFieldMappingForIndex(string indexName)
+    {
+        // Return appropriate field mapping configuration based on index
+        return new FieldMappingConfiguration
+        {
+            FieldMappings = new Dictionary<string, string>
+            {
+                ["Make"] = "make",
+                ["Model"] = "model", 
+                ["Year"] = "year",
+                ["Language"] = "language",
+                ["ChunkType"] = "chunkType"
+            },
+            SearchableFields = new List<string> { "title", "content", "make", "model", "tags" },
+            FilterableFields = new List<string> { "documentType", "make", "model", "year", "sourceFile", "section" },
+            FacetableFields = new List<string> { "make", "model", "year", "documentType", "section", "tags" },
+            SortableFields = new List<string> { "title", "year", "createdAt", "updatedAt", "pageNumber" }
+        };
+    }
+
+    private MetadataConfiguration GetMetadataConfigurationForIndex(string indexName)
+    {
+        return new MetadataConfiguration
+        {
+            IncludeSourceMetadata = true,
+            IncludeProcessingMetadata = true,
+            RequiredMetadataFields = new List<string> { "make", "model", "documentType" },
+            DefaultMetadataValues = new Dictionary<string, object>
+            {
+                ["language"] = "en",
+                ["chunkType"] = "Text",
+                ["sourceType"] = indexName == UNIFIED_INDEX_NAME ? "Mixed" : 
+                               indexName == CSV_INDEX_NAME ? "CSV" : "PDF"
+            }
+        };
+    }
+
+    private string ApplyFieldMapping(DocumentMetadata metadata, string sourceField, string defaultValue, FieldMappingConfiguration fieldMapping)
+    {
+        // Apply field mapping if configured
+        var mappedField = fieldMapping.FieldMappings.ContainsKey(sourceField) 
+            ? fieldMapping.FieldMappings[sourceField] 
+            : sourceField;
+            
+        return ExtractMetadataValue(metadata, sourceField, defaultValue);
+    }
+
+    private void ApplyMetadataConfiguration(Dictionary<string, object> indexDoc, MotorcycleDocument doc, MetadataConfiguration metadataConfig)
+    {
+        // Apply default metadata values
+        foreach (var defaultValue in metadataConfig.DefaultMetadataValues)
+        {
+            if (!indexDoc.ContainsKey(defaultValue.Key))
+            {
+                indexDoc[defaultValue.Key] = defaultValue.Value;
+            }
+        }
+
+        // Validate required metadata fields
+        foreach (var requiredField in metadataConfig.RequiredMetadataFields)
+        {
+            if (!indexDoc.ContainsKey(requiredField) || 
+                indexDoc[requiredField] == null || 
+                string.IsNullOrEmpty(indexDoc[requiredField].ToString()))
+            {
+                _logger.LogWarning("Required metadata field '{Field}' is missing or empty for document {DocumentId}", 
+                    requiredField, doc.Id);
+                
+                // Set a default value to prevent indexing failure
+                indexDoc[requiredField] = "Unknown";
+            }
+        }
+
+        // Add processing metadata if enabled
+        if (metadataConfig.IncludeProcessingMetadata)
+        {
+            indexDoc["indexedAt"] = DateTime.UtcNow;
+            indexDoc["processingVersion"] = "1.0";
+        }
     }
 
     private string ExtractMetadataValue(DocumentMetadata metadata, string key, string defaultValue)
@@ -715,6 +815,59 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             return value?.ToString() ?? defaultValue;
         }
         return defaultValue;
+    }
+
+    /// <summary>
+    /// Validates batch size and adjusts if necessary to meet requirements (100-1000 documents per batch)
+    /// </summary>
+    private int ValidateBatchSize(int requestedSize, int documentCount)
+    {
+        const int MIN_BATCH_SIZE = 100;
+        const int MAX_BATCH_SIZE = 1000;
+        
+        // Ensure batch size is within acceptable range
+        var adjustedSize = Math.Max(MIN_BATCH_SIZE, Math.Min(MAX_BATCH_SIZE, requestedSize));
+        
+        // If we have fewer documents than minimum batch size, use document count
+        if (documentCount < MIN_BATCH_SIZE)
+        {
+            adjustedSize = documentCount;
+        }
+        
+        if (adjustedSize != requestedSize)
+        {
+            _logger.LogDebug("Adjusted batch size from {RequestedSize} to {AdjustedSize} (documents: {DocumentCount})",
+                requestedSize, adjustedSize, documentCount);
+        }
+        
+        return adjustedSize;
+    }
+
+    /// <summary>
+    /// Monitors indexing performance and logs metrics
+    /// </summary>
+    private void LogIndexingMetrics(string indexName, int documentsProcessed, TimeSpan processingTime, List<string> errors)
+    {
+        var documentsPerSecond = documentsProcessed / Math.Max(processingTime.TotalSeconds, 0.001);
+        var errorRate = errors.Count / (double)Math.Max(documentsProcessed, 1) * 100;
+        
+        _logger.LogInformation("Indexing metrics for {IndexName}: {DocumentsProcessed} docs, " +
+                              "{ProcessingTime:F2}s, {DocsPerSecond:F2} docs/sec, {ErrorRate:F2}% error rate",
+            indexName, documentsProcessed, processingTime.TotalSeconds, documentsPerSecond, errorRate);
+            
+        if (errors.Count > 0)
+        {
+            _logger.LogWarning("Indexing errors for {IndexName}: {ErrorCount} errors", indexName, errors.Count);
+            foreach (var error in errors.Take(5)) // Log first 5 errors to avoid log spam
+            {
+                _logger.LogWarning("Indexing error: {Error}", error);
+            }
+            
+            if (errors.Count > 5)
+            {
+                _logger.LogWarning("... and {AdditionalErrors} more errors", errors.Count - 5);
+            }
+        }
     }
 
     #endregion

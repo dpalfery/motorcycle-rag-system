@@ -41,7 +41,7 @@ public static class ServiceConfiguration
     {
         // Register core service interfaces (implementations will be added later)
         // services.AddScoped<IMotorcycleRAGService, MotorcycleRAGService>();
-        // services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+        services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Core.Services.AgentOrchestrator>();
 
         return services;
     }
@@ -52,8 +52,8 @@ public static class ServiceConfiguration
     public static IServiceCollection AddSearchAgents(this IServiceCollection services)
     {
         // Register search agent implementations (will be implemented later)
-        // services.AddScoped<ISearchAgent, VectorSearchAgent>();
-        // services.AddScoped<ISearchAgent, WebSearchAgent>();
+        services.AddScoped<ISearchAgent, MotorcycleRAG.Core.Agents.VectorSearchAgent>();
+        services.AddScoped<ISearchAgent, MotorcycleRAG.Core.Agents.WebSearchAgent>();
         // services.AddScoped<ISearchAgent, PDFSearchAgent>();
         // services.AddScoped<ISearchAgent, QueryPlannerAgent>();
 

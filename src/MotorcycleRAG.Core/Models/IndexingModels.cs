@@ -75,3 +75,17 @@ public class MetadataConfiguration
     public List<string> RequiredMetadataFields { get; set; } = new();
     public Dictionary<string, object> DefaultMetadataValues { get; set; } = new();
 }
+
+/// <summary>
+/// Index schema configuration for different document types
+/// </summary>
+public class IndexSchemaConfiguration
+{
+    public string IndexName { get; set; } = string.Empty;
+    public DocumentType DocumentType { get; set; }
+    public FieldMappingConfiguration FieldMapping { get; set; } = new();
+    public MetadataConfiguration Metadata { get; set; } = new();
+    public bool EnableVectorSearch { get; set; } = true;
+    public bool EnableSemanticSearch { get; set; } = true;
+    public int VectorDimensions { get; set; } = 1536;
+}

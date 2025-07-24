@@ -31,7 +31,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         // Build a lightweight Semantic Kernel instance.  
         // We do not configure specific AI connectors here – callers using the Kernel can add those through plugins.  
         // This keeps the orchestrator free from configuration secrets and makes it easier to test.
-        _kernel = new KernelBuilder().Build();
+        _kernel = Kernel.CreateBuilder().Build();
     }
 
     #region IAgentOrchestrator Implementation
@@ -94,10 +94,10 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
                                   .Select(r => $"[{r.Id}] {Truncate(r.Content, 500)}")
                                   .ToArray();
 
-            var prompt = $$""
+            var prompt = $"""
 You are an expert on motorcycle maintenance and specification.  
 Using only the information provided in the snippets below, answer the user's question.  
-Cite the snippet identifier (e.g. \"[1]\") after every statement that comes from a snippet.  
+Cite the snippet identifier (e.g. "[1]") after every statement that comes from a snippet.  
 If the answer cannot be determined from the snippets, say you do not have sufficient information.  
 
 User question: "{originalQuery}"

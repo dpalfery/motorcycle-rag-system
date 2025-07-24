@@ -51,8 +51,9 @@ public class SearchOptions
     public int MaxResults { get; set; } = 10;
     public float MinRelevanceScore { get; set; } = 0.5f;
     public bool IncludeMetadata { get; set; } = true;
-    public List<string> Fields { get; set; } = new();
     public Dictionary<string, object> Filters { get; set; } = new();
+    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    public bool EnableCaching { get; set; } = true;
 }
 
 /// <summary>

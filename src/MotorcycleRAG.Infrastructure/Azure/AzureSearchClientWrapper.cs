@@ -111,7 +111,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             var result = await _retryPolicy.ExecuteAsync(async () =>
             {
                 var indexDocumentsAction = IndexDocumentsBatch.Upload(documents);
-                var response = await _searchClient.IndexDocumentsAsync(indexDocumentsAction, cancellationToken);
+                var response = await _searchClient.IndexDocumentsAsync(indexDocumentsAction, new IndexDocumentsOptions(), cancellationToken);
                 
                 // Check if all documents were successfully indexed
                 var failedCount = response.Value.Results.Count(r => !r.Succeeded);

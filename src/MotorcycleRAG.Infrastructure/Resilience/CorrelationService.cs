@@ -137,7 +137,7 @@ public class CorrelationService
     private string GenerateCorrelationId()
     {
         // Use a format similar to W3C Trace Context but simplified
-        var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss");
+        var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff");
         var random = Guid.NewGuid().ToString("N")[..12]; // Take first 12 chars
         return $"corr-{timestamp}-{random}";
     }

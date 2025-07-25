@@ -181,7 +181,7 @@ public class ResilienceService
 
     private IAsyncPolicy CreateCombinedPolicy(
         string policyName,
-        CircuitBreakerConfiguration circuitConfig,
+        ServiceCircuitBreakerConfig circuitConfig,
         RetryConfiguration retryConfig)
     {
         // Retry policy
@@ -189,7 +189,6 @@ public class ResilienceService
             .Handle<HttpRequestException>()
             .Or<TaskCanceledException>()
             .Or<TimeoutException>()
-            .OrResult<object>(result => false) // Never retry on successful result
             .WaitAndRetryAsync(
                 retryCount: retryConfig.MaxRetries,
                 sleepDurationProvider: retryAttempt => retryConfig.UseExponentialBackoff

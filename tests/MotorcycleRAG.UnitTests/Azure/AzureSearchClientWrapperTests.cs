@@ -111,7 +111,7 @@ public class AzureSearchClientWrapperTests : IDisposable
         results.Length.Should().BeLessOrEqualTo(10);
     }
 
-    [Fact]
+    [Fact(Skip = "Integration test - requires actual Azure Search service")]
     public async Task IndexDocumentsAsync_WithValidDocuments_ShouldReturnTrue()
     {
         // Arrange

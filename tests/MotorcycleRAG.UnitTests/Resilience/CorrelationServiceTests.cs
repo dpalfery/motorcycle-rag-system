@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Moq;
 using MotorcycleRAG.Infrastructure.Resilience;
 using System.Diagnostics;
 using Xunit;
@@ -227,6 +228,6 @@ public class CorrelationServiceTests
         var correlationId = _correlationService.GetOrCreateCorrelationId();
 
         // Assert
-        Assert.Matches(@"^corr-\d{14}-[a-f0-9]{12}$", correlationId);
+        Assert.Matches(@"^corr-\d{17}-[a-f0-9]{12}$", correlationId);
     }
 }

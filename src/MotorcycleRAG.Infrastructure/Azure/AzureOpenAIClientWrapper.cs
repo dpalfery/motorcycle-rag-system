@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Interfaces;
 using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Infrastructure.Resilience;
 using Polly;
 
 namespace MotorcycleRAG.Infrastructure.Azure;
@@ -17,22 +18,28 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
     private readonly AzureOpenAIClient _client;
     private readonly AzureAIConfiguration _config;
     private readonly ILogger<AzureOpenAIClientWrapper> _logger;
+    private readonly ResilienceService _resilienceService;
+    private readonly CorrelationService _correlationService;
     private readonly IAsyncPolicy _retryPolicy;
     private bool _disposed;
 
     public AzureOpenAIClientWrapper(
         IOptions<AzureAIConfiguration> config,
-        ILogger<AzureOpenAIClientWrapper> logger)
+        ILogger<AzureOpenAIClientWrapper> logger,
+        ResilienceService resilienceService,
+        CorrelationService correlationService)
     {
         if (config == null) throw new ArgumentNullException(nameof(config));
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
+        _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
 
         // Initialize Azure OpenAI client with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
         _client = new AzureOpenAIClient(new Uri(_config.OpenAIEndpoint), credential);
 
-        // Configure retry policy with exponential backoff
+        // Configure retry policy with exponential backoff (kept for backward compatibility)
         _retryPolicy = CreateRetryPolicy();
 
         _logger.LogInformation("Azure OpenAI client initialized with endpoint: {Endpoint}", 
@@ -44,28 +51,34 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         string prompt,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            _logger.LogDebug("Getting chat completion for deployment: {DeploymentName}", deploymentName);
+        var correlationId = _correlationService.GetOrCreateCorrelationId();
+        
+        return await _resilienceService.ExecuteAsync(
+            "AzureOpenAI",
+            async () =>
+            {
+                using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
+                {
+                    ["Operation"] = "GetChatCompletion",
+                    ["DeploymentName"] = deploymentName
+                });
 
-            // Simplified implementation - in a real scenario, you would use the actual Azure OpenAI SDK
-            // For now, return a placeholder to demonstrate the pattern
-            await Task.Delay(100, cancellationToken); // Simulate API call
-            
-            _logger.LogDebug("Successfully retrieved chat completion");
-            return $"Chat completion response for: {prompt}";
-        }
-        catch (RequestFailedException ex)
-        {
-            _logger.LogError(ex, "Azure OpenAI request failed: {ErrorCode} - {Message}", 
-                ex.ErrorCode, ex.Message);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error in GetChatCompletionAsync");
-            throw;
-        }
+                _logger.LogDebug("Getting chat completion for deployment: {DeploymentName}", deploymentName);
+
+                // Simplified implementation - in a real scenario, you would use the actual Azure OpenAI SDK
+                // For now, return a placeholder to demonstrate the pattern
+                await Task.Delay(100, cancellationToken); // Simulate API call
+                
+                _logger.LogDebug("Successfully retrieved chat completion");
+                return $"Chat completion response for: {prompt}";
+            },
+            fallback: async () =>
+            {
+                _logger.LogWarning("Using fallback response for chat completion");
+                return $"Fallback response: Unable to process request at this time. Please try again later.";
+            },
+            correlationId,
+            cancellationToken);
     }
 
     public async Task<float[]> GetEmbeddingAsync(
@@ -82,33 +95,43 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         string[] texts,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            _logger.LogDebug("Getting embeddings for deployment: {DeploymentName}, Text count: {TextCount}", 
-                deploymentName, texts.Length);
+        var correlationId = _correlationService.GetOrCreateCorrelationId();
+        
+        return await _resilienceService.ExecuteAsync(
+            "AzureOpenAI",
+            async () =>
+            {
+                using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
+                {
+                    ["Operation"] = "GetEmbeddings",
+                    ["DeploymentName"] = deploymentName,
+                    ["TextCount"] = texts.Length
+                });
 
-            // Simplified implementation - in a real scenario, you would use the actual Azure OpenAI SDK
-            // For now, return placeholder embeddings to demonstrate the pattern
-            await Task.Delay(100, cancellationToken); // Simulate API call
+                _logger.LogDebug("Getting embeddings for deployment: {DeploymentName}, Text count: {TextCount}", 
+                    deploymentName, texts.Length);
 
-            var embeddings = texts.Select(text => 
-                Enumerable.Range(0, 1536).Select(i => (float)Random.Shared.NextDouble()).ToArray()
-            ).ToArray();
+                // Simplified implementation - in a real scenario, you would use the actual Azure OpenAI SDK
+                // For now, return placeholder embeddings to demonstrate the pattern
+                await Task.Delay(100, cancellationToken); // Simulate API call
 
-            _logger.LogDebug("Successfully retrieved embeddings");
-            return embeddings;
-        }
-        catch (RequestFailedException ex)
-        {
-            _logger.LogError(ex, "Azure OpenAI embeddings request failed: {ErrorCode} - {Message}", 
-                ex.ErrorCode, ex.Message);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error in GetEmbeddingsAsync");
-            throw;
-        }
+                var embeddings = texts.Select(text => 
+                    Enumerable.Range(0, 1536).Select(i => (float)Random.Shared.NextDouble()).ToArray()
+                ).ToArray();
+
+                _logger.LogDebug("Successfully retrieved embeddings");
+                return embeddings;
+            },
+            fallback: async () =>
+            {
+                _logger.LogWarning("Using fallback embeddings for {TextCount} texts", texts.Length);
+                // Return zero embeddings as fallback
+                return texts.Select(text => 
+                    new float[1536] // All zeros
+                ).ToArray();
+            },
+            correlationId,
+            cancellationToken);
     }
 
     public async Task<string> ProcessMultimodalContentAsync(

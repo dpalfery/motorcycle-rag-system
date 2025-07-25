@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Interfaces;
 using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Infrastructure.Resilience;
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
 
@@ -21,19 +22,25 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
     private readonly SearchIndexClient _indexClient;
     private readonly SearchConfiguration _searchConfig;
     private readonly ILogger<AzureSearchClientWrapper> _logger;
+    private readonly ResilienceService _resilienceService;
+    private readonly CorrelationService _correlationService;
     private readonly IAsyncPolicy _retryPolicy;
     private bool _disposed;
 
     public AzureSearchClientWrapper(
         IOptions<AzureAIConfiguration> azureConfig,
         IOptions<SearchConfiguration> searchConfig,
-        ILogger<AzureSearchClientWrapper> logger)
+        ILogger<AzureSearchClientWrapper> logger,
+        ResilienceService resilienceService,
+        CorrelationService correlationService)
     {
         if (azureConfig == null) throw new ArgumentNullException(nameof(azureConfig));
         if (searchConfig == null) throw new ArgumentNullException(nameof(searchConfig));
         var config = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
         _searchConfig = searchConfig.Value ?? throw new ArgumentNullException(nameof(searchConfig));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
+        _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
 
         // Initialize Azure Search clients with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
@@ -42,7 +49,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         _indexClient = new SearchIndexClient(searchEndpoint, credential);
         _searchClient = new SearchClient(searchEndpoint, _searchConfig.IndexName, credential);
 
-        // Configure resilience policies
+        // Configure resilience policies (kept for backward compatibility)
         _retryPolicy = CreateRetryPolicy(config.Retry);
 
         _logger.LogInformation("Azure Search client initialized with endpoint: {Endpoint}, Index: {IndexName}", 
@@ -54,50 +61,77 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         int maxResults = 50,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            _logger.LogDebug("Executing search query: {SearchText}", searchText);
-
-            // Simplified implementation - in a real scenario, you would use the actual Azure Search SDK
-            // For now, return placeholder results to demonstrate the pattern
-            await Task.Delay(100, cancellationToken); // Simulate search operation
-
-            var results = new List<SearchResult>();
-            for (int i = 0; i < Math.Min(maxResults, 5); i++)
+        var correlationId = _correlationService.GetOrCreateCorrelationId();
+        
+        return await _resilienceService.ExecuteAsync(
+            "AzureSearch",
+            async () =>
             {
-                results.Add(new SearchResult
+                using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
                 {
-                    Id = $"doc_{i}",
-                    Content = $"Search result {i} for query: {searchText}",
-                    RelevanceScore = 1.0f - (i * 0.1f),
-                    Source = new SearchSource
-                    {
-                        AgentType = SearchAgentType.VectorSearch,
-                        SourceName = "Azure AI Search",
-                        DocumentId = $"doc_{i}"
-                    },
-                    Metadata = new Dictionary<string, object>
-                    {
-                        ["index"] = i,
-                        ["query"] = searchText
-                    }
+                    ["Operation"] = "Search",
+                    ["SearchText"] = searchText,
+                    ["MaxResults"] = maxResults
                 });
-            }
 
-            _logger.LogDebug("Search completed successfully with {ResultCount} results", results.Count);
-            return results.ToArray();
-        }
-        catch (RequestFailedException ex)
-        {
-            _logger.LogError(ex, "Azure Search request failed: {ErrorCode} - {Message}", 
-                ex.ErrorCode, ex.Message);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error in SearchAsync");
-            throw;
-        }
+                _logger.LogDebug("Executing search query: {SearchText}", searchText);
+
+                // Simplified implementation - in a real scenario, you would use the actual Azure Search SDK
+                // For now, return placeholder results to demonstrate the pattern
+                await Task.Delay(100, cancellationToken); // Simulate search operation
+
+                var results = new List<SearchResult>();
+                for (int i = 0; i < Math.Min(maxResults, 5); i++)
+                {
+                    results.Add(new SearchResult
+                    {
+                        Id = $"doc_{i}",
+                        Content = $"Search result {i} for query: {searchText}",
+                        RelevanceScore = 1.0f - (i * 0.1f),
+                        Source = new SearchSource
+                        {
+                            AgentType = SearchAgentType.VectorSearch,
+                            SourceName = "Azure AI Search",
+                            DocumentId = $"doc_{i}"
+                        },
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["index"] = i,
+                            ["query"] = searchText
+                        }
+                    });
+                }
+
+                _logger.LogDebug("Search completed successfully with {ResultCount} results", results.Count);
+                return results.ToArray();
+            },
+            fallback: async () =>
+            {
+                _logger.LogWarning("Using fallback search results for query: {SearchText}", searchText);
+                // Return a simple fallback result
+                return new[]
+                {
+                    new SearchResult
+                    {
+                        Id = "fallback_result",
+                        Content = $"Fallback: Search service is temporarily unavailable. Your query '{searchText}' has been noted.",
+                        RelevanceScore = 0.5f,
+                        Source = new SearchSource
+                        {
+                            AgentType = SearchAgentType.VectorSearch,
+                            SourceName = "Fallback Service",
+                            DocumentId = "fallback"
+                        },
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["fallback"] = true,
+                            ["query"] = searchText
+                        }
+                    }
+                };
+            },
+            correlationId,
+            cancellationToken);
     }
 
     public async Task<bool> IndexDocumentsAsync<T>(

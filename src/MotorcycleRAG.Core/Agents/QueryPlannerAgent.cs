@@ -45,22 +45,27 @@ public class QueryPlannerAgent : IQueryPlannerAgent
 
         var plan = await GeneratePlanAsync(query, options);
 
+        if (plan.SubQueries == null || plan.SubQueries.Count == 0)
+        {
+            return Array.Empty<SearchResult>();
+        }
+
         var tasks = new List<Task<SearchResult[]>>();
+        var vectorAgent = _searchAgents.FirstOrDefault(a => a.AgentType == SearchAgentType.VectorSearch);
+        var webAgent = plan.UseWebSearch
+            ? _searchAgents.FirstOrDefault(a => a.AgentType == SearchAgentType.WebSearch)
+            : null;
+
         foreach (var subQuery in plan.SubQueries)
         {
-            var vectorAgent = _searchAgents.FirstOrDefault(a => a.AgentType == SearchAgentType.VectorSearch);
             if (vectorAgent != null)
             {
                 tasks.Add(vectorAgent.SearchAsync(subQuery, options));
             }
 
-            if (plan.UseWebSearch)
+            if (webAgent != null)
             {
-                var webAgent = _searchAgents.FirstOrDefault(a => a.AgentType == SearchAgentType.WebSearch);
-                if (webAgent != null)
-                {
-                    tasks.Add(webAgent.SearchAsync(subQuery, options));
-                }
+                tasks.Add(webAgent.SearchAsync(subQuery, options));
             }
         }
 
@@ -100,7 +105,7 @@ public class QueryPlannerAgent : IQueryPlannerAgent
             var plan = JsonSerializer.Deserialize<QueryPlan>(
                 response,
                 JsonSerializationConfiguration.DefaultOptions);
-            if (plan == null || plan.SubQueries.Count == 0)
+            if (plan?.SubQueries == null || plan.SubQueries.Count == 0)
             {
                 plan = CreateFallbackPlan(query);
             }
@@ -129,3 +134,4 @@ public class QueryPlannerAgent : IQueryPlannerAgent
         RunParallel = true
     };
 }
+

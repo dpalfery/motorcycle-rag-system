@@ -12,11 +12,13 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
 {
     private readonly IAgentOrchestrator _orchestrator;
     private readonly ILogger<MotorcycleRAGService> _logger;
+    private readonly ITelemetryService _telemetryService;
 
-    public MotorcycleRAGService(IAgentOrchestrator orchestrator, ILogger<MotorcycleRAGService> logger)
+    public MotorcycleRAGService(IAgentOrchestrator orchestrator, ILogger<MotorcycleRAGService> logger, ITelemetryService telemetryService)
     {
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _telemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
     }
 
     /// <inheritdoc />
@@ -65,6 +67,9 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
         };
 
         _logger.LogInformation("Query processed. {Results} results, duration {Duration} ms", results.Length, stopwatch.ElapsedMilliseconds);
+        
+        // Track telemetry
+        _telemetryService.TrackQuery(response.QueryId, request.Query, stopwatch.Elapsed, results.Length, response.Metrics.EstimatedCost);
 
         return response;
     }

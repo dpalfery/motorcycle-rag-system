@@ -1,5 +1,7 @@
 using MotorcycleRAG.API.Configuration;
 using Microsoft.ApplicationInsights.Extensibility;
+using Azure.Identity;
+using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,9 +16,33 @@ if (builder.Environment.IsProduction())
     builder.Logging.AddJsonConsole();
 }
 
+// Add Azure App Configuration & Key Vault
+builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
+{
+    var tempConfig = config.Build();
+    var appConfigEndpoint = tempConfig["AppConfig:Endpoint"];
+    if (!string.IsNullOrEmpty(appConfigEndpoint))
+    {
+        var credential = new DefaultAzureCredential();
+        config.AddAzureAppConfiguration(options =>
+        {
+            options.Connect(new Uri(appConfigEndpoint), credential)
+                   // Load all non-labelled keys
+                   .Select(KeyFilter.Any, LabelFilter.Null)
+                   // Load environment-specific labelled keys (e.g. Development, Production)
+                   .Select(KeyFilter.Any, hostingContext.HostingEnvironment.EnvironmentName)
+                   // Configure Key Vault integration
+                   .ConfigureKeyVault(kv => kv.SetCredential(credential));
+        });
+    }
+});
+
+// Refresh builder configuration to include AppConfig values
+var configuration = builder.Configuration;
+
 // Add Application Insights telemetry
-var appInsightsConnectionString = builder.Configuration.GetConnectionString("ApplicationInsights") 
-    ?? builder.Configuration["ApplicationInsights:ConnectionString"];
+var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights") 
+    ?? configuration["ApplicationInsights:ConnectionString"];
 
 if (!string.IsNullOrEmpty(appInsightsConnectionString))
 {
@@ -25,7 +51,7 @@ if (!string.IsNullOrEmpty(appInsightsConnectionString))
         options.ConnectionString = appInsightsConnectionString;
         options.EnableAdaptiveSampling = true;
         options.EnableQuickPulseMetricStream = true;
-        options.EnablePerformanceCounterCollectionModule = builder.Configuration.GetValue<bool>("ApplicationInsights:EnablePerformanceCounters", true);
+        options.EnablePerformanceCounterCollectionModule = configuration.GetValue<bool>("ApplicationInsights:EnablePerformanceCounters", true);
     });
     
     // Add custom telemetry initializer
@@ -63,14 +89,14 @@ builder.Services.AddCors(options =>
 // Configure custom services with validation
 try
 {
-    builder.Services.AddAzureAIServices(builder.Configuration);
+    builder.Services.AddAzureAIServices(configuration);
     builder.Services.AddCoreServices();
     builder.Services.AddSearchAgents();
     builder.Services.AddDataProcessors();
-    builder.Services.AddHealthChecks(builder.Configuration);
+    builder.Services.AddHealthChecks(configuration);
     
     // Validate configuration early
-    ValidateConfiguration(builder.Configuration, builder.Environment);
+    ValidateConfiguration(configuration, builder.Environment);
 }
 catch (Exception ex)
 {

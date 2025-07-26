@@ -23,7 +23,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-          include-prerelease: true
 
       - name: Restore & Build
         run: |
@@ -31,7 +30,7 @@ jobs:
           dotnet build -c Release --no-restore
 
       - name: Run Unit Tests
-        run: dotnet test --no-build --verbosity normal
+        run: dotnet test -c Release --no-build --verbosity normal
 
       # Docker is required for image build inside Pulumi program
       - name: Set up Docker Buildx

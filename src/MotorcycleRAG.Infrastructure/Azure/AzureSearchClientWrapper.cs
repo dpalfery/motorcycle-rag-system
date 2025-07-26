@@ -22,8 +22,8 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
     private readonly SearchIndexClient _indexClient;
     private readonly SearchConfiguration _searchConfig;
     private readonly ILogger<AzureSearchClientWrapper> _logger;
-    private readonly ResilienceService _resilienceService;
-    private readonly CorrelationService _correlationService;
+    private readonly IResilienceService _resilienceService;
+    private readonly ICorrelationService _correlationService;
     private readonly IAsyncPolicy _retryPolicy;
     private bool _disposed;
 
@@ -31,8 +31,8 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         IOptions<AzureAIConfiguration> azureConfig,
         IOptions<SearchConfiguration> searchConfig,
         ILogger<AzureSearchClientWrapper> logger,
-        ResilienceService resilienceService,
-        CorrelationService correlationService)
+        IResilienceService resilienceService,
+        ICorrelationService correlationService)
     {
         if (azureConfig == null) throw new ArgumentNullException(nameof(azureConfig));
         if (searchConfig == null) throw new ArgumentNullException(nameof(searchConfig));

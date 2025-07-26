@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Interfaces;
 using System.Diagnostics;
 
 namespace MotorcycleRAG.Infrastructure.Resilience;
@@ -6,7 +7,7 @@ namespace MotorcycleRAG.Infrastructure.Resilience;
 /// <summary>
 /// Service for managing correlation IDs throughout the request lifecycle
 /// </summary>
-public class CorrelationService
+public class CorrelationService : ICorrelationService
 {
     private readonly ILogger<CorrelationService> _logger;
     private static readonly AsyncLocal<string?> _correlationId = new();

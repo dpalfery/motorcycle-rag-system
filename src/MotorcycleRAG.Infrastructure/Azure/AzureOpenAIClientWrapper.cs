@@ -18,16 +18,16 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
     private readonly AzureOpenAIClient _client;
     private readonly AzureAIConfiguration _config;
     private readonly ILogger<AzureOpenAIClientWrapper> _logger;
-    private readonly ResilienceService _resilienceService;
-    private readonly CorrelationService _correlationService;
+    private readonly IResilienceService _resilienceService;
+    private readonly ICorrelationService _correlationService;
     private readonly IAsyncPolicy _retryPolicy;
     private bool _disposed;
 
     public AzureOpenAIClientWrapper(
         IOptions<AzureAIConfiguration> config,
         ILogger<AzureOpenAIClientWrapper> logger,
-        ResilienceService resilienceService,
-        CorrelationService correlationService)
+        IResilienceService resilienceService,
+        ICorrelationService correlationService)
     {
         if (config == null) throw new ArgumentNullException(nameof(config));
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using MotorcycleRAG.Core.Interfaces;
 using MotorcycleRAG.Core.Models;
 using MotorcycleRAG.Infrastructure.Azure;
 using MotorcycleRAG.Infrastructure.Resilience;
@@ -12,18 +13,15 @@ namespace MotorcycleRAG.UnitTests.Azure;
 public class AzureOpenAIClientWrapperResilienceTests
 {
     private readonly Mock<ILogger<AzureOpenAIClientWrapper>> _mockLogger;
-    private readonly Mock<ResilienceService> _mockResilienceService;
-    private readonly Mock<CorrelationService> _mockCorrelationService;
+    private readonly Mock<IResilienceService> _mockResilienceService;
+    private readonly Mock<ICorrelationService> _mockCorrelationService;
     private readonly AzureOpenAIClientWrapper _client;
 
     public AzureOpenAIClientWrapperResilienceTests()
     {
         _mockLogger = new Mock<ILogger<AzureOpenAIClientWrapper>>();
-        _mockResilienceService = new Mock<ResilienceService>(
-            Mock.Of<IOptions<ResilienceConfiguration>>(),
-            Mock.Of<ILogger<ResilienceService>>());
-        _mockCorrelationService = new Mock<CorrelationService>(
-            Mock.Of<ILogger<CorrelationService>>());
+        _mockResilienceService = new Mock<IResilienceService>();
+        _mockCorrelationService = new Mock<ICorrelationService>();
 
         var config = new AzureAIConfiguration
         {
@@ -232,7 +230,20 @@ public class AzureOpenAIClientWrapperResilienceTests
                 It.IsAny<Func<Task<string>>>(),
                 correlationId,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync("Test response");
+            .Returns<string, Func<Task<string>>, Func<Task<string>>?, string?, CancellationToken>(
+                async (policyKey, operation, fallback, corrId, ct) =>
+                {
+                    // Execute the operation to trigger the CreateLoggingScope call
+                    try 
+                    {
+                        return await operation();
+                    }
+                    catch
+                    {
+                        // Return mock data if operation fails
+                        return "Test response";
+                    }
+                });
 
         // Act
         await _client.GetChatCompletionAsync(deploymentName, prompt);
@@ -270,7 +281,20 @@ public class AzureOpenAIClientWrapperResilienceTests
                 It.IsAny<Func<Task<float[][]>>>(),
                 correlationId,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new[] { new float[1536], new float[1536], new float[1536] });
+            .Returns<string, Func<Task<float[][]>>, Func<Task<float[][]>>?, string?, CancellationToken>(
+                async (policyKey, operation, fallback, corrId, ct) =>
+                {
+                    // Execute the operation to trigger the CreateLoggingScope call
+                    try 
+                    {
+                        return await operation();
+                    }
+                    catch
+                    {
+                        // Return mock data if operation fails
+                        return new[] { new float[1536], new float[1536], new float[1536] };
+                    }
+                });
 
         // Act
         await _client.GetEmbeddingsAsync(deploymentName, texts);

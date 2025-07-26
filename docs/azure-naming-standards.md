@@ -2,7 +2,7 @@
 
 > **Source:** [Microsoft Cloud Adoption Framework – Landing Zone Naming convention](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/design-area/naming)
 >
-> This document defines the canonical naming convention for **Motorcycle RAG System** Azure resources. It is aligned with the Microsoft **Cloud Adoption Framework (CAF)** guidance and leverages the [CAF Naming module slugs](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/design-area/naming#caf-naming-tool) wherever applicable.
+> This document defines the canonical naming convention for **Motorcycle RAG System** Azure resources. It is aligned with the Microsoft **Cloud Adoption Framework (CAF)** guidance and leverages the [CAF resource abbreviations](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations) wherever applicable.
 
 ---
 ## 1. General Pattern
@@ -76,7 +76,7 @@ The CAF Naming module assigns 2–4 character **slugs** to every Azure resource 
 | Cosmos DB Account | `cos` |
 | Virtual Machine | `vm` |
 
-> If a resource type is not listed, consult the [CAF naming tool](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/design-area/naming#caf-naming-tool) and use the recommended slug.
+> If a resource type is not listed, consult the [CAF resource abbreviations guide](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations) and use the recommended slug.
 
 ---
 ## 5. Examples

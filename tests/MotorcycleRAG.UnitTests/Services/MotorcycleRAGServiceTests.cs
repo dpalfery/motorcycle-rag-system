@@ -107,7 +107,7 @@ public class MotorcycleRAGServiceTests
 
         _mockOrchestrator.Verify(o => o.ExecuteSequentialSearchAsync(request.Query, It.IsAny<SearchContext>()), Times.Once);
         _mockOrchestrator.Verify(o => o.GenerateResponseAsync(results, request.Query), Times.Once);
-        _mockTelemetry.Verify(t => t.TrackQuery(It.IsAny<string>(), request.Query, It.IsAny<TimeSpan>(), results.Length, It.IsAny<decimal>()), Times.Once);
+        _mockTelemetry.Verify(t => t.TrackQuery(It.IsAny<string>(), request.Query, It.IsAny<TimeSpan>(), results.Length, It.IsAny<decimal>(), It.IsAny<string?>()), Times.Once);
     }
 
     #endregion

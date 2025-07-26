@@ -3,6 +3,8 @@ using MotorcycleRAG.Core.Models;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Net.NetworkInformation;
+using MotorcycleRAG.Infrastructure.Azure;
+using MotorcycleRAG.Infrastructure.DataProcessing;
 
 namespace MotorcycleRAG.API.Configuration;
 
@@ -26,11 +28,9 @@ public static class ServiceConfiguration
         services.AddSingleton<IValidateOptions<SearchConfiguration>, SearchConfigurationValidator>();
         services.AddSingleton<IValidateOptions<TelemetryConfiguration>, TelemetryConfigurationValidator>();
 
-        // Register Azure service clients (will be implemented in Infrastructure layer)
-        // services.AddSingleton<IAzureOpenAIClient, AzureOpenAIClient>();
-        // services.AddSingleton<ISearchClient, AzureSearchClient>();
-        // services.AddSingleton<IDocumentIntelligenceClient, DocumentIntelligenceClient>();
-
+        // Register Azure service clients (now implemented in Infrastructure layer)
+        services.AddAzureServices(configuration);
+        
         return services;
     }
 
@@ -41,6 +41,7 @@ public static class ServiceConfiguration
     {
         // Register core service interfaces (implementations will be added later)
         // services.AddScoped<IMotorcycleRAGService, MotorcycleRAGService>();
+        services.AddScoped<IMotorcycleRAGService, MotorcycleRAG.Core.Services.MotorcycleRAGService>();
         services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Core.Services.AgentOrchestrator>();
 
         return services;
@@ -52,8 +53,8 @@ public static class ServiceConfiguration
     public static IServiceCollection AddSearchAgents(this IServiceCollection services)
     {
         // Register search agent implementations (will be implemented later)
-        services.AddScoped<ISearchAgent, MotorcycleRAG.Core.Agents.VectorSearchAgent>();
         services.AddScoped<ISearchAgent, MotorcycleRAG.Core.Agents.WebSearchAgent>();
+        services.AddScoped<ISearchAgent, MotorcycleRAG.Core.Agents.QueryPlannerAgent>();
         // services.AddScoped<ISearchAgent, PDFSearchAgent>();
         // services.AddScoped<ISearchAgent, QueryPlannerAgent>();
 
@@ -66,8 +67,8 @@ public static class ServiceConfiguration
     public static IServiceCollection AddDataProcessors(this IServiceCollection services)
     {
         // Register data processor implementations (will be implemented later)
-        // services.AddScoped<IDataProcessor<CSVFile>, MotorcycleCSVProcessor>();
-        // services.AddScoped<IDataProcessor<PDFDocument>, MotorcyclePDFProcessor>();
+        services.AddScoped<IDataProcessor<CSVFile>, MotorcycleCSVProcessor>();
+        services.AddScoped<IDataProcessor<PDFDocument>, MotorcyclePDFProcessor>();
 
         return services;
     }

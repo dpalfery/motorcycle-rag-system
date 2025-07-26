@@ -360,3 +360,8 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# .NET install scripts and packages (should not be committed)
+dotnet-install.sh
+*.tar.gz
+packages-microsoft-prod.deb

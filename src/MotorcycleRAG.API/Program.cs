@@ -49,8 +49,9 @@ builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
 var configuration = builder.Configuration;
 // Flag indicating whether Azure App Configuration is enabled
 var appConfigEndpointConfigured = configuration["AppConfig:Endpoint"];
+var isAppConfigEnabled = !string.IsNullOrEmpty(appConfigEndpointConfigured);
 
-if (!string.IsNullOrEmpty(appConfigEndpointConfigured))
+if (isAppConfigEnabled)
 {
     // Registers IAzureAppConfigurationRefresher and other required services
     builder.Services.AddAzureAppConfiguration();
@@ -143,7 +144,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 // Enable automatic refresh of configuration values from Azure App Configuration
-if (!string.IsNullOrEmpty(appConfigEndpointConfigured))
+var isAppConfigEndpointConfigured = !string.IsNullOrEmpty(appConfigEndpointConfigured);
+if (isAppConfigEndpointConfigured)
 {
     app.UseAzureAppConfiguration();
 }

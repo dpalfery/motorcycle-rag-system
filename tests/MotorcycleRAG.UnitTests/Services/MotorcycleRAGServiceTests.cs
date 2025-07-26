@@ -14,13 +14,15 @@ public class MotorcycleRAGServiceTests
 {
     private readonly Mock<IAgentOrchestrator> _mockOrchestrator;
     private readonly Mock<ILogger<MotorcycleRAGService>> _mockLogger;
+    private readonly Mock<ITelemetryService> _mockTelemetry;
     private readonly MotorcycleRAGService _service;
 
     public MotorcycleRAGServiceTests()
     {
         _mockOrchestrator = new Mock<IAgentOrchestrator>(MockBehavior.Strict);
         _mockLogger = new Mock<ILogger<MotorcycleRAGService>>();
-        _service = new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object);
+        _mockTelemetry = new Mock<ITelemetryService>();
+        _service = new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object);
     }
 
     #region Constructor
@@ -29,14 +31,21 @@ public class MotorcycleRAGServiceTests
     public void Constructor_ShouldThrow_WhenOrchestratorIsNull()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(null!, _mockLogger.Object));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(null!, _mockLogger.Object, _mockTelemetry.Object));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, null!));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, null!, _mockTelemetry.Object));
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrow_WhenTelemetryIsNull()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, null!));
     }
 
     #endregion
@@ -98,6 +107,7 @@ public class MotorcycleRAGServiceTests
 
         _mockOrchestrator.Verify(o => o.ExecuteSequentialSearchAsync(request.Query, It.IsAny<SearchContext>()), Times.Once);
         _mockOrchestrator.Verify(o => o.GenerateResponseAsync(results, request.Query), Times.Once);
+        _mockTelemetry.Verify(t => t.TrackQuery(It.IsAny<string>(), request.Query, It.IsAny<TimeSpan>(), results.Length, It.IsAny<decimal>()), Times.Once);
     }
 
     #endregion

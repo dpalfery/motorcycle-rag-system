@@ -43,6 +43,7 @@ public static class ServiceConfiguration
         // services.AddScoped<IMotorcycleRAGService, MotorcycleRAGService>();
         services.AddScoped<IMotorcycleRAGService, MotorcycleRAG.Core.Services.MotorcycleRAGService>();
         services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Core.Services.AgentOrchestrator>();
+        services.AddSingleton<ITelemetryService, MotorcycleRAG.Infrastructure.Telemetry.TelemetryService>();
 
         return services;
     }

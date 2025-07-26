@@ -8,6 +8,10 @@ using MotorcycleRAG.Core.Interfaces;
 using MotorcycleRAG.Core.Models;
 using MotorcycleRAG.Infrastructure.Resilience;
 using MotorcycleRAG.Infrastructure.Search;
+using MotorcycleRAG.Infrastructure.Caching;
+using MotorcycleRAG.Infrastructure.Compression;
+using MotorcycleRAG.Infrastructure.BatchProcessing;
+using MotorcycleRAG.Infrastructure.Http;
 
 namespace MotorcycleRAG.Infrastructure.Azure;
 
@@ -32,6 +36,12 @@ public static class ServiceCollectionExtensions
             configuration.GetSection("ApplicationInsights"));
         services.Configure<ResilienceConfiguration>(
             configuration.GetSection("Resilience"));
+        services.Configure<CacheConfiguration>(
+            configuration.GetSection("Cache"));
+        services.Configure<BatchProcessingConfiguration>(
+            configuration.GetSection("BatchProcessing"));
+        services.Configure<HttpClientConfiguration>(
+            configuration.GetSection("HttpClient"));
 
         // Validate configuration on startup
         services.AddSingleton<IValidateOptions<AzureAIConfiguration>, AzureAIConfigurationValidator>();
@@ -60,6 +70,13 @@ public static class ServiceCollectionExtensions
 
         // Register search agents
         services.AddScoped<ISearchAgent, VectorSearchAgent>();
+
+        // Register caching and performance services
+        services.AddMemoryCache();
+        services.AddSingleton<IQueryCacheService, QueryCacheService>();
+        services.AddSingleton<IVectorCompressionService, VectorCompressionService>();
+        services.AddScoped<IBatchProcessingService, BatchProcessingService>();
+        services.AddSingleton<HttpClientManagementService>();
 
         // Configure HTTP clients for external services
         services.AddHttpClient();

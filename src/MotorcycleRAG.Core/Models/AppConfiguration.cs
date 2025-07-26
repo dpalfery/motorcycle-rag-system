@@ -46,19 +46,3 @@ public class AppConfiguration
     /// </summary>
     public MiscellaneousConfiguration Miscellaneous { get; set; } = new();
 }
-
-/// <summary>
-/// Wrapper for the top-level ConnectionStrings section.
-/// </summary>
-public class ConnectionStringsConfiguration
-{
-    public string ApplicationInsights { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Wrapper for any top-level simple settings that have not yet been assigned a dedicated model.
-/// </summary>
-public class MiscellaneousConfiguration
-{
-    public string AllowedHosts { get; set; } = "*";
-}

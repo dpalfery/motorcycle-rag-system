@@ -80,6 +80,12 @@ builder.Services.AddControllers();
 // Configure JSON serialization
 builder.Services.ConfigureJsonSerialization(builder.Environment.IsDevelopment());
 
+// Bind the entire configuration hierarchy into a single strongly-typed object that can be injected
+builder.Services.Configure<MotorcycleRAG.Core.Models.AppConfiguration>(configuration);
+
+// Consumers are encouraged to depend on IOptionsMonitor<AppConfiguration> so they receive live updates when the
+// sentinel key changes in Azure App Configuration.
+
 // Configure API documentation
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>

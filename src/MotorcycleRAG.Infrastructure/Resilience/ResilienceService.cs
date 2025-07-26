@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MotorcycleRAG.Core.Interfaces;
 using MotorcycleRAG.Core.Models;
 using Polly;
 using Polly.CircuitBreaker;
@@ -10,7 +11,7 @@ namespace MotorcycleRAG.Infrastructure.Resilience;
 /// <summary>
 /// Centralized resilience service providing circuit breaker, retry, and fallback mechanisms
 /// </summary>
-public class ResilienceService
+public class ResilienceService : IResilienceService
 {
     private readonly ILogger<ResilienceService> _logger;
     private readonly ResilienceConfiguration _config;
@@ -67,7 +68,7 @@ public class ResilienceService
             _logger.LogDebug("Operation completed successfully with policy: {PolicyKey}", policyKey);
             return result;
         }
-        catch (CircuitBreakerOpenException ex)
+        catch (BrokenCircuitException ex)
         {
             _logger.LogWarning(ex, "Circuit breaker is open for policy: {PolicyKey}. Attempting fallback.", policyKey);
             
@@ -239,16 +240,7 @@ public class ResilienceService
         return ex is HttpRequestException ||
                ex is TaskCanceledException ||
                ex is TimeoutException ||
-               ex is CircuitBreakerOpenException;
+               ex is BrokenCircuitException;
     }
 }
 
-/// <summary>
-/// Circuit breaker state enumeration
-/// </summary>
-public enum CircuitBreakerState
-{
-    Closed,
-    Open,
-    HalfOpen
-}

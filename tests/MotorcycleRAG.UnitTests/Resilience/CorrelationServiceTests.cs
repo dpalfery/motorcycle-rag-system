@@ -14,6 +14,12 @@ public class CorrelationServiceTests
     public CorrelationServiceTests()
     {
         _mockLogger = new Mock<ILogger<CorrelationService>>();
+        
+        // Setup BeginScope to return a mock IDisposable
+        _mockLogger
+            .Setup(x => x.BeginScope(It.IsAny<Dictionary<string, object>>()))
+            .Returns(Mock.Of<IDisposable>());
+            
         _correlationService = new CorrelationService(_mockLogger.Object);
     }
 
@@ -153,7 +159,11 @@ public class CorrelationServiceTests
         
         _correlationService.SetCorrelationId(originalId);
 
-        var operation = () => throw new InvalidOperationException("Test exception");
+        var operation = async () => 
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("Test exception");
+        };
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(

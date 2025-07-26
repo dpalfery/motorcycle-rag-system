@@ -39,8 +39,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<ResilienceConfiguration>, ResilienceConfigurationValidator>();
 
         // Register resilience services as singletons
-        services.AddSingleton<ResilienceService>();
-        services.AddSingleton<CorrelationService>();
+        services.AddSingleton<IResilienceService, ResilienceService>();
+        services.AddSingleton<ICorrelationService, CorrelationService>();
 
         // Register Azure service clients as singletons for connection pooling
         services.AddSingleton<IAzureOpenAIClient, AzureOpenAIClientWrapper>();

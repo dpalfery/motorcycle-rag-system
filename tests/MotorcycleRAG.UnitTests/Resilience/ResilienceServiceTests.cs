@@ -62,9 +62,10 @@ public class ResilienceServiceTests
     {
         // Arrange
         var callCount = 0;
-        var operation = () =>
+        Func<Task<string>> operation = async () =>
         {
             callCount++;
+            await Task.Yield();
             throw new HttpRequestException("Service unavailable");
         };
 
@@ -81,7 +82,11 @@ public class ResilienceServiceTests
     {
         // Arrange
         const string fallbackResult = "Fallback";
-        var operation = () => throw new HttpRequestException("Service down");
+        Func<Task<string>> operation = async () => 
+        {
+            await Task.Yield();
+            throw new HttpRequestException("Service down");
+        };
         var fallback = () => Task.FromResult(fallbackResult);
 
         // Trigger circuit breaker by failing multiple times
@@ -201,8 +206,16 @@ public class ResilienceServiceTests
     public async Task ExecuteAsync_FallbackThrowsException_PropagatesOriginalException()
     {
         // Arrange
-        var operation = () => throw new HttpRequestException("Original error");
-        var fallback = () => throw new InvalidOperationException("Fallback error");
+        Func<Task<string>> operation = async () => 
+        {
+            await Task.Yield();
+            throw new HttpRequestException("Original error");
+        };
+        Func<Task<string>> fallback = async () => 
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("Fallback error");
+        };
 
         // Trigger circuit breaker
         for (int i = 0; i < 3; i++)

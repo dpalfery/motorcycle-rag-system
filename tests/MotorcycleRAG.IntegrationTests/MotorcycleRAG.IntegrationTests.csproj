@@ -27,12 +27,14 @@
     <PackageReference Include="Moq" Version="4.20.69" />
     <PackageReference Include="Azure.Search.Documents" Version="11.6.0" />
     <PackageReference Include="Azure.Identity" Version="1.12.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.7" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
     <ProjectReference Include="..\..\src\MotorcycleRAG.Infrastructure\MotorcycleRAG.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\MotorcycleRAG.Shared\MotorcycleRAG.Shared.csproj" />
+    <ProjectReference Include="..\..\src\MotorcycleRAG.API\MotorcycleRAG.API.csproj" />
   </ItemGroup>
 
   <ItemGroup>

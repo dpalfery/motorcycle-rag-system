@@ -1,0 +1,96 @@
+name: Build & Deploy to Azure
+
+on:
+  push:
+    branches: ["main", "develop"]
+  workflow_dispatch:
+
+# Global env vars (non-secret)
+env:
+  DOTNET_VERSION: "8.0.x"
+  PULUMI_STACK: "dev"
+  PULUMI_WORK_DIR: "infrastructure"
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore & Build
+        run: |
+          dotnet restore
+          dotnet build -c Release --no-restore
+
+      - name: Run Unit Tests
+        run: dotnet test --no-build --verbosity normal
+
+      # Docker is required for image build inside Pulumi program
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Login to Azure for ARM provider (optional but helpful for debugging)
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Pulumi Preview
+        uses: pulumi/actions@v4
+        with:
+          command: preview
+          stack-name: ${{ env.PULUMI_STACK }}
+          work-dir: ${{ env.PULUMI_WORK_DIR }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          # pass-through Pulumi config values sourced from repo secrets
+          PULUMI_CONFIG_PASSPHRASE: ""
+          # Pulumi Config (these are consumed inside Program.cs)
+          PULUMI_CONFIG_AZUREOPENAIKEY: ${{ secrets.AZURE_OPENAI_KEY }}
+          PULUMI_CONFIG_AZURESEARCHKEY: ${{ secrets.AZURE_SEARCH_KEY }}
+          PULUMI_CONFIG_DOCUMENTINTELLIGENCEKEY: ${{ secrets.DOCUMENT_INTELLIGENCE_KEY }}
+          PULUMI_CONFIG_APPINSIGHTSCONNECTIONSTRING: ${{ secrets.APP_INSIGHTS_CONNECTION_STRING }}
+          PULUMI_CONFIG_LOGANALYTICSCUSTOMERID: ${{ secrets.LOG_ANALYTICS_CUSTOMER_ID }}
+          PULUMI_CONFIG_LOGANALYTICSSHAREDKEY: ${{ secrets.LOG_ANALYTICS_SHARED_KEY }}
+          # Non-secret endpoints
+          PULUMI_CONFIG_AZUREOPENAIENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+          PULUMI_CONFIG_AZURESEARCHENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
+          PULUMI_CONFIG_DOCUMENTINTELLIGENCEENDPOINT: ${{ vars.DOCUMENT_INTELLIGENCE_ENDPOINT }}
+
+      - name: Pulumi Up (Deploy)
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: ${{ env.PULUMI_STACK }}
+          work-dir: ${{ env.PULUMI_WORK_DIR }}
+          refresh: true
+          yes: true
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          PULUMI_CONFIG_AZUREOPENAIKEY: ${{ secrets.AZURE_OPENAI_KEY }}
+          PULUMI_CONFIG_AZURESEARCHKEY: ${{ secrets.AZURE_SEARCH_KEY }}
+          PULUMI_CONFIG_DOCUMENTINTELLIGENCEKEY: ${{ secrets.DOCUMENT_INTELLIGENCE_KEY }}
+          PULUMI_CONFIG_APPINSIGHTSCONNECTIONSTRING: ${{ secrets.APP_INSIGHTS_CONNECTION_STRING }}
+          PULUMI_CONFIG_LOGANALYTICSCUSTOMERID: ${{ secrets.LOG_ANALYTICS_CUSTOMER_ID }}
+          PULUMI_CONFIG_LOGANALYTICSSHAREDKEY: ${{ secrets.LOG_ANALYTICS_SHARED_KEY }}
+          PULUMI_CONFIG_AZUREOPENAIENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+          PULUMI_CONFIG_AZURESEARCHENDPOINT: ${{ vars.AZURE_SEARCH_ENDPOINT }}
+          PULUMI_CONFIG_DOCUMENTINTELLIGENCEENDPOINT: ${{ vars.DOCUMENT_INTELLIGENCE_ENDPOINT }}

@@ -41,6 +41,7 @@ public static class ServiceConfiguration
     {
         // Register core service interfaces (implementations will be added later)
         // services.AddScoped<IMotorcycleRAGService, MotorcycleRAGService>();
+        services.AddScoped<IMotorcycleRAGService, MotorcycleRAG.Core.Services.MotorcycleRAGService>();
         services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Core.Services.AgentOrchestrator>();
 
         return services;

@@ -2,6 +2,7 @@ using MotorcycleRAG.API.Configuration;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
+using Microsoft.Azure.AppConfiguration.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,13 +33,28 @@ builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
                    // Load environment-specific labelled keys (e.g. Development, Production)
                    .Select(KeyFilter.Any, hostingContext.HostingEnvironment.EnvironmentName)
                    // Configure Key Vault integration
-                   .ConfigureKeyVault(kv => kv.SetCredential(credential));
+                   .ConfigureKeyVault(kv => kv.SetCredential(credential))
+                   // Configure refresh with sentinel key for live configuration updates
+                   .ConfigureRefresh(refreshOptions =>
+                   {
+                       // When the sentinel key changes, refresh all cached configuration values
+                       refreshOptions.Register("Settings:Sentinel", refreshAll: true)
+                                     .SetCacheExpiration(TimeSpan.FromSeconds(30));
+                   });
         });
     }
 });
 
 // Refresh builder configuration to include AppConfig values
 var configuration = builder.Configuration;
+// Flag indicating whether Azure App Configuration is enabled
+var appConfigEndpointConfigured = configuration["AppConfig:Endpoint"];
+
+if (!string.IsNullOrEmpty(appConfigEndpointConfigured))
+{
+    // Registers IAzureAppConfigurationRefresher and other required services
+    builder.Services.AddAzureAppConfiguration();
+}
 
 // Add Application Insights telemetry
 var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights") 
@@ -120,6 +136,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+// Enable automatic refresh of configuration values from Azure App Configuration
+if (!string.IsNullOrEmpty(appConfigEndpointConfigured))
+{
+    app.UseAzureAppConfiguration();
+}
 app.UseCors();
 app.UseAuthorization();
 

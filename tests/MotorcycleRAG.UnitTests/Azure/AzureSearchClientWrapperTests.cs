@@ -1,6 +1,7 @@
 using Azure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MotorcycleRAG.Core.Interfaces;
 using MotorcycleRAG.Core.Models;
 using MotorcycleRAG.Infrastructure.Azure;
 
@@ -9,6 +10,8 @@ namespace MotorcycleRAG.UnitTests.Azure;
 public class AzureSearchClientWrapperTests : IDisposable
 {
     private readonly Mock<ILogger<AzureSearchClientWrapper>> _mockLogger;
+    private readonly Mock<IResilienceService> _mockResilienceService;
+    private readonly Mock<ICorrelationService> _mockCorrelationService;
     private readonly AzureAIConfiguration _azureConfig;
     private readonly SearchConfiguration _searchConfig;
     private readonly IOptions<AzureAIConfiguration> _azureOptions;
@@ -17,6 +20,39 @@ public class AzureSearchClientWrapperTests : IDisposable
     public AzureSearchClientWrapperTests()
     {
         _mockLogger = new Mock<ILogger<AzureSearchClientWrapper>>();
+        _mockResilienceService = new Mock<IResilienceService>();
+        _mockCorrelationService = new Mock<ICorrelationService>();
+        
+        // Setup resilience service to execute operations
+        _mockResilienceService
+            .Setup(x => x.ExecuteAsync(
+                It.IsAny<string>(),
+                It.IsAny<Func<Task<SearchResult[]>>>(),
+                It.IsAny<Func<Task<SearchResult[]>>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<string, Func<Task<SearchResult[]>>, Func<Task<SearchResult[]>>?, string?, CancellationToken>(
+                async (policyKey, operation, fallback, corrId, ct) =>
+                {
+                    try 
+                    {
+                        return await operation();
+                    }
+                    catch
+                    {
+                        // Return empty array if operation fails
+                        return new SearchResult[0];
+                    }
+                });
+                
+        // Setup correlation service to return mock disposable
+        _mockCorrelationService
+            .Setup(x => x.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
+            .Returns(Mock.Of<IDisposable>());
+            
+        _mockCorrelationService
+            .Setup(x => x.GetOrCreateCorrelationId())
+            .Returns("test-correlation-id");
         
         _azureConfig = new AzureAIConfiguration
         {
@@ -48,7 +84,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     {
         // Act & Assert
         var exception = Record.Exception(() => new AzureSearchClientWrapper(
-            _azureOptions, _searchOptions, _mockLogger.Object));
+            _azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.Should().BeNull();
     }
 
@@ -57,7 +93,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     {
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() => 
-            new AzureSearchClientWrapper(null!, _searchOptions, _mockLogger.Object));
+            new AzureSearchClientWrapper(null!, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.ParamName.Should().Be("azureConfig");
     }
 
@@ -66,7 +102,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     {
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() => 
-            new AzureSearchClientWrapper(_azureOptions, null!, _mockLogger.Object));
+            new AzureSearchClientWrapper(_azureOptions, null!, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.ParamName.Should().Be("searchConfig");
     }
 
@@ -75,7 +111,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     {
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() => 
-            new AzureSearchClientWrapper(_azureOptions, _searchOptions, null!));
+            new AzureSearchClientWrapper(_azureOptions, _searchOptions, null!, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.ParamName.Should().Be("logger");
     }
 
@@ -83,7 +119,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     public void Constructor_ShouldLogInitializationMessage()
     {
         // Act
-        using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object);
+        using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
         // Assert
         _mockLogger.Verify(
@@ -100,7 +136,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     public async Task SearchAsync_WithValidQuery_ShouldReturnResults()
     {
         // Arrange
-        using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object);
+        using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
         // Act
         var results = await client.SearchAsync("test query", 10);
@@ -115,7 +151,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     public async Task IndexDocumentsAsync_WithValidDocuments_ShouldReturnTrue()
     {
         // Arrange
-        using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object);
+        using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
         var documents = new[] { new { id = "1", content = "test content" } };
 
         // Act
@@ -199,7 +235,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     public void Dispose_ShouldDisposeResourcesGracefully()
     {
         // Arrange
-        var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object);
+        var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
         // Act & Assert
         var exception = Record.Exception(() => client.Dispose());

@@ -177,3 +177,66 @@ public class TelemetryConfiguration
     public bool EnablePerformanceCounters { get; set; } = true;
     public string ApplicationName { get; set; } = "MotorcycleRAG";
 }
+
+/// <summary>
+/// Resilience configuration for circuit breakers and advanced error handling
+/// </summary>
+public class ResilienceConfiguration
+{
+    public CircuitBreakerConfiguration CircuitBreaker { get; set; } = new();
+    public RetryConfiguration Retry { get; set; } = new();
+    public FallbackConfiguration Fallback { get; set; } = new();
+}
+
+/// <summary>
+/// Circuit breaker configurations for different services
+/// </summary>
+public class CircuitBreakerConfiguration
+{
+    public ServiceCircuitBreakerConfig OpenAI { get; set; } = new()
+    {
+        FailureThreshold = 5,
+        SamplingDuration = TimeSpan.FromMinutes(1),
+        MinimumThroughput = 10
+    };
+
+    public ServiceCircuitBreakerConfig Search { get; set; } = new()
+    {
+        FailureThreshold = 3,
+        SamplingDuration = TimeSpan.FromMinutes(1),
+        MinimumThroughput = 5
+    };
+
+    public ServiceCircuitBreakerConfig DocumentIntelligence { get; set; } = new()
+    {
+        FailureThreshold = 3,
+        SamplingDuration = TimeSpan.FromMinutes(1),
+        MinimumThroughput = 5
+    };
+}
+
+/// <summary>
+/// Circuit breaker configuration for a specific service
+/// </summary>
+public class ServiceCircuitBreakerConfig
+{
+    [Range(1, 20)]
+    public int FailureThreshold { get; set; } = 5;
+
+    public TimeSpan SamplingDuration { get; set; } = TimeSpan.FromMinutes(1);
+
+    [Range(1, 100)]
+    public int MinimumThroughput { get; set; } = 10;
+}
+
+/// <summary>
+/// Fallback configuration for graceful degradation
+/// </summary>
+public class FallbackConfiguration
+{
+    public bool EnableCachedResponses { get; set; } = true;
+    public bool EnableSimplifiedSearch { get; set; } = true;
+    public bool EnableOfflineMode { get; set; } = false;
+    public TimeSpan CacheExpiration { get; set; } = TimeSpan.FromMinutes(30);
+    public string FallbackMessage { get; set; } = "Service temporarily unavailable. Using cached or simplified results.";
+}

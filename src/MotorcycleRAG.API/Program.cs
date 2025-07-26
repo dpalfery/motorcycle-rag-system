@@ -2,6 +2,7 @@ using MotorcycleRAG.API.Configuration;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
+using Microsoft.Azure.AppConfiguration.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,13 +33,29 @@ builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
                    // Load environment-specific labelled keys (e.g. Development, Production)
                    .Select(KeyFilter.Any, hostingContext.HostingEnvironment.EnvironmentName)
                    // Configure Key Vault integration
-                   .ConfigureKeyVault(kv => kv.SetCredential(credential));
+                   .ConfigureKeyVault(kv => kv.SetCredential(credential))
+                   // Configure refresh with sentinel key for live configuration updates
+                   .ConfigureRefresh(refreshOptions =>
+                   {
+                       // When the sentinel key changes, refresh all cached configuration values
+                       refreshOptions.Register("Settings:Sentinel", refreshAll: true)
+                                     .SetCacheExpiration(TimeSpan.FromSeconds(30));
+                   });
         });
     }
 });
 
 // Refresh builder configuration to include AppConfig values
 var configuration = builder.Configuration;
+// Flag indicating whether Azure App Configuration is enabled
+var appConfigEndpointConfigured = configuration["AppConfig:Endpoint"];
+var isAppConfigEnabled = !string.IsNullOrEmpty(appConfigEndpointConfigured);
+
+if (isAppConfigEnabled)
+{
+    // Registers IAzureAppConfigurationRefresher and other required services
+    builder.Services.AddAzureAppConfiguration();
+}
 
 // Add Application Insights telemetry
 var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights") 
@@ -63,6 +80,12 @@ builder.Services.AddControllers();
 
 // Configure JSON serialization
 builder.Services.ConfigureJsonSerialization(builder.Environment.IsDevelopment());
+
+// Bind the entire configuration hierarchy into a single strongly-typed object that can be injected
+builder.Services.Configure<MotorcycleRAG.Core.Models.AppConfiguration>(configuration);
+
+// Consumers are encouraged to depend on IOptionsMonitor<AppConfiguration> so they receive live updates when the
+// sentinel key changes in Azure App Configuration.
 
 // Configure API documentation
 builder.Services.AddEndpointsApiExplorer();
@@ -120,6 +143,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+// Enable automatic refresh of configuration values from Azure App Configuration
+var isAppConfigEndpointConfigured = !string.IsNullOrEmpty(appConfigEndpointConfigured);
+if (isAppConfigEndpointConfigured)
+{
+    app.UseAzureAppConfiguration();
+}
 app.UseCors();
 app.UseAuthorization();
 

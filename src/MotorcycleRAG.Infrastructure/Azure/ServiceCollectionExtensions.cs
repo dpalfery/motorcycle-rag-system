@@ -6,7 +6,12 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Agents;
 using MotorcycleRAG.Core.Interfaces;
 using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Infrastructure.Resilience;
 using MotorcycleRAG.Infrastructure.Search;
+using MotorcycleRAG.Infrastructure.Caching;
+using MotorcycleRAG.Infrastructure.Compression;
+using MotorcycleRAG.Infrastructure.BatchProcessing;
+using MotorcycleRAG.Infrastructure.Http;
 
 namespace MotorcycleRAG.Infrastructure.Azure;
 
@@ -29,10 +34,23 @@ public static class ServiceCollectionExtensions
             configuration.GetSection("Search"));
         services.Configure<TelemetryConfiguration>(
             configuration.GetSection("ApplicationInsights"));
+        services.Configure<ResilienceConfiguration>(
+            configuration.GetSection("Resilience"));
+        services.Configure<CacheConfiguration>(
+            configuration.GetSection("Cache"));
+        services.Configure<BatchProcessingConfiguration>(
+            configuration.GetSection("BatchProcessing"));
+        services.Configure<HttpClientConfiguration>(
+            configuration.GetSection("HttpClient"));
 
         // Validate configuration on startup
         services.AddSingleton<IValidateOptions<AzureAIConfiguration>, AzureAIConfigurationValidator>();
         services.AddSingleton<IValidateOptions<SearchConfiguration>, SearchConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<ResilienceConfiguration>, ResilienceConfigurationValidator>();
+
+        // Register resilience services as singletons
+        services.AddSingleton<IResilienceService, ResilienceService>();
+        services.AddSingleton<ICorrelationService, CorrelationService>();
 
         // Register Azure service clients as singletons for connection pooling
         services.AddSingleton<IAzureOpenAIClient, AzureOpenAIClientWrapper>();
@@ -52,6 +70,13 @@ public static class ServiceCollectionExtensions
 
         // Register search agents
         services.AddScoped<ISearchAgent, VectorSearchAgent>();
+
+        // Register caching and performance services
+        services.AddMemoryCache();
+        services.AddSingleton<IQueryCacheService, QueryCacheService>();
+        services.AddSingleton<IVectorCompressionService, VectorCompressionService>();
+        services.AddScoped<IBatchProcessingService, BatchProcessingService>();
+        services.AddSingleton<HttpClientManagementService>();
 
         // Configure HTTP clients for external services
         services.AddHttpClient();
@@ -125,6 +150,45 @@ public class SearchConfigurationValidator : IValidateOptions<SearchConfiguration
 
         if (options.MaxSearchResults <= 0)
             failures.Add("Search:MaxSearchResults must be greater than 0");
+
+        return failures.Count > 0
+            ? ValidateOptionsResult.Fail(failures)
+            : ValidateOptionsResult.Success;
+    }
+}
+
+/// <summary>
+/// Validates Resilience configuration on startup
+/// </summary>
+public class ResilienceConfigurationValidator : IValidateOptions<ResilienceConfiguration>
+{
+    public ValidateOptionsResult Validate(string? name, ResilienceConfiguration options)
+    {
+        var failures = new List<string>();
+
+        // Validate circuit breaker configurations
+        if (options.CircuitBreaker.OpenAI.FailureThreshold <= 0)
+            failures.Add("Resilience:CircuitBreaker:OpenAI:FailureThreshold must be greater than 0");
+
+        if (options.CircuitBreaker.Search.FailureThreshold <= 0)
+            failures.Add("Resilience:CircuitBreaker:Search:FailureThreshold must be greater than 0");
+
+        if (options.CircuitBreaker.DocumentIntelligence.FailureThreshold <= 0)
+            failures.Add("Resilience:CircuitBreaker:DocumentIntelligence:FailureThreshold must be greater than 0");
+
+        // Validate retry configuration
+        if (options.Retry.MaxRetries <= 0)
+            failures.Add("Resilience:Retry:MaxRetries must be greater than 0");
+
+        if (options.Retry.BaseDelaySeconds <= 0)
+            failures.Add("Resilience:Retry:BaseDelaySeconds must be greater than 0");
+
+        if (options.Retry.MaxDelaySeconds <= 0)
+            failures.Add("Resilience:Retry:MaxDelaySeconds must be greater than 0");
+
+        // Validate fallback configuration
+        if (options.Fallback.CacheExpiration <= TimeSpan.Zero)
+            failures.Add("Resilience:Fallback:CacheExpiration must be greater than zero");
 
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)

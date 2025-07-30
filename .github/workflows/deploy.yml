@@ -11,6 +11,11 @@ env:
   PULUMI_STACK: "dev"
   PULUMI_WORK_DIR: "infrastructure"
 
+# Add permissions for OIDC token
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
@@ -36,7 +41,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Login to Azure for ARM provider (optional but helpful for debugging)
+      # Login to Azure using OIDC (federated authentication)
       - name: Azure Login
         uses: azure/login@v2
         with:

@@ -53,6 +53,16 @@ jobs:
         env:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
+      - name: Initialize Pulumi Stack
+        uses: pulumi/actions@v4
+        with:
+          command: stack init
+          stack-name: ${{ env.PULUMI_STACK }}
+          work-dir: ${{ env.PULUMI_WORK_DIR }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+        continue-on-error: true  # Stack might already exist
+
       - name: Pulumi Preview
         uses: pulumi/actions@v4
         with:

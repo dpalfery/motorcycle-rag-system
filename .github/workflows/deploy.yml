@@ -72,8 +72,6 @@ jobs:
           PULUMI_CONFIG_LOCATION: "eastus"
           # Path to published app for deployment
           PULUMI_CONFIG_PUBLISHPATH: "./publish"
-          # Path to published app for deployment
-          PULUMI_CONFIG_PUBLISHPATH: "./publish"
 
       - name: Pulumi Up (Deploy)
         uses: pulumi/actions@v4

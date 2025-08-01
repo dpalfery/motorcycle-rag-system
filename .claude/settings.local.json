@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "slashCommands": {
+    "/push": "save all files, stage all files, generate a detailed commit message. commit all changes with message, pull from origin with rebase, fix any merge issues and then push"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(mv:*)"
+    ],
+    "deny": []
+  }
+}

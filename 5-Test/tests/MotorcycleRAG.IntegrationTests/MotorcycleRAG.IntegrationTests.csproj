@@ -19,11 +19,11 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.7" />
     <PackageReference Include="Moq" Version="4.20.69" />
     <PackageReference Include="Azure.Search.Documents" Version="11.6.0" />
     <PackageReference Include="Azure.Identity" Version="1.12.1" />
@@ -31,10 +31,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
-    <ProjectReference Include="..\..\src\MotorcycleRAG.Infrastructure\MotorcycleRAG.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\MotorcycleRAG.Shared\MotorcycleRAG.Shared.csproj" />
-    <ProjectReference Include="..\..\src\MotorcycleRAG.API\MotorcycleRAG.API.csproj" />
+    <ProjectReference Include="..\..\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj" />
+    <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
+    <ProjectReference Include="..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
+    <ProjectReference Include="..\..\4-Persistence\MotorcycleRAG.Shared\MotorcycleRAG.Shared.csproj" />
+    <ProjectReference Include="..\..\1-Presentation\MotorcycleRAG.API\MotorcycleRAG.API.csproj" />
   </ItemGroup>
 
   <ItemGroup>

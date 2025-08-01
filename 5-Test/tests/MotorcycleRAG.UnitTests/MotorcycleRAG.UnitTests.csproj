@@ -22,8 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
-    <ProjectReference Include="..\..\src\MotorcycleRAG.Infrastructure\MotorcycleRAG.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj" />
+    <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
+    <ProjectReference Include="..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
+    <ProjectReference Include="..\..\4-Persistence\MotorcycleRAG.Shared\MotorcycleRAG.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

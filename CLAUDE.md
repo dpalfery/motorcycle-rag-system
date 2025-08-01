@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+### Clean Architecture Structure
+
+This application follows Clean Architecture principles with the following folder structure:
+
+- **1-Presentation/**: API controllers (ASP.NET Core) and web frontend (Next.js)
+  - `MotorcycleRAG.API/`: ASP.NET Core Web API with controllers and configuration
+- **2-Application/**: Business layer for application services and agents
+  - `MotorcycleRAG.Application/`: Contains business logic, service orchestration, and agent implementations
+- **3-Domain/**: Core domain models and contracts (interfaces)
+  - Domain entities, interfaces, and configuration models
+- **4-Persistence/**: Data access layer and infrastructure services
+  - Azure service clients, data processing, resilience services, and shared utilities
+- **5-Test/**: Unit and integration tests
+  - `tests/MotorcycleRAG.UnitTests/`: Unit tests with mocking
+  - `tests/MotorcycleRAG.IntegrationTests/`: Integration tests with real Azure services
+- **6-Docs/**: Project documentation
+- **7-Deployment/**: Infrastructure and deployment scripts
+
 ## Development Commands
 
 ### Build and Test
@@ -13,10 +31,10 @@ dotnet build
 dotnet test
 
 # Run only unit tests
-dotnet test tests/MotorcycleRAG.UnitTests
+dotnet test 5-Test/tests/MotorcycleRAG.UnitTests
 
 # Run only integration tests
-dotnet test tests/MotorcycleRAG.IntegrationTests
+dotnet test 5-Test/tests/MotorcycleRAG.IntegrationTests
 
 # Run a specific test class
 dotnet test --filter "FullyQualifiedName~QueryPlannerAgentTests"
@@ -28,10 +46,10 @@ dotnet test --verbosity normal
 ### Development Server
 ```bash
 # Run the API (development mode)
-dotnet run --project src/MotorcycleRAG.API
+dotnet run --project 1-Presentation/MotorcycleRAG.API
 
 # Run with specific environment
-dotnet run --project src/MotorcycleRAG.API --environment Development
+dotnet run --project 1-Presentation/MotorcycleRAG.API --environment Development
 ```
 
 ### Project Structure
@@ -43,7 +61,7 @@ dotnet clean
 dotnet restore
 
 # Build specific project
-dotnet build src/MotorcycleRAG.Core
+dotnet build 2-Application/MotorcycleRAG.Application/MotorcycleRAG.Application
 ```
 
 ## Architecture Overview
@@ -59,23 +77,24 @@ This is a **multi-agent RAG system** built on Azure AI Foundry using **.NET 9** 
 4. **PDF Search Agent** handles technical documentation
 5. **AgentOrchestrator** coordinates the sequential flow
 
-**Resilience Patterns**: Centralized resilience via `ResilienceService` at `/src/MotorcycleRAG.Infrastructure/Resilience/ResilienceService.cs:14` provides:
+**Resilience Patterns**: Centralized resilience via `ResilienceService` at `/4-Persistence/Resilience/ResilienceService.cs:14` provides:
 - Circuit breaker patterns for external service calls
 - Retry policies with exponential backoff  
 - Fallback mechanisms for graceful degradation
 - Correlation tracking for distributed tracing
 
 **Clean Architecture Layers**:
-- **API Layer** (`MotorcycleRAG.API`): ASP.NET Core Web API with health checks
-- **Core Layer** (`MotorcycleRAG.Core`): Business logic, agents, and interfaces
-- **Infrastructure Layer** (`MotorcycleRAG.Infrastructure`): Azure service implementations, data processing
-- **Shared Layer** (`MotorcycleRAG.Shared`): Common utilities and constants
+- **Presentation Layer** (`1-Presentation/MotorcycleRAG.API`): ASP.NET Core Web API with health checks
+- **Application Layer** (`2-Application/MotorcycleRAG.Application`): Business logic, services, and agents
+- **Domain Layer** (`3-Domain/MotorcycleRAG.Domain`): Core domain models and interfaces
+- **Persistence Layer** (`4-Persistence/MotorcycleRAG.Persistence`): Azure service implementations, data processing
+- **Shared Layer** (`4-Persistence/MotorcycleRAG.Shared`): Common utilities and constants
 
 ### Key Implementation Details
 
 **Agent Framework**: Uses Semantic Kernel for agent orchestration with dependency injection pattern. Each agent implements `ISearchAgent` interface.
 
-**Azure Integration**: All Azure services (OpenAI, Search, Document Intelligence) use wrapper classes in `/src/MotorcycleRAG.Infrastructure/Azure/` with built-in resilience.
+**Azure Integration**: All Azure services (OpenAI, Search, Document Intelligence) use wrapper classes in `/4-Persistence/Azure/` with built-in resilience.
 
 **Data Processing**: Supports heterogeneous data sources:
 - CSV motorcycle specifications via `MotorcycleCSVProcessor`

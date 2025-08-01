@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\MotorcycleRAG.Shared\MotorcycleRAG.Shared.csproj" />
+    <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
+    <ProjectReference Include="..\..\4-Persistence\MotorcycleRAG.Shared\MotorcycleRAG.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

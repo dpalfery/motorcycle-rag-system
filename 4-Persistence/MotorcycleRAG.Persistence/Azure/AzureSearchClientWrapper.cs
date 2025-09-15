@@ -5,9 +5,9 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
-using MotorcycleRAG.Infrastructure.Resilience;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Persistence.Resilience;
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
 
@@ -52,7 +52,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         // Configure resilience policies (kept for backward compatibility)
         _retryPolicy = CreateRetryPolicy(config.Retry);
 
-        _logger.LogInformation("Azure Search client initialized with endpoint: {Endpoint}, Index: {IndexName}", 
+        _logger.LogInformation("Azure Search client initialized with endpoint: {Endpoint}, Index: {IndexName}",
             config.SearchServiceEndpoint, _searchConfig.IndexName);
     }
 
@@ -62,7 +62,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         CancellationToken cancellationToken = default)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
-        
+
         return await _resilienceService.ExecuteAsync(
             "AzureSearch",
             async () =>
@@ -146,14 +146,14 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             {
                 var indexDocumentsAction = IndexDocumentsBatch.Upload(documents);
                 var response = await _searchClient.IndexDocumentsAsync(indexDocumentsAction, new IndexDocumentsOptions(), cancellationToken);
-                
+
                 // Check if all documents were successfully indexed
                 var failedCount = response.Value.Results.Count(r => !r.Succeeded);
                 if (failedCount > 0)
                 {
-                    _logger.LogWarning("Failed to index {FailedCount} out of {TotalCount} documents", 
+                    _logger.LogWarning("Failed to index {FailedCount} out of {TotalCount} documents",
                         failedCount, documents.Length);
-                    
+
                     // Log specific failures
                     foreach (var result in response.Value.Results.Where(r => !r.Succeeded))
                     {
@@ -161,7 +161,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
                             result.Key, result.Status, result.ErrorMessage);
                     }
                 }
-                
+
                 return failedCount == 0;
             });
 
@@ -170,7 +170,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(ex, "Azure Search indexing failed: {ErrorCode} - {Message}", 
+            _logger.LogError(ex, "Azure Search indexing failed: {ErrorCode} - {Message}",
                 ex.ErrorCode, ex.Message);
             return false;
         }
@@ -216,6 +216,246 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             _logger.LogWarning(ex, "Azure Search health check failed");
             return false;
         }
+    }
+
+    // Implement VectorSearchAsync
+    public async Task<SearchResult[]> VectorSearchAsync(string query, Domain.Models.SearchOptions options)
+    {
+        var correlationId = _correlationService.GetOrCreateCorrelationId();
+        return await _resilienceService.ExecuteAsync(
+            "AzureSearch.VectorSearch",
+            async () =>
+            {
+                using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
+                {
+                    ["Operation"] = "VectorSearch",
+                    ["Query"] = query
+                });
+
+                _logger.LogDebug("Executing vector search query: {Query}", query);
+
+                // Simplified implementation - use regular search for now
+                var azureOptions = ConvertToAzureSearchOptions(options);
+                var response = await _searchClient.SearchAsync<SearchResult>(query, azureOptions);
+                var results = new List<SearchResult>();
+                await foreach (var result in response.Value.GetResultsAsync())
+                {
+                    results.Add(result.Document);
+                }
+
+                _logger.LogDebug("Vector search completed with {ResultCount} results", results.Count);
+                return results.ToArray();
+            },
+            fallback: async () =>
+            {
+                _logger.LogWarning("Using fallback vector search results for query: {Query}", query);
+                return new[]
+                {
+                    new SearchResult
+                    {
+                        Id = "fallback_vector_result",
+                        Content = $"Fallback: Vector search service is temporarily unavailable. Your query '{query}' has been noted.",
+                        RelevanceScore = 0.5f,
+                        Source = new SearchSource
+                        {
+                            AgentType = SearchAgentType.VectorSearch,
+                            SourceName = "Fallback Service",
+                            DocumentId = "fallback"
+                        },
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["fallback"] = true,
+                            ["query"] = query
+                        }
+                    }
+                };
+            },
+            correlationId);
+    }
+
+    public async Task<SearchResult[]> HybridSearchAsync(string query, Domain.Models.SearchOptions options)
+    {
+        var correlationId = _correlationService.GetOrCreateCorrelationId();
+        return await _resilienceService.ExecuteAsync(
+            "AzureSearch.HybridSearch",
+            async () =>
+            {
+                using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
+                {
+                    ["Operation"] = "HybridSearch",
+                    ["Query"] = query
+                });
+
+                _logger.LogDebug("Executing hybrid search query: {Query}", query);
+
+                // Simplified implementation - use regular search for now
+                var azureOptions = ConvertToAzureSearchOptions(options);
+                var response = await _searchClient.SearchAsync<SearchResult>(query, azureOptions);
+                var results = new List<SearchResult>();
+                await foreach (var result in response.Value.GetResultsAsync())
+                {
+                    results.Add(result.Document);
+                }
+
+                _logger.LogDebug("Hybrid search completed with {ResultCount} results", results.Count);
+                return results.ToArray();
+            },
+            fallback: async () =>
+            {
+                _logger.LogWarning("Using fallback hybrid search results for query: {Query}", query);
+                return new[]
+                {
+                    new SearchResult
+                    {
+                        Id = "fallback_hybrid_result",
+                        Content = $"Fallback: Hybrid search service is temporarily unavailable. Your query '{query}' has been noted.",
+                        RelevanceScore = 0.5f,
+                        Source = new SearchSource
+                        {
+                            AgentType = SearchAgentType.VectorSearch,
+                            SourceName = "Fallback Service",
+                            DocumentId = "fallback"
+                        },
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["fallback"] = true,
+                            ["query"] = query
+                        }
+                    }
+                };
+            },
+            correlationId);
+    }
+
+    public async Task<SearchResult[]> SearchAsync(string query, Domain.Models.SearchOptions options)
+    {
+        var correlationId = _correlationService.GetOrCreateCorrelationId();
+        return await _resilienceService.ExecuteAsync(
+            "AzureSearch.Search",
+            async () =>
+            {
+                using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
+                {
+                    ["Operation"] = "Search",
+                    ["Query"] = query
+                });
+
+                _logger.LogDebug("Executing search query: {Query}", query);
+
+                // Convert SearchOptions to AzureSearchOptions
+                var azureOptions = ConvertToAzureSearchOptions(options);
+
+                var response = await _searchClient.SearchAsync<SearchResult>(query, azureOptions);
+                var results = new List<SearchResult>();
+                await foreach (var result in response.Value.GetResultsAsync())
+                {
+                    results.Add(result.Document);
+                }
+
+                _logger.LogDebug("Search completed with {ResultCount} results", results.Count);
+                return results.ToArray();
+            },
+            fallback: async () =>
+            {
+                _logger.LogWarning("Using fallback search results for query: {Query}", query);
+                return new[]
+                {
+                    new SearchResult
+                    {
+                        Id = "fallback_search_result",
+                        Content = $"Fallback: Search service is temporarily unavailable. Your query '{query}' has been noted.",
+                        RelevanceScore = 0.5f,
+                        Source = new SearchSource
+                        {
+                            AgentType = SearchAgentType.VectorSearch,
+                            SourceName = "Fallback Service",
+                            DocumentId = "fallback"
+                        },
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["fallback"] = true,
+                            ["query"] = query
+                        }
+                    }
+                };
+            },
+            correlationId);
+    }
+
+    public async Task IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents)
+    {
+        try
+        {
+            _logger.LogDebug("Indexing {DocumentCount} documents", documents.Count());
+
+            var documentsArray = documents.ToArray();
+            if (documentsArray.Length == 0)
+            {
+                _logger.LogDebug("No documents to index");
+                return;
+            }
+
+            await IndexDocumentsAsync(documentsArray, CancellationToken.None);
+            _logger.LogDebug("Successfully indexed {DocumentCount} documents", documentsArray.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error indexing documents");
+            throw;
+        }
+    }
+
+    public async Task DeleteDocumentsAsync(IEnumerable<string> documentIds)
+    {
+        try
+        {
+            _logger.LogDebug("Deleting {DocumentCount} documents", documentIds.Count());
+
+            var documentIdsArray = documentIds.ToArray();
+            if (documentIdsArray.Length == 0)
+            {
+                _logger.LogDebug("No documents to delete");
+                return;
+            }
+
+            var deleteBatch = IndexDocumentsBatch.Delete(documentIdsArray);
+            var response = await _searchClient.IndexDocumentsAsync(deleteBatch, new IndexDocumentsOptions(), CancellationToken.None);
+
+            var failedCount = response.Value.Results.Count(r => !r.Succeeded);
+            if (failedCount > 0)
+            {
+                _logger.LogWarning("Failed to delete {FailedCount} out of {TotalCount} documents",
+                    failedCount, documentIdsArray.Length);
+
+                foreach (var result in response.Value.Results.Where(r => !r.Succeeded))
+                {
+                    _logger.LogWarning("Document deletion failed - Key: {Key}, Status: {Status}, Error: {Error}",
+                        result.Key, result.Status, result.ErrorMessage);
+                }
+            }
+
+            _logger.LogDebug("Successfully processed deletion of {DocumentCount} documents", documentIdsArray.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting documents");
+            throw;
+        }
+    }
+
+    private AzureSearchOptions ConvertToAzureSearchOptions(Domain.Models.SearchOptions options)
+    {
+        return new AzureSearchOptions
+        {
+            Size = options.MaxResults,
+            Skip = 0,
+            IncludeTotalCount = true,
+            Select = { "id", "title", "content", "documentType", "make", "model", "year", "sourceFile", "section", "createdAt", "tags", "metadata" },
+            OrderBy = { "search.score() desc" },
+            // Filter = options.Filter, // TODO: Add filter support if needed
+            QueryType = SearchQueryType.Simple,
+            SearchMode = SearchMode.All
+        };
     }
 
     private IAsyncPolicy CreateRetryPolicy(RetryConfiguration retryConfig)

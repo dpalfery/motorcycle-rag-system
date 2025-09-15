@@ -2,9 +2,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
-using MotorcycleRAG.Infrastructure.Azure;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Persistence.Azure;
 using Xunit;
 using Xunit.Abstractions;
 

@@ -1,7 +1,7 @@
 using Microsoft.ApplicationInsights;
-using MotorcycleRAG.Core.Interfaces;
+using MotorcycleRAG.Contracts.Interfaces;
 
-namespace MotorcycleRAG.Infrastructure.Telemetry;
+namespace MotorcycleRAG.Persistence.Telemetry;
 
 /// <summary>
 /// Application Insights based implementation of <see cref="ITelemetryService"/>.
@@ -18,64 +18,70 @@ public sealed class TelemetryService : ITelemetryService
     }
 
     /// <inheritdoc />
-    public void TrackQuery(string queryId, string query, TimeSpan duration, int resultsCount, decimal estimatedCost = 0m, string? correlationId = null)
-    {
-        correlationId ??= _correlationService.GetOrCreateCorrelationId();
-
-        var properties = new Dictionary<string, string>
-        {
-            ["QueryId"] = queryId,
-            ["Query"] = query,
-            ["CorrelationId"] = correlationId
-        };
-
-        var metrics = new Dictionary<string, double>
-        {
-            ["DurationMs"] = duration.TotalMilliseconds,
-            ["ResultsCount"] = resultsCount
-        };
-
-        if (estimatedCost > 0)
-        {
-            metrics["EstimatedCost"] = (double)estimatedCost;
-        }
-
-        _telemetryClient.TrackEvent("MotorcycleQuery", properties, metrics);
-    }
-
-    /// <inheritdoc />
-    public void TrackCost(string queryId, decimal estimatedCost, int tokensUsed = 0, string? correlationId = null)
-    {
-        correlationId ??= _correlationService.GetOrCreateCorrelationId();
-
-        var properties = new Dictionary<string, string>
-        {
-            ["QueryId"] = queryId,
-            ["CorrelationId"] = correlationId
-        };
-
-        var metrics = new Dictionary<string, double>
-        {
-            ["EstimatedCost"] = (double)estimatedCost
-        };
-
-        if (tokensUsed > 0)
-        {
-            metrics["TokensUsed"] = tokensUsed;
-        }
-
-        _telemetryClient.TrackEvent("QueryCost", properties, metrics);
-    }
-
-    /// <inheritdoc />
     public void TrackEvent(string eventName, Dictionary<string, string>? properties = null, Dictionary<string, double>? metrics = null)
     {
         properties ??= new();
         if (!properties.ContainsKey("CorrelationId"))
         {
-            properties["CorrelationId"] = _correlationService.GetOrCreateCorrelationId();
+            properties["CorrelationId"] = _correlationService.GetCorrelationId();
         }
 
         _telemetryClient.TrackEvent(eventName, properties, metrics);
+    }
+
+    /// <inheritdoc />
+    public void TrackException(Exception exception, Dictionary<string, string>? properties = null)
+    {
+        properties ??= new();
+        if (!properties.ContainsKey("CorrelationId"))
+        {
+            properties["CorrelationId"] = _correlationService.GetCorrelationId();
+        }
+
+        _telemetryClient.TrackException(exception, properties);
+    }
+
+    /// <inheritdoc />
+    public void TrackMetric(string metricName, double value, Dictionary<string, string>? properties = null)
+    {
+        properties ??= new();
+        if (!properties.ContainsKey("CorrelationId"))
+        {
+            properties["CorrelationId"] = _correlationService.GetCorrelationId();
+        }
+
+        _telemetryClient.TrackMetric(metricName, value, properties);
+    }
+
+    /// <inheritdoc />
+    public void TrackRequest(string name, DateTimeOffset startTime, TimeSpan duration, string responseCode, bool success)
+    {
+        var properties = new Dictionary<string, string>
+        {
+            ["CorrelationId"] = _correlationService.GetCorrelationId()
+        };
+
+        _telemetryClient.TrackRequest(name, startTime, duration, responseCode, success);
+        _telemetryClient.TrackEvent("Request", properties);
+    }
+
+    /// <inheritdoc />
+    public void TrackQuery(string queryId, string query, TimeSpan duration, int resultsCount, decimal estimatedCost)
+    {
+        var properties = new Dictionary<string, string>
+        {
+            ["QueryId"] = queryId,
+            ["Query"] = query,
+            ["CorrelationId"] = _correlationService.GetCorrelationId()
+        };
+
+        var metrics = new Dictionary<string, double>
+        {
+            ["DurationMs"] = duration.TotalMilliseconds,
+            ["ResultsCount"] = resultsCount,
+            ["EstimatedCost"] = (double)estimatedCost
+        };
+
+        _telemetryClient.TrackEvent("MotorcycleQuery", properties, metrics);
     }
 }

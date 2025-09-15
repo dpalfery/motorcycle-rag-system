@@ -1,8 +1,8 @@
 using Azure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Models;
-using MotorcycleRAG.Infrastructure.Azure;
+using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Persistence.Azure;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 

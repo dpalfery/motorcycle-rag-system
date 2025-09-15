@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Core.Models;
+namespace MotorcycleRAG.Domain.Models;
 
 /// <summary>
 /// Result of data processing operations
@@ -28,6 +28,11 @@ public class ProcessedData
 
     public Dictionary<string, object> Metadata { get; set; } = new();
     public DateTime ProcessedAt { get; set; } = DateTime.UtcNow;
+
+    public bool Success { get; set; } = true;
+    public string Message { get; set; } = "Success";
+    public List<string> Errors { get; set; } = new();
+    public int ItemsProcessed { get; set; }
 }
 
 /// <summary>

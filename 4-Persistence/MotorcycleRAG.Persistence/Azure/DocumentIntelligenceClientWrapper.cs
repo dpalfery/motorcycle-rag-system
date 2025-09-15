@@ -3,8 +3,8 @@ using Azure.AI.DocumentIntelligence;
 using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 using Polly;
 
 namespace MotorcycleRAG.Infrastructure.Azure;
@@ -35,74 +35,10 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
         // Configure resilience policies
         _retryPolicy = CreateRetryPolicy();
 
-        _logger.LogInformation("Document Intelligence client initialized with endpoint: {Endpoint}", 
+        _logger.LogInformation("Document Intelligence client initialized with endpoint: {Endpoint}",
             _config.DocumentIntelligenceEndpoint);
     }
 
-    public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(
-        byte[] document,
-        string? contentType = null,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            _logger.LogDebug("Analyzing document with Layout model");
-
-            // Simplified implementation - in a real scenario, you would use the actual Document Intelligence SDK
-            // For now, return placeholder analysis to demonstrate the pattern
-            await Task.Delay(500, cancellationToken); // Simulate document analysis
-
-            var result = new DocumentAnalysisResult
-            {
-                Content = "Extracted text content from the document",
-                Pages = new[]
-                {
-                    new MotorcycleRAG.Core.Models.DocumentPage
-                    {
-                        PageNumber = 1,
-                        Content = "Page 1 content",
-                        Width = 8.5f,
-                        Height = 11.0f
-                    }
-                },
-                Tables = new[]
-                {
-                    new MotorcycleRAG.Core.Models.DocumentTable
-                    {
-                        RowCount = 2,
-                        ColumnCount = 2,
-                        Cells = new[]
-                        {
-                            new MotorcycleRAG.Core.Models.DocumentTableCell { RowIndex = 0, ColumnIndex = 0, Content = "Header 1" },
-                            new MotorcycleRAG.Core.Models.DocumentTableCell { RowIndex = 0, ColumnIndex = 1, Content = "Header 2" },
-                            new MotorcycleRAG.Core.Models.DocumentTableCell { RowIndex = 1, ColumnIndex = 0, Content = "Data 1" },
-                            new MotorcycleRAG.Core.Models.DocumentTableCell { RowIndex = 1, ColumnIndex = 1, Content = "Data 2" }
-                        }
-                    }
-                },
-                Metadata = new Dictionary<string, object>
-                {
-                    ["ModelId"] = "prebuilt-layout",
-                    ["DocumentSize"] = document.Length,
-                    ["ContentType"] = contentType ?? "application/pdf"
-                }
-            };
-
-            _logger.LogDebug("Document analysis completed successfully");
-            return result;
-        }
-        catch (RequestFailedException ex)
-        {
-            _logger.LogError(ex, "Document Intelligence request failed: {ErrorCode} - {Message}", 
-                ex.ErrorCode, ex.Message);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error in AnalyzeDocumentAsync");
-            throw;
-        }
-    }
 
     public async Task<DocumentAnalysisResult> AnalyzeDocumentFromUriAsync(
         Uri documentUri,
@@ -121,7 +57,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                 Content = $"Extracted text content from document at {documentUri}",
                 Pages = new[]
                 {
-                    new MotorcycleRAG.Core.Models.DocumentPage
+                    new MotorcycleRAG.Domain.Models.DocumentPage
                     {
                         PageNumber = 1,
                         Content = "Page 1 content from URI",
@@ -129,7 +65,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                         Height = 11.0f
                     }
                 },
-                Tables = Array.Empty<MotorcycleRAG.Core.Models.DocumentTable>(),
+                Tables = Array.Empty<MotorcycleRAG.Domain.Models.DocumentTable>(),
                 Metadata = new Dictionary<string, object>
                 {
                     ["ModelId"] = "prebuilt-layout",
@@ -142,13 +78,90 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
         }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(ex, "Document Intelligence URI request failed: {ErrorCode} - {Message}", 
+            _logger.LogError(ex, "Document Intelligence URI request failed: {ErrorCode} - {Message}",
                 ex.ErrorCode, ex.Message);
             throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error in AnalyzeDocumentFromUriAsync");
+            throw;
+        }
+    }
+
+    public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(string documentUrl)
+    {
+        try
+        {
+            _logger.LogDebug("Analyzing document from URL: {DocumentUrl}", documentUrl);
+
+            // Convert URL to URI and delegate to URI method
+            var uri = new Uri(documentUrl);
+            return await AnalyzeDocumentFromUriAsync(uri, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error analyzing document from URL: {DocumentUrl}", documentUrl);
+            throw;
+        }
+    }
+
+    public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(Stream documentStream, string contentType)
+    {
+        try
+        {
+            _logger.LogDebug("Analyzing document from stream with content type: {ContentType}", contentType);
+
+            // Convert stream to byte array and create placeholder result
+            using var memoryStream = new MemoryStream();
+            await documentStream.CopyToAsync(memoryStream);
+            var documentBytes = memoryStream.ToArray();
+
+            // Simplified implementation - return placeholder analysis
+            await Task.Delay(500); // Simulate document analysis
+
+            var result = new DocumentAnalysisResult
+            {
+                Content = "Extracted text content from the document stream",
+                Pages = new[]
+                {
+                    new MotorcycleRAG.Domain.Models.DocumentPage
+                    {
+                        PageNumber = 1,
+                        Content = "Page 1 content from stream",
+                        Width = 8.5f,
+                        Height = 11.0f
+                    }
+                },
+                Tables = new[]
+                {
+                    new MotorcycleRAG.Domain.Models.DocumentTable
+                    {
+                        RowCount = 2,
+                        ColumnCount = 2,
+                        Cells = new[]
+                        {
+                            new MotorcycleRAG.Domain.Models.DocumentTableCell { RowIndex = 0, ColumnIndex = 0, Content = "Header 1" },
+                            new MotorcycleRAG.Domain.Models.DocumentTableCell { RowIndex = 0, ColumnIndex = 1, Content = "Header 2" },
+                            new MotorcycleRAG.Domain.Models.DocumentTableCell { RowIndex = 1, ColumnIndex = 0, Content = "Data 1" },
+                            new MotorcycleRAG.Domain.Models.DocumentTableCell { RowIndex = 1, ColumnIndex = 1, Content = "Data 2" }
+                        }
+                    }
+                },
+                Metadata = new Dictionary<string, object>
+                {
+                    ["ModelId"] = "prebuilt-layout",
+                    ["DocumentSize"] = documentBytes.Length,
+                    ["ContentType"] = contentType
+                }
+            };
+
+            _logger.LogDebug("Document analysis from stream completed successfully");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error analyzing document from stream");
             throw;
         }
     }
@@ -171,7 +184,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
     private IAsyncPolicy CreateRetryPolicy()
     {
         var retryConfig = _config.Retry;
-        
+
         return Policy
             .Handle<RequestFailedException>(ex => IsRetryableError(ex))
             .Or<TaskCanceledException>()

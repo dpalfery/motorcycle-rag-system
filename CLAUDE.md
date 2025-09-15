@@ -23,7 +23,7 @@ This application follows Clean Architecture principles with the following folder
 ## Development Commands
 
 ### Build and Test
-```bash
+```powershell
 # Build the entire solution
 dotnet build
 
@@ -44,7 +44,7 @@ dotnet test --verbosity normal
 ```
 
 ### Development Server
-```bash
+```powershell
 # Run the API (development mode)
 dotnet run --project 1-Presentation/MotorcycleRAG.API
 
@@ -53,7 +53,7 @@ dotnet run --project 1-Presentation/MotorcycleRAG.API --environment Development
 ```
 
 ### Project Structure
-```bash
+```powershell
 # Clean build artifacts
 dotnet clean
 

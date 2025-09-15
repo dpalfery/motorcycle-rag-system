@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 
-namespace MotorcycleRAG.Core.Agents;
+namespace MotorcycleRAG.Application.Agents;
 
 /// <summary>
 /// Vector search agent implementing hybrid search combining keyword and semantic search
@@ -46,7 +46,7 @@ public class VectorSearchAgent : ISearchAgent
             var startTime = DateTime.UtcNow;
 
             // Step 1: Generate query embedding for semantic search
-            var queryEmbedding = await GenerateQueryEmbeddingAsync(query);
+            var queryEmbedding = await GenerateQueryEmbeddingAsync(query, CancellationToken.None);
 
             // Step 2: Execute hybrid search (keyword + semantic)
             var rawResults = await ExecuteHybridSearchAsync(query, queryEmbedding, options);
@@ -75,7 +75,7 @@ public class VectorSearchAgent : ISearchAgent
     /// <summary>
     /// Generate embedding for the search query
     /// </summary>
-    private async Task<float[]> GenerateQueryEmbeddingAsync(string query)
+    private async Task<float[]> GenerateQueryEmbeddingAsync(string query, CancellationToken cancellationToken)
     {
         try
         {
@@ -83,7 +83,7 @@ public class VectorSearchAgent : ISearchAgent
             
             // Enhanced query for better embeddings
             var enhancedQuery = EnhanceQueryForEmbedding(query);
-            var embedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", enhancedQuery);
+            var embedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", enhancedQuery, cancellationToken);
             
             _logger.LogDebug("Successfully generated embedding of {Dimensions} dimensions", embedding.Length);
             return embedding;
@@ -138,9 +138,16 @@ public class VectorSearchAgent : ISearchAgent
 
             // Build search parameters for keyword search
             var maxResults = Math.Min(options.MaxResults, _searchConfig.MaxSearchResults);
-            
+
             // Execute search through Azure Search client
-            var results = await _searchClient.SearchAsync(query, maxResults);
+            var searchOptions = new SearchOptions
+            {
+                MaxResults = maxResults,
+                MinRelevanceScore = options.MinRelevanceScore,
+                IncludeMetadata = options.IncludeMetadata,
+                EnableCaching = options.EnableCaching
+            };
+            var results = await _searchClient.SearchAsync(query, searchOptions);
             
             // Convert to SearchResult format with keyword search metadata
             var searchResults = results.Select(result => new SearchResult
@@ -448,4 +455,4 @@ public class VectorSearchAgent : ISearchAgent
     }
 
     #endregion
-} 
+}

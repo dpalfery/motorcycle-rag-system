@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using MotorcycleRAG.Infrastructure.Resilience;
+using MotorcycleRAG.Persistence.Resilience;
 using System.Diagnostics;
 using Xunit;
 

@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Core.Interfaces;
+using MotorcycleRAG.Contracts.Interfaces;
 using System.Diagnostics;
 
-namespace MotorcycleRAG.Infrastructure.Resilience;
+namespace MotorcycleRAG.Persistence.Resilience;
 
 /// <summary>
 /// Service for managing correlation IDs throughout the request lifecycle
@@ -15,6 +15,21 @@ public class CorrelationService : ICorrelationService
     public CorrelationService(ILogger<CorrelationService> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <inheritdoc />
+    public string GetCorrelationId()
+    {
+        return GetOrCreateCorrelationId();
+    }
+
+    /// <inheritdoc />
+    public string GenerateCorrelationId()
+    {
+        // Use a format similar to W3C Trace Context but simplified
+        var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff");
+        var random = Guid.NewGuid().ToString("N")[..12]; // Take first 12 chars
+        return $"corr-{timestamp}-{random}";
     }
 
     /// <summary>
@@ -39,7 +54,7 @@ public class CorrelationService : ICorrelationService
         // Generate new correlation ID
         var newId = GenerateCorrelationId();
         _correlationId.Value = newId;
-        
+
         _logger.LogDebug("Generated new correlation ID: {CorrelationId}", newId);
         return newId;
     }
@@ -65,7 +80,7 @@ public class CorrelationService : ICorrelationService
     {
         var currentId = _correlationId.Value;
         _correlationId.Value = null;
-        
+
         if (!string.IsNullOrEmpty(currentId))
         {
             _logger.LogDebug("Cleared correlation ID: {CorrelationId}", currentId);
@@ -132,16 +147,6 @@ public class CorrelationService : ICorrelationService
         return _logger.BeginScope(scopeProperties);
     }
 
-    /// <summary>
-    /// Generates a new correlation ID
-    /// </summary>
-    private string GenerateCorrelationId()
-    {
-        // Use a format similar to W3C Trace Context but simplified
-        var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff");
-        var random = Guid.NewGuid().ToString("N")[..12]; // Take first 12 chars
-        return $"corr-{timestamp}-{random}";
-    }
 }
 
 /// <summary>
@@ -163,7 +168,7 @@ public static class LoggerExtensions
         {
             ["CorrelationId"] = correlationId
         });
-        
+
         logger.LogError(exception, message, args);
     }
 
@@ -180,7 +185,7 @@ public static class LoggerExtensions
         {
             ["CorrelationId"] = correlationId
         });
-        
+
         logger.LogWarning(message, args);
     }
 
@@ -197,7 +202,7 @@ public static class LoggerExtensions
         {
             ["CorrelationId"] = correlationId
         });
-        
+
         logger.LogInformation(message, args);
     }
 }

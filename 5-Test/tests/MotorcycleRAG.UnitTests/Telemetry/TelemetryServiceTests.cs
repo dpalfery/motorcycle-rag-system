@@ -2,8 +2,8 @@ using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.Channel;
 using Microsoft.ApplicationInsights.Extensibility;
 using Moq;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Infrastructure.Telemetry;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Persistence.Telemetry;
 using System.Collections.Concurrent;
 using FluentAssertions;
 

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 using System.Net.Mime;
 
 namespace MotorcycleRAG.API.Controllers;

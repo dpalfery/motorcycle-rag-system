@@ -2,10 +2,10 @@ using Azure;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
-using MotorcycleRAG.Infrastructure.Azure;
-using MotorcycleRAG.Infrastructure.Resilience;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Persistence.Azure;
+using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 
 namespace MotorcycleRAG.UnitTests.Azure;

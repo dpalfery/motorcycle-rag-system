@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 
-namespace MotorcycleRAG.Core.Services;
+namespace MotorcycleRAG.Application.Services;
 
 /// <summary>
 /// Coordinates multiple search agents using Semantic Kernel to rank and fuse their results.
@@ -109,7 +109,7 @@ Answer in markdown:
 """;
 
             // Utilise the existing OpenAI client – it already implements retry and resilience patterns.
-            var answer = await _openAIClient.GetChatCompletionAsync("gpt-4o-mini", prompt);
+            var answer = await _openAIClient.GetChatCompletionAsync("gpt-4o-mini", prompt, CancellationToken.None);
             return answer;
         }
         catch (Exception ex)
@@ -117,6 +117,33 @@ Answer in markdown:
             _logger.LogError(ex, "Failed to generate response via Semantic Kernel / OpenAI");
             throw;
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            _logger.LogWarning("OrchestrateSearchAsync was invoked with an empty query");
+            return Array.Empty<SearchResult>();
+        }
+
+        var context = new SearchContext
+        {
+            Preferences = new SearchPreferences
+            {
+                MaxResults = options.MaxResults,
+                MinRelevanceScore = options.MinRelevanceScore
+            }
+        };
+
+        return await ExecuteSequentialSearchAsync(query, context);
+    }
+
+    /// <inheritdoc />
+    public IEnumerable<ISearchAgent> GetAvailableAgents()
+    {
+        return _agents;
     }
 
     #endregion
@@ -187,11 +214,11 @@ Answer in markdown:
     private async Task<List<SearchResult>> ApplySemanticRankingAsync(string query, List<SearchResult> results)
     {
         // Generate embedding for the query.
-        var queryEmbedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", query);
+        var queryEmbedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", query, CancellationToken.None);
 
         // Generate embeddings for each candidate result (truncate content to keep costs low).
         var contents = results.Select(r => Truncate(r.Content, 1024)).ToArray();
-        var resultEmbeddings = await _openAIClient.GetEmbeddingsAsync("text-embedding-3-large", contents);
+        var resultEmbeddings = await _openAIClient.GetEmbeddingsAsync("text-embedding-3-large", contents, CancellationToken.None);
 
         var scored = new List<(SearchResult Result, double Score)>();
         for (var i = 0; i < results.Count; i++)

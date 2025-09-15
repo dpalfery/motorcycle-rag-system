@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
-using MotorcycleRAG.Infrastructure.Azure;
-using MotorcycleRAG.Infrastructure.Resilience;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Persistence.Azure;
+using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 using Xunit;
 

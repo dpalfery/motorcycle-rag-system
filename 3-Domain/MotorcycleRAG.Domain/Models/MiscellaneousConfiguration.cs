@@ -1,4 +1,4 @@
-namespace MotorcycleRAG.Core.Models;
+namespace MotorcycleRAG.Domain.Models;
 
 /// <summary>
 /// Miscellaneous top-level configuration values that do not yet warrant a dedicated options class.

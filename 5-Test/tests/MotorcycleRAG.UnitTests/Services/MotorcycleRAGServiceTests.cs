@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
-using MotorcycleRAG.Core.Services;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Application.Services;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Services;

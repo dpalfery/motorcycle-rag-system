@@ -9,39 +9,32 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-    <PackageReference Include="xunit" Version="2.6.1" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="coverlet.collector" Version="6.0.0">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.7" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.7" />
-    <PackageReference Include="Moq" Version="4.20.69" />
-    <PackageReference Include="Azure.Search.Documents" Version="11.6.0" />
-    <PackageReference Include="Azure.Identity" Version="1.12.1" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.7" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="FluentAssertions" Version="6.12.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj" />
-    <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
-    <ProjectReference Include="..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
-    <ProjectReference Include="..\..\4-Persistence\MotorcycleRAG.Shared\MotorcycleRAG.Shared.csproj" />
-    <ProjectReference Include="..\..\1-Presentation\MotorcycleRAG.API\MotorcycleRAG.API.csproj" />
+    <ProjectReference Include="..\..\..\1-Presentation\MotorcycleRAG.API\MotorcycleRAG.API.csproj" />
+    <ProjectReference Include="..\..\..\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj" />
+    <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
+    <ProjectReference Include="..\..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="appsettings.Test.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Moq" />
+    <Using Include="FluentAssertions" />
   </ItemGroup>
 
 </Project>

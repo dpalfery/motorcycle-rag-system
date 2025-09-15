@@ -39,9 +39,9 @@ These values are **publicly safe** (they reveal resource names but not keys) and
 
 For local development you can configure the same values with Pulumi CLI:
 
-```bash
-pulumi config set azureOpenAIEndpoint    "https://..."   # non-secret
-pulumi config set azureOpenAIKey         "..." --secret
+```powershell
+pulumi config set azureOpenAIEndpoint "https://..."   # non-secret
+pulumi config set azureOpenAIKey "..." --secret
 # ...etc.
 ```
 

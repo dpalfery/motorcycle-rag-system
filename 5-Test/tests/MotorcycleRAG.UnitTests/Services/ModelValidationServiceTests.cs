@@ -1,5 +1,5 @@
-using MotorcycleRAG.Core.Models;
-using MotorcycleRAG.Core.Services;
+using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Application.Services;
 
 namespace MotorcycleRAG.UnitTests.Services;
 

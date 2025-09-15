@@ -1,9 +1,9 @@
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Net.NetworkInformation;
-using MotorcycleRAG.Infrastructure.Azure;
+using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Infrastructure.DataProcessing;
 
 namespace MotorcycleRAG.API.Configuration;
@@ -39,11 +39,10 @@ public static class ServiceConfiguration
     /// </summary>
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
-        // Register core service interfaces (implementations will be added later)
-        // services.AddScoped<IMotorcycleRAGService, MotorcycleRAGService>();
-        services.AddScoped<IMotorcycleRAGService, MotorcycleRAG.Core.Services.MotorcycleRAGService>();
-        services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Core.Services.AgentOrchestrator>();
-        services.AddSingleton<ITelemetryService, MotorcycleRAG.Infrastructure.Telemetry.TelemetryService>();
+        // Register core service interfaces to concrete implementations in Application layer
+        services.AddScoped<IMotorcycleRAGService, MotorcycleRAG.Application.Services.MotorcycleRAGService>();
+        services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Application.Services.AgentOrchestrator>();
+        services.AddSingleton<ITelemetryService, MotorcycleRAG.Persistence.Telemetry.TelemetryService>();
 
         return services;
     }
@@ -53,11 +52,10 @@ public static class ServiceConfiguration
     /// </summary>
     public static IServiceCollection AddSearchAgents(this IServiceCollection services)
     {
-        // Register search agent implementations (will be implemented later)
-        services.AddScoped<ISearchAgent, MotorcycleRAG.Core.Agents.WebSearchAgent>();
-        services.AddScoped<ISearchAgent, MotorcycleRAG.Core.Agents.QueryPlannerAgent>();
-        // services.AddScoped<ISearchAgent, PDFSearchAgent>();
-        // services.AddScoped<ISearchAgent, QueryPlannerAgent>();
+        // Register search agent implementations from Application layer
+        services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.VectorSearchAgent>();
+        services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.WebSearchAgent>();
+        services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();
 
         return services;
     }
@@ -67,9 +65,9 @@ public static class ServiceConfiguration
     /// </summary>
     public static IServiceCollection AddDataProcessors(this IServiceCollection services)
     {
-        // Register data processor implementations (will be implemented later)
-        services.AddScoped<IDataProcessor<CSVFile>, MotorcycleCSVProcessor>();
-        services.AddScoped<IDataProcessor<PDFDocument>, MotorcyclePDFProcessor>();
+        // Register data processor implementations from Persistence layer
+        services.AddScoped<IDataProcessor<CSVFile>, MotorcycleRAG.Infrastructure.DataProcessing.MotorcycleCSVProcessor>();
+        services.AddScoped<IDataProcessor<PDFDocument>, MotorcycleRAG.Infrastructure.DataProcessing.MotorcyclePDFProcessor>();
 
         return services;
     }

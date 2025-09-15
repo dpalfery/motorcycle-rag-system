@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Core.Models;
+namespace MotorcycleRAG.Domain.Models;
 
 /// <summary>
 /// Search service configuration settings bound to the "Search" section in configuration sources.

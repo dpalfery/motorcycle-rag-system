@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 
-namespace MotorcycleRAG.Core.Services;
+namespace MotorcycleRAG.Application.Services;
 
 /// <summary>
 /// Main service coordinating the complete retrieval-augmented generation (RAG) pipeline for motorcycle queries.
@@ -19,6 +19,12 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _telemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
+    }
+
+    /// <inheritdoc />
+    public async Task<MotorcycleQueryResponse> SearchAsync(MotorcycleQueryRequest request)
+    {
+        return await QueryAsync(request);
     }
 
     /// <inheritdoc />
@@ -75,7 +81,7 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
     }
 
     /// <inheritdoc />
-    public Task<HealthCheckResult> GetHealthAsync()
+    public async Task<HealthCheckResult> GetHealthAsync()
     {
         // For now we expose a very lightweight health indicator. Additional component checks can be added here later.
         var result = new HealthCheckResult
@@ -88,6 +94,6 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
             }
         };
 
-        return Task.FromResult(result);
+        return await Task.FromResult(result);
     }
 }

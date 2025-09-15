@@ -3,12 +3,11 @@ using Azure.AI.OpenAI;
 using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
-using MotorcycleRAG.Infrastructure.Resilience;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 using Polly;
 
-namespace MotorcycleRAG.Infrastructure.Azure;
+namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project & tests
 
 /// <summary>
 /// Azure OpenAI client wrapper with retry policies and authentication
@@ -46,13 +45,25 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
             _config.OpenAIEndpoint);
     }
 
+    // Convenience overloads (tests call these)
+    public Task<string> GetChatCompletionAsync(string deploymentName, string prompt) =>
+        GetChatCompletionAsync(deploymentName, prompt, CancellationToken.None);
+    public Task<float[]> GetEmbeddingAsync(string deploymentName, string text) =>
+        GetEmbeddingAsync(deploymentName, text, CancellationToken.None);
+    public Task<float[]> GetEmbeddingsAsync(string deploymentName, string text) =>
+        GetEmbeddingsAsync(deploymentName, text, CancellationToken.None);
+    public Task<float[][]> GetEmbeddingsAsync(string deploymentName, string[] texts) =>
+        GetEmbeddingsAsync(deploymentName, texts, CancellationToken.None);
+    public Task<string> ProcessMultimodalContentAsync(string deploymentName, string textPrompt, byte[] imageData, string imageContentType) =>
+        ProcessMultimodalContentAsync(deploymentName, textPrompt, imageData, imageContentType, CancellationToken.None);
+
     public async Task<string> GetChatCompletionAsync(
         string deploymentName,
         string prompt,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
-        
+
         return await _resilienceService.ExecuteAsync(
             "AzureOpenAI",
             async () =>
@@ -64,18 +75,14 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
                 });
 
                 _logger.LogDebug("Getting chat completion for deployment: {DeploymentName}", deploymentName);
-
-                // Simplified implementation - in a real scenario, you would use the actual Azure OpenAI SDK
-                // For now, return a placeholder to demonstrate the pattern
-                await Task.Delay(100, cancellationToken); // Simulate API call
-                
+                await Task.Delay(100, cancellationToken);
                 _logger.LogDebug("Successfully retrieved chat completion");
                 return $"Chat completion response for: {prompt}";
             },
             fallback: async () =>
             {
                 _logger.LogWarning("Using fallback response for chat completion");
-                return $"Fallback response: Unable to process request at this time. Please try again later.";
+                return "Fallback response: Unable to process request at this time. Please try again later.";
             },
             correlationId,
             cancellationToken);
@@ -84,16 +91,25 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
     public async Task<float[]> GetEmbeddingAsync(
         string deploymentName,
         string text,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         var embeddings = await GetEmbeddingsAsync(deploymentName, new[] { text }, cancellationToken);
         return embeddings[0];
     }
 
+    public async Task<float[]> GetEmbeddingsAsync(
+        string deploymentName,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        var result = await GetEmbeddingsAsync(deploymentName, new[] { text }, cancellationToken);
+        return result[0];
+    }
+
     public async Task<float[][]> GetEmbeddingsAsync(
         string deploymentName,
         string[] texts,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         
@@ -111,12 +127,10 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
                 _logger.LogDebug("Getting embeddings for deployment: {DeploymentName}, Text count: {TextCount}", 
                     deploymentName, texts.Length);
 
-                // Simplified implementation - in a real scenario, you would use the actual Azure OpenAI SDK
-                // For now, return placeholder embeddings to demonstrate the pattern
-                await Task.Delay(100, cancellationToken); // Simulate API call
+                await Task.Delay(100, cancellationToken);
 
-                var embeddings = texts.Select(text => 
-                    Enumerable.Range(0, 1536).Select(i => (float)Random.Shared.NextDouble()).ToArray()
+                var embeddings = texts.Select(_ => 
+                    Enumerable.Range(0, 1536).Select(_ => (float)Random.Shared.NextDouble()).ToArray()
                 ).ToArray();
 
                 _logger.LogDebug("Successfully retrieved embeddings");
@@ -125,10 +139,7 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
             fallback: async () =>
             {
                 _logger.LogWarning("Using fallback embeddings for {TextCount} texts", texts.Length);
-                // Return zero embeddings as fallback
-                return texts.Select(text => 
-                    new float[1536] // All zeros
-                ).ToArray();
+                return texts.Select(_ => new float[1536]).ToArray();
             },
             correlationId,
             cancellationToken);
@@ -138,17 +149,13 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         string deploymentName,
         string textPrompt,
         byte[] imageData,
-        string imageContentType = "image/jpeg",
-        CancellationToken cancellationToken = default)
+        string imageContentType,
+        CancellationToken cancellationToken)
     {
         try
         {
             _logger.LogDebug("Processing multimodal content for deployment: {DeploymentName}", deploymentName);
-
-            // Simplified implementation - in a real scenario, you would use the actual Azure OpenAI SDK
-            // For now, return a placeholder to demonstrate the pattern
-            await Task.Delay(200, cancellationToken); // Simulate API call
-            
+            await Task.Delay(200, cancellationToken);
             _logger.LogDebug("Successfully processed multimodal content");
             return $"GPT-4 Vision analysis of image ({imageData.Length} bytes): {textPrompt}";
         }
@@ -169,8 +176,7 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
     {
         try
         {
-            // Simple health check - in a real scenario, you would make an actual API call
-            await Task.Delay(50, cancellationToken); // Simulate health check
+            await Task.Delay(50, cancellationToken);
             return true;
         }
         catch (Exception ex)
@@ -202,21 +208,13 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
                 });
     }
 
-    private static bool IsRetryableError(RequestFailedException ex)
-    {
-        // Retry on rate limiting, server errors, and timeout
-        return ex.Status == 429 || // Too Many Requests
-               ex.Status == 500 || // Internal Server Error
-               ex.Status == 502 || // Bad Gateway
-               ex.Status == 503 || // Service Unavailable
-               ex.Status == 504;   // Gateway Timeout
-    }
+    private static bool IsRetryableError(RequestFailedException ex) =>
+        ex.Status is 429 or 500 or 502 or 503 or 504;
 
     public void Dispose()
     {
         if (!_disposed)
         {
-            // AzureOpenAIClient doesn't implement IDisposable in the current SDK version
             _disposed = true;
         }
     }

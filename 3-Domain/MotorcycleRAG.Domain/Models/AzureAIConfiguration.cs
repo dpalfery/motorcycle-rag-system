@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Core.Models;
+namespace MotorcycleRAG.Domain.Models;
 
 /// <summary>
 /// Root configuration for all Azure Cognitive services used by the application.

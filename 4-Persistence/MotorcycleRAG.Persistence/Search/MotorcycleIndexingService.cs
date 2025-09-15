@@ -3,8 +3,8 @@ using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 using System.Text.Json;
 
 namespace MotorcycleRAG.Infrastructure.Search;
@@ -36,7 +36,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
         _searchConfig = searchConfig?.Value ?? throw new ArgumentNullException(nameof(searchConfig));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        
+
         // Limit concurrent indexing operations to prevent overwhelming the service
         _indexingSemaphore = new SemaphoreSlim(3, 3);
     }
@@ -90,7 +90,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             result.Success = createdIndexes.Count > 0;
             result.CreatedIndexes = createdIndexes;
             result.Errors = errors;
-            result.Message = result.Success 
+            result.Message = result.Success
                 ? $"Successfully created {createdIndexes.Count} indexes"
                 : "Failed to create any indexes";
 
@@ -112,14 +112,14 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     /// Index CSV processed data with batch processing (100-1000 documents per batch)
     /// </summary>
     public async Task<IndexingResult> IndexCSVDataAsync(
-        ProcessedData processedData, 
+        ProcessedData processedData,
         CancellationToken cancellationToken = default)
     {
         await _indexingSemaphore.WaitAsync(cancellationToken);
-        
+
         try
         {
-            _logger.LogInformation("Starting CSV data indexing for {DocumentCount} documents", 
+            _logger.LogInformation("Starting CSV data indexing for {DocumentCount} documents",
                 processedData.Documents.Count);
 
             var result = await IndexDocumentsBatchAsync(
@@ -152,14 +152,14 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     /// Index PDF processed data with batch processing
     /// </summary>
     public async Task<IndexingResult> IndexPDFDataAsync(
-        ProcessedData processedData, 
+        ProcessedData processedData,
         CancellationToken cancellationToken = default)
     {
         await _indexingSemaphore.WaitAsync(cancellationToken);
-        
+
         try
         {
-            _logger.LogInformation("Starting PDF data indexing for {DocumentCount} documents", 
+            _logger.LogInformation("Starting PDF data indexing for {DocumentCount} documents",
                 processedData.Documents.Count);
 
             var result = await IndexDocumentsBatchAsync(
@@ -198,7 +198,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
         try
         {
             var indexes = new[] { CSV_INDEX_NAME, PDF_INDEX_NAME, UNIFIED_INDEX_NAME };
-            
+
             foreach (var indexName in indexes)
             {
                 try
@@ -269,7 +269,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
 
             // Recreate indexes
             var creationResult = await CreateSearchIndexesAsync(cancellationToken);
-            
+
             _logger.LogInformation("Index reset completed. Deleted: {DeletedCount}, Created: {CreatedCount}",
                 deletedCount, creationResult.CreatedIndexes.Count);
 
@@ -279,6 +279,103 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
         {
             _logger.LogError(ex, "Error resetting indexes");
             return false;
+        }
+    }
+
+    public async Task<BatchIndexingResult> IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents)
+    {
+        var result = new BatchIndexingResult();
+        var startTime = DateTime.UtcNow;
+
+        try
+        {
+            _logger.LogInformation("Starting batch indexing of {DocumentCount} documents", documents.Count());
+
+            var documentsList = documents.ToList();
+            if (documentsList.Count == 0)
+            {
+                result.Success = true;
+                result.DocumentsProcessed = 0;
+                result.DocumentsIndexed = 0;
+                return result;
+            }
+
+            // Use unified index for general indexing
+            var indexResult = await IndexDocumentsBatchAsync(
+                documentsList,
+                UNIFIED_INDEX_NAME,
+                DocumentType.Specification, // Default type
+                CancellationToken.None);
+
+            result.Success = indexResult.Success;
+            result.DocumentsProcessed = documentsList.Count;
+            result.DocumentsIndexed = indexResult.DocumentsIndexed;
+            result.Errors = indexResult.Errors;
+
+            _logger.LogInformation("Batch indexing completed. Indexed: {IndexedCount}/{TotalCount}",
+                result.DocumentsIndexed, documentsList.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fatal error during batch indexing");
+            result.Success = false;
+            result.Errors.Add(ex.Message);
+        }
+        finally
+        {
+            result.ProcessingTime = DateTime.UtcNow - startTime;
+        }
+
+        return result;
+    }
+
+    public async Task<IndexingStatistics> GetIndexingStatisticsAsync()
+    {
+        return await GetIndexingStatisticsAsync(CancellationToken.None);
+    }
+
+    public async Task<IndexCreationResult> RebuildIndexAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Starting index rebuild process");
+
+            // Reset all indexes and recreate them
+            var resetSuccess = await ResetIndexesAsync(CancellationToken.None);
+
+            if (resetSuccess)
+            {
+                _logger.LogInformation("Index rebuild completed successfully");
+                return new IndexCreationResult
+                {
+                    Success = true,
+                    Message = "Index rebuild completed successfully",
+                    CreatedIndexes = new List<string> { CSV_INDEX_NAME, PDF_INDEX_NAME, UNIFIED_INDEX_NAME },
+                    CreatedAt = DateTime.UtcNow
+                };
+            }
+            else
+            {
+                _logger.LogError("Index rebuild failed during reset operation");
+                return new IndexCreationResult
+                {
+                    Success = false,
+                    Message = "Index rebuild failed during reset operation",
+                    Errors = new List<string> { "Reset operation failed" },
+                    CreatedAt = DateTime.UtcNow
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during index rebuild");
+            return new IndexCreationResult
+            {
+                Success = false,
+                Message = $"Index rebuild failed: {ex.Message}",
+                Errors = new List<string> { ex.Message },
+                CreatedAt = DateTime.UtcNow
+            };
         }
     }
 
@@ -318,7 +415,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
                     new SearchableField("tags") { IsFilterable = true, IsFacetable = true },
                     new SimpleField("metadata", SearchFieldDataType.String) { IsFilterable = false }
                 },
-                
+
                 VectorSearch = CreateVectorSearchConfiguration(),
                 SemanticSearch = CreateSemanticSearchConfiguration("csv-semantic-config"),
                 ScoringProfiles =
@@ -328,10 +425,10 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             };
 
             await _indexClient.CreateOrUpdateIndexAsync(index, cancellationToken: cancellationToken);
-            
+
             result.Success = true;
             result.CreatedIndexes.Add(CSV_INDEX_NAME);
-            
+
             _logger.LogInformation("Successfully created CSV index: {IndexName}", CSV_INDEX_NAME);
         }
         catch (Exception ex)
@@ -386,7 +483,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
                     new SimpleField("language", SearchFieldDataType.String) { IsFilterable = true, IsFacetable = true },
                     new SimpleField("metadata", SearchFieldDataType.String) { IsFilterable = false }
                 },
-                
+
                 VectorSearch = CreateVectorSearchConfiguration(),
                 SemanticSearch = CreateSemanticSearchConfiguration("pdf-semantic-config"),
                 ScoringProfiles =
@@ -396,10 +493,10 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             };
 
             await _indexClient.CreateOrUpdateIndexAsync(index, cancellationToken: cancellationToken);
-            
+
             result.Success = true;
             result.CreatedIndexes.Add(PDF_INDEX_NAME);
-            
+
             _logger.LogInformation("Successfully created PDF index: {IndexName}", PDF_INDEX_NAME);
         }
         catch (Exception ex)
@@ -456,7 +553,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
                     new SimpleField("language", SearchFieldDataType.String) { IsFilterable = true, IsFacetable = true },
                     new SimpleField("metadata", SearchFieldDataType.String) { IsFilterable = false }
                 },
-                
+
                 VectorSearch = CreateVectorSearchConfiguration(),
                 SemanticSearch = CreateSemanticSearchConfiguration("unified-semantic-config"),
                 ScoringProfiles =
@@ -466,10 +563,10 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             };
 
             await _indexClient.CreateOrUpdateIndexAsync(index, cancellationToken: cancellationToken);
-            
+
             result.Success = true;
             result.CreatedIndexes.Add(UNIFIED_INDEX_NAME);
-            
+
             _logger.LogInformation("Successfully created unified index: {IndexName}", UNIFIED_INDEX_NAME);
         }
         catch (Exception ex)
@@ -480,8 +577,8 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
         }
 
         return result;
-    }   
- private VectorSearch CreateVectorSearchConfiguration()
+    }
+    private VectorSearch CreateVectorSearchConfiguration()
     {
         return new VectorSearch
         {
@@ -567,7 +664,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
         {
             // Filter documents by expected type
             var filteredDocuments = documents.Where(d => d.Type == expectedType).ToList();
-            
+
             if (filteredDocuments.Count == 0)
             {
                 result.Success = true;
@@ -575,7 +672,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
                 return result;
             }
 
-            _logger.LogDebug("Indexing {DocumentCount} documents to {IndexName}", 
+            _logger.LogDebug("Indexing {DocumentCount} documents to {IndexName}",
                 filteredDocuments.Count, indexName);
 
             // Process documents in batches (100-1000 per batch as per requirements)
@@ -589,31 +686,22 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             {
                 batchNumber++;
                 var batchStartTime = DateTime.UtcNow;
-                
+
                 try
                 {
                     var batchArray = batch.ToArray();
                     var indexDocuments = ConvertToIndexDocuments(batchArray, indexName);
-                    
+
                     _logger.LogDebug("Processing batch {BatchNumber} with {BatchSize} documents for {IndexName}",
                         batchNumber, batchArray.Length, indexName);
-                    
+
                     // Use the search client to index the batch
-                    var batchSuccess = await _searchClient.IndexDocumentsAsync(indexDocuments, cancellationToken);
-                    
-                    if (batchSuccess)
-                    {
-                        totalIndexed += batchArray.Length;
-                        var batchTime = DateTime.UtcNow - batchStartTime;
-                        _logger.LogDebug("Successfully indexed batch {BatchNumber} of {BatchSize} documents in {BatchTime:F2}s", 
-                            batchNumber, batchArray.Length, batchTime.TotalSeconds);
-                    }
-                    else
-                    {
-                        var errorMsg = $"Failed to index batch {batchNumber} of {batchArray.Length} documents";
-                        errors.Add(errorMsg);
-                        _logger.LogWarning(errorMsg);
-                    }
+                    await _searchClient.IndexDocumentsAsync(batchArray);
+
+                    totalIndexed += batchArray.Length;
+                    var batchTime = DateTime.UtcNow - batchStartTime;
+                    _logger.LogDebug("Successfully indexed batch {BatchNumber} of {BatchSize} documents in {BatchTime:F2}s",
+                        batchNumber, batchArray.Length, batchTime.TotalSeconds);
                 }
                 catch (Exception ex)
                 {
@@ -676,7 +764,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
         // Apply field mapping and metadata management
         var fieldMapping = GetFieldMappingForIndex(indexName);
         var metadataConfig = GetMetadataConfigurationForIndex(indexName);
-        
+
         // Extract motorcycle information from metadata with field mapping
         var make = ApplyFieldMapping(doc.Metadata, "Make", "", fieldMapping);
         var model = ApplyFieldMapping(doc.Metadata, "Model", "", fieldMapping);
@@ -709,7 +797,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             indexDoc["author"] = doc.Metadata.Author;
             indexDoc["publishedDate"] = doc.Metadata.PublishedDate;
             indexDoc["language"] = ApplyFieldMapping(doc.Metadata, "Language", "en", fieldMapping);
-            
+
             if (indexName == PDF_INDEX_NAME)
             {
                 indexDoc["chunkType"] = ApplyFieldMapping(doc.Metadata, "ChunkType", "Text", fieldMapping);
@@ -735,7 +823,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             FieldMappings = new Dictionary<string, string>
             {
                 ["Make"] = "make",
-                ["Model"] = "model", 
+                ["Model"] = "model",
                 ["Year"] = "year",
                 ["Language"] = "language",
                 ["ChunkType"] = "chunkType"
@@ -758,7 +846,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             {
                 ["language"] = "en",
                 ["chunkType"] = "Text",
-                ["sourceType"] = indexName == UNIFIED_INDEX_NAME ? "Mixed" : 
+                ["sourceType"] = indexName == UNIFIED_INDEX_NAME ? "Mixed" :
                                indexName == CSV_INDEX_NAME ? "CSV" : "PDF"
             }
         };
@@ -767,10 +855,10 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     private string ApplyFieldMapping(DocumentMetadata metadata, string sourceField, string defaultValue, FieldMappingConfiguration fieldMapping)
     {
         // Apply field mapping if configured
-        var mappedField = fieldMapping.FieldMappings.ContainsKey(sourceField) 
-            ? fieldMapping.FieldMappings[sourceField] 
+        var mappedField = fieldMapping.FieldMappings.ContainsKey(sourceField)
+            ? fieldMapping.FieldMappings[sourceField]
             : sourceField;
-            
+
         return ExtractMetadataValue(metadata, sourceField, defaultValue);
     }
 
@@ -788,13 +876,13 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
         // Validate required metadata fields
         foreach (var requiredField in metadataConfig.RequiredMetadataFields)
         {
-            if (!indexDoc.ContainsKey(requiredField) || 
-                indexDoc[requiredField] == null || 
+            if (!indexDoc.ContainsKey(requiredField) ||
+                indexDoc[requiredField] == null ||
                 string.IsNullOrEmpty(indexDoc[requiredField].ToString()))
             {
-                _logger.LogWarning("Required metadata field '{Field}' is missing or empty for document {DocumentId}", 
+                _logger.LogWarning("Required metadata field '{Field}' is missing or empty for document {DocumentId}",
                     requiredField, doc.Id);
-                
+
                 // Set a default value to prevent indexing failure
                 indexDoc[requiredField] = "Unknown";
             }
@@ -824,22 +912,22 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     {
         const int MIN_BATCH_SIZE = 100;
         const int MAX_BATCH_SIZE = 1000;
-        
+
         // Ensure batch size is within acceptable range
         var adjustedSize = Math.Max(MIN_BATCH_SIZE, Math.Min(MAX_BATCH_SIZE, requestedSize));
-        
+
         // If we have fewer documents than minimum batch size, use document count
         if (documentCount < MIN_BATCH_SIZE)
         {
             adjustedSize = documentCount;
         }
-        
+
         if (adjustedSize != requestedSize)
         {
             _logger.LogDebug("Adjusted batch size from {RequestedSize} to {AdjustedSize} (documents: {DocumentCount})",
                 requestedSize, adjustedSize, documentCount);
         }
-        
+
         return adjustedSize;
     }
 
@@ -850,11 +938,11 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     {
         var documentsPerSecond = documentsProcessed / Math.Max(processingTime.TotalSeconds, 0.001);
         var errorRate = errors.Count / (double)Math.Max(documentsProcessed, 1) * 100;
-        
+
         _logger.LogInformation("Indexing metrics for {IndexName}: {DocumentsProcessed} docs, " +
                               "{ProcessingTime:F2}s, {DocsPerSecond:F2} docs/sec, {ErrorRate:F2}% error rate",
             indexName, documentsProcessed, processingTime.TotalSeconds, documentsPerSecond, errorRate);
-            
+
         if (errors.Count > 0)
         {
             _logger.LogWarning("Indexing errors for {IndexName}: {ErrorCount} errors", indexName, errors.Count);
@@ -862,7 +950,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             {
                 _logger.LogWarning("Indexing error: {Error}", error);
             }
-            
+
             if (errors.Count > 5)
             {
                 _logger.LogWarning("... and {AdditionalErrors} more errors", errors.Count - 5);

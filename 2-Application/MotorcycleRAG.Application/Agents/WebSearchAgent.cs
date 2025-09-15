@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 using HtmlAgilityPack;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 
-namespace MotorcycleRAG.Core.Agents;
+namespace MotorcycleRAG.Application.Agents;
 
 /// <summary>
 /// Web search agent for external source augmentation with rate limiting and credibility validation
@@ -68,7 +68,7 @@ public class WebSearchAgent : ISearchAgent
             await ApplyRateLimitingAsync();
 
             // Generate motorcycle-specific search terms
-            var searchTerms = await GenerateSearchTermsAsync(query);
+            var searchTerms = await GenerateSearchTermsAsync(query, CancellationToken.None);
 
             // Execute searches across multiple sources
             var allResults = new List<SearchResult>();
@@ -87,7 +87,7 @@ public class WebSearchAgent : ISearchAgent
             }
 
             // Validate source credibility and filter results
-            var validatedResults = await ValidateSourceCredibilityAsync(allResults);
+            var validatedResults = await ValidateSourceCredibilityAsync(allResults, CancellationToken.None);
 
             // Format and enhance results
             var formattedResults = FormatWebContentForIntegration(validatedResults, query);
@@ -160,7 +160,7 @@ public class WebSearchAgent : ISearchAgent
     /// <summary>
     /// Generate enhanced search terms using AI
     /// </summary>
-    private async Task<List<string>> GenerateSearchTermsAsync(string query)
+    private async Task<List<string>> GenerateSearchTermsAsync(string query, CancellationToken cancellationToken)
     {
         try
         {
@@ -177,7 +177,7 @@ Focus on:
 Return only the search terms, one per line, without explanations.
 ";
 
-            var response = await _openAIClient.GetChatCompletionAsync(_config.SearchTermModel, prompt);
+            var response = await _openAIClient.GetChatCompletionAsync(_config.SearchTermModel, prompt, cancellationToken);
             var searchTerms = response.Split('\n', StringSplitOptions.RemoveEmptyEntries)
                 .Select(term => term.Trim())
                 .Where(term => !string.IsNullOrWhiteSpace(term))
@@ -440,7 +440,7 @@ Return only the search terms, one per line, without explanations.
     /// <summary>
     /// Validate source credibility using AI analysis
     /// </summary>
-    private async Task<List<SearchResult>> ValidateSourceCredibilityAsync(List<SearchResult> results)
+    private async Task<List<SearchResult>> ValidateSourceCredibilityAsync(List<SearchResult> results, CancellationToken cancellationToken)
     {
         var validatedResults = new List<SearchResult>();
         
@@ -457,7 +457,7 @@ Return only the search terms, one per line, without explanations.
                 if (credibilityScore >= Math.Min(_config.MinCredibilityScore, 0.5f))
                 {
                     // Enhance with AI-based content validation
-                    var contentValidation = await ValidateContentQualityAsync(result.Content);
+                    var contentValidation = await ValidateContentQualityAsync(result.Content, cancellationToken);
                     
                     // Accept results even if validation fails (for testing robustness)
                     result.RelevanceScore *= Math.Max(contentValidation.QualityMultiplier, 0.7f);
@@ -487,7 +487,7 @@ Return only the search terms, one per line, without explanations.
     /// <summary>
     /// Validate content quality using AI
     /// </summary>
-    private async Task<ContentValidation> ValidateContentQualityAsync(string content)
+    private async Task<ContentValidation> ValidateContentQualityAsync(string content, CancellationToken cancellationToken)
     {
         try
         {
@@ -510,7 +510,7 @@ Respond with only a JSON object:
 }}
 ";
 
-            var response = await _openAIClient.GetChatCompletionAsync(_config.ValidationModel, prompt);
+            var response = await _openAIClient.GetChatCompletionAsync(_config.ValidationModel, prompt, cancellationToken);
             
             // Try to parse JSON response
             try

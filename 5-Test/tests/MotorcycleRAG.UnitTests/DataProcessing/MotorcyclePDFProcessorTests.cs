@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
-using MotorcycleRAG.Infrastructure.DataProcessing;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Persistence.DataProcessing;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.DataProcessing;

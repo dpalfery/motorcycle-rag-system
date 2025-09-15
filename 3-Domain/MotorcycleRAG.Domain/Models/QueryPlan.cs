@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Core.Models;
+namespace MotorcycleRAG.Domain.Models;
 
 /// <summary>
 /// Represents a search strategy plan produced by the query planner.

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Domain.Models;
 
-namespace MotorcycleRAG.Core.Services;
+namespace MotorcycleRAG.Application.Services;
 
 /// <summary>
 /// Service for validating domain models

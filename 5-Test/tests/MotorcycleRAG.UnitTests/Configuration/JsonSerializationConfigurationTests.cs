@@ -1,6 +1,6 @@
 using System.Text.Json;
-using MotorcycleRAG.Core.Configuration;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Shared.Configuration;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.UnitTests.Configuration;
 
@@ -45,6 +45,26 @@ public class JsonSerializationConfigurationTests
 
         // Assert
         options.WriteIndented.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetEnvironmentOptions_Development_ShouldReturnPrettyPrintOptions()
+    {
+        // Arrange & Act
+        var options = JsonSerializationConfiguration.GetEnvironmentOptions(true);
+
+        // Assert
+        options.Should().BeSameAs(JsonSerializationConfiguration.PrettyPrintOptions);
+    }
+
+    [Fact]
+    public void GetEnvironmentOptions_Production_ShouldReturnDefaultOptions()
+    {
+        // Arrange & Act
+        var options = JsonSerializationConfiguration.GetEnvironmentOptions(false);
+
+        // Assert
+        options.Should().BeSameAs(JsonSerializationConfiguration.DefaultOptions);
     }
 
     [Fact]
@@ -199,27 +219,18 @@ public class JsonSerializationConfigurationTests
         json.Should().Contain("\"estimatedCost\":");
         json.Should().Contain("\"resultsFound\":");
     }
-}
-
-public class DateTimeConverterTests
-{
-    private readonly DateTimeConverter _converter;
-
-    public DateTimeConverterTests()
-    {
-        _converter = new DateTimeConverter();
-    }
 
     [Fact]
-    public void Write_ShouldFormatDateTimeAsISO8601()
+    public void DateTimeConverter_Write_ShouldFormatDateTimeAsISO8601()
     {
         // Arrange
+        var converter = new DateTimeConverter();
         var dateTime = new DateTime(2023, 12, 25, 14, 30, 45, 123, DateTimeKind.Utc);
         using var stream = new MemoryStream();
         using var writer = new Utf8JsonWriter(stream);
 
         // Act
-        _converter.Write(writer, dateTime, JsonSerializationConfiguration.DefaultOptions);
+        converter.Write(writer, dateTime, JsonSerializationConfiguration.DefaultOptions);
         writer.Flush();
 
         // Assert
@@ -228,15 +239,16 @@ public class DateTimeConverterTests
     }
 
     [Fact]
-    public void Read_ShouldParseISO8601DateTime()
+    public void DateTimeConverter_Read_ShouldParseISO8601DateTime()
     {
         // Arrange
+        var converter = new DateTimeConverter();
         var json = "\"2023-12-25T14:30:45.123Z\"";
         var reader = new Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(json));
         reader.Read(); // Move to the string token
 
         // Act
-        var result = _converter.Read(ref reader, typeof(DateTime), JsonSerializationConfiguration.DefaultOptions);
+        var result = converter.Read(ref reader, typeof(DateTime), JsonSerializationConfiguration.DefaultOptions);
 
         // Assert
         result.Year.Should().Be(2023);
@@ -247,27 +259,18 @@ public class DateTimeConverterTests
         result.Second.Should().Be(45);
         result.Millisecond.Should().Be(123);
     }
-}
-
-public class TimeSpanConverterTests
-{
-    private readonly TimeSpanConverter _converter;
-
-    public TimeSpanConverterTests()
-    {
-        _converter = new TimeSpanConverter();
-    }
 
     [Fact]
-    public void Write_ShouldFormatTimeSpanAsReadableString()
+    public void TimeSpanConverter_Write_ShouldFormatTimeSpanAsReadableString()
     {
         // Arrange
+        var converter = new TimeSpanConverter();
         var timeSpan = new TimeSpan(0, 1, 30, 45, 123); // 1 hour, 30 minutes, 45 seconds, 123 milliseconds
         using var stream = new MemoryStream();
         using var writer = new Utf8JsonWriter(stream);
 
         // Act
-        _converter.Write(writer, timeSpan, JsonSerializationConfiguration.DefaultOptions);
+        converter.Write(writer, timeSpan, JsonSerializationConfiguration.DefaultOptions);
         writer.Flush();
 
         // Assert
@@ -276,15 +279,16 @@ public class TimeSpanConverterTests
     }
 
     [Fact]
-    public void Read_ShouldParseTimeSpanString()
+    public void TimeSpanConverter_Read_ShouldParseTimeSpanString()
     {
         // Arrange
+        var converter = new TimeSpanConverter();
         var json = "\"01:30:45.123\"";
         var reader = new Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(json));
         reader.Read(); // Move to the string token
 
         // Act
-        var result = _converter.Read(ref reader, typeof(TimeSpan), JsonSerializationConfiguration.DefaultOptions);
+        var result = converter.Read(ref reader, typeof(TimeSpan), JsonSerializationConfiguration.DefaultOptions);
 
         // Assert
         result.Hours.Should().Be(1);
@@ -292,27 +296,18 @@ public class TimeSpanConverterTests
         result.Seconds.Should().Be(45);
         result.Milliseconds.Should().Be(123);
     }
-}
-
-public class FloatArrayConverterTests
-{
-    private readonly FloatArrayConverter _converter;
-
-    public FloatArrayConverterTests()
-    {
-        _converter = new FloatArrayConverter();
-    }
 
     [Fact]
-    public void Write_WithSmallArray_ShouldSerializeAllElements()
+    public void FloatArrayConverter_Write_WithSmallArray_ShouldSerializeAllElements()
     {
         // Arrange
+        var converter = new FloatArrayConverter();
         var array = new float[] { 1.0f, 2.0f, 3.0f };
         using var stream = new MemoryStream();
         using var writer = new Utf8JsonWriter(stream);
 
         // Act
-        _converter.Write(writer, array, JsonSerializationConfiguration.DefaultOptions);
+        converter.Write(writer, array, JsonSerializationConfiguration.DefaultOptions);
         writer.Flush();
 
         // Assert
@@ -321,15 +316,16 @@ public class FloatArrayConverterTests
     }
 
     [Fact]
-    public void Write_WithLargeArray_ShouldTruncateElements()
+    public void FloatArrayConverter_Write_WithLargeArray_ShouldTruncateElements()
     {
         // Arrange
+        var converter = new FloatArrayConverter();
         var array = new float[] { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f };
         using var stream = new MemoryStream();
         using var writer = new Utf8JsonWriter(stream);
 
         // Act
-        _converter.Write(writer, array, JsonSerializationConfiguration.DefaultOptions);
+        converter.Write(writer, array, JsonSerializationConfiguration.DefaultOptions);
         writer.Flush();
 
         // Assert
@@ -339,15 +335,16 @@ public class FloatArrayConverterTests
     }
 
     [Fact]
-    public void Write_WithNullArray_ShouldSerializeNull()
+    public void FloatArrayConverter_Write_WithNullArray_ShouldSerializeNull()
     {
         // Arrange
+        var converter = new FloatArrayConverter();
         float[]? array = null;
         using var stream = new MemoryStream();
         using var writer = new Utf8JsonWriter(stream);
 
         // Act
-        _converter.Write(writer, array!, JsonSerializationConfiguration.DefaultOptions);
+        converter.Write(writer, array!, JsonSerializationConfiguration.DefaultOptions);
         writer.Flush();
 
         // Assert
@@ -356,15 +353,16 @@ public class FloatArrayConverterTests
     }
 
     [Fact]
-    public void Read_ShouldDeserializeFloatArray()
+    public void FloatArrayConverter_Read_ShouldDeserializeFloatArray()
     {
         // Arrange
+        var converter = new FloatArrayConverter();
         var json = "[1.0, 2.0, 3.0]";
         var reader = new Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(json));
         reader.Read(); // Move to the start array token
 
         // Act
-        var result = _converter.Read(ref reader, typeof(float[]), JsonSerializationConfiguration.DefaultOptions);
+        var result = converter.Read(ref reader, typeof(float[]), JsonSerializationConfiguration.DefaultOptions);
 
         // Assert
         result.Should().NotBeNull();
@@ -375,15 +373,16 @@ public class FloatArrayConverterTests
     }
 
     [Fact]
-    public void Read_WithNullValue_ShouldReturnNull()
+    public void FloatArrayConverter_Read_WithNullValue_ShouldReturnNull()
     {
         // Arrange
+        var converter = new FloatArrayConverter();
         var json = "null";
         var reader = new Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(json));
         reader.Read(); // Move to the null token
 
         // Act
-        var result = _converter.Read(ref reader, typeof(float[]), JsonSerializationConfiguration.DefaultOptions);
+        var result = converter.Read(ref reader, typeof(float[]), JsonSerializationConfiguration.DefaultOptions);
 
         // Assert
         result.Should().BeNull();

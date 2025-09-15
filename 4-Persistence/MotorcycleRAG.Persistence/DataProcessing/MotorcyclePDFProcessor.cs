@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -35,10 +35,10 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<ProcessingResult> ProcessAsync(PDFDocument input)
+    public async Task<ProcessedData> ProcessAsync(PDFDocument input)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var result = new ProcessingResult();
+        var documents = new List<MotorcycleDocument>();
 
         try
         {
@@ -46,7 +46,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
 
             // Step 1: Extract text and structure using Document Intelligence
             var analysisResult = await ExtractDocumentContentAsync(input);
-            
+
             // Step 2: Process multimodal content if images are present
             var multimodalContent = new List<string>();
             if (input.ContainsImages && _config.ProcessImages)
@@ -61,36 +61,24 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
             await GenerateEmbeddingsAsync(chunks);
 
             // Step 5: Create MotorcycleDocument objects
-            var documents = await CreateMotorcycleDocumentsAsync(chunks, input, analysisResult);
+            var processedDocuments = await CreateMotorcycleDocumentsAsync(chunks, input, analysisResult);
 
-            result.Success = true;
-            result.Data = new ProcessedData
+            return new ProcessedData
             {
                 Id = Guid.NewGuid().ToString(),
-                Documents = documents,
-                Metadata = CreateProcessingMetadata(input, analysisResult, chunks.Count),
-                ProcessedAt = DateTime.UtcNow
+                Documents = processedDocuments,
+                Metadata = CreateProcessingMetadata(input, analysisResult, chunks.Count)
             };
-            result.ItemsProcessed = documents.Count;
-            result.Message = $"Successfully processed PDF with {documents.Count} document chunks";
-
-            _logger.LogInformation("PDF processing completed successfully for {FileName}. Created {ChunkCount} chunks in {ElapsedMs}ms",
-                input.FileName, documents.Count, stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing PDF document: {FileName}", input.FileName);
-            result.Success = false;
-            result.Message = $"Failed to process PDF: {ex.Message}";
-            result.Errors.Add(ex.Message);
+            throw new InvalidOperationException($"Failed to process PDF: {ex.Message}", ex);
         }
         finally
         {
             stopwatch.Stop();
-            result.ProcessingTime = stopwatch.Elapsed;
         }
-
-        return result;
     }
 
     public async Task<IndexingResult> IndexAsync(ProcessedData data)
@@ -110,21 +98,14 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
             foreach (var batch in batches)
             {
                 var batchArray = batch.ToArray();
-                var indexSuccess = await _searchClient.IndexDocumentsAsync(batchArray);
-                if (indexSuccess)
-                {
-                    totalIndexed += batchArray.Length;
-                }
-                else
-                {
-                    result.Errors.Add($"Failed to index batch of {batchArray.Length} documents");
-                }
+                await _searchClient.IndexDocumentsAsync(batchArray);
+                totalIndexed += batchArray.Length;
             }
 
             result.Success = result.Errors.Count == 0;
             result.DocumentsIndexed = totalIndexed;
             result.IndexName = "motorcycle-pdf-index";
-            result.Message = result.Success 
+            result.Message = result.Success
                 ? $"Successfully indexed {totalIndexed} PDF documents"
                 : $"Indexed {totalIndexed} documents with {result.Errors.Count} errors";
 
@@ -157,8 +138,9 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
         var documentBytes = memoryStream.ToArray();
 
         // Use Document Intelligence Layout model for text extraction
+        using var stream = new MemoryStream(documentBytes);
         var analysisResult = await _documentClient.AnalyzeDocumentAsync(
-            documentBytes, 
+            stream,
             "application/pdf");
 
         _logger.LogDebug("Document Intelligence extraction completed. Pages: {PageCount}, Tables: {TableCount}",
@@ -175,13 +157,11 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
 
         try
         {
-            // In a real implementation, you would extract images from the PDF
-            // For now, we'll simulate processing the document as a whole image
             using var memoryStream = new MemoryStream();
             await input.Content.CopyToAsync(memoryStream);
             var documentBytes = memoryStream.ToArray();
 
-            var prompt = $@"Analyze this motorcycle manual page and describe:
+            var prompt = @"Analyze this motorcycle manual page and describe:
 1. Any diagrams, schematics, or technical illustrations
 2. Parts identification and labeling
 3. Visual instructions or procedures
@@ -194,7 +174,8 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 _azureConfig.Models.VisionModel ?? "gpt-4-vision",
                 prompt,
                 documentBytes,
-                "application/pdf");
+                "application/pdf",
+                CancellationToken.None); // Added missing cancellation token
 
             multimodalContent.Add(visionAnalysis);
 
@@ -209,8 +190,8 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     }
 
     private async Task<List<PDFChunk>> CreateSemanticChunksAsync(
-        DocumentAnalysisResult analysisResult, 
-        List<string> multimodalContent, 
+        DocumentAnalysisResult analysisResult,
+        List<string> multimodalContent,
         PDFDocument input)
     {
         _logger.LogDebug("Creating semantic chunks with embedding-based boundary detection");
@@ -278,7 +259,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         {
             // Split section into chunks based on size limits
             var sectionChunks = SplitTextIntoChunks(section.Content, _config.MaxChunkSize, _config.MinChunkSize, _config.ChunkOverlap);
-            
+
             foreach (var chunkContent in sectionChunks)
             {
                 var chunk = new PDFChunk
@@ -334,7 +315,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     private List<DocumentSection> DetectSections(string content)
     {
         var sections = new List<DocumentSection>();
-        
+
         // Simple section detection based on common patterns in motorcycle manuals
         var headerPatterns = new[]
         {
@@ -347,7 +328,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         var currentSection = new DocumentSection { Title = "Introduction", Content = new StringBuilder(), Type = "General" };
-        
+
         foreach (var line in lines)
         {
             var isHeader = false;
@@ -361,7 +342,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                     {
                         sections.Add(currentSection);
                     }
-                    
+
                     // Start new section
                     currentSection = new DocumentSection
                     {
@@ -392,7 +373,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     private string DetermineContentType(string sectionTitle)
     {
         var title = sectionTitle.ToLowerInvariant();
-        
+
         if (title.Contains("maintenance") || title.Contains("service"))
             return "Maintenance";
         if (title.Contains("specification") || title.Contains("spec"))
@@ -403,7 +384,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             return "Safety";
         if (title.Contains("installation") || title.Contains("assembly"))
             return "Installation";
-        
+
         return "General";
     }
 
@@ -411,7 +392,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     {
         var text = content.ToString();
         var chunks = new List<string>();
-        
+
         if (text.Length <= maxChunkSize)
         {
             chunks.Add(text);
@@ -420,7 +401,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
         var sentences = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
         var currentChunk = new StringBuilder();
-        
+
         foreach (var sentence in sentences)
         {
             var trimmedSentence = sentence.Trim();
@@ -430,7 +411,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             if (currentChunk.Length + trimmedSentence.Length + 1 > maxChunkSize && currentChunk.Length >= minChunkSize)
             {
                 chunks.Add(currentChunk.ToString().Trim());
-                
+
                 // Start new chunk with overlap
                 var overlapText = GetOverlapText(currentChunk.ToString(), overlap);
                 currentChunk = new StringBuilder(overlapText);
@@ -451,17 +432,17 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     private string GetOverlapText(string text, int overlapSize)
     {
         if (text.Length <= overlapSize) return text;
-        
+
         var startIndex = text.Length - overlapSize;
         var overlapText = text.Substring(startIndex);
-        
+
         // Try to start at a sentence boundary
         var sentenceStart = overlapText.IndexOf(". ");
         if (sentenceStart > 0 && sentenceStart < overlapSize / 2)
         {
             overlapText = overlapText.Substring(sentenceStart + 2);
         }
-        
+
         return overlapText;
     }
 
@@ -472,25 +453,26 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         // For chunks that are too similar, merge them
         // For chunks that are too different, consider splitting them further
         var refinedChunks = new List<PDFChunk>();
-        
+
         for (int i = 0; i < chunks.Count; i++)
         {
             var currentChunk = chunks[i];
-            
+
             // Check similarity with next chunk if it exists
             if (i < chunks.Count - 1)
             {
                 var nextChunk = chunks[i + 1];
-                
+
                 // Generate embeddings for similarity comparison
                 var embeddings = await _openAIClient.GetEmbeddingsAsync(
                     _azureConfig.Models.EmbeddingModel,
-                    new[] { currentChunk.Content, nextChunk.Content });
+                    new[] { currentChunk.Content, nextChunk.Content },
+                    CancellationToken.None);
 
                 var similarity = CalculateCosineSimilarity(embeddings[0], embeddings[1]);
-                
+
                 // If chunks are very similar and from the same section, consider merging
-                if (similarity > _config.SimilarityThreshold && 
+                if (similarity > _config.SimilarityThreshold &&
                     currentChunk.Section == nextChunk.Section &&
                     currentChunk.Content.Length + nextChunk.Content.Length <= _config.MaxChunkSize)
                 {
@@ -504,13 +486,13 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                         Type = currentChunk.Type,
                         Metadata = currentChunk.Metadata
                     };
-                    
+
                     refinedChunks.Add(mergedChunk);
                     i++; // Skip the next chunk as it's been merged
                     continue;
                 }
             }
-            
+
             refinedChunks.Add(currentChunk);
         }
 
@@ -545,7 +527,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         {
             var batchArray = batch.ToArray();
             var texts = batchArray.Select(c => c.Content).ToArray();
-            var embeddings = await _openAIClient.GetEmbeddingsAsync(_azureConfig.Models.EmbeddingModel, texts);
+            var embeddings = await _openAIClient.GetEmbeddingsAsync(_azureConfig.Models.EmbeddingModel, texts, CancellationToken.None);
 
             for (int i = 0; i < batchArray.Length && i < embeddings.Length; i++)
             {
@@ -557,8 +539,8 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     }
 
     private async Task<List<MotorcycleDocument>> CreateMotorcycleDocumentsAsync(
-        List<PDFChunk> chunks, 
-        PDFDocument input, 
+        List<PDFChunk> chunks,
+        PDFDocument input,
         DocumentAnalysisResult analysisResult)
     {
         _logger.LogDebug("Creating MotorcycleDocument objects from chunks");
@@ -606,8 +588,8 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     }
 
     private Dictionary<string, object> CreateProcessingMetadata(
-        PDFDocument input, 
-        DocumentAnalysisResult analysisResult, 
+        PDFDocument input,
+        DocumentAnalysisResult analysisResult,
         int chunkCount)
     {
         return new Dictionary<string, object>

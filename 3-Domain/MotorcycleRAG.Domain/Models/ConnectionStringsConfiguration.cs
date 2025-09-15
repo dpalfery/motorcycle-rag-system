@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Core.Models;
+namespace MotorcycleRAG.Domain.Models;
 
 /// <summary>
 /// Wrapper for the top-level "ConnectionStrings" configuration section.

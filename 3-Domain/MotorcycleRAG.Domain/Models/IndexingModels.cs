@@ -1,4 +1,4 @@
-namespace MotorcycleRAG.Core.Models;
+namespace MotorcycleRAG.Domain.Models;
 
 /// <summary>
 /// Result of index creation operations

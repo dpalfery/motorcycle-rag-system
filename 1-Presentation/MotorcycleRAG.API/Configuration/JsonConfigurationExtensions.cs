@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Mvc;
-using MotorcycleRAG.Core.Configuration;
+using MotorcycleRAG.Shared.Configuration;
 
 namespace MotorcycleRAG.API.Configuration;
 
@@ -21,10 +21,10 @@ public static class JsonConfigurationExtensions
     {
         services.ConfigureHttpJsonOptions(options =>
         {
-            var jsonOptions = MotorcycleRAG.Core.Configuration.JsonConfigurationExtensions.GetEnvironmentOptions(isDevelopment);
+            var jsonOptions = JsonSerializationConfiguration.DefaultOptions;
             
             options.SerializerOptions.PropertyNamingPolicy = jsonOptions.PropertyNamingPolicy;
-            options.SerializerOptions.WriteIndented = jsonOptions.WriteIndented;
+            options.SerializerOptions.WriteIndented = isDevelopment;
             options.SerializerOptions.DefaultIgnoreCondition = jsonOptions.DefaultIgnoreCondition;
             options.SerializerOptions.PropertyNameCaseInsensitive = jsonOptions.PropertyNameCaseInsensitive;
             
@@ -38,10 +38,10 @@ public static class JsonConfigurationExtensions
         // Also configure MVC JSON options for controllers
         services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(options =>
         {
-            var jsonOptions = MotorcycleRAG.Core.Configuration.JsonConfigurationExtensions.GetEnvironmentOptions(isDevelopment);
+            var jsonOptions = JsonSerializationConfiguration.DefaultOptions;
             
             options.JsonSerializerOptions.PropertyNamingPolicy = jsonOptions.PropertyNamingPolicy;
-            options.JsonSerializerOptions.WriteIndented = jsonOptions.WriteIndented;
+            options.JsonSerializerOptions.WriteIndented = isDevelopment;
             options.JsonSerializerOptions.DefaultIgnoreCondition = jsonOptions.DefaultIgnoreCondition;
             options.JsonSerializerOptions.PropertyNameCaseInsensitive = jsonOptions.PropertyNameCaseInsensitive;
             

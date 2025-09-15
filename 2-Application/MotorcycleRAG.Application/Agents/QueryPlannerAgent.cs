@@ -1,16 +1,12 @@
 using System.Text.Json;
-using MotorcycleRAG.Core.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Shared.Configuration;
 
-namespace MotorcycleRAG.Core.Agents;
+namespace MotorcycleRAG.Application.Agents;
 
-/// <summary>
-/// Query planner agent using GPT-4o to analyze user conversation
-/// and coordinate parallel search across other agents.
-/// </summary>
 public class QueryPlannerAgent : IQueryPlannerAgent
 {
     private readonly IAzureOpenAIClient _openAIClient;
@@ -32,10 +28,15 @@ public class QueryPlannerAgent : IQueryPlannerAgent
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <summary>
-    /// Analyze query and execute searches based on generated plan.
-    /// </summary>
-    public async Task<SearchResult[]> SearchAsync(string query, SearchOptions options)
+    // Interface implementation (no CancellationToken per interface)
+    public Task<QueryPlan> GeneratePlanAsync(string query, SearchOptions options) =>
+        GeneratePlanInternalAsync(query, options, CancellationToken.None);
+
+    public Task<SearchResult[]> SearchAsync(string query, SearchOptions options) =>
+        SearchInternalAsync(query, options, CancellationToken.None);
+
+    // Internal overloads supporting cancellation if needed later
+    private async Task<SearchResult[]> SearchInternalAsync(string query, SearchOptions options, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -43,7 +44,7 @@ public class QueryPlannerAgent : IQueryPlannerAgent
             return Array.Empty<SearchResult>();
         }
 
-        var plan = await GeneratePlanAsync(query, options);
+        var plan = await GeneratePlanInternalAsync(query, options, cancellationToken);
 
         if (plan.SubQueries == null || plan.SubQueries.Count == 0)
         {
@@ -84,6 +85,7 @@ public class QueryPlannerAgent : IQueryPlannerAgent
             results = new SearchResult[tasks.Count][];
             for (var i = 0; i < tasks.Count; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 results[i] = await tasks[i];
             }
         }
@@ -91,17 +93,15 @@ public class QueryPlannerAgent : IQueryPlannerAgent
         return results.SelectMany(r => r).ToArray();
     }
 
-    /// <summary>
-    /// Generate a query plan using GPT-4o.
-    /// </summary>
-    public async Task<QueryPlan> GeneratePlanAsync(string query, SearchOptions options)
+    private async Task<QueryPlan> GeneratePlanInternalAsync(string query, SearchOptions options, CancellationToken cancellationToken)
     {
         try
         {
             var prompt = BuildPlanningPrompt(query);
             var response = await _openAIClient.GetChatCompletionAsync(
                 _modelConfig.QueryPlannerModel,
-                prompt);
+                prompt,
+                cancellationToken);
             var plan = JsonSerializer.Deserialize<QueryPlan>(
                 response,
                 JsonSerializationConfiguration.DefaultOptions);
@@ -113,6 +113,11 @@ public class QueryPlannerAgent : IQueryPlannerAgent
             plan.OriginalQuery = query;
             return plan;
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Query plan generation canceled for query: {Query}", query);
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to generate query plan; using fallback plan");
@@ -121,10 +126,10 @@ public class QueryPlannerAgent : IQueryPlannerAgent
     }
 
     private static string BuildPlanningPrompt(string query) =>
-        $@"You are a motorcycle search query planner."
-        + " Break the user question into 1-3 focused search queries and determine if web search is needed."
-        + " Return JSON with fields 'subQueries', 'useWebSearch', and 'runParallel'."
-        + $" User question: \"{query}\"";
+        @"You are a motorcycle search query planner." +
+        " Break the user question into 1-3 focused search queries and determine if web search is needed." +
+        " Return JSON with fields 'subQueries', 'useWebSearch', and 'runParallel'." +
+        $" User question: \"{query}\"";
 
     private static QueryPlan CreateFallbackPlan(string query) => new()
     {

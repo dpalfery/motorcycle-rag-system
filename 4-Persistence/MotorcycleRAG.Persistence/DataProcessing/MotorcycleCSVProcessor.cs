@@ -3,8 +3,8 @@ using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Core.Interfaces;
-using MotorcycleRAG.Core.Models;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Infrastructure.DataProcessing;
 
@@ -34,10 +34,9 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     /// <summary>
     /// Process CSV file with row-based chunking preserving relational integrity
     /// </summary>
-    public async Task<ProcessingResult> ProcessAsync(CSVFile input)
+    public async Task<ProcessedData> ProcessAsync(CSVFile input)
     {
         var startTime = DateTime.UtcNow;
-        var result = new ProcessingResult();
         var documents = new List<MotorcycleDocument>();
         var errors = new List<string>();
 
@@ -48,10 +47,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
             // Validate input
             if (!ValidateInput(input, errors))
             {
-                result.Success = false;
-                result.Errors = errors;
-                result.Message = "Input validation failed";
-                return result;
+                throw new InvalidOperationException("Input validation failed: " + string.Join(", ", errors));
             }
 
             // Parse CSV and create chunks
@@ -75,8 +71,12 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
                 }
             }
 
-            result.Success = documents.Count > 0;
-            result.Data = new ProcessedData
+            if (documents.Count == 0 && errors.Count > 0)
+            {
+                throw new InvalidOperationException("No documents processed: " + string.Join(", ", errors));
+            }
+
+            return new ProcessedData
             {
                 Id = Guid.NewGuid().ToString(),
                 Documents = documents,
@@ -84,26 +84,17 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
                 {
                     ["SourceFile"] = input.FileName,
                     ["ChunksCreated"] = chunks.Count,
-                    ["ProcessingConfiguration"] = _configuration
+                    ["ProcessingConfiguration"] = _configuration,
+                    ["Errors"] = errors,
+                    ["ProcessingTime"] = DateTime.UtcNow - startTime
                 }
             };
-            result.ItemsProcessed = processedCount;
-            result.Errors = errors;
-            result.Message = $"Successfully processed {documents.Count} chunks from CSV file";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Fatal error processing CSV file: {FileName}", input.FileName);
-            result.Success = false;
-            result.Message = $"Fatal error: {ex.Message}";
-            result.Errors.Add(ex.Message);
+            throw new InvalidOperationException($"Fatal error processing CSV: {ex.Message}", ex);
         }
-        finally
-        {
-            result.ProcessingTime = DateTime.UtcNow - startTime;
-        }
-
-        return result;
     }
 
     /// <summary>
@@ -129,15 +120,8 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
             {
                 try
                 {
-                    var success = await _searchClient.IndexDocumentsAsync(batch.ToArray());
-                    if (success)
-                    {
-                        totalIndexed += batch.Count();
-                    }
-                    else
-                    {
-                        errors.Add($"Failed to index batch of {batch.Count()} documents");
-                    }
+                    await _searchClient.IndexDocumentsAsync(batch.Cast<MotorcycleDocument>().ToArray());
+                    totalIndexed += batch.Count();
                 }
                 catch (Exception ex)
                 {
@@ -191,7 +175,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
             await csv.ReadAsync();
             csv.ReadHeader();
             headers = csv.HeaderRecord?.ToList() ?? new List<string>();
-            
+
             // Validate column count
             if (headers.Count > csvFile.MaxColumns)
             {
@@ -219,7 +203,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
             try
             {
                 var record = new Dictionary<string, object>();
-                
+
                 // Read all fields for this row
                 for (int i = 0; i < headers.Count; i++)
                 {
@@ -320,7 +304,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     {
         // Create content for embedding
         var contentBuilder = new StringBuilder();
-        
+
         foreach (var row in chunk.Rows)
         {
             var rowContent = string.Join(" | ", row.Select(kvp => $"{kvp.Key}: {kvp.Value}"));
@@ -328,12 +312,12 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
         }
 
         var content = contentBuilder.ToString();
-        
+
         // Generate title from first row's key fields
         var title = GenerateChunkTitle(chunk.Rows.FirstOrDefault(), chunkIndex);
 
         // Generate embedding using text-embedding-3-large
-        var embedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", content);
+        var embedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", content, CancellationToken.None);
 
         return new MotorcycleDocument
         {
@@ -368,7 +352,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
         }
 
         var titleParts = new List<string>();
-        
+
         foreach (var field in _configuration.IdentifierFields)
         {
             if (firstRow.TryGetValue(field, out var value) && !string.IsNullOrWhiteSpace(value?.ToString()))
@@ -377,7 +361,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
             }
         }
 
-        return titleParts.Count > 0 
+        return titleParts.Count > 0
             ? $"{string.Join(" ", titleParts)} - Specifications"
             : $"Motorcycle Specifications - Chunk {chunkIndex}";
     }

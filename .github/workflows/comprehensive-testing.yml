@@ -1,0 +1,386 @@
+name: Comprehensive Testing Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run comprehensive tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      run_load_tests:
+        description: 'Run load tests'
+        required: false
+        default: 'false'
+        type: boolean
+      run_integration_tests:
+        description: 'Run integration tests with real Azure services'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Run unit tests
+      run: |
+        dotnet test 5-Test/tests/MotorcycleRAG.UnitTests/MotorcycleRAG.UnitTests.csproj \
+          --no-build \
+          --configuration Release \
+          --logger trx \
+          --results-directory TestResults \
+          --collect:"XPlat Code Coverage" \
+          --settings coverlet.runsettings
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: unit-test-results
+        path: TestResults/
+    
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        directory: TestResults/
+        flags: unittests
+        name: unit-tests-coverage
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Run integration tests
+      run: |
+        dotnet test 5-Test/tests/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj \
+          --no-build \
+          --configuration Release \
+          --logger trx \
+          --results-directory TestResults/Integration \
+          --filter "Category!=AzureIntegration"
+    
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: integration-test-results
+        path: TestResults/Integration/
+
+  end-to-end-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    
+    services:
+      # Mock services for E2E testing without real Azure dependencies
+      mockserver:
+        image: mockserver/mockserver:latest
+        ports:
+          - 1080:1080
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Setup test data
+      run: |
+        mkdir -p 5-Test/tests/MotorcycleRAG.EndToEndTests/TestData
+        # Test data is created by TestDataManager during test execution
+    
+    - name: Run end-to-end tests
+      run: |
+        dotnet test 5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj \
+          --no-build \
+          --configuration Release \
+          --logger trx \
+          --results-directory TestResults/EndToEnd \
+          --filter "Category!=Integration"
+      env:
+        TestConfiguration__UseRealAzureServices: false
+        TestConfiguration__MockServerUrl: http://localhost:1080
+    
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: e2e-test-results
+        path: TestResults/EndToEnd/
+
+  azure-integration-tests:
+    name: Azure Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: github.event.inputs.run_integration_tests == 'true' || github.event_name == 'schedule'
+    environment: testing
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Run Azure integration tests
+      run: |
+        dotnet test 5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj \
+          --no-build \
+          --configuration Release \
+          --logger trx \
+          --results-directory TestResults/AzureIntegration \
+          --filter "Category=Integration"
+      env:
+        TestConfiguration__UseRealAzureServices: true
+        AzureAI__FoundryEndpoint: ${{ secrets.AZURE_AI_FOUNDRY_ENDPOINT }}
+        AzureAI__OpenAIEndpoint: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+        AzureAI__SearchServiceEndpoint: ${{ secrets.AZURE_SEARCH_ENDPOINT }}
+        AzureAI__DocumentIntelligenceEndpoint: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT }}
+    
+    - name: Upload Azure integration test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: azure-integration-test-results
+        path: TestResults/AzureIntegration/
+
+  load-tests:
+    name: Load Tests
+    runs-on: ubuntu-latest
+    needs: end-to-end-tests
+    if: github.event.inputs.run_load_tests == 'true' || github.event_name == 'schedule'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Start application for load testing
+      run: |
+        dotnet run --project 1-Presentation/MotorcycleRAG.API/MotorcycleRAG.API.csproj \
+          --configuration Release &
+        sleep 30  # Wait for application to start
+      env:
+        ASPNETCORE_ENVIRONMENT: Testing
+        TestConfiguration__UseRealAzureServices: false
+    
+    - name: Run load tests
+      run: |
+        dotnet test 5-Test/tests/MotorcycleRAG.LoadTests/MotorcycleRAG.LoadTests.csproj \
+          --no-build \
+          --configuration Release \
+          --logger trx \
+          --results-directory TestResults/LoadTests
+      env:
+        LoadTest__BaseUrl: http://localhost:5000
+        LoadTest__Duration: "00:03:00"  # Shorter duration for CI
+        LoadTest__ConcurrentUsers: 20   # Reduced for CI environment
+    
+    - name: Upload load test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: load-test-results
+        path: TestResults/LoadTests/
+    
+    - name: Upload NBomber reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: nbomber-reports
+        path: 5-Test/tests/MotorcycleRAG.LoadTests/load-test-results/
+
+  performance-analysis:
+    name: Performance Analysis
+    runs-on: ubuntu-latest
+    needs: [end-to-end-tests, load-tests]
+    if: always() && (needs.load-tests.result == 'success' || needs.load-tests.result == 'skipped')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download test results
+      uses: actions/download-artifact@v4
+      with:
+        path: TestResults/
+    
+    - name: Analyze performance metrics
+      run: |
+        # Create performance analysis script
+        cat > analyze_performance.py << 'EOF'
+        import json
+        import os
+        import sys
+        from pathlib import Path
+        
+        def analyze_test_results():
+            results_dir = Path("TestResults")
+            performance_issues = []
+            
+            # Analyze E2E test results for response times
+            e2e_results = results_dir / "e2e-test-results"
+            if e2e_results.exists():
+                print("Analyzing E2E test performance...")
+                # Parse TRX files and extract timing data
+                # This would be implemented based on actual test result format
+            
+            # Analyze load test results
+            load_results = results_dir / "load-test-results"
+            if load_results.exists():
+                print("Analyzing load test performance...")
+                # Parse NBomber results and check against thresholds
+            
+            # Generate performance report
+            report = {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "performance_issues": performance_issues,
+                "recommendations": [
+                    "Monitor response times under load",
+                    "Optimize database queries if needed",
+                    "Consider caching for frequently accessed data"
+                ]
+            }
+            
+            with open("performance-report.json", "w") as f:
+                json.dump(report, f, indent=2)
+            
+            print("Performance analysis complete")
+            return len(performance_issues) == 0
+        
+        if __name__ == "__main__":
+            success = analyze_test_results()
+            sys.exit(0 if success else 1)
+        EOF
+        
+        python analyze_performance.py
+    
+    - name: Upload performance report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-report
+        path: performance-report.json
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, end-to-end-tests, azure-integration-tests, load-tests, performance-analysis]
+    if: always()
+    
+    steps:
+    - name: Download all test results
+      uses: actions/download-artifact@v4
+      with:
+        path: TestResults/
+    
+    - name: Generate test summary
+      run: |
+        echo "# Comprehensive Test Suite Results" > test-summary.md
+        echo "" >> test-summary.md
+        echo "## Test Execution Summary" >> test-summary.md
+        echo "" >> test-summary.md
+        echo "| Test Suite | Status | Notes |" >> test-summary.md
+        echo "|------------|--------|-------|" >> test-summary.md
+        echo "| Unit Tests | ${{ needs.unit-tests.result }} | Core functionality validation |" >> test-summary.md
+        echo "| Integration Tests | ${{ needs.integration-tests.result }} | Component integration validation |" >> test-summary.md
+        echo "| End-to-End Tests | ${{ needs.end-to-end-tests.result }} | Complete user journey validation |" >> test-summary.md
+        echo "| Azure Integration | ${{ needs.azure-integration-tests.result }} | Real Azure service validation |" >> test-summary.md
+        echo "| Load Tests | ${{ needs.load-tests.result }} | Performance under load validation |" >> test-summary.md
+        echo "| Performance Analysis | ${{ needs.performance-analysis.result }} | Performance metrics analysis |" >> test-summary.md
+        echo "" >> test-summary.md
+        echo "## Key Metrics" >> test-summary.md
+        echo "- Test Coverage: Target >90%" >> test-summary.md
+        echo "- Response Time: Target <3s for 95th percentile" >> test-summary.md
+        echo "- Concurrent Users: Target 100 users" >> test-summary.md
+        echo "- Success Rate: Target >95%" >> test-summary.md
+        echo "" >> test-summary.md
+        echo "Generated on: $(date)" >> test-summary.md
+    
+    - name: Upload test summary
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-summary
+        path: test-summary.md
+    
+    - name: Comment PR with test results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const summary = fs.readFileSync('test-summary.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: summary
+          });

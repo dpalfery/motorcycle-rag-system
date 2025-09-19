@@ -73,6 +73,29 @@ public static class ServiceConfiguration
     }
 
     /// <summary>
+    /// Configure data pipeline services
+    /// </summary>
+    public static IServiceCollection AddDataPipelineServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Configure pipeline settings
+        services.Configure<MotorcycleRAG.Application.Pipeline.PipelineConfiguration>(configuration.GetSection("Pipeline"));
+        services.Configure<MotorcycleRAG.Application.Pipeline.FileUploadConfiguration>(configuration.GetSection("FileUpload"));
+        services.Configure<MotorcycleRAG.Application.Pipeline.PipelineMonitoringConfiguration>(configuration.GetSection("PipelineMonitoring"));
+        services.Configure<MotorcycleRAG.Application.Pipeline.ScheduledProcessingConfiguration>(configuration.GetSection("ScheduledProcessing"));
+
+        // Register pipeline services from Application layer
+        services.AddScoped<IDataPipelineOrchestrator, MotorcycleRAG.Application.Pipeline.DataPipelineOrchestrator>();
+        services.AddScoped<IFileUploadService, MotorcycleRAG.Application.Pipeline.FileUploadService>();
+        services.AddSingleton<IPipelineMonitoringService, MotorcycleRAG.Application.Pipeline.PipelineMonitoringService>();
+        services.AddSingleton<IScheduledPipelineService, MotorcycleRAG.Application.Pipeline.ScheduledPipelineService>();
+
+        // Register the scheduled service as a hosted service
+        services.AddHostedService<MotorcycleRAG.Application.Pipeline.ScheduledPipelineService>();
+
+        return services;
+    }
+
+    /// <summary>
     /// Configure health checks
     /// </summary>
     public static IServiceCollection AddHealthChecks(this IServiceCollection services, IConfiguration configuration)

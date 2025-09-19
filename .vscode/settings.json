@@ -8,5 +8,6 @@
   "files.autoSaveDelay": 1000,
   "editor.formatOnSave": true,
   "git.autofetch": true,
-  "git.autofetchPeriod": 180
-} 
+  "git.autofetchPeriod": 180,
+  "kiroAgent.configureMCP": "Enabled"
+}

@@ -1,4 +1,5 @@
 using MotorcycleRAG.API.Configuration;
+using MotorcycleRAG.Application.Extensions;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
@@ -121,6 +122,8 @@ public class Program
             builder.Services.AddCoreServices();
             builder.Services.AddSearchAgents();
             builder.Services.AddDataProcessors();
+            builder.Services.AddDataPipelineServices(configuration);
+            builder.Services.AddCachingAndOptimization(configuration);
             builder.Services.AddHealthChecks(configuration);
 
             // Validate configuration early

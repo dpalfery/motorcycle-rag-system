@@ -6,7 +6,7 @@
 - **Visual Studio 2022**: Primary IDE with .NET development tools
 
 ## Core Framework
-- **.NET 9.0**: Latest .NET runtime with performance optimizations
+- **.NET 10.0**: Latest .NET runtime with performance optimizations
 - **ASP.NET Core**: Web API framework with minimal APIs
 - **C# 12**: Modern language features and patterns
 

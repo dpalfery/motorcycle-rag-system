@@ -52,7 +52,7 @@ public class MotorcycleCSVProcessorTests
 
         // Assert
         Assert.True(result.Success);
-        Assert.NotNull(result.Data);
+        Assert.NotNull(result);
         Assert.Equal(2, result.ItemsProcessed); // 2 different motorcycles = 2 chunks due to relational integrity
         Assert.Contains("Successfully processed", result.Message);
         Assert.Empty(result.Errors);
@@ -73,11 +73,11 @@ public class MotorcycleCSVProcessorTests
 
         // Assert
         Assert.True(result.Success);
-        Assert.NotNull(result.Data);
-        Assert.True(result.Data.Documents.Any());
+        Assert.NotNull(result);
+        Assert.True(result.Documents.Any());
 
         // Verify generated column names are used
-        var firstDocument = result.Data.Documents.First();
+        var firstDocument = result.Documents.First();
         Assert.Contains("Column1", firstDocument.Content);
         Assert.Contains("Column2", firstDocument.Content);
     }
@@ -116,20 +116,20 @@ Yamaha,YZF-R6,2023,Slipper Clutch";
 
         // Assert
         Assert.True(result.Success);
-        Assert.NotNull(result.Data);
+        Assert.NotNull(result);
 
         // Should create 2 chunks (one for each motorcycle)
-        Assert.Equal(2, result.Data.Documents.Count);
+        Assert.Equal(2, result.Documents.Count);
 
         // First chunk should contain Honda CBR600RR data
-        var hondaChunk = result.Data.Documents.First();
+        var hondaChunk = result.Documents.First();
         Assert.Contains("Honda", hondaChunk.Content);
         Assert.Contains("CBR600RR", hondaChunk.Content);
         Assert.Contains("ABS", hondaChunk.Content);
         Assert.Contains("Traction Control", hondaChunk.Content);
 
         // Second chunk should contain Yamaha YZF-R6 data
-        var yamahaChunk = result.Data.Documents.Last();
+        var yamahaChunk = result.Documents.Last();
         Assert.Contains("Yamaha", yamahaChunk.Content);
         Assert.Contains("YZF-R6", yamahaChunk.Content);
         Assert.Contains("Quick Shifter", yamahaChunk.Content);
@@ -162,14 +162,14 @@ Honda,CBR600RR,2023,Quick Shifter";
 
         // Assert
         Assert.True(result.Success);
-        Assert.NotNull(result.Data);
+        Assert.NotNull(result);
 
         // Should create 2 chunks based on chunk size (2 rows each)
-        Assert.Equal(2, result.Data.Documents.Count);
+        Assert.Equal(2, result.Documents.Count);
     }
 
     [Fact]
-    public async Task ProcessAsync_WithEmbeddingGenerationFailure_ShouldHandleError()
+    public async Task ProcessAsync_WithEmbeddingGenerationFailure_ShouldThrowException()
     {
         // Arrange
         var csvContent = "Make,Model,Year\nHonda,CBR600RR,2023";
@@ -178,16 +178,15 @@ Honda,CBR600RR,2023,Quick Shifter";
         _mockOpenAIClient.Setup(x => x.GetEmbeddingAsync("text-embedding-3-large", It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("OpenAI service unavailable"));
 
-        // Act
-        var result = await _processor.ProcessAsync(csvFile);
-
-        // Assert
-        Assert.False(result.Success);
-        Assert.Contains("OpenAI service unavailable", result.Errors.First());
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await _processor.ProcessAsync(csvFile));
+        
+        Assert.Contains("OpenAI service unavailable", exception.Message);
     }
 
     [Fact]
-    public async Task ProcessAsync_WithInvalidInput_ShouldReturnValidationErrors()
+    public async Task ProcessAsync_WithInvalidInput_ShouldThrowException()
     {
         // Arrange
         var csvFile = new CSVFile
@@ -196,14 +195,12 @@ Honda,CBR600RR,2023,Quick Shifter";
             Content = Stream.Null
         };
 
-        // Act
-        var result = await _processor.ProcessAsync(csvFile);
-
-        // Assert
-        Assert.False(result.Success);
-        Assert.Contains("File name is required", result.Errors);
-        Assert.Contains("File content is required", result.Errors);
-        Assert.Equal("Input validation failed", result.Message);
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await _processor.ProcessAsync(csvFile));
+        
+        Assert.Contains("Input validation failed", exception.Message);
+        Assert.Contains("File name is required", exception.Message);
     }
 
     [Fact]
@@ -247,10 +244,10 @@ Honda,CBR600RR,2023,Quick Shifter";
 
         // Assert
         Assert.True(result.Success);
-        Assert.NotNull(result.Data);
+        Assert.NotNull(result);
 
         // Should process only up to MaxRows (5 rows), creating 3 chunks (2+2+1)
-        Assert.Equal(3, result.Data.Documents.Count);
+        Assert.Equal(3, result.Documents.Count);
     }
 
     [Fact]
@@ -272,8 +269,8 @@ Honda,CBR600RR,2023,Quick Shifter";
             }
         };
 
-        _mockSearchClient.Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        _mockSearchClient.Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _processor.IndexAsync(processedData);
@@ -298,8 +295,8 @@ Honda,CBR600RR,2023,Quick Shifter";
             }
         };
 
-        _mockSearchClient.Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
+        _mockSearchClient.Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .ThrowsAsync(new Exception("Indexing failed"));
 
         // Act
         var result = await _processor.IndexAsync(processedData);
@@ -329,8 +326,8 @@ Honda,CBR600RR,2023,Quick Shifter";
             Documents = documents
         };
 
-        _mockSearchClient.Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        _mockSearchClient.Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _processor.IndexAsync(processedData);
@@ -340,7 +337,7 @@ Honda,CBR600RR,2023,Quick Shifter";
         Assert.Equal(250, result.DocumentsIndexed);
 
         // Verify that IndexDocumentsAsync was called 3 times (100+100+50)
-        _mockSearchClient.Verify(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()),
+        _mockSearchClient.Verify(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
             Times.Exactly(3));
     }
 
@@ -376,11 +373,11 @@ Yamaha,YZF-R6,2023";
 
         // Assert
         Assert.True(result.Success);
-        Assert.NotNull(result.Data);
+        Assert.NotNull(result);
 
         // Should process the valid rows
-        Assert.True(result.Data.Documents.Count > 0);
-        Assert.Equal(2, result.Data.Documents.Count); // 2 different motorcycles = 2 chunks due to relational integrity
+        Assert.True(result.Documents.Count > 0);
+        Assert.Equal(2, result.Documents.Count); // 2 different motorcycles = 2 chunks due to relational integrity
     }
 
     private CSVFile CreateCSVFile(string fileName, string content, bool hasHeaders = true)

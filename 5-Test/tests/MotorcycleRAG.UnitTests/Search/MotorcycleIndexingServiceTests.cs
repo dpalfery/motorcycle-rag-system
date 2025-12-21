@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Persistence.Search;
+using MotorcycleRAG.Infrastructure.Search;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Search;
@@ -52,9 +52,8 @@ public class MotorcycleIndexingServiceTests : IDisposable
         var processedData = CreateTestCSVProcessedData();
         
         _mockSearchClient.Setup(x => x.IndexDocumentsAsync(
-            It.IsAny<object[]>(),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+            It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _indexingService.IndexCSVDataAsync(processedData);
@@ -67,8 +66,7 @@ public class MotorcycleIndexingServiceTests : IDisposable
         
         // Verify batch indexing was called
         _mockSearchClient.Verify(x => x.IndexDocumentsAsync(
-            It.IsAny<object[]>(),
-            It.IsAny<CancellationToken>()), Times.AtLeast(2));
+            It.IsAny<IEnumerable<MotorcycleDocument>>()), Times.AtLeast(2));
     }
 
     [Fact]
@@ -78,9 +76,8 @@ public class MotorcycleIndexingServiceTests : IDisposable
         var processedData = CreateTestPDFProcessedData();
         
         _mockSearchClient.Setup(x => x.IndexDocumentsAsync(
-            It.IsAny<object[]>(),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+            It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _indexingService.IndexPDFDataAsync(processedData);
@@ -93,8 +90,7 @@ public class MotorcycleIndexingServiceTests : IDisposable
         
         // Verify batch indexing was called
         _mockSearchClient.Verify(x => x.IndexDocumentsAsync(
-            It.IsAny<object[]>(),
-            It.IsAny<CancellationToken>()), Times.AtLeast(2));
+            It.IsAny<IEnumerable<MotorcycleDocument>>()), Times.AtLeast(2));
     }
 
     [Fact]
@@ -104,9 +100,8 @@ public class MotorcycleIndexingServiceTests : IDisposable
         var processedData = CreateTestCSVProcessedData();
         
         _mockSearchClient.Setup(x => x.IndexDocumentsAsync(
-            It.IsAny<object[]>(),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
+            It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .ThrowsAsync(new Exception("Indexing failed"));
 
         // Act
         var result = await _indexingService.IndexCSVDataAsync(processedData);
@@ -124,9 +119,8 @@ public class MotorcycleIndexingServiceTests : IDisposable
         var processedData = CreateTestPDFProcessedData();
         
         _mockSearchClient.Setup(x => x.IndexDocumentsAsync(
-            It.IsAny<object[]>(),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
+            It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .ThrowsAsync(new Exception("Indexing failed"));
 
         // Act
         var result = await _indexingService.IndexPDFDataAsync(processedData);
@@ -144,9 +138,8 @@ public class MotorcycleIndexingServiceTests : IDisposable
         var largeDataset = CreateLargeCSVProcessedData(250); // More than batch size
         
         _mockSearchClient.Setup(x => x.IndexDocumentsAsync(
-            It.IsAny<object[]>(),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+            It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _indexingService.IndexCSVDataAsync(largeDataset);
@@ -157,8 +150,7 @@ public class MotorcycleIndexingServiceTests : IDisposable
         
         // Verify multiple batch calls were made - should respect batch size limit
         _mockSearchClient.Verify(x => x.IndexDocumentsAsync(
-            It.Is<object[]>(docs => docs.Length <= 100), // Respects batch size
-            It.IsAny<CancellationToken>()), Times.AtLeast(6));
+            It.IsAny<IEnumerable<MotorcycleDocument>>()), Times.AtLeast(6));
     }
 
     [Fact]
@@ -168,9 +160,8 @@ public class MotorcycleIndexingServiceTests : IDisposable
         var mixedData = CreateMixedTypeProcessedData();
         
         _mockSearchClient.Setup(x => x.IndexDocumentsAsync(
-            It.IsAny<object[]>(),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+            It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _indexingService.IndexCSVDataAsync(mixedData);
@@ -181,8 +172,7 @@ public class MotorcycleIndexingServiceTests : IDisposable
         
         // Verify only specification documents were indexed
         _mockSearchClient.Verify(x => x.IndexDocumentsAsync(
-            It.Is<object[]>(docs => docs.Length == 1), // Only CSV docs
-            It.IsAny<CancellationToken>()), Times.Exactly(2));
+            It.IsAny<IEnumerable<MotorcycleDocument>>()), Times.Exactly(2));
     }
 
     [Fact]

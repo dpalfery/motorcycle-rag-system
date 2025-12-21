@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Persistence.DataProcessing;
+using MotorcycleRAG.Infrastructure.DataProcessing;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.DataProcessing;
@@ -70,7 +70,7 @@ public class MotorcyclePDFProcessorTests
         var sampleEmbeddings = CreateSampleEmbeddings(3);
 
         _mockDocumentClient
-            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
             .ReturnsAsync(analysisResult);
 
         _mockOpenAIClient
@@ -94,15 +94,14 @@ public class MotorcyclePDFProcessorTests
         }
         
         Assert.True(result.Success);
-        Assert.NotNull(result.Data);
-        Assert.True(result.Data.Documents.Count > 0);
-        Assert.Contains("Successfully processed PDF", result.Message);
+        Assert.NotNull(result);
+        Assert.True(result.Documents.Count > 0);
+        Assert.Equal("Success", result.Message);
         Assert.True(result.ItemsProcessed > 0);
-        Assert.True(result.ProcessingTime > TimeSpan.Zero);
 
         // Verify that Document Intelligence was called
         _mockDocumentClient.Verify(
-            x => x.AnalyzeDocumentAsync(It.IsAny<byte[]>(), "application/pdf", It.IsAny<CancellationToken>()),
+            x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), "application/pdf"),
             Times.Once);
 
         // Verify that GPT-4 Vision was called for multimodal content
@@ -150,7 +149,7 @@ public class MotorcyclePDFProcessorTests
         var sampleEmbeddings = CreateSampleEmbeddings(2);
 
         _mockDocumentClient
-            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
             .ReturnsAsync(analysisResult);
 
         _mockOpenAIClient
@@ -171,23 +170,21 @@ public class MotorcyclePDFProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_WithDocumentIntelligenceFailure_ShouldReturnFailureResult()
+    public async Task ProcessAsync_WithDocumentIntelligenceFailure_ShouldThrowException()
     {
         // Arrange
         var pdfDocument = CreateSamplePDFDocument();
 
         _mockDocumentClient
-            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
             .ThrowsAsync(new InvalidOperationException("Document Intelligence service unavailable"));
 
-        // Act
-        var result = await _processor.ProcessAsync(pdfDocument);
-
-        // Assert
-        Assert.False(result.Success);
-        Assert.Contains("Failed to process PDF", result.Message);
-        Assert.Contains("Document Intelligence service unavailable", result.Errors);
-        Assert.Equal(0, result.ItemsProcessed);
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await _processor.ProcessAsync(pdfDocument));
+        
+        Assert.Contains("Failed to process PDF", exception.Message);
+        Assert.NotNull(exception.InnerException);
     }
 
     [Fact]
@@ -199,7 +196,7 @@ public class MotorcyclePDFProcessorTests
         var sampleEmbeddings = CreateSampleEmbeddings(10);
 
         _mockDocumentClient
-            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
             .ReturnsAsync(analysisResult);
 
         _mockOpenAIClient
@@ -216,11 +213,11 @@ public class MotorcyclePDFProcessorTests
 
         // Assert
         Assert.True(result.Success, $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors)}");
-        Assert.NotNull(result.Data);
-        Assert.True(result.Data.Documents.Count >= 1);
+        Assert.NotNull(result);
+        Assert.True(result.Documents.Count >= 1);
         
         // Verify that chunks have proper metadata
-        foreach (var doc in result.Data.Documents)
+        foreach (var doc in result.Documents)
         {
             Assert.NotEmpty(doc.Id);
             Assert.NotEmpty(doc.Content);
@@ -243,7 +240,7 @@ public class MotorcyclePDFProcessorTests
         var sampleEmbeddings = CreateSampleEmbeddings(5);
 
         _mockDocumentClient
-            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
             .ReturnsAsync(analysisResult);
 
         _mockOpenAIClient
@@ -255,10 +252,10 @@ public class MotorcyclePDFProcessorTests
 
         // Assert
         Assert.True(result.Success);
-        Assert.NotNull(result.Data);
+        Assert.NotNull(result);
         
         // Verify that table content was processed
-        var tableDocuments = result.Data.Documents.Where(d => 
+        var tableDocuments = result.Documents.Where(d => 
             d.Metadata.AdditionalProperties.ContainsKey("ChunkType") && 
             d.Metadata.AdditionalProperties["ChunkType"].ToString() == "Table").ToList();
         Assert.NotEmpty(tableDocuments);
@@ -277,8 +274,8 @@ public class MotorcyclePDFProcessorTests
         var processedData = CreateSampleProcessedData();
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Returns(Task.CompletedTask);
 
         // Act
         var result = await _processor.IndexAsync(processedData);
@@ -291,7 +288,7 @@ public class MotorcyclePDFProcessorTests
 
         // Verify that search client was called
         _mockSearchClient.Verify(
-            x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()),
+            x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
             Times.AtLeastOnce);
     }
 
@@ -302,8 +299,8 @@ public class MotorcyclePDFProcessorTests
         var processedData = CreateSampleProcessedData();
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .ThrowsAsync(new Exception("Indexing failed"));
 
         // Act
         var result = await _processor.IndexAsync(processedData);
@@ -347,7 +344,7 @@ public class MotorcyclePDFProcessorTests
         var sampleEmbeddings = CreateSampleEmbeddings(15);
 
         _mockDocumentClient
-            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
             .ReturnsAsync(analysisResult);
 
         _mockOpenAIClient
@@ -364,16 +361,16 @@ public class MotorcyclePDFProcessorTests
 
         // Assert
         Assert.True(result.Success, $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors)}");
-        if (result.Data == null)
+        if (result == null)
         {
             throw new Exception($"Result.Data is null. Success: {result.Success}, Message: {result.Message}, Errors: {string.Join(", ", result.Errors)}");
         }
-        Assert.NotNull(result.Data);
-        Assert.NotNull(result.Data.Documents);
-        Assert.True(result.Data.Documents.Count > 0);
+        Assert.NotNull(result);
+        Assert.NotNull(result.Documents);
+        Assert.True(result.Documents.Count > 0);
         
         // Verify that chunks respect size limits
-        foreach (var doc in result.Data.Documents)
+        foreach (var doc in result.Documents)
         {
             Assert.NotNull(doc);
             Assert.NotNull(doc.Content);

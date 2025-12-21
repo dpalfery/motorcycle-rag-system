@@ -9,5 +9,14 @@
   "editor.formatOnSave": true,
   "git.autofetch": true,
   "git.autofetchPeriod": 180,
-  "kiroAgent.configureMCP": "Enabled"
+  "kiroAgent.configureMCP": "Enabled",
+  "zencoder.mcpServers": {
+    "microsoft-learn\"": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp",
+      "tools": [
+        "*"
+      ]
+    }
+  }
 }

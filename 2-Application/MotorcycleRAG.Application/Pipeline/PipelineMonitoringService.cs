@@ -330,7 +330,7 @@ public class PipelineMonitoringService : IPipelineMonitoringService
                     .ToDictionary(g => g.Key, g => (long)g.Sum(e => e.DocumentsProcessed)),
                 BytesByType = new Dictionary<FileType, long>() // Would need to track file sizes
             },
-            Performance = new PerformanceMetrics
+            Performance = new ExecutionPerformanceMetrics
             {
                 AverageExecutionTime = relevantExecutions.Any() ? 
                     TimeSpan.FromMilliseconds(relevantExecutions.Average(e => e.Duration.TotalMilliseconds)) : 

@@ -49,7 +49,7 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
     public async Task<PipelineExecutionResult> ProcessFileAsync(DataPipelineRequest request, CancellationToken cancellationToken = default)
     {
         var executionId = Guid.NewGuid().ToString();
-        var correlationId = _correlationService.GetOrGenerateCorrelationId();
+        var correlationId = _correlationService.GetOrCreateCorrelationId();
         
         var result = new PipelineExecutionResult
         {
@@ -90,17 +90,20 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
 
             // Process the file based on type
             ProcessedData processedData;
-            using var activity = _correlationService.StartActivity($"ProcessFile-{request.FileType}");
             
-            processedData = await _resilienceService.ExecuteWithResilienceAsync(async () =>
-            {
-                return request.FileType switch
+            processedData = await _resilienceService.ExecuteAsync(
+                "process_file",
+                async () =>
                 {
-                    FileType.CSV => await ProcessCsvFileAsync(request, cancellationSource.Token),
-                    FileType.PDF => await ProcessPdfFileAsync(request, cancellationSource.Token),
-                    _ => throw new ArgumentException($"Unsupported file type: {request.FileType}")
-                };
-            }, cancellationSource.Token);
+                    return request.FileType switch
+                    {
+                        FileType.CSV => await ProcessCsvFileAsync(request, cancellationSource.Token),
+                        FileType.PDF => await ProcessPdfFileAsync(request, cancellationSource.Token),
+                        _ => throw new ArgumentException($"Unsupported file type: {request.FileType}")
+                    };
+                },
+                correlationId: correlationId,
+                cancellationToken: cancellationSource.Token);
 
             result.ProcessedData = processedData;
             result.Metrics["DocumentsProcessed"] = processedData.Documents.Count;
@@ -112,19 +115,21 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
                 result.Status = PipelineStatus.Indexing;
                 result.Message = "Indexing processed documents...";
 
-                using var indexingActivity = _correlationService.StartActivity("IndexDocuments");
-                
-                var indexingResult = await _resilienceService.ExecuteWithResilienceAsync(async () =>
-                {
-                    return await _indexingService.IndexDocumentsAsync(processedData.Documents);
-                }, cancellationSource.Token);
+                var indexingResult = await _resilienceService.ExecuteAsync(
+                    "index_documents",
+                    async () =>
+                    {
+                        return await _indexingService.IndexDocumentsAsync(processedData.Documents);
+                    },
+                    correlationId: correlationId,
+                    cancellationToken: cancellationSource.Token);
 
                 result.IndexingResult = new IndexingResult
                 {
-                    Success = indexingResult.IsSuccessful,
-                    DocumentsIndexed = indexingResult.DocumentsProcessed,
-                    IndexName = indexingResult.IndexName,
-                    Message = indexingResult.Message,
+                    Success = indexingResult.Success,
+                    DocumentsIndexed = indexingResult.DocumentsIndexed,
+                    IndexName = "motorcycle_index",
+                    Message = indexingResult.Success ? "Indexing completed successfully" : "Indexing completed with errors",
                     Errors = indexingResult.Errors?.ToList() ?? new List<string>(),
                     IndexingTime = indexingResult.ProcessingTime
                 };
@@ -258,7 +263,7 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
                 TotalDocumentsIndexed = detailed.Processing.TotalDocumentsIndexed,
                 MetricsStartTime = detailed.StartTime,
                 MetricsEndTime = detailed.EndTime,
-                ProcessingByFileType = detailed.Processing.DocumentsByType,
+                ProcessingByFileType = detailed.Processing.DocumentsByType.ToDictionary(k => k.Key, v => (int)v.Value),
                 ExecutionsByStatus = new Dictionary<PipelineStatus, int>
                 {
                     [PipelineStatus.Completed] = detailed.Executions.SuccessfulExecutions,

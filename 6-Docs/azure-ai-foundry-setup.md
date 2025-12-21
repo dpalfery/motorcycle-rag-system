@@ -6,7 +6,7 @@ This guide provides step-by-step instructions for setting up Azure AI Foundry an
 
 - Azure subscription with sufficient permissions
 - Azure CLI installed (`az` command)
-- .NET 9.0 SDK
+- .NET 10.0 SDK
 - Git
 
 ## 1. Create Azure AI Foundry Project

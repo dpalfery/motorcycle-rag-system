@@ -17,18 +17,17 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
 {
     private readonly Mock<IServiceScopeFactory> _serviceScopeFactoryMock;
     private readonly Mock<IServiceScope> _serviceScopeMock;
-    private readonly Mock<IServiceProvider> _serviceProviderMock;
     private readonly Mock<IDataPipelineOrchestrator> _orchestratorMock;
     private readonly Mock<ILogger<ScheduledPipelineService>> _loggerMock;
     private readonly Mock<IOptions<ScheduledProcessingConfiguration>> _configMock;
     private readonly ScheduledPipelineService _service;
     private readonly string _testDirectory;
+    private readonly IServiceProvider _serviceProvider;
 
     public ScheduledPipelineServiceReliabilityTests()
     {
         _serviceScopeFactoryMock = new Mock<IServiceScopeFactory>();
         _serviceScopeMock = new Mock<IServiceScope>();
-        _serviceProviderMock = new Mock<IServiceProvider>();
         _orchestratorMock = new Mock<IDataPipelineOrchestrator>();
         _loggerMock = new Mock<ILogger<ScheduledPipelineService>>();
         _configMock = new Mock<IOptions<ScheduledProcessingConfiguration>>();
@@ -39,7 +38,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
 
         var config = new ScheduledProcessingConfiguration
         {
-            DefaultCronExpression = "0 0 2 * * *", // Daily at 2 AM
+            DefaultCronExpression = "0 2 * * *", // Daily at 2 AM
             IsEnabledByDefault = true,
             DefaultProcessingWindow = TimeSpan.FromHours(4),
             DefaultMaxConcurrentJobs = 3,
@@ -50,9 +49,13 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
 
         // Setup service scope factory
         _serviceScopeFactoryMock.Setup(x => x.CreateScope()).Returns(_serviceScopeMock.Object);
-        _serviceScopeMock.Setup(x => x.ServiceProvider).Returns(_serviceProviderMock.Object);
-        _serviceProviderMock.Setup(x => x.GetRequiredService<IDataPipelineOrchestrator>())
-            .Returns(_orchestratorMock.Object);
+        
+        // Create a real service provider with the orchestrator mock
+        var services = new ServiceCollection();
+        services.AddSingleton(_orchestratorMock.Object);
+        _serviceProvider = services.BuildServiceProvider();
+        
+        _serviceScopeMock.Setup(x => x.ServiceProvider).Returns(_serviceProvider);
 
         _service = new ScheduledPipelineService(
             _serviceScopeFactoryMock.Object,
@@ -209,7 +212,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
         // Arrange
         var newConfig = new ProcessingScheduleConfig
         {
-            CronExpression = "0 0 4 * * *", // Daily at 4 AM
+            CronExpression = "0 4 * * *", // Daily at 4 AM
             IsEnabled = true,
             ProcessingWindow = TimeSpan.FromHours(2),
             MaxConcurrentJobs = 5,
@@ -318,7 +321,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
         cancellationTokenSource.Cancel(); // Cancel immediately
 
         // Act & Assert
-        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        await Assert.ThrowsAsync<TaskCanceledException>(async () =>
         {
             await _service.ExecuteImmediateRunAsync(cancellationTokenSource.Token);
         });
@@ -332,16 +335,14 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
         Directory.CreateDirectory(scheduledDir);
         File.WriteAllText(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
 
-        var batchResult = new BatchPipelineResult
-        {
-            TotalFiles = 1,
-            ProcessedSuccessfully = 1,
-            Failed = 0,
-            EndTime = DateTime.UtcNow
-        };
-
         _orchestratorMock.Setup(x => x.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(batchResult);
+            .ReturnsAsync(() => new BatchPipelineResult
+            {
+                TotalFiles = 1,
+                ProcessedSuccessfully = 1,
+                Failed = 0,
+                EndTime = DateTime.UtcNow.AddMilliseconds(100)
+            });
 
         // Act
         await _service.ExecuteImmediateRunAsync(CancellationToken.None);
@@ -372,5 +373,6 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
         }
 
         _service?.Dispose();
+        (_serviceProvider as IDisposable)?.Dispose();
     }
 }

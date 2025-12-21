@@ -28,7 +28,7 @@ This system implements a multi-agent architecture to orchestrate intelligent sea
 ## Technology Stack
 
 - **Platform**: Azure AI Foundry (unified AI services platform)
-- **Framework**: ASP.NET Core Web API (.NET 9.0)
+- **Framework**: ASP.NET Core Web API (.NET 10.0)
 - **AI Services**: Azure OpenAI (GPT-4o, GPT-4o-mini, text-embedding-3-large)
 - **Search**: Azure AI Search (hybrid vector/keyword with semantic ranking)
 - **Document Processing**: Azure Document Intelligence (OCR and PDF processing)
@@ -43,7 +43,7 @@ This system implements a multi-agent architecture to orchestrate intelligent sea
 
 ### Prerequisites
 
-- .NET 9.0 SDK
+- .NET 10.0 SDK
 - Azure subscription with the following services:
   - Azure AI Foundry project
   - Azure OpenAI service (GPT-4o, GPT-4o-mini, text-embedding-3-large)

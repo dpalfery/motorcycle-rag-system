@@ -11,7 +11,7 @@ The system leverages modern AI technologies to create a unified, intelligent sea
 - Emphasis on cost optimization and performance
 
 ### Technical Context
-- Built during the .NET 9.0 era with modern async patterns
+- Built during the .NET 10.0 era with modern async patterns
 - Utilizes Azure's comprehensive AI ecosystem
 - Implements resilient, observable microservices architecture
 - Follows clean architecture principles for maintainability

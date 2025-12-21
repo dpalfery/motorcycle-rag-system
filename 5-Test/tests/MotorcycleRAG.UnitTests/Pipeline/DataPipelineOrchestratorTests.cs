@@ -39,7 +39,7 @@ public class DataPipelineOrchestratorTests
         };
 
         _configMock.Setup(x => x.Value).Returns(config);
-        _correlationServiceMock.Setup(x => x.GetOrGenerateCorrelationId()).Returns("test-correlation-id");
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns("test-correlation-id");
 
         _orchestrator = new DataPipelineOrchestrator(
             _csvProcessorMock.Object,
@@ -74,7 +74,7 @@ public class DataPipelineOrchestratorTests
         };
 
         _resilienceServiceMock
-            .Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(processedData);
 
         // Act
@@ -122,7 +122,7 @@ public class DataPipelineOrchestratorTests
         };
 
         _resilienceServiceMock
-            .Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(processedData);
 
         // Act
@@ -166,18 +166,17 @@ public class DataPipelineOrchestratorTests
 
         var indexingResult = new BatchIndexingResult
         {
-            IsSuccessful = true,
+            Success = true,
             DocumentsProcessed = 1,
-            IndexName = "test-index",
-            Message = "Indexed successfully"
+            DocumentsIndexed = 1
         };
 
         _resilienceServiceMock
-            .Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(processedData);
 
         _resilienceServiceMock
-            .Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<BatchIndexingResult>>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<BatchIndexingResult>>>(), It.IsAny<Func<Task<BatchIndexingResult>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(indexingResult);
 
         // Act
@@ -213,7 +212,7 @@ public class DataPipelineOrchestratorTests
         var exception = new InvalidOperationException("Processing failed");
 
         _resilienceServiceMock
-            .Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(exception);
 
         // Act
@@ -267,7 +266,7 @@ public class DataPipelineOrchestratorTests
         };
 
         _resilienceServiceMock
-            .Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(processedData);
 
         // Act
@@ -309,7 +308,7 @@ public class DataPipelineOrchestratorTests
         };
 
         _resilienceServiceMock
-            .Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(processedData);
 
         // Start the pipeline (this will create the execution ID internally)
@@ -352,7 +351,7 @@ public class DataPipelineOrchestratorTests
                 TotalDocumentsProcessed = 100,
                 TotalDocumentsIndexed = 95
             },
-            Performance = new PerformanceMetrics
+            Performance = new ExecutionPerformanceMetrics
             {
                 AverageExecutionTime = TimeSpan.FromMinutes(5)
             }

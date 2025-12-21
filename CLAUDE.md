@@ -66,7 +66,7 @@ dotnet build 2-Application/MotorcycleRAG.Application/MotorcycleRAG.Application
 
 ## Architecture Overview
 
-This is a **multi-agent RAG system** built on Azure AI Foundry using **.NET 9** and **Semantic Kernel**. The system orchestrates multiple specialized agents to search heterogeneous data sources.
+This is a **multi-agent RAG system** built on Azure AI Foundry using **.NET 10** and **Semantic Kernel**. The system orchestrates multiple specialized agents to search heterogeneous data sources.
 
 ### Core Architecture Patterns
 

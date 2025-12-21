@@ -13,7 +13,7 @@
 - Azure Key Vault (recommended)
 
 ### Development Tools
-- .NET 9.0 SDK
+- .NET 10.0 SDK
 - Docker Desktop
 - Azure CLI
 - Pulumi CLI (for infrastructure as code)

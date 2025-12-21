@@ -48,7 +48,8 @@ public class FileUploadServiceReliabilityTests
         var options = new FileUploadOptions
         {
             UploadDirectory = "test-uploads",
-            GenerateUniqueFileName = true
+            GenerateUniqueFileName = true,
+            ValidateFileContent = false
         };
 
         // Act
@@ -77,7 +78,8 @@ public class FileUploadServiceReliabilityTests
         var options = new FileUploadOptions
         {
             UploadDirectory = "test-uploads",
-            GenerateUniqueFileName = true
+            GenerateUniqueFileName = true,
+            ValidateFileContent = false
         };
 
         // Act
@@ -161,7 +163,8 @@ public class FileUploadServiceReliabilityTests
         var options = new FileUploadOptions
         {
             UploadDirectory = "batch-test",
-            AllowedFileExtensions = new HashSet<string> { ".csv", ".pdf" }
+            AllowedFileExtensions = new HashSet<string> { ".csv", ".pdf" },
+            ValidateFileContent = false
         };
 
         // Act

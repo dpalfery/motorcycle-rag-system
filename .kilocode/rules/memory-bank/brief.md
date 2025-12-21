@@ -2,7 +2,7 @@
 
 The Motorcycle RAG System is a sophisticated multi-agent RAG (Retrieval-Augmented Generation) system built on Azure AI Foundry platform for intelligent motorcycle information retrieval. It uses a sequential search pattern across heterogeneous data sources including CSV specifications, PDF manuals, and web sources.
 
-The system implements clean architecture with .NET 9.0, Semantic Kernel for agent orchestration, and Azure AI services for search, document processing, and AI models.
+The system implements clean architecture with .NET 10.0, Semantic Kernel for agent orchestration, and Azure AI services for search, document processing, and AI models.
 
 ## Key Characteristics
 - Multi-agent architecture with specialized search capabilities

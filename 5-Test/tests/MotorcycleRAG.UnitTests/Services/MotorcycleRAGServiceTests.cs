@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Models;
 using MotorcycleRAG.Application.Services;
+using MotorcycleRAG.Application.Caching;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Services;
@@ -15,6 +17,8 @@ public class MotorcycleRAGServiceTests
     private readonly Mock<IAgentOrchestrator> _mockOrchestrator;
     private readonly Mock<ILogger<MotorcycleRAGService>> _mockLogger;
     private readonly Mock<ITelemetryService> _mockTelemetry;
+    private readonly Mock<IQueryCacheService> _mockCacheService;
+    private readonly Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>> _mockCacheConfig;
     private readonly MotorcycleRAGService _service;
 
     public MotorcycleRAGServiceTests()
@@ -22,7 +26,10 @@ public class MotorcycleRAGServiceTests
         _mockOrchestrator = new Mock<IAgentOrchestrator>(MockBehavior.Strict);
         _mockLogger = new Mock<ILogger<MotorcycleRAGService>>();
         _mockTelemetry = new Mock<ITelemetryService>();
-        _service = new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object);
+        _mockCacheService = new Mock<IQueryCacheService>();
+        _mockCacheConfig = new Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>>();
+        _mockCacheConfig.Setup(x => x.Value).Returns(new CacheConfiguration { EnableCaching = true, DefaultExpiration = TimeSpan.FromMinutes(5) });
+        _service = new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object);
     }
 
     #region Constructor
@@ -31,21 +38,21 @@ public class MotorcycleRAGServiceTests
     public void Constructor_ShouldThrow_WhenOrchestratorIsNull()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(null!, _mockLogger.Object, _mockTelemetry.Object));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(null!, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, null!, _mockTelemetry.Object));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, null!, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenTelemetryIsNull()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, null!));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, null!, _mockCacheService.Object, _mockCacheConfig.Object));
     }
 
     #endregion
@@ -107,7 +114,7 @@ public class MotorcycleRAGServiceTests
 
         _mockOrchestrator.Verify(o => o.ExecuteSequentialSearchAsync(request.Query, It.IsAny<SearchContext>()), Times.Once);
         _mockOrchestrator.Verify(o => o.GenerateResponseAsync(results, request.Query), Times.Once);
-        _mockTelemetry.Verify(t => t.TrackQuery(It.IsAny<string>(), request.Query, It.IsAny<TimeSpan>(), results.Length, It.IsAny<decimal>(), It.IsAny<string?>()), Times.Once);
+        _mockTelemetry.Verify(t => t.TrackQuery(It.IsAny<string>(), request.Query, It.IsAny<TimeSpan>(), results.Length, It.IsAny<decimal>()), Times.Once);
     }
 
     #endregion

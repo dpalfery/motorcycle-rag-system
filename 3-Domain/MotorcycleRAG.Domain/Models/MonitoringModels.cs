@@ -123,7 +123,7 @@ public class DetailedPipelineMetrics
     
     public ErrorMetrics Errors { get; set; } = new();
     
-    public PerformanceMetrics Performance { get; set; } = new();
+    public ExecutionPerformanceMetrics Performance { get; set; } = new();
     
     public List<TrendDataPoint> TrendData { get; set; } = new();
 }
@@ -179,9 +179,9 @@ public class ErrorMetrics
 }
 
 /// <summary>
-/// Performance metrics
+/// Execution performance metrics
 /// </summary>
-public class PerformanceMetrics
+public class ExecutionPerformanceMetrics
 {
     public TimeSpan AverageExecutionTime { get; set; }
     

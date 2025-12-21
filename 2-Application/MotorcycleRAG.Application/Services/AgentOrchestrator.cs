@@ -1,13 +1,13 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.SemanticKernel;
+using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Services;
 
 /// <summary>
-/// Coordinates multiple search agents using Semantic Kernel to rank and fuse their results.
+/// Coordinates multiple search agents using the Microsoft Agent Framework to rank and fuse their results.
 /// </summary>
 public sealed class AgentOrchestrator : IAgentOrchestrator
 {
@@ -15,7 +15,8 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly SearchConfiguration _searchConfig;
     private readonly ILogger<AgentOrchestrator> _logger;
-    private readonly Kernel _kernel;
+    private readonly AgentFrameworkAdapter _frameworkAdapter;
+    private readonly AgentState _executionState;
 
     public AgentOrchestrator(
         IEnumerable<ISearchAgent> agents,
@@ -28,10 +29,33 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         _searchConfig = searchConfig?.Value ?? throw new ArgumentNullException(nameof(searchConfig));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        // Build a lightweight Semantic Kernel instance.  
-        // We do not configure specific AI connectors here – callers using the Kernel can add those through plugins.  
-        // This keeps the orchestrator free from configuration secrets and makes it easier to test.
-        _kernel = Kernel.CreateBuilder().Build();
+        _frameworkAdapter = new AgentFrameworkAdapter(logger);
+        _executionState = new AgentState();
+
+        InitializeFrameworkAdapter();
+    }
+
+    /// <summary>
+    /// Initialize the Agent Framework adapter with registered agents
+    /// </summary>
+    private void InitializeFrameworkAdapter()
+    {
+        foreach (var agent in _agents)
+        {
+            var toolName = agent.AgentType switch
+            {
+                SearchAgentType.VectorSearch => "vector_search",
+                SearchAgentType.WebSearch => "web_search",
+                SearchAgentType.PDFSearch => "pdf_search",
+                SearchAgentType.QueryPlanner => "plan_search_strategy",
+                _ => $"agent_{agent.AgentType.ToString().ToLower()}"
+            };
+
+            var handler = AgentFrameworkAdapter.CreateSearchAgentHandler(agent, _logger);
+            _frameworkAdapter.RegisterToolHandler(toolName, handler);
+        }
+
+        _logger.LogInformation("Agent Framework adapter initialized with {AgentCount} agents", _agents.Count);
     }
 
     #region IAgentOrchestrator Implementation
@@ -49,33 +73,55 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         var searchOptions = BuildSearchOptions(context);
         var aggregatedResults = new List<SearchResult>();
 
-        // Execute agents one-by-one – this allows earlier agents to short-circuit if enough high-quality
-        // answers are already found, saving costs.
-        foreach (var agent in _agents)
-        {
-            try
-            {
-                _logger.LogInformation("Running {AgentType} agent sequentially…", agent.AgentType);
-                var results = await agent.SearchAsync(query, searchOptions);
-                aggregatedResults.AddRange(results);
+        _executionState.OriginalQuery = query;
+        _executionState.SearchContext = context;
+        _executionState.SearchOptions = searchOptions;
+        _executionState.Status = AgentExecutionStatus.Running;
 
-                // If we already have the maximum desired results we can stop early.
-                if (aggregatedResults.Count >= searchOptions.MaxResults)
+        try
+        {
+            foreach (var agent in _agents)
+            {
+                try
                 {
-                    _logger.LogInformation("Desired number of results collected – skipping remaining agents.");
-                    break;
+                    _logger.LogInformation("Running {AgentType} agent sequentially…", agent.AgentType);
+                    _executionState.AddMessage(
+                        agent.AgentType.ToString(),
+                        $"Executing search for: {query}",
+                        AgentMessageType.SearchQuery);
+
+                    var results = await agent.SearchAsync(query, searchOptions);
+                    aggregatedResults.AddRange(results);
+
+                    _executionState.AccumulatedResults.AddRange(results);
+                    _executionState.AddMessage(
+                        agent.AgentType.ToString(),
+                        $"Found {results.Length} results",
+                        AgentMessageType.SearchResult);
+
+                    if (aggregatedResults.Count >= searchOptions.MaxResults)
+                    {
+                        _logger.LogInformation("Desired number of results collected – skipping remaining agents.");
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Agent {AgentType} failed – continuing with remaining agents", agent.AgentType);
+                    _executionState.RecordError(agent.AgentType.ToString(), ex.Message, ex);
                 }
             }
-            catch (Exception ex)
-            {
-                // We do not want one agent failure to break the entire orchestration.
-                _logger.LogWarning(ex, "Agent {AgentType} failed – continuing with remaining agents", agent.AgentType);
-            }
-        }
 
-        // Merge and rank the results.
-        var fused = await FuseAndRankResultsAsync(aggregatedResults, query, searchOptions);
-        return fused;
+            var fused = await FuseAndRankResultsAsync(aggregatedResults, query, searchOptions);
+            _executionState.MarkComplete();
+            return fused;
+        }
+        catch (Exception ex)
+        {
+            _executionState.MarkFailed();
+            _logger.LogError(ex, "Sequential search execution failed");
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -89,8 +135,9 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
 
         try
         {
-            // Build a concise prompt to stay within context limits.
-            var snippets = results.Take(10) // limit number of snippets to avoid prompt bloat
+            _logger.LogInformation("Generating response for query: {Query}", originalQuery);
+
+            var snippets = results.Take(10)
                                   .Select(r => $"[{r.Id}] {Truncate(r.Content, 500)}")
                                   .ToArray();
 
@@ -108,13 +155,20 @@ Snippets:
 Answer in markdown:
 """;
 
-            // Utilise the existing OpenAI client – it already implements retry and resilience patterns.
             var answer = await _openAIClient.GetChatCompletionAsync("gpt-4o-mini", prompt, CancellationToken.None);
+            
+            _executionState.AddMessage(
+                "ResponseGenerator",
+                $"Generated response of {answer.Length} characters",
+                AgentMessageType.FunctionReturn);
+
+            _logger.LogInformation("Response generated successfully");
             return answer;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate response via Semantic Kernel / OpenAI");
+            _logger.LogError(ex, "Failed to generate response via OpenAI");
+            _executionState.RecordError("ResponseGenerator", ex.Message, ex);
             throw;
         }
     }

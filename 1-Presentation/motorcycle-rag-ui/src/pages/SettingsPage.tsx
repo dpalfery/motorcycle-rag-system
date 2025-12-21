@@ -29,22 +29,47 @@ export default function SettingsPage() {
         }
     };
 
-    const handleDrop = (e: React.DragEvent) => {
+    const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
         setDragActive(false);
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            // Mock upload
             const file = e.dataTransfer.files[0];
-            const newFile: FileUpload = {
-                id: Date.now().toString(),
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Optimistic UI update
+            const tempId = Date.now().toString();
+            const optimisticFile: FileUpload = {
+                id: tempId,
                 name: file.name,
                 type: file.name.endsWith('.csv') ? 'CSV' : 'PDF',
                 status: 'processing',
                 date: new Date().toISOString().split('T')[0],
                 size: (file.size / 1024 / 1024).toFixed(1) + ' MB'
             };
-            setUploads(prev => [newFile, ...prev]);
+            setUploads(prev => [optimisticFile, ...prev]);
+
+            try {
+                const response = await fetch('/api/datapipeline/upload?processImmediately=true', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) throw new Error('Upload failed');
+
+                await response.json();
+
+                // Update status to indexed if successful
+                setUploads(prev => prev.map(u =>
+                    u.id === tempId ? { ...u, status: 'indexed' } : u
+                ));
+            } catch (error) {
+                console.error('Upload error:', error);
+                setUploads(prev => prev.map(u =>
+                    u.id === tempId ? { ...u, status: 'error' } : u
+                ));
+            }
         }
     };
 

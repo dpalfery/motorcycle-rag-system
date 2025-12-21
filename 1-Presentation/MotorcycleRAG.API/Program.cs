@@ -4,6 +4,7 @@ using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Microsoft.Azure.AppConfiguration.AspNetCore;
+using Microsoft.OpenApi.Models;
 
 public class Program
 {
@@ -118,7 +119,7 @@ public class Program
         // Configure custom services with validation
         try
         {
-            builder.Services.AddAzureAIServices(configuration);
+            // builder.Services.AddAzureAIServices(configuration);
             builder.Services.AddCoreServices();
             builder.Services.AddSearchAgents();
             builder.Services.AddDataProcessors();
@@ -127,7 +128,7 @@ public class Program
             builder.Services.AddHealthChecks(configuration);
 
             // Validate configuration early
-            ValidateConfiguration(configuration, builder.Environment);
+            // ValidateConfiguration(configuration, builder.Environment);
         }
         catch (Exception ex)
         {

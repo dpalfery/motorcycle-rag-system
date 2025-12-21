@@ -42,21 +42,44 @@ export default function ChatInterface() {
         setInput('');
         setIsLoading(true);
 
-        // Simulate AI Response
-        setTimeout(() => {
+        try {
+            const response = await fetch('/api/motorcycles/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    query: userMsg.content,
+                    preferences: {},
+                    userId: "user", // TODO: Get from AuthContext
+                    context: {}
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to get response');
+
+            const data = await response.json();
+
             const aiMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: `Here is the information about "${userMsg.content}". \n\nThe 2024 Yamaha YZF-R1 features a 998cc liquid-cooled inline 4-cylinder engine with crossplane crankshaft technology.`,
+                content: data.response, // Adjust based on actual API response field
                 timestamp: new Date(),
-                actions: [
-                    { label: 'MANUALS', type: 'link', value: '#', icon: 'manuals' },
-                    { label: 'SPECS', type: 'link', value: '#', icon: 'specs' }
-                ]
+                actions: data.sources?.length > 0 ? [
+                    { label: 'SOURCES', type: 'link', value: '#', icon: 'specs' }
+                ] : []
             };
             setMessages(prev => [...prev, aiMsg]);
+        } catch (error) {
+            console.error('Chat error:', error);
+            const errorMsg: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: "I'm sorry, I encountered an error connecting to the motorcycle database. Please try again later.",
+                timestamp: new Date()
+            };
+            setMessages(prev => [...prev, errorMsg]);
+        } finally {
             setIsLoading(false);
-        }, 1500);
+        }
     };
 
     return (

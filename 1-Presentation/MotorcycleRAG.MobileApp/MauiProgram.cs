@@ -47,7 +47,8 @@ public static class MauiProgram
 
         // Services
         builder.Services.AddHttpClient<IApiClient, MotorcycleRagApiClient>();
-        // IAuthenticationService and IStorageService implementation to be added in next phases
+        builder.Services.AddSingleton<IAuthenticationService, AuthenticationService>();
+        // IStorageService implementation to be added in next phases
 
 		return builder.Build();
 	}

@@ -12,7 +12,6 @@ public class CitationRepository : ICitationRepository
     public CitationRepository(SQLiteAsyncConnection database)
     {
         _database = database;
-        _database.CreateTableAsync<CitationEntity>().Wait();
     }
 
     public async Task<List<CitationEntity>> GetByMessageIdAsync(string messageId)

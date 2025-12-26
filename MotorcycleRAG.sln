@@ -38,7 +38,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Infrastructure", "7-Deploym
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotorcycleRAG.Contracts", "3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj", "{A7F2F6BF-DC72-8398-1FA2-959818E8F235}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotorcycleRAG.UI", "1-Presentation\MotorcycleRAG.UI\MotorcycleRAG.UI.csproj", "{D771D6AD-2D55-4E1A-B606-24EDA77B1479}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotorcycleRag.WebUI.BFF", "1-Presentation\MotorcycleRag.WebUI.BFF\MotorcycleRag.WebUI.BFF.csproj", "{D771D6AD-2D55-4E1A-B606-24EDA77B1479}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

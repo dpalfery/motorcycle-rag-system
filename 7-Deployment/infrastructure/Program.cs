@@ -231,7 +231,7 @@ public class MyStack : Stack
                     new ContainerArgs
                     {
                         Name = "ui",
-                        Image = registry.LoginServer.Apply(s => $"{s}/motorcycle-rag-ui:latest"),
+                        Image = registry.LoginServer.Apply(s => $"{s}/MotorcycleRag.WebUI:latest"),
                         Resources = new ContainerResourcesArgs
                         {
                             Cpu = 0.25,

@@ -30,14 +30,14 @@ jobs:
 
       - name: Build React UI
         run: |
-          cd 1-Presentation/motorcycle-rag-ui
+          cd 1-Presentation/MotorcycleRag.WebUI
           npm install
           npm run build
 
       - name: Copy UI Assets to BFF
         run: |
-          mkdir -p 1-Presentation/MotorcycleRAG.UI/wwwroot
-          cp -r 1-Presentation/motorcycle-rag-ui/dist/* 1-Presentation/MotorcycleRAG.UI/wwwroot/
+          mkdir -p 1-Presentation/MotorcycleRag.WebUI.BFF/wwwroot
+          cp -r 1-Presentation/MotorcycleRag.WebUI/dist/* 1-Presentation/MotorcycleRag.WebUI.BFF/wwwroot/
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -63,7 +63,7 @@ jobs:
           docker push ${{ env.ACR_NAME }}.azurecr.io/motorcycle-rag-api:latest
 
           # Build & Push UI
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/motorcycle-rag-ui:latest -f 7-Deployment/Dockerfile.ui .
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/MotorcycleRag.WebUI:latest -f 7-Deployment/Dockerfile.ui .
           docker push ${{ env.ACR_NAME }}.azurecr.io/motorcycle-rag-ui:latest
 
       - name: Pulumi Up

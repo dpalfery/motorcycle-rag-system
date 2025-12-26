@@ -12,7 +12,6 @@ public class MessageRepository : IMessageRepository
     public MessageRepository(SQLiteAsyncConnection database)
     {
         _database = database;
-        _database.CreateTableAsync<MessageEntity>().Wait();
     }
 
     public async Task<List<MessageEntity>> GetByConversationIdAsync(string conversationId)

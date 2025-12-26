@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using System.Reflection;
 using CommunityToolkit.Mvvm;
 using SQLite;
+using MotorcycleRAG.MobileApp.Persistence;
 using MotorcycleRAG.MobileApp.Persistence.Repositories;
 using MotorcycleRAG.MobileApp.Services;
 
@@ -39,6 +40,7 @@ public static class MauiProgram
         // Persistence
         string dbPath = Path.Combine(FileSystem.AppDataDirectory, "motorcyclerag.db3");
         builder.Services.AddSingleton<SQLiteAsyncConnection>(s => new SQLiteAsyncConnection(dbPath));
+        builder.Services.AddSingleton<DatabaseBootstrap>();
 
         builder.Services.AddSingleton<IConversationRepository, ConversationRepository>();
         builder.Services.AddSingleton<IMessageRepository, MessageRepository>();
@@ -47,7 +49,6 @@ public static class MauiProgram
 
         // Services
         builder.Services.AddHttpClient<IApiClient, MotorcycleRagApiClient>();
-        // IAuthenticationService and IStorageService implementation to be added in next phases
 
 		return builder.Build();
 	}

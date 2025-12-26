@@ -14,8 +14,6 @@ public class ConversationRepository : IConversationRepository
     public ConversationRepository(SQLiteAsyncConnection database)
     {
         _database = database;
-        // Ensure table exists - usually done in a startup service, but simplified here
-        _database.CreateTableAsync<ConversationEntity>().Wait();
     }
 
     public async Task<List<ConversationEntity>> GetAllAsync()

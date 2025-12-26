@@ -12,7 +12,6 @@ public class UserMemoryRepository : IUserMemoryRepository
     public UserMemoryRepository(SQLiteAsyncConnection database)
     {
         _database = database;
-        _database.CreateTableAsync<UserMemoryEntity>().Wait();
     }
 
     public async Task<List<UserMemoryEntity>> GetActiveMemoriesAsync()

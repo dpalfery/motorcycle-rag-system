@@ -17,7 +17,7 @@ public class AuthenticationService : IAuthenticationService
         var clientId = authSettings["ClientId"];
         var tenantId = authSettings["TenantId"];
         var redirectUri = authSettings["RedirectUri"];
-        
+
         // Default scopes if not provided in config
         _scopes = authSettings.GetSection("Scopes").Get<string[]>() ?? new[] { "User.Read" };
 
@@ -28,7 +28,7 @@ public class AuthenticationService : IAuthenticationService
         {
             builder = builder.WithAuthority(AzureCloudInstance.AzurePublic, tenantId);
         }
-        
+
 #if ANDROID
         builder = builder.WithParentActivityOrWindow(() => Platform.CurrentActivity);
 #endif

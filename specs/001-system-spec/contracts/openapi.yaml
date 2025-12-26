@@ -17,6 +17,8 @@ paths:
   /api/motorcycles/query:
     post:
       summary: Query motorcycle information
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -181,11 +183,15 @@ paths:
   /api/admin/web-sources:
     get:
       summary: List approved web sources
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Web sources
     post:
       summary: Add a web source
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -198,6 +204,8 @@ paths:
   /api/admin/web-sources/{webSourceId}:
     patch:
       summary: Update/disable a web source
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: webSourceId
@@ -215,6 +223,8 @@ paths:
           description: Updated
     delete:
       summary: Remove a web source
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: webSourceId
@@ -227,11 +237,15 @@ paths:
   /api/admin/mcp-tools:
     get:
       summary: List MCP tool definitions (managed via MAUI admin app)
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Tools
     post:
       summary: Create a tool definition (managed via MAUI admin app)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -244,6 +258,8 @@ paths:
   /api/admin/mcp-tools/{toolId}:
     patch:
       summary: Update/enable/disable a tool (managed via MAUI admin app)
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: toolId
@@ -263,6 +279,8 @@ paths:
   /api/admin/mcp-config:
     get:
       summary: Get active MCP configuration version
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Active configuration
@@ -274,6 +292,8 @@ paths:
   /api/admin/mcp-config/activate:
     post:
       summary: Activate an MCP configuration version (live-update)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -290,6 +310,8 @@ paths:
   /api/me:
     get:
       summary: Get current user profile
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Profile
@@ -300,6 +322,8 @@ paths:
   /api/me/usage:
     get:
       summary: Get current usage and plan limits
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: Usage
@@ -308,6 +332,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/UsageStatus'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     MotorcycleQueryRequest:
       type: object

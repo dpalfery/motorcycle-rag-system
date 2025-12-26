@@ -5,6 +5,20 @@
 **Status**: Draft  
 **Input**: User description: "Reverse engineer Motorcycle RAG System feature specification from existing docs and constitution"
 
+## Clarifications
+
+### Session 2025-12-25
+
+- Q: What is the canonical identity provider strategy for user sign-in (the OIDC `Authority` used by the BFF)? → A: Microsoft Entra External ID / B2C with social sign-in (Google, GitHub, Microsoft, Facebook).
+
+- Q: What OWASP ASVS v5.0.0 verification level should this system “match and pass”? → A: ASVS Level 2.
+
+- Q: How should administrator authentication work (for ingestion, web sources, MCP config, plan/SKU management)? → A: Admins use Microsoft Entra ID (work accounts); customers use Entra External ID / B2C.
+
+- Q: How should admin authorization be represented in tokens/claims? → A: Entra app roles (e.g., `Admin`, `Operator`, `Viewer`).
+
+- The system MUST be designed to match and pass OWASP ASVS v5.0.0 security verification at ASVS Level 2.
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -40,7 +54,7 @@ As a motorcycle enthusiast (or mechanic), I want to ask a motorcycle-related que
 
 ### User Story 1a - Sign in and manage profile (Priority: P1)
 
-As a user, I want to authenticate and have a profile, so that the system can recognize me, apply the correct usage limits for my plan (SKU), and provide a consistent personalized experience.
+As a user, I want to authenticate (via Microsoft Entra External ID / B2C, including social sign-in) and have a profile, so that the system can recognize me, apply the correct usage limits for my plan (SKU), and provide a consistent personalized experience.
 
 **Why this priority**: Usage limits and plan enforcement require reliable user identity; profile data supports future personalization and account management.
 
@@ -222,7 +236,27 @@ If required citation fields are not available, the system MUST provide the best 
 - **FR-015**: The system MUST support scheduled ingestion operations, including (a) triggering an immediate scheduled run and (b) retrieving scheduled processing statistics.
 
 - **FR-016**: The system MUST support augmenting answers with information from external web sources when indexed sources are insufficient.
-- **FR-017**: The system MUST apply source-trust safeguards (e.g., prefer authoritative/trusted sources and avoid low-credibility content).
+- **FR-017**: The system MUST apply source-trust safeguards by enforcing the Trust Policy (Source Trust Tiers) defined below (e.g., prefer authoritative/trusted sources and avoid low-credibility content).
+
+### Trust Policy (Source Trust Tiers)
+
+The system assigns each source to exactly one trust tier based on its provenance and governance. Trust tier is used for retrieval ordering, scoring, and claim verification.
+
+- **Tier A (Authoritative)**: OEM/manufacturer documentation (service manuals, owner manuals, service bulletins), official manufacturer websites, and other primary sources that are authoritative for technical procedures and specifications.
+- **Tier B (Reputable secondary)**: Established, professionally maintained publishers or organizations with clear editorial oversight (non-user-generated), stable content, and a track record of accuracy.
+- **Tier C (Community / low assurance)**: User-generated or minimally governed content (forums, Q&A sites, wikis, social posts, personal blogs).
+
+**Enforcement rules**:
+
+1. **Default preference**: When multiple sources are available for a query, retrieval and ranking MUST prefer Tier A over Tier B, and Tier B over Tier C.
+2. **Allowlist-first for web**: Web retrieval and indexing MUST be restricted to administrator-approved domains. Unknown domains are treated as ineligible for retrieval/indexing (not merely Tier C).
+3. **No Tier C as sole support for high-risk claims**: Claims about safety-critical procedures (e.g., brakes, torque specs, fuel system, electrical safety), or precise numeric specifications (torque values, capacities, service intervals) MUST NOT be presented as certain if supported only by Tier C evidence.
+4. **Corroboration requirement**:
+  - A claim may be presented as certain if supported by **at least one Tier A** citation; OR
+  - If Tier A is unavailable, the claim may be presented as certain if supported by **two independent Tier B** citations that do not share the same originating publisher/host.
+  - Otherwise, the system MUST qualify the claim (uncertain) or omit it.
+5. **Labeling**: If Tier C evidence is included in results, the system MUST label it as community/low-assurance in the returned source metadata and MUST avoid presenting it as authoritative.
+6. **Auditability**: The system SHOULD record, per query, the trust tier(s) used for the final answer and whether corroboration rules were satisfied (suitable for operational review and troubleshooting).
 
 - **FR-018**: The system MUST handle partial outages by returning best-effort results from remaining sources and clearly indicating limitations.
 - **FR-019**: The system MUST implement user-friendly error handling that avoids disclosing sensitive internal details.
@@ -253,6 +287,10 @@ If required citation fields are not available, the system MUST provide the best 
 - **FR-037b**: The agent orchestration layer MUST consume MCP configuration via a provider that supports live updates (e.g., version/ETag change detection), applying configuration changes to new runs without breaking in-flight requests.
 
 - **FR-038**: The system MUST support user authentication so that users can be uniquely identified.
+- **FR-038a**: The system MUST use Microsoft Entra External ID / B2C for user authentication via OIDC.
+- **FR-038b**: The system MUST support social identity providers for sign-in (at minimum: Google, GitHub, Microsoft, Facebook).
+- **FR-038c**: Administrative access (ingestion operations, web source management, MCP configuration, user/SKU administration) MUST require Microsoft Entra ID (workforce) authentication.
+- **FR-038d**: Administrative authorization MUST use Microsoft Entra ID application roles carried in the authenticated token/claims (e.g., `Admin`, `Operator`, `Viewer`).
 - **FR-039**: The system MUST support user management capabilities including creating users and disabling/enabling user access.
 - **FR-040**: The system MUST support user profiles and allow users to view and update permitted profile fields.
 - **FR-041**: The system MUST define subscription SKUs/plans and associate each user to exactly one active plan at a time.
@@ -260,6 +298,8 @@ If required citation fields are not available, the system MUST provide the best 
 - **FR-043**: The system MUST track per-user request usage (count per day) and make the current usage and limit visible to the user.
 - **FR-044**: When a user exceeds their plan’s daily request limit, the system MUST reject additional requests for that day with a clear message.
 - **FR-045**: The system MUST provide administrative capabilities to assign or change a user’s plan/SKU.
+
+- **FR-046**: The system MUST meet OWASP ASVS v5.0.0 security requirements at ASVS Level 2.
 
 ### SKU / Plan Definitions
 
@@ -344,6 +384,7 @@ All routes are under `api/DataPipeline/*`.
 - **FR-001–FR-004b** are accepted via **User Story 1** scenarios 1–3.
 - **FR-004c–FR-004e** are accepted via **User Story 1** scenarios 4–5.
 - **FR-038–FR-045** are accepted via **User Story 1a** scenarios 1–4 and operational verification of limit enforcement.
+- **FR-046** is accepted via operational security verification (OWASP ASVS v5.0.0 checklist evidence) plus targeted security testing.
 - **FR-005–FR-015** are accepted via **User Story 2** scenarios 1–6.
 - **FR-007–FR-009** are accepted via **User Story 3** scenarios.
 - **FR-024–FR-029** are accepted via **User Story 3a** scenarios 1–4.
@@ -361,9 +402,13 @@ All routes are under `api/DataPipeline/*`.
 - Administrators have a supported mechanism to upload files and manage ingestion runs via the system's external interface.
 - The Windows admin application has access to local model assets required for chunking/vectorization in local processing mode.
 - Administrators provide a curated list of websites that are appropriate to scrape and index for motorcycle information.
-- Tool integrations configured via the web application are intended for administrative control and governance; tool configuration does not grant blanket access beyond the configured permissions.
+- Tool integrations configured via the Windows admin application (MAUI) are intended for administrative control and governance; tool configuration does not grant blanket access beyond the configured permissions.
 - Daily request limits are evaluated and reset using a consistent system-defined day boundary (assumed UTC) to avoid ambiguity.
 - User profile and chat history are explicitly out of scope for this baseline spec, but may be added later.
+
+- User authentication is provided by Microsoft Entra External ID / B2C (OIDC), including social identity providers.
+- Administrative access is provided by Microsoft Entra ID (workforce) and is separate from customer identity.
+- Administrative authorization is enforced using Entra application roles conveyed via token claims.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -405,7 +450,8 @@ All routes are under `api/DataPipeline/*`.
 - **SC-006**: Administrators can complete an end-to-end ingestion workflow using the Windows admin application: select files, validate, start processing, monitor status, and see completion outcomes.
 - **SC-007**: In local processing mode, the Windows admin application can complete chunking and vectorization using local models without requiring a cloud-hosted model call for that processing.
 - **SC-008**: Administrators can add an approved website, run scraping/indexing, and subsequently retrieve search results attributed to that website.
-- **SC-009**: Administrators can enable/disable an MCP tool integration from the web application and the enabled/disabled state is reflected in system tool availability.
+- **SC-009**: Administrators can enable/disable an MCP tool integration from the Windows admin application (MAUI) and the enabled/disabled state is reflected in system tool availability.
 - **SC-010**: Tool configuration changes are traceable via an audit trail that includes who changed what and when.
 - **SC-011**: The system enforces plan-based request limits: Free users cannot exceed 10 queries/day; Plus users cannot exceed 100 queries/day; Pro users are not blocked by a daily limit.
 - **SC-012**: Signed-in users can view their current plan/SKU and current day usage status in the product.
+- **SC-013**: The system passes OWASP ASVS v5.0.0 at ASVS Level 2, with recorded evidence suitable for audit/review.

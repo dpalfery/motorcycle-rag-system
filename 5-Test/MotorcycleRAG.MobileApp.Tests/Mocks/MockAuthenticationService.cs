@@ -12,7 +12,7 @@ public class MockAuthenticationService : IAuthenticationService
     public Task<AuthenticationResult?> SignInAsync()
     {
         IsSignedIn = true;
-        return Task.FromResult<AuthenticationResult?>(null); 
+        return Task.FromResult<AuthenticationResult?>(null);
     }
 
     public Task SignOutAsync()

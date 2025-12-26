@@ -31,8 +31,8 @@ public class StorageService : IStorageService
         {
             var bytesToFree = currentUsage - MaxStorageBytes;
             // Add a buffer to avoid frequent pruning, e.g., free 10% extra
-            bytesToFree += (long)(MaxStorageBytes * 0.1); 
-            
+            bytesToFree += (long)(MaxStorageBytes * 0.1);
+
             await _conversationRepository.PruneOldestConversationsAsync(bytesToFree);
         }
     }

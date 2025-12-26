@@ -65,7 +65,7 @@ app.MapControllers();
 // YARP Endpoints
 app.MapReverseProxy();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "MotorcycleRAG.BFF" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "MotorcycleRag.WebUI.BFF" }));
 
 // Fallback to React (SPA)
 app.MapFallbackToFile("index.html");

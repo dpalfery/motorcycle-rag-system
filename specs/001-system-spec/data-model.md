@@ -5,16 +5,26 @@ This data model is derived from the baseline spec requirements (queries, ingesti
 ## Core Entities
 
 ### User
-- `UserId` (string, unique)
-- `Email` (string, optional depending on auth strategy)
+- `UserId` (string, unique; stable subject identifier from authenticated identity, e.g., `sub`/`oid`)
+- `Email` (string, optional; may be absent depending on B2C social provider consent/claims)
 - `DisplayName` (string)
 - `IsEnabled` (bool)
 - `CreatedAt` (datetime)
 - `LastSignInAt` (datetime?)
 - `PlanSku` (enum: `Free`, `Plus`, `Pro`)
 
+Auth-related fields (recommended):
+- `IdentityType` (enum: `Customer`, `Admin`)
+- `IdentityProvider` (string; e.g., `EntraB2C`, `EntraID`)
+- `TenantId` (string?)
+
 Validation:
 - `PlanSku` required.
+
+Rules:
+- Customer authentication: Microsoft Entra External ID / B2C (OIDC), including social providers.
+- Administrative access: Microsoft Entra ID (workforce).
+- Administrative authorization: Entra application roles (e.g., `Admin`, `Operator`, `Viewer`) conveyed via token claims.
 
 ### UserProfile
 - `UserId` (FK → User)

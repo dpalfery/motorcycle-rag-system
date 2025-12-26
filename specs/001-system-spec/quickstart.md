@@ -16,9 +16,14 @@ This quickstart describes how to run the system locally for development.
 - `GET /health`
 
 ## Web Application (React 19)
-1) From `1-Presentation/motorcycle-rag-ui/`:
+1) From `1-Presentation/MotorcycleRag.WebUI/`:
 - Install: `npm install`
 - Dev server: `npm run dev`
+
+## Web UI BFF (recommended when using OIDC)
+The repo includes a YARP-based BFF that performs OIDC sign-in and forwards the user access token to the API.
+
+- Run BFF: `dotnet run --project 1-Presentation/MotorcycleRag.WebUI.BFF/MotorcycleRag.WebUI.BFF.csproj`
 
 ## Admin Ingestion App (.NET MAUI)
 - Planned as a .NET MAUI application targeting .NET 10 (Windows-first).

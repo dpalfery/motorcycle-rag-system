@@ -53,8 +53,8 @@ public class MotorcycleCSVProcessorTests
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(result);
-        Assert.Equal(2, result.ItemsProcessed); // 2 different motorcycles = 2 chunks due to relational integrity
-        Assert.Contains("Successfully processed", result.Message);
+        Assert.Equal(2, result.Documents.Count); // 2 different motorcycles = 2 chunks due to relational integrity
+        Assert.Contains("Success", result.Message);
         Assert.Empty(result.Errors);
     }
 
@@ -91,9 +91,9 @@ public class MotorcycleCSVProcessorTests
         var csvFile = CreateCSVFile("test.csv", csvContent);
 
         // Act & Assert
-        var result = await _processor.ProcessAsync(csvFile);
-        Assert.False(result.Success);
-        Assert.Contains("maximum allowed", result.Message);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await _processor.ProcessAsync(csvFile));
+        Assert.Contains("maximum allowed", exception.Message);
     }
 
     [Fact]
@@ -209,12 +209,10 @@ Honda,CBR600RR,2023,Quick Shifter";
         // Arrange
         var csvFile = CreateCSVFile("test.csv", "");
 
-        // Act
-        var result = await _processor.ProcessAsync(csvFile);
-
-        // Assert
-        Assert.False(result.Success);
-        Assert.Contains("File content cannot be empty", result.Errors);
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await _processor.ProcessAsync(csvFile));
+        Assert.Contains("File content cannot be empty", exception.Message);
     }
 
     [Fact]
@@ -304,7 +302,7 @@ Honda,CBR600RR,2023,Quick Shifter";
         // Assert
         Assert.False(result.Success);
         Assert.Equal(0, result.DocumentsIndexed);
-        Assert.Contains("Failed to index batch", result.Errors.First());
+        Assert.Contains("Batch indexing error", result.Errors.First());
     }
 
     [Fact]

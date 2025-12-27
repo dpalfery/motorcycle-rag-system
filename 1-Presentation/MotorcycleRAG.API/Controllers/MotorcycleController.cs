@@ -35,6 +35,15 @@ public sealed class MotorcycleController : ControllerBase
     public async Task<IActionResult> QueryAsync([FromBody] MotorcycleQueryRequest request)
     {
         // The [ApiController] attribute automatically validates the model state and returns 400 if invalid.
+        
+        // Additional business validation
+        var validationResult = ValidateQueryRequest(request);
+        if (!validationResult.IsValid)
+        {
+            _logger.LogWarning("Query validation failed: {Errors}", string.Join(", ", validationResult.Errors));
+            return BadRequest(new { errors = validationResult.Errors });
+        }
+
         try
         {
             var response = await _ragService.QueryAsync(request);
@@ -64,5 +73,82 @@ public sealed class MotorcycleController : ControllerBase
     {
         var result = await _ragService.GetHealthAsync();
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Validates query request with business rules
+    /// </summary>
+    /// <param name="request">Query request to validate</param>
+    /// <returns>Validation result</returns>
+    private ValidationResult ValidateQueryRequest(MotorcycleQueryRequest request)
+    {
+        var errors = new List<string>();
+
+        // Validate query length and content
+        if (string.IsNullOrWhiteSpace(request.Query))
+        {
+            errors.Add("Query cannot be empty");
+        }
+        else if (request.Query.Length < 3)
+        {
+            errors.Add("Query is too short (minimum 3 characters)");
+        }
+        else if (request.Query.Length > 1000)
+        {
+            errors.Add("Query is too long (maximum 1000 characters)");
+        }
+
+        // Validate preferences
+        if (request.Preferences != null)
+        {
+            if (request.Preferences.MaxResults <= 0)
+            {
+                errors.Add("MaxResults must be greater than 0");
+            }
+            else if (request.Preferences.MaxResults > 100)
+            {
+                errors.Add("MaxResults cannot exceed 100");
+            }
+
+            if (request.Preferences.MinRelevanceScore < 0 || request.Preferences.MinRelevanceScore > 1)
+            {
+                errors.Add("MinRelevanceScore must be between 0 and 1");
+            }
+
+            // Validate preferred sources if any
+            if (request.Preferences.PreferredSources != null)
+            {
+                foreach (var source in request.Preferences.PreferredSources)
+                {
+                    if (string.IsNullOrWhiteSpace(source))
+                    {
+                        errors.Add("PreferredSources cannot contain empty values");
+                        break;
+                    }
+                    else if (source.Length > 100)
+                    {
+                        errors.Add("PreferredSources values cannot exceed 100 characters");
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Validate user ID
+        if (!string.IsNullOrWhiteSpace(request.UserId) && request.UserId.Length > 100)
+        {
+            errors.Add("UserId cannot exceed 100 characters");
+        }
+
+        return new ValidationResult { IsValid = errors.Count == 0, Errors = errors };
+    }
+
+    /// <summary>
+    /// Validation result
+    /// </summary>
+    private class ValidationResult
+    {
+        public bool IsValid { get; set; }
+        public List<string> Errors { get; set; } = new();
     }
 }

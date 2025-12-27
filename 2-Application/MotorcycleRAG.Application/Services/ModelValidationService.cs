@@ -4,6 +4,42 @@ using MotorcycleRAG.Domain.Models;
 namespace MotorcycleRAG.Application.Services;
 
 /// <summary>
+/// Extension methods for string operations
+/// </summary>
+public static class StringExtensions
+{
+    /// <summary>
+    /// Checks if a string contains any of the specified substrings
+    /// </summary>
+    public static bool ContainsAny(this string text, string[] substrings)
+    {
+        if (string.IsNullOrWhiteSpace(text) || substrings == null || substrings.Length == 0)
+            return false;
+
+        return substrings.Any(substring => text.Contains(substring, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Checks if a string starts with any of the specified prefixes
+    /// </summary>
+    public static bool StartsWithAny(this string text, string[] prefixes)
+    {
+        if (string.IsNullOrWhiteSpace(text) || prefixes == null || prefixes.Length == 0)
+            return false;
+
+        return prefixes.Any(prefix => text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Formats a string with invariant culture
+    /// </summary>
+    public static string FormatInvariant(this string format, params object[] args)
+    {
+        return string.Format(System.Globalization.CultureInfo.InvariantCulture, format, args);
+    }
+}
+
+/// <summary>
 /// Service for validating domain models
 /// </summary>
 public class ModelValidationService
@@ -230,6 +266,342 @@ public class ModelValidationService
             IsValid = businessErrors.Count == 0,
             Errors = businessErrors
         };
+    }
+
+    /// <summary>
+    /// Validates citations and claim verification
+    /// </summary>
+    /// <param name="response">Query response to validate</param>
+    /// <returns>Validation result</returns>
+    public ValidationResult ValidateQueryResponseCitations(MotorcycleQueryResponse response)
+    {
+        var result = ValidateModel(response);
+        
+        if (!result.IsValid)
+            return result;
+
+        var businessErrors = new List<string>();
+
+        // Validate query ID format
+        if (string.IsNullOrWhiteSpace(response.QueryId) || response.QueryId.Length != 32 || response.QueryId.Contains("-"))
+        {
+            businessErrors.Add("QueryId must be a valid GUID without hyphens (N format)");
+        }
+
+        // Validate that response is not empty
+        if (string.IsNullOrWhiteSpace(response.Response))
+        {
+            businessErrors.Add("Response cannot be empty");
+        }
+
+        // Validate metrics completeness
+        if (response.Metrics == null)
+        {
+            businessErrors.Add("Metrics cannot be null");
+        }
+        else
+        {
+            // Check for reasonable metric values
+            if (response.Metrics.TotalDuration < TimeSpan.Zero)
+            {
+                businessErrors.Add("TotalDuration cannot be negative");
+            }
+
+            if (response.Metrics.ResultsFound < 0)
+            {
+                businessErrors.Add("ResultsFound cannot be negative");
+            }
+
+            // Verify results count matches sources
+            if (response.Sources != null && response.Metrics.ResultsFound != response.Sources.Length)
+            {
+                businessErrors.Add("$ResultsFound ({0}) does not match actual source count ({1})".FormatInvariant(
+                    response.Metrics.ResultsFound, response.Sources.Length));
+            }
+        }
+
+        // Validate citations for all sources
+        if (response.Sources != null && response.Sources.Length > 0)
+        {
+            foreach (var source in response.Sources)
+            {
+                var sourceValidation = ValidateSearchResultCitation(source);
+                if (!sourceValidation.IsValid)
+                {
+                    businessErrors.AddRange(sourceValidation.Errors.Select(e => $"Source validation: {e}"));
+                }
+            }
+        }
+
+        // Validate claim-citation consistency
+        var citationValidation = ValidateClaimCitationConsistency(response);
+        if (!citationValidation.IsValid)
+        {
+            businessErrors.AddRange(citationValidation.Errors);
+        }
+
+        return new ValidationResult
+        {
+            IsValid = businessErrors.Count == 0,
+            Errors = businessErrors
+        };
+    }
+
+    private ValidationResult ValidateSearchResultCitation(SearchResult result)
+    {
+        var errors = new List<string>();
+
+        // Check if citation is required based on content
+        if (ShouldHaveCitation(result))
+        {
+            if (result.Source.Citation == null)
+            {
+                errors.Add("$Result {0} is missing required citation".FormatInvariant(result.Id));
+                return new ValidationResult { IsValid = false, Errors = errors };
+            }
+
+            // Validate citation completeness
+            if (string.IsNullOrWhiteSpace(result.Source.Citation.SourceName))
+            {
+                errors.Add("$Result {0} citation is missing SourceName".FormatInvariant(result.Id));
+            }
+
+            if (result.Source.Citation.ConfidenceScore < 0 || result.Source.Citation.ConfidenceScore > 1)
+            {
+                errors.Add("$Result {0} citation has invalid ConfidenceScore".FormatInvariant(result.Id));
+            }
+
+            // Validate locator based on source type
+            if (result.Source.Citation.Locator != null)
+            {
+                var locatorValidation = ValidateCitationLocator(result.Source.Citation);
+                if (!locatorValidation.IsValid)
+                {
+                    errors.AddRange(locatorValidation.Errors.Select(e => $"Locator validation for {result.Id}: {e}"));
+                }
+            }
+        }
+
+        return new ValidationResult { IsValid = errors.Count == 0, Errors = errors };
+    }
+
+    private bool ShouldHaveCitation(SearchResult result)
+    {
+        // Results with high relevance scores or specific content types should have citations
+        if (result.RelevanceScore >= 0.7f)
+            return true;
+
+        if (result.Content.ContainsAny(new[] { " is ", " has ", " are ", " was ", " were " }) &&
+            (result.Content.Any(char.IsDigit) || result.Content.Contains("cc") || result.Content.Contains("hp")))
+            return true;
+
+        return false;
+    }
+
+    private ValidationResult ValidateCitationLocator(Citation citation)
+    {
+        var errors = new List<string>();
+
+        switch (citation.SourceType)
+        {
+            case CitationSourceType.Dataset:
+                if (citation.Locator is not DatasetCitationLocator datasetLocator)
+                {
+                    errors.Add("Dataset citation requires DatasetCitationLocator");
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(datasetLocator.DatasetName))
+                        errors.Add("DatasetCitationLocator requires DatasetName");
+                }
+                break;
+
+            case CitationSourceType.Website:
+                if (citation.Locator is not WebsiteCitationLocator websiteLocator)
+                {
+                    errors.Add("Website citation requires WebsiteCitationLocator");
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(websiteLocator.Url))
+                        errors.Add("WebsiteCitationLocator requires Url");
+                }
+                break;
+
+            case CitationSourceType.ManualPdf:
+                if (citation.Locator is not ManualPdfCitationLocator pdfLocator)
+                {
+                    errors.Add("PDF citation requires ManualPdfCitationLocator");
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(pdfLocator.DocumentId))
+                        errors.Add("ManualPdfCitationLocator requires DocumentId");
+
+                    if (pdfLocator.PageNumber < 1)
+                        errors.Add("ManualPdfCitationLocator requires valid PageNumber");
+                }
+                break;
+
+            // Other source types don't require specific locators
+        }
+
+        return new ValidationResult { IsValid = errors.Count == 0, Errors = errors };
+    }
+
+    private ValidationResult ValidateClaimCitationConsistency(MotorcycleQueryResponse response)
+    {
+        var errors = new List<string>();
+
+        // This would be enhanced with actual claim extraction and verification
+        // For now, we do basic checks
+
+        // Check if response contains citation markers
+        if (response.Response.Contains("[") && response.Response.Contains("]"))
+        {
+            // Extract citation markers like [1], [2-1], etc.
+            var citationPattern = new System.Text.RegularExpressions.Regex(@"\[(\d+(?:-\d+)?)\]");
+            var matches = citationPattern.Matches(response.Response);
+
+            if (matches.Count > 0)
+            {
+                // Verify that cited sources exist
+                foreach (System.Text.RegularExpressions.Match match in matches)
+                {
+                    var citationRef = match.Groups[1].Value;
+                    
+                    // Simple validation - in production this would map to actual sources
+                    if (!citationRef.Contains("-") && int.TryParse(citationRef, out var sourceIndex))
+                    {
+                        if (response.Sources == null || sourceIndex < 1 || sourceIndex > response.Sources.Length)
+                        {
+                            errors.Add("$Citation reference [{sourceIndex}] exceeds available sources count".FormatInvariant(sourceIndex));
+                        }
+                    }
+                }
+            }
+        }
+
+        return new ValidationResult { IsValid = errors.Count == 0, Errors = errors };
+    }
+
+    /// <summary>
+    /// Validates that every factual claim has proper citation
+    /// </summary>
+    /// <param name="response">Query response to validate</param>
+    /// <returns>Validation result</returns>
+    public ValidationResult ValidateEveryClaimHasCitation(MotorcycleQueryResponse response)
+    {
+        var errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(response.Response))
+        {
+            errors.Add("Cannot validate claims in empty response");
+            return new ValidationResult { IsValid = false, Errors = errors };
+        }
+
+        // Extract potential factual claims from the response
+        var potentialClaims = ExtractPotentialClaims(response.Response);
+
+        if (potentialClaims.Length == 0)
+        {
+            return new ValidationResult { IsValid = true, Errors = errors };
+        }
+
+        // Check each claim for proper citation
+        foreach (var claim in potentialClaims)
+        {
+            bool hasCitation = false;
+            
+            // Check if claim is followed by citation marker
+            if (response.Response.Contains(claim))
+            {
+                var claimIndex = response.Response.IndexOf(claim, StringComparison.Ordinal);
+                var remainingText = response.Response.Substring(claimIndex + claim.Length);
+                
+                // Look for citation markers within reasonable distance
+                var nextSentenceEnd = remainingText.IndexOfAny(new[] { '.', '!', '?' });
+                if (nextSentenceEnd > 0)
+                {
+                    var contextAfterClaim = remainingText.Substring(0, Math.Min(nextSentenceEnd + 1, 100));
+                    hasCitation = contextAfterClaim.Contains("[") && contextAfterClaim.Contains("]");
+                }
+            }
+
+            if (!hasCitation)
+            {
+                // Check if claim is qualified (contains words like "may", "might", "possibly", etc.)
+                if (IsQualifiedClaim(claim))
+                {
+                    // Qualified claims don't require citations
+                    continue;
+                }
+
+                // Check if this is a common knowledge statement
+                if (IsCommonKnowledge(claim))
+                {
+                    continue;
+                }
+
+                errors.Add("$Factual claim requires citation or qualification: '{claim}'".FormatInvariant(claim));
+            }
+        }
+
+        return new ValidationResult { IsValid = errors.Count == 0, Errors = errors };
+    }
+
+    private string[] ExtractPotentialClaims(string text)
+    {
+        // Split into sentences
+        var sentences = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(s => s.Trim())
+                            .Where(s => !string.IsNullOrWhiteSpace(s))
+                            .ToArray();
+
+        // Filter for sentences that likely contain factual claims
+        return sentences.Where(s =>
+            // Contains factual indicators
+            (s.ContainsAny(new[] { " is ", " has ", " are ", " was ", " were ", " produces ", " features ", " includes " }) ||
+            // Contains specific measurements
+            s.Any(char.IsDigit)) &&
+            // Not a question or introductory phrase
+            !s.StartsWithAny(new[] { "The ", "This ", "These ", "Those ", "A ", "An " }) &&
+            // Not too short
+            s.Length > 10
+        ).ToArray();
+    }
+
+    private bool IsQualifiedClaim(string claim)
+    {
+        var qualifyingTerms = new[]
+        {
+            "may", "might", "could", "possibly", "potentially", "likely", "probably",
+            "often", "sometimes", "typically", "generally", "usually", "can", "tend to"
+        };
+
+        return claim.ContainsAny(qualifyingTerms);
+    }
+
+    private bool IsCommonKnowledge(string claim)
+    {
+        // Simple common knowledge detection
+        var commonKnowledgePatterns = new[]
+        {
+            "motorcycle", "vehicle", "engine", "wheels", "two-wheeled", "transportation",
+            "ride", "driver", "passenger", "road", "street", "speed", "power"
+        };
+
+        // If claim only contains very basic terms, consider it common knowledge
+        var words = claim.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                         .Select(w => w.ToLower().Trim('.', ',', ';', ':', '!', '?'))
+                         .Where(w => w.Length > 2)
+                         .ToArray();
+
+        if (words.Length == 0) return false;
+
+        // If most words are common knowledge terms
+        var commonWordCount = words.Count(w => commonKnowledgePatterns.Contains(w));
+        return commonWordCount >= words.Length * 0.7; // 70% common words
     }
 }
 

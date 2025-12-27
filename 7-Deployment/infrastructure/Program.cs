@@ -13,6 +13,7 @@ using Pulumi.AzureNative.App;
 using Pulumi.AzureNative.App.Inputs;
 using Pulumi.AzureNative.ContainerRegistry;
 using Pulumi.AzureNative.ContainerRegistry.Inputs;
+using System.Linq;
 
 return await Pulumi.Deployment.RunAsync<MyStack>();
 
@@ -124,9 +125,20 @@ public class MyStack : Stack
                 LogAnalyticsConfiguration = new LogAnalyticsConfigurationArgs
                 {
                     CustomerId = logAnalytics.CustomerId,
-                    SharedKey = logAnalytics.GetSharedKeys().Apply(keys => keys.PrimarySharedKey)
+                    SharedKey = GetSharedKeys.Invoke(new GetSharedKeysInvokeArgs
+                    {
+                        ResourceGroupName = resourceGroup.Name,
+                        WorkspaceName = logAnalytics.Name
+                    }).Apply(keys => keys.PrimarySharedKey ?? "")
                 }
             }
+        });
+
+        // Get Registry Credentials
+        var registryCredentials = ListRegistryCredentials.Invoke(new ListRegistryCredentialsInvokeArgs
+        {
+            ResourceGroupName = resourceGroup.Name,
+            RegistryName = registry.Name
         });
 
         // Define generic settings for ACA
@@ -153,13 +165,13 @@ public class MyStack : Stack
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
-                        Username = registry.AdminUsername,
+                        Username = registryCredentials.Apply(c => c.Username ?? ""),
                         PasswordSecretRef = "acr-password"
                     }
                 },
                 Secrets = new[]
                 {
-                    new SecretArgs { Name = "acr-password", Value = registry.GetRegistryCredentials().Apply(c => c.Passwords?[0].Value ?? "") }
+                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
             },
             Template = new TemplateArgs
@@ -176,12 +188,12 @@ public class MyStack : Stack
                             Memory = "0.5Gi"
                         },
                         Env = commonEnvs,
-                        Probe = new[]
+                        Probes = new[]
                         {
                             new ContainerAppProbeArgs
                             {
                                 HttpGet = new ContainerAppProbeHttpGetArgs { Path = "/health", Port = 8080 },
-                                Type = Type.Liveness
+                                Type = Pulumi.AzureNative.App.Type.Liveness
                             }
                         }
                     }
@@ -208,20 +220,20 @@ public class MyStack : Stack
                 Ingress = new IngressArgs
                 {
                     External = true,
-                    TargetPort = 8080 
+                    TargetPort = 8080
                 },
                 Registries = new[]
                 {
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
-                        Username = registry.AdminUsername,
+                        Username = registryCredentials.Apply(c => c.Username ?? ""),
                         PasswordSecretRef = "acr-password"
                     }
                 },
                 Secrets = new[]
                 {
-                    new SecretArgs { Name = "acr-password", Value = registry.GetRegistryCredentials().Apply(c => c.Passwords?[0].Value ?? "") }
+                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
             },
             Template = new TemplateArgs
@@ -237,16 +249,16 @@ public class MyStack : Stack
                             Cpu = 0.25,
                             Memory = "0.5Gi"
                         },
-                        Env = commonEnvs.Concat(new[] 
-                        { 
-                            new EnvironmentVarArgs { Name = "API_URL", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") } 
+                        Env = commonEnvs.Concat(new[]
+                        {
+                            new EnvironmentVarArgs { Name = "API_URL", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") }
                         }).ToArray(),
-                        Probe = new[]
+                        Probes = new[]
                         {
                             new ContainerAppProbeArgs
                             {
                                 HttpGet = new ContainerAppProbeHttpGetArgs { Path = "/health", Port = 8080 },
-                                Type = Type.Liveness
+                                Type = Pulumi.AzureNative.App.Type.Liveness
                             }
                         }
                     }

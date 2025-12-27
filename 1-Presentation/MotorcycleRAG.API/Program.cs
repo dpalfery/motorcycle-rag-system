@@ -5,6 +5,10 @@ using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Microsoft.Azure.AppConfiguration.AspNetCore;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Identity.Web;
+using MotorcycleRAG.API.Middleware;
+using Microsoft.AspNetCore.RateLimiting;
 
 public class Program
 {
@@ -24,32 +28,28 @@ public class Program
         }
 
         // Add Azure App Configuration & Key Vault
-        builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
+        var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
+        if (!string.IsNullOrEmpty(appConfigEndpoint))
         {
-            var tempConfig = config.Build();
-            var appConfigEndpoint = tempConfig["AppConfig:Endpoint"];
-            if (!string.IsNullOrEmpty(appConfigEndpoint))
+            var credential = new DefaultAzureCredential();
+            builder.Configuration.AddAzureAppConfiguration(options =>
             {
-                var credential = new DefaultAzureCredential();
-                config.AddAzureAppConfiguration(options =>
-                {
-                    options.Connect(new Uri(appConfigEndpoint), credential)
-                           // Load all non-labelled keys
-                           .Select(KeyFilter.Any, LabelFilter.Null)
-                           // Load environment-specific labelled keys (e.g. Development, Production)
-                           .Select(KeyFilter.Any, hostingContext.HostingEnvironment.EnvironmentName)
-                           // Configure Key Vault integration
-                           .ConfigureKeyVault(kv => kv.SetCredential(credential))
-                           // Configure refresh with sentinel key for live configuration updates
-                           .ConfigureRefresh(refreshOptions =>
-                           {
-                               // When the sentinel key changes, refresh all cached configuration values
-                               refreshOptions.Register("Settings:Sentinel", refreshAll: true)
-                                             .SetCacheExpiration(TimeSpan.FromSeconds(30));
-                           });
-                });
-            }
-        });
+                options.Connect(new Uri(appConfigEndpoint), credential)
+                       // Load all non-labelled keys
+                       .Select(KeyFilter.Any, LabelFilter.Null)
+                       // Load environment-specific labelled keys (e.g. Development, Production)
+                       .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
+                       // Configure Key Vault integration
+                       .ConfigureKeyVault(kv => kv.SetCredential(credential))
+                       // Configure refresh with sentinel key for live configuration updates
+                       .ConfigureRefresh(refreshOptions =>
+                       {
+                           // When the sentinel key changes, refresh all cached configuration values
+                           refreshOptions.Register("Settings:Sentinel", refreshAll: true)
+                                         .SetCacheExpiration(TimeSpan.FromSeconds(30));
+                       });
+            });
+        }
 
         // Refresh builder configuration to include AppConfig values
         var configuration = builder.Configuration;
@@ -119,13 +119,70 @@ public class Program
         // Configure custom services with validation
         try
         {
-            // builder.Services.AddAzureAIServices(configuration);
+            builder.Services.AddAzureAIServices(configuration);
             builder.Services.AddCoreServices();
             builder.Services.AddSearchAgents();
             builder.Services.AddDataProcessors();
             builder.Services.AddDataPipelineServices(configuration);
             builder.Services.AddCachingAndOptimization(configuration);
+            builder.Services.AddSqlPersistence(configuration);
             builder.Services.AddHealthChecks(configuration);
+
+            // Add authentication services
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+            // Add authorization policies for admin roles
+            builder.Services.AddAuthorization(options =>
+            {
+                // Admin policy - requires Admin app role
+                options.AddPolicy("Admin", policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireClaim("roles", "Admin");
+                });
+
+                // DataAdmin policy - requires DataAdmin app role
+                options.AddPolicy("DataAdmin", policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireClaim("roles", "DataAdmin");
+                });
+
+                // ContentAdmin policy - requires ContentAdmin app role
+                options.AddPolicy("ContentAdmin", policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireClaim("roles", "ContentAdmin");
+                });
+
+                // SuperAdmin policy - requires SuperAdmin app role
+                options.AddPolicy("SuperAdmin", policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireClaim("roles", "SuperAdmin");
+                });
+            });
+
+            // Add rate limiting for public endpoints
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.AddFixedWindowLimiter("public", rateLimiterOptions =>
+                {
+                    rateLimiterOptions.Window = TimeSpan.FromSeconds(10);
+                    rateLimiterOptions.PermitLimit = 100;
+                    rateLimiterOptions.QueueLimit = 50;
+                });
+
+                options.AddFixedWindowLimiter("authenticated", rateLimiterOptions =>
+                {
+                    rateLimiterOptions.Window = TimeSpan.FromMinutes(1);
+                    rateLimiterOptions.PermitLimit = 1000;
+                    rateLimiterOptions.QueueLimit = 100;
+                });
+
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            });
 
             // Validate configuration early
             // ValidateConfiguration(configuration, builder.Environment);
@@ -158,7 +215,12 @@ public class Program
         {
             app.UseAzureAppConfiguration();
         }
+        app.UseSecurityHeaders();
+        app.UseCorrelationId();
+        app.UseRateLimiter();
+        app.UseExceptionHandling();
         app.UseCors();
+        app.UseAuthentication();
         app.UseAuthorization();
 
         // Map controllers and health checks
@@ -171,92 +233,5 @@ public class Program
         logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
 
         app.Run();
-
-        /// <summary>
-        /// Validate configuration during startup
-        /// </summary>
-        static void ValidateConfiguration(IConfiguration configuration, IWebHostEnvironment environment)
-        {
-            var errors = new List<string>();
-
-            // Validate Azure AI configuration
-            var azureSection = configuration.GetSection("AzureAI");
-            if (!azureSection.Exists())
-            {
-                errors.Add("AzureAI configuration section is missing");
-            }
-            else
-            {
-                ValidateRequiredSetting(azureSection, "FoundryEndpoint", errors);
-                ValidateRequiredSetting(azureSection, "OpenAIEndpoint", errors);
-                ValidateRequiredSetting(azureSection, "SearchServiceEndpoint", errors);
-                ValidateRequiredSetting(azureSection, "DocumentIntelligenceEndpoint", errors);
-
-                var modelsSection = azureSection.GetSection("Models");
-                if (!modelsSection.Exists())
-                {
-                    errors.Add("AzureAI:Models configuration section is missing");
-                }
-                else
-                {
-                    ValidateRequiredSetting(modelsSection, "ChatModel", errors);
-                    ValidateRequiredSetting(modelsSection, "EmbeddingModel", errors);
-                    ValidateRequiredSetting(modelsSection, "QueryPlannerModel", errors);
-                    ValidateRequiredSetting(modelsSection, "VisionModel", errors);
-                }
-            }
-
-            // Validate Search configuration
-            var searchSection = configuration.GetSection("Search");
-            if (!searchSection.Exists())
-            {
-                errors.Add("Search configuration section is missing");
-            }
-            else
-            {
-                ValidateRequiredSetting(searchSection, "IndexName", errors);
-            }
-
-            // Validate Application Insights configuration (only in production)
-            if (environment.IsProduction())
-            {
-                var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights")
-                    ?? configuration["ApplicationInsights:ConnectionString"];
-
-                if (string.IsNullOrWhiteSpace(appInsightsConnectionString))
-                {
-                    errors.Add("Application Insights connection string is required in production environment");
-                }
-            }
-            else
-            {
-                // In development, just warn if Application Insights is not configured
-                var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights")
-                    ?? configuration["ApplicationInsights:ConnectionString"];
-
-                if (string.IsNullOrWhiteSpace(appInsightsConnectionString))
-                {
-                    Console.WriteLine("Warning: Application Insights connection string is not configured for development environment");
-                }
-            }
-
-            if (errors.Count > 0)
-            {
-                var errorMessage = $"Configuration validation failed:\n{string.Join("\n", errors.Select(e => $"- {e}"))}";
-                throw new InvalidOperationException(errorMessage);
-            }
-        }
-
-        /// <summary>
-        /// Validate a required configuration setting
-        /// </summary>
-        static void ValidateRequiredSetting(IConfigurationSection section, string key, List<string> errors)
-        {
-            var value = section[key];
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                errors.Add($"{section.Path}:{key} is required but not configured");
-            }
-        }
     }
 }

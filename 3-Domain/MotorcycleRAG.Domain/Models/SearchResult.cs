@@ -46,6 +46,11 @@ public class SearchSource
     public string SourceUrl { get; set; } = string.Empty;
     public string DocumentId { get; set; } = string.Empty;
     public DateTime LastUpdated { get; set; }
+
+    /// <summary>
+    /// Citation information for evidence-based claims
+    /// </summary>
+    public Citation? Citation { get; set; }
 }
 
 /// <summary>

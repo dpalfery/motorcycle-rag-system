@@ -444,6 +444,73 @@ public class ModelValidationServiceTests
 
     #endregion
 
+    #region Verification and Citation Tests
+
+    [Fact]
+    public void ValidateQueryResponse_WithCitations_ShouldReturnValid()
+    {
+        // Arrange
+        var response = CreateValidQueryResponseWithCitations();
+
+        // Act
+        var result = _validationService.ValidateModel(response);
+
+        // Assert
+        result.IsValid.Should().BeTrue();
+        result.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ValidateQueryResponse_WithMissingCitations_ShouldReturnInvalid()
+    {
+        // Arrange
+        var response = CreateValidQueryResponseWithCitations();
+        // Remove citations from sources
+        foreach (var source in response.Sources)
+        {
+            source.Source.Citation = null;
+        }
+
+        // Act
+        var result = _validationService.ValidateModel(response);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("citation") || e.Contains("Citation"));
+    }
+
+    [Fact]
+    public void ValidateQueryResponse_WithInvalidQueryId_ShouldReturnInvalid()
+    {
+        // Arrange
+        var response = CreateValidQueryResponseWithCitations();
+        response.QueryId = ""; // Invalid empty query ID
+
+        // Act
+        var result = _validationService.ValidateModel(response);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("QueryId"));
+    }
+
+    [Fact]
+    public void ValidateQueryResponse_WithMissingMetrics_ShouldReturnInvalid()
+    {
+        // Arrange
+        var response = CreateValidQueryResponseWithCitations();
+        response.Metrics = null!;
+
+        // Act
+        var result = _validationService.ValidateModel(response);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.Contains("Metrics"));
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static MotorcycleSpecification CreateValidMotorcycleSpecification()
@@ -544,6 +611,85 @@ public class ModelValidationServiceTests
                     { "PreferredBrand", "Honda" }
                 },
                 Language = "en"
+            }
+        };
+    }
+
+    private static MotorcycleQueryResponse CreateValidQueryResponseWithCitations()
+    {
+        return new MotorcycleQueryResponse
+        {
+            QueryId = Guid.NewGuid().ToString("N"),
+            Response = "The Honda CBR1000RR has a 1000cc inline-4 engine producing 200 horsepower.",
+            GeneratedAt = DateTime.UtcNow,
+            Sources = new[]
+            {
+                new SearchResult
+                {
+                    Id = "1",
+                    Content = "Honda CBR1000RR specifications: 1000cc inline-4 engine, 200 horsepower",
+                    RelevanceScore = 0.95f,
+                    Source = new SearchSource
+                    {
+                        AgentType = SearchAgentType.VectorSearch,
+                        SourceName = "Honda Official Specifications",
+                        SourceUrl = "https://www.honda.com/cbr1000rr/specs",
+                        DocumentId = "honda-cbr1000rr-2023",
+                        LastUpdated = DateTime.UtcNow.AddDays(-30),
+                        Citation = new Citation
+                        {
+                            SourceType = CitationSourceType.Dataset,
+                            SourceName = "Honda Official Specifications",
+                            SourceUrl = "https://www.honda.com/cbr1000rr/specs",
+                            PageNumber = 1,
+                            Section = "Engine Specifications",
+                            ConfidenceScore = 0.95f,
+                            Verified = true,
+                            VerificationMethod = "Cross-referenced with manufacturer data",
+                            Locator = new DatasetCitationLocator
+                            {
+                                DatasetName = "Honda Motorcycle Specifications 2023",
+                                Version = "2023.1",
+                                RecordId = "CBR1000RR-2023-001",
+                                FieldName = "Engine.Horsepower",
+                                DataSourceUrl = "https://www.honda.com/api/specs/v1/motorcycles",
+                                RetrievalTimestamp = DateTime.UtcNow.AddDays(-1)
+                            }
+                        }
+                    },
+                    Metadata = new Dictionary<string, object>
+                    {
+                        { "Brand", "Honda" },
+                        { "Model", "CBR1000RR" },
+                        { "Year", 2023 }
+                    }
+                }
+            },
+            Metrics = new QueryMetrics
+            {
+                TotalDuration = TimeSpan.FromSeconds(1.5),
+                VectorSearchDuration = TimeSpan.FromMilliseconds(800),
+                WebSearchDuration = TimeSpan.FromMilliseconds(200),
+                PDFSearchDuration = TimeSpan.FromMilliseconds(0),
+                TokensUsed = 150,
+                EstimatedCost = 0.0025m,
+                ResultsFound = 1,
+                ProcessingTimeMs = 1500,
+                CacheHit = false,
+                MultiModalProcessed = false,
+                SourcesSearched = 2,
+                SearchPattern = new SearchPatternMetrics
+                {
+                    VectorSearchExecuted = true,
+                    WebSearchExecuted = true,
+                    PDFSearchExecuted = false,
+                    VectorSearchTime = TimeSpan.FromMilliseconds(800),
+                    WebSearchTime = TimeSpan.FromMilliseconds(200),
+                    PDFSearchTime = TimeSpan.FromMilliseconds(0),
+                    VectorResultsFound = 1,
+                    WebResultsFound = 0,
+                    PDFResultsFound = 0
+                }
             }
         };
     }

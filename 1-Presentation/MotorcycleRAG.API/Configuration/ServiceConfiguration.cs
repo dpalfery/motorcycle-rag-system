@@ -5,6 +5,8 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Net.NetworkInformation;
 using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Infrastructure.DataProcessing;
+using MotorcycleRAG.Persistence.Sql;
+using MotorcycleRAG.Persistence.Sql.Repositories;
 
 namespace MotorcycleRAG.API.Configuration;
 
@@ -42,6 +44,9 @@ public static class ServiceConfiguration
         // Register core service interfaces to concrete implementations in Application layer
         services.AddScoped<IMotorcycleRAGService, MotorcycleRAG.Application.Services.MotorcycleRAGService>();
         services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Application.Services.AgentOrchestrator>();
+        
+        // Add Application Insights TelemetryClient
+        services.AddApplicationInsightsTelemetry();
         services.AddSingleton<ITelemetryService, MotorcycleRAG.Persistence.Telemetry.TelemetryService>();
 
         return services;
@@ -53,9 +58,10 @@ public static class ServiceConfiguration
     public static IServiceCollection AddSearchAgents(this IServiceCollection services)
     {
         // Register search agent implementations from Application layer
+        // Note: QueryPlannerAgent is registered separately to avoid circular dependency
         services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.VectorSearchAgent>();
         services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.WebSearchAgent>();
-        services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();
+        services.AddScoped<IQueryPlannerAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();
 
         return services;
     }
@@ -132,6 +138,27 @@ public static class ServiceConfiguration
     }
 
     /// <summary>
+    /// Configure SQL persistence services
+    /// </summary>
+    public static IServiceCollection AddSqlPersistence(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Configure SQL options
+        services.Configure<MotorcycleRAG.Contracts.Options.SqlOptions>(configuration.GetSection("Sql"));
+        services.AddSingleton<IValidateOptions<MotorcycleRAG.Contracts.Options.SqlOptions>, SqlOptionsValidator>();
+
+        // Register SQL connection factory
+        services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+
+        // Register repository implementations
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IUsageRepository, UsageRepository>();
+        services.AddScoped<IWebSourceRepository, WebSourceRepository>();
+        services.AddScoped<IAuditRepository, AuditRepository>();
+
+        return services;
+    }
+
+    /// <summary>
     /// Validate overall configuration health
     /// </summary>
     private static Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult ValidateConfiguration(IConfiguration configuration)
@@ -163,6 +190,43 @@ public static class ServiceConfiguration
         catch (Exception ex)
         {
             return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy("Configuration validation failed", ex);
+        }
+    }
+    
+    /// <summary>
+    /// Validator for SQL configuration options
+    /// </summary>
+    public class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Contracts.Options.SqlOptions>
+    {
+        public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Contracts.Options.SqlOptions options)
+        {
+            var failures = new List<string>();
+    
+            if (string.IsNullOrWhiteSpace(options.ConnectionString))
+            {
+                // If connection string is not provided, validate individual components
+                if (string.IsNullOrWhiteSpace(options.Server))
+                    failures.Add("Sql:Server is required when ConnectionString is not provided");
+    
+                if (string.IsNullOrWhiteSpace(options.Database))
+                    failures.Add("Sql:Database is required when ConnectionString is not provided");
+    
+                if (!options.UseIntegratedSecurity && string.IsNullOrWhiteSpace(options.Username))
+                    failures.Add("Sql:Username is required when not using integrated security");
+            }
+    
+            if (options.ConnectionTimeout <= 0)
+                failures.Add("Sql:ConnectionTimeout must be greater than 0");
+    
+            if (options.CommandTimeout <= 0)
+                failures.Add("Sql:CommandTimeout must be greater than 0");
+    
+            if (options.MaxPoolSize <= 0)
+                failures.Add("Sql:MaxPoolSize must be greater than 0");
+    
+            return failures.Count > 0
+                ? ValidateOptionsResult.Fail(failures)
+                : ValidateOptionsResult.Success;
         }
     }
 

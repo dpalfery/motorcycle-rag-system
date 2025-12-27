@@ -88,12 +88,12 @@ public class DataPipelineOrchestratorTests
 
         // Verify monitoring was called
         _monitoringServiceMock.Verify(x => x.TrackPipelineStartAsync(
-            It.IsAny<string>(), 
-            PipelineType.CSV, 
+            It.IsAny<string>(),
+            PipelineType.CSV,
             It.IsAny<PipelineExecutionContext>()), Times.Once);
 
         _monitoringServiceMock.Verify(x => x.TrackPipelineCompletionAsync(
-            It.IsAny<string>(), 
+            It.IsAny<string>(),
             It.IsAny<PipelineExecutionResult>()), Times.Once);
 
         // Cleanup
@@ -135,8 +135,8 @@ public class DataPipelineOrchestratorTests
 
         // Verify monitoring was called
         _monitoringServiceMock.Verify(x => x.TrackPipelineStartAsync(
-            It.IsAny<string>(), 
-            PipelineType.PDF, 
+            It.IsAny<string>(),
+            PipelineType.PDF,
             It.IsAny<PipelineExecutionContext>()), Times.Once);
 
         // Cleanup
@@ -177,7 +177,12 @@ public class DataPipelineOrchestratorTests
 
         _resilienceServiceMock
             .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<BatchIndexingResult>>>(), It.IsAny<Func<Task<BatchIndexingResult>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(indexingResult);
+            .ReturnsAsync(indexingResult)
+            .Callback<string, Func<Task<BatchIndexingResult>>, Func<Task<BatchIndexingResult>>, string, CancellationToken>((key, func, fallback, corrId, token) =>
+            {
+                // Execute the function to actually call the indexing service
+                func();
+            });
 
         // Act
         var result = await _orchestrator.ProcessFileAsync(request, CancellationToken.None);
@@ -189,7 +194,7 @@ public class DataPipelineOrchestratorTests
         Assert.True(result.IndexingResult.Success);
         Assert.Equal(1, result.IndexingResult.DocumentsIndexed);
 
-        // Verify indexing service was called
+        // Verify indexing service was called through resilience service
         _indexingServiceMock.Verify(x => x.IndexDocumentsAsync(
             It.IsAny<IEnumerable<MotorcycleDocument>>()), Times.Once);
 
@@ -226,8 +231,8 @@ public class DataPipelineOrchestratorTests
 
         // Verify monitoring tracked the failure
         _monitoringServiceMock.Verify(x => x.TrackPipelineFailureAsync(
-            It.IsAny<string>(), 
-            exception, 
+            It.IsAny<string>(),
+            exception,
             It.IsAny<PipelineExecutionContext>()), Times.Once);
 
         // Cleanup
@@ -291,8 +296,6 @@ public class DataPipelineOrchestratorTests
     public async Task CancelPipelineAsync_WithValidExecutionId_ShouldReturnTrue()
     {
         // Arrange
-        var executionId = "test-execution-id";
-
         // Start a pipeline to create the execution ID
         var request = new DataPipelineRequest
         {

@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Yarp.ReverseProxy.Transforms;
@@ -31,11 +30,18 @@ builder.Services.AddAuthentication(options =>
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
 })
-.AddCookie(options => 
+.AddCookie(options =>
 {
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.Name = "__Host-MotorcycleRAG";
+    options.Cookie.Path = "/";
+    options.Cookie.IsEssential = true;
+    options.ExpireTimeSpan = TimeSpan.FromHours(1);
+    options.SlidingExpiration = true;
+    options.Cookie.MaxAge = TimeSpan.FromHours(1);
+    options.Cookie.Domain = null; // Prevent subdomain attacks
 })
 .AddOpenIdConnect(options =>
 {
@@ -47,7 +53,24 @@ builder.Services.AddAuthentication(options =>
     options.SaveTokens = true;
     options.Scope.Add("openid");
     options.Scope.Add("profile");
-    options.Scope.Add("api"); 
+    options.Scope.Add("api");
+    
+    // Redirect hardening
+    options.ProtocolValidator.RequireNonce = true;
+    options.ProtocolValidator.RequireState = true;
+    options.ProtocolValidator.RequireStateValidation = true;
+
+    // PKCE protection
+    options.UsePkce = true;
+    options.ResponseMode = "query";
+    
+    // Token validation
+    options.TokenValidationParameters.ValidateIssuer = true;
+    options.TokenValidationParameters.ValidateAudience = true;
+    options.TokenValidationParameters.ValidateLifetime = true;
+    options.TokenValidationParameters.ValidateIssuerSigningKey = true;
+    options.TokenValidationParameters.RequireExpirationTime = true;
+    options.TokenValidationParameters.RequireSignedTokens = true;
 });
 
 var app = builder.Build();

@@ -12,11 +12,11 @@
         ContentTemplate="{DataTemplate views:AuthenticationPage}"
         Shell.FlyoutBehavior="Disabled"
         Shell.NavBarIsVisible="False"
-        Shell.TabBarIsVisible="False" />
+        Shell.TabBarIsVisible="False"/>
 
     <ShellContent
         Title="Conversations"
         ContentTemplate="{DataTemplate views:ConversationListPage}"
-        Route="ConversationListPage" />
+        Route="ConversationListPage"/>
 
 </Shell>

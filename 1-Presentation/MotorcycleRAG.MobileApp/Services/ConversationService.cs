@@ -99,8 +99,8 @@ namespace MotorcycleRAG.MobileApp.Services
                 // Auto-title if it's the default title
                 if (conversation.Title == "New Conversation")
                 {
-                    conversation.Title = messageText.Length > 50 
-                        ? messageText.Substring(0, 47) + "..." 
+                    conversation.Title = messageText.Length > 50
+                        ? messageText.Substring(0, 47) + "..."
                         : messageText;
                 }
 

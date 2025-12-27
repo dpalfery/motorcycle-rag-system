@@ -5,23 +5,23 @@ namespace MotorcycleRAG.MobileApp;
 
 public partial class AppShell : Shell
 {
-    private readonly IAuthenticationService _authService;
+	private readonly IAuthenticationService _authService;
 
 	public AppShell(IAuthenticationService authService)
 	{
 		InitializeComponent();
-        _authService = authService;
-        Routing.RegisterRoute("ChatPage", typeof(ChatPage));
+		_authService = authService;
+		Routing.RegisterRoute("ChatPage", typeof(ChatPage));
 	}
 
-    protected override async void OnAppearing()
-    {
-        base.OnAppearing();
-        
-        var token = await _authService.GetAccessTokenAsync();
-        if (!string.IsNullOrEmpty(token))
-        {
-            await GoToAsync("//ConversationListPage");
-        }
-    }
+	protected override async void OnAppearing()
+	{
+		base.OnAppearing();
+
+		var token = await _authService.GetAccessTokenAsync();
+		if (!string.IsNullOrEmpty(token))
+		{
+			await GoToAsync("//ConversationListPage");
+		}
+	}
 }

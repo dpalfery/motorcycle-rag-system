@@ -13,7 +13,7 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
         // making it difficult to unit test without refactoring to inject the client.
         // For now, we are skipping deep unit tests for this service and relying on
         // integration/manual tests for the authentication flow.
-        
+
         [Fact]
         public void Constructor_ShouldInitialize_WithValidConfiguration()
         {

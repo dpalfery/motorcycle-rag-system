@@ -8,7 +8,8 @@
              Title="Chat">
 
     <ContentPage.ToolbarItems>
-        <ToolbarItem Text="New Chat" Command="{Binding StartNewChatCommand}" />
+        <ToolbarItem Text="New Chat"
+                Command="{Binding StartNewChatCommand}"/>
     </ContentPage.ToolbarItems>
 
     <ContentPage.Resources>
@@ -21,15 +22,16 @@
     </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto,*,Auto"
-            Padding="10">
+          Padding="10">
 
         <!-- Context Indicator -->
-        <Label Grid.Row="0" 
-               Text="{Binding SessionId, StringFormat='Session: {0}'}" 
-               FontSize="10" 
-               TextColor="Gray" 
+        <Label Grid.Row="0"
+               Text="{Binding SessionId, StringFormat='Session: {0}'}"
+               FontSize="10"
+               TextColor="Gray"
                HorizontalOptions="Center"
-               IsVisible="{Binding SessionId, Converter={StaticResource IntToBoolConverter}}"/> <!-- Using IntToBoolConverter for string length check might fail if it expects int. Let's check converter. -->
+               IsVisible="{Binding SessionId, Converter={StaticResource IntToBoolConverter}}"/>
+        <!-- Using IntToBoolConverter for string length check might fail if it expects int. Let's check converter. -->
 
         <!-- Messages List -->
         <CollectionView Grid.Row="1"
@@ -79,8 +81,8 @@
 
         <!-- Input Area -->
         <Grid Grid.Row="1"
-                ColumnDefinitions="*,Auto"
-                Padding="0,10,0,0">
+              ColumnDefinitions="*,Auto"
+              Padding="0,10,0,0">
             <Entry Grid.Column="0"
                    Text="{Binding QuestionText}"
                    Placeholder="Ask about motorcycles..."

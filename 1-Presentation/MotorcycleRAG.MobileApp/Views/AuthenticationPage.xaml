@@ -5,30 +5,31 @@
              x:Class="MotorcycleRAG.MobileApp.Views.AuthenticationPage"
              Title="Authentication"
              Padding="{StaticResource PagePadding}">
-    
-    <VerticalStackLayout Spacing="25" VerticalOptions="Center">
-        
+
+    <VerticalStackLayout Spacing="25"
+            VerticalOptions="Center">
+
         <Image Source="dotnet_bot.png"
                HeightRequest="200"
-               HorizontalOptions="Center" />
+               HorizontalOptions="Center"/>
 
         <Label Text="Welcome to MotorcycleRAG"
                Style="{StaticResource Headline}"
-               SemanticProperties.HeadingLevel="Level1" />
+               SemanticProperties.HeadingLevel="Level1"/>
 
         <Label Text="Ask questions about motorcycles and get instant answers."
                Style="{StaticResource SubHeadline}"
                SemanticProperties.HeadingLevel="Level2"
-               SemanticProperties.Description="App description" />
+               SemanticProperties.Description="App description"/>
 
         <Button Text="Sign In"
                 Command="{Binding SignInCommand}"
                 IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
-                HorizontalOptions="Center" />
+                HorizontalOptions="Center"/>
 
         <ActivityIndicator IsRunning="{Binding IsBusy}"
                            IsVisible="{Binding IsBusy}"
-                           HorizontalOptions="Center" />
+                           HorizontalOptions="Center"/>
 
     </VerticalStackLayout>
 </ContentPage>

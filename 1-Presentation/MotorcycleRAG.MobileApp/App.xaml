@@ -6,10 +6,10 @@
              x:Class="MotorcycleRAG.MobileApp.App">
     <Application.Resources>
         <ResourceDictionary>
-            <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
+            <converters:InvertedBoolConverter x:Key="InvertedBoolConverter"/>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
-                <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
+                <ResourceDictionary Source="Resources/Styles/Colors.xaml"/>
+                <ResourceDictionary Source="Resources/Styles/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

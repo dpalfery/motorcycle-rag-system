@@ -12,7 +12,7 @@ public class MockApiClient : IApiClient
     public QueryResponse? ResponseToReturn { get; set; }
     public Exception? ExceptionToThrow { get; set; }
 
-    public Task<QueryResponse> SendQueryAsync(QueryRequest request, CancellationToken cancellationToken = default)
+    public Task<QueryResponse> QueryAsync(QueryRequest request)
     {
         if (ExceptionToThrow != null)
         {
@@ -35,6 +35,6 @@ public class MockApiClient : IApiClient
 
     public Task<UserProfile> GetUserProfileAsync()
     {
-        return Task.FromResult(new UserProfile { Id = "mock-user" });
+        return Task.FromResult(new UserProfile { UserId = "mock-user" });
     }
 }

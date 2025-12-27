@@ -28,7 +28,7 @@ This is a .NET MAUI mobile app following Clean Architecture patterns adapted for
 - [x] T001 Create MAUI project structure at 1-Presentation/MotorcycleRAG.MobileApp
 - [x] T002 Initialize .NET MAUI project with required NuGet packages (Microsoft.Maui.Controls, Microsoft.Identity.Client, CommunityToolkit.Mvvm, sqlite-net-pcl, Microsoft.Extensions.Http.Polly)
 - [x] T003 [P] Create appsettings.json and appsettings.Development.json for API and authentication configuration
-- [ ] T004 [P] Configure platform-specific settings in Platforms/iOS/Info.plist, Platforms/Android/AndroidManifest.xml, Platforms/Windows/Package.appxmanifest
+- [x] T004 [P] Configure platform-specific settings in Platforms/iOS/Info.plist, Platforms/Android/AndroidManifest.xml, Platforms/Windows/Package.appxmanifest
 - [x] T005 Create test project at 5-Test/MotorcycleRAG.MobileApp.Tests with xUnit and Moq packages
 - [x] T006 [P] Setup MauiProgram.cs with dependency injection configuration
 
@@ -87,20 +87,20 @@ This is a .NET MAUI mobile app following Clean Architecture patterns adapted for
 
 **Independent Test**: Can build and run the app on iOS simulator, Android emulator, and Windows; authentication flow works on all platforms
 
-- [ ] T036 [P] [US7] Configure iOS-specific settings for authentication redirect in Platforms/iOS/Info.plist
-- [ ] T037 [P] [US7] Configure Android-specific settings for authentication redirect in Platforms/Android/AndroidManifest.xml
-- [ ] T038 [P] [US7] Configure Windows-specific settings in Platforms/Windows/Package.appxmanifest
-- [ ] T039 [P] [US7] Create platform-specific styles in Resources/Styles/Styles.xaml with OnPlatform for iOS, Android, Windows
-- [ ] T040 [P] [US7] Create AuthenticationViewModel with MVVM toolkit in ViewModels/AuthenticationViewModel.cs
-- [ ] T041 [US7] Create AuthenticationPage XAML UI in Views/AuthenticationPage.xaml with platform-specific styling
-- [ ] T042 [US7] Implement sign-in/sign-out commands in AuthenticationViewModel
-- [ ] T043 [US7] Add navigation logic to App.xaml.cs to route authenticated users to ConversationListPage
-- [ ] T044 [US7] Test authentication flow on iOS simulator, Android emulator, and Windows desktop
+- [x] T036 [P] [US7] Configure iOS-specific settings for authentication redirect in Platforms/iOS/Info.plist
+- [x] T037 [P] [US7] Configure Android-specific settings for authentication redirect in Platforms/Android/AndroidManifest.xml
+- [x] T038 [P] [US7] Configure Windows-specific settings in Platforms/Windows/Package.appxmanifest
+- [x] T039 [P] [US7] Create platform-specific styles in Resources/Styles/Styles.xaml with OnPlatform for iOS, Android, Windows
+- [x] T040 [P] [US7] Create AuthenticationViewModel with MVVM toolkit in ViewModels/AuthenticationViewModel.cs
+- [x] T041 [US7] Create AuthenticationPage XAML UI in Views/AuthenticationPage.xaml with platform-specific styling
+- [x] T042 [US7] Implement sign-in/sign-out commands in AuthenticationViewModel
+- [x] T043 [US7] Add navigation logic to App.xaml.cs to route authenticated users to ConversationListPage
+- [x] T044 [US7] Test authentication flow on iOS simulator, Android emulator, and Windows desktop
 
 **Unit Tests for US7 (Test-First: Write BEFORE/ALONGSIDE implementation)**:
 
-- [ ] T044a [P] [US7] Write AuthenticationViewModelTests for sign-in/sign-out commands in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/AuthenticationViewModelTests.cs
-- [ ] T044b [P] [US7] Write AuthenticationServiceTests for MSAL token acquisition in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/AuthenticationServiceTests.cs
+- [x] T044a [P] [US7] Write AuthenticationViewModelTests for sign-in/sign-out commands in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/AuthenticationViewModelTests.cs
+- [x] T044b [P] [US7] Write AuthenticationServiceTests for MSAL token acquisition in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/AuthenticationServiceTests.cs
 
 **Checkpoint**: At this point, authentication works across all platforms and app can launch
 
@@ -112,32 +112,32 @@ This is a .NET MAUI mobile app following Clean Architecture patterns adapted for
 
 **Independent Test**: Launch app, authenticate, start new conversation, type "What's the horsepower of a 2023 Yamaha R1?", receive answer within 3 seconds with tappable citations; web citations open browser, PDF citations show message
 
-- [ ] T045 [P] [US1] Create IConversationService interface in Services/IConversationService.cs
-- [ ] T046 [US1] Implement ConversationService with message save/load operations in Services/ConversationService.cs
-- [ ] T047 [P] [US1] Create ChatViewModel with CommunityToolkit.Mvvm in ViewModels/ChatViewModel.cs
-- [ ] T048 [US1] Implement QuestionText observable property and SendQuestionCommand in ChatViewModel
-- [ ] T049 [US1] Implement Messages observable collection and IsSending state in ChatViewModel
-- [ ] T050 [US1] Create ChatPage XAML UI with CollectionView for messages and Entry for input in Views/ChatPage.xaml
-- [ ] T051 [P] [US1] Create XAML value converter for message sender to bubble color in Converters/SenderToColorConverter.cs
-- [ ] T052 [P] [US1] Create XAML DataTemplate for user messages in Views/ChatPage.xaml
-- [ ] T053 [P] [US1] Create XAML DataTemplate for system messages with citations in Views/ChatPage.xaml
-- [ ] T054 [US1] Implement API call logic in ChatViewModel.SendQuestionAsync with error handling
-- [ ] T055 [US1] Add loading indicator binding to IsSending property in ChatPage.xaml
-- [ ] T056 [US1] Implement citation tap handler for web URLs to open in browser in ChatViewModel
-- [ ] T057 [US1] Implement citation tap handler for PDF citations to show "view in app" or "coming soon" message in ChatViewModel
-- [ ] T058 [US1] Add validation for empty/whitespace questions in ChatViewModel
-- [ ] T059 [US1] Implement error message display for API failures in ChatPage.xaml
-- [ ] T060 [US1] Add "no results" message handling in ChatViewModel when system cannot find information
-- [ ] T061 [US1] Implement conversation persistence logic to save messages locally after each send in ChatViewModel
-- [ ] T062 [US1] Add platform-specific touch gesture support for citation tapping in ChatPage.xaml
+- [x] T045 [P] [US1] Create IConversationService interface in Services/IConversationService.cs
+- [x] T046 [US1] Implement ConversationService with message save/load operations in Services/ConversationService.cs
+- [x] T047 [P] [US1] Create ChatViewModel with CommunityToolkit.Mvvm in ViewModels/ChatViewModel.cs
+- [x] T048 [US1] Implement QuestionText observable property and SendQuestionCommand in ChatViewModel
+- [x] T049 [US1] Implement Messages observable collection and IsSending state in ChatViewModel
+- [x] T050 [US1] Create ChatPage XAML UI with CollectionView for messages and Entry for input in Views/ChatPage.xaml
+- [x] T051 [P] [US1] Create XAML value converter for message sender to bubble color in Converters/SenderToColorConverter.cs
+- [x] T052 [P] [US1] Create XAML DataTemplate for user messages in Views/ChatPage.xaml
+- [x] T053 [P] [US1] Create XAML DataTemplate for system messages with citations in Views/ChatPage.xaml
+- [x] T054 [US1] Implement API call logic in ChatViewModel.SendQuestionAsync with error handling
+- [x] T055 [US1] Add loading indicator binding to IsSending property in ChatPage.xaml
+- [x] T056 [US1] Implement citation tap handler for web URLs to open in browser in ChatViewModel
+- [x] T057 [US1] Implement citation tap handler for PDF citations to show "view in app" or "coming soon" message in ChatViewModel
+- [x] T058 [US1] Add validation for empty/whitespace questions in ChatViewModel
+- [x] T059 [US1] Implement error message display for API failures in ChatPage.xaml
+- [x] T060 [US1] Add "no results" message handling in ChatViewModel when system cannot find information
+- [x] T061 [US1] Implement conversation persistence logic to save messages locally after each send in ChatViewModel
+- [x] T062 [US1] Add platform-specific touch gesture support for citation tapping in ChatPage.xaml
 
 **Unit Tests for US1 (Test-First: Write BEFORE/ALONGSIDE implementation)**:
 
-- [ ] T062a [P] [US1] Write ChatViewModelTests for SendQuestionCommand with successful API response in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ChatViewModelTests.cs
-- [ ] T062b [P] [US1] Write ChatViewModelTests for SendQuestionCommand with API failure/timeout in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ChatViewModelTests.cs
-- [ ] T062c [P] [US1] Write ChatViewModelTests for citation tap handling (web and PDF) in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ChatViewModelTests.cs
-- [ ] T062d [P] [US1] Write ConversationServiceTests for message save/load operations in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/ConversationServiceTests.cs
-- [ ] T062e [P] [US1] Write ConversationRepositoryTests for CRUD operations and storage calculation in 5-Test/MotorcycleRAG.MobileApp.Tests/Persistence/ConversationRepositoryTests.cs
+- [x] T062a [P] [US1] Write ChatViewModelTests for SendQuestionCommand with successful API response in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ChatViewModelTests.cs
+- [x] T062b [P] [US1] Write ChatViewModelTests for SendQuestionCommand with API failure/timeout in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ChatViewModelTests.cs
+- [x] T062c [P] [US1] Write ChatViewModelTests for citation tap handling (web and PDF) in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ChatViewModelTests.cs
+- [x] T062d [P] [US1] Write ConversationServiceTests for message save/load operations in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/ConversationServiceTests.cs
+- [x] T062e [P] [US1] Write ConversationRepositoryTests for CRUD operations and storage calculation in 5-Test/MotorcycleRAG.MobileApp.Tests/Persistence/ConversationRepositoryTests.cs
 
 **Integration Tests for US1**:
 
@@ -153,29 +153,29 @@ This is a .NET MAUI mobile app following Clean Architecture patterns adapted for
 
 **Independent Test**: Create multiple conversations, close app, reopen, verify all appear sorted by recency; search for content, tap to resume, swipe to delete
 
-- [ ] T063 [P] [US6] Create ConversationListViewModel with CommunityToolkit.Mvvm in ViewModels/ConversationListViewModel.cs
-- [ ] T064 [US6] Implement Conversations observable collection in ConversationListViewModel
-- [ ] T065 [US6] Implement LoadConversationsCommand to fetch all conversations sorted by UpdatedAt DESC in ConversationListViewModel
-- [ ] T066 [P] [US6] Implement SearchQuery observable property and SearchCommand in ConversationListViewModel
-- [ ] T067 [P] [US6] Implement DeleteConversationCommand with swipe-to-delete support in ConversationListViewModel
-- [ ] T068 [P] [US6] Implement NewConversationCommand to create new chat session in ConversationListViewModel
-- [ ] T069 [US6] Create ConversationListPage XAML UI with CollectionView in Views/ConversationListPage.xaml
-- [ ] T070 [US6] Add SearchBar with binding to SearchQuery in ConversationListPage.xaml
-- [ ] T071 [US6] Create conversation item DataTemplate with title and preview in ConversationListPage.xaml
-- [ ] T072 [US6] Implement SwipeView with delete option for each conversation item in ConversationListPage.xaml
-- [ ] T073 [US6] Add tap gesture to conversation items to navigate to ChatPage with conversation ID in ConversationListPage.xaml
-- [ ] T074 [US6] Implement SQLite FTS5 full-text search for conversation content in ConversationRepository
-- [ ] T075 [US6] Add debounced search (500ms delay) to avoid excessive queries in ConversationListViewModel
-- [ ] T076 [US6] Implement offline message display when no connectivity and user tries to ask new question in ChatViewModel
-- [ ] T077 [US6] Update App.xaml.cs navigation to show ConversationListPage as home screen after authentication
-- [ ] T078 [US6] Add "+" button for new conversation in ConversationListPage.xaml
-- [ ] T079 [US6] Implement conversation auto-titling from first 50 characters of first question in ConversationService
+- [x] T063 [P] [US6] Create ConversationListViewModel with CommunityToolkit.Mvvm in ViewModels/ConversationListViewModel.cs
+- [x] T064 [US6] Implement Conversations observable collection in ConversationListViewModel
+- [x] T065 [US6] Implement LoadConversationsCommand to fetch all conversations sorted by UpdatedAt DESC in ConversationListViewModel
+- [x] T066 [P] [US6] Implement SearchQuery observable property and SearchCommand in ConversationListViewModel
+- [x] T067 [P] [US6] Implement DeleteConversationCommand with swipe-to-delete support in ConversationListViewModel
+- [x] T068 [P] [US6] Implement NewConversationCommand to create new chat session in ConversationListViewModel
+- [x] T069 [US6] Create ConversationListPage XAML UI with CollectionView in Views/ConversationListPage.xaml
+- [x] T070 [US6] Add SearchBar with binding to SearchQuery in ConversationListPage.xaml
+- [x] T071 [US6] Create conversation item DataTemplate with title and preview in ConversationListPage.xaml
+- [x] T072 [US6] Implement SwipeView with delete option for each conversation item in ConversationListPage.xaml
+- [x] T073 [US6] Add tap gesture to conversation items to navigate to ChatPage with conversation ID in ConversationListPage.xaml
+- [x] T074 [US6] Implement SQLite FTS5 full-text search for conversation content in ConversationRepository
+- [x] T075 [US6] Add debounced search (500ms delay) to avoid excessive queries in ConversationListViewModel
+- [x] T076 [US6] Implement offline message display when no connectivity and user tries to ask new question in ChatViewModel
+- [x] T077 [US6] Update App.xaml.cs navigation to show ConversationListPage as home screen after authentication
+- [x] T078 [US6] Add "+" button for new conversation in ConversationListPage.xaml
+- [x] T079 [US6] Implement conversation auto-titling from first 50 characters of first question in ConversationService
 
 **Unit Tests for US6 (Test-First: Write BEFORE/ALONGSIDE implementation)**:
 
-- [ ] T079a [P] [US6] Write ConversationListViewModelTests for LoadConversationsCommand in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ConversationListViewModelTests.cs
-- [ ] T079b [P] [US6] Write ConversationListViewModelTests for SearchCommand with FTS5 queries in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ConversationListViewModelTests.cs
-- [ ] T079c [P] [US6] Write ConversationListViewModelTests for DeleteConversationCommand in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ConversationListViewModelTests.cs
+- [x] T079a [P] [US6] Write ConversationListViewModelTests for LoadConversationsCommand in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ConversationListViewModelTests.cs
+- [x] T079b [P] [US6] Write ConversationListViewModelTests for SearchCommand with FTS5 queries in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ConversationListViewModelTests.cs
+- [x] T079c [P] [US6] Write ConversationListViewModelTests for DeleteConversationCommand in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ConversationListViewModelTests.cs
 
 **Checkpoint**: At this point, User Story 6 should be fully functional - users can manage all their conversations with search and delete
 

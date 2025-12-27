@@ -1,7 +1,15 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseMaui>true</UseMaui>
+    <MauiEnableResizetizer>false</MauiEnableResizetizer>
+    <EnableDefaultMauiItems>false</EnableDefaultMauiItems>
+    <ResizetizerIncludePicture>false</ResizetizerIncludePicture>
+    <ResizetizerIncludeSplashScreen>false</ResizetizerIncludeSplashScreen>
+    <ResizetizerIncludeFont>false</ResizetizerIncludeFont>
+    <EnableMauiAssetProcessing>false</EnableMauiAssetProcessing>
+    <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -14,10 +22,23 @@
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.0-rc.2.25504.7" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\1-Presentation\MotorcycleRAG.MobileApp\MotorcycleRAG.MobileApp.csproj" />
+  </ItemGroup>
+
+  <Target Name="RemoveMauiIcons" BeforeTargets="_ResizetizerCollectImages">
+    <ItemGroup>
+        <MauiIcon Remove="@(MauiIcon)" />
+        <MauiSplashScreen Remove="@(MauiSplashScreen)" />
+        <MauiImage Remove="@(MauiImage)" />
+    </ItemGroup>
+  </Target>
 
 </Project>

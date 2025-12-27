@@ -9,10 +9,10 @@ public class MockAuthenticationService : IAuthenticationService
     public bool IsSignedIn { get; set; }
     public string? AccessToken { get; set; } = "mock-token";
 
-    public Task<AuthenticationResult?> SignInAsync()
+    public Task<bool> SignInAsync()
     {
         IsSignedIn = true;
-        return Task.FromResult<AuthenticationResult?>(null);
+        return Task.FromResult(true);
     }
 
     public Task SignOutAsync()

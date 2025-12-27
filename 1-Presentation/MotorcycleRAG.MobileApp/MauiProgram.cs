@@ -6,6 +6,8 @@ using SQLite;
 using MotorcycleRAG.MobileApp.Persistence;
 using MotorcycleRAG.MobileApp.Persistence.Repositories;
 using MotorcycleRAG.MobileApp.Services;
+using MotorcycleRAG.MobileApp.Views;
+using MotorcycleRAG.MobileApp.ViewModels;
 
 namespace MotorcycleRAG.MobileApp;
 
@@ -50,7 +52,19 @@ public static class MauiProgram
         // Services
         builder.Services.AddHttpClient<IApiClient, MotorcycleRagApiClient>();
         builder.Services.AddSingleton<IAuthenticationService, AuthenticationService>();
+        builder.Services.AddSingleton<IConversationService, ConversationService>();
         // IStorageService implementation to be added in next phases
+
+        // Views & ViewModels
+        builder.Services.AddTransient<AuthenticationPage>();
+        builder.Services.AddTransient<AuthenticationViewModel>();
+        builder.Services.AddTransient<ChatPage>();
+        builder.Services.AddTransient<ChatViewModel>();
+        builder.Services.AddTransient<ConversationListPage>();
+        builder.Services.AddTransient<ConversationListViewModel>();
+
+        // AppShell
+        builder.Services.AddSingleton<AppShell>();
 
         return builder.Build();
     }

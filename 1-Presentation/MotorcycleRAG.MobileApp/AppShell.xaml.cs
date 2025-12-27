@@ -1,9 +1,27 @@
-﻿namespace MotorcycleRAG.MobileApp;
+﻿using MotorcycleRAG.MobileApp.Services;
+using MotorcycleRAG.MobileApp.Views;
+
+namespace MotorcycleRAG.MobileApp;
 
 public partial class AppShell : Shell
 {
-	public AppShell()
+    private readonly IAuthenticationService _authService;
+
+	public AppShell(IAuthenticationService authService)
 	{
 		InitializeComponent();
+        _authService = authService;
+        Routing.RegisterRoute("ChatPage", typeof(ChatPage));
 	}
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        
+        var token = await _authService.GetAccessTokenAsync();
+        if (!string.IsNullOrEmpty(token))
+        {
+            await GoToAsync("//ConversationListPage");
+        }
+    }
 }

@@ -36,25 +36,30 @@ public class AuthenticationService : IAuthenticationService
         _pca = builder.Build();
     }
 
-    public async Task<AuthenticationResult?> SignInAsync()
+    public async Task<bool> SignInAsync()
     {
         try
         {
             var accounts = await _pca.GetAccountsAsync();
             var firstAccount = accounts.FirstOrDefault();
+            AuthenticationResult? result;
 
             if (firstAccount != null)
             {
-                return await _pca.AcquireTokenSilent(_scopes, firstAccount).ExecuteAsync();
+                result = await _pca.AcquireTokenSilent(_scopes, firstAccount).ExecuteAsync();
+            }
+            else
+            {
+                result = await _pca.AcquireTokenInteractive(_scopes)
+                                    .ExecuteAsync();
             }
 
-            return await _pca.AcquireTokenInteractive(_scopes)
-                                .ExecuteAsync();
+            return result != null;
         }
         catch (MsalException)
         {
             // In a real app, we might want to log this or handle specific error codes
-            throw;
+            return false;
         }
     }
 

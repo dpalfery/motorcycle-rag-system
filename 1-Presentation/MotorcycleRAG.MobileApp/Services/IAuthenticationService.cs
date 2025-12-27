@@ -5,7 +5,7 @@ namespace MotorcycleRAG.MobileApp.Services;
 
 public interface IAuthenticationService
 {
-    Task<AuthenticationResult?> SignInAsync();
+    Task<bool> SignInAsync();
     Task SignOutAsync();
     Task<string?> GetAccessTokenAsync();
 }

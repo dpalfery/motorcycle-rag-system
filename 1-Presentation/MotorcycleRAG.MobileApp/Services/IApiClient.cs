@@ -5,5 +5,5 @@ namespace MotorcycleRAG.MobileApp.Services;
 
 public interface IApiClient
 {
-    Task<ChatMessage> SendQueryAsync(string query, string conversationId, List<string> previousQueries);
+    Task<QueryResponse> QueryAsync(QueryRequest request);
 }

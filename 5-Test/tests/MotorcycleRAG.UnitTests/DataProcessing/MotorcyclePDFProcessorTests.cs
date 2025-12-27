@@ -89,13 +89,13 @@ public class MotorcyclePDFProcessorTests
         if (!result.Success)
         {
             // Debug output to see what went wrong
-            var errorMessage = $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors)}";
+            var errorMessage = $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors ?? new List<string>())}";
             throw new Exception(errorMessage);
         }
-        
+
         Assert.True(result.Success);
         Assert.NotNull(result);
-        Assert.True(result.Documents.Count > 0);
+        Assert.True(result.Documents!.Count > 0);
         Assert.Equal("Success", result.Message);
         Assert.True(result.ItemsProcessed > 0);
 
@@ -160,7 +160,7 @@ public class MotorcyclePDFProcessorTests
         var result = await processorWithImagesDisabled.ProcessAsync(pdfDocument);
 
         // Assert
-        Assert.True(result.Success, $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors)}");
+        Assert.True(result.Success, $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors ?? new List<string>())}");
 
         // Verify that GPT-4 Vision was NOT called
         _mockOpenAIClient.Verify(
@@ -182,7 +182,7 @@ public class MotorcyclePDFProcessorTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await _processor.ProcessAsync(pdfDocument));
-        
+
         Assert.Contains("Failed to process PDF", exception.Message);
         Assert.NotNull(exception.InnerException);
     }
@@ -212,10 +212,10 @@ public class MotorcyclePDFProcessorTests
         var result = await _processor.ProcessAsync(pdfDocument);
 
         // Assert
-        Assert.True(result.Success, $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors)}");
+        Assert.True(result.Success, $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors ?? new List<string>())}");
         Assert.NotNull(result);
-        Assert.True(result.Documents.Count >= 1);
-        
+        Assert.True(result.Documents!.Count >= 1);
+
         // Verify that chunks have proper metadata
         foreach (var doc in result.Documents)
         {
@@ -253,13 +253,13 @@ public class MotorcyclePDFProcessorTests
         // Assert
         Assert.True(result.Success);
         Assert.NotNull(result);
-        
+
         // Verify that table content was processed
-        var tableDocuments = result.Documents.Where(d => 
-            d.Metadata.AdditionalProperties.ContainsKey("ChunkType") && 
+        var tableDocuments = result.Documents!.Where(d =>
+            d.Metadata.AdditionalProperties.ContainsKey("ChunkType") &&
             d.Metadata.AdditionalProperties["ChunkType"].ToString() == "Table").ToList();
         Assert.NotEmpty(tableDocuments);
-        
+
         foreach (var tableDoc in tableDocuments)
         {
             Assert.Contains("Table with", tableDoc.Content);
@@ -360,22 +360,24 @@ public class MotorcyclePDFProcessorTests
         var result = await customProcessor.ProcessAsync(pdfDocument);
 
         // Assert
-        Assert.True(result.Success, $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors)}");
-        if (result == null)
-        {
-            throw new Exception($"Result.Data is null. Success: {result.Success}, Message: {result.Message}, Errors: {string.Join(", ", result.Errors)}");
-        }
         Assert.NotNull(result);
-        Assert.NotNull(result.Documents);
-        Assert.True(result.Documents.Count > 0);
-        
+        Assert.True(result!.Success, $"Processing failed: {result.Message}. Errors: {string.Join(", ", result.Errors ?? new List<string>())}");
+
+        if (result.Documents is not List<MotorcycleDocument> documents)
+        {
+            Assert.Fail("Documents is null");
+            return;
+        }
+
+        Assert.True(documents.Count > 0);
+
         // Verify that chunks respect size limits
-        foreach (var doc in result.Documents)
+        foreach (var doc in documents)
         {
             Assert.NotNull(doc);
             Assert.NotNull(doc.Content);
             // Allow some flexibility in chunk sizes due to processing logic
-            Assert.True(doc.Content.Length <= maxChunkSize * 1.1 || doc.Content.Length >= minChunkSize * 0.9, 
+            Assert.True(doc.Content.Length <= maxChunkSize * 1.1 || doc.Content.Length >= minChunkSize * 0.9,
                 $"Document content length {doc.Content.Length} is outside expected range [{minChunkSize * 0.9}, {maxChunkSize * 1.1}]");
         }
     }
@@ -383,7 +385,7 @@ public class MotorcyclePDFProcessorTests
     private PDFDocument CreateSamplePDFDocument()
     {
         var content = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("Sample PDF content"));
-        
+
         return new PDFDocument
         {
             FileName = "honda_cbr600rr_2023_manual.pdf",

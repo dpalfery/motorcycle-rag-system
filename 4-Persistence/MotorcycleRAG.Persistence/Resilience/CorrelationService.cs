@@ -59,6 +59,17 @@ public class CorrelationService : ICorrelationService
         return newId;
     }
 
+    /// <inheritdoc />
+    public string GetOrGenerateCorrelationId() => GetOrCreateCorrelationId();
+
+    /// <inheritdoc />
+    public IDisposable StartActivity(string name)
+    {
+        var activity = new Activity(name);
+        activity.Start();
+        return activity;
+    }
+
     /// <summary>
     /// Sets the correlation ID for the current context
     /// </summary>
@@ -130,7 +141,7 @@ public class CorrelationService : ICorrelationService
         return _logger.BeginScope(new Dictionary<string, object>
         {
             ["CorrelationId"] = correlationId
-        });
+        })!;
     }
 
     /// <summary>
@@ -144,7 +155,7 @@ public class CorrelationService : ICorrelationService
             ["CorrelationId"] = correlationId
         };
 
-        return _logger.BeginScope(scopeProperties);
+        return _logger.BeginScope(scopeProperties)!;
     }
 
 }

@@ -1,0 +1,65 @@
+# Docker ignore file for Motorcycle RAG System
+# This file contains patterns to exclude from Docker builds
+
+# Git repository
+.git/
+.gitignore
+.gitattributes
+
+# Docker files (prevent recursive copying)
+Dockerfile*
+.dockerignore
+
+# Build output and intermediate files
+bin/
+obj/
+
+# Node.js dependencies and build output
+node_modules/
+dist/
+build/
+
+# Log files
+*.log
+*.log.*
+
+# Environment files
+.env*
+.env.local
+.env.development
+.env.production
+
+# IDE and editor files
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Test and coverage output
+coverage/
+TestResults/
+
+# Package and dependency files (keep lock files for reproducibility)
+*.tar.gz
+*.zip
+*.rar
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Temporary and backup files
+*.tmp
+*.swp
+*.bak
+*.cache
+
+# Documentation and build artifacts
+docs/
+artifacts/
+
+# Local settings and configuration
+local.settings.json
+appsettings.Development.json

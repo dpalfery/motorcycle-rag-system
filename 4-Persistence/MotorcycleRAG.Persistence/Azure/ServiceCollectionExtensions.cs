@@ -45,10 +45,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICorrelationService, CorrelationService>();
 
         // Register Azure service clients as singletons for connection pooling
-        services.AddSingleton<IAzureOpenAIClient, AzureOpenAIClientWrapper>();
-        // TODO: Fix compilation issues with search and document intelligence clients
-        // services.AddSingleton<IAzureSearchClient, AzureSearchClientWrapper>();
-        // services.AddSingleton<IDocumentIntelligenceClient, DocumentIntelligenceClientWrapper>();
+        services.AddSingleton<IAzureOpenAIClient, MotorcycleRAG.Persistence.Azure.AzureOpenAIClientWrapper>();
+        services.AddSingleton<IAzureSearchClient, MotorcycleRAG.Infrastructure.Azure.AzureSearchClientWrapper>();
+        services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Infrastructure.Azure.DocumentIntelligenceClientWrapper>();
 
         // Register SearchIndexClient for direct Azure Search operations
         services.AddSingleton<SearchIndexClient>(serviceProvider =>

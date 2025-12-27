@@ -31,6 +31,14 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
                 ["AzureAI:Models:VisionModel"] = "gpt-4-vision-preview",
                 ["AzureAI:Models:MaxTokens"] = "4096",
                 ["AzureAI:Models:Temperature"] = "0.1",
+                ["Sql:Server"] = "test-server",
+                ["Sql:Database"] = "test-database",
+                ["Sql:Username"] = "test-user",
+                ["Sql:Password"] = "test-password",
+                ["Sql:ConnectionTimeout"] = "30",
+                ["Sql:CommandTimeout"] = "60",
+                ["Sql:MaxPoolSize"] = "100",
+                ["Sql:UseIntegratedSecurity"] = "false",
                 ["Search:IndexName"] = "test-motorcycle-index",
                 ["Search:BatchSize"] = "100",
                 ["Search:MaxSearchResults"] = "50",
@@ -80,23 +88,19 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
 
         // Add mock implementations
         var mockAzureOpenAI = new Mock<IAzureOpenAIClient>();
-        mockAzureOpenAI.Setup(x => x.GenerateEmbeddingsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        mockAzureOpenAI.Setup(x => x.GetEmbeddingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new float[] { 0.1f, 0.2f, 0.3f });
 
         var mockAzureSearch = new Mock<IAzureSearchClient>();
-        mockAzureSearch.Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SearchResults
-            {
-                Results = new List<SearchResult>(),
-                TotalCount = 0
-            });
+        mockAzureSearch.Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>()))
+            .ReturnsAsync(Array.Empty<SearchResult>());
 
         var mockDocumentIntelligence = new Mock<IDocumentIntelligenceClient>();
-        mockDocumentIntelligence.Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+        mockDocumentIntelligence.Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
             .ReturnsAsync(new DocumentAnalysisResult
             {
                 Content = "Mock extracted content",
-                Pages = new List<DocumentPage>
+                Pages = new[]
                 {
                     new DocumentPage
                     {
@@ -110,7 +114,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         mockIndexingService.Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
             .ReturnsAsync(new BatchIndexingResult
             {
-                IsSuccessful = true,
+                Success = true,
                 DocumentsProcessed = 1,
                 IndexName = "test-index",
                 Message = "Mock indexing successful"
@@ -123,11 +127,22 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
 
         // Mock resilience and correlation services
         var mockResilienceService = new Mock<IResilienceService>();
-        mockResilienceService.Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<CancellationToken>()))
-            .Returns<Func<Task<ProcessedData>>, CancellationToken>((func, token) => func());
 
-        mockResilienceService.Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<BatchIndexingResult>>>(), It.IsAny<CancellationToken>()))
-            .Returns<Func<Task<BatchIndexingResult>>, CancellationToken>((func, token) => func());
+        mockResilienceService.Setup(x => x.ExecuteAsync(
+                It.IsAny<string>(),
+                It.IsAny<Func<Task<ProcessedData>>>(),
+                It.IsAny<Func<Task<ProcessedData>>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<string, Func<Task<ProcessedData>>, Func<Task<ProcessedData>>, string, CancellationToken>((key, func, fallback, corrId, token) => func());
+
+        mockResilienceService.Setup(x => x.ExecuteAsync(
+                It.IsAny<string>(),
+                It.IsAny<Func<Task<BatchIndexingResult>>>(),
+                It.IsAny<Func<Task<BatchIndexingResult>>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<string, Func<Task<BatchIndexingResult>>, Func<Task<BatchIndexingResult>>, string, CancellationToken>((key, func, fallback, corrId, token) => func());
 
         var mockCorrelationService = new Mock<ICorrelationService>();
         mockCorrelationService.Setup(x => x.GetOrGenerateCorrelationId())

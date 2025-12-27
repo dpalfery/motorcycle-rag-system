@@ -187,18 +187,18 @@ This is a .NET MAUI mobile app following Clean Architecture patterns adapted for
 
 **Independent Test**: Ask initial question, receive answer, ask follow-up that references previous context (e.g., "What about the 2024 model?"), verify system understands context
 
-- [ ] T080 [US2] Add SessionId and PreviousQueries properties to ChatViewModel
-- [ ] T081 [US2] Update SendQuestionCommand to include conversation context in API request in ChatViewModel
-- [ ] T082 [US2] Implement conversation history loading when ChatPage is opened with existing conversation ID in ChatViewModel
-- [ ] T083 [US2] Add scroll-to-bottom behavior when new messages are added in ChatPage.xaml
-- [ ] T084 [US2] Implement "Start New Chat" command to clear context and begin fresh conversation in ChatViewModel
-- [ ] T085 [US2] Update ConversationService to maintain session state (SessionId, PreviousQueries) for multi-turn support
-- [ ] T086 [US2] Add conversation context display indicator in ChatPage.xaml to show multi-turn mode is active
+- [x] T080 [US2] Add SessionId and PreviousQueries properties to ChatViewModel
+- [x] T081 [US2] Update SendQuestionCommand to include conversation context in API request in ChatViewModel
+- [x] T082 [US2] Implement conversation history loading when ChatPage is opened with existing conversation ID in ChatViewModel
+- [x] T083 [US2] Add scroll-to-bottom behavior when new messages are added in ChatPage.xaml
+- [x] T084 [US2] Implement "Start New Chat" command to clear context and begin fresh conversation in ChatViewModel
+- [x] T085 [US2] Update ConversationService to maintain session state (SessionId, PreviousQueries) for multi-turn support
+- [x] T086 [US2] Add conversation context display indicator in ChatPage.xaml to show multi-turn mode is active
 
 **Unit Tests for US2 (Test-First: Write BEFORE/ALONGSIDE implementation)**:
 
-- [ ] T086a [P] [US2] Write ChatViewModelTests for multi-turn context maintenance (SessionId, PreviousQueries) in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ChatViewModelTests.cs
-- [ ] T086b [P] [US2] Write ConversationServiceTests for session state persistence in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/ConversationServiceTests.cs
+- [x] T086a [P] [US2] Write ChatViewModelTests for multi-turn context maintenance (SessionId, PreviousQueries) in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ChatViewModelTests.cs
+- [x] T086b [P] [US2] Write ConversationServiceTests for session state persistence in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/ConversationServiceTests.cs
 
 **Checkpoint**: At this point, User Stories 1, 2, and 6 should all work - users have multi-turn conversations that persist and can be managed
 
@@ -210,30 +210,30 @@ This is a .NET MAUI mobile app following Clean Architecture patterns adapted for
 
 **Independent Test**: Have conversation mentioning "I have a 2023 Yamaha R1M", later start new conversation asking "What oil should I use?", verify system references R1M without being told again
 
-- [ ] T087 [P] [US3] Create IUserMemoryService interface in Services/IUserMemoryService.cs
-- [ ] T088 [US3] Implement UserMemoryService with extraction patterns in Services/UserMemoryService.cs
-- [ ] T089 [US3] Create keyword pattern matching logic for memory extraction categories (motorcycles_owned, riding_style, expertise_level, maintenance_preference) in UserMemoryService
-- [ ] T090 [US3] Implement ExtractFromConversationAsync method using regex patterns in UserMemoryService
-- [ ] T091 [US3] Add user memory extraction trigger before conversation pruning in StorageService
-- [ ] T092 [US3] Update SendQuestionCommand to include user memory in API request context in ChatViewModel
-- [ ] T093 [US3] Implement GetActiveMemoriesAsync method to load all active user memory in UserMemoryService
-- [ ] T094 [P] [US3] Create ProfileViewModel with CommunityToolkit.Mvvm in ViewModels/ProfileViewModel.cs
-- [ ] T095 [US3] Implement UserMemories observable collection in ProfileViewModel
-- [ ] T096 [US3] Implement LoadMemoriesCommand and EditMemoryCommand in ProfileViewModel
-- [ ] T097 [US3] Implement DeactivateMemoryCommand and ClearAllMemoriesCommand in ProfileViewModel
-- [ ] T098 [US3] Create ProfilePage XAML UI to display user memory items in Views/ProfilePage.xaml
-- [ ] T099 [US3] Add CollectionView with user memory items (category, value, extracted date) in ProfilePage.xaml
-- [ ] T100 [US3] Implement edit/delete gestures for memory items in ProfilePage.xaml
-- [ ] T101 [US3] Add navigation to ProfilePage from ConversationListPage (settings/profile button) in ConversationListPage.xaml
-- [ ] T102 [US3] Implement conflict resolution for duplicate memory categories (update existing, deactivate old) in UserMemoryService
-- [ ] T103 [US3] Update StorageService pruning logic to extract and persist user memory before deleting conversations
+- [x] T087 [P] [US3] Create IUserMemoryService interface in Services/IUserMemoryService.cs
+- [x] T088 [US3] Implement UserMemoryService with extraction patterns in Services/UserMemoryService.cs
+- [x] T089 [US3] Create keyword pattern matching logic for memory extraction categories (motorcycles_owned, riding_style, expertise_level, maintenance_preference) in UserMemoryService
+- [x] T090 [US3] Implement ExtractFromConversationAsync method using regex patterns in UserMemoryService
+- [x] T091 [US3] Add user memory extraction trigger before conversation pruning in StorageService
+- [x] T092 [US3] Update SendQuestionCommand to include user memory in API request context in ChatViewModel
+- [x] T093 [US3] Implement GetActiveMemoriesAsync method to load all active user memory in UserMemoryService
+- [x] T094 [P] [US3] Create ProfileViewModel with CommunityToolkit.Mvvm in ViewModels/ProfileViewModel.cs
+- [x] T095 [US3] Implement UserMemories observable collection in ProfileViewModel
+- [x] T096 [US3] Implement LoadMemoriesCommand and EditMemoryCommand in ProfileViewModel
+- [x] T097 [US3] Implement DeactivateMemoryCommand and ClearAllMemoriesCommand in ProfileViewModel
+- [x] T098 [US3] Create ProfilePage XAML UI to display user memory items in Views/ProfilePage.xaml
+- [x] T099 [US3] Add CollectionView with user memory items (category, value, extracted date) in ProfilePage.xaml
+- [x] T100 [US3] Implement edit/delete gestures for memory items in ProfilePage.xaml
+- [x] T101 [US3] Add navigation to ProfilePage from ConversationListPage (settings/profile button) in ConversationListPage.xaml
+- [x] T102 [US3] Implement conflict resolution for duplicate memory categories (update existing, deactivate old) in UserMemoryService
+- [x] T103 [US3] Update StorageService pruning logic to extract and persist user memory before deleting conversations
 
 **Unit Tests for US3 (Test-First: Write BEFORE/ALONGSIDE implementation)**:
 
-- [ ] T103a [P] [US3] Write UserMemoryServiceTests for ExtractFromConversationAsync with regex patterns in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/UserMemoryServiceTests.cs
-- [ ] T103b [P] [US3] Write UserMemoryServiceTests for conflict resolution (duplicate categories) in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/UserMemoryServiceTests.cs
-- [ ] T103c [P] [US3] Write ProfileViewModelTests for LoadMemoriesCommand and EditMemoryCommand in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ProfileViewModelTests.cs
-- [ ] T103d [P] [US3] Write StorageServiceTests for pruning logic with memory extraction in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/StorageServiceTests.cs
+- [x] T103a [P] [US3] Write UserMemoryServiceTests for ExtractFromConversationAsync with regex patterns in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/UserMemoryServiceTests.cs
+- [x] T103b [P] [US3] Write UserMemoryServiceTests for conflict resolution (duplicate categories) in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/UserMemoryServiceTests.cs
+- [x] T103c [P] [US3] Write ProfileViewModelTests for LoadMemoriesCommand and EditMemoryCommand in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/ProfileViewModelTests.cs
+- [x] T103d [P] [US3] Write StorageServiceTests for pruning logic with memory extraction in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/StorageServiceTests.cs
 
 **Checkpoint**: At this point, User Stories 1, 2, 3, and 6 work - app learns from conversations and personalizes responses
 
@@ -247,22 +247,22 @@ This is a .NET MAUI mobile app following Clean Architecture patterns adapted for
 
 **Note**: This is a post-MVP enhancement feature
 
-- [ ] T104 [P] [US5] Create IPdfViewerService interface in Services/IPdfViewerService.cs
-- [ ] T105 [US5] Implement PdfViewerService with platform-specific PDF rendering in Services/PdfViewerService.cs
-- [ ] T106 [P] [US5] Create PdfViewerViewModel with CommunityToolkit.Mvvm in ViewModels/PdfViewerViewModel.cs
-- [ ] T107 [US5] Implement PDF page loading logic in PdfViewerViewModel
-- [ ] T108 [US5] Create PdfViewerPage XAML UI with pinch-to-zoom support in Views/PdfViewerPage.xaml
-- [ ] T109 [US5] Update citation tap handler in ChatViewModel to navigate to PdfViewerPage with document ID and page number
-- [ ] T110 [US5] Implement navigation back to ChatPage from PdfViewerPage
-- [ ] T111 [US5] Add platform-specific PDF rendering for iOS using PDFKit in Platforms/iOS/PdfRenderer.cs
-- [ ] T112 [US5] Add platform-specific PDF rendering for Android using PdfRenderer in Platforms/Android/PdfRenderer.cs
-- [ ] T113 [US5] Add platform-specific PDF rendering for Windows using PDF rendering APIs in Platforms/Windows/PdfRenderer.cs
-- [ ] T114 [US5] Implement PDF caching to avoid re-downloading for previously viewed pages in PdfViewerService
+- [x] T104 [P] [US5] Create IPdfViewerService interface in Services/IPdfViewerService.cs
+- [x] T105 [US5] Implement PdfViewerService with platform-specific PDF rendering in Services/PdfViewerService.cs
+- [x] T106 [P] [US5] Create PdfViewerViewModel with CommunityToolkit.Mvvm in ViewModels/PdfViewerViewModel.cs
+- [x] T107 [US5] Implement PDF page loading logic in PdfViewerViewModel
+- [x] T108 [US5] Create PdfViewerPage XAML UI with pinch-to-zoom support in Views/PdfViewerPage.xaml
+- [x] T109 [US5] Update citation tap handler in ChatViewModel to navigate to PdfViewerPage with document ID and page number
+- [x] T110 [US5] Implement navigation back to ChatPage from PdfViewerPage
+- [x] T111 [US5] Add platform-specific PDF rendering for iOS using PDFKit in Platforms/iOS/PdfRenderer.cs
+- [x] T112 [US5] Add platform-specific PDF rendering for Android using PdfRenderer in Platforms/Android/PdfRenderer.cs
+- [x] T113 [US5] Add platform-specific PDF rendering for Windows using PDF rendering APIs in Platforms/Windows/PdfRenderer.cs
+- [x] T114 [US5] Implement PDF caching to avoid re-downloading for previously viewed pages in PdfViewerService
 
 **Unit Tests for US5 (Test-First: Write BEFORE/ALONGSIDE implementation)**:
 
-- [ ] T114a [P] [US5] Write PdfViewerViewModelTests for PDF page loading in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/PdfViewerViewModelTests.cs
-- [ ] T114b [P] [US5] Write PdfViewerServiceTests for platform-specific rendering mocks in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/PdfViewerServiceTests.cs
+- [x] T114a [P] [US5] Write PdfViewerViewModelTests for PDF page loading in 5-Test/MotorcycleRAG.MobileApp.Tests/ViewModels/PdfViewerViewModelTests.cs
+- [x] T114b [P] [US5] Write PdfViewerServiceTests for platform-specific rendering mocks in 5-Test/MotorcycleRAG.MobileApp.Tests/Services/PdfViewerServiceTests.cs
 
 **Checkpoint**: At this point, all user stories including post-MVP PDF viewing work fully
 
@@ -272,25 +272,25 @@ This is a .NET MAUI mobile app following Clean Architecture patterns adapted for
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T115 [P] Implement 100MB storage limit enforcement with auto-pruning oldest conversations in StorageService
-- [ ] T116 [P] Add storage usage display in ProfilePage showing current usage vs 100MB limit
-- [ ] T117 [P] Implement rate limit display showing plan (Free/Plus/Pro) and remaining daily requests in ProfilePage
-- [ ] T118 [P] Add rate limit error handling to display clear message when daily limit reached in ChatViewModel
-- [ ] T119 [P] Optimize CollectionView performance with virtualization and data template caching in ChatPage.xaml and ConversationListPage.xaml
-- [ ] T120 [P] Add platform-specific UI refinements for iOS (SF Pro font, swipe gestures, bottom padding) in Resources/Styles/Styles.xaml
-- [ ] T121 [P] Add platform-specific UI refinements for Android (Roboto font, Material Design FAB) in Resources/Styles/Styles.xaml
-- [ ] T122 [P] Add platform-specific UI refinements for Windows (Segoe UI font, Fluent Design) in Resources/Styles/Styles.xaml
-- [ ] T123 [P] Implement orientation change handling for portrait and landscape in all pages
-- [ ] T124 [P] Add structured logging with correlation IDs for all API calls in MotorcycleRagApiClient
-- [ ] T125 [P] Implement Application Insights SDK integration for mobile telemetry (optional) in MauiProgram.cs
-- [ ] T126 [P] Add crash reporting configuration (AppCenter or Firebase Crashlytics) in MauiProgram.cs
-- [ ] T127 [P] Create README.md with setup instructions and authentication configuration
-- [ ] T128 Validate quickstart.md steps by following setup instructions on clean machine
-- [ ] T129 [P] Code cleanup and refactoring for consistent naming and style
-- [ ] T130 [P] Verify 80% code coverage target for ViewModels and Services using coverage reports; performance testing for 60 FPS scrolling with 50+ messages in conversation
-- [ ] T131 [P] Security review: verify no secrets in appsettings.json templates, input sanitization for search queries (FTS5 injection prevention), HTTPS enforcement in HttpClient config, MSAL SecureStorage audit
-- [ ] T132 Run build with zero warnings policy enforcement
-- [ ] T133 Final validation of all user stories on iOS, Android, and Windows
+- [x] T115 [P] Implement 100MB storage limit enforcement with auto-pruning oldest conversations in StorageService
+- [x] T116 [P] Add storage usage display in ProfilePage showing current usage vs 100MB limit
+- [x] T117 [P] Implement rate limit display showing plan (Free/Plus/Pro) and remaining daily requests in ProfilePage
+- [x] T118 [P] Add rate limit error handling to display clear message when daily limit reached in ChatViewModel
+- [x] T119 [P] Optimize CollectionView performance with virtualization and data template caching in ChatPage.xaml and ConversationListPage.xaml
+- [x] T120 [P] Add platform-specific UI refinements for iOS (SF Pro font, swipe gestures, bottom padding) in Resources/Styles/Styles.xaml
+- [x] T121 [P] Add platform-specific UI refinements for Android (Roboto font, Material Design FAB) in Resources/Styles/Styles.xaml
+- [x] T122 [P] Add platform-specific UI refinements for Windows (Segoe UI font, Fluent Design) in Resources/Styles/Styles.xaml
+- [x] T123 [P] Implement orientation change handling for portrait and landscape in all pages
+- [x] T124 [P] Add structured logging with correlation IDs for all API calls in MotorcycleRagApiClient
+- [x] T125 [P] Implement Application Insights SDK integration for mobile telemetry (optional) in MauiProgram.cs
+- [x] T126 [P] Add crash reporting configuration (AppCenter or Firebase Crashlytics) in MauiProgram.cs
+- [x] T127 [P] Create README.md with setup instructions and authentication configuration
+- [x] T128 Validate quickstart.md steps by following setup instructions on clean machine
+- [x] T129 [P] Code cleanup and refactoring for consistent naming and style
+- [x] T130 [P] Verify 80% code coverage target for ViewModels and Services using coverage reports; performance testing for 60 FPS scrolling with 50+ messages in conversation
+- [x] T131 [P] Security review: verify no secrets in appsettings.json templates, input sanitization for search queries (FTS5 injection prevention), HTTPS enforcement in HttpClient config, MSAL SecureStorage audit
+- [x] T132 Run build with zero warnings policy enforcement
+- [x] T133 Final validation of all user stories on iOS, Android, and Windows
 
 ---
 

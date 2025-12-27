@@ -14,15 +14,18 @@ namespace MotorcycleRAG.MobileApp.Services
         private readonly IConversationRepository _conversationRepository;
         private readonly IMessageRepository _messageRepository;
         private readonly IApiClient _apiClient;
+        private readonly IUserMemoryService _userMemoryService;
 
         public ConversationService(
             IConversationRepository conversationRepository,
             IMessageRepository messageRepository,
-            IApiClient apiClient)
+            IApiClient apiClient,
+            IUserMemoryService userMemoryService)
         {
             _conversationRepository = conversationRepository;
             _messageRepository = messageRepository;
             _apiClient = apiClient;
+            _userMemoryService = userMemoryService;
         }
 
         public async Task<ConversationSession> CreateConversationAsync()
@@ -43,7 +46,7 @@ namespace MotorcycleRAG.MobileApp.Services
             return session;
         }
 
-        public async Task<ConversationSession> GetConversationAsync(Guid conversationId)
+        public async Task<ConversationSession?> GetConversationAsync(Guid conversationId)
         {
             var entity = await _conversationRepository.GetByIdAsync(conversationId.ToString());
             if (entity == null)
@@ -108,6 +111,13 @@ namespace MotorcycleRAG.MobileApp.Services
             }
 
             // 3. Call API
+            // Extract user memory from current message
+            await _userMemoryService.ExtractFromConversationAsync(conversationId.ToString(), messageText);
+
+            // Get active memories
+            var activeMemories = await _userMemoryService.GetActiveMemoriesAsync();
+            var memoryDict = activeMemories.ToDictionary(m => m.Category, m => (object)m.Value);
+
             // Get previous queries for context
             var previousMessages = await _messageRepository.GetByConversationIdAsync(conversationId.ToString());
             var previousQueries = previousMessages
@@ -123,7 +133,8 @@ namespace MotorcycleRAG.MobileApp.Services
                 Context = new QueryContext
                 {
                     SessionId = conversationId.ToString(),
-                    PreviousQueries = previousQueries
+                    PreviousQueries = previousQueries,
+                    UserMemory = memoryDict
                 }
             };
 

@@ -1,16 +1,24 @@
-﻿<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
 
     <OnPlatform x:Key="PagePadding"
-            x:TypeArguments="Thickness">
+                x:TypeArguments="Thickness">
         <On Platform="iOS"
-                Value="20,40,20,20"/>
+            Value="20,40,20,20"/>
         <On Platform="Android"
-                Value="20,20,20,20"/>
+            Value="20,20,20,20"/>
         <On Platform="WinUI"
-                Value="40,40,40,40"/>
+            Value="40,40,40,40"/>
+    </OnPlatform>
+
+    <OnPlatform x:Key="MainFontFamily"
+            x:TypeArguments="x:String">
+        <On Platform="Android"
+                Value="Roboto"/>
+        <On Platform="WinUI"
+                Value="Segoe UI"/>
     </OnPlatform>
 
     <Style TargetType="ActivityIndicator">
@@ -45,7 +53,7 @@
         <Setter Property="BackgroundColor"
                 Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="BorderWidth"
@@ -104,7 +112,7 @@
         <Setter Property="BackgroundColor"
                 Value="Transparent"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="MinimumHeightRequest"
@@ -132,7 +140,7 @@
         <Setter Property="BackgroundColor"
                 Value="Transparent"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="PlaceholderColor"
@@ -162,7 +170,7 @@
         <Setter Property="BackgroundColor"
                 Value="Transparent"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="PlaceholderColor"
@@ -221,7 +229,7 @@
         <Setter Property="BackgroundColor"
                 Value="Transparent"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="VisualStateManager.VisualStateGroups">
@@ -240,7 +248,7 @@
     </Style>
 
     <Style TargetType="Label"
-            x:Key="Headline">
+           x:Key="Headline">
         <Setter Property="TextColor"
                 Value="{AppThemeBinding Light={StaticResource MidnightBlue}, Dark={StaticResource White}}"/>
         <Setter Property="FontSize"
@@ -252,7 +260,7 @@
     </Style>
 
     <Style TargetType="Label"
-            x:Key="SubHeadline">
+           x:Key="SubHeadline">
         <Setter Property="TextColor"
                 Value="{AppThemeBinding Light={StaticResource MidnightBlue}, Dark={StaticResource White}}"/>
         <Setter Property="FontSize"
@@ -271,7 +279,7 @@
         <Setter Property="BackgroundColor"
                 Value="Transparent"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="MinimumHeightRequest"
@@ -319,7 +327,7 @@
         <Setter Property="TextColor"
                 Value="{AppThemeBinding Light={StaticResource Black}, Dark={StaticResource White}}"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="MinimumHeightRequest"
@@ -356,7 +364,7 @@
         <Setter Property="BackgroundColor"
                 Value="Transparent"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="MinimumHeightRequest"
@@ -388,7 +396,7 @@
         <Setter Property="BackgroundColor"
                 Value="Transparent"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="VisualStateManager.VisualStateGroups">
@@ -492,7 +500,7 @@
         <Setter Property="BackgroundColor"
                 Value="Transparent"/>
         <Setter Property="FontFamily"
-                Value="OpenSansRegular"/>
+                Value="{StaticResource MainFontFamily}"/>
         <Setter Property="FontSize"
                 Value="14"/>
         <Setter Property="MinimumHeightRequest"
@@ -539,7 +547,7 @@
     -->
 
     <Style TargetType="Page"
-            ApplyToDerivedTypes="True">
+           ApplyToDerivedTypes="True">
         <Setter Property="Padding"
                 Value="0"/>
         <Setter Property="BackgroundColor"
@@ -547,7 +555,7 @@
     </Style>
 
     <Style TargetType="Shell"
-            ApplyToDerivedTypes="True">
+           ApplyToDerivedTypes="True">
         <Setter Property="Shell.BackgroundColor"
                 Value="{AppThemeBinding Light={StaticResource White}, Dark={StaticResource OffBlack}}"/>
         <Setter Property="Shell.ForegroundColor"
@@ -588,6 +596,30 @@
                 Value="{AppThemeBinding Light={StaticResource Gray200}, Dark={StaticResource Gray950}}"/>
         <Setter Property="SelectedTabColor"
                 Value="{AppThemeBinding Light={StaticResource Gray950}, Dark={StaticResource Gray200}}"/>
+    </Style>
+
+    <Style x:Key="FabStyle"
+            TargetType="Button">
+        <Setter Property="CornerRadius"
+                Value="28"/>
+        <Setter Property="HeightRequest"
+                Value="56"/>
+        <Setter Property="WidthRequest"
+                Value="56"/>
+        <Setter Property="Padding"
+                Value="0"/>
+        <Setter Property="FontSize"
+                Value="24"/>
+        <Setter Property="Shadow">
+            <Shadow Brush="Black"
+                    Offset="2,2"
+                    Opacity="0.4"
+                    Radius="5"/>
+        </Setter>
+        <Setter Property="BackgroundColor"
+                Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}"/>
+        <Setter Property="TextColor"
+                Value="White"/>
     </Style>
 
 </ResourceDictionary>

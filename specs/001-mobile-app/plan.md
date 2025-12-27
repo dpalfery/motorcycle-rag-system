@@ -306,3 +306,121 @@ specs/001-mobile-app/
 |-----------|------------|-------------------------------------|
 | Mobile MVVM vs. Numbered Layers | .NET MAUI enforces MVVM pattern with platform-specific structure; mobile apps require different organization than backend services | Backend numbered layer structure (1-Presentation, 2-Application, etc.) is designed for web APIs and services, not cross-platform mobile apps. MAUI's platform folders (Android/, iOS/, Windows/) and MVVM structure are framework requirements. |
 | Observability without Health Checks | Mobile apps cannot expose HTTP health check endpoints; crash reporting and analytics provide equivalent visibility | Traditional health check endpoints (/health) don't apply to mobile client apps. Platform-specific crash analytics (AppCenter, Firebase) and Application Insights Mobile SDK provide appropriate mobile observability. |
+
+## Deployment & Configuration
+
+### Entra ID B2C App Registration
+
+**Automation Approach**: PowerShell script with Azure CLI for repeatable, secure configuration
+
+**Script Location**: `7-Deployment/scripts/setup-entra-b2c.ps1`
+
+**Purpose**: Automate creation and configuration of Microsoft Entra External ID / B2C app registration for mobile authentication
+
+**Key Features**:
+- **Idempotent**: Can be run multiple times without creating duplicates
+- **Multi-Environment**: Supports Dev, Staging, Prod via parameters
+- **Secure**: Client secrets stored directly in Azure Key Vault, never exposed
+- **Platform-Aware**: Configures redirect URIs for iOS, Android, Windows
+
+**Prerequisites**:
+1. Azure CLI installed and authenticated (`az login`)
+2. Required Entra permissions: Application Administrator or Cloud Application Administrator
+3. Azure Key Vault exists for secret storage
+4. B2C tenant configured with social identity providers (Google, Microsoft, GitHub, Facebook)
+
+**Script Parameters**:
+```powershell
+.\setup-entra-b2c.ps1 `
+    -TenantId "motorcyclerag.onmicrosoft.com" `
+    -Environment Dev `
+    -KeyVaultName "kv-motorcyclerag-dev"
+```
+
+**Redirect URI Configuration**:
+- **iOS**: `msauth.com.motorcyclerag.mobile://auth`
+- **Android**: `msauth://com.motorcyclerag.mobile/{signature_hash}`
+- **Windows**: `https://login.microsoftonline.com/common/oauth2/nativeclient`
+
+**Security Pattern**:
+```powershell
+# Generate client secret
+$clientSecret = az ad app credential reset --id $appId --query password -o tsv
+
+# Store in Key Vault immediately (never displayed or logged)
+az keyvault secret set `
+    --vault-name $KeyVaultName `
+    --name "EntraB2C-ClientSecret-$Environment" `
+    --value $clientSecret
+
+# Secret retrieval at runtime (MSAL configuration in MauiProgram.cs)
+var clientSecret = await SecureStorage.GetAsync("EntraB2C-ClientSecret");
+```
+
+**Configuration Output** (added to `appsettings.{Environment}.json`):
+```json
+{
+  "AzureAdB2C": {
+    "Instance": "https://motorcyclerag.b2clogin.com",
+    "Domain": "motorcyclerag.onmicrosoft.com",
+    "ClientId": "{generated-app-id}",
+    "SignUpSignInPolicyId": "B2C_1_SignUpSignIn",
+    "Scopes": [
+      "https://motorcyclerag.onmicrosoft.com/api/user_impersonation"
+    ]
+  }
+}
+```
+
+**Note**: Client secret is NOT included in appsettings.json - it's retrieved from device secure storage at runtime after initial configuration.
+
+### Mobile App Signing & Publishing
+
+**iOS**:
+- Requires Apple Developer account for App Store distribution
+- Code signing certificate and provisioning profile
+- App Store Connect configuration
+- Bundle identifier: `com.motorcyclerag.mobile`
+
+**Android**:
+- Requires Google Play Console account
+- Keystore file for signing (stored securely, NOT in source control)
+- Package name: `com.motorcyclerag.mobile`
+
+**Windows**:
+- Microsoft Store Partner Center account
+- Package identity name configured in Package.appxmanifest
+- Code signing certificate for Microsoft Store
+
+### Environment-Specific Configuration
+
+**Development**:
+- Local API: `https://localhost:7001` (API running locally)
+- Entra B2C Dev tenant
+- Client secret from Key Vault: `kv-motorcyclerag-dev`
+
+**Staging**:
+- Staging API: `https://api-staging.motorcyclerag.com`
+- Entra B2C Staging tenant
+- Client secret from Key Vault: `kv-motorcyclerag-staging`
+
+**Production**:
+- Production API: `https://api.motorcyclerag.com`
+- Entra B2C Production tenant
+- Client secret from Key Vault: `kv-motorcyclerag-prod`
+
+### Deployment Scripts
+
+```
+7-Deployment/
+└── scripts/
+    ├── setup-entra-b2c.ps1           # Entra app registration automation
+    ├── README-EntraB2C.md            # Detailed setup instructions
+    ├── validate-entra-b2c.ps1        # Configuration validation
+    └── build-and-sign.ps1            # Platform-specific build scripts (future)
+```
+
+**Alignment with Constitution**:
+- **Security (I)**: Secrets in Key Vault, never in source or console
+- **Process & Workflow (VII)**: PowerShell for Windows environment
+- **Deployment (7-Deployment)**: Infrastructure scripts in deployment layer

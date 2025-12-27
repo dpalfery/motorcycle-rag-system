@@ -12,6 +12,8 @@ public partial class AppShell : Shell
 		InitializeComponent();
 		_authService = authService;
 		Routing.RegisterRoute("ChatPage", typeof(ChatPage));
+		Routing.RegisterRoute("UserMemoryPage", typeof(UserMemoryPage));
+		Routing.RegisterRoute("PdfViewerPage", typeof(PdfViewerPage));
 	}
 
 	protected override async void OnAppearing()

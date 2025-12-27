@@ -10,6 +10,7 @@
     <ResizetizerIncludeFont>false</ResizetizerIncludeFont>
     <EnableMauiAssetProcessing>false</EnableMauiAssetProcessing>
     <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
+    <SkipResizetizer>true</SkipResizetizer>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -30,6 +31,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <MauiIcon Remove="**" />
+    <MauiSplashScreen Remove="**" />
+    <MauiImage Remove="**" />
+    <MauiAsset Remove="**" />
+    <MauiFont Remove="**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\1-Presentation\MotorcycleRAG.MobileApp\MotorcycleRAG.MobileApp.csproj" />
   </ItemGroup>
 
@@ -38,6 +47,8 @@
         <MauiIcon Remove="@(MauiIcon)" />
         <MauiSplashScreen Remove="@(MauiSplashScreen)" />
         <MauiImage Remove="@(MauiImage)" />
+        <MauiAsset Remove="@(MauiAsset)" />
+        <MauiFont Remove="@(MauiFont)" />
     </ItemGroup>
   </Target>
 

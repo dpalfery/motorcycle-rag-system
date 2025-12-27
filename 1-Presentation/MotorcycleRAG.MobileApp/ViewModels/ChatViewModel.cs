@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Maui.Networking;
+using MotorcycleRAG.MobileApp.Exceptions;
 using MotorcycleRAG.MobileApp.Models;
 using MotorcycleRAG.MobileApp.Services;
 
@@ -13,18 +14,39 @@ namespace MotorcycleRAG.MobileApp.ViewModels
     {
         private readonly IConversationService _conversationService;
 
-        [ObservableProperty]
         private Guid _conversationId;
+        public Guid ConversationId
+        {
+            get => _conversationId;
+            set => SetProperty(ref _conversationId, value);
+        }
 
-        [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(SendQuestionCommand))]
         private string _questionText = string.Empty;
+        public string QuestionText
+        {
+            get => _questionText;
+            set
+            {
+                if (SetProperty(ref _questionText, value))
+                {
+                    SendQuestionCommand.NotifyCanExecuteChanged();
+                }
+            }
+        }
 
-        [ObservableProperty]
         private bool _isSending;
+        public bool IsSending
+        {
+            get => _isSending;
+            set => SetProperty(ref _isSending, value);
+        }
 
-        [ObservableProperty]
-        private string _sessionId;
+        private string _sessionId = string.Empty;
+        public string SessionId
+        {
+            get => _sessionId;
+            set => SetProperty(ref _sessionId, value);
+        }
 
         public ObservableCollection<ChatMessage> Messages { get; } = new();
 
@@ -91,7 +113,7 @@ namespace MotorcycleRAG.MobileApp.ViewModels
             {
                 if (Shell.Current != null)
                 {
-                    await Shell.Current.DisplayAlert("Offline", "No internet connection. Please check your settings.", "OK");
+                    await Shell.Current.DisplayAlertAsync("Offline", "No internet connection. Please check your settings.", "OK");
                 }
                 return;
             }
@@ -131,13 +153,21 @@ namespace MotorcycleRAG.MobileApp.ViewModels
                 // Add assistant message
                 Messages.Add(responseMessage);
             }
+            catch (RateLimitException ex)
+            {
+                userMessage.Status = MessageStatus.Failed;
+                if (Shell.Current != null)
+                {
+                    await Shell.Current.DisplayAlertAsync("Limit Reached", $"You have reached your daily limit. Resets at {ex.ResetAt.ToLocalTime()}", "OK");
+                }
+            }
             catch (Exception ex)
             {
                 userMessage.Status = MessageStatus.Failed;
                 // Show error
                 if (Shell.Current != null)
                 {
-                    await Shell.Current.DisplayAlert("Error", $"Failed to send message: {ex.Message}", "OK");
+                    await Shell.Current.DisplayAlertAsync("Error", $"Failed to send message: {ex.Message}", "OK");
                 }
             }
             finally
@@ -162,15 +192,26 @@ namespace MotorcycleRAG.MobileApp.ViewModels
                 {
                     await Browser.Default.OpenAsync(citation.Url, BrowserLaunchMode.SystemPreferred);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    await Shell.Current.DisplayAlert("Error", "Could not open link.", "OK");
+                    await Shell.Current.DisplayAlertAsync("Error", "Could not open link.", "OK");
                 }
             }
             else if (citation.Type == SourceType.PdfManual)
             {
-                // PDF Viewer (US5) - for now show alert
-                await Shell.Current.DisplayAlert("PDF Citation", $"Page {citation.PageNumber} of {citation.Title}", "OK");
+                if (!string.IsNullOrEmpty(citation.Url))
+                {
+                    var navigationParameter = new Dictionary<string, object>
+                    {
+                        { "url", citation.Url! },
+                        { "page", citation.PageNumber }
+                    };
+                    await Shell.Current.GoToAsync("PdfViewerPage", navigationParameter);
+                }
+                else
+                {
+                    await Shell.Current.DisplayAlertAsync("PDF Citation", $"Page {citation.PageNumber} of {citation.Title} (URL missing)", "OK");
+                }
             }
         }
     }

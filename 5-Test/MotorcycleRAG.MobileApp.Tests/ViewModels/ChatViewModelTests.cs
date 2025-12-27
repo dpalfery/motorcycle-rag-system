@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
+using MotorcycleRAG.MobileApp.Exceptions;
 using MotorcycleRAG.MobileApp.Models;
 using MotorcycleRAG.MobileApp.Services;
 using MotorcycleRAG.MobileApp.ViewModels;
@@ -123,6 +124,28 @@ namespace MotorcycleRAG.MobileApp.Tests.ViewModels
             _viewModel.ConversationId.Should().Be(Guid.Empty);
             _viewModel.SessionId.Should().BeEmpty();
             _viewModel.Messages.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task SendQuestionCommand_ShouldHandleRateLimitException()
+        {
+            // Arrange
+            var question = "What is the top speed?";
+            var conversationId = Guid.NewGuid();
+
+            _viewModel.ConversationId = conversationId;
+            _viewModel.QuestionText = question;
+
+            _mockConversationService.Setup(s => s.SendMessageAsync(conversationId, question))
+                .ThrowsAsync(new RateLimitException("Limit reached", DateTime.UtcNow.AddMinutes(1)));
+
+            // Act
+            await _viewModel.SendQuestionCommand.ExecuteAsync(null);
+
+            // Assert
+            _viewModel.Messages.Should().HaveCount(1);
+            _viewModel.Messages[0].Status.Should().Be(MessageStatus.Failed);
+            _viewModel.IsSending.Should().BeFalse();
         }
     }
 }

@@ -16,6 +16,7 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
         private readonly Mock<IConversationRepository> _mockConversationRepository;
         private readonly Mock<IMessageRepository> _mockMessageRepository;
         private readonly Mock<IApiClient> _mockApiClient;
+        private readonly Mock<IUserMemoryService> _mockUserMemoryService;
         private readonly ConversationService _service;
 
         public ConversationServiceTests()
@@ -23,11 +24,17 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
             _mockConversationRepository = new Mock<IConversationRepository>();
             _mockMessageRepository = new Mock<IMessageRepository>();
             _mockApiClient = new Mock<IApiClient>();
+            _mockUserMemoryService = new Mock<IUserMemoryService>();
+
+            // Default setup for UserMemoryService to return empty list
+            _mockUserMemoryService.Setup(s => s.GetActiveMemoriesAsync())
+                .ReturnsAsync(new List<UserMemory>());
 
             _service = new ConversationService(
                 _mockConversationRepository.Object,
                 _mockMessageRepository.Object,
-                _mockApiClient.Object);
+                _mockApiClient.Object,
+                _mockUserMemoryService.Object);
         }
 
         [Fact]
@@ -115,6 +122,41 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
                 req.Context.PreviousQueries.Count == 2 &&
                 req.Context.PreviousQueries[0] == "First question" &&
                 req.Context.PreviousQueries[1] == "Second question"
+            )), Times.Once);
+        }
+
+        [Fact]
+        public async Task SendMessageAsync_ShouldIncludeUserMemory_InContext()
+        {
+            // Arrange
+            var conversationId = Guid.NewGuid();
+            var messageText = "Question";
+            var memories = new List<UserMemory>
+            {
+                new UserMemory { Category = "motorcycles_owned", Value = "Yamaha R1" },
+                new UserMemory { Category = "riding_style", Value = "Sport" }
+            };
+
+            _mockUserMemoryService.Setup(s => s.GetActiveMemoriesAsync())
+                .ReturnsAsync(memories);
+
+            _mockMessageRepository.Setup(r => r.GetByConversationIdAsync(conversationId.ToString()))
+                .ReturnsAsync(new List<MessageEntity>());
+
+            _mockApiClient.Setup(c => c.QueryAsync(It.IsAny<QueryRequest>()))
+                .ReturnsAsync(new QueryResponse { Response = "Answer" });
+
+            // Act
+            await _service.SendMessageAsync(conversationId, messageText);
+
+            // Assert
+            _mockApiClient.Verify(c => c.QueryAsync(It.Is<QueryRequest>(req =>
+                req.Context != null &&
+                req.Context.UserMemory != null &&
+                req.Context.UserMemory.ContainsKey("motorcycles_owned") &&
+                req.Context.UserMemory["motorcycles_owned"].ToString() == "Yamaha R1" &&
+                req.Context.UserMemory.ContainsKey("riding_style") &&
+                req.Context.UserMemory["riding_style"].ToString() == "Sport"
             )), Times.Once);
         }
     }

@@ -53,7 +53,13 @@ public static class MauiProgram
         builder.Services.AddHttpClient<IApiClient, MotorcycleRagApiClient>();
         builder.Services.AddSingleton<IAuthenticationService, AuthenticationService>();
         builder.Services.AddSingleton<IConversationService, ConversationService>();
-        // IStorageService implementation to be added in next phases
+        builder.Services.AddSingleton<IUserMemoryService, UserMemoryService>();
+        builder.Services.AddSingleton<IStorageService, StorageService>();
+
+        // PDF Services
+        builder.Services.AddTransient<IPdfRenderer, PdfRenderer>();
+        builder.Services.AddSingleton<IPdfViewerService, PdfViewerService>();
+        builder.Services.AddSingleton<IImageSourceFactory, ImageSourceFactory>();
 
         // Views & ViewModels
         builder.Services.AddTransient<AuthenticationPage>();
@@ -62,6 +68,10 @@ public static class MauiProgram
         builder.Services.AddTransient<ChatViewModel>();
         builder.Services.AddTransient<ConversationListPage>();
         builder.Services.AddTransient<ConversationListViewModel>();
+        builder.Services.AddTransient<UserMemoryPage>();
+        builder.Services.AddTransient<UserMemoryViewModel>();
+        builder.Services.AddTransient<PdfViewerPage>();
+        builder.Services.AddTransient<PdfViewerViewModel>();
 
         // AppShell
         builder.Services.AddSingleton<AppShell>();

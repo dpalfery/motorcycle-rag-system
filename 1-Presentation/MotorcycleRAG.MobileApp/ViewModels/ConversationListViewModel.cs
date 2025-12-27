@@ -11,7 +11,7 @@ namespace MotorcycleRAG.MobileApp.ViewModels;
 public partial class ConversationListViewModel : ObservableObject
 {
     private readonly IConversationRepository _conversationRepository;
-    private CancellationTokenSource _searchCts;
+    private CancellationTokenSource? _searchCts;
 
     public ConversationListViewModel(IConversationRepository conversationRepository)
     {
@@ -97,6 +97,15 @@ public partial class ConversationListViewModel : ObservableObject
         if (Shell.Current != null)
         {
             await Shell.Current.GoToAsync($"ChatPage?conversationId={conversation.Id}");
+        }
+    }
+
+    [RelayCommand]
+    public async Task GoToProfileAsync()
+    {
+        if (Shell.Current != null)
+        {
+            await Shell.Current.GoToAsync("UserMemoryPage");
         }
     }
 }

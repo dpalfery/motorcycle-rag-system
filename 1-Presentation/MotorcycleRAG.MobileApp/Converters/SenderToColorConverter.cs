@@ -10,7 +10,7 @@ namespace MotorcycleRAG.MobileApp.Converters
         public Color UserColor { get; set; } = Colors.LightBlue;
         public Color SystemColor { get; set; } = Colors.LightGray;
 
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             if (value is MessageSender sender)
             {
@@ -19,7 +19,7 @@ namespace MotorcycleRAG.MobileApp.Converters
             return SystemColor;
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             throw new NotImplementedException();
         }

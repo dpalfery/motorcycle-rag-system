@@ -8,8 +8,11 @@
              x:DataType="vm:ConversationListViewModel">
 
     <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Profile"
+                     Command="{Binding GoToProfileCommand}"
+                     Order="Secondary"/>
         <ToolbarItem Text="+"
-                Command="{Binding NewConversationCommand}"/>
+                     Command="{Binding NewConversationCommand}"/>
     </ContentPage.ToolbarItems>
 
     <Grid RowDefinitions="Auto,*">
@@ -20,7 +23,8 @@
 
         <CollectionView Grid.Row="1"
                         ItemsSource="{Binding Conversations}"
-                        SelectionMode="None">
+                        SelectionMode="None"
+                        ItemSizingStrategy="MeasureFirstItem">
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="models:ConversationEntity">
                     <SwipeView>
@@ -39,16 +43,25 @@
                             </Grid.GestureRecognizers>
                             <VerticalStackLayout>
                                 <Label Text="{Binding Title}"
-                                        FontAttributes="Bold"
-                                        FontSize="16"/>
+                                       FontAttributes="Bold"
+                                       FontSize="16"/>
                                 <Label Text="{Binding UpdatedAt}"
-                                        FontSize="12"
-                                        TextColor="Gray"/>
+                                       FontSize="12"
+                                       TextColor="Gray"/>
                             </VerticalStackLayout>
                         </Grid>
                     </SwipeView>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
+
+        <Button Grid.Row="1"
+                Text="+"
+                Style="{StaticResource FabStyle}"
+                Command="{Binding NewConversationCommand}"
+                HorizontalOptions="End"
+                VerticalOptions="End"
+                Margin="16"
+                IsVisible="{OnPlatform Android=True, Default=False}"/>
     </Grid>
 </ContentPage>

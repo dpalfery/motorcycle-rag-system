@@ -6,4 +6,5 @@ namespace MotorcycleRAG.MobileApp.Services;
 public interface IApiClient
 {
     Task<QueryResponse> QueryAsync(QueryRequest request);
+    Task<UserProfile> GetUserProfileAsync();
 }

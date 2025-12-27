@@ -13,14 +13,26 @@ namespace MotorcycleRAG.MobileApp.ViewModels
         private readonly IPdfViewerService _pdfService;
         private readonly IImageSourceFactory _imageSourceFactory;
 
-        [ObservableProperty]
         private ImageSource? _pageImage;
+        public ImageSource? PageImage
+        {
+            get => _pageImage;
+            set => SetProperty(ref _pageImage, value);
+        }
 
-        [ObservableProperty]
         private bool _isBusy;
+        public bool IsBusy
+        {
+            get => _isBusy;
+            set => SetProperty(ref _isBusy, value);
+        }
 
-        [ObservableProperty]
         private string _title = string.Empty;
+        public string Title
+        {
+            get => _title;
+            set => SetProperty(ref _title, value);
+        }
 
         public PdfViewerViewModel(IPdfViewerService pdfService, IImageSourceFactory imageSourceFactory)
         {

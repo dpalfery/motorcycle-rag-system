@@ -14,23 +14,47 @@ namespace MotorcycleRAG.MobileApp.ViewModels
 
         public ObservableCollection<UserMemory> Memories { get; } = new();
 
-        [ObservableProperty]
         private bool _isBusy;
+        public bool IsBusy
+        {
+            get => _isBusy;
+            set => SetProperty(ref _isBusy, value);
+        }
 
-        [ObservableProperty]
         private double _storageUsageMB;
+        public double StorageUsageMB
+        {
+            get => _storageUsageMB;
+            set => SetProperty(ref _storageUsageMB, value);
+        }
 
-        [ObservableProperty]
         private double _storageLimitMB = 100.0;
+        public double StorageLimitMB
+        {
+            get => _storageLimitMB;
+            set => SetProperty(ref _storageLimitMB, value);
+        }
 
-        [ObservableProperty]
         private double _storageUsagePercent;
+        public double StorageUsagePercent
+        {
+            get => _storageUsagePercent;
+            set => SetProperty(ref _storageUsagePercent, value);
+        }
 
-        [ObservableProperty]
         private UserProfile _userProfile = new();
+        public UserProfile UserProfile
+        {
+            get => _userProfile;
+            set => SetProperty(ref _userProfile, value);
+        }
 
-        [ObservableProperty]
         private double _dailyUsagePercent;
+        public double DailyUsagePercent
+        {
+            get => _dailyUsagePercent;
+            set => SetProperty(ref _dailyUsagePercent, value);
+        }
 
         public UserMemoryViewModel(IUserMemoryService userMemoryService, IStorageService storageService, IApiClient apiClient)
         {

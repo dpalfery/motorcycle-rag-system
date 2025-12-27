@@ -201,11 +201,12 @@ namespace MotorcycleRAG.MobileApp.ViewModels
             {
                 if (!string.IsNullOrEmpty(citation.Url))
                 {
-                    var navigationParameter = new Dictionary<string, object>
-                    {
-                        { "url", citation.Url! },
-                        { "page", citation.PageNumber }
-                    };
+#pragma warning disable CS8601 // Possible null reference assignment.
+                    var navigationParameter = new Dictionary<string, object>();
+                    navigationParameter["url"] = citation.Url ?? string.Empty;
+                    navigationParameter["page"] = citation.PageNumber;
+#pragma warning restore CS8601 // Possible null reference assignment.
+
                     await Shell.Current.GoToAsync("PdfViewerPage", navigationParameter);
                 }
                 else

@@ -9,11 +9,19 @@ public partial class AuthenticationViewModel : ObservableObject
 {
     private readonly IAuthenticationService _authenticationService;
 
-    [ObservableProperty]
     private bool _isAuthenticated;
+    public bool IsAuthenticated
+    {
+        get => _isAuthenticated;
+        set => SetProperty(ref _isAuthenticated, value);
+    }
 
-    [ObservableProperty]
     private bool _isBusy;
+    public bool IsBusy
+    {
+        get => _isBusy;
+        set => SetProperty(ref _isBusy, value);
+    }
 
     public AuthenticationViewModel(IAuthenticationService authenticationService)
     {

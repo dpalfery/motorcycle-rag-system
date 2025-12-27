@@ -27,13 +27,13 @@ namespace MotorcycleRAG.MobileApp.Services
                 using var page = pdfRenderer.OpenPage(index);
 
                 // Create bitmap
-                var bitmap = Bitmap.CreateBitmap(page.Width, page.Height, Bitmap.Config.Argb8888);
+                var bitmap = Bitmap.CreateBitmap(page.Width, page.Height, Bitmap.Config.Argb8888!);
 
                 // Render to bitmap
                 page.Render(bitmap, null, null, PdfRenderMode.ForDisplay);
 
                 var stream = new MemoryStream();
-                bitmap.Compress(Bitmap.CompressFormat.Png, 100, stream);
+                bitmap.Compress(Bitmap.CompressFormat.Png!, 100, stream);
                 stream.Position = 0;
 
                 return stream;

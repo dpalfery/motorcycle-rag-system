@@ -16,16 +16,29 @@ public partial class ConversationListViewModel : ObservableObject
     public ConversationListViewModel(IConversationRepository conversationRepository)
     {
         _conversationRepository = conversationRepository;
-        Conversations = new ObservableCollection<ConversationEntity>();
     }
 
-    [ObservableProperty]
-    private ObservableCollection<ConversationEntity> _conversations;
+    private ObservableCollection<ConversationEntity> _conversations = new();
+    public ObservableCollection<ConversationEntity> Conversations
+    {
+        get => _conversations;
+        set => SetProperty(ref _conversations, value);
+    }
 
-    [ObservableProperty]
     private string _searchQuery = string.Empty;
+    public string SearchQuery
+    {
+        get => _searchQuery;
+        set
+        {
+            if (SetProperty(ref _searchQuery, value))
+            {
+                OnSearchQueryChanged(value);
+            }
+        }
+    }
 
-    partial void OnSearchQueryChanged(string value)
+    private void OnSearchQueryChanged(string value)
     {
         _searchCts?.Cancel();
         _searchCts = new CancellationTokenSource();

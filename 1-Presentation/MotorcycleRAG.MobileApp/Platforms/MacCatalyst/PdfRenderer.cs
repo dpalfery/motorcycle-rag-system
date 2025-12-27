@@ -38,7 +38,8 @@ namespace MotorcycleRAG.MobileApp.Services
                     page.Draw(PdfDisplayBox.Media, context.CGContext);
                 });
 
-                return image.AsPNG().AsStream();
+                var pngData = image.AsPNG();
+                return pngData?.AsStream();
             });
         }
     }

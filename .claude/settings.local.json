@@ -7,7 +7,8 @@
       "Bash(dotnet list:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File \".specify/scripts/powershell/setup-plan.ps1\" -Json)",
       "Bash(New-Item -Path \"C:\\\\git\\\\motorcycle-rag-system\\\\specs\\\\001-system-spec\\\\data-model.md\" -ItemType File -Force)",
-      "Bash(Out-Null)"
+      "Bash(Out-Null)",
+      "Bash(powershell -ExecutionPolicy Bypass -File:*)"
     ],
     "deny": []
   },

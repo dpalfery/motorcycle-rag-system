@@ -45,10 +45,10 @@ builder.Services.AddAuthentication(options =>
 })
 .AddOpenIdConnect(options =>
 {
-    var authConfig = builder.Configuration.GetSection("Authentication");
-    options.Authority = authConfig["Authority"];
+    var authConfig = builder.Configuration.GetSection("AzureAd");
+    options.Authority = $"{authConfig["Instance"]}{authConfig["TenantId"]}";
     options.ClientId = authConfig["ClientId"];
-    options.ClientSecret = authConfig["ClientSecret"];
+    options.ClientSecret = Environment.GetEnvironmentVariable("B2C_CLIENT_SECRET") ?? string.Empty;
     options.ResponseType = "code";
     options.SaveTokens = true;
     options.Scope.Add("openid");

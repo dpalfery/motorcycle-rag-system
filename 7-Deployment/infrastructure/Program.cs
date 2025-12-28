@@ -15,6 +15,9 @@ using Pulumi.AzureNative.ContainerRegistry;
 using Pulumi.AzureNative.ContainerRegistry.Inputs;
 using System.Linq;
 
+// Add this explicit using for App.Inputs to resolve ambiguity:
+using ManagedServiceIdentityArgs = Pulumi.AzureNative.App.Inputs.ManagedServiceIdentityArgs;
+
 return await Pulumi.Deployment.RunAsync<MyStack>();
 
 public class MyStack : Stack
@@ -41,6 +44,7 @@ public class MyStack : Stack
         });
 
         // 2. Storage Account for AI services
+        // Fix ambiguous reference for 'Kind' and 'MinimumTlsVersion' by fully qualifying with Pulumi.AzureNative.Storage
         var storageAccount = new StorageAccount($"{org}{workload}{env}st01", new Pulumi.AzureNative.Storage.StorageAccountArgs
         {
             ResourceGroupName = resourceGroup.Name,
@@ -49,9 +53,9 @@ public class MyStack : Stack
             {
                 Name = Pulumi.AzureNative.Storage.SkuName.Standard_LRS
             },
-            Kind = Kind.StorageV2,
+            Kind = Pulumi.AzureNative.Storage.Kind.StorageV2,
             AllowBlobPublicAccess = false,
-            MinimumTlsVersion = MinimumTlsVersion.TLS1_2
+            MinimumTlsVersion = Pulumi.AzureNative.Storage.MinimumTlsVersion.TLS1_2
         });
 
         // 3. Key Vault

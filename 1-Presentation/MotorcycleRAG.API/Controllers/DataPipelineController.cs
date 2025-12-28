@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Models;
@@ -11,6 +12,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize(Policy = "DataAdmin")] // Require DataAdmin role for all pipeline operations
 public class DataPipelineController : ControllerBase
 {
     private readonly IDataPipelineOrchestrator _orchestrator;

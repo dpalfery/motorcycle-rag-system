@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Models;
 using System.Net.Mime;
+using System.Diagnostics;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -10,14 +12,26 @@ namespace MotorcycleRAG.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/motorcycles")]
+[Authorize] // Default authorization for all endpoints
 public sealed class MotorcycleController : ControllerBase
 {
     private readonly IMotorcycleRAGService _ragService;
+    private readonly ICurrentUserService _currentUserService;
+    private readonly IPlanPolicyService _planPolicyService;
+    private readonly IUsageTrackingService _usageTrackingService;
     private readonly ILogger<MotorcycleController> _logger;
 
-    public MotorcycleController(IMotorcycleRAGService ragService, ILogger<MotorcycleController> logger)
+    public MotorcycleController(
+        IMotorcycleRAGService ragService,
+        ICurrentUserService currentUserService,
+        IPlanPolicyService planPolicyService,
+        IUsageTrackingService usageTrackingService,
+        ILogger<MotorcycleController> logger)
     {
         _ragService = ragService ?? throw new ArgumentNullException(nameof(ragService));
+        _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
+        _planPolicyService = planPolicyService ?? throw new ArgumentNullException(nameof(planPolicyService));
+        _usageTrackingService = usageTrackingService ?? throw new ArgumentNullException(nameof(usageTrackingService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -36,29 +50,88 @@ public sealed class MotorcycleController : ControllerBase
     {
         // The [ApiController] attribute automatically validates the model state and returns 400 if invalid.
         
+        // Get current user
+        var userId = _currentUserService.UserId;
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("Query attempt without authenticated user");
+            return Unauthorized(new { error = "Authentication required" });
+        }
+
+        // Check daily request limit
+        var hasExceededLimit = await _planPolicyService.HasExceededDailyLimitAsync(userId);
+        if (hasExceededLimit)
+        {
+            var remaining = await _planPolicyService.GetRemainingDailyRequestsAsync(userId);
+            _logger.LogWarning("User {UserId} exceeded daily limit", userId);
+            return StatusCode(StatusCodes.Status429TooManyRequests, new
+            {
+                error = "Daily request limit exceeded",
+                remainingRequests = remaining,
+                resetTime = DateTime.UtcNow.Date.AddDays(1)
+            });
+        }
+
         // Additional business validation
         var validationResult = ValidateQueryRequest(request);
         if (!validationResult.IsValid)
         {
-            _logger.LogWarning("Query validation failed: {Errors}", string.Join(", ", validationResult.Errors));
+            _logger.LogWarning("Query validation failed for user {UserId}: {Errors}", userId, string.Join(", ", validationResult.Errors));
             return BadRequest(new { errors = validationResult.Errors });
         }
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             var response = await _ragService.QueryAsync(request);
+            stopwatch.Stop();
+
+            // Record successful usage
+            await _usageTrackingService.RecordSuccessAsync(
+                userId: userId,
+                endpoint: "/api/motorcycles/query",
+                httpMethod: "POST",
+                queryId: response.QueryId,
+                durationMs: stopwatch.ElapsedMilliseconds,
+                callerIp: HttpContext.Connection.RemoteIpAddress?.ToString(),
+                userAgent: Request.Headers["User-Agent"].ToString());
+
             return Ok(response);
         }
         catch (ArgumentException ex)
         {
             // Expected validation / domain errors → 400 Bad Request
-            _logger.LogWarning(ex, "Validation error processing motorcycle query");
+            stopwatch.Stop();
+            _logger.LogWarning(ex, "Validation error processing motorcycle query for user {UserId}", userId);
+            
+            // Record failed usage
+            await _usageTrackingService.RecordFailureAsync(
+                userId: userId,
+                endpoint: "/api/motorcycles/query",
+                httpMethod: "POST",
+                statusCode: StatusCodes.Status400BadRequest,
+                durationMs: stopwatch.ElapsedMilliseconds,
+                callerIp: HttpContext.Connection.RemoteIpAddress?.ToString(),
+                userAgent: Request.Headers["User-Agent"].ToString());
+
             return BadRequest(new { error = ex.Message });
         }
         catch (Exception ex)
         {
             // Unexpected failure → 500 Internal Server Error
-            _logger.LogError(ex, "Unhandled exception processing motorcycle query");
+            stopwatch.Stop();
+            _logger.LogError(ex, "Unhandled exception processing motorcycle query for user {UserId}", userId);
+            
+            // Record failed usage
+            await _usageTrackingService.RecordFailureAsync(
+                userId: userId,
+                endpoint: "/api/motorcycles/query",
+                httpMethod: "POST",
+                statusCode: StatusCodes.Status500InternalServerError,
+                durationMs: stopwatch.ElapsedMilliseconds,
+                callerIp: HttpContext.Connection.RemoteIpAddress?.ToString(),
+                userAgent: Request.Headers["User-Agent"].ToString());
+
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An unexpected error occurred." });
         }
     }

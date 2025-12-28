@@ -79,8 +79,8 @@ $PackageName = "com.motorcyclerag.mobile"
 
 # Redirect URIs for each platform
 $RedirectUris = @(
-    "msauth.$BundleId://auth",  # iOS
-    "msauth://$PackageName/",    # Android (placeholder - actual signature hash needed)
+    "msauth.$($BundleId)://auth",  # iOS
+    "msauth://$($PackageName)/",    # Android (placeholder - actual signature hash needed)
     "https://login.microsoftonline.com/common/oauth2/nativeclient"  # Windows
 )
 
@@ -107,28 +107,30 @@ function Write-ColorOutput {
 
 function Test-AzureCliInstalled {
     try {
-        $azVersion = az version --query '"azure-cli"' -o tsv 2>$null
-        if ($azVersion) {
-            Write-ColorOutput "✓ Azure CLI version $azVersion detected" -Color Green
-            return $true
-        }
+        $null = Get-Command az -ErrorAction Stop
+        $azVersion = (az version 2>$null | ConvertFrom-Json).'azure-cli'
+        Write-ColorOutput "[OK] Azure CLI version $azVersion detected" -Color Green
+        return $true
     }
     catch {
-        Write-ColorOutput "✗ Azure CLI not found. Please install: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli" -Color Red
+        Write-ColorOutput "[ERROR] Azure CLI not found. Please install: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli" -Color Red
         return $false
     }
 }
 
 function Test-AzureCliAuthenticated {
     try {
-        $account = az account show --query "user.name" -o tsv 2>$null
-        if ($account) {
-            Write-ColorOutput "✓ Authenticated as: $account" -Color Green
+        $account = az account show --query "user.name" -o tsv 2>&1
+        if ($LASTEXITCODE -eq 0 -and $account) {
+            Write-ColorOutput "[OK] Authenticated as: $account" -Color Green
             return $true
+        } else {
+            Write-ColorOutput "[ERROR] Not authenticated to Azure. Run 'az login'" -Color Red
+            return $false
         }
     }
     catch {
-        Write-ColorOutput "✗ Not authenticated to Azure. Run 'az login'" -Color Red
+        Write-ColorOutput "[ERROR] Not authenticated to Azure. Run 'az login'" -Color Red
         return $false
     }
 }
@@ -139,12 +141,12 @@ function Test-KeyVaultExists {
     try {
         $vault = az keyvault show --name $VaultName --query "name" -o tsv 2>$null
         if ($vault) {
-            Write-ColorOutput "✓ Key Vault '$VaultName' found" -Color Green
+            Write-ColorOutput "[OK] Key Vault '$VaultName' found" -Color Green
             return $true
         }
     }
     catch {
-        Write-ColorOutput "✗ Key Vault '$VaultName' not found or inaccessible" -Color Red
+        Write-ColorOutput "[ERROR] Key Vault '$VaultName' not found or inaccessible" -Color Red
         return $false
     }
 }
@@ -200,20 +202,20 @@ Write-ColorOutput "`nStep 2: Checking for existing app registration..." -Color Y
 $existingAppId = Get-ExistingAppRegistration -DisplayName "$AppDisplayName ($Environment)" -Tenant $TenantId
 
 if ($existingAppId) {
-    Write-ColorOutput "✓ Found existing app registration: $existingAppId" -Color Green
+    Write-ColorOutput "[OK] Found existing app registration: $existingAppId" -Color Green
 
     if ($Force) {
-        Write-ColorOutput "⚠ Force flag set - recreating app registration..." -Color Yellow
+        Write-ColorOutput "[WARNING] Force flag set - recreating app registration..." -Color Yellow
         az ad app delete --id $existingAppId
-        Write-ColorOutput "✓ Deleted existing app registration" -Color Green
+        Write-ColorOutput "[OK] Deleted existing app registration" -Color Green
         $existingAppId = $null
     }
     else {
-        Write-ColorOutput "ℹ Using existing app registration (use -Force to recreate)" -Color Cyan
+        Write-ColorOutput "[INFO] Using existing app registration (use -Force to recreate)" -Color Cyan
     }
 }
 else {
-    Write-ColorOutput "ℹ No existing app registration found - will create new" -Color Cyan
+    Write-ColorOutput "[INFO] No existing app registration found - will create new" -Color Cyan
 }
 
 # Step 3: Create or update app registration
@@ -228,30 +230,50 @@ if (-not $existingAppId) {
         -o tsv
 
     if ($LASTEXITCODE -ne 0) {
-        Write-ColorOutput "✗ Failed to create app registration" -Color Red
+        Write-ColorOutput "[ERROR] Failed to create app registration" -Color Red
         exit 1
     }
 
-    Write-ColorOutput "✓ Created app registration: $appId" -Color Green
+    Write-ColorOutput "[OK] Created app registration: $appId" -Color Green
 }
 else {
     $appId = $existingAppId
 }
 
-# Step 4: Configure redirect URIs
+# Step 4: Configure redirect URIs and enable public client
 Write-ColorOutput "`nStep 4: Configuring redirect URIs..." -Color Yellow
 
-$redirectUriJson = $RedirectUris | ConvertTo-Json -Compress
-az ad app update --id $appId --public-client-redirect-uris $redirectUriJson
+# Build the JSON payload for Microsoft Graph API
+$payloadPath = Join-Path $env:TEMP "app-update-payload.json"
+$payload = @{
+    publicClient = @{
+        redirectUris = $RedirectUris
+    }
+    isFallbackPublicClient = $true
+} | ConvertTo-Json -Depth 10
+
+$payload | Out-File -FilePath $payloadPath -Encoding UTF8
+
+# Get the object ID of the application
+$objectId = az ad app show --id $appId --query "id" -o tsv
+
+# Update the app using Microsoft Graph API
+az rest --method PATCH `
+    --uri "https://graph.microsoft.com/v1.0/applications/$objectId" `
+    --headers "Content-Type=application/json" `
+    --body "@$payloadPath" 2>&1 | Out-Null
+
+# Clean up temporary file
+Remove-Item -Path $payloadPath -ErrorAction SilentlyContinue
 
 if ($LASTEXITCODE -eq 0) {
-    Write-ColorOutput "✓ Configured redirect URIs:" -Color Green
+    Write-ColorOutput "[OK] Configured redirect URIs:" -Color Green
     foreach ($uri in $RedirectUris) {
         Write-ColorOutput "    - $uri" -Color Gray
     }
 }
 else {
-    Write-ColorOutput "✗ Failed to configure redirect URIs" -Color Red
+    Write-ColorOutput "[ERROR] Failed to configure redirect URIs" -Color Red
     exit 1
 }
 
@@ -262,11 +284,11 @@ $secretName = "EntraB2C-ClientSecret-$Environment-$(Get-Date -Format 'yyyyMMdd')
 $clientSecret = az ad app credential reset --id $appId --append --display-name $secretName --query "password" -o tsv
 
 if ($LASTEXITCODE -ne 0) {
-    Write-ColorOutput "✗ Failed to generate client secret" -Color Red
+    Write-ColorOutput "[ERROR] Failed to generate client secret" -Color Red
     exit 1
 }
 
-Write-ColorOutput "✓ Generated client secret (expires in 2 years)" -Color Green
+Write-ColorOutput "[OK] Generated client secret (expires in 2 years)" -Color Green
 
 # Step 6: Store secret in Key Vault
 Write-ColorOutput "`nStep 6: Storing client secret in Key Vault..." -Color Yellow
@@ -279,11 +301,11 @@ az keyvault secret set `
     --output none
 
 if ($LASTEXITCODE -eq 0) {
-    Write-ColorOutput "✓ Client secret stored in Key Vault as '$kvSecretName'" -Color Green
-    Write-ColorOutput "  ⚠ Secret is NEVER displayed - retrieve from Key Vault when needed" -Color Yellow
+    Write-ColorOutput "[OK] Client secret stored in Key Vault as '$kvSecretName'" -Color Green
+    Write-ColorOutput "  [WARNING] Secret is NEVER displayed - retrieve from Key Vault when needed" -Color Yellow
 }
 else {
-    Write-ColorOutput "✗ Failed to store secret in Key Vault" -Color Red
+    Write-ColorOutput "[ERROR] Failed to store secret in Key Vault" -Color Red
     exit 1
 }
 
@@ -299,7 +321,7 @@ Write-ColorOutput "  Environment:        $Environment" -Color White
 Write-ColorOutput ""
 
 Write-ColorOutput "Add to appsettings.$Environment.json:" -Color Yellow
-Write-ColorOutput @"
+$configJson = @"
 {
   "AzureAdB2C": {
     "Instance": "https://$($TenantId.Split('.')[0]).b2clogin.com",
@@ -311,12 +333,13 @@ Write-ColorOutput @"
     ]
   }
 }
-"@ -Color White
+"@
+Write-ColorOutput $configJson -Color White
 
 Write-ColorOutput "`nClient Secret Storage:" -Color Yellow
 Write-ColorOutput "  Key Vault:    $KeyVaultName" -Color White
 Write-ColorOutput "  Secret Name:  $kvSecretName" -Color White
-Write-ColorOutput "  ⚠ Retrieve secret at runtime using MSAL SecureStorage" -Color Yellow
+Write-ColorOutput "  [WARNING] Retrieve secret at runtime using MSAL SecureStorage" -Color Yellow
 
 Write-ColorOutput "`nNext Steps:" -Color Yellow
 Write-ColorOutput "  1. Update appsettings.$Environment.json with configuration above" -Color White
@@ -324,6 +347,6 @@ Write-ColorOutput "  2. For Android: Update redirect URI with actual signature h
 Write-ColorOutput "  3. Configure MSAL in MauiProgram.cs to retrieve secret from Key Vault" -Color White
 Write-ColorOutput "  4. Test authentication flow on each platform" -Color White
 
-Write-ColorOutput "`n✓ Setup complete!" -Color Green
+Write-ColorOutput "`n[OK] Setup complete!" -Color Green
 
 #endregion

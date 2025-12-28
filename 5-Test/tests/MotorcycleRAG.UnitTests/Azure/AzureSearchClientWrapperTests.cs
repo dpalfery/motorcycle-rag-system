@@ -144,7 +144,7 @@ public class AzureSearchClientWrapperTests : IDisposable
         // Assert
         results.Should().NotBeNull();
         results.Should().NotBeEmpty();
-        results.Length.Should().BeLessOrEqualTo(10);
+        results.Length.Should().BeLessThanOrEqualTo(10);
     }
 
     [Fact(Skip = "Integration test - requires actual Azure Search service")]

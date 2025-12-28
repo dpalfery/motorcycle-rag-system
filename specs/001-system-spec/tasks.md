@@ -73,26 +73,35 @@
 
 **Independent Test**: Sign in via BFF; call `GET /api/me` and `GET /api/me/usage`; confirm query calls are tracked and limited.
 
-- [ ] T033 [US1a] Add “current user” resolver abstraction in 3-Domain/MotorcycleRAG.Contracts/Interfaces/ICurrentUserService.cs
-- [ ] T034 [US1a] Implement current user resolution from claims in 2-Application/MotorcycleRAG.Application/Services/CurrentUserService.cs
-- [ ] T035 [US1a] Implement user provisioning/update-on-login in 2-Application/MotorcycleRAG.Application/Services/UserProvisioningService.cs
-- [ ] T036 [US1a] Implement plan SKU + daily limit rules in 2-Application/MotorcycleRAG.Application/Services/PlanPolicyService.cs
-- [ ] T037 [US1a] Implement usage tracking repository calls in 2-Application/MotorcycleRAG.Application/Services/UsageTrackingService.cs
-- [ ] T038 [US1a] Enforce per-user daily request limits at query entry in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
-- [ ] T039 [US1a] Create profile endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
-- [ ] T040 [US1a] Create usage endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
-- [ ] T041 [US1a] Add minimal profile update endpoint (allowed fields) in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
-- [ ] T042 [US1a] Configure B2C OIDC settings for the BFF in 1-Presentation/MotorcycleRag.WebUI.BFF/appsettings.Development.json
-- [ ] T043 [US1a] Propagate access token to API via BFF proxy in 1-Presentation/MotorcycleRag.WebUI.BFF/Program.cs
+- [X] T093 [US1a] Implement RoleRequirementHandler for role-based authorization in 2-Application/MotorcycleRAG.Application/Authorization/RoleRequirementHandler.cs
+- [X] T094 [US1a] Implement ResourceAuthorizationHandler for resource-level authorization in 2-Application/MotorcycleRAG.Application/Authorization/ResourceAuthorizationHandler.cs
+- [X] T095 [US1a] Create AuthorizationMiddleware for comprehensive authorization logging in 1-Presentation/MotorcycleRAG.API/Middleware/AuthorizationMiddleware.cs
+- [X] T096 [US1a] Add [Authorize] attributes to MotorcycleController endpoints in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
+- [X] T097 [US1a] Add [Authorize(Policy = "DataAdmin")] to DataPipelineController endpoints in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T098 [US1a] Update Program.cs with comprehensive authorization policies and handlers in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [X] T099 [US1a] Create unit tests for RoleRequirementHandler in 5-Test/tests/MotorcycleRAG.UnitTests/Authorization/RoleRequirementHandlerTests.cs
+- [X] T100 [US1a] Create unit tests for ResourceAuthorizationHandler in 5-Test/tests/MotorcycleRAG.UnitTests/Authorization/ResourceAuthorizationHandlerTests.cs
+- [X] T101 [US1a] Create integration tests for endpoint authorization in 5-Test/tests/MotorcycleRAG.IntegrationTests/Authorization/AuthorizationTests.cs
+- [X] T033 [US1a] Add "current user" resolver abstraction in 3-Domain/MotorcycleRAG.Contracts/Interfaces/ICurrentUserService.cs
+- [X] T034 [US1a] Implement current user resolution from claims in 2-Application/MotorcycleRAG.Application/Services/CurrentUserService.cs
+- [X] T035 [US1a] Implement user provisioning/update-on-login in 2-Application/MotorcycleRAG.Application/Services/UserProvisioningService.cs
+- [X] T036 [US1a] Implement plan SKU + daily limit rules in 2-Application/MotorcycleRAG.Application/Services/PlanPolicyService.cs
+- [X] T037 [US1a] Implement usage tracking repository calls in 2-Application/MotorcycleRAG.Application/Services/UsageTrackingService.cs
+- [X] T038 [US1a] Enforce per-user daily request limits at query entry in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
+- [X] T039 [US1a] Create profile endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
+- [X] T040 [US1a] Create usage endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
+- [X] T041 [US1a] Add minimal profile update endpoint (allowed fields) in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
+- [X] T042 [US1a] Configure B2C OIDC settings for the BFF in 1-Presentation/MotorcycleRag.WebUI.BFF/appsettings.Development.json
+- [X] T043 [US1a] Propagate access token to API via BFF proxy in 1-Presentation/MotorcycleRag.WebUI.BFF/Program.cs
 
-- [ ] T106 [P] [US1a] Add unit tests for plan limit logic in 5-Test/tests/MotorcycleRAG.UnitTests/Services/PlanPolicyServiceTests.cs
-- [ ] T107 [P] [US1a] Add unit tests for usage tracking in 5-Test/tests/MotorcycleRAG.UnitTests/Services/UsageTrackingServiceTests.cs
-- [ ] T108 [US1a] Add integration tests for GET /api/me + /api/me/usage + limit exceeded response in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MeApiIntegrationTests.cs
-- [ ] T120 [US1a] Add admin user management controller (enable/disable) in 1-Presentation/MotorcycleRAG.API/Controllers/UsersAdminController.cs
-- [ ] T121 [US1a] Add admin plan assignment endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/PlansAdminController.cs
-- [ ] T122 [US1a] Implement user enable/disable + plan assignment services in 2-Application/MotorcycleRAG.Application/Services (UserAdminService.cs, PlanAdminService.cs)
-- [ ] T123 [US1a] Add persistence for user state + plan assignment in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories (UserRepository.cs, PlanRepository.cs)
-- [ ] T124 [US1a] Add integration tests for admin user mgmt + plan assignment in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/AdminUserManagementIntegrationTests.cs
+- [X] T106 [P] [US1a] Add unit tests for plan limit logic in 5-Test/tests/MotorcycleRAG.UnitTests/Services/PlanPolicyServiceTests.cs
+- [X] T107 [P] [US1a] Add unit tests for usage tracking in 5-Test/tests/MotorcycleRAG.UnitTests/Services/UsageTrackingServiceTests.cs
+- [X] T108 [US1a] Add integration tests for GET /api/me + /api/me/usage + limit exceeded response in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MeApiIntegrationTests.cs
+- [X] T120 [US1a] Add admin user management controller (enable/disable) in 1-Presentation/MotorcycleRAG.API/Controllers/UsersAdminController.cs
+- [X] T121 [US1a] Add admin plan assignment endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/PlansAdminController.cs
+- [X] T122 [US1a] Implement user enable/disable + plan assignment services in 2-Application/MotorcycleRAG.Application/Services (UserAdminService.cs, PlanAdminService.cs)
+- [X] T123 [US1a] Add persistence for user state + plan assignment in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories (UserRepository.cs, PlanRepository.cs)
+- [X] T124 [US1a] Add integration tests for admin user mgmt + plan assignment in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/AdminUserManagementIntegrationTests.cs
 
 ---
 

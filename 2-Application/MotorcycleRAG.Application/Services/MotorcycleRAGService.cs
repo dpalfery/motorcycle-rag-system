@@ -143,7 +143,7 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
 
         stopwatch.Stop();
 
-        var estimatedCost = CalculateEstimatedCost(results, answer ?? string.Empty);
+        var estimatedCost = CalculateEstimatedCost(results ?? Array.Empty<SearchResult>(), answer ?? string.Empty);
 
         // 5. Populate metrics with performance data
         var metrics = new QueryMetrics
@@ -171,7 +171,7 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
         }
 
         // Extract claims and ensure citations before finalizing response
-        var (finalAnswer, finalResults) = await ExtractClaimsAndEnsureCitationsAsync(answer, results, request.Query);
+        var (finalAnswer, finalResults) = await ExtractClaimsAndEnsureCitationsAsync(answer ?? string.Empty, results ?? Array.Empty<SearchResult>(), request.Query);
 
         var response = new MotorcycleQueryResponse
         {
@@ -192,10 +192,10 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
         }
 
         _logger.LogInformation("Query processed. {Results} results, duration {Duration}ms, cost: ${Cost:F4}",
-            results.Length, stopwatch.ElapsedMilliseconds, metrics.EstimatedCost);
+            results?.Length ?? 0, stopwatch.ElapsedMilliseconds, metrics.EstimatedCost);
 
         // Track telemetry
-        _telemetryService.TrackQuery(queryId, request.Query, stopwatch.Elapsed, results.Length, metrics.EstimatedCost);
+        _telemetryService.TrackQuery(queryId, request.Query, stopwatch.Elapsed, results?.Length ?? 0, metrics.EstimatedCost);
 
         return response;
     }

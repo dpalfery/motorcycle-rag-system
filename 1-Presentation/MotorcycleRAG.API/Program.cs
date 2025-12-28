@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
+using MotorcycleRAG.API.Authorization;
 using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.Application.Extensions;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Microsoft.Azure.AppConfiguration.AspNetCore;
-using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.Swagger;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
 using MotorcycleRAG.API.Middleware;
@@ -46,7 +49,7 @@ public class Program
                        {
                            // When the sentinel key changes, refresh all cached configuration values
                            refreshOptions.Register("Settings:Sentinel", refreshAll: true)
-                                         .SetCacheExpiration(TimeSpan.FromSeconds(30));
+                           .SetRefreshInterval(TimeSpan.FromSeconds(30));
                        });
             });
         }
@@ -162,7 +165,30 @@ public class Program
                     policy.RequireAuthenticatedUser();
                     policy.RequireClaim("roles", "SuperAdmin");
                 });
+
+                // User policy - requires User app role (basic authenticated user)
+                options.AddPolicy("User", policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireClaim("roles", "User");
+                });
+
+                // Viewer policy - requires Viewer app role (read-only access)
+                options.AddPolicy("Viewer", policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireClaim("roles", "Viewer");
+                });
+
+                // Default policy - requires any authenticated user
+                options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
             });
+
+            // Register custom authorization handlers
+            builder.Services.AddScoped<IAuthorizationHandler, RoleRequirementHandler>();
+            builder.Services.AddScoped<IAuthorizationHandler, ResourceAuthorizationHandler>();
 
             // Add rate limiting for public endpoints
             builder.Services.AddRateLimiter(options =>
@@ -221,6 +247,7 @@ public class Program
         app.UseExceptionHandling();
         app.UseCors();
         app.UseAuthentication();
+        app.UseAuthorizationLogging(); // Add authorization logging middleware
         app.UseAuthorization();
 
         // Map controllers and health checks

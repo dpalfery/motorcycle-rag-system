@@ -1,6 +1,6 @@
 using System.Text.Json;
 using MotorcycleRAG.Shared.Configuration;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 
 namespace MotorcycleRAG.UnitTests.Configuration;
 

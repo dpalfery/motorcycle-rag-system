@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using System.Collections.Concurrent;
 
 namespace MotorcycleRAG.Application.Pipeline;
@@ -17,11 +17,13 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
     private readonly IPipelineMonitoringService _monitoringService;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
+    private readonly IIngestionJobRepository _ingestionJobRepository;
     private readonly ILogger<DataPipelineOrchestrator> _logger;
     private readonly PipelineConfiguration _config;
     
     private readonly ConcurrentDictionary<string, PipelineExecutionResult> _runningExecutions;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellationTokens;
+    private readonly object _cancellationLock = new();
 
     public DataPipelineOrchestrator(
         IDataProcessor<CSVFile> csvProcessor,
@@ -30,6 +32,7 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
         IPipelineMonitoringService monitoringService,
         IResilienceService resilienceService,
         ICorrelationService correlationService,
+        IIngestionJobRepository ingestionJobRepository,
         IOptions<PipelineConfiguration> config,
         ILogger<DataPipelineOrchestrator> logger)
     {
@@ -39,11 +42,29 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
         _monitoringService = monitoringService ?? throw new ArgumentNullException(nameof(monitoringService));
         _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
         _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
+        _ingestionJobRepository = ingestionJobRepository ?? throw new ArgumentNullException(nameof(ingestionJobRepository));
         _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         
         _runningExecutions = new ConcurrentDictionary<string, PipelineExecutionResult>();
         _cancellationTokens = new ConcurrentDictionary<string, CancellationTokenSource>();
+    }
+
+    /// <summary>
+    /// Sanitizes user-provided values for logging to prevent log injection attacks.
+    /// Replaces newlines, carriage returns, and tabs with spaces.
+    /// </summary>
+    private string SanitizeForLogging(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        return input
+            .Replace('\n', ' ')
+            .Replace('\r', ' ')
+            .Replace('\t', ' ');
     }
 
     public async Task<PipelineExecutionResult> ProcessFileAsync(DataPipelineRequest request, CancellationToken cancellationToken = default)
@@ -62,7 +83,13 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
         {
             CorrelationId = correlationId,
             RequestTime = result.StartTime,
-            Source = "API"
+            Source = request.CreatedBy ?? "API",
+            UserId = request.CreatedBy ?? "System",
+            Properties = new Dictionary<string, string>
+            {
+                ["FilePath"] = request.FilePath,
+                ["FileName"] = request.FileName
+            }
         };
 
         try
@@ -73,7 +100,7 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
             _cancellationTokens[executionId] = cancellationSource;
 
             _logger.LogInformation("Starting pipeline execution {ExecutionId} for file {FileName} of type {FileType}",
-                executionId, request.FileName, request.FileType);
+                executionId, SanitizeForLogging(request.FileName), request.FileType);
 
             // Monitor pipeline start
             var pipelineType = request.FileType switch
@@ -154,7 +181,23 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
             result.EndTime = DateTime.UtcNow;
             result.Message = "Pipeline execution was cancelled";
             
-            _logger.LogInformation("Pipeline execution {ExecutionId} was cancelled", executionId);
+            // Update ingestion job status to Cancelled
+            try
+            {
+                await _ingestionJobRepository.UpdateStatusAsync(
+                    executionId,
+                    IngestionJobStatus.Cancelled,
+                    result.EndTime,
+                    "Pipeline execution was cancelled by user request");
+                
+                _logger.LogInformation("Updated ingestion job {JobId} status to Cancelled", SanitizeForLogging(executionId));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update ingestion job status for cancelled execution {ExecutionId}", SanitizeForLogging(executionId));
+            }
+            
+            _logger.LogInformation("Pipeline execution {ExecutionId} was cancelled", SanitizeForLogging(executionId));
             return result;
         }
         catch (Exception ex)
@@ -166,16 +209,26 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
 
             await _monitoringService.TrackPipelineFailureAsync(executionId, ex, executionContext);
 
-            _logger.LogError(ex, "Pipeline execution {ExecutionId} failed", executionId);
+            _logger.LogError(ex, "Pipeline execution {ExecutionId} failed", SanitizeForLogging(executionId));
             return result;
         }
         finally
         {
-            // Cleanup
-            _runningExecutions.TryRemove(executionId, out _);
-            if (_cancellationTokens.TryRemove(executionId, out var cts))
+            // Cleanup - synchronize with CancelPipelineAsync
+            lock (_cancellationLock)
             {
-                cts?.Dispose();
+                _runningExecutions.TryRemove(executionId, out _);
+                if (_cancellationTokens.TryRemove(executionId, out var cts))
+                {
+                    try
+                    {
+                        cts?.Dispose();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Already disposed, ignore
+                    }
+                }
             }
         }
     }
@@ -238,13 +291,27 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
 
     public async Task<PipelineStatus> GetPipelineStatusAsync(string executionId)
     {
+        // Check in-memory running executions first
         if (_runningExecutions.TryGetValue(executionId, out var result))
         {
             return result.Status;
         }
 
-        // If not in memory, could query persistent storage here
-        return PipelineStatus.Completed; // Assume completed if not found in running executions
+        // Query persistent storage for completed/cancelled/failed jobs
+        try
+        {
+            var job = await _ingestionJobRepository.GetByJobIdAsync(executionId);
+            if (job != null)
+            {
+                return MapIngestionJobStatusToPipelineStatus(job.Status);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to query ingestion job status for execution {ExecutionId}", SanitizeForLogging(executionId));
+        }
+
+        return PipelineStatus.Completed; // Default fallback
     }
 
     public async Task<PipelineMetrics> GetPipelineMetricsAsync(TimeSpan? timeWindow = null)
@@ -276,14 +343,109 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
 
     public async Task<bool> CancelPipelineAsync(string executionId)
     {
-        if (_cancellationTokens.TryGetValue(executionId, out var cts))
+        CancellationTokenSource? ctsToCancel = null;
+        
+        // Synchronize access to prevent race conditions with finally block cleanup
+        lock (_cancellationLock)
         {
-            cts.Cancel();
-            _logger.LogInformation("Pipeline execution {ExecutionId} cancellation requested", executionId);
+            if (_cancellationTokens.TryRemove(executionId, out var cts))
+            {
+                ctsToCancel = cts;
+            }
+        }
+
+        if (ctsToCancel != null)
+        {
+            // Store cancellation request in persistent storage
+            try
+            {
+                // Check current job status before updating to prevent overwriting terminal states
+                var job = await _ingestionJobRepository.GetByJobIdAsync(executionId);
+                if (job != null && job.Status != IngestionJobStatus.Completed &&
+                    job.Status != IngestionJobStatus.Failed &&
+                    job.Status != IngestionJobStatus.Cancelled)
+                {
+                    await _ingestionJobRepository.UpdateStatusAsync(
+                        executionId,
+                        IngestionJobStatus.Cancelled,
+                        DateTime.UtcNow,
+                        "Cancellation requested by user");
+                    
+                    _logger.LogInformation("Stored cancellation request for pipeline execution {ExecutionId} in persistent storage", SanitizeForLogging(executionId));
+                }
+                else
+                {
+                    _logger.LogInformation("Pipeline execution {ExecutionId} is already in terminal state {Status}, skipping status update",
+                        SanitizeForLogging(executionId), job?.Status);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to store cancellation request for execution {ExecutionId}", SanitizeForLogging(executionId));
+                // Continue with cancellation even if persistence fails
+            }
+
+            // Cancel the cancellation token to stop ongoing processing
+            try
+            {
+                ctsToCancel.Cancel();
+                _logger.LogInformation("Pipeline execution {ExecutionId} cancellation requested and token cancelled", SanitizeForLogging(executionId));
+            }
+            catch (ObjectDisposedException)
+            {
+                // CTS was already disposed, cancellation already in progress or completed
+                _logger.LogWarning("Cancellation token for pipeline execution {ExecutionId} was already disposed", SanitizeForLogging(executionId));
+            }
+            finally
+            {
+                // Dispose safely
+                try
+                {
+                    ctsToCancel.Dispose();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Already disposed, ignore
+                }
+            }
+            
             return true;
         }
 
-        _logger.LogWarning("Pipeline execution {ExecutionId} not found for cancellation", executionId);
+        // Check if the job exists in persistent storage (might be in a state that can still be cancelled)
+        try
+        {
+            var job = await _ingestionJobRepository.GetByJobIdAsync(executionId);
+            if (job != null && (job.Status == IngestionJobStatus.Queued || job.Status == IngestionJobStatus.Processing || job.Status == IngestionJobStatus.Indexing))
+            {
+                // Job exists and is in a cancellable state - double-check it hasn't reached terminal state
+                var currentJob = await _ingestionJobRepository.GetByJobIdAsync(executionId);
+                if (currentJob != null && currentJob.Status != IngestionJobStatus.Completed &&
+                    currentJob.Status != IngestionJobStatus.Failed &&
+                    currentJob.Status != IngestionJobStatus.Cancelled)
+                {
+                    await _ingestionJobRepository.UpdateStatusAsync(
+                        executionId,
+                        IngestionJobStatus.Cancelled,
+                        DateTime.UtcNow,
+                        "Cancellation requested by user");
+                    
+                    _logger.LogInformation("Marked pipeline execution {ExecutionId} as Cancelled in persistent storage", SanitizeForLogging(executionId));
+                    return true;
+                }
+                else
+                {
+                    _logger.LogInformation("Pipeline execution {ExecutionId} is already in terminal state {Status}, cannot cancel",
+                        SanitizeForLogging(executionId), currentJob?.Status);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to check/cancel pipeline execution {ExecutionId} in persistent storage", SanitizeForLogging(executionId));
+        }
+
+        _logger.LogWarning("Pipeline execution {ExecutionId} not found or not in a cancellable state", SanitizeForLogging(executionId));
         return false;
     }
 
@@ -312,6 +474,23 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator
         };
 
         return await _pdfProcessor.ProcessAsync(pdfDocument);
+    }
+    /// <summary>
+    /// Maps IngestionJobStatus to PipelineStatus
+    /// </summary>
+    private static PipelineStatus MapIngestionJobStatusToPipelineStatus(IngestionJobStatus jobStatus)
+    {
+        return jobStatus switch
+        {
+            IngestionJobStatus.Queued => PipelineStatus.Queued,
+            IngestionJobStatus.Processing => PipelineStatus.Processing,
+            IngestionJobStatus.Indexing => PipelineStatus.Indexing,
+            IngestionJobStatus.Completed => PipelineStatus.Completed,
+            IngestionJobStatus.Failed => PipelineStatus.Failed,
+            IngestionJobStatus.Cancelled => PipelineStatus.Cancelled,
+            IngestionJobStatus.PartiallyCompleted => PipelineStatus.PartiallyCompleted,
+            _ => PipelineStatus.Completed
+        };
     }
 }
 

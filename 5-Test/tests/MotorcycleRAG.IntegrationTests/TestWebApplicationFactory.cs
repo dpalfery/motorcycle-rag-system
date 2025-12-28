@@ -1,11 +1,15 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Persistence.Sql;
+using System.Data;
+using System.Data.Common;
 
 namespace MotorcycleRAG.IntegrationTests;
 
@@ -16,6 +20,13 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Add test authentication scheme
+        builder.ConfigureServices(services =>
+        {
+            services.AddAuthentication("Test")
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", options => { });
+        });
+
         builder.ConfigureAppConfiguration((context, config) =>
         {
             // Override configuration for testing
@@ -65,6 +76,16 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         {
             // Replace Azure services with mocks for testing
             ReplaceWithMocks(services);
+
+            // Override authentication to use test handler
+            services.PostConfigureAll<AuthenticationOptions>(options =>
+            {
+                options.DefaultAuthenticateScheme = "Test";
+                options.DefaultChallengeScheme = "Test";
+                options.DefaultForbidScheme = "Test";
+                options.DefaultSignInScheme = "Test";
+                options.DefaultSignOutScheme = "Test";
+            });
         });
 
         builder.UseEnvironment("Testing");
@@ -72,13 +93,15 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
 
     private void ReplaceWithMocks(IServiceCollection services)
     {
-        // Remove existing Azure service registrations
+        // Remove existing Azure service registrations and SQL repositories
         var servicesToRemove = services
             .Where(s => s.ServiceType.Namespace?.StartsWith("Azure") == true ||
                        s.ServiceType == typeof(IAzureOpenAIClient) ||
                        s.ServiceType == typeof(IAzureSearchClient) ||
                        s.ServiceType == typeof(IDocumentIntelligenceClient) ||
-                       s.ServiceType == typeof(IMotorcycleIndexingService))
+                       s.ServiceType == typeof(IMotorcycleIndexingService) ||
+                       s.ServiceType == typeof(ISqlConnectionFactory) ||
+                       s.ServiceType == typeof(IIngestionJobRepository))
             .ToList();
 
         foreach (var service in servicesToRemove)
@@ -124,6 +147,72 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         services.AddSingleton(mockAzureSearch.Object);
         services.AddSingleton(mockDocumentIntelligence.Object);
         services.AddSingleton(mockIndexingService.Object);
+
+        // Mock SQL connection factory for testing
+        var mockSqlConnectionFactory = new Mock<ISqlConnectionFactory>();
+        mockSqlConnectionFactory.Setup(x => x.CreateConnectionAsync())
+            .ReturnsAsync((IDbConnection)null!);
+        mockSqlConnectionFactory.Setup(x => x.CreateConnection())
+            .Returns((IDbConnection)null!);
+        mockSqlConnectionFactory.Setup(x => x.CreateOpenConnectionAsync())
+            .ReturnsAsync((IDbConnection)null!);
+        mockSqlConnectionFactory.Setup(x => x.CreateCommand(It.IsAny<IDbConnection>(), It.IsAny<IDbTransaction?>(), It.IsAny<string?>(), It.IsAny<CommandType>(), It.IsAny<int?>()))
+            .Returns((IDbCommand)null!);
+        mockSqlConnectionFactory.Setup(x => x.CreateParameter(It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<DbType>(), It.IsAny<ParameterDirection>()))
+            .Returns((IDataParameter)null!);
+        services.AddSingleton(mockSqlConnectionFactory.Object);
+
+        // Mock IIngestionJobRepository for testing
+        var mockIngestionJobRepository = new Mock<IIngestionJobRepository>();
+        mockIngestionJobRepository.Setup(x => x.CreateAsync(It.IsAny<IngestionJob>()))
+            .ReturnsAsync((IngestionJob job) =>
+            {
+                job.Id = 1;
+                return job;
+            });
+        mockIngestionJobRepository.Setup(x => x.GetByIdAsync(It.IsAny<long>()))
+            .ReturnsAsync((long id) => new IngestionJob
+            {
+                Id = id,
+                JobId = Guid.NewGuid().ToString(),
+                Status = IngestionJobStatus.Completed,
+                StartTime = DateTime.UtcNow,
+                EndTime = DateTime.UtcNow.AddMinutes(5),
+                SourceFileName = "test-file.csv",
+                SourceFilePath = "/test/path/test-file.csv"
+            });
+        mockIngestionJobRepository.Setup(x => x.GetByJobIdAsync(It.IsAny<string>()))
+            .ReturnsAsync((string jobId) => new IngestionJob
+            {
+                Id = 1,
+                JobId = jobId,
+                Status = IngestionJobStatus.Completed,
+                StartTime = DateTime.UtcNow,
+                EndTime = DateTime.UtcNow.AddMinutes(5),
+                SourceFileName = "test-file.csv",
+                SourceFilePath = "/test/path/test-file.csv"
+            });
+        mockIngestionJobRepository.Setup(x => x.UpdateAsync(It.IsAny<IngestionJob>()))
+            .ReturnsAsync((IngestionJob job) => job);
+        mockIngestionJobRepository.Setup(x => x.UpdateStatusAsync(It.IsAny<string>(), It.IsAny<IngestionJobStatus>(), It.IsAny<DateTime?>(), It.IsAny<string>()))
+            .ReturnsAsync(true);
+        mockIngestionJobRepository.Setup(x => x.UpdateMetricsAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(true);
+        mockIngestionJobRepository.Setup(x => x.AddErrorAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(true);
+        mockIngestionJobRepository.Setup(x => x.GetByStatusAsync(It.IsAny<IngestionJobStatus>(), It.IsAny<int>()))
+            .ReturnsAsync(Array.Empty<IngestionJob>());
+        mockIngestionJobRepository.Setup(x => x.GetByJobTypeAsync(It.IsAny<IngestionJobType>(), It.IsAny<int>()))
+            .ReturnsAsync(Array.Empty<IngestionJob>());
+        mockIngestionJobRepository.Setup(x => x.GetRecentJobsAsync(It.IsAny<int>()))
+            .ReturnsAsync(Array.Empty<IngestionJob>());
+        mockIngestionJobRepository.Setup(x => x.GetByUserIdAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(Array.Empty<IngestionJob>());
+        mockIngestionJobRepository.Setup(x => x.GetByDateRangeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync(Array.Empty<IngestionJob>());
+        mockIngestionJobRepository.Setup(x => x.DeleteAsync(It.IsAny<long>()))
+            .ReturnsAsync(true);
+        services.AddSingleton(mockIngestionJobRepository.Object);
 
         // Mock resilience and correlation services
         var mockResilienceService = new Mock<IResilienceService>();

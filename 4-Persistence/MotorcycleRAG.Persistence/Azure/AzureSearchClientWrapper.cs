@@ -6,12 +6,12 @@ using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Resilience;
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
 
-namespace MotorcycleRAG.Infrastructure.Azure;
+namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
 /// Azure AI Search client wrapper with connection management and resilience

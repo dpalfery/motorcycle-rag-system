@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Pipeline;
@@ -20,6 +20,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
     private readonly Mock<IDataPipelineOrchestrator> _orchestratorMock;
     private readonly Mock<ILogger<ScheduledPipelineService>> _loggerMock;
     private readonly Mock<IOptions<ScheduledProcessingConfiguration>> _configMock;
+    private readonly Mock<IIngestionJobRepository> _ingestionJobRepositoryMock;
     private readonly ScheduledPipelineService _service;
     private readonly string _testDirectory;
     private readonly IServiceProvider _serviceProvider;
@@ -31,6 +32,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
         _orchestratorMock = new Mock<IDataPipelineOrchestrator>();
         _loggerMock = new Mock<ILogger<ScheduledPipelineService>>();
         _configMock = new Mock<IOptions<ScheduledProcessingConfiguration>>();
+        _ingestionJobRepositoryMock = new Mock<IIngestionJobRepository>();
 
         // Create a temporary directory for testing
         _testDirectory = Path.Combine(Path.GetTempPath(), $"ScheduledPipelineTest_{Guid.NewGuid()}");
@@ -59,6 +61,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable
 
         _service = new ScheduledPipelineService(
             _serviceScopeFactoryMock.Object,
+            _ingestionJobRepositoryMock.Object,
             _configMock.Object,
             _loggerMock.Object);
     }

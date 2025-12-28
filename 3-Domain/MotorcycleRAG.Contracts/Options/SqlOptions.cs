@@ -1,36 +1,15 @@
-using System;
-
 namespace MotorcycleRAG.Contracts.Options
 {
     /// <summary>
     /// SQL configuration options
+    /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
     /// </summary>
     public class SqlOptions
     {
         /// <summary>
-        /// SQL Server connection string
+        /// Command timeout in seconds
         /// </summary>
-        public string ConnectionString { get; set; } = string.Empty;
-
-        /// <summary>
-        /// SQL Server server name
-        /// </summary>
-        public string Server { get; set; } = string.Empty;
-
-        /// <summary>
-        /// SQL Server database name
-        /// </summary>
-        public string Database { get; set; } = string.Empty;
-
-        /// <summary>
-        /// SQL Server username
-        /// </summary>
-        public string Username { get; set; } = string.Empty;
-
-        /// <summary>
-        /// SQL Server password
-        /// </summary>
-        public string Password { get; set; } = string.Empty;
+        public int CommandTimeout { get; set; } = 60;
 
         /// <summary>
         /// Connection timeout in seconds
@@ -38,18 +17,8 @@ namespace MotorcycleRAG.Contracts.Options
         public int ConnectionTimeout { get; set; } = 30;
 
         /// <summary>
-        /// Command timeout in seconds
-        /// </summary>
-        public int CommandTimeout { get; set; } = 60;
-
-        /// <summary>
         /// Maximum pool size
         /// </summary>
         public int MaxPoolSize { get; set; } = 100;
-
-        /// <summary>
-        /// Whether to use integrated security
-        /// </summary>
-        public bool UseIntegratedSecurity { get; set; } = false;
     }
 }

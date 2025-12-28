@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using System.Collections.Concurrent;
 
 namespace MotorcycleRAG.Application.Pipeline;
@@ -12,6 +12,7 @@ namespace MotorcycleRAG.Application.Pipeline;
 public class PipelineMonitoringService : IPipelineMonitoringService
 {
     private readonly ITelemetryService _telemetryService;
+    private readonly IIngestionJobRepository _ingestionJobRepository;
     private readonly ILogger<PipelineMonitoringService> _logger;
     private readonly PipelineMonitoringConfiguration _config;
     
@@ -22,10 +23,12 @@ public class PipelineMonitoringService : IPipelineMonitoringService
 
     public PipelineMonitoringService(
         ITelemetryService telemetryService,
+        IIngestionJobRepository ingestionJobRepository,
         IOptions<PipelineMonitoringConfiguration> config,
         ILogger<PipelineMonitoringService> logger)
     {
         _telemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
+        _ingestionJobRepository = ingestionJobRepository ?? throw new ArgumentNullException(nameof(ingestionJobRepository));
         _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         
@@ -58,8 +61,50 @@ public class PipelineMonitoringService : IPipelineMonitoringService
 
         _activeExecutions[executionId] = tracker;
 
-        _logger.LogInformation("Pipeline execution started: {ExecutionId}, Type: {PipelineType}", 
+        _logger.LogInformation("Pipeline execution started: {ExecutionId}, Type: {PipelineType}",
             executionId, pipelineType);
+
+        // Create ingestion job record for persistence
+        try
+        {
+            var ingestionJob = new IngestionJob
+            {
+                JobId = executionId,
+                JobType = MapPipelineTypeToIngestionJobType(pipelineType),
+                Status = MapPipelineStatusToIngestionJobStatus(PipelineStatus.Processing),
+                SourceFilePath = context.Properties.ContainsKey("FilePath") ? context.Properties["FilePath"] : string.Empty,
+                SourceFileName = context.Properties.ContainsKey("FileName") ? context.Properties["FileName"] : null,
+                StartTime = DateTime.UtcNow,
+                UserId = context.UserId,
+                UserEmail = context.Properties.ContainsKey("UserEmail") ? context.Properties["UserEmail"] : null
+            };
+
+            // Set metadata from context
+            var metadata = new Dictionary<string, object>
+            {
+                ["CorrelationId"] = context.CorrelationId,
+                ["Source"] = context.Source,
+                ["PipelineType"] = pipelineType.ToString()
+            };
+            foreach (var prop in context.Properties)
+            {
+                if (!metadata.ContainsKey(prop.Key))
+                {
+                    metadata[prop.Key] = prop.Value;
+                }
+            }
+            ingestionJob.SetMetadata(metadata);
+
+            await _ingestionJobRepository.CreateAsync(ingestionJob);
+            tracker.IngestionJobId = ingestionJob.Id;
+
+            _logger.LogDebug("Created ingestion job record {JobId} with database ID {DatabaseId}", executionId, ingestionJob.Id);
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't fail the pipeline if job persistence fails
+            _logger.LogError(ex, "Failed to create ingestion job record for execution {ExecutionId}", executionId);
+        }
 
         // Track telemetry
         _telemetryService.TrackEvent("PipelineStarted", new Dictionary<string, string>
@@ -95,6 +140,53 @@ public class PipelineMonitoringService : IPipelineMonitoringService
             tracker.Duration = tracker.EndTime.Value - tracker.StartTime;
             tracker.DocumentsProcessed = result.ProcessedData?.Documents.Count ?? 0;
             tracker.DocumentsIndexed = result.IndexingResult?.DocumentsIndexed ?? 0;
+
+            // Update ingestion job record
+            if (tracker.IngestionJobId.HasValue)
+            {
+                try
+                {
+                    var jobStatus = MapPipelineStatusToIngestionJobStatus(result.Status);
+                    var recordsIndexed = result.IndexingResult?.DocumentsIndexed ?? 0;
+                    var recordsFailed = result.Errors.Count;
+                    var recordsWithWarnings = result.Warnings.Count;
+
+                    await _ingestionJobRepository.UpdateStatusAsync(
+                        executionId,
+                        jobStatus,
+                        tracker.EndTime,
+                        result.Status == PipelineStatus.Failed ? result.Message : null);
+
+                    await _ingestionJobRepository.UpdateMetricsAsync(
+                        executionId,
+                        tracker.DocumentsProcessed,
+                        recordsIndexed,
+                        recordsFailed,
+                        recordsWithWarnings);
+
+                    // Update metrics with additional pipeline metrics
+                    if (result.Metrics.Count > 0)
+                    {
+                        var existingJob = await _ingestionJobRepository.GetByJobIdAsync(executionId);
+                        if (existingJob != null)
+                        {
+                            var existingMetrics = existingJob.GetMetrics();
+                            foreach (var metric in result.Metrics)
+                            {
+                                existingMetrics[metric.Key] = metric.Value;
+                            }
+                            existingJob.SetMetrics(existingMetrics);
+                            await _ingestionJobRepository.UpdateAsync(existingJob);
+                        }
+                    }
+
+                    _logger.LogDebug("Updated ingestion job {JobId} status to {Status}", executionId, jobStatus);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to update ingestion job record for execution {ExecutionId}", executionId);
+                }
+            }
 
             // Add to recent executions
             lock (_recentExecutionsLock)
@@ -154,6 +246,29 @@ public class PipelineMonitoringService : IPipelineMonitoringService
             tracker.Duration = tracker.EndTime.Value - tracker.StartTime;
             tracker.ErrorMessage = exception.Message;
 
+            // Update ingestion job record
+            if (tracker.IngestionJobId.HasValue)
+            {
+                try
+                {
+                    var sanitizedErrorMessage = SanitizeErrorMessage(exception.Message);
+                    
+                    await _ingestionJobRepository.UpdateStatusAsync(
+                        executionId,
+                        IngestionJobStatus.Failed,
+                        tracker.EndTime,
+                        sanitizedErrorMessage);
+
+                    await _ingestionJobRepository.AddErrorAsync(executionId, sanitizedErrorMessage);
+
+                    _logger.LogDebug("Updated ingestion job {JobId} to Failed status", executionId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to update ingestion job record for failed execution {ExecutionId}", executionId);
+                }
+            }
+
             // Add to recent executions
             lock (_recentExecutionsLock)
             {
@@ -198,7 +313,7 @@ public class PipelineMonitoringService : IPipelineMonitoringService
                 Recipients = _alertConfig.EmailRecipients,
                 Properties = new Dictionary<string, object>
                 {
-                    ["Exception"] = exception.ToString(),
+                    ["ExceptionMessage"] = SanitizeErrorMessage(exception.Message),
                     ["Duration"] = tracker.Duration.TotalMilliseconds
                 }
             });
@@ -444,6 +559,58 @@ public class PipelineMonitoringService : IPipelineMonitoringService
         var failedCount = recentExecutions.Count(e => e.Status == PipelineStatus.Failed);
         return (double)failedCount / recentExecutions.Count;
     }
+
+    /// <summary>
+    /// Maps PipelineType to IngestionJobType
+    /// </summary>
+    private static IngestionJobType MapPipelineTypeToIngestionJobType(PipelineType pipelineType)
+    {
+        return pipelineType switch
+        {
+            PipelineType.CSV => IngestionJobType.StructuredSpecification,
+            PipelineType.PDF => IngestionJobType.PDFManual,
+            PipelineType.Batch => IngestionJobType.Batch,
+            PipelineType.Scheduled => IngestionJobType.Scheduled,
+            _ => IngestionJobType.StructuredSpecification
+        };
+    }
+
+    /// <summary>
+    /// Maps PipelineStatus to IngestionJobStatus
+    /// </summary>
+    private static IngestionJobStatus MapPipelineStatusToIngestionJobStatus(PipelineStatus pipelineStatus)
+    {
+        return pipelineStatus switch
+        {
+            PipelineStatus.Queued => IngestionJobStatus.Queued,
+            PipelineStatus.Processing => IngestionJobStatus.Processing,
+            PipelineStatus.Indexing => IngestionJobStatus.Indexing,
+            PipelineStatus.Completed => IngestionJobStatus.Completed,
+            PipelineStatus.Failed => IngestionJobStatus.Failed,
+            PipelineStatus.Cancelled => IngestionJobStatus.Cancelled,
+            PipelineStatus.PartiallyCompleted => IngestionJobStatus.PartiallyCompleted,
+            _ => IngestionJobStatus.Queued
+        };
+    }
+
+    /// <summary>
+    /// Sanitizes error messages before logging or storing
+    /// </summary>
+    private static string SanitizeErrorMessage(string errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return string.Empty;
+        }
+
+        // Remove newlines and tabs to prevent log injection
+        return errorMessage
+            .Replace("\r\n", " ")
+            .Replace("\n", " ")
+            .Replace("\r", " ")
+            .Replace("\t", " ")
+            .Trim();
+    }
 }
 
 /// <summary>
@@ -461,6 +628,7 @@ internal class PipelineExecutionTracker
     public int DocumentsProcessed { get; set; }
     public int DocumentsIndexed { get; set; }
     public string ErrorMessage { get; set; } = string.Empty;
+    public long? IngestionJobId { get; set; }
 }
 
 /// <summary>

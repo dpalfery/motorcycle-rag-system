@@ -4,10 +4,10 @@ using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Polly;
 
-namespace MotorcycleRAG.Infrastructure.Azure;
+namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
 /// Azure Document Intelligence client wrapper with resilience patterns

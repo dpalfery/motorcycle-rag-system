@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Polly;
 using Polly.CircuitBreaker;
 using System.Diagnostics;
 using MotorcycleRAG.Contracts.Interfaces;
 
-namespace MotorcycleRAG.Infrastructure.Resilience;
+namespace MotorcycleRAG.Persistence.Resilience;
 
 public class ResilienceService : IResilienceService
 {

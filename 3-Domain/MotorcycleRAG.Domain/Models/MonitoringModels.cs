@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MotorcycleRAG.Domain.Models;
 
 /// <summary>
@@ -29,6 +31,7 @@ public class PipelineNotification
 /// <summary>
 /// Pipeline notification types
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum PipelineNotificationType
 {
     ExecutionStarted,
@@ -43,6 +46,7 @@ public enum PipelineNotificationType
 /// <summary>
 /// Notification severity levels
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum NotificationSeverity
 {
     Info,
@@ -88,6 +92,7 @@ public class HealthCheck
 /// <summary>
 /// Health check status enumeration
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum HealthCheckStatus
 {
     Healthy,
@@ -98,6 +103,7 @@ public enum HealthCheckStatus
 /// <summary>
 /// Overall health status
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum OverallHealthStatus
 {
     Healthy,

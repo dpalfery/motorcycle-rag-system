@@ -11,9 +11,11 @@ namespace MotorcycleRAG.Persistence.Sql
 {
     /// <summary>
     /// Factory for creating SQL database connections
+    /// Connection string is retrieved from SQL_CONNECTION_STRING environment variable
     /// </summary>
     public class SqlConnectionFactory : ISqlConnectionFactory
     {
+        private readonly string _connectionString;
         private readonly SqlOptions _sqlOptions;
         private readonly ILogger<SqlConnectionFactory> _logger;
 
@@ -26,6 +28,30 @@ namespace MotorcycleRAG.Persistence.Sql
         {
             _sqlOptions = sqlOptions.Value ?? throw new ArgumentNullException(nameof(sqlOptions));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            
+            var connectionString = Environment.GetEnvironmentVariable("SQL_CONNECTION_STRING");
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    "SQL_CONNECTION_STRING environment variable is required but not set. " +
+                    "Please set this environment variable before starting the application.");
+            }
+
+            // Enforce policy: connection string must not contain embedded credentials
+            // Azure AD / Managed Identity authentication is required
+            var upperConnectionString = connectionString.ToUpperInvariant();
+            if (upperConnectionString.Contains("PASSWORD=") ||
+                upperConnectionString.Contains("PWD=") ||
+                upperConnectionString.Contains("USER ID=") ||
+                upperConnectionString.Contains("UID="))
+            {
+                throw new InvalidOperationException(
+                    "SQL_CONNECTION_STRING must not contain embedded credentials (Password, Pwd, User ID, or UID). " +
+                    "Azure AD / Managed Identity authentication is required. " +
+                    "Please configure your connection string to use Azure AD authentication.");
+            }
+
+            _connectionString = connectionString;
         }
 
         /// <summary>
@@ -36,13 +62,13 @@ namespace MotorcycleRAG.Persistence.Sql
         {
             try
             {
-                var connection = new SqlConnection(_sqlOptions.ConnectionString);
-                _logger.LogDebug("Created SQL connection to {Server}", _sqlOptions.Server);
+                var connection = new SqlConnection(_connectionString);
+                _logger.LogDebug("Created SQL connection");
                 return connection;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create SQL connection");
+                _logger.LogError("Failed to create SQL connection. Error type: {ErrorType}", ex.GetType().Name);
                 throw;
             }
         }
@@ -55,13 +81,13 @@ namespace MotorcycleRAG.Persistence.Sql
         {
             try
             {
-                var connection = new SqlConnection(_sqlOptions.ConnectionString);
-                _logger.LogDebug("Created SQL connection to {Server}", _sqlOptions.Server);
+                var connection = new SqlConnection(_connectionString);
+                _logger.LogDebug("Created SQL connection");
                 return connection;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create SQL connection");
+                _logger.LogError("Failed to create SQL connection. Error type: {ErrorType}", ex.GetType().Name);
                 throw;
             }
         }
@@ -76,12 +102,12 @@ namespace MotorcycleRAG.Persistence.Sql
             try
             {
                 await ((SqlConnection)connection).OpenAsync();
-                _logger.LogDebug("Opened SQL connection to {Server}", _sqlOptions.Server);
+                _logger.LogDebug("Opened SQL connection");
                 return connection;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to open SQL connection");
+                _logger.LogError("Failed to open SQL connection. Error type: {ErrorType}", ex.GetType().Name);
                 connection.Dispose();
                 throw;
             }

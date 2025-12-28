@@ -2,6 +2,7 @@ using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Application.Optimization;
+using MotorcycleRAG.Contracts.Optimization;
 
 namespace MotorcycleRAG.PerformanceTests;
 

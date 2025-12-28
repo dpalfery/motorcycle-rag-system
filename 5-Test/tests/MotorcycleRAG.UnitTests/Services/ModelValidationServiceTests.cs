@@ -1,4 +1,4 @@
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Application.Services;
 
 namespace MotorcycleRAG.UnitTests.Services;

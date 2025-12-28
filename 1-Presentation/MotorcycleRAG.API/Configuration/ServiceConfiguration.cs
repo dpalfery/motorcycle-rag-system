@@ -195,35 +195,23 @@ public static class ServiceConfiguration
     
     /// <summary>
     /// Validator for SQL configuration options
+    /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
     /// </summary>
     public class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Contracts.Options.SqlOptions>
     {
         public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Contracts.Options.SqlOptions options)
         {
             var failures = new List<string>();
-    
-            if (string.IsNullOrWhiteSpace(options.ConnectionString))
-            {
-                // If connection string is not provided, validate individual components
-                if (string.IsNullOrWhiteSpace(options.Server))
-                    failures.Add("Sql:Server is required when ConnectionString is not provided");
-    
-                if (string.IsNullOrWhiteSpace(options.Database))
-                    failures.Add("Sql:Database is required when ConnectionString is not provided");
-    
-                if (!options.UseIntegratedSecurity && string.IsNullOrWhiteSpace(options.Username))
-                    failures.Add("Sql:Username is required when not using integrated security");
-            }
-    
-            if (options.ConnectionTimeout <= 0)
-                failures.Add("Sql:ConnectionTimeout must be greater than 0");
-    
+
             if (options.CommandTimeout <= 0)
                 failures.Add("Sql:CommandTimeout must be greater than 0");
-    
+
+            if (options.ConnectionTimeout <= 0)
+                failures.Add("Sql:ConnectionTimeout must be greater than 0");
+
             if (options.MaxPoolSize <= 0)
                 failures.Add("Sql:MaxPoolSize must be greater than 0");
-    
+
             return failures.Count > 0
                 ? ValidateOptionsResult.Fail(failures)
                 : ValidateOptionsResult.Success;

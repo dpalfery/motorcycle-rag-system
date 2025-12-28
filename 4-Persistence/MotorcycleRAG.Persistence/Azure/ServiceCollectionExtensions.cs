@@ -3,12 +3,11 @@ using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Resilience;
-using MotorcycleRAG.Infrastructure.Search;
-using MotorcycleRAG.Infrastructure.Resilience;
+using MotorcycleRAG.Persistence.Sql;
+using MotorcycleRAG.Persistence.Search;
 
 
 namespace MotorcycleRAG.Persistence.Azure;
@@ -41,13 +40,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<ResilienceConfiguration>, ResilienceConfigurationValidator>();
 
         // Register resilience services as singletons
-        services.AddSingleton<IResilienceService, ResilienceService>();
-        services.AddSingleton<ICorrelationService, CorrelationService>();
+        services.AddSingleton<IResilienceService, MotorcycleRAG.Persistence.Resilience.ResilienceService>();
+        services.AddSingleton<ICorrelationService, MotorcycleRAG.Persistence.Resilience.CorrelationService>();
 
         // Register Azure service clients as singletons for connection pooling
         services.AddSingleton<IAzureOpenAIClient, MotorcycleRAG.Persistence.Azure.AzureOpenAIClientWrapper>();
-        services.AddSingleton<IAzureSearchClient, MotorcycleRAG.Infrastructure.Azure.AzureSearchClientWrapper>();
-        services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Infrastructure.Azure.DocumentIntelligenceClientWrapper>();
+        services.AddSingleton<IAzureSearchClient, MotorcycleRAG.Persistence.Azure.AzureSearchClientWrapper>();
+        services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
 
         // Register SearchIndexClient for direct Azure Search operations
         services.AddSingleton<SearchIndexClient>(serviceProvider =>
@@ -60,11 +59,11 @@ public static class ServiceCollectionExtensions
         // Register indexing service
         services.AddScoped<IMotorcycleIndexingService, MotorcycleIndexingService>();
 
-        // Register search agents
-        services.AddScoped<ISearchAgent, VectorSearchAgent>();
-
         // Configure HTTP clients for external services
         services.AddHttpClient();
+
+        // Register SQL persistence services
+        services.AddSqlPersistenceServices(configuration);
 
         return services;
     }

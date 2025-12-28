@@ -4,7 +4,7 @@ using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Polly;
 
 namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project & tests

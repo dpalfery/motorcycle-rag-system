@@ -231,4 +231,127 @@ BEGIN
 END
 GO
 
+-- Create IngestionJobs table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'IngestionJobs')
+BEGIN
+    CREATE TABLE [dbo].[IngestionJobs] (
+        [Id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [JobId] NVARCHAR(128) NOT NULL,
+        [JobType] NVARCHAR(50) NOT NULL,
+        [Status] NVARCHAR(50) NOT NULL,
+        [SourceFilePath] NVARCHAR(500) NOT NULL,
+        [SourceFileName] NVARCHAR(500) NULL,
+        [StartTime] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        [EndTime] DATETIME2 NULL,
+        [UserId] NVARCHAR(128) NULL,
+        [UserEmail] NVARCHAR(256) NULL,
+        [TotalRecordsProcessed] INT NOT NULL DEFAULT 0,
+        [RecordsIndexed] INT NOT NULL DEFAULT 0,
+        [RecordsFailed] INT NOT NULL DEFAULT 0,
+        [RecordsWithWarnings] INT NOT NULL DEFAULT 0,
+        [MetricsJson] NVARCHAR(MAX) NULL,
+        [ErrorsJson] NVARCHAR(MAX) NULL,
+        [ErrorMessage] NVARCHAR(2000) NULL,
+        [MetadataJson] NVARCHAR(MAX) NULL,
+        [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        [UpdatedAt] DATETIME2 NULL,
+        CONSTRAINT [UQ_IngestionJobs_JobId] UNIQUE ([JobId])
+    );
+    
+    CREATE INDEX [IX_IngestionJobs_JobId] ON [dbo].[IngestionJobs]([JobId]);
+    CREATE INDEX [IX_IngestionJobs_Status] ON [dbo].[IngestionJobs]([Status]);
+    CREATE INDEX [IX_IngestionJobs_JobType] ON [dbo].[IngestionJobs]([JobType]);
+    CREATE INDEX [IX_IngestionJobs_StartTime] ON [dbo].[IngestionJobs]([StartTime]);
+    CREATE INDEX [IX_IngestionJobs_UserId] ON [dbo].[IngestionJobs]([UserId]);
+END
+GO
+
+-- Create stored procedure for getting ingestion jobs by status
+IF NOT EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetIngestionJobsByStatus')
+BEGIN
+    EXEC ('
+    CREATE PROCEDURE [dbo].[sp_GetIngestionJobsByStatus]
+        @Status NVARCHAR(50),
+        @Limit INT = 100
+    AS
+    BEGIN
+        SELECT TOP (@Limit) *
+        FROM [dbo].[IngestionJobs]
+        WHERE [Status] = @Status
+        ORDER BY [StartTime] DESC
+    END
+    ')
+END
+GO
+
+-- Create stored procedure for getting ingestion jobs by job type
+IF NOT EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetIngestionJobsByJobType')
+BEGIN
+    EXEC ('
+    CREATE PROCEDURE [dbo].[sp_GetIngestionJobsByJobType]
+        @JobType NVARCHAR(50),
+        @Limit INT = 100
+    AS
+    BEGIN
+        SELECT TOP (@Limit) *
+        FROM [dbo].[IngestionJobs]
+        WHERE [JobType] = @JobType
+        ORDER BY [StartTime] DESC
+    END
+    ')
+END
+GO
+
+-- Create stored procedure for getting recent ingestion jobs
+IF NOT EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetRecentIngestionJobs')
+BEGIN
+    EXEC ('
+    CREATE PROCEDURE [dbo].[sp_GetRecentIngestionJobs]
+        @Limit INT = 50
+    AS
+    BEGIN
+        SELECT TOP (@Limit) *
+        FROM [dbo].[IngestionJobs]
+        ORDER BY [StartTime] DESC
+    END
+    ')
+END
+GO
+
+-- Create stored procedure for getting ingestion jobs by user
+IF NOT EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetIngestionJobsByUser')
+BEGIN
+    EXEC ('
+    CREATE PROCEDURE [dbo].[sp_GetIngestionJobsByUser]
+        @UserId NVARCHAR(128),
+        @Limit INT = 100
+    AS
+    BEGIN
+        SELECT TOP (@Limit) *
+        FROM [dbo].[IngestionJobs]
+        WHERE [UserId] = @UserId
+        ORDER BY [StartTime] DESC
+    END
+    ')
+END
+GO
+
+-- Create stored procedure for getting ingestion jobs by date range
+IF NOT EXISTS (SELECT * FROM sys.procedures WHERE name = 'sp_GetIngestionJobsByDateRange')
+BEGIN
+    EXEC ('
+    CREATE PROCEDURE [dbo].[sp_GetIngestionJobsByDateRange]
+        @StartDate DATETIME2,
+        @EndDate DATETIME2
+    AS
+    BEGIN
+        SELECT *
+        FROM [dbo].[IngestionJobs]
+        WHERE [StartTime] BETWEEN @StartDate AND @EndDate
+        ORDER BY [StartTime] DESC
+    END
+    ')
+END
+GO
+
 PRINT 'Motorcycle RAG System database schema created successfully!';

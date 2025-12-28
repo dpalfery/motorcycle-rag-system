@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using MotorcycleRAG.API.Authorization;
 using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.Application.Extensions;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -142,42 +141,42 @@ public class Program
                 options.AddPolicy("Admin", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("roles", "Admin");
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Admin");
                 });
 
                 // DataAdmin policy - requires DataAdmin app role
                 options.AddPolicy("DataAdmin", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("roles", "DataAdmin");
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "DataAdmin");
                 });
 
                 // ContentAdmin policy - requires ContentAdmin app role
                 options.AddPolicy("ContentAdmin", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("roles", "ContentAdmin");
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "ContentAdmin");
                 });
 
                 // SuperAdmin policy - requires SuperAdmin app role
                 options.AddPolicy("SuperAdmin", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("roles", "SuperAdmin");
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "SuperAdmin");
                 });
 
                 // User policy - requires User app role (basic authenticated user)
                 options.AddPolicy("User", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("roles", "User");
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "User");
                 });
 
                 // Viewer policy - requires Viewer app role (read-only access)
                 options.AddPolicy("Viewer", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("roles", "Viewer");
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Viewer");
                 });
 
                 // Default policy - requires any authenticated user
@@ -185,10 +184,6 @@ public class Program
                     .RequireAuthenticatedUser()
                     .Build();
             });
-
-            // Register custom authorization handlers
-            builder.Services.AddScoped<IAuthorizationHandler, RoleRequirementHandler>();
-            builder.Services.AddScoped<IAuthorizationHandler, ResourceAuthorizationHandler>();
 
             // Add rate limiting for public endpoints
             builder.Services.AddRateLimiter(options =>

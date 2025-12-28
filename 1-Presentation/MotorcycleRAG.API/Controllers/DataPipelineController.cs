@@ -3,8 +3,27 @@ using Microsoft.AspNetCore.Mvc;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Models;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace MotorcycleRAG.API.Controllers;
+
+/// <summary>
+/// Response for cancel pipeline operation
+/// </summary>
+public class CancelPipelineResponse
+{
+    public string ExecutionId { get; set; } = string.Empty;
+    public bool Cancelled { get; set; }
+}
+
+/// <summary>
+/// Response for get pipeline status operation
+/// </summary>
+public class PipelineStatusResponse
+{
+    public string ExecutionId { get; set; } = string.Empty;
+    public PipelineStatus Status { get; set; }
+}
 
 /// <summary>
 /// Controller for data pipeline operations including file upload and processing
@@ -33,6 +52,23 @@ public class DataPipelineController : ControllerBase
         _scheduledService = scheduledService ?? throw new ArgumentNullException(nameof(scheduledService));
         _monitoringService = monitoringService ?? throw new ArgumentNullException(nameof(monitoringService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Sanitizes user-provided values for logging to prevent log injection attacks.
+    /// Replaces newlines, carriage returns, and tabs with spaces.
+    /// </summary>
+    private string SanitizeForLogging(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        return input
+            .Replace('\n', ' ')
+            .Replace('\r', ' ')
+            .Replace('\t', ' ');
     }
 
     /// <summary>
@@ -102,9 +138,20 @@ public class DataPipelineController : ControllerBase
 
             return Ok(uploadResult);
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("File upload was cancelled");
+            return StatusCode(499, new ProblemDetails
+            {
+                Title = "Request cancelled",
+                Detail = "The file upload was cancelled by the client",
+                Status = 499
+            });
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error uploading file {FileName}", file?.FileName);
+            var fileName = file?.FileName ?? "unknown";
+            _logger.LogError(ex, "Error uploading file {FileName}", SanitizeForLogging(fileName));
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",
@@ -131,6 +178,18 @@ public class DataPipelineController : ControllerBase
         if (files == null || files.Count == 0)
         {
             return BadRequest("No files provided");
+        }
+
+        // Enforce batch size limit for DoS mitigation
+        var constraints = _fileUploadService.GetUploadConstraints();
+        if (files.Count > constraints.MaxFilesPerBatch)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Batch size exceeded",
+                Detail = $"Maximum {constraints.MaxFilesPerBatch} files allowed per batch. Requested: {files.Count}",
+                Status = 400
+            });
         }
 
         try
@@ -173,6 +232,16 @@ public class DataPipelineController : ControllerBase
 
             return Ok(uploadResult);
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("Batch file upload was cancelled");
+            return StatusCode(499, new ProblemDetails
+            {
+                Title = "Request cancelled",
+                Detail = "The batch file upload was cancelled by the client",
+                Status = 499
+            });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading batch files");
@@ -211,9 +280,19 @@ public class DataPipelineController : ControllerBase
             var result = await _orchestrator.ProcessFileAsync(request, HttpContext.RequestAborted);
             return Ok(result);
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("File processing was cancelled");
+            return StatusCode(499, new ProblemDetails
+            {
+                Title = "Request cancelled",
+                Detail = "The file processing was cancelled by the client",
+                Status = 499
+            });
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing file {FilePath}", request.FilePath);
+            _logger.LogError(ex, "Error processing file {FilePath}", SanitizeForLogging(request.FilePath));
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",
@@ -239,10 +318,32 @@ public class DataPipelineController : ControllerBase
             return BadRequest("No processing requests provided");
         }
 
+        // Enforce batch size limit for DoS mitigation - use centralized constraint
+        var constraints = _fileUploadService.GetUploadConstraints();
+        if (requests.Count > constraints.MaxFilesPerBatch)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Batch size exceeded",
+                Detail = $"Maximum {constraints.MaxFilesPerBatch} requests allowed per batch. Requested: {requests.Count}",
+                Status = 400
+            });
+        }
+
         try
         {
             var result = await _orchestrator.ProcessBatchAsync(requests, HttpContext.RequestAborted);
             return Ok(result);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("Batch file processing was cancelled");
+            return StatusCode(499, new ProblemDetails
+            {
+                Title = "Request cancelled",
+                Detail = "The batch file processing was cancelled by the client",
+                Status = 499
+            });
         }
         catch (Exception ex)
         {
@@ -262,7 +363,7 @@ public class DataPipelineController : ControllerBase
     /// <param name="executionId">The execution ID</param>
     /// <returns>Pipeline status</returns>
     [HttpGet("status/{executionId}")]
-    [ProducesResponseType(typeof(PipelineStatus), 200)]
+    [ProducesResponseType(typeof(PipelineStatusResponse), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 404)]
     public async Task<IActionResult> GetPipelineStatusAsync(string executionId)
     {
@@ -274,11 +375,15 @@ public class DataPipelineController : ControllerBase
         try
         {
             var status = await _orchestrator.GetPipelineStatusAsync(executionId);
-            return Ok(new { ExecutionId = executionId, Status = status });
+            return Ok(new PipelineStatusResponse
+            {
+                ExecutionId = executionId,
+                Status = status
+            });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting pipeline status for {ExecutionId}", executionId);
+            _logger.LogError(ex, "Error getting pipeline status for {ExecutionId}", SanitizeForLogging(executionId));
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",
@@ -321,7 +426,7 @@ public class DataPipelineController : ControllerBase
     /// <param name="executionId">The execution ID to cancel</param>
     /// <returns>Cancellation result</returns>
     [HttpPost("cancel/{executionId}")]
-    [ProducesResponseType(typeof(bool), 200)]
+    [ProducesResponseType(typeof(CancelPipelineResponse), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
     public async Task<IActionResult> CancelPipelineAsync(string executionId)
     {
@@ -333,11 +438,15 @@ public class DataPipelineController : ControllerBase
         try
         {
             var cancelled = await _orchestrator.CancelPipelineAsync(executionId);
-            return Ok(new { ExecutionId = executionId, Cancelled = cancelled });
+            return Ok(new CancelPipelineResponse
+            {
+                ExecutionId = executionId,
+                Cancelled = cancelled
+            });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error cancelling pipeline {ExecutionId}", executionId);
+            _logger.LogError(ex, "Error cancelling pipeline {ExecutionId}", SanitizeForLogging(executionId));
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",
@@ -360,6 +469,16 @@ public class DataPipelineController : ControllerBase
         {
             var result = await _scheduledService.ExecuteImmediateRunAsync(HttpContext.RequestAborted);
             return Ok(result);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("Scheduled processing execution was cancelled");
+            return StatusCode(499, new ProblemDetails
+            {
+                Title = "Request cancelled",
+                Detail = "The scheduled processing execution was cancelled by the client",
+                Status = 499
+            });
         }
         catch (Exception ex)
         {

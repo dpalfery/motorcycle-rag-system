@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Pipeline;

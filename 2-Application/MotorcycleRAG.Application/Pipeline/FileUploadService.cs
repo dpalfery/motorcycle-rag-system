@@ -2,7 +2,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
+using System.Linq;
 using System.Text;
 
 namespace MotorcycleRAG.Application.Pipeline;
@@ -26,6 +27,23 @@ public class FileUploadService : IFileUploadService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Sanitizes user-provided values for logging to prevent log injection attacks.
+    /// Replaces newlines, carriage returns, and tabs with spaces.
+    /// </summary>
+    private string SanitizeForLogging(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        return input
+            .Replace('\n', ' ')
+            .Replace('\r', ' ')
+            .Replace('\t', ' ');
+    }
+
     public async Task<FileUploadResult> UploadFileAsync(IFormFile file, FileUploadOptions options, CancellationToken cancellationToken = default)
     {
         var result = new FileUploadResult
@@ -37,23 +55,24 @@ public class FileUploadService : IFileUploadService
 
         try
         {
-            _logger.LogInformation("Starting file upload for {FileName} ({Size} bytes)", file.FileName, file.Length);
+            _logger.LogInformation("Starting file upload for {FileName} ({Size} bytes)", SanitizeForLogging(file.FileName), file.Length);
 
             // Validate the file
             result.ValidationResult = await ValidateFileAsync(file, options);
             if (!result.ValidationResult.IsValid)
             {
-                _logger.LogWarning("File validation failed for {FileName}: {Errors}", 
-                    file.FileName, string.Join(", ", result.ValidationResult.Errors));
+                _logger.LogWarning("File validation failed for {FileName}: {Errors}",
+                    SanitizeForLogging(file.FileName), string.Join(", ", result.ValidationResult.Errors));
                 return result;
             }
 
             result.DetectedFileType = result.ValidationResult.DetectedFileType;
 
-            // Generate unique filename if required
-            result.StoredFileName = options.GenerateUniqueFileName 
-                ? GenerateUniqueFileName(file.FileName)
-                : file.FileName;
+            // Generate unique filename if required, always sanitize to prevent path traversal
+            var safeFileName = SanitizeFileName(file.FileName);
+            result.StoredFileName = options.GenerateUniqueFileName
+                ? GenerateUniqueFileName(safeFileName)
+                : safeFileName;
 
             // Ensure upload directory exists
             var uploadPath = Path.Combine(_config.BaseUploadDirectory, options.UploadDirectory);
@@ -73,13 +92,13 @@ public class FileUploadService : IFileUploadService
             result.Metadata["OriginalSize"] = file.Length;
             result.Metadata["ValidationResults"] = result.ValidationResult;
 
-            _logger.LogInformation("File upload completed successfully: {StoredFileName} at {FilePath}", 
-                result.StoredFileName, result.FilePath);
+            _logger.LogInformation("File upload completed successfully: {StoredFileName} at {FilePath}",
+                SanitizeForLogging(result.StoredFileName), SanitizeForLogging(result.FilePath));
 
             // Track telemetry
             _telemetryService.TrackEvent("FileUploaded", new Dictionary<string, string>
             {
-                ["FileName"] = file.FileName,
+                ["FileName"] = SanitizeForLogging(file.FileName),
                 ["FileType"] = result.DetectedFileType.ToString(),
                 ["FileSize"] = file.Length.ToString()
             });
@@ -88,7 +107,7 @@ public class FileUploadService : IFileUploadService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload file {FileName}", file.FileName);
+            _logger.LogError(ex, "Failed to upload file {FileName}", SanitizeForLogging(file.FileName));
             result.ValidationResult.AddError($"Upload failed: {ex.Message}");
             return result;
         }
@@ -320,6 +339,49 @@ public class FileUploadService : IFileUploadService
         var uniqueId = Guid.NewGuid().ToString("N")[..8];
         
         return $"{nameWithoutExtension}_{timestamp}_{uniqueId}{extension}";
+    }
+
+    /// <summary>
+    /// Sanitizes a filename to prevent path traversal attacks.
+    /// Removes invalid characters, path separators, drive letters, and path root indicators.
+    /// </summary>
+    private string SanitizeFileName(string fileName)
+    {
+        if (string.IsNullOrEmpty(fileName))
+        {
+            return "unnamed_file";
+        }
+
+        // CRITICAL: Strip path separators and drive letters BEFORE Path.GetFileName()
+        // This prevents edge cases like "C:autorun.csv" or UNC paths from being preserved
+        var safeFileName = fileName.Replace(":", "_").Replace("/", "_").Replace("\\", "_");
+
+        // Get only the filename (no directory path) - now safe after stripping dangerous chars
+        safeFileName = Path.GetFileName(safeFileName);
+
+        // Remove invalid filename characters
+        var invalidChars = Path.GetInvalidFileNameChars();
+        safeFileName = new string(safeFileName
+            .Where(c => !invalidChars.Contains(c))
+            .ToArray());
+
+        // If filename is empty after sanitization, use a default
+        if (string.IsNullOrWhiteSpace(safeFileName))
+        {
+            return "unnamed_file";
+        }
+
+        // Limit filename length to avoid issues
+        const int maxFileNameLength = 255;
+        if (safeFileName.Length > maxFileNameLength)
+        {
+            var extension = Path.GetExtension(safeFileName);
+            var nameWithoutExt = Path.GetFileNameWithoutExtension(safeFileName);
+            var maxNameLength = maxFileNameLength - extension.Length;
+            safeFileName = nameWithoutExt[..maxNameLength] + extension;
+        }
+
+        return safeFileName;
     }
 
     private string FormatFileSize(long bytes)

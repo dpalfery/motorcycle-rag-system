@@ -3,7 +3,7 @@ using Azure.AI.OpenAI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;

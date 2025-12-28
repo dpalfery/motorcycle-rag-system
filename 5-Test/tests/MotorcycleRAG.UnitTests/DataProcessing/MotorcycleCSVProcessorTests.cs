@@ -2,7 +2,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Infrastructure.DataProcessing;
 using Xunit;
 

@@ -5,7 +5,7 @@ using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Azure;
 
 namespace MotorcycleRAG.EndToEndTests;

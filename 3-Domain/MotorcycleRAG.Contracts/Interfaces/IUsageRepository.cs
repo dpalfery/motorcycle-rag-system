@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 
 namespace MotorcycleRAG.Contracts.Interfaces
 {

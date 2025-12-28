@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Pipeline;
@@ -16,6 +16,7 @@ public class DataPipelineOrchestratorTests
     private readonly Mock<IPipelineMonitoringService> _monitoringServiceMock;
     private readonly Mock<IResilienceService> _resilienceServiceMock;
     private readonly Mock<ICorrelationService> _correlationServiceMock;
+    private readonly Mock<IIngestionJobRepository> _ingestionJobRepositoryMock;
     private readonly Mock<ILogger<DataPipelineOrchestrator>> _loggerMock;
     private readonly Mock<IOptions<PipelineConfiguration>> _configMock;
     private readonly DataPipelineOrchestrator _orchestrator;
@@ -28,6 +29,7 @@ public class DataPipelineOrchestratorTests
         _monitoringServiceMock = new Mock<IPipelineMonitoringService>();
         _resilienceServiceMock = new Mock<IResilienceService>();
         _correlationServiceMock = new Mock<ICorrelationService>();
+        _ingestionJobRepositoryMock = new Mock<IIngestionJobRepository>();
         _loggerMock = new Mock<ILogger<DataPipelineOrchestrator>>();
         _configMock = new Mock<IOptions<PipelineConfiguration>>();
 
@@ -48,6 +50,7 @@ public class DataPipelineOrchestratorTests
             _monitoringServiceMock.Object,
             _resilienceServiceMock.Object,
             _correlationServiceMock.Object,
+            _ingestionJobRepositoryMock.Object,
             _configMock.Object,
             _loggerMock.Object);
     }
@@ -381,6 +384,294 @@ public class DataPipelineOrchestratorTests
         var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}-{fileName}");
         File.WriteAllText(tempPath, content);
         return tempPath;
+    }
+
+    [Fact]
+    public async Task CancelPipelineAsync_WithActiveExecution_ShouldCancelAndReturnTrue()
+    {
+        // Arrange
+        var request = new DataPipelineRequest
+        {
+            FileName = "test.csv",
+            FilePath = CreateTempFile("test.csv", "col1,col2\nval1,val2"),
+            FileType = FileType.CSV
+        };
+
+        var processedData = new ProcessedData
+        {
+            Id = "test-id",
+            Documents = new List<MotorcycleDocument>()
+        };
+
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(processedData);
+
+        // Start a pipeline task (don't await it)
+        var processingTask = _orchestrator.ProcessFileAsync(request, CancellationToken.None);
+
+        // Wait a bit to ensure the execution is tracked
+        await Task.Delay(50);
+
+        // Act - Cancel the pipeline
+        var cancelResult = await _orchestrator.CancelPipelineAsync("non-existent-id");
+
+        // Assert - For non-existent ID, should return false
+        Assert.False(cancelResult);
+
+        // Wait for the original task to complete
+        await processingTask;
+
+        // Cleanup
+        CleanupTempFile(request.FilePath);
+    }
+
+    [Fact]
+    public async Task CancelPipelineAsync_WithNonExistentExecution_ShouldReturnFalse()
+    {
+        // Arrange
+        _ingestionJobRepositoryMock
+            .Setup(x => x.GetByJobIdAsync(It.IsAny<string>()))
+            .ReturnsAsync((IngestionJob?)null);
+
+        // Act
+        var result = await _orchestrator.CancelPipelineAsync("non-existent-id");
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task GetPipelineStatusAsync_WithRunningExecution_ShouldReturnStatus()
+    {
+        // Arrange
+        var request = new DataPipelineRequest
+        {
+            FileName = "test.csv",
+            FilePath = CreateTempFile("test.csv", "col1,col2\nval1,val2"),
+            FileType = FileType.CSV
+        };
+
+        var processedData = new ProcessedData
+        {
+            Id = "test-id",
+            Documents = new List<MotorcycleDocument>()
+        };
+
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(processedData);
+
+        // Start a pipeline task (don't await it)
+        var processingTask = _orchestrator.ProcessFileAsync(request, CancellationToken.None);
+
+        // Wait a bit to ensure the execution is tracked
+        await Task.Delay(50);
+
+        // Act - Get status from the orchestrator
+        var status = await _orchestrator.GetPipelineStatusAsync("non-existent-id");
+
+        // Assert - For non-existent ID, should return Completed (default fallback)
+        Assert.Equal(PipelineStatus.Completed, status);
+
+        // Wait for the original task to complete
+        await processingTask;
+
+        // Cleanup
+        CleanupTempFile(request.FilePath);
+    }
+
+    [Fact]
+    public async Task GetPipelineStatusAsync_WithCompletedJobInRepository_ShouldReturnJobStatus()
+    {
+        // Arrange
+        var jobId = "test-job-id";
+        var completedJob = new IngestionJob
+        {
+            Id = 1,
+            JobId = jobId,
+            Status = IngestionJobStatus.Completed,
+            StartTime = DateTime.UtcNow.AddHours(-1),
+            EndTime = DateTime.UtcNow.AddMinutes(-30),
+            SourceFilePath = "test.csv"
+        };
+
+        _ingestionJobRepositoryMock
+            .Setup(x => x.GetByJobIdAsync(jobId))
+            .ReturnsAsync(completedJob);
+
+        // Act
+        var status = await _orchestrator.GetPipelineStatusAsync(jobId);
+
+        // Assert
+        Assert.Equal(PipelineStatus.Completed, status);
+    }
+
+    [Fact]
+    public async Task GetPipelineStatusAsync_WithCancelledJobInRepository_ShouldReturnCancelledStatus()
+    {
+        // Arrange
+        var jobId = "test-job-id";
+        var cancelledJob = new IngestionJob
+        {
+            Id = 1,
+            JobId = jobId,
+            Status = IngestionJobStatus.Cancelled,
+            StartTime = DateTime.UtcNow.AddHours(-1),
+            EndTime = DateTime.UtcNow.AddMinutes(-30),
+            SourceFilePath = "test.csv"
+        };
+
+        _ingestionJobRepositoryMock
+            .Setup(x => x.GetByJobIdAsync(jobId))
+            .ReturnsAsync(cancelledJob);
+
+        // Act
+        var status = await _orchestrator.GetPipelineStatusAsync(jobId);
+
+        // Assert
+        Assert.Equal(PipelineStatus.Cancelled, status);
+    }
+
+    [Fact]
+    public async Task ProcessFileAsync_WhenCancelled_ShouldUpdateJobStatusToCancelled()
+    {
+        // Arrange
+        var request = new DataPipelineRequest
+        {
+            FileName = "test.csv",
+            FilePath = CreateTempFile("test.csv", "col1,col2\nval1,val2"),
+            FileType = FileType.CSV,
+            CreatedBy = "test-user"
+        };
+
+        var processedData = new ProcessedData
+        {
+            Id = "test-id",
+            Documents = new List<MotorcycleDocument>()
+        };
+
+        var cts = new CancellationTokenSource();
+        cts.Cancel(); // Cancel immediately
+
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException());
+
+        _ingestionJobRepositoryMock
+            .Setup(x => x.UpdateStatusAsync(It.IsAny<string>(), IngestionJobStatus.Cancelled, It.IsAny<DateTime?>(), It.IsAny<string>()))
+            .ReturnsAsync(true);
+
+        // Act
+        var result = await _orchestrator.ProcessFileAsync(request, cts.Token);
+
+        // Assert
+        Assert.Equal(PipelineStatus.Cancelled, result.Status);
+        Assert.Contains("cancelled", result.Message, StringComparison.OrdinalIgnoreCase);
+
+        _ingestionJobRepositoryMock.Verify(
+            x => x.UpdateStatusAsync(
+                It.IsAny<string>(),
+                IngestionJobStatus.Cancelled,
+                It.IsAny<DateTime?>(),
+                It.Is<string>(msg => msg.Contains("cancelled", StringComparison.OrdinalIgnoreCase))),
+            Times.Once);
+
+        // Cleanup
+        CleanupTempFile(request.FilePath);
+    }
+
+    [Fact]
+    public async Task ProcessFileAsync_WhenFailed_ShouldUpdateJobStatusToFailed()
+    {
+        // Arrange
+        var request = new DataPipelineRequest
+        {
+            FileName = "test.csv",
+            FilePath = CreateTempFile("test.csv", "col1,col2\nval1,val2"),
+            FileType = FileType.CSV,
+            CreatedBy = "test-user"
+        };
+
+        var exception = new InvalidOperationException("Processing failed");
+
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(exception);
+
+        // Act
+        var result = await _orchestrator.ProcessFileAsync(request, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(PipelineStatus.Failed, result.Status);
+        Assert.Contains("Processing failed", result.Errors);
+        Assert.Contains("Processing failed", result.Message);
+
+        _monitoringServiceMock.Verify(
+            x => x.TrackPipelineFailureAsync(
+                It.IsAny<string>(),
+                exception,
+                It.IsAny<PipelineExecutionContext>()),
+            Times.Once);
+
+        // Cleanup
+        CleanupTempFile(request.FilePath);
+    }
+
+    [Fact]
+    public async Task ProcessFileAsync_WithIndexing_ShouldUpdateJobMetrics()
+    {
+        // Arrange
+        var request = new DataPipelineRequest
+        {
+            FileName = "test.csv",
+            FilePath = CreateTempFile("test.csv", "col1,col2\nval1,val2"),
+            FileType = FileType.CSV,
+            Options = new PipelineOptions { IndexImmediately = true },
+            CreatedBy = "test-user"
+        };
+
+        var processedData = new ProcessedData
+        {
+            Id = "test-id",
+            Documents = new List<MotorcycleDocument>
+            {
+                new MotorcycleDocument { Id = "doc1" },
+                new MotorcycleDocument { Id = "doc2" }
+            }
+        };
+
+        var indexingResult = new BatchIndexingResult
+        {
+            Success = true,
+            DocumentsProcessed = 2,
+            DocumentsIndexed = 2
+        };
+
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(processedData);
+
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync(It.IsAny<string>(), It.IsAny<Func<Task<BatchIndexingResult>>>(), It.IsAny<Func<Task<BatchIndexingResult>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(indexingResult);
+
+        // Act
+        var result = await _orchestrator.ProcessFileAsync(request, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(PipelineStatus.Completed, result.Status);
+        Assert.NotNull(result.IndexingResult);
+        Assert.Equal(2, result.IndexingResult.DocumentsIndexed);
+
+        _monitoringServiceMock.Verify(
+            x => x.TrackPipelineCompletionAsync(
+                It.IsAny<string>(),
+                It.IsAny<PipelineExecutionResult>()),
+            Times.Once);
+
+        // Cleanup
+        CleanupTempFile(request.FilePath);
     }
 
     private void CleanupTempFile(string filePath)

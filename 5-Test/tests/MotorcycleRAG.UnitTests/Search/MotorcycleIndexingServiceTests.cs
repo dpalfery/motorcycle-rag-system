@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Infrastructure.Search;
+using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Persistence.Search;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Search;

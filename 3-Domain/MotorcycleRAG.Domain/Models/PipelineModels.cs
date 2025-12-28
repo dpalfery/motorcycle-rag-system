@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace MotorcycleRAG.Domain.Models;
 
@@ -86,6 +87,7 @@ public class BatchPipelineResult
 /// <summary>
 /// Pipeline execution status
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum PipelineStatus
 {
     Queued,
@@ -172,6 +174,7 @@ public class PipelineOptions
 /// <summary>
 /// File types supported by the pipeline
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum FileType
 {
     CSV,
@@ -182,6 +185,7 @@ public enum FileType
 /// <summary>
 /// Pipeline type enumeration
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum PipelineType
 {
     CSV,

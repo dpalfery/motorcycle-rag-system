@@ -4,10 +4,10 @@ using Azure.Search.Documents.Indexes.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using System.Text.Json;
 
-namespace MotorcycleRAG.Infrastructure.Search;
+namespace MotorcycleRAG.Persistence.Search;
 
 /// <summary>
 /// Azure AI Search indexing service with hybrid vector/keyword capabilities
@@ -179,6 +179,71 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             result.DocumentsIndexed += unifiedResult.DocumentsIndexed;
             result.Errors.AddRange(unifiedResult.Errors);
             result.Success = result.Success && unifiedResult.Success;
+
+            return result;
+        }
+        finally
+        {
+            _indexingSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Index structured motorcycle specifications with batch processing
+    /// </summary>
+    public async Task<IndexingResult> IndexStructuredSpecificationsAsync(
+        IEnumerable<MotorcycleSpecification> specifications,
+        CancellationToken cancellationToken = default)
+    {
+        await _indexingSemaphore.WaitAsync(cancellationToken);
+
+        try
+        {
+            _logger.LogInformation("Starting structured specification indexing for {SpecificationCount} specifications",
+                specifications.Count());
+
+            var specificationsList = specifications.ToList();
+            if (specificationsList.Count == 0)
+            {
+                _logger.LogWarning("No specifications to index");
+                return new IndexingResult
+                {
+                    Success = true,
+                    Message = "No specifications to index",
+                    DocumentsIndexed = 0
+                };
+            }
+
+            // Convert specifications to documents
+            var documents = ConvertSpecificationsToDocuments(specificationsList);
+            
+            // Index in CSV index for structured data
+            var csvResult = await IndexDocumentsBatchAsync(
+                documents,
+                CSV_INDEX_NAME,
+                DocumentType.Specification,
+                cancellationToken);
+
+            // Also index in unified index for cross-source search
+            var unifiedResult = await IndexDocumentsBatchAsync(
+                documents,
+                UNIFIED_INDEX_NAME,
+                DocumentType.Specification,
+                cancellationToken);
+
+            // Combine results
+            var result = new IndexingResult
+            {
+                Success = csvResult.Success && unifiedResult.Success,
+                DocumentsIndexed = csvResult.DocumentsIndexed,
+                IndexName = CSV_INDEX_NAME,
+                Message = $"Successfully indexed {csvResult.DocumentsIndexed} specification documents",
+                Errors = csvResult.Errors.Concat(unifiedResult.Errors).ToList(),
+                IndexingTime = csvResult.IndexingTime + unifiedResult.IndexingTime
+            };
+
+            _logger.LogInformation("Structured specification indexing completed. Indexed: {IndexedCount}/{TotalCount}",
+                result.DocumentsIndexed, specificationsList.Count);
 
             return result;
         }
@@ -929,6 +994,140 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
         }
 
         return adjustedSize;
+    }
+
+    /// <summary>
+    /// Converts motorcycle specifications to indexable documents
+    /// </summary>
+    private List<MotorcycleDocument> ConvertSpecificationsToDocuments(List<MotorcycleSpecification> specifications)
+    {
+        var documents = new List<MotorcycleDocument>();
+
+        foreach (var spec in specifications)
+        {
+            try
+            {
+                var document = CreateDocumentFromSpecification(spec);
+                documents.Add(document);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to convert specification {SpecificationId} to document", spec.Id);
+            }
+        }
+
+        _logger.LogDebug("Converted {SpecificationCount} specifications to {DocumentCount} documents",
+            specifications.Count, documents.Count);
+
+        return documents;
+    }
+
+    /// <summary>
+    /// Creates a MotorcycleDocument from a MotorcycleSpecification
+    /// </summary>
+    private MotorcycleDocument CreateDocumentFromSpecification(MotorcycleSpecification spec)
+    {
+        // Build comprehensive content for search
+        var contentBuilder = new System.Text.StringBuilder();
+        contentBuilder.AppendLine($"Motorcycle: {spec.Make} {spec.Model} {spec.Year}");
+        
+        if (spec.Engine != null)
+        {
+            contentBuilder.AppendLine($"Engine: {spec.Engine.Type}, {spec.Engine.DisplacementCC}cc, {spec.Engine.Horsepower}hp, {spec.Engine.Torque}Nm");
+            contentBuilder.AppendLine($"Fuel System: {spec.Engine.FuelSystem}, Cylinders: {spec.Engine.Cylinders}");
+        }
+
+        if (spec.Performance != null)
+        {
+            contentBuilder.AppendLine($"Top Speed: {spec.Performance.TopSpeedKmh} km/h");
+            contentBuilder.AppendLine($"Acceleration 0-100: {spec.Performance.Acceleration0To100}s");
+            contentBuilder.AppendLine($"Fuel Consumption: {spec.Performance.FuelConsumptionL100km}L/100km");
+            contentBuilder.AppendLine($"Range: {spec.Performance.RangeKm}km");
+        }
+
+        if (spec.Safety != null)
+        {
+            var safetyFeatures = new List<string>();
+            if (spec.Safety.ABS) safetyFeatures.Add("ABS");
+            if (spec.Safety.TractionControl) safetyFeatures.Add("Traction Control");
+            if (spec.Safety.StabilityControl) safetyFeatures.Add("Stability Control");
+            if (spec.Safety.AntiWheelieControl) safetyFeatures.Add("Anti-Wheelie Control");
+            safetyFeatures.AddRange(spec.Safety.AdditionalFeatures);
+            
+            if (safetyFeatures.Count > 0)
+            {
+                contentBuilder.AppendLine($"Safety Features: {string.Join(", ", safetyFeatures)}");
+            }
+        }
+
+        if (spec.Pricing != null)
+        {
+            contentBuilder.AppendLine($"MSRP: {spec.Pricing.MSRP} {spec.Pricing.Currency}");
+            contentBuilder.AppendLine($"Market: {spec.Pricing.Market}");
+        }
+
+        // Add additional specs
+        if (spec.AdditionalSpecs.Count > 0)
+        {
+            foreach (var additionalSpec in spec.AdditionalSpecs)
+            {
+                contentBuilder.AppendLine($"{additionalSpec.Key}: {additionalSpec.Value}");
+            }
+        }
+
+        var document = new MotorcycleDocument
+        {
+            Id = spec.Id,
+            Title = $"{spec.Make} {spec.Model} {spec.Year}",
+            Content = contentBuilder.ToString(),
+            Type = DocumentType.Specification,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        // Build metadata
+        document.Metadata = new DocumentMetadata
+        {
+            SourceFile = "structured-specification",
+            Section = "specification",
+            Tags = new List<string> { spec.Make, spec.Model, spec.Year.ToString(), "motorcycle", "specification" }
+        };
+
+        // Add specification-specific metadata
+        document.Metadata.AdditionalProperties["Make"] = spec.Make;
+        document.Metadata.AdditionalProperties["Model"] = spec.Model;
+        document.Metadata.AdditionalProperties["Year"] = spec.Year.ToString();
+        document.Metadata.AdditionalProperties["DocumentType"] = "StructuredSpecification";
+
+        if (spec.Engine != null)
+        {
+            document.Metadata.AdditionalProperties["EngineType"] = spec.Engine.Type;
+            document.Metadata.AdditionalProperties["DisplacementCC"] = spec.Engine.DisplacementCC;
+            document.Metadata.AdditionalProperties["Horsepower"] = spec.Engine.Horsepower;
+            document.Metadata.AdditionalProperties["Torque"] = spec.Engine.Torque;
+        }
+
+        if (spec.Performance != null)
+        {
+            document.Metadata.AdditionalProperties["TopSpeedKmh"] = spec.Performance.TopSpeedKmh;
+            document.Metadata.AdditionalProperties["Acceleration0To100"] = spec.Performance.Acceleration0To100;
+            document.Metadata.AdditionalProperties["FuelConsumptionL100km"] = spec.Performance.FuelConsumptionL100km;
+        }
+
+        if (spec.Pricing != null)
+        {
+            document.Metadata.AdditionalProperties["MSRP"] = spec.Pricing.MSRP;
+            document.Metadata.AdditionalProperties["Currency"] = spec.Pricing.Currency;
+            document.Metadata.AdditionalProperties["Market"] = spec.Pricing.Market;
+        }
+
+        // Add additional specs to metadata
+        foreach (var additionalSpec in spec.AdditionalSpecs)
+        {
+            document.Metadata.AdditionalProperties[additionalSpec.Key] = additionalSpec.Value;
+        }
+
+        return document;
     }
 
     /// <summary>

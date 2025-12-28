@@ -111,18 +111,18 @@
 
 **Independent Test**: Upload sample CSV, process it, confirm status/metrics available and query returns dataset-derived results.
 
-- [ ] T044 [US2] Implement upload constraints response in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
-- [ ] T045 [US2] Implement batch upload endpoint behavior in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
-- [ ] T046 [US2] Implement batch processing endpoint behavior in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
-- [ ] T047 [US2] Persist ingestion job records (execution/status/metrics/errors) via SQL in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/IngestionJobRepository.cs
-- [ ] T048 [US2] Wire ingestion job persistence into monitoring service in 2-Application/MotorcycleRAG.Application/Services/PipelineMonitoringService.cs
-- [ ] T049 [US2] Implement cancellation behavior in 2-Application/MotorcycleRAG.Application/Services/DataPipelineOrchestrator.cs
-- [ ] T050 [US2] Implement scheduled run trigger + stats in 2-Application/MotorcycleRAG.Application/Services/ScheduledPipelineService.cs
-- [ ] T051 [US2] Ensure structured spec ingestion writes documents/vectors to Azure AI Search in 4-Persistence/MotorcycleRAG.Persistence/Search/MotorcycleIndexingService.cs
-- [ ] T052 [US2] Require Entra ID admin auth + roles for pipeline endpoints in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T044 [US2] Implement upload constraints response in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T045 [US2] Implement batch upload endpoint behavior in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T046 [US2] Implement batch processing endpoint behavior in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T047 [US2] Persist ingestion job records (execution/status/metrics/errors) via SQL in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/IngestionJobRepository.cs
+- [X] T048 [US2] Wire ingestion job persistence into monitoring service in 2-Application/MotorcycleRAG.Application/Services/PipelineMonitoringService.cs
+- [X] T049 [US2] Implement cancellation behavior in 2-Application/MotorcycleRAG.Application/Services/DataPipelineOrchestrator.cs
+- [X] T050 [US2] Implement scheduled run trigger + stats in 2-Application/MotorcycleRAG.Application/Services/ScheduledPipelineService.cs
+- [X] T051 [US2] Ensure structured spec ingestion writes documents/vectors to Azure AI Search in 4-Persistence/MotorcycleRAG.Persistence/Search/MotorcycleIndexingService.cs
+- [X] T052 [US2] Require Entra ID admin auth + roles for pipeline endpoints in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
 
-- [ ] T109 [US2] Extend integration coverage for upload/process/status/metrics/cancel/scheduled endpoints in 5-Test/tests/MotorcycleRAG.IntegrationTests/Pipeline/DataPipelineIntegrationTests.cs
-- [ ] T110 [P] [US2] Extend unit tests for orchestration/cancellation in 5-Test/tests/MotorcycleRAG.UnitTests/Pipeline/DataPipelineOrchestratorTests.cs
+- [X] T109 [US2] Extend integration coverage for upload/process/status/metrics/cancel/scheduled endpoints in 5-Test/tests/MotorcycleRAG.IntegrationTests/Pipeline/DataPipelineIntegrationTests.cs
+- [X] T110 [P] [US2] Extend unit tests for orchestration/cancellation in 5-Test/tests/MotorcycleRAG.UnitTests/Pipeline/DataPipelineOrchestratorTests.cs
 
 ---
 

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Pipeline;
@@ -16,6 +16,7 @@ public class PipelineMonitoringServiceReliabilityTests
     private readonly Mock<ITelemetryService> _telemetryServiceMock;
     private readonly Mock<ILogger<PipelineMonitoringService>> _loggerMock;
     private readonly Mock<IOptions<PipelineMonitoringConfiguration>> _configMock;
+    private readonly Mock<IIngestionJobRepository> _ingestionJobRepositoryMock;
     private readonly PipelineMonitoringService _service;
 
     public PipelineMonitoringServiceReliabilityTests()
@@ -23,6 +24,7 @@ public class PipelineMonitoringServiceReliabilityTests
         _telemetryServiceMock = new Mock<ITelemetryService>();
         _loggerMock = new Mock<ILogger<PipelineMonitoringService>>();
         _configMock = new Mock<IOptions<PipelineMonitoringConfiguration>>();
+        _ingestionJobRepositoryMock = new Mock<IIngestionJobRepository>();
 
         var config = new PipelineMonitoringConfiguration
         {
@@ -37,7 +39,7 @@ public class PipelineMonitoringServiceReliabilityTests
 
         _configMock.Setup(x => x.Value).Returns(config);
 
-        _service = new PipelineMonitoringService(_telemetryServiceMock.Object, _configMock.Object, _loggerMock.Object);
+        _service = new PipelineMonitoringService(_telemetryServiceMock.Object, _ingestionJobRepositoryMock.Object, _configMock.Object, _loggerMock.Object);
     }
 
     [Fact]

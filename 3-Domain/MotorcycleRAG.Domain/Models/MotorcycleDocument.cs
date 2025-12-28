@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace MotorcycleRAG.Domain.Models;
 
@@ -41,6 +42,7 @@ public class MotorcycleDocument
 /// <summary>
 /// Document type enumeration
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum DocumentType
 {
     Specification,

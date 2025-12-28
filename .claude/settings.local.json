@@ -1,12 +1,17 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "slashCommands": {
-    "/push": "save all files, stage all files, generate a detailed commit message. commit all changes with message, pull from origin with rebase, fix any merge issues and then push"
-  },
   "permissions": {
     "allow": [
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Skill(clean-architecture)",
+      "Bash(dotnet list:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \".specify/scripts/powershell/setup-plan.ps1\" -Json)",
+      "Bash(New-Item -Path \"C:\\\\git\\\\motorcycle-rag-system\\\\specs\\\\001-system-spec\\\\data-model.md\" -ItemType File -Force)",
+      "Bash(Out-Null)"
     ],
     "deny": []
+  },
+  "slashCommands": {
+    "/push": "save all files, stage all files, generate a detailed commit message. commit all changes with message, pull from origin with rebase, fix any merge issues and then push"
   }
 }

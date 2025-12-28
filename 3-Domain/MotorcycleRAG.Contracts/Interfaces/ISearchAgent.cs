@@ -1,4 +1,4 @@
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
@@ -10,10 +10,10 @@ public interface ISearchAgent
     /// <summary>
     /// The type of search agent
     /// </summary>
-    Domain.Models.SearchAgentType AgentType { get; }
+    SearchAgentType AgentType { get; }
 
     /// <summary>
     /// Performs search operation
     /// </summary>
-    Task<Domain.Models.SearchResult[]> SearchAsync(string query, Domain.Models.SearchOptions options);
+    Task<SearchResult[]> SearchAsync(string query, SearchOptions options);
 }

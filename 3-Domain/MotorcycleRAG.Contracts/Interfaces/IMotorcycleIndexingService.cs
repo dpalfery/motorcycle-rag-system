@@ -1,4 +1,4 @@
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
@@ -21,6 +21,13 @@ public interface IMotorcycleIndexingService
     /// Index PDF processed data with batch processing
     /// </summary>
     Task<IndexingResult> IndexPDFDataAsync(ProcessedData processedData, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Index structured motorcycle specifications with batch processing
+    /// </summary>
+    Task<IndexingResult> IndexStructuredSpecificationsAsync(
+        IEnumerable<MotorcycleSpecification> specifications,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Indexes motorcycle documents

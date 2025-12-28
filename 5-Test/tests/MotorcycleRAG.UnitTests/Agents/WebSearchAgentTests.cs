@@ -4,7 +4,7 @@ using Moq;
 using Moq.Contrib.HttpClient;
 using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using System.Net;
 using System.Text;
 using Xunit;

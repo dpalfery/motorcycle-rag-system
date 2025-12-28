@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using NCrontab;
 
 namespace MotorcycleRAG.Application.Pipeline;
@@ -14,6 +14,7 @@ namespace MotorcycleRAG.Application.Pipeline;
 public class ScheduledPipelineService : BackgroundService, IScheduledPipelineService
 {
     private readonly IServiceScopeFactory _serviceScopeFactory;
+    private readonly IIngestionJobRepository _ingestionJobRepository;
     private readonly ILogger<ScheduledPipelineService> _logger;
     private readonly ScheduledProcessingConfiguration _config;
     private readonly SemaphoreSlim _executionSemaphore;
@@ -23,13 +24,16 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     private DateTime? _nextExecutionTime;
     private ScheduledProcessingStats _stats;
     private CancellationTokenSource? _cancellationTokenSource;
+    private string? _currentExecutionId;
 
     public ScheduledPipelineService(
         IServiceScopeFactory serviceScopeFactory,
+        IIngestionJobRepository ingestionJobRepository,
         IOptions<ScheduledProcessingConfiguration> config,
         ILogger<ScheduledPipelineService> logger)
     {
         _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
+        _ingestionJobRepository = ingestionJobRepository ?? throw new ArgumentNullException(nameof(ingestionJobRepository));
         _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -91,6 +95,38 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         }
     }
 
+    public async Task<bool> CancelCurrentRunAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentExecutionId))
+        {
+            _logger.LogWarning("No current scheduled run to cancel");
+            return false;
+        }
+
+        try
+        {
+            var success = await _ingestionJobRepository.UpdateStatusAsync(
+                _currentExecutionId,
+                IngestionJobStatus.Cancelled,
+                DateTime.UtcNow,
+                "Scheduled run cancelled by administrator");
+
+            if (success)
+            {
+                _logger.LogInformation("Scheduled run {ExecutionId} cancelled successfully", _currentExecutionId);
+                _currentExecutionId = null;
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cancel scheduled run {ExecutionId}", _currentExecutionId);
+            return false;
+        }
+    }
+
     public async Task<DateTime?> GetNextExecutionTimeAsync()
     {
         return await Task.FromResult(_nextExecutionTime);
@@ -98,6 +134,30 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
 
     public async Task<ScheduledProcessingStats> GetProcessingStatsAsync()
     {
+        // Enrich stats with recent job data from repository
+        try
+        {
+            var recentJobs = await _ingestionJobRepository.GetByJobTypeAsync(IngestionJobType.Scheduled, limit: 100);
+            
+            if (recentJobs.Length > 0)
+            {
+                var last24Hours = recentJobs.Where(j => j.StartTime >= DateTime.UtcNow.AddHours(-24)).ToList();
+                
+                _stats.Last24HourRuns = last24Hours.Count;
+                _stats.Last24HourSuccesses = last24Hours.Count(j => j.Status == IngestionJobStatus.Completed);
+                _stats.Last24HourFailures = last24Hours.Count(j => j.Status == IngestionJobStatus.Failed);
+                _stats.Last24HourCancellations = last24Hours.Count(j => j.Status == IngestionJobStatus.Cancelled);
+                
+                // Calculate documents processed in last 24 hours
+                _stats.DocumentsProcessedLast24Hours = last24Hours.Sum(j => j.TotalRecordsProcessed);
+                _stats.DocumentsIndexedLast24Hours = last24Hours.Sum(j => j.RecordsIndexed);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enrich scheduled processing stats from repository");
+        }
+
         return await Task.FromResult(_stats);
     }
 
@@ -177,12 +237,46 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     private async Task<PipelineExecutionResult> ExecuteScheduledProcessingAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken)
     {
         var startTime = DateTime.UtcNow;
+        var executionId = Guid.NewGuid().ToString();
+        _currentExecutionId = executionId;
+        
         var result = new PipelineExecutionResult
         {
-            ExecutionId = Guid.NewGuid().ToString(),
+            ExecutionId = executionId,
             StartTime = startTime,
             Status = PipelineStatus.Processing
         };
+
+        // Create ingestion job record for scheduled run
+        try
+        {
+            var scheduledJob = new IngestionJob
+            {
+                JobId = executionId,
+                JobType = IngestionJobType.Scheduled,
+                Status = IngestionJobStatus.Processing,
+                SourceFilePath = "ScheduledService",
+                SourceFileName = null,
+                StartTime = startTime,
+                UserId = "System",
+                UserEmail = "system@motorcyclerag.internal"
+            };
+
+            var metadata = new Dictionary<string, object>
+            {
+                ["Trigger"] = "Scheduled",
+                ["Schedule"] = _scheduleConfig.CronExpression,
+                ["ExecutionType"] = "Automatic"
+            };
+            scheduledJob.SetMetadata(metadata);
+
+            await _ingestionJobRepository.CreateAsync(scheduledJob);
+            _logger.LogDebug("Created ingestion job record for scheduled run {ExecutionId}", executionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create ingestion job record for scheduled run {ExecutionId}", executionId);
+        }
 
         try
         {
@@ -207,6 +301,20 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
 
                 _stats.LastExecutionStatus = PipelineStatus.Completed;
                 _stats.FilesProcessedInLastRun = 0;
+
+                // Update ingestion job for no-files case
+                try
+                {
+                    await _ingestionJobRepository.UpdateStatusAsync(
+                        executionId,
+                        IngestionJobStatus.Completed,
+                        result.EndTime,
+                        "No files found to process");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to update ingestion job for scheduled run {ExecutionId}", executionId);
+                }
 
                 return result;
             }
@@ -242,6 +350,36 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             _stats.AverageProcessingTime = TimeSpan.FromMilliseconds(
                 (_stats.AverageProcessingTime.TotalMilliseconds * (_stats.TotalScheduledRuns - 1) + duration.TotalMilliseconds) / _stats.TotalScheduledRuns);
 
+            // Update ingestion job with final status
+            try
+            {
+                var jobStatus = result.Status switch
+                {
+                    PipelineStatus.Completed => IngestionJobStatus.Completed,
+                    PipelineStatus.PartiallyCompleted => IngestionJobStatus.PartiallyCompleted,
+                    PipelineStatus.Failed => IngestionJobStatus.Failed,
+                    PipelineStatus.Cancelled => IngestionJobStatus.Cancelled,
+                    _ => IngestionJobStatus.Completed
+                };
+
+                await _ingestionJobRepository.UpdateStatusAsync(
+                    executionId,
+                    jobStatus,
+                    result.EndTime,
+                    result.Status == PipelineStatus.Failed ? result.Message : null);
+
+                await _ingestionJobRepository.UpdateMetricsAsync(
+                    executionId,
+                    batchResult.TotalFiles,
+                    (int)(batchResult.BatchMetrics.ContainsKey("TotalDocumentsIndexed") ? batchResult.BatchMetrics["TotalDocumentsIndexed"] : 0),
+                    batchResult.Failed,
+                    batchResult.ProcessedWithErrors);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update ingestion job for scheduled run {ExecutionId}", executionId);
+            }
+
             _logger.LogInformation("Scheduled pipeline processing completed. Status: {Status}, Duration: {Duration}",
                 result.Status, duration);
 
@@ -260,7 +398,27 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             _stats.LastExecutionStatus = PipelineStatus.Failed;
             _stats.LastErrorMessage = ex.Message;
 
+            // Update ingestion job for failure
+            try
+            {
+                var sanitizedErrorMessage = SanitizeErrorMessage(ex.Message);
+                await _ingestionJobRepository.UpdateStatusAsync(
+                    executionId,
+                    IngestionJobStatus.Failed,
+                    result.EndTime,
+                    sanitizedErrorMessage);
+                await _ingestionJobRepository.AddErrorAsync(executionId, sanitizedErrorMessage);
+            }
+            catch (Exception updateEx)
+            {
+                _logger.LogError(updateEx, "Failed to update ingestion job for failed scheduled run {ExecutionId}", executionId);
+            }
+
             return result;
+        }
+        finally
+        {
+            _currentExecutionId = null;
         }
     }
 
@@ -369,6 +527,25 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         _cancellationTokenSource?.Dispose();
         _executionSemaphore?.Dispose();
         base.Dispose();
+    }
+
+    /// <summary>
+    /// Sanitizes error messages before logging or storing
+    /// </summary>
+    private static string SanitizeErrorMessage(string errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return string.Empty;
+        }
+
+        // Remove newlines and tabs to prevent log injection
+        return errorMessage
+            .Replace("\r\n", " ")
+            .Replace("\n", " ")
+            .Replace("\r", " ")
+            .Replace("\t", " ")
+            .Trim();
     }
 }
 

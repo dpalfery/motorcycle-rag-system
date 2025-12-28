@@ -5,6 +5,7 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories
 {

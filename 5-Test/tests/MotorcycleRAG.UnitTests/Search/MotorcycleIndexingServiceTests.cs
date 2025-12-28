@@ -8,6 +8,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Search;
 using Xunit;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.UnitTests.Search;
 

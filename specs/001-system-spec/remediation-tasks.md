@@ -33,12 +33,28 @@ This task file tracks the **Clean Architecture remediation work** to fix critica
 
 ### Tasks
 
-- [ ] T001 Verify current build status: `dotnet build C:\git\motorcycle-rag-system\MotorcycleRAG.sln`
+- [X] T001 Verify current build status: `dotnet build C:\git\motorcycle-rag-system\MotorcycleRAG.sln`
+  - **STATUS**: ❌ FAILED with 14 compilation errors
+  - **ROOT CAUSE**: Multiple duplicate configuration classes with different properties
+    - Domain/Models/AzureAIConfiguration.cs (has Models property)
+    - Contracts/Models/ConfigurationModels.cs/AzureAIConfiguration (NO Models property)
+    - Domain/Models/ModelConfiguration.cs (has QueryPlannerModel property)
+    - Contracts/Models/ConfigurationModels.cs/ModelConfiguration (NO QueryPlannerModel property)
+  - **IMPACT**: Application code resolves to wrong version, causing compilation failures
 - [ ] T002 Run full test suite for baseline: `dotnet test C:\git\motorcycle-rag-system\MotorcycleRAG.sln --verbosity normal`
-- [ ] T003 Document current test pass rate in remediation-tasks.md (this file)
-- [ ] T004 Create backup branch: `git checkout -b 001-system-spec-backup`
-- [ ] T005 Switch back to working branch: `git checkout 001-system-spec`
-- [ ] T006 Review migration-mapping.md to understand scope
+  - **STATUS**: BLOCKED - Cannot run tests until build succeeds
+- [X] T003 Document current test pass rate in remediation-tasks.md (this file)
+  - **BASELINE**: Build broken, 14 compilation errors, 0% test pass rate (tests cannot run)
+- [X] T004 Create backup branch: `git checkout -b 001-system-spec-backup`
+- [X] T005 Switch back to working branch: `git checkout 001-system-spec`
+- [X] T006 Review migration-mapping.md to understand scope
+- [X] **REMEDIATION COMPLETE**: Fixed Clean Architecture by establishing correct dependency flow
+  - Added Domain project reference to Contracts (Contracts → Domain)
+  - Deleted 13 duplicate model files from Contracts/Models
+  - Added `using MotorcycleRAG.Domain.Models;` to 24 Contracts interfaces, 25 Application files, 18 Persistence files, 39 test files
+  - Fixed namespace for 3 API DTO files (UpdateProfileRequest, UsageResponse, UserProfileResponse)
+  - Resolved TelemetryConfiguration ambiguous reference with fully qualified names
+  - **Result**: Build succeeds with 0 errors, 0 warnings!
 
 ---
 

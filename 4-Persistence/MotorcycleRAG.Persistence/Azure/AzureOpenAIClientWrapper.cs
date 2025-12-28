@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using Polly;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project & tests
 

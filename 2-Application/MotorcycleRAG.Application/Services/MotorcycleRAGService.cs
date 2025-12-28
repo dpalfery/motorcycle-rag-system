@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Services;
 

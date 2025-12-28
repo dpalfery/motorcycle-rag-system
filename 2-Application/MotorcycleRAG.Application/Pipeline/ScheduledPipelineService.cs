@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using NCrontab;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Pipeline;
 

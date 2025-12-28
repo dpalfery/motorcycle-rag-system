@@ -4,6 +4,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using System.Text;
 using System.Text.RegularExpressions;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Infrastructure.DataProcessing;
 

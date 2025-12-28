@@ -3,6 +3,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using System.Diagnostics;
 using Xunit;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.PerformanceTests;
 

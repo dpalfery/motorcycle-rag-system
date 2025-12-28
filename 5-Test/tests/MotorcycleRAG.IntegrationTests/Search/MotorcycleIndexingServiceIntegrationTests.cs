@@ -7,6 +7,7 @@ using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Azure;
 using Xunit;
 using Xunit.Abstractions;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.IntegrationTests.Search;
 

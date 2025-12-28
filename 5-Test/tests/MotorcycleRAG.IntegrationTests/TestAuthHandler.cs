@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.IntegrationTests;
 

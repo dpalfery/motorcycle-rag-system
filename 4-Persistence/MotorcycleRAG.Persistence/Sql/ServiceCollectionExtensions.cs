@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Options;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Sql.Repositories;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Persistence.Sql;
 

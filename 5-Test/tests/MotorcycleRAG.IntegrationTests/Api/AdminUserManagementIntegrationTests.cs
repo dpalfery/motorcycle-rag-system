@@ -11,6 +11,7 @@ using MotorcycleRAG.API;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using Xunit;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.IntegrationTests.Api
 {

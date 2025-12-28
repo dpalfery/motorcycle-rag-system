@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Infrastructure.DataProcessing;
 using Xunit;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.UnitTests.DataProcessing;
 

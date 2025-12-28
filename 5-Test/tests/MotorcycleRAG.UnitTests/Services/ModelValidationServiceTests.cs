@@ -1,5 +1,6 @@
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Application.Services;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.UnitTests.Services;
 

@@ -1,4 +1,5 @@
 using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Agents;
 

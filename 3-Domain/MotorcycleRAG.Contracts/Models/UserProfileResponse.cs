@@ -1,4 +1,4 @@
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Contracts.Models;
 
 /// <summary>
 /// User profile response model

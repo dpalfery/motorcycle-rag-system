@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using System.Linq;
 using System.Text;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Pipeline;
 

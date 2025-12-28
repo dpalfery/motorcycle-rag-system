@@ -9,6 +9,7 @@ using MotorcycleRAG.Contracts.Options;
 using MotorcycleRAG.Persistence.Telemetry;
 using System.Collections.Concurrent;
 using FluentAssertions;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.UnitTests.Telemetry;
 
@@ -23,18 +24,19 @@ public class TelemetryServiceTests
     public TelemetryServiceTests()
     {
         _channel = new StubTelemetryChannel();
-        var config = new TelemetryConfiguration
+        var aiConfig = new Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration
         {
             TelemetryChannel = _channel,
             ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000"
         };
-        _client = new TelemetryClient(config);
+        _client = new TelemetryClient(aiConfig);
         _mockCorrelation = new Mock<ICorrelationService>();
         _mockLogger = new Mock<ILogger<TelemetryService>>();
         _mockCorrelation.Setup(c => c.GetOrCreateCorrelationId()).Returns("corr-test");
         
-        // Create options for telemetryConfig and sqlOptions
-        var telemetryOptions = Options.Create(config);
+        // Create options for telemetryConfig (domain model) and sqlOptions
+        var domainTelemetryConfig = new MotorcycleRAG.Domain.Models.TelemetryConfiguration();
+        var telemetryOptions = Options.Create(domainTelemetryConfig);
         var sqlOptions = Options.Create(new SqlOptions());
         
         _service = new TelemetryService(_client, _mockLogger.Object, telemetryOptions, sqlOptions);

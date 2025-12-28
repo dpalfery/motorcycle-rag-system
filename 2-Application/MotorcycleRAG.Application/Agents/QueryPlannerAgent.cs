@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Shared.Configuration;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Agents;
 

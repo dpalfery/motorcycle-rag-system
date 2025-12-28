@@ -10,6 +10,7 @@ using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Sql;
 using System.Data;
 using System.Data.Common;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.IntegrationTests;
 

@@ -10,6 +10,7 @@ using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Resilience;
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Persistence.Azure;
 

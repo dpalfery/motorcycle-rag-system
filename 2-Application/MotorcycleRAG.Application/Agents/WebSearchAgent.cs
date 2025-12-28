@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Models;
 using HtmlAgilityPack;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Agents;
 

@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Models;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Caching;
 

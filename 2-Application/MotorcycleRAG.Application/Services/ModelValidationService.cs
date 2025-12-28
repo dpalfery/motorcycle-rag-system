@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Services;
 

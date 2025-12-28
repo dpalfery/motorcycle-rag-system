@@ -3,6 +3,7 @@ using Moq;
 using MotorcycleRAG.Persistence.Resilience;
 using System.Diagnostics;
 using Xunit;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.UnitTests.Resilience;
 

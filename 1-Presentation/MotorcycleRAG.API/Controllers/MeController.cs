@@ -1,11 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Domain.Models;
 using System.Net.Mime;
-using UserProfileResponse = MotorcycleRAG.Domain.Models.UserProfileResponse;
-using UsageResponse = MotorcycleRAG.Domain.Models.UsageResponse;
-using UpdateProfileRequest = MotorcycleRAG.Domain.Models.UpdateProfileRequest;
 
 namespace MotorcycleRAG.API.Controllers;
 

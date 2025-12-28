@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using System.Collections.Concurrent;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Application.Pipeline;
 

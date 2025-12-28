@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using System.Diagnostics;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Persistence.Resilience;
 

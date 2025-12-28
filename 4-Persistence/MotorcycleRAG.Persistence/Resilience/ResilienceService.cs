@@ -5,6 +5,7 @@ using Polly;
 using Polly.CircuitBreaker;
 using System.Diagnostics;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.Models;
 
 namespace MotorcycleRAG.Persistence.Resilience;
 

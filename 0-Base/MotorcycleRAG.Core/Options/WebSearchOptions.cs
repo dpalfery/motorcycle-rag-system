@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
-using MotorcycleRAG.Domain.Models;
 
-namespace MotorcycleRAG.Contracts.Options;
+namespace MotorcycleRAG.Core.Options;
 
 public class WebSearchOptions
 {
@@ -13,5 +12,5 @@ public class WebSearchOptions
     [Required] public string SearchTermModel  { get; set; } = "gpt-4o-mini";
     [Required] public string ValidationModel  { get; set; } = "gpt-4o-mini";
 
-    public List<TrustedSource> TrustedSources { get; set; } = new();
+    public List<TrustedSourceOptions> TrustedSources { get; set; } = new();
 }

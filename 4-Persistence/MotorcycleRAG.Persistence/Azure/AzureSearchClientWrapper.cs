@@ -11,7 +11,7 @@ using MotorcycleRAG.Persistence.Resilience;
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Persistence.Azure;
 
@@ -22,7 +22,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
 {
     private readonly SearchClient _searchClient;
     private readonly SearchIndexClient _indexClient;
-    private readonly Contracts.Options.SearchOptions _searchConfig;
+    private readonly Core.Options.SearchOptions _searchConfig;
     private readonly ILogger<AzureSearchClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
@@ -31,7 +31,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
 
     public AzureSearchClientWrapper(
         IOptions<AzureAIOptions> azureConfig,
-        IOptions<Contracts.Options.SearchOptions> searchConfig,
+        IOptions<Core.Options.SearchOptions> searchConfig,
         ILogger<AzureSearchClientWrapper> logger,
         IResilienceService resilienceService,
         ICorrelationService correlationService)

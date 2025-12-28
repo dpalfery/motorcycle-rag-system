@@ -9,7 +9,7 @@ using System.Net;
 using System.Text;
 using Xunit;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Agents;
 
@@ -41,9 +41,9 @@ public class WebSearchAgentTests : IDisposable
             MinCredibilityScore = 0.6f,
             SearchTermModel = "gpt-4o-mini",
             ValidationModel = "gpt-4o-mini",
-            TrustedSources = new List<TrustedSource>
+            TrustedSources = new List<TrustedSourceOptions>
             {
-                new TrustedSource
+                new TrustedSourceOptions
                 {
                     Name = "Test Motorcycle Site",
                     BaseUrl = "https://test-motorcycle.com",

@@ -6,7 +6,7 @@ using HtmlAgilityPack;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Application.Agents;
 
@@ -206,7 +206,7 @@ Return only the search terms, one per line, without explanations.
     /// Search a specific trusted source
     /// </summary>
     private async Task<List<SearchResult>> SearchSourceAsync(
-        TrustedSource source, 
+        TrustedSourceOptions source, 
         List<string> searchTerms, 
         SearchParameters options)
     {
@@ -237,7 +237,7 @@ Return only the search terms, one per line, without explanations.
     /// <summary>
     /// Build search URL for a specific source
     /// </summary>
-    private string BuildSearchUrl(TrustedSource source, string searchTerm)
+    private string BuildSearchUrl(TrustedSourceOptions source, string searchTerm)
     {
         var encodedTerm = Uri.EscapeDataString(searchTerm);
         return source.SearchUrlTemplate.Replace("{query}", encodedTerm);
@@ -275,7 +275,7 @@ Return only the search terms, one per line, without explanations.
     /// <summary>
     /// Extract search results from HTML content
     /// </summary>
-    private List<SearchResult> ExtractSearchResults(string htmlContent, string searchTerm, TrustedSource source)
+    private List<SearchResult> ExtractSearchResults(string htmlContent, string searchTerm, TrustedSourceOptions source)
     {
         var results = new List<SearchResult>();
         

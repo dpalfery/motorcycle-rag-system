@@ -78,7 +78,7 @@ public static class ToolDefinitions
                         IsRequired = false,
                         Default = 5
                     },
-                    ["trustedSourcesOnly"] = new ToolPropertyDefinition
+                    ["TrustedSourceOptionssOnly"] = new ToolPropertyDefinition
                     {
                         Type = "boolean",
                         Description = "Restrict search to trusted motorcycle sources only (default: true)",

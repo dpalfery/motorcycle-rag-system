@@ -1,4 +1,4 @@
-namespace MotorcycleRAG.Contracts.Options
+namespace MotorcycleRAG.Core.Options
 {
     /// <summary>
     /// SQL configuration options

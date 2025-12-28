@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Core.Options;
 
-public class TrustedSource
+public class TrustedSourceOptions
 {
     [Required] public string Name             { get; set; } = string.Empty;
     [Required, Url] public string BaseUrl      { get; set; } = string.Empty;

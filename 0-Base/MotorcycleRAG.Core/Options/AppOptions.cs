@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Contracts.Options;
+namespace MotorcycleRAG.Core.Options;
 
 /// <summary>
 /// Aggregated application configuration that maps to the root of the configuration hierarchy (appsettings / Azure App Configuration).

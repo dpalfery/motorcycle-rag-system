@@ -8,7 +8,7 @@ using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Azure;
 

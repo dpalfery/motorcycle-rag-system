@@ -71,6 +71,7 @@ Zero tolerance for build errors and warnings. Code MUST be production-ready.
 - **Async Patterns**: Use async/await for ALL I/O operations. Use `CancellationToken` where appropriate.
 - **Naming & Style**: Follow C# conventions. Use meaningful names. Configure IDE to surface violations. Enable auto-format on save.
 - **Error Handling**: Return consistent error responses (RFC 7807 ProblemDetails). Log sanitized diagnostic information. Never expose stack traces to users.
+- **one class or interface per file**: No multi-object files.
 
 **Rationale**: Technical debt compounds. Consistent quality reduces maintenance burden and prevents production incidents.
 

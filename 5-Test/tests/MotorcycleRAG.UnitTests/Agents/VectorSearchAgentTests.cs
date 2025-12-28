@@ -6,7 +6,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using Xunit;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Agents;
 

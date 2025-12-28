@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Sql.Repositories;
 using MotorcycleRAG.Domain.Models;

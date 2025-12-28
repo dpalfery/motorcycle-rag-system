@@ -7,7 +7,7 @@ using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Infrastructure.DataProcessing;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Sql.Repositories;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.API.Configuration;
 
@@ -144,8 +144,8 @@ public static class ServiceConfiguration
     public static IServiceCollection AddSqlPersistence(this IServiceCollection services, IConfiguration configuration)
     {
         // Configure SQL options
-        services.Configure<MotorcycleRAG.Contracts.Options.SqlOptions>(configuration.GetSection("Sql"));
-        services.AddSingleton<IValidateOptions<MotorcycleRAG.Contracts.Options.SqlOptions>, SqlOptionsValidator>();
+        services.Configure<MotorcycleRAG.Core.Options.SqlOptions>(configuration.GetSection("Sql"));
+        services.AddSingleton<IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions>, SqlOptionsValidator>();
 
         // Register SQL connection factory
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
@@ -198,9 +198,9 @@ public static class ServiceConfiguration
     /// Validator for SQL configuration options
     /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
     /// </summary>
-    public class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Contracts.Options.SqlOptions>
+    public class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions>
     {
-        public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Contracts.Options.SqlOptions options)
+        public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Core.Options.SqlOptions options)
         {
             var failures = new List<string>();
 

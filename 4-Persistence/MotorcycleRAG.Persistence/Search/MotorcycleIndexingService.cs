@@ -7,7 +7,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using System.Text.Json;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Persistence.Search;
 

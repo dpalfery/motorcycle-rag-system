@@ -9,7 +9,7 @@ using MotorcycleRAG.Persistence.Resilience;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Search;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 
 
 namespace MotorcycleRAG.Persistence.Azure;

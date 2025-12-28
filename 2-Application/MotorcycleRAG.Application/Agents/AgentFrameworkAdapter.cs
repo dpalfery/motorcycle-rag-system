@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Application.Agents;
 

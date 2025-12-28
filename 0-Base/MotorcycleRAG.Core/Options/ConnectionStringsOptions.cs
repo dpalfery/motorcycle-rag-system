@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Contracts.Options;
+namespace MotorcycleRAG.Core.Options;
 
 /// <summary>
 /// Wrapper for the top-level "ConnectionStrings" configuration section.

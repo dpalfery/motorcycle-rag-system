@@ -1,6 +1,4 @@
-using MotorcycleRAG.Domain.Models;
-
-namespace MotorcycleRAG.Contracts.Options;
+namespace MotorcycleRAG.Core.Options;
 
 public class CircuitBreakerOptions
 {

@@ -11,7 +11,7 @@ using MotorcycleRAG.Persistence.Sql;
 using System.Data;
 using System.Data.Common;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.IntegrationTests;
 

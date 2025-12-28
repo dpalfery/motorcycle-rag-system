@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Options;
+using MotorcycleRAG.Core.Options; 
 using MotorcycleRAG.Persistence.Telemetry;
 using System.Collections.Concurrent;
 using FluentAssertions;
@@ -35,7 +35,7 @@ public class TelemetryServiceTests
         _mockCorrelation.Setup(c => c.GetOrCreateCorrelationId()).Returns("corr-test");
         
         // Create options for telemetryConfig (domain model) and sqlOptions
-        var domainTelemetryConfig = new MotorcycleRAG.Contracts.Options.TelemetryOptions();
+        var domainTelemetryConfig = new MotorcycleRAG.Core.Options.TelemetryOptions();
         var telemetryOptions = Options.Create(domainTelemetryConfig);
         var sqlOptions = Options.Create(new SqlOptions());
         

@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
     <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj" />
+    <ProjectReference Include="..\..\0-Base\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

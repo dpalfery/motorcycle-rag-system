@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Contracts.Options;
+namespace MotorcycleRAG.Core.Options;
 
 public class TelemetryOptions
 {

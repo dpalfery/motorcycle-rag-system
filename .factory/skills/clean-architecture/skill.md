@@ -50,12 +50,20 @@ Presentation → Application → Domain ← Persistence
 Layer           | Can Depend On
 ----------------|------------------
 Presentation    | Application, Base
-Application     | Domain, Base
+Application     | Domain, Contracts, Base
 Domain          | Base (minimal)
-Contracts       | Base (minimal)
+Contracts       | Domain, Base
 Persistence     | Domain, Contracts, Base
 Tests           | Anything (for testing)
 ```
+
+**Important Note on Contracts → Domain Dependency:**
+Contracts referencing Domain is **CORRECT** in this architecture because:
+- Repository interfaces need to reference Domain entities (e.g., `IRepository<Document>`)
+- Service interfaces need to use Domain value objects and entities in method signatures
+- DTOs in Contracts may need to reference Domain types for proper contract definitions
+- Both projects are conceptually part of the "Domain Layer" (3-Domain folder)
+- This follows the Dependency Inversion Principle: Application depends on Contracts (abstractions), Persistence implements them using Domain entities
 
 ## **Key Benefits Achieved**
 
@@ -224,12 +232,19 @@ Tests           | Anything (for testing)
 * **DTOs (Domain Contracts):** Data contracts for crossing boundaries
   *Folder:* `DTOs`
 
-**Dependencies:** Base (minimal)
+**Dependencies:** Domain, Base
+
+**Why Contracts → Domain is Correct:**
+- Interfaces must reference Domain entities to define proper contracts
+- Example: `Task<Document> GetDocumentAsync(Guid id)` requires `Document` from Domain
+- Prevents duplicate model definitions between Contracts and Domain
+- Maintains single source of truth for domain entities
+- Both are in 3-Domain layer, conceptually part of the core domain
 
 **Critical Rules:**
 - NO references to any infrastructure concerns (EF Core, Azure, SQL, HTTP, etc.)
 - NO persistence logic - only interfaces defining what domain needs
-- Entities enforce all business invariants through their methods
+- CAN reference Domain entities and value objects for interface definitions
 - All domain logic testable without any infrastructure
 
 > **Key Principle:** If you removed all outer layers (UI, DB, frameworks), your domain layer should still compile and contain all core business rules. This is the "screaming architecture" - the domain tells you what the system does.
@@ -369,11 +384,4 @@ Tests           | Anything (for testing)
 
 ---
 
-## **8-Agent-Instructions**
-
-**Purpose:** Instructions for AI code generation following Clean Architecture principles.
-
-* `architecture-general.md` - This file
-* `coding-standards.md` - Code style guidelines
-* `feature-template.md` - Template for new features
 

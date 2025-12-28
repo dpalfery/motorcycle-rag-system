@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Contracts.Options;
 
-public class TelemetryConfiguration
+public class TelemetryOptions
 {
     [Required] public string ConnectionString { get; set; } = string.Empty;
     public bool EnableTelemetry         { get; set; } = true;

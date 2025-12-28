@@ -35,7 +35,7 @@ public class TelemetryServiceTests
         _mockCorrelation.Setup(c => c.GetOrCreateCorrelationId()).Returns("corr-test");
         
         // Create options for telemetryConfig (domain model) and sqlOptions
-        var domainTelemetryConfig = new MotorcycleRAG.Domain.Models.TelemetryConfiguration();
+        var domainTelemetryConfig = new MotorcycleRAG.Contracts.Options.TelemetryOptions();
         var telemetryOptions = Options.Create(domainTelemetryConfig);
         var sqlOptions = Options.Create(new SqlOptions());
         

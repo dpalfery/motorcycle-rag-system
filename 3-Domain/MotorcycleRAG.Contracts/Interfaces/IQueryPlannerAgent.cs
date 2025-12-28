@@ -11,5 +11,5 @@ public interface IQueryPlannerAgent : ISearchAgent
     /// <summary>
     /// Generates a query plan for the given query
     /// </summary>
-    Task<QueryPlan> GeneratePlanAsync(string query, SearchOptions options);
+    Task<QueryPlan> GeneratePlanAsync(string query, SearchParameters options);
 }

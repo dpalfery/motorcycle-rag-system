@@ -16,5 +16,5 @@ public interface ISearchAgent
     /// <summary>
     /// Performs search operation
     /// </summary>
-    Task<SearchResult[]> SearchAsync(string query, SearchOptions options);
+    Task<SearchResult[]> SearchAsync(string query, SearchParameters options);
 }

@@ -1,12 +1,12 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Contracts.Options;
 
 /// <summary>
 /// Root configuration for all Azure Cognitive services used by the application.
 /// Binds to the "AzureAI" section in configuration sources.
 /// </summary>
-public class AzureAIConfiguration
+public class AzureAIOptions
 {
     [Required, Url]
     public string FoundryEndpoint { get; set; } = string.Empty;
@@ -21,7 +21,7 @@ public class AzureAIConfiguration
     public string DocumentIntelligenceEndpoint { get; set; } = string.Empty;
 
     [Required]
-    public ModelConfiguration Models { get; set; } = new();
+    public ModelOptions Models { get; set; } = new();
 
-    public RetryConfiguration Retry { get; set; } = new();
+    public RetryOptions Retry { get; set; } = new();
 }

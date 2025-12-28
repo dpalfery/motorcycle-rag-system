@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Contracts.Options;
 
-public class RetryConfiguration
+public class RetryOptions
 {
     [Range(1,10)]  public int  MaxRetries        { get; set; } = 3;
     [Range(1,300)] public int  BaseDelaySeconds  { get; set; } = 2;

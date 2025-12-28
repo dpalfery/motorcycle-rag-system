@@ -1,11 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Contracts.Options;
 
 /// <summary>
 /// Search service configuration settings bound to the "Search" section in configuration sources.
 /// </summary>
-public class SearchConfiguration
+public class SearchOptions
 {
     [Required]
     public string IndexName { get; set; } = "motorcycle-index";

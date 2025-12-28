@@ -19,7 +19,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
     {
         private readonly TelemetryClient _telemetryClient;
         private readonly ILogger<TelemetryService> _logger;
-        private readonly MotorcycleRAG.Domain.Models.TelemetryConfiguration _telemetryConfig;
+        private readonly MotorcycleRAG.Contracts.Options.TelemetryOptions _telemetryConfig;
         private readonly SqlOptions _sqlOptions;
         
         // Regex patterns for sensitive data detection
@@ -38,7 +38,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
         public TelemetryService(
             TelemetryClient telemetryClient,
             ILogger<TelemetryService> logger,
-            IOptions<MotorcycleRAG.Domain.Models.TelemetryConfiguration> telemetryConfig,
+            IOptions<MotorcycleRAG.Contracts.Options.TelemetryOptions> telemetryConfig,
             IOptions<SqlOptions> sqlOptions)
         {
             _telemetryClient = telemetryClient ?? throw new ArgumentNullException(nameof(telemetryClient));

@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Models;
 using System.Text;
 using System.Text.RegularExpressions;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.Infrastructure.DataProcessing;
 
@@ -17,7 +18,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly IAzureSearchClient _searchClient;
     private readonly PDFProcessingConfiguration _config;
-    private readonly AzureAIConfiguration _azureConfig;
+    private readonly AzureAIOptions _azureConfig;
     private readonly ILogger<MotorcyclePDFProcessor> _logger;
 
     public MotorcyclePDFProcessor(
@@ -25,7 +26,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
         IAzureOpenAIClient openAIClient,
         IAzureSearchClient searchClient,
         IOptions<PDFProcessingConfiguration> config,
-        IOptions<AzureAIConfiguration> azureConfig,
+        IOptions<AzureAIOptions> azureConfig,
         ILogger<MotorcyclePDFProcessor> logger)
     {
         _documentClient = documentClient ?? throw new ArgumentNullException(nameof(documentClient));

@@ -21,7 +21,7 @@ public interface IAgentOrchestrator
     /// <summary>
     /// High-level entry point: perform orchestrated search with simple options.
     /// </summary>
-    Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchOptions options);
+    Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchParameters options);
 
     /// <summary>
     /// Exposes the registered search agents.

@@ -1,11 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Contracts.Options;
 
 /// <summary>
 /// Wrapper for the top-level "ConnectionStrings" configuration section.
 /// </summary>
-public class ConnectionStringsConfiguration
+public class ConnectionStringsOptions
 {
     /// <summary>
     /// Application Insights connection string.

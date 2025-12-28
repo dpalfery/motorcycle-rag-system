@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Shared.Configuration;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.Application.Agents;
 
@@ -12,7 +13,7 @@ public class QueryPlannerAgent : IQueryPlannerAgent
 {
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly IEnumerable<ISearchAgent> _searchAgents;
-    private readonly ModelConfiguration _modelConfig;
+    private readonly ModelOptions _modelConfig;
     private readonly ILogger<QueryPlannerAgent> _logger;
 
     public SearchAgentType AgentType => SearchAgentType.QueryPlanner;
@@ -20,7 +21,7 @@ public class QueryPlannerAgent : IQueryPlannerAgent
     public QueryPlannerAgent(
         IAzureOpenAIClient openAIClient,
         IEnumerable<ISearchAgent> searchAgents,
-        IOptions<AzureAIConfiguration> azureConfig,
+        IOptions<AzureAIOptions> azureConfig,
         ILogger<QueryPlannerAgent> logger)
     {
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
@@ -30,14 +31,14 @@ public class QueryPlannerAgent : IQueryPlannerAgent
     }
 
     // Interface implementation (no CancellationToken per interface)
-    public Task<QueryPlan> GeneratePlanAsync(string query, SearchOptions options) =>
+    public Task<QueryPlan> GeneratePlanAsync(string query, SearchParameters options) =>
         GeneratePlanInternalAsync(query, options, CancellationToken.None);
 
-    public Task<SearchResult[]> SearchAsync(string query, SearchOptions options) =>
+    public Task<SearchResult[]> SearchAsync(string query, SearchParameters options) =>
         SearchInternalAsync(query, options, CancellationToken.None);
 
     // Internal overloads supporting cancellation if needed later
-    private async Task<SearchResult[]> SearchInternalAsync(string query, SearchOptions options, CancellationToken cancellationToken)
+    private async Task<SearchResult[]> SearchInternalAsync(string query, SearchParameters options, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -94,7 +95,7 @@ public class QueryPlannerAgent : IQueryPlannerAgent
         return results.SelectMany(r => r).ToArray();
     }
 
-    private async Task<QueryPlan> GeneratePlanInternalAsync(string query, SearchOptions options, CancellationToken cancellationToken)
+    private async Task<QueryPlan> GeneratePlanInternalAsync(string query, SearchParameters options, CancellationToken cancellationToken)
     {
         try
         {

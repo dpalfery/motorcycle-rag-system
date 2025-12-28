@@ -11,6 +11,7 @@ using MotorcycleRAG.Persistence.Resilience;
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.Persistence.Azure;
 
@@ -21,7 +22,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
 {
     private readonly SearchClient _searchClient;
     private readonly SearchIndexClient _indexClient;
-    private readonly SearchConfiguration _searchConfig;
+    private readonly Contracts.Options.SearchOptions _searchConfig;
     private readonly ILogger<AzureSearchClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
@@ -29,8 +30,8 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
     private bool _disposed;
 
     public AzureSearchClientWrapper(
-        IOptions<AzureAIConfiguration> azureConfig,
-        IOptions<SearchConfiguration> searchConfig,
+        IOptions<AzureAIOptions> azureConfig,
+        IOptions<Contracts.Options.SearchOptions> searchConfig,
         ILogger<AzureSearchClientWrapper> logger,
         IResilienceService resilienceService,
         ICorrelationService correlationService)
@@ -220,7 +221,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
     }
 
     // Implement VectorSearchAsync
-    public async Task<SearchResult[]> VectorSearchAsync(string query, Domain.Models.SearchOptions options)
+    public async Task<SearchResult[]> VectorSearchAsync(string query, Domain.Models.SearchParameters options)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         return await _resilienceService.ExecuteAsync(
@@ -274,7 +275,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             correlationId);
     }
 
-    public async Task<SearchResult[]> HybridSearchAsync(string query, Domain.Models.SearchOptions options)
+    public async Task<SearchResult[]> HybridSearchAsync(string query, Domain.Models.SearchParameters options)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         return await _resilienceService.ExecuteAsync(
@@ -328,7 +329,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             correlationId);
     }
 
-    public async Task<SearchResult[]> SearchAsync(string query, Domain.Models.SearchOptions options)
+    public async Task<SearchResult[]> SearchAsync(string query, Domain.Models.SearchParameters options)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         return await _resilienceService.ExecuteAsync(
@@ -444,7 +445,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         }
     }
 
-    private AzureSearchOptions ConvertToAzureSearchOptions(Domain.Models.SearchOptions options)
+    private AzureSearchOptions ConvertToAzureSearchOptions(Domain.Models.SearchParameters options)
     {
         return new AzureSearchOptions
         {
@@ -459,7 +460,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         };
     }
 
-    private IAsyncPolicy CreateRetryPolicy(RetryConfiguration retryConfig)
+    private IAsyncPolicy CreateRetryPolicy(RetryOptions retryConfig)
     {
         return Policy
             .Handle<RequestFailedException>(ex => IsRetryableError(ex))

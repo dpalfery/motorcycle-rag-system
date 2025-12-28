@@ -6,18 +6,19 @@ using Polly.CircuitBreaker;
 using System.Diagnostics;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.Persistence.Resilience;
 
 public class ResilienceService : IResilienceService
 {
     private readonly ILogger<ResilienceService> _logger;
-    private readonly ResilienceConfiguration _config;
+    private readonly ResilienceOptions _config;
     private readonly Dictionary<string, IAsyncPolicy> _policies;
     private readonly Dictionary<string, CircuitBreakerState> _circuitStates;
 
     public ResilienceService(
-        IOptions<ResilienceConfiguration> config,
+        IOptions<ResilienceOptions> config,
         ILogger<ResilienceService> logger)
     {
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
@@ -109,7 +110,7 @@ public class ResilienceService : IResilienceService
         _policies["TimeoutOnly"] = _policies["AzureOpenAI"];
     }
 
-    private IAsyncPolicy CreateCombinedPolicy(string policyName, ServiceCircuitBreakerConfig circuitConfig, RetryConfiguration retryConfig)
+    private IAsyncPolicy CreateCombinedPolicy(string policyName, ServiceCircuitBreakerConfig circuitConfig, RetryOptions retryConfig)
     {
         var retryPolicy = Policy
             .Handle<HttpRequestException>()

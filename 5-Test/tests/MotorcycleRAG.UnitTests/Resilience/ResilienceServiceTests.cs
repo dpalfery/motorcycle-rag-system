@@ -6,6 +6,7 @@ using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 using Xunit;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.UnitTests.Resilience;
 
@@ -18,9 +19,9 @@ public class ResilienceServiceTests
     {
         _mockLogger = new Mock<ILogger<ResilienceService>>();
         
-        var config = new ResilienceConfiguration
+        var config = new ResilienceOptions
         {
-            CircuitBreaker = new CircuitBreakerConfiguration
+            CircuitBreaker = new CircuitBreakerOptions
             {
                 OpenAI = new ServiceCircuitBreakerConfig
                 {
@@ -29,7 +30,7 @@ public class ResilienceServiceTests
                     MinimumThroughput = 1
                 }
             },
-            Retry = new RetryConfiguration
+            Retry = new RetryOptions
             {
                 MaxRetries = 2,
                 BaseDelaySeconds = 1,
@@ -38,7 +39,7 @@ public class ResilienceServiceTests
             }
         };
 
-        var mockOptions = new Mock<IOptions<ResilienceConfiguration>>();
+        var mockOptions = new Mock<IOptions<ResilienceOptions>>();
         mockOptions.Setup(x => x.Value).Returns(config);
 
         _resilienceService = new ResilienceService(mockOptions.Object, _mockLogger.Object);

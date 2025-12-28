@@ -5,6 +5,7 @@ using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -15,7 +16,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
 {
     private readonly IReadOnlyList<ISearchAgent> _agents;
     private readonly IAzureOpenAIClient _openAIClient;
-    private readonly SearchConfiguration _searchConfig;
+    private readonly SearchOptions _searchConfig;
     private readonly ILogger<AgentOrchestrator> _logger;
     private readonly AgentFrameworkAdapter _frameworkAdapter;
     private readonly AgentState _executionState;
@@ -23,7 +24,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     public AgentOrchestrator(
         IEnumerable<ISearchAgent> agents,
         IAzureOpenAIClient openAIClient,
-        IOptions<SearchConfiguration> searchConfig,
+        IOptions<SearchOptions> searchConfig,
         ILogger<AgentOrchestrator> logger)
     {
         _agents = agents?.ToList() ?? throw new ArgumentNullException(nameof(agents));
@@ -143,7 +144,7 @@ Answer in markdown:
     }
 
     /// <inheritdoc />
-    public async Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchOptions options)
+    public async Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchParameters options)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -179,13 +180,13 @@ Answer in markdown:
     /// </summary>
     private async Task<SearchResult[]> ExecuteParallelSearchInternalAsync(string query, SearchContext context)
     {
-        var searchOptions = BuildSearchOptions(context);
+        var searchParameters = BuildSearchOptions(context);
         var searchTasks = _agents.Select(async agent =>
         {
             try
             {
                 _logger.LogInformation("Running {AgentType} agent in parallel…", agent.AgentType);
-                return await agent.SearchAsync(query, searchOptions);
+                return await agent.SearchAsync(query, searchParameters);
             }
             catch (Exception ex)
             {
@@ -196,7 +197,7 @@ Answer in markdown:
 
         var results = await Task.WhenAll(searchTasks);
         var aggregated = results.SelectMany(r => r).ToList();
-        return await FuseAndRankResultsAsync(aggregated, query, searchOptions);
+        return await FuseAndRankResultsAsync(aggregated, query, searchParameters);
     }
 
     /// <summary>
@@ -204,7 +205,7 @@ Answer in markdown:
     /// </summary>
     private async Task<SearchResult[]> ExecuteSequentialRetrievalPolicyAsync(string query, SearchContext context)
     {
-        var searchOptions = BuildSearchOptions(context);
+        var searchParameters = BuildSearchOptions(context);
         var aggregatedResults = new List<SearchResult>();
         var executionMetrics = new Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)>();
 
@@ -232,7 +233,7 @@ Answer in markdown:
                 _logger.LogInformation("Executing {AgentType} in sequential retrieval policy…", agentType);
                 var agentStopwatch = Stopwatch.StartNew();
 
-                var results = await agent.SearchAsync(query, searchOptions);
+                var results = await agent.SearchAsync(query, searchParameters);
                 agentStopwatch.Stop();
 
                 executionMetrics[agentType] = (agentStopwatch.Elapsed, results.Length);
@@ -242,7 +243,7 @@ Answer in markdown:
                     agentType, results.Length, agentStopwatch.ElapsedMilliseconds);
 
                 // Early exit if we have enough results and this is a high-confidence source
-                if (aggregatedResults.Count >= searchOptions.MaxResults && agentType == SearchAgentType.VectorSearch)
+                if (aggregatedResults.Count >= searchParameters.MaxResults && agentType == SearchAgentType.VectorSearch)
                 {
                     _logger.LogInformation("Sufficient results from primary index search, skipping fallback sources");
                     break;
@@ -276,14 +277,14 @@ Answer in markdown:
             };
         }
 
-        return await FuseAndRankResultsAsync(aggregatedResults, query, searchOptions);
+        return await FuseAndRankResultsAsync(aggregatedResults, query, searchParameters);
     }
 
     #endregion
 
     #region Result Fusion & Ranking
 
-    private async Task<SearchResult[]> FuseAndRankResultsAsync(List<SearchResult> results, string query, SearchOptions options)
+    private async Task<SearchResult[]> FuseAndRankResultsAsync(List<SearchResult> results, string query, SearchParameters options)
     {
         if (results.Count == 0)
             return Array.Empty<SearchResult>();
@@ -355,11 +356,10 @@ Answer in markdown:
 
     #region Helpers
 
-    private static SearchOptions BuildSearchOptions(SearchContext context)
+    private static SearchParameters BuildSearchOptions(SearchContext context)
     {
         var prefs = context.Preferences ?? new SearchPreferences();
-        return new SearchOptions
-        {
+        return new SearchParameters {
             MaxResults = prefs.MaxResults,
             MinRelevanceScore = prefs.MinRelevanceScore,
             EnableCaching = true,

@@ -9,6 +9,7 @@ using MotorcycleRAG.Persistence.Resilience;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Search;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 
 namespace MotorcycleRAG.Persistence.Azure;
@@ -26,19 +27,19 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         // Configure options from appsettings
-        services.Configure<AzureAIConfiguration>(
+        services.Configure<AzureAIOptions>(
             configuration.GetSection("AzureAI"));
-        services.Configure<SearchConfiguration>(
+        services.Configure<SearchOptions>(
             configuration.GetSection("Search"));
-        services.Configure<TelemetryConfiguration>(
+        services.Configure<TelemetryOptions>(
             configuration.GetSection("ApplicationInsights"));
-        services.Configure<ResilienceConfiguration>(
+        services.Configure<ResilienceOptions>(
             configuration.GetSection("Resilience"));
 
         // Validate configuration on startup
-        services.AddSingleton<IValidateOptions<AzureAIConfiguration>, AzureAIConfigurationValidator>();
-        services.AddSingleton<IValidateOptions<SearchConfiguration>, SearchConfigurationValidator>();
-        services.AddSingleton<IValidateOptions<ResilienceConfiguration>, ResilienceConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<AzureAIOptions>, AzureAIConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<ResilienceOptions>, ResilienceConfigurationValidator>();
 
         // Register resilience services as singletons
         services.AddSingleton<IResilienceService, MotorcycleRAG.Persistence.Resilience.ResilienceService>();
@@ -52,7 +53,7 @@ public static class ServiceCollectionExtensions
         // Register SearchIndexClient for direct Azure Search operations
         services.AddSingleton<SearchIndexClient>(serviceProvider =>
         {
-            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIConfiguration>>().Value;
+            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIOptions>>().Value;
             var credential = new DefaultAzureCredential();
             return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), credential);
         });
@@ -73,9 +74,9 @@ public static class ServiceCollectionExtensions
 /// <summary>
 /// Validates Azure AI configuration on startup
 /// </summary>
-public class AzureAIConfigurationValidator : IValidateOptions<AzureAIConfiguration>
+public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
 {
-    public ValidateOptionsResult Validate(string? name, AzureAIConfiguration options)
+    public ValidateOptionsResult Validate(string? name, AzureAIOptions options)
     {
         var failures = new List<string>();
 
@@ -121,9 +122,9 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIConfigurati
 /// <summary>
 /// Validates Search configuration on startup
 /// </summary>
-public class SearchConfigurationValidator : IValidateOptions<SearchConfiguration>
+public class SearchConfigurationValidator : IValidateOptions<SearchOptions>
 {
-    public ValidateOptionsResult Validate(string? name, SearchConfiguration options)
+    public ValidateOptionsResult Validate(string? name, SearchOptions options)
     {
         var failures = new List<string>();
 
@@ -145,9 +146,9 @@ public class SearchConfigurationValidator : IValidateOptions<SearchConfiguration
 /// <summary>
 /// Validates Resilience configuration on startup
 /// </summary>
-public class ResilienceConfigurationValidator : IValidateOptions<ResilienceConfiguration>
+public class ResilienceConfigurationValidator : IValidateOptions<ResilienceOptions>
 {
-    public ValidateOptionsResult Validate(string? name, ResilienceConfiguration options)
+    public ValidateOptionsResult Validate(string? name, ResilienceOptions options)
     {
         var failures = new List<string>();
 

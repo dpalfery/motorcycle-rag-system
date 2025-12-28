@@ -1,6 +1,6 @@
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Contracts.Options;
 
-public class FallbackConfiguration
+public class FallbackOptions
 {
     public bool     EnableCachedResponses { get; set; } = true;
     public bool     EnableSimplifiedSearch { get; set; } = true;

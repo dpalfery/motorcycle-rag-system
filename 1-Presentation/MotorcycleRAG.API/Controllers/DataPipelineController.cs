@@ -98,7 +98,15 @@ public class DataPipelineController : ControllerBase
                 GenerateUniqueFileName = true
             };
 
-            var uploadResult = await _fileUploadService.UploadFileAsync(file, options, HttpContext.RequestAborted);
+            var metadata = new FileMetadata
+            {
+                FileName = file.FileName,
+                ContentType = file.ContentType,
+                ContentLength = file.Length
+            };
+
+            await using var stream = file.OpenReadStream();
+            var uploadResult = await _fileUploadService.UploadFileAsync(stream, metadata, options, HttpContext.RequestAborted);
 
             if (!uploadResult.IsValid)
             {
@@ -200,7 +208,25 @@ public class DataPipelineController : ControllerBase
                 GenerateUniqueFileName = true
             };
 
-            var uploadResult = await _fileUploadService.UploadFilesAsync(files, options, HttpContext.RequestAborted);
+            var fileUploads = files.Select(f => 
+            {
+                var stream = f.OpenReadStream();
+                var metadata = new FileMetadata
+                {
+                    FileName = f.FileName,
+                    ContentType = f.ContentType,
+                    ContentLength = f.Length
+                };
+                return (stream, metadata);
+            }).ToList();
+
+            var uploadResult = await _fileUploadService.UploadFilesAsync(fileUploads, options, HttpContext.RequestAborted);
+
+            // Dispose streams after upload
+            foreach (var (stream, _) in fileUploads)
+            {
+                await stream.DisposeAsync();
+            }
 
             if (processImmediately && uploadResult.SuccessfulUploads > 0)
             {

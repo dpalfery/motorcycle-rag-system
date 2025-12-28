@@ -4,7 +4,7 @@ using MotorcycleRAG.Application.Extensions;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
-using Microsoft.Azure.AppConfiguration.AspNetCore;
+using MotorcycleRAG.Contracts.Options;
 using Swashbuckle.AspNetCore.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -90,9 +90,9 @@ public class Program
         builder.Services.ConfigureJsonSerialization(builder.Environment.IsDevelopment());
 
         // Bind the entire configuration hierarchy into a single strongly-typed object that can be injected
-        builder.Services.Configure<MotorcycleRAG.Domain.Models.AppConfiguration>(configuration);
+        builder.Services.Configure<AppOptions>(configuration);
 
-        // Consumers are encouraged to depend on IOptionsMonitor<AppConfiguration> so they receive live updates when the
+        // Consumers are encouraged to depend on IOptionsMonitor<AppOptions> so they receive live updates when the
         // sentinel key changes in Azure App Configuration.
 
         // Configure API documentation

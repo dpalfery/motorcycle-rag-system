@@ -7,6 +7,7 @@ using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Infrastructure.DataProcessing;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Sql.Repositories;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.API.Configuration;
 
@@ -21,14 +22,14 @@ public static class ServiceConfiguration
     public static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration)
     {
         // Configure Azure AI settings with validation
-        services.Configure<AzureAIConfiguration>(configuration.GetSection("AzureAI"));
-        services.Configure<SearchConfiguration>(configuration.GetSection("Search"));
-        services.Configure<TelemetryConfiguration>(configuration.GetSection("ApplicationInsights"));
+        services.Configure<AzureAIOptions>(configuration.GetSection("AzureAI"));
+        services.Configure<SearchOptions>(configuration.GetSection("Search"));
+        services.Configure<TelemetryOptions>(configuration.GetSection("ApplicationInsights"));
 
         // Add options validation
-        services.AddSingleton<IValidateOptions<AzureAIConfiguration>, AzureAIConfigurationValidator>();
-        services.AddSingleton<IValidateOptions<SearchConfiguration>, SearchConfigurationValidator>();
-        services.AddSingleton<IValidateOptions<TelemetryConfiguration>, TelemetryConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<AzureAIOptions>, AzureAIConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<TelemetryOptions>, TelemetryConfigurationValidator>();
 
         // Register Azure service clients (now implemented in Infrastructure layer)
         services.AddAzureServices(configuration);
@@ -250,9 +251,9 @@ public static class ServiceConfiguration
 /// <summary>
 /// Validator for Azure AI configuration
 /// </summary>
-public class AzureAIConfigurationValidator : IValidateOptions<AzureAIConfiguration>
+public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
 {
-    public ValidateOptionsResult Validate(string? name, AzureAIConfiguration options)
+    public ValidateOptionsResult Validate(string? name, AzureAIOptions options)
     {
         var failures = new List<string>();
 
@@ -299,9 +300,9 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIConfigurati
 /// <summary>
 /// Validator for Search configuration
 /// </summary>
-public class SearchConfigurationValidator : IValidateOptions<SearchConfiguration>
+public class SearchConfigurationValidator : IValidateOptions<SearchOptions>
 {
-    public ValidateOptionsResult Validate(string? name, SearchConfiguration options)
+    public ValidateOptionsResult Validate(string? name, SearchOptions options)
     {
         var failures = new List<string>();
 
@@ -323,9 +324,9 @@ public class SearchConfigurationValidator : IValidateOptions<SearchConfiguration
 /// <summary>
 /// Validator for Telemetry configuration
 /// </summary>
-public class TelemetryConfigurationValidator : IValidateOptions<TelemetryConfiguration>
+public class TelemetryConfigurationValidator : IValidateOptions<TelemetryOptions>
 {
-    public ValidateOptionsResult Validate(string? name, TelemetryConfiguration options)
+    public ValidateOptionsResult Validate(string? name, TelemetryOptions options)
     {
         var failures = new List<string>();
 

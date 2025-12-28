@@ -1,11 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Contracts.Options;
 
 /// <summary>
 /// Configuration for individual AI model selections and parameters.
 /// </summary>
-public class ModelConfiguration
+public class ModelOptions
 {
     [Required] public string ChatModel        { get; set; } = "gpt-4o-mini";
     [Required] public string EmbeddingModel   { get; set; } = "text-embedding-3-large";

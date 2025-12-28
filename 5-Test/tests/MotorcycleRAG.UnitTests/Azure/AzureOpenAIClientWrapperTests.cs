@@ -8,6 +8,7 @@ using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
@@ -16,25 +17,25 @@ public class AzureOpenAIClientWrapperTests : IDisposable
     private readonly Mock<ILogger<AzureOpenAIClientWrapper>> _mockLogger;
     private readonly Mock<IResilienceService> _mockResilienceService;
     private readonly Mock<ICorrelationService> _mockCorrelationService;
-    private readonly AzureAIConfiguration _config;
-    private readonly IOptions<AzureAIConfiguration> _options;
+    private readonly AzureAIOptions _config;
+    private readonly IOptions<AzureAIOptions> _options;
 
     public AzureOpenAIClientWrapperTests()
     {
         _mockLogger = new Mock<ILogger<AzureOpenAIClientWrapper>>();
         _mockResilienceService = new Mock<IResilienceService>();
         _mockCorrelationService = new Mock<ICorrelationService>();
-        _config = new AzureAIConfiguration
+        _config = new AzureAIOptions
         {
             OpenAIEndpoint = "https://test-openai.openai.azure.com/",
-            Models = new ModelConfiguration
+            Models = new ModelOptions
             {
                 ChatModel = "gpt-4o-mini",
                 EmbeddingModel = "text-embedding-3-large",
                 MaxTokens = 4096,
                 Temperature = 0.1f
             },
-            Retry = new RetryConfiguration
+            Retry = new RetryOptions
             {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,

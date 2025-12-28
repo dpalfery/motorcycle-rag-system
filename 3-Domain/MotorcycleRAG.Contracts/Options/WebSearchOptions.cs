@@ -1,8 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using MotorcycleRAG.Domain.Models;
 
-namespace MotorcycleRAG.Domain.Models;
+namespace MotorcycleRAG.Contracts.Options;
 
-public class WebSearchConfiguration
+public class WebSearchOptions
 {
     [Range(1,10)]      public int   MaxConcurrentRequests { get; set; } = 3;
     [Range(100,10000)] public int   MinRequestIntervalMs  { get; set; } = 1000;

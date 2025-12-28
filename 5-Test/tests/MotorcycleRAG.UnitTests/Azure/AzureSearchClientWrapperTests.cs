@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
@@ -13,10 +14,10 @@ public class AzureSearchClientWrapperTests : IDisposable
     private readonly Mock<ILogger<AzureSearchClientWrapper>> _mockLogger;
     private readonly Mock<IResilienceService> _mockResilienceService;
     private readonly Mock<ICorrelationService> _mockCorrelationService;
-    private readonly AzureAIConfiguration _azureConfig;
-    private readonly SearchConfiguration _searchConfig;
-    private readonly IOptions<AzureAIConfiguration> _azureOptions;
-    private readonly IOptions<SearchConfiguration> _searchOptions;
+    private readonly AzureAIOptions _azureConfig;
+    private readonly SearchOptions _searchConfig;
+    private readonly IOptions<AzureAIOptions> _azureOptions;
+    private readonly IOptions<SearchOptions> _searchOptions;
 
     public AzureSearchClientWrapperTests()
     {
@@ -55,10 +56,10 @@ public class AzureSearchClientWrapperTests : IDisposable
             .Setup(x => x.GetOrCreateCorrelationId())
             .Returns("test-correlation-id");
         
-        _azureConfig = new AzureAIConfiguration
+        _azureConfig = new AzureAIOptions
         {
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
-            Retry = new RetryConfiguration
+            Retry = new RetryOptions
             {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,
@@ -67,8 +68,7 @@ public class AzureSearchClientWrapperTests : IDisposable
             }
         };
 
-        _searchConfig = new SearchConfiguration
-        {
+        _searchConfig = new SearchOptions {
             IndexName = "test-index",
             BatchSize = 100,
             MaxSearchResults = 50,

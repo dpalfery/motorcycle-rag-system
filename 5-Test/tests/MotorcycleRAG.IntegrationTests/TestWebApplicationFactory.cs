@@ -11,6 +11,7 @@ using MotorcycleRAG.Persistence.Sql;
 using System.Data;
 using System.Data.Common;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.IntegrationTests;
 
@@ -116,7 +117,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
             .ReturnsAsync(new float[] { 0.1f, 0.2f, 0.3f });
 
         var mockAzureSearch = new Mock<IAzureSearchClient>();
-        mockAzureSearch.Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>()))
+        mockAzureSearch.Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchParameters>()))
             .ReturnsAsync(Array.Empty<SearchResult>());
 
         var mockDocumentIntelligence = new Mock<IDocumentIntelligenceClient>();

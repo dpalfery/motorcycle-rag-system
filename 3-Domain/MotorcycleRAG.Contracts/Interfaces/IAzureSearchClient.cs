@@ -11,17 +11,17 @@ public interface IAzureSearchClient
     /// <summary>
     /// Performs vector search
     /// </summary>
-    Task<SearchResult[]> VectorSearchAsync(string query, SearchOptions options);
+    Task<SearchResult[]> VectorSearchAsync(string query, SearchParameters options);
 
     /// <summary>
     /// Performs hybrid search (vector + keyword)
     /// </summary>
-    Task<SearchResult[]> HybridSearchAsync(string query, SearchOptions options);
+    Task<SearchResult[]> HybridSearchAsync(string query, SearchParameters options);
 
     /// <summary>
     /// Performs search (generic method)
     /// </summary>
-    Task<SearchResult[]> SearchAsync(string query, SearchOptions options);
+    Task<SearchResult[]> SearchAsync(string query, SearchParameters options);
 
     /// <summary>
     /// Indexes documents

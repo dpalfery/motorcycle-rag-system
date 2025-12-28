@@ -7,6 +7,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using System.Text.Json;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.Persistence.Search;
 
@@ -18,7 +19,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
 {
     private readonly SearchIndexClient _indexClient;
     private readonly IAzureSearchClient _searchClient;
-    private readonly SearchConfiguration _searchConfig;
+    private readonly SearchOptions _searchConfig;
     private readonly ILogger<MotorcycleIndexingService> _logger;
     private readonly SemaphoreSlim _indexingSemaphore;
 
@@ -30,7 +31,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     public MotorcycleIndexingService(
         SearchIndexClient indexClient,
         IAzureSearchClient searchClient,
-        IOptions<SearchConfiguration> searchConfig,
+        IOptions<SearchOptions> searchConfig,
         ILogger<MotorcycleIndexingService> logger)
     {
         _indexClient = indexClient ?? throw new ArgumentNullException(nameof(indexClient));

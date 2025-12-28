@@ -7,6 +7,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using Polly;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.Persistence.Azure;
 
@@ -16,13 +17,13 @@ namespace MotorcycleRAG.Persistence.Azure;
 public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, IDisposable
 {
     private readonly DocumentIntelligenceClient _client;
-    private readonly AzureAIConfiguration _config;
+    private readonly AzureAIOptions _config;
     private readonly ILogger<DocumentIntelligenceClientWrapper> _logger;
     private readonly IAsyncPolicy _retryPolicy;
     private bool _disposed;
 
     public DocumentIntelligenceClientWrapper(
-        IOptions<AzureAIConfiguration> config,
+        IOptions<AzureAIOptions> config,
         ILogger<DocumentIntelligenceClientWrapper> logger)
     {
         if (config == null) throw new ArgumentNullException(nameof(config));

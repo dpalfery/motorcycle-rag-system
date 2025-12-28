@@ -9,6 +9,7 @@ using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Search;
 using Xunit;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.UnitTests.Search;
 
@@ -21,7 +22,7 @@ public class MotorcycleIndexingServiceTests : IDisposable
     private readonly Mock<SearchIndexClient> _mockIndexClient;
     private readonly Mock<IAzureSearchClient> _mockSearchClient;
     private readonly Mock<ILogger<MotorcycleIndexingService>> _mockLogger;
-    private readonly IOptions<SearchConfiguration> _searchConfig;
+    private readonly IOptions<SearchOptions> _searchConfig;
     private readonly MotorcycleIndexingService _indexingService;
 
     public MotorcycleIndexingServiceTests()
@@ -30,8 +31,7 @@ public class MotorcycleIndexingServiceTests : IDisposable
         _mockSearchClient = new Mock<IAzureSearchClient>();
         _mockLogger = new Mock<ILogger<MotorcycleIndexingService>>();
         
-        _searchConfig = Options.Create(new SearchConfiguration
-        {
+        _searchConfig = Options.Create(new SearchOptions {
             IndexName = "test-motorcycle-index",
             BatchSize = 100,
             MaxSearchResults = 50,

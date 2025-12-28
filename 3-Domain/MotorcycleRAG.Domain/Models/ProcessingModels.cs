@@ -49,9 +49,10 @@ public class IndexingResult
 }
 
 /// <summary>
-/// Search options for configuring search behavior
+/// Search parameters for configuring search behavior at runtime
+/// (Different from SearchOptions in Contracts/Options which is for configuration binding)
 /// </summary>
-public class SearchOptions
+public class SearchParameters
 {
     public int MaxResults { get; set; } = 10;
     public float MinRelevanceScore { get; set; } = 0.5f;

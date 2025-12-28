@@ -4,22 +4,23 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
 public class DocumentIntelligenceClientWrapperTests : IDisposable
 {
     private readonly Mock<ILogger<DocumentIntelligenceClientWrapper>> _mockLogger;
-    private readonly AzureAIConfiguration _config;
-    private readonly IOptions<AzureAIConfiguration> _options;
+    private readonly AzureAIOptions _config;
+    private readonly IOptions<AzureAIOptions> _options;
 
     public DocumentIntelligenceClientWrapperTests()
     {
         _mockLogger = new Mock<ILogger<DocumentIntelligenceClientWrapper>>();
-        _config = new AzureAIConfiguration
+        _config = new AzureAIOptions
         {
             DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Retry = new RetryConfiguration
+            Retry = new RetryOptions
             {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,

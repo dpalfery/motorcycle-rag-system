@@ -9,6 +9,7 @@ using System.Net;
 using System.Text;
 using Xunit;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.UnitTests.Agents;
 
@@ -22,7 +23,7 @@ public class WebSearchAgentTests : IDisposable
     private readonly HttpClient _httpClient;
     private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
     private readonly Mock<ILogger<WebSearchAgent>> _mockLogger;
-    private readonly IOptions<WebSearchConfiguration> _webSearchConfig;
+    private readonly IOptions<WebSearchOptions> _webSearchConfig;
     private readonly WebSearchAgent _webSearchAgent;
 
     public WebSearchAgentTests()
@@ -32,7 +33,7 @@ public class WebSearchAgentTests : IDisposable
         _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         _mockLogger = new Mock<ILogger<WebSearchAgent>>();
         
-        _webSearchConfig = Options.Create(new WebSearchConfiguration
+        _webSearchConfig = Options.Create(new WebSearchOptions
         {
             MaxConcurrentRequests = 3,
             MinRequestIntervalMs = 100, // Reduced for testing
@@ -168,8 +169,7 @@ public class WebSearchAgentTests : IDisposable
     {
         // Arrange
         var query = "Kawasaki Ninja performance";
-        var searchOptions = new SearchOptions
-        {
+        var searchParameters = new SearchParameters {
             MaxResults = 5,
             MinRelevanceScore = 0.0f,
             EnableCaching = true
@@ -179,10 +179,10 @@ public class WebSearchAgentTests : IDisposable
         SetupMockOpenAIClient();
 
         // Act - First search to populate cache
-        var firstResults = await _webSearchAgent.SearchAsync(query, searchOptions);
+        var firstResults = await _webSearchAgent.SearchAsync(query, searchParameters);
         
         // Act - Second search should use cache
-        var secondResults = await _webSearchAgent.SearchAsync(query, searchOptions);
+        var secondResults = await _webSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
         Assert.NotEmpty(firstResults);
@@ -195,8 +195,7 @@ public class WebSearchAgentTests : IDisposable
     {
         // Arrange
         var query = "Ducati Panigale features";
-        var searchOptions = new SearchOptions
-        {
+        var searchParameters = new SearchParameters {
             MaxResults = 10,
             MinRelevanceScore = 0.8f,
             IncludeMetadata = true
@@ -206,11 +205,11 @@ public class WebSearchAgentTests : IDisposable
         SetupMockOpenAIClient();
 
         // Act
-        var results = await _webSearchAgent.SearchAsync(query, searchOptions);
+        var results = await _webSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
         Assert.All(results, result => 
-            Assert.True(result.RelevanceScore >= searchOptions.MinRelevanceScore));
+            Assert.True(result.RelevanceScore >= searchParameters.MinRelevanceScore));
     }
 
     [Fact]
@@ -218,8 +217,7 @@ public class WebSearchAgentTests : IDisposable
     {
         // Arrange
         var query = "BMW S1000RR specifications";
-        var searchOptions = new SearchOptions
-        {
+        var searchParameters = new SearchParameters {
             MaxResults = 3,
             MinRelevanceScore = 0.0f,
             IncludeMetadata = true
@@ -229,10 +227,10 @@ public class WebSearchAgentTests : IDisposable
         SetupMockOpenAIClient();
 
         // Act
-        var results = await _webSearchAgent.SearchAsync(query, searchOptions);
+        var results = await _webSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
-        Assert.True(results.Length <= searchOptions.MaxResults);
+        Assert.True(results.Length <= searchParameters.MaxResults);
     }
 
     [Fact]
@@ -240,8 +238,7 @@ public class WebSearchAgentTests : IDisposable
     {
         // Arrange
         var query = "Suzuki GSX-R1000 features";
-        var searchOptions = new SearchOptions
-        {
+        var searchParameters = new SearchParameters {
             MaxResults = 5,
             MinRelevanceScore = 0.0f,
             IncludeMetadata = true
@@ -251,7 +248,7 @@ public class WebSearchAgentTests : IDisposable
         SetupMockOpenAIClient();
 
         // Act
-        var results = await _webSearchAgent.SearchAsync(query, searchOptions);
+        var results = await _webSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
         Assert.All(results, result => 
@@ -354,10 +351,9 @@ public class WebSearchAgentTests : IDisposable
 
     #region Helper Methods
 
-    private SearchOptions CreateDefaultSearchOptions()
+    private SearchParameters CreateDefaultSearchOptions()
     {
-        return new SearchOptions
-        {
+        return new SearchParameters {
             MaxResults = 10,
             MinRelevanceScore = 0.5f,
             IncludeMetadata = true,

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.Application.Agents;
 
@@ -13,7 +14,7 @@ public class VectorSearchAgent : ISearchAgent
 {
     private readonly IAzureSearchClient _searchClient;
     private readonly IAzureOpenAIClient _openAIClient;
-    private readonly SearchConfiguration _searchConfig;
+    private readonly SearchOptions _searchConfig;
     private readonly ILogger<VectorSearchAgent> _logger;
 
     public SearchAgentType AgentType => SearchAgentType.VectorSearch;
@@ -21,7 +22,7 @@ public class VectorSearchAgent : ISearchAgent
     public VectorSearchAgent(
         IAzureSearchClient searchClient,
         IAzureOpenAIClient openAIClient,
-        IOptions<SearchConfiguration> searchConfig,
+        IOptions<SearchOptions> searchConfig,
         ILogger<VectorSearchAgent> logger)
     {
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
@@ -33,7 +34,7 @@ public class VectorSearchAgent : ISearchAgent
     /// <summary>
     /// Execute hybrid search combining keyword and semantic search
     /// </summary>
-    public async Task<SearchResult[]> SearchAsync(string query, SearchOptions options)
+    public async Task<SearchResult[]> SearchAsync(string query, SearchParameters options)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -102,7 +103,7 @@ public class VectorSearchAgent : ISearchAgent
     private async Task<SearchResult[]> ExecuteHybridSearchAsync(
         string query, 
         float[] queryEmbedding, 
-        SearchOptions options)
+        SearchParameters options)
     {
         var results = new List<SearchResult>();
 
@@ -131,7 +132,7 @@ public class VectorSearchAgent : ISearchAgent
     /// <summary>
     /// Execute keyword-based search
     /// </summary>
-    private async Task<SearchResult[]> ExecuteKeywordSearchAsync(string query, SearchOptions options)
+    private async Task<SearchResult[]> ExecuteKeywordSearchAsync(string query, SearchParameters options)
     {
         try
         {
@@ -141,14 +142,14 @@ public class VectorSearchAgent : ISearchAgent
             var maxResults = Math.Min(options.MaxResults, _searchConfig.MaxSearchResults);
 
             // Execute search through Azure Search client
-            var searchOptions = new SearchOptions
+            var searchParameters = new SearchParameters
             {
                 MaxResults = maxResults,
                 MinRelevanceScore = options.MinRelevanceScore,
                 IncludeMetadata = options.IncludeMetadata,
                 EnableCaching = options.EnableCaching
             };
-            var results = await _searchClient.SearchAsync(query, searchOptions);
+            var results = await _searchClient.SearchAsync(query, searchParameters);
             
             // Convert to SearchResult format with keyword search metadata
             var searchResults = results.Select(result => new SearchResult
@@ -189,7 +190,7 @@ public class VectorSearchAgent : ISearchAgent
     private async Task<SearchResult[]> ExecuteSemanticSearchAsync(
         string query, 
         float[] queryEmbedding, 
-        SearchOptions options)
+        SearchParameters options)
     {
         try
         {
@@ -215,7 +216,7 @@ public class VectorSearchAgent : ISearchAgent
     private async Task<SearchResult[]> SimulateSemanticSearchAsync(
         string query, 
         float[] queryEmbedding, 
-        SearchOptions options)
+        SearchParameters options)
     {
         // This is a placeholder implementation
         // In production, this would use Azure AI Search vector search capabilities
@@ -259,7 +260,7 @@ public class VectorSearchAgent : ISearchAgent
     /// <summary>
     /// Apply ranking and filtering logic to search results
     /// </summary>
-    private SearchResult[] ApplyRankingAndFiltering(SearchResult[] results, SearchOptions options)
+    private SearchResult[] ApplyRankingAndFiltering(SearchResult[] results, SearchParameters options)
     {
         _logger.LogDebug("Applying ranking and filtering to {ResultCount} results", results.Length);
 
@@ -285,7 +286,7 @@ public class VectorSearchAgent : ISearchAgent
     /// <summary>
     /// Enhance search results with additional metadata and formatting
     /// </summary>
-    private SearchResult[] EnhanceSearchResults(SearchResult[] results, string query, SearchOptions options)
+    private SearchResult[] EnhanceSearchResults(SearchResult[] results, string query, SearchParameters options)
     {
         return results.Select(result =>
         {

@@ -6,6 +6,7 @@ using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Infrastructure.DataProcessing;
 using Xunit;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.UnitTests.DataProcessing;
 
@@ -16,7 +17,7 @@ public class MotorcyclePDFProcessorTests
     private readonly Mock<IAzureSearchClient> _mockSearchClient;
     private readonly Mock<ILogger<MotorcyclePDFProcessor>> _mockLogger;
     private readonly PDFProcessingConfiguration _pdfConfig;
-    private readonly AzureAIConfiguration _azureConfig;
+    private readonly AzureAIOptions _azureConfig;
     private readonly MotorcyclePDFProcessor _processor;
 
     public MotorcyclePDFProcessorTests()
@@ -38,13 +39,13 @@ public class MotorcyclePDFProcessorTests
             ProcessTables = true
         };
 
-        _azureConfig = new AzureAIConfiguration
+        _azureConfig = new AzureAIOptions
         {
             FoundryEndpoint = "https://test.foundry.azure.com",
             OpenAIEndpoint = "https://test.openai.azure.com",
             SearchServiceEndpoint = "https://test.search.azure.com",
             DocumentIntelligenceEndpoint = "https://test.documentintelligence.azure.com",
-            Models = new ModelConfiguration
+            Models = new ModelOptions
             {
                 ChatModel = "gpt-4o-mini",
                 EmbeddingModel = "text-embedding-3-large",

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Options;
 
 namespace MotorcycleRAG.EndToEndTests;
 

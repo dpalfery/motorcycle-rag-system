@@ -121,8 +121,8 @@ public class VectorSearchAgentTests : IDisposable
 
         // Verify search was called (provide all parameters explicitly)
         _mockSearchClient.Verify(x => x.SearchAsync(
-            It.Is<string>(s => s == query), 
-            It.IsAny<SearchParameters>()
+            It.Is<string>(s => s == query),
+            It.IsAny<SearchOptions>()
         ), Times.Once);
     }
 
@@ -215,8 +215,8 @@ public class VectorSearchAgentTests : IDisposable
         
         // Verify keyword search was still executed (provide all parameters explicitly)
         _mockSearchClient.Verify(x => x.SearchAsync(
-            It.Is<string>(s => s == query), 
-            It.IsAny<SearchParameters>()
+            It.Is<string>(s => s == query),
+            It.IsAny<SearchOptions>()
         ), Times.Once);
     }
 
@@ -300,8 +300,8 @@ public class VectorSearchAgentTests : IDisposable
 
         // Setup with explicit parameters to avoid expression tree issues
         _mockSearchClient.Setup(x => x.SearchAsync(
-            It.IsAny<string>(), 
-            It.IsAny<SearchParameters>()
+            It.IsAny<string>(),
+            It.IsAny<SearchOptions>()
         )).ReturnsAsync(mockResults);
     }
 

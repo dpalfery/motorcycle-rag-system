@@ -5,8 +5,8 @@ using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 using Xunit;
-using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Core.Options; using MotorcycleRAG.Core.Configuration;
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.UnitTests.Resilience;
 

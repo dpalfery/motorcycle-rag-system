@@ -48,7 +48,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         UpdateScheduleInternal();
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken = default)
+    public override async Task StartAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting scheduled pipeline service with cron expression: {CronExpression}", _scheduleConfig.CronExpression);
 
@@ -64,7 +64,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         }
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken = default)
+    public override async Task StopAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Stopping scheduled pipeline service");
 

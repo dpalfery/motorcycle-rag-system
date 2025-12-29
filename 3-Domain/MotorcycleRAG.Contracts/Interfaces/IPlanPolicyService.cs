@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;    
+
 
 namespace MotorcycleRAG.Contracts.Interfaces
 {
@@ -14,7 +14,7 @@ namespace MotorcycleRAG.Contracts.Interfaces
         /// </summary>
         /// <param name="user">User to check</param>
         /// <returns>Daily request limit</returns>
-        Task<int> GetDailyRequestLimitAsync(User user);
+        Task<int> GetDailyRequestLimitAsync(UserDTO user);
 
         /// <summary>
         /// Checks if a user has exceeded their daily request limit

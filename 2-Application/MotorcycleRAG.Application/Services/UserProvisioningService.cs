@@ -2,8 +2,8 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+
 
 namespace MotorcycleRAG.Application.Services
 {
@@ -43,7 +43,7 @@ namespace MotorcycleRAG.Application.Services
         /// <param name="authProvider">Authentication provider</param>
         /// <param name="providerUserId">Provider-specific user ID</param>
         /// <returns>Provisioned or updated user</returns>
-        public async Task<User> ProvisionOrUpdateUserAsync(
+        public async Task<UserDTO> ProvisionOrUpdateUserAsync(
             string userId,
             string email,
             string? displayName,
@@ -88,7 +88,7 @@ namespace MotorcycleRAG.Application.Services
         /// <summary>
         /// Creates a new user with default plan assignment
         /// </summary>
-        private async Task<User> CreateUserAsync(
+        private async Task<UserDTO> CreateUserAsync(
             string userId,
             string email,
             string? displayName,
@@ -101,7 +101,7 @@ namespace MotorcycleRAG.Application.Services
             var defaultPlan = await _planRepository.GetPlanByNameAsync("Free") 
                            ?? await _planRepository.GetPlanByNameAsync("Basic");
 
-            var newUser = new User
+            var newUser = new UserDTO
             {
                 Id = userId,
                 Email = email,
@@ -124,8 +124,8 @@ namespace MotorcycleRAG.Application.Services
         /// <summary>
         /// Updates an existing user with latest information from authentication provider
         /// </summary>
-        private async Task<User> UpdateUserAsync(
-            User existingUser,
+        private async Task<UserDTO> UpdateUserAsync(
+            UserDTO existingUser,
             string email,
             string? displayName,
             string? firstName,

@@ -4,8 +4,10 @@ using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Enums;
+
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories
 {
@@ -33,7 +35,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="user">User to create</param>
         /// <returns>Created user with ID</returns>
-        public async Task<User> CreateUserAsync(User user)
+        public async Task<UserDTO> CreateUserAsync(UserDTO user)
         {
             if (user == null)
             {
@@ -55,7 +57,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
             try
             {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-                var createdUser = await connection.QueryFirstOrDefaultAsync<User>(sql, user);
+                var createdUser = await connection.QueryFirstOrDefaultAsync<UserDTO>(sql, user);
                 
                 _logger.LogInformation("Created user with ID {UserId}", createdUser?.Id);
                 return createdUser ?? throw new InvalidOperationException("User creation failed");
@@ -72,7 +74,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="userId">User ID</param>
         /// <returns>User if found, null otherwise</returns>
-        public async Task<User?> GetUserByIdAsync(string userId)
+        public async Task<UserDTO?> GetUserByIdAsync(string userId)
         {
             if (string.IsNullOrWhiteSpace(userId))
             {
@@ -86,7 +88,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
             try
             {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-                return await connection.QueryFirstOrDefaultAsync<User>(sql, new { UserId = userId });
+                return await connection.QueryFirstOrDefaultAsync<UserDTO>(sql, new { UserId = userId });
             }
             catch (Exception ex)
             {
@@ -100,7 +102,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="email">User email</param>
         /// <returns>User if found, null otherwise</returns>
-        public async Task<User?> GetUserByEmailAsync(string email)
+        public async Task<UserDTO?> GetUserByEmailAsync(string email)
         {
             if (string.IsNullOrWhiteSpace(email))
             {
@@ -114,7 +116,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
             try
             {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-                return await connection.QueryFirstOrDefaultAsync<User>(sql, new { Email = email });
+                return await connection.QueryFirstOrDefaultAsync<UserDTO>(sql, new { Email = email });
             }
             catch (Exception ex)
             {
@@ -128,7 +130,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="user">User to update</param>
         /// <returns>True if successful, false otherwise</returns>
-        public async Task<bool> UpdateUserAsync(User user)
+        public async Task<bool> UpdateUserAsync(UserDTO user)
         {
             if (user == null)
             {

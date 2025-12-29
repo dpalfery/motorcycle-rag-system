@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+
 
 namespace MotorcycleRAG.Contracts.Interfaces
 {
@@ -14,28 +14,28 @@ namespace MotorcycleRAG.Contracts.Interfaces
         /// </summary>
         /// <param name="user">User to create</param>
         /// <returns>Created user with ID</returns>
-        Task<User> CreateUserAsync(User user);
+        Task<UserDTO> CreateUserAsync(UserDTO user);
 
         /// <summary>
         /// Gets a user by their ID
         /// </summary>
         /// <param name="userId">User ID</param>
         /// <returns>User if found, null otherwise</returns>
-        Task<User?> GetUserByIdAsync(string userId);
+        Task<UserDTO?> GetUserByIdAsync(string userId);
 
         /// <summary>
         /// Gets a user by their email
         /// </summary>
         /// <param name="email">User email</param>
         /// <returns>User if found, null otherwise</returns>
-        Task<User?> GetUserByEmailAsync(string email);
+        Task<UserDTO?> GetUserByEmailAsync(string email);
 
         /// <summary>
         /// Updates an existing user
         /// </summary>
         /// <param name="user">User to update</param>
         /// <returns>True if successful, false otherwise</returns>
-        Task<bool> UpdateUserAsync(User user);
+        Task<bool> UpdateUserAsync(UserDTO user);
 
         /// <summary>
         /// Enables or disables a user account

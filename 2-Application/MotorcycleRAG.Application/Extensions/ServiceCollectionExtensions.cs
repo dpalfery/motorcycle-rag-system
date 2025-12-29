@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Application.Optimization;
 using MotorcycleRAG.Contracts.Optimization;
-using MotorcycleRAG.Domain.Models;
+
 
 namespace MotorcycleRAG.Application.Extensions;
 

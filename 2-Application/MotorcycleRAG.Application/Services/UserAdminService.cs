@@ -2,8 +2,8 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+
 
 namespace MotorcycleRAG.Application.Services
 {
@@ -35,7 +35,7 @@ namespace MotorcycleRAG.Application.Services
         /// <summary>
         /// Enables or disables a user account
         /// </summary>
-        public async Task<User> SetUserEnabledStatusAsync(string userId, bool isEnabled)
+        public async Task<UserDTO> SetUserEnabledStatusAsync(string userId, bool isEnabled)
         {
             if (string.IsNullOrWhiteSpace(userId))
             {
@@ -73,7 +73,7 @@ namespace MotorcycleRAG.Application.Services
         /// <summary>
         /// Assigns a plan to a user
         /// </summary>
-        public async Task<User> AssignPlanToUserAsync(string userId, string planId)
+        public async Task<UserDTO> AssignPlanToUserAsync(string userId, string planId)
         {
             if (string.IsNullOrWhiteSpace(userId))
             {
@@ -123,7 +123,7 @@ namespace MotorcycleRAG.Application.Services
         /// <summary>
         /// Gets all users (admin view)
         /// </summary>
-        public async Task<User[]> GetAllUsersAsync(int page = 1, int pageSize = 50)
+        public async Task<UserDTO[]> GetAllUsersAsync(int page = 1, int pageSize = 50)
         {
             if (page < 1)
             {
@@ -143,7 +143,7 @@ namespace MotorcycleRAG.Application.Services
             // Since IUserRepository doesn't have a GetAll method, we'll need to extend it
             // For now, return empty array as this would require repository changes
             _logger.LogWarning("GetAllUsersAsync called but repository doesn't support pagination");
-            return Array.Empty<User>();
+            return Array.Empty<UserDTO>();
         }
     }
 }

@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Mvc;
-using MotorcycleRAG.Shared.Configuration;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.API.Configuration;
 

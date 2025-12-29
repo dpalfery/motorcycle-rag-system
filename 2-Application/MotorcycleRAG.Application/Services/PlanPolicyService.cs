@@ -2,8 +2,8 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+
 
 namespace MotorcycleRAG.Application.Services
 {
@@ -41,7 +41,7 @@ namespace MotorcycleRAG.Application.Services
         /// </summary>
         /// <param name="user">User to check</param>
         /// <returns>Daily request limit</returns>
-        public async Task<int> GetDailyRequestLimitAsync(User user)
+        public async Task<int> GetDailyRequestLimitAsync(UserDTO user)
         {
             if (user == null)
             {
@@ -64,7 +64,7 @@ namespace MotorcycleRAG.Application.Services
                     return 100; // Default free tier limit
                 }
 
-                _logger.LogDebug("User {UserId} has plan {PlanName} with daily limit {DailyLimit}", 
+                _logger.LogDebug("User {UserId} has plan {PlanName} with daily limit {DailyLimit}",
                     user.Id, plan.Name, plan.DailyRequestLimit);
                 return plan.DailyRequestLimit;
             }
@@ -116,7 +116,7 @@ namespace MotorcycleRAG.Application.Services
             }
 
             var checkDate = date ?? DateTime.UtcNow;
-            
+
             try
             {
                 var count = await _usageRepository.GetDailyUsageCountAsync(userId, checkDate);

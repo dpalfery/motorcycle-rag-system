@@ -6,7 +6,7 @@ using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Application.Caching;
 using Xunit;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.UnitTests.Services;
 

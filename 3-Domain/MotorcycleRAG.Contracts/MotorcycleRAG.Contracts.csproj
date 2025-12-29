@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\0-Base\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
     <ProjectReference Include="..\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
   </ItemGroup>
 

@@ -1,13 +1,14 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;
 using System.Text;
 using System.Text.RegularExpressions;
-using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Core.Options; 
 
-namespace MotorcycleRAG.Infrastructure.DataProcessing;
+namespace MotorcycleRAG.Persistence.DataProcessing;
 
 /// <summary>
 /// PDF processor for motorcycle manuals and documentation with semantic chunking and multimodal support

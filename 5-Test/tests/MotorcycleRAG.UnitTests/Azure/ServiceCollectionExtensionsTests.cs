@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Azure;
-using MotorcycleRAG.Domain.Models;
+
 using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Azure;

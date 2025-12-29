@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.Entities;
 using Polly;
 using Polly.CircuitBreaker;
 using System.Diagnostics;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Persistence.Resilience;
 
@@ -110,7 +110,7 @@ public class ResilienceService : IResilienceService
         _policies["TimeoutOnly"] = _policies["AzureOpenAI"];
     }
 
-    private IAsyncPolicy CreateCombinedPolicy(string policyName, ServiceCircuitBreakerConfig circuitConfig, RetryOptions retryConfig)
+    private IAsyncPolicy CreateCombinedPolicy(string policyName, ServiceCircuitBreakerOptions circuitConfig, RetryOptions retryConfig)
     {
         var retryPolicy = Policy
             .Handle<HttpRequestException>()

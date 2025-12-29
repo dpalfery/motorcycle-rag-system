@@ -1,8 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Application.Agents;
@@ -138,19 +137,20 @@ public class VectorSearchAgent : ISearchAgent
         {
             _logger.LogDebug("Executing keyword search for: {Query}", query);
 
-            // Build search parameters for keyword search
-            var maxResults = Math.Min(options.MaxResults, _searchConfig.MaxSearchResults);
+            // Merge user-provided SearchParameters with injected SearchOptions configuration
+            // User input (options.MaxResults) is constrained by configuration limits (_searchConfig.MaxSearchResults)
+            var searchOptions = new SearchOptions
+            {
+                IndexName = _searchConfig.IndexName,
+                MaxSearchResults = Math.Min(options.MaxResults, _searchConfig.MaxSearchResults),
+                EnableHybridSearch = _searchConfig.EnableHybridSearch,
+                EnableSemanticRanking = _searchConfig.EnableSemanticRanking,
+                BatchSize = _searchConfig.BatchSize
+            };
 
             // Execute search through Azure Search client
-            var searchParameters = new SearchParameters
-            {
-                MaxResults = maxResults,
-                MinRelevanceScore = options.MinRelevanceScore,
-                IncludeMetadata = options.IncludeMetadata,
-                EnableCaching = options.EnableCaching
-            };
-            var results = await _searchClient.SearchAsync(query, searchParameters);
-            
+            var results = await _searchClient.SearchAsync(query, searchOptions);
+
             // Convert to SearchResult format with keyword search metadata
             var searchResults = results.Select(result => new SearchResult
             {

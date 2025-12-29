@@ -1,5 +1,4 @@
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Application.Agents;

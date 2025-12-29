@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options; 
-using MotorcycleRAG.Domain.Models;
+
 
 namespace MotorcycleRAG.Persistence.Telemetry
 {

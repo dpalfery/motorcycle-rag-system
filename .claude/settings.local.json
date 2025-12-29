@@ -10,7 +10,10 @@
       "Bash(Out-Null)",
       "Bash(powershell -ExecutionPolicy Bypass -File:*)",
       "Bash(mkdir:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(dotnet test:*)",
+      "Bash(grep:*)",
+      "Bash(dotnet build:*)"
     ],
     "deny": []
   },

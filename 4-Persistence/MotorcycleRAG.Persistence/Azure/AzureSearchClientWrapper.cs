@@ -6,12 +6,11 @@ using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Persistence.Resilience;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Core.Options;   
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
-using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Persistence.Azure;
 
@@ -221,7 +220,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
     }
 
     // Implement VectorSearchAsync
-    public async Task<SearchResult[]> VectorSearchAsync(string query, Domain.Models.SearchParameters options)
+    public async Task<SearchResult[]> VectorSearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         return await _resilienceService.ExecuteAsync(
@@ -275,7 +274,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             correlationId);
     }
 
-    public async Task<SearchResult[]> HybridSearchAsync(string query, Domain.Models.SearchParameters options)
+    public async Task<SearchResult[]> HybridSearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         return await _resilienceService.ExecuteAsync(
@@ -329,7 +328,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             correlationId);
     }
 
-    public async Task<SearchResult[]> SearchAsync(string query, Domain.Models.SearchParameters options)
+    public async Task<SearchResult[]> SearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         return await _resilienceService.ExecuteAsync(
@@ -445,11 +444,11 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         }
     }
 
-    private AzureSearchOptions ConvertToAzureSearchOptions(Domain.Models.SearchParameters options)
+    private AzureSearchOptions ConvertToAzureSearchOptions(MotorcycleRAG.Core.Options.SearchOptions options)
     {
         return new AzureSearchOptions
         {
-            Size = options.MaxResults,
+            Size = options.MaxSearchResults,
             Skip = 0,
             IncludeTotalCount = true,
             Select = { "id", "title", "content", "documentType", "make", "model", "year", "sourceFile", "section", "createdAt", "tags", "metadata" },

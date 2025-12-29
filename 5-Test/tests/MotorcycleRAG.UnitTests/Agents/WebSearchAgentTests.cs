@@ -8,7 +8,7 @@ using MotorcycleRAG.Contracts.Models;
 using System.Net;
 using System.Text;
 using Xunit;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Agents;

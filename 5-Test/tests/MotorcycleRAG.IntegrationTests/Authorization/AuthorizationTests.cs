@@ -6,7 +6,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using Xunit;
-using MotorcycleRAG.Domain.Models;
+
 
 namespace MotorcycleRAG.IntegrationTests.Authorization;
 

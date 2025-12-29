@@ -6,7 +6,7 @@ using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 using Xunit;
 using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options; using MotorcycleRAG.Core.Configuration;
 
 namespace MotorcycleRAG.UnitTests.Resilience;
 
@@ -23,7 +23,7 @@ public class ResilienceServiceTests
         {
             CircuitBreaker = new CircuitBreakerOptions
             {
-                OpenAI = new ServiceCircuitBreakerConfig
+                OpenAI = new ServiceCircuitBreakerOptions
                 {
                     FailureThreshold = 2,
                     SamplingDuration = TimeSpan.FromSeconds(30),

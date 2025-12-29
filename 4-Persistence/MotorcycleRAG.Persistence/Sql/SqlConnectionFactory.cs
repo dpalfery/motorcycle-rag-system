@@ -6,7 +6,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Core.Options; 
-using MotorcycleRAG.Domain.Models;
+
 
 namespace MotorcycleRAG.Persistence.Sql
 {

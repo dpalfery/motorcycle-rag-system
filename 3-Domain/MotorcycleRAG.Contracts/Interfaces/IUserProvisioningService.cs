@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+
 
 namespace MotorcycleRAG.Contracts.Interfaces
 {
@@ -20,7 +20,7 @@ namespace MotorcycleRAG.Contracts.Interfaces
         /// <param name="authProvider">Authentication provider</param>
         /// <param name="providerUserId">Provider-specific user ID</param>
         /// <returns>Provisioned or updated user</returns>
-        Task<User> ProvisionOrUpdateUserAsync(
+        Task<UserDTO> ProvisionOrUpdateUserAsync(
             string userId,
             string email,
             string? displayName,

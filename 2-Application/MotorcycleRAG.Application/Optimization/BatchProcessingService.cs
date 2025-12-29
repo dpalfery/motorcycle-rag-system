@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using MotorcycleRAG.Contracts.Optimization;
-using MotorcycleRAG.Domain.Models;
+
 
 namespace MotorcycleRAG.Application.Optimization;
 

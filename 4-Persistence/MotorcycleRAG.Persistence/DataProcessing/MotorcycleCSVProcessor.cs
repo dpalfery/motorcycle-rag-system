@@ -1,13 +1,14 @@
-using System.Globalization;
-using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;
+using System.Globalization;
+using System.Text;
 
-namespace MotorcycleRAG.Infrastructure.DataProcessing;
+namespace MotorcycleRAG.Persistence.DataProcessing;
 
 /// <summary>
 /// Processes CSV files containing motorcycle specifications with row-based chunking

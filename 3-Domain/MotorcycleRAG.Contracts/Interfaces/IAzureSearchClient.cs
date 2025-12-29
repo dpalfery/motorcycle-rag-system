@@ -1,5 +1,6 @@
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
@@ -11,17 +12,17 @@ public interface IAzureSearchClient
     /// <summary>
     /// Performs vector search
     /// </summary>
-    Task<SearchResult[]> VectorSearchAsync(string query, SearchParameters options);
+    Task<SearchResult[]> VectorSearchAsync(string query, SearchOptions options);
 
     /// <summary>
     /// Performs hybrid search (vector + keyword)
     /// </summary>
-    Task<SearchResult[]> HybridSearchAsync(string query, SearchParameters options);
+    Task<SearchResult[]> HybridSearchAsync(string query, SearchOptions options);
 
     /// <summary>
     /// Performs search (generic method)
     /// </summary>
-    Task<SearchResult[]> SearchAsync(string query, SearchParameters options);
+    Task<SearchResult[]> SearchAsync(string query, SearchOptions options);
 
     /// <summary>
     /// Indexes documents

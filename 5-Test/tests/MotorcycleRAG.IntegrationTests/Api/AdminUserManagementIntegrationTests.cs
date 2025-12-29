@@ -9,9 +9,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using MotorcycleRAG.API;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 using Xunit;
-using MotorcycleRAG.Domain.Models;
+
 
 namespace MotorcycleRAG.IntegrationTests.Api
 {
@@ -82,7 +82,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
             var mockUserAdminService = new Mock<IUserAdminService>();
             mockUserAdminService
                 .Setup(s => s.SetUserEnabledStatusAsync("test-user-1", true))
-                .ReturnsAsync(new User 
+                .ReturnsAsync(new UserDTO 
                 { 
                     Id = "test-user-1",
                     Email = "test@example.com",
@@ -108,7 +108,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
             // Assert
             response.EnsureSuccessStatusCode();
             var content = await response.Content.ReadAsStringAsync();
-            var user = System.Text.Json.JsonSerializer.Deserialize<User>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var user = System.Text.Json.JsonSerializer.Deserialize<UserDTO>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             Assert.NotNull(user);
             Assert.True(user?.IsEnabled);
@@ -126,7 +126,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
             var mockUserAdminService = new Mock<IUserAdminService>();
             mockUserAdminService
                 .Setup(s => s.AssignPlanToUserAsync("test-user-1", "premium-plan"))
-                .ReturnsAsync(new User 
+                .ReturnsAsync(new UserDTO 
                 { 
                     Id = "test-user-1",
                     Email = "test@example.com",
@@ -152,7 +152,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
             // Assert
             response.EnsureSuccessStatusCode();
             var content = await response.Content.ReadAsStringAsync();
-            var user = System.Text.Json.JsonSerializer.Deserialize<User>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var user = System.Text.Json.JsonSerializer.Deserialize<UserDTO>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             Assert.NotNull(user);
             Assert.Equal("premium-plan", user?.PlanId);

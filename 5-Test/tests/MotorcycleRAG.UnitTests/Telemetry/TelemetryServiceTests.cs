@@ -9,7 +9,7 @@ using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Persistence.Telemetry;
 using System.Collections.Concurrent;
 using FluentAssertions;
-using MotorcycleRAG.Domain.Models;
+
 
 namespace MotorcycleRAG.UnitTests.Telemetry;
 

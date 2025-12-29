@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+
 using System.Net.Mime;
 
 namespace MotorcycleRAG.API.Controllers;

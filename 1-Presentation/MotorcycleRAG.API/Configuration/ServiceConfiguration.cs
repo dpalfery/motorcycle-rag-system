@@ -1,13 +1,13 @@
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Net.NetworkInformation;
 using MotorcycleRAG.Persistence.Azure;
-using MotorcycleRAG.Infrastructure.DataProcessing;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Sql.Repositories;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Persistence.DataProcessing;
 
 namespace MotorcycleRAG.API.Configuration;
 
@@ -73,8 +73,8 @@ public static class ServiceConfiguration
     public static IServiceCollection AddDataProcessors(this IServiceCollection services)
     {
         // Register data processor implementations from Persistence layer
-        services.AddScoped<IDataProcessor<CSVFile>, MotorcycleRAG.Infrastructure.DataProcessing.MotorcycleCSVProcessor>();
-        services.AddScoped<IDataProcessor<PDFDocument>, MotorcycleRAG.Infrastructure.DataProcessing.MotorcyclePDFProcessor>();
+        services.AddScoped<IDataProcessor<CSVFile>, MotorcycleCSVProcessor>();
+        services.AddScoped<IDataProcessor<PDFDocument>, MotorcyclePDFProcessor>();
 
         return services;
     }

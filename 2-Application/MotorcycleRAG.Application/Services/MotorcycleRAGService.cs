@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -385,8 +385,9 @@ Factual claims (JSON array):
                               .ToArray();
 
         // Filter for sentences that likely contain facts
+        string[] factIndicators = [" is ", " has ", " are ", " was ", " were "];
         return sentences.Where(s =>
-            s.ContainsAny(new[] { " is ", " has ", " are ", " was ", " were " }) ||
+            factIndicators.Any(indicator => s.Contains(indicator, StringComparison.OrdinalIgnoreCase)) ||
             s.Any(char.IsDigit) ||
             s.Contains("cc") || s.Contains("hp") || s.Contains("kW") ||
             s.Contains("mph") || s.Contains("km/h") || s.Contains("Nm")
@@ -672,13 +673,13 @@ Factual claims (JSON array):
 
     private bool IsQualifiedClaim(string claim)
     {
-        var qualifyingTerms = new[]
-        {
+        string[] qualifyingTerms =
+        [
             "may", "might", "could", "possibly", "potentially", "likely", "probably",
             "often", "sometimes", "typically", "generally", "usually", "can", "tend to"
-        };
+        ];
 
-        return claim.ContainsAny(qualifyingTerms);
+        return qualifyingTerms.Any(term => claim.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
 
     private bool IsCommonKnowledge(string claim)
@@ -755,19 +756,19 @@ If you believe this information should be available, please try rephrasing your 
         }
 
         // Check for specific motorcycle terms
-        var motorcycleTerms = new[] { "motorcycle", "bike", "specs", "specifications", "manual", "guide", "review", "comparison" };
-        if (!query.ContainsAny(motorcycleTerms))
+        string[] motorcycleTerms = ["motorcycle", "bike", "specs", "specifications", "manual", "guide", "review", "comparison"];
+        if (!motorcycleTerms.Any(term => query.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
             analysis.Suggestions.Add("✅ **Add context**: Include terms like 'motorcycle', 'specs', 'manual', or 'review' to help focus the search.");
         }
 
         // Check for brand/model names
-        var commonBrands = new[] { "Honda", "Yamaha", "Kawasaki", "Suzuki", "Ducati", "BMW", "Harley", "Triumph" };
-        var hasBrand = query.ContainsAny(commonBrands);
+        string[] commonBrands = ["Honda", "Yamaha", "Kawasaki", "Suzuki", "Ducati", "BMW", "Harley", "Triumph"];
+        var hasBrand = commonBrands.Any(brand => query.Contains(brand, StringComparison.OrdinalIgnoreCase));
 
         // Check for model indicators
-        var modelIndicators = new[] { "CBR", "R1", "ZX", "GSX", "Panigale", "S1000", "Street", "Ninja" };
-        var hasModelIndicator = query.ContainsAny(modelIndicators);
+        string[] modelIndicators = ["CBR", "R1", "ZX", "GSX", "Panigale", "S1000", "Street", "Ninja"];
+        var hasModelIndicator = modelIndicators.Any(model => query.Contains(model, StringComparison.OrdinalIgnoreCase));
 
         if (!hasBrand && !hasModelIndicator)
         {
@@ -775,8 +776,8 @@ If you believe this information should be available, please try rephrasing your 
         }
 
         // Check for technical terms
-        var technicalTerms = new[] { "engine", "horsepower", "torque", "displacement", "suspension", "brakes", "ABS", "traction control" };
-        if (!query.ContainsAny(technicalTerms))
+        string[] technicalTerms = ["engine", "horsepower", "torque", "displacement", "suspension", "brakes", "ABS", "traction control"];
+        if (!technicalTerms.Any(term => query.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
             analysis.Suggestions.Add("✅ **Use technical terms**: Include specific aspects you're interested in (engine, horsepower, suspension, ABS, etc.).");
         }

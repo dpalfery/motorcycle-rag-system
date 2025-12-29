@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using MotorcycleRAG.Domain.Models;
+
 
 namespace MotorcycleRAG.Application.Caching;
 

@@ -44,6 +44,12 @@ Presentation → Application → Domain ← Persistence
 4. **Thin controllers** - only call use cases and map responses
 5. **Rich domain models** - behavior with data, not anemic models
 6. **Test without infrastructure** - domain and application tests need no database
+7. **1 class or interface per file** - no multiple classes in one file
+8. **Single Responsibility Principle** - each class has one job
+9. **Open/Closed Principle** - open for extension, closed for modification
+10. **Liskov Substitution Principle** - derived classes must be substitutable for their base classes
+11. **Interface Segregation Principle** - many client-specific interfaces instead of one general-purpose interface
+12. **Dependency Inversion Principle** - high-level modules shouldn't depend on low-level ones; both should depend on abstractions
 
 ---
 
@@ -216,6 +222,8 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 * **Factories:** Complex object construction with invariants
   *Folder:* `Factories`
 * **Exceptions:** Domain-specific exceptions
+  *Folder:* `Exceptions`
+* **Enums:** Domain-specific enums types
   *Folder:* `Exceptions`
 
 **Dependencies:** Base (minimal - only utilities/enums)

@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using MotorcycleRAG.Contracts.Optimization;
-using MotorcycleRAG.Domain.Models;
+
 
 namespace MotorcycleRAG.Application.Optimization;
 

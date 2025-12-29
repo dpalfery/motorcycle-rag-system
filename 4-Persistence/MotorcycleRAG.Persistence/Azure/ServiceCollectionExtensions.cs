@@ -4,13 +4,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Persistence.Resilience;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Search;
-using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Core.Options; 
 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Persistence.Azure;
 

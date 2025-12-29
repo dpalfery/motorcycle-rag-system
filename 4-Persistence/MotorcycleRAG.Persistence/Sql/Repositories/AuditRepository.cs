@@ -4,8 +4,9 @@ using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;   
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories
 {

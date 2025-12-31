@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace MotorcycleRAG.Admin.Utilities;
 
 /// <summary>
@@ -5,6 +7,43 @@ namespace MotorcycleRAG.Admin.Utilities;
 /// </summary>
 public static class ErrorPresenter
 {
+    /// <summary>
+    /// Sanitizes error messages to remove sensitive information before displaying to users
+    /// Redacts file paths, URLs, IP addresses and limits message length
+    /// </summary>
+    public static string SanitizeErrorMessage(string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+            return "An unexpected error occurred. Please try again.";
+
+        // Redact file paths (Windows and Unix styles)
+        var sanitized = Regex.Replace(
+            errorMessage,
+            @"([A-Za-z]:)?\\?(?:[^\\/]+\\)*[^\\/]+\.[a-zA-Z0-9]+",
+            "[file path]",
+            RegexOptions.Compiled);
+
+        // Redact URLs
+        sanitized = Regex.Replace(
+            sanitized,
+            @"https?://[^\s]+",
+            "[url]",
+            RegexOptions.Compiled);
+
+        // Redact IP addresses
+        sanitized = Regex.Replace(
+            sanitized,
+            @"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}",
+            "[ip address]",
+            RegexOptions.Compiled);
+
+        // Limit length to prevent excessively long messages
+        if (sanitized.Length > 200)
+            sanitized = sanitized.Substring(0, 197) + "...";
+
+        return sanitized;
+    }
+
     /// <summary>
     /// Displays an error alert to the user
     /// </summary>

@@ -6,6 +6,159 @@
 
 **Tests**: Required by the project constitution. Add/extend unit + integration tests per user story; ensure Red-Green-Refactor where feasible.
 
+## Phase 0: Material.Components.Maui Adoption
+
+**Purpose**: Standardize UI components on Material.Components.Maui for both Admin and MobileApp MAUI applications.
+
+- [ ] T-MAUI-001 [MAUI] Add Material.Components.Maui NuGet package to MotorcycleRAG.Admin.csproj in 1-Presentation/MotorcycleRAG.Admin/
+  - Add PackageReference: Material.Components.Maui (Use latest stable version compatible with the repo's .NET MAUI target; pin the resolved version and record it in the PR)
+  - _Requirements: FR-024 (admin UI), FR-025 (Windows desktop app)
+
+- [ ] T-MAUI-002 [MAUI] Add Material.Components.Maui NuGet package to MotorcycleRAG.MobileApp.csproj in 1-Presentation/MotorcycleRAG.MobileApp/
+  - Add PackageReference: Material.Components.Maui (Use latest stable version compatible with the repo's .NET MAUI target; pin the resolved version and record it in the PR)
+  - _Requirements: User Story 1 (mobile query interface)
+
+- [ ] T-MAUI-003 [MAUI] Initialize Material Components in MauiProgram.cs for MotorcycleRAG.Admin
+  - Add .UseMaterialComponents() call in MauiProgram.CreateMauiApp()
+  - Configure Material Icons font
+  - _Requirements: FR-024 (admin UI)
+
+- [ ] T-MAUI-004 [MAUI] Initialize Material Components in MauiProgram.cs for MotorcycleRAG.MobileApp
+  - Add .UseMaterialComponents() call in MauiProgram.CreateMauiApp()
+  - Configure Material Icons font
+  - _Requirements: User Story 1 (mobile query interface)
+
+- [ ] T-MAUI-005 [MAUI] Define Material Design 3 color scheme in App.xaml for MotorcycleRAG.Admin
+  - Define Primary, OnPrimary, PrimaryContainer, OnPrimaryContainer colors
+  - Define Secondary, OnSecondary, SecondaryContainer, OnSecondaryContainer colors
+  - Define Tertiary, OnTertiary, TertiaryContainer, OnTertiaryContainer colors
+  - Define Error, OnError colors
+  - Define Background, OnBackground, Surface, OnSurface colors
+  - _Requirements: FR-024 (admin UI)
+
+- [ ] T-MAUI-006 [MAUI] Define Material Design 3 color scheme in App.xaml for MotorcycleRAG.MobileApp
+  - Define Primary, OnPrimary, PrimaryContainer, OnPrimaryContainer colors
+  - Define Secondary, OnSecondary, SecondaryContainer, OnSecondaryContainer colors
+  - Define Tertiary, OnTertiary, TertiaryContainer, OnTertiaryContainer colors
+  - Define Error, OnError colors
+  - Define Background, OnBackground, Surface, OnSurface colors
+  - _Requirements: User Story 1 (mobile query interface)
+
+- [ ] T-MAUI-007 [MAUI] Implement navigation shell (Flyout + TopAppBar) in AppShell.xaml for MotorcycleRAG.Admin
+  - Configure FlyoutBehavior (Locked for desktop, Flyout for mobile)
+  - Configure FlyoutWidth (300px desktop, 250px mobile)
+  - Implement FlyoutHeader with app logo/title
+  - Implement FlyoutItems for Dashboard, Upload, Jobs, Web Sources, Tools
+  - Implement Shell.TitleView with TopAppBar
+  - Add page title (left), profile avatar, user name, sign-out button (right)
+  - _Requirements: FR-024 (admin UI), FR-025 (Windows desktop app)
+
+- [ ] T-MAUI-008 [MAUI] Implement navigation shell (Flyout + TopAppBar) in AppShell.xaml for MotorcycleRAG.MobileApp
+  - Configure FlyoutBehavior (Flyout for mobile)
+  - Configure FlyoutWidth (250px)
+  - Implement FlyoutHeader with app logo/title
+  - Implement FlyoutItems for Chat, Conversations, Profile
+  - Implement Shell.TitleView with TopAppBar
+  - Add page title (left), profile avatar, sign-out button (right)
+  - _Requirements: User Story 1 (mobile query interface)
+
+- [ ] T-MAUI-009 [MAUI] Implement responsive design behavior in AppShell.xaml.cs for MotorcycleRAG.Admin
+  - Detect DeviceIdiom (Desktop vs Phone)
+  - Set FlyoutBehavior based on device type
+  - Set FlyoutWidth based on device type
+  - _Requirements: FR-024 (admin UI), FR-025 (Windows desktop app)
+
+- [ ] T-MAUI-010 [MAUI] Implement responsive design behavior in AppShell.xaml.cs for MotorcycleRAG.MobileApp
+  - Detect DeviceIdiom (Desktop vs Phone vs Tablet)
+  - Set FlyoutBehavior based on device type
+  - Set FlyoutWidth based on device type
+  - _Requirements: User Story 1 (mobile query interface)
+
+- [ ] T-MAUI-011 [MAUI] Create IAuthenticationState interface and implementation in 1-Presentation/MotorcycleRAG.Admin/Services/
+  - Define IAuthenticationState with IsAuthenticated, UserId, UserName, UserEmail, UserAvatar, UserInitials properties
+  - Implement AuthenticationState class with SetUser/ClearUser methods
+  - Raise AuthenticationChanged event on user state changes
+  - _Requirements: FR-024 (admin UI), FR-038 (user authentication)
+
+- [ ] T-MAUI-012 [MAUI] Create IAuthenticationState interface and implementation in 1-Presentation/MotorcycleRAG.MobileApp/Services/
+  - Define IAuthenticationState with IsAuthenticated, UserId, UserName, UserEmail, UserAvatar, UserInitials properties
+  - Implement AuthenticationState class with SetUser/ClearUser methods
+  - Raise AuthenticationChanged event on user state changes
+  - _Requirements: User Story 1 (mobile query interface), FR-038 (user authentication)
+
+- [ ] T-MAUI-013 [MAUI] Wire IAuthenticationState into DI for MotorcycleRAG.Admin in MauiProgram.cs
+  - Register IAuthenticationState as Singleton
+  - Register IAdminAuthService as Singleton
+  - Register AuthenticationViewModel as Transient
+  - _Requirements: FR-024 (admin UI), FR-038 (user authentication)
+
+- [ ] T-MAUI-014 [MAUI] Wire IAuthenticationState into DI for MotorcycleRAG.MobileApp in MauiProgram.cs
+  - Register IAuthenticationState as Singleton
+  - Register IAuthenticationService as Singleton
+  - Register AuthenticationViewModel as Transient
+  - _Requirements: User Story 1 (mobile query interface), FR-038 (user authentication)
+
+- [ ] T-MAUI-015 [MAUI] Create UserProfile model in 1-Presentation/MotorcycleRAG.Admin/Models/
+  - Define UserProfile with Id, Name, Email, AvatarUrl properties
+  - Implement UserInitials computed property (first letter of first and last name)
+  - _Requirements: FR-024 (admin UI), FR-040 (user profiles)
+
+- [ ] T-MAUI-016 [MAUI] Create UserProfile model in 1-Presentation/MotorcycleRAG.MobileApp/Models/
+  - Define UserProfile with Id, Name, Email, AvatarUrl properties
+  - Implement UserInitials computed property (first letter of first and last name)
+  - _Requirements: User Story 1 (mobile query interface), FR-040 (user profiles)
+
+- [ ] T-MAUI-017 [MAUI] Create DashboardPage.xaml using Material Components (Avatar, Card, ProgressBar) in MotorcycleRAG.Admin/Pages/
+   - Create new dashboard page with Material.Components.Maui components
+   - Use mc:Avatar for user profile display
+   - Use mc:Card for metric cards (showing key metrics like document count, job status, etc.)
+   - Use mc:ProgressBar for loading indicators
+   - _Requirements: FR-024 (admin UI)
+
+- [ ] T-MAUI-018 [MAUI] Update UploadPage.xaml to use Material Components (Button, TextField, ProgressBar) in MotorcycleRAG.Admin
+  - Replace existing controls with Material.Components.Maui equivalents
+  - Use mc:Button (Filled variant) for primary actions
+  - Use mc:TextField for file path input
+  - Use mc:ProgressBar for upload progress
+  - _Requirements: FR-024 (admin UI), FR-026 (file upload)
+
+- [ ] T-MAUI-019 [MAUI] Update JobsPage.xaml to use Material Components (Card, Button, ProgressBar) in MotorcycleRAG.Admin
+  - Replace existing controls with Material.Components.Maui equivalents
+  - Use mc:Card for job status display
+  - Use mc:Button (Outlined variant) for cancel action
+  - Use mc:ProgressBar for job progress
+  - _Requirements: FR-024 (admin UI), FR-012 (job monitoring)
+
+- [ ] T-MAUI-022 [MAUI] Update ChatPage.xaml to use Material Components (Card, TextField, IconButton) in MotorcycleRAG.MobileApp
+  - Replace existing controls with Material.Components.Maui equivalents
+  - Use mc:Card for message bubbles
+  - Use mc:TextField for query input
+  - Use mc:IconButton (Filled variant) for send action
+  - _Requirements: User Story 1 (mobile query interface)
+
+- [ ] T-MAUI-023 [MAUI] Update ConversationListPage.xaml to use Material Components (Card, Avatar) in MotorcycleRAG.MobileApp
+  - Replace existing controls with Material.Components.Maui equivalents
+  - Use mc:Card for conversation list items
+  - Use mc:Avatar for conversation thumbnails
+  - _Requirements: User Story 1 (mobile query interface)
+
+- [ ] T-MAUI-024 [MAUI] Create UserProfilePage.xaml using Material Components (Card, Avatar, TextField) in MotorcycleRAG.MobileApp/Views/
+   - Create new user profile page with Material.Components.Maui components
+   - Use mc:Card for profile sections
+   - Use mc:Avatar for user profile image
+   - Use mc:TextField for profile input fields
+   - _Requirements: User Story 1 (mobile query interface), FR-040 (user profiles)
+
+- [ ] T-MAUI-025 [MAUI] Update AuthenticationPage.xaml to use Material Components (Button, TextField) in MotorcycleRAG.MobileApp
+  - Replace existing controls with Material.Components.Maui equivalents
+  - Use mc:Button (Filled variant) for sign-in action
+  - Use mc:TextField for email/password inputs
+  - _Requirements: User Story 1 (mobile query interface), FR-038 (user authentication)
+
+**Checkpoint**: Material.Components.Maui is integrated into both MAUI applications with consistent navigation shell and theming.
+
+---
+
 ## Phase 1: Setup (Shared Infrastructure)
 
 **Purpose**: Ensure the repo is ready for incremental implementation and consistent local execution.
@@ -173,6 +326,13 @@
 **Independent Test**: Add a site, run scrape/index job, and query returns results attributed to that URL.
 
 - [ ] T072 [US6] Create admin web sources controller in 1-Presentation/MotorcycleRAG.API/Controllers/WebSourcesAdminController.cs
+- [ ] T-MAUI-020 [MAUI] Create WebSourcesPage.xaml using Material Components (Card, Switch, TextField) in MotorcycleRAG.Admin/Pages/
+  - Create new web sources management page with Material.Components.Maui components
+  - Use mc:Card for web source display
+  - Use mc:Switch for enable/disable toggle
+  - Use mc:TextField for URL input
+  - _Requirements: FR-024 (admin UI), FR-030 (web source management)
+
 - [ ] T073 [US6] Implement CRUD for web sources backed by SQL in 2-Application/MotorcycleRAG.Application/Services/WebSourceRegistryService.cs
 - [ ] T074 [US6] Implement URL validation + uniqueness checks in 2-Application/MotorcycleRAG.Application/Services/WebSourceRegistryService.cs
 - [ ] T075 [US6] Implement scrape/index job runner in 2-Application/MotorcycleRAG.Application/Services/WebScrapeOrchestrator.cs
@@ -199,7 +359,13 @@
 - [ ] T082 [US7] Implement audit trail persistence for MCP changes in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/ToolConfigurationAuditRepository.cs
 - [ ] T083 [US7] Create MCP admin endpoints in 1-Presentation/MotorcycleRAG.API/Controllers/McpAdminController.cs
 - [ ] T084 [US7] Wire orchestration to consume enabled tools for new runs in 2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs
-- [ ] T085 [US7] Add MAUI tool configuration screens in 1-Presentation/MotorcycleRAG.Admin/Pages/ToolsPage.xaml
+- [ ] T085 [US7] Add MAUI tool configuration screens using Material Components (Card, Switch, TextField) in 1-Presentation/MotorcycleRAG.Admin/Pages/ToolsPage.xaml
+  - Create tools configuration page with Material.Components.Maui components
+  - Use mc:Card for tool configuration display
+  - Use mc:Switch for enable/disable toggle
+  - Use mc:TextField for configuration inputs
+  - _Requirements: FR-024 (admin UI), FR-034 (MCP configuration)
+
 - [ ] T086 [US7] Implement MAUI tool editor + validation in 1-Presentation/MotorcycleRAG.Admin/ViewModels/ToolsViewModel.cs
 
 - [ ] T114 [P] [US7] Add unit tests for MCP config provider refresh/sentinel in 5-Test/tests/MotorcycleRAG.UnitTests/Configuration/McpConfigurationProviderTests.cs
@@ -261,6 +427,7 @@
 
 - **Setup (Phase 1)**: No dependencies.
 - **Foundational (Phase 2)**: Depends on Setup; blocks all user stories.
+- **UI Standardization (Phase 0)**: Must complete before implementing MAUI pages in US3a, US6, and US7.
 - **User Stories (Phase 3+)**: Depend on Foundational.
 - **Polish (Final Phase)**: Depends on whichever stories are targeted for release.
 
@@ -275,6 +442,10 @@
 - Phase 2 → **US7 (P3)** (depends on config store + admin auth)
 - Phase 2 → **US4 (P3)**
 - Phase 2 → **US5 (P3)** (cross-cutting)
+
+### UI Standardization / Material.Components.Maui Adoption Execution Order
+
+**Phase 0: UI Standardization / Material.Components.Maui Adoption** occurs immediately before building new UI pages so that new pages start with the Material Design standard. This phase must be completed prior to implementing any MAUI page creation tasks in User Stories 3a (Admin UI), 6 (Web Sources), and 7 (MCP Configuration) to ensure consistent UI components across the application.
 
 ## Parallel Execution Examples
 

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -36,6 +36,7 @@
     <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj" />
     <ProjectReference Include="..\..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
     <ProjectReference Include="..\..\..\0-Base\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
+    <ProjectReference Include="..\..\..\1-Presentation\MotorcycleRAG.Admin\MotorcycleRAG.Admin.csproj" />
   </ItemGroup>
 
   <ItemGroup>

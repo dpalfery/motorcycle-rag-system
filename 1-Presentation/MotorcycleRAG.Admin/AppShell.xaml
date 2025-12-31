@@ -3,30 +3,10 @@
     x:Class="MotorcycleRAG.Admin.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:local="clr-namespace:MotorcycleRAG.Admin"
-    xmlns:pages="clr-namespace:MotorcycleRAG.Admin.Pages"
     Title="Motorcycle RAG Admin">
 
-    <TabBar>
-        <ShellContent
-            Title="Home"
-            Icon="home.png"
-            ContentTemplate="{DataTemplate local:MainPage}"
-            Route="MainPage" />
-        
-        <ShellContent
-            Title="Upload"
-            Icon="upload.png"
-            ContentTemplate="{DataTemplate pages:UploadPage}"
-            Route="UploadPage"
-            x:Name="UploadTab" />
-        
-        <ShellContent
-            Title="Jobs"
-            Icon="jobs.png"
-            ContentTemplate="{DataTemplate pages:JobsPage}"
-            Route="JobsPage"
-            x:Name="JobsTab" />
+    <!-- TabBar items will be added programmatically in code-behind -->
+    <TabBar x:Name="MainTabBar">
     </TabBar>
 
 </Shell>

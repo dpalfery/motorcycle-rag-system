@@ -1,7 +1,9 @@
 using MotorcycleRAG.Admin.Services;
+using MotorcycleRAG.Admin.Utilities;
 using MotorcycleRAG.Domain.DTOs;
 using System.Collections.ObjectModel;
 using System.Timers;
+using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.Admin.Pages;
 
@@ -9,15 +11,17 @@ public partial class JobsPage : ContentPage
 {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
+    private readonly ILogger<JobsPage> _logger;
     private readonly System.Timers.Timer _pollTimer;
     private readonly ObservableCollection<JobViewModel> _jobs;
 
-    public JobsPage(ApiClient apiClient, IAdminAuthService authService)
+    public JobsPage(ApiClient apiClient, IAdminAuthService authService, ILogger<JobsPage> logger)
     {
         InitializeComponent();
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-        
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
         _jobs = new ObservableCollection<JobViewModel>();
         JobsCollectionView.ItemsSource = _jobs;
 
@@ -74,8 +78,9 @@ public partial class JobsPage : ContentPage
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Error cancelling job {executionId}: {ex}");
-                    await DisplayAlertAsync("Error", $"Error cancelling job: {ex.Message}", "OK");
+                    _logger.LogWarning(ex, "Error cancelling job {ExecutionId}", executionId);
+                    var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
+                    await DisplayAlertAsync("Error", $"Error cancelling job: {sanitizedMessage}", "OK");
                 }
             }
         }
@@ -105,7 +110,7 @@ public partial class JobsPage : ContentPage
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error polling job status: {ex}");
+                _logger.LogWarning(ex, "Error polling job status");
                 // Silently fail polling - user can manually refresh
             }
         });
@@ -147,7 +152,8 @@ public partial class JobsPage : ContentPage
         catch (Exception ex)
         {
             // Only show error for unexpected exceptions
-            await DisplayAlertAsync("Error", $"Failed to load jobs: {ex.Message}", "OK");
+            var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
+            await DisplayAlertAsync("Error", $"Failed to load jobs: {sanitizedMessage}", "OK");
         }
     }
 

@@ -17,6 +17,16 @@
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		
+		<!-- Suppress XA0141: Android 16 will require 16KB page sizes.
+		     JUSTIFICATION: Microsoft.ML.OnnxRuntime native library (libonnxruntime4j_jni.so) does not yet support 16KB pages.
+		     Android 16 release is future (not yet GA as of 2025-12-31).
+		     This warning is informational and does not affect functionality on current Android versions.
+		     When Android 16 is released, we will either:
+		     (1) Update to a newer ONNX Runtime version with 16KB support, or
+		     (2) Exclude Android platform if embedding functionality is not required on mobile.
+		     Tracking: Microsoft.ML.OnnxRuntime issue for Android 16 compatibility. -->
+		<NoWarn>$(NoWarn);XA0141</NoWarn>
 
 		<!-- Display name -->
 		<ApplicationTitle>MotorcycleRAG.Admin</ApplicationTitle>
@@ -64,6 +74,7 @@
 		<PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
 		<PackageReference Include="PdfPig" Version="0.1.9" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
+		<PackageReference Include="Polly" Version="8.1.0" />
 	</ItemGroup>
 
 	<ItemGroup>

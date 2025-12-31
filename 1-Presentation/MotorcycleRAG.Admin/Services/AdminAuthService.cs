@@ -13,9 +13,11 @@ public class AdminAuthService : IAdminAuthService
     private readonly IPublicClientApplication _msalClient;
     private readonly string[] _scopes;
     private AuthenticationResult? _currentAuthResult;
-    private readonly ILogger<AdminAuthService>? _logger;
+    private DateTime _tokenExpiresAt = DateTime.MinValue;
+    private readonly ILogger<AdminAuthService> _logger;
+    private readonly SemaphoreSlim _tokenRefreshLock = new SemaphoreSlim(1, 1);
 
-    public AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService>? logger = null, IPublicClientApplication? msalClient = null)
+    public AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService> logger, IPublicClientApplication? msalClient = null)
     {
         if (string.IsNullOrEmpty(clientId))
             throw new ArgumentException("Client ID cannot be null or empty", nameof(clientId));
@@ -25,7 +27,7 @@ public class AdminAuthService : IAdminAuthService
             throw new ArgumentException("Scopes cannot be null or empty", nameof(scopes));
 
         _scopes = scopes;
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _msalClient = msalClient ??
             PublicClientApplicationBuilder
@@ -33,6 +35,66 @@ public class AdminAuthService : IAdminAuthService
                 .WithAuthority(authority)
                 .WithDefaultRedirectUri()
                 .Build();
+    }
+
+    /// <summary>
+    /// Checks if the current cached token has expired
+    /// </summary>
+    private bool IsTokenExpired()
+    {
+        return DateTime.UtcNow >= _tokenExpiresAt;
+    }
+
+    /// <summary>
+    /// Gets a valid cached token or acquires a new one if expired
+    /// Thread-safe implementation using SemaphoreSlim to prevent race conditions
+    /// </summary>
+    private async Task<AuthenticationResult?> GetValidTokenAsync(CancellationToken cancellationToken = default)
+    {
+        // Quick check without lock (optimization - avoids lock contention for valid tokens)
+        if (_currentAuthResult != null && !IsTokenExpired())
+        {
+            return _currentAuthResult;
+        }
+
+        // Acquire lock for safe refresh
+        await _tokenRefreshLock.WaitAsync(cancellationToken);
+        try
+        {
+            // Double-check after acquiring lock (another thread may have refreshed token)
+            if (_currentAuthResult != null && !IsTokenExpired())
+            {
+                return _currentAuthResult;
+            }
+
+            // Try to acquire token silently
+            var accounts = await _msalClient.GetAccountsAsync();
+            if (accounts.Any())
+            {
+                try
+                {
+                    _currentAuthResult = await _msalClient
+                        .AcquireTokenSilent(_scopes, accounts.FirstOrDefault())
+                        .ExecuteAsync(cancellationToken);
+                    _tokenExpiresAt = _currentAuthResult.ExpiresOn.UtcDateTime;
+                    _logger.LogDebug("Token refreshed successfully. Expires at: {ExpiresOn}", _currentAuthResult.ExpiresOn);
+                    return _currentAuthResult;
+                }
+                catch (MsalUiRequiredException ex)
+                {
+                    // User needs to sign in again - expected in some scenarios
+                    _logger.LogWarning("Token refresh requires interactive signin: {Message}", ex.Message);
+                    return null;
+                }
+            }
+
+            _logger.LogWarning("No cached accounts available for silent token acquisition");
+            return null;
+        }
+        finally
+        {
+            _tokenRefreshLock.Release();
+        }
     }
 
     /// <summary>
@@ -51,6 +113,7 @@ public class AdminAuthService : IAdminAuthService
                     _currentAuthResult = await _msalClient
                         .AcquireTokenSilent(_scopes, accounts.FirstOrDefault())
                         .ExecuteAsync();
+                    _tokenExpiresAt = _currentAuthResult.ExpiresOn.UtcDateTime;
                     return true;
                 }
                 catch (MsalUiRequiredException)
@@ -68,7 +131,7 @@ public class AdminAuthService : IAdminAuthService
                     // Display the device code to the user
                     // Sanitize message before logging to prevent injection attacks
                     var sanitizedMessage = SanitizeForLogging(deviceCodeResult.Message);
-                    _logger?.LogInformation("Device code flow initiated. ExpiresOn: {Expires}, VerificationUrl: {Url}, CodeLength: {CodeLength}",
+                    _logger.LogInformation("Device code flow initiated. ExpiresOn: {Expires}, VerificationUrl: {Url}, CodeLength: {CodeLength}",
                         deviceCodeResult.ExpiresOn, deviceCodeResult.VerificationUrl, deviceCodeResult.DeviceCode?.Length ?? 0);
                     Console.WriteLine(deviceCodeResult.Message);
 
@@ -86,6 +149,11 @@ public class AdminAuthService : IAdminAuthService
                 })
                 .ExecuteAsync(cts.Token);
 
+            if (_currentAuthResult != null)
+            {
+                _tokenExpiresAt = _currentAuthResult.ExpiresOn.UtcDateTime;
+            }
+
             return _currentAuthResult != null;
         }
         catch (MsalException ex)
@@ -102,12 +170,12 @@ public class AdminAuthService : IAdminAuthService
                         "OK");
                 }
             });
-            _logger?.LogError(ex, "Authentication failed");
+            _logger.LogError(ex, "Authentication failed");
             return false;
         }
         catch (OperationCanceledException)
         {
-            _logger?.LogWarning("Device code authentication timed out after 5 minutes.");
+            _logger.LogWarning("Device code authentication timed out after 5 minutes.");
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
                 var window = Application.Current?.Windows?.FirstOrDefault();
@@ -134,38 +202,25 @@ public class AdminAuthService : IAdminAuthService
             await _msalClient.RemoveAsync(account);
         }
         _currentAuthResult = null;
+        _tokenExpiresAt = DateTime.MinValue;
     }
 
     /// <summary>
     /// Gets a valid access token, refreshing if necessary
+    /// Returns null if token cannot be acquired (e.g., interactive signin required)
+    /// Callers should handle null and offer to re-authenticate
     /// </summary>
     public async Task<string?> GetAccessTokenAsync()
     {
-        // Check if current token is still valid
-        if (_currentAuthResult != null && _currentAuthResult.ExpiresOn > DateTimeOffset.UtcNow.AddMinutes(5))
+        var validToken = await GetValidTokenAsync();
+
+        if (validToken == null)
         {
-            return _currentAuthResult.AccessToken;
+            _logger.LogWarning("Failed to acquire valid token - interactive signin may be required");
+            return null;
         }
 
-        // Try to acquire token silently
-        var accounts = await _msalClient.GetAccountsAsync();
-        if (accounts.Any())
-        {
-            try
-            {
-                _currentAuthResult = await _msalClient
-                    .AcquireTokenSilent(_scopes, accounts.FirstOrDefault())
-                    .ExecuteAsync();
-                return _currentAuthResult.AccessToken;
-            }
-            catch (MsalUiRequiredException)
-            {
-                // User needs to sign in again
-                return null;
-            }
-        }
-
-        return null;
+        return validToken.AccessToken;
     }
 
     /// <summary>

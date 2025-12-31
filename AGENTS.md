@@ -1,4 +1,4 @@
-## Project Overview
+﻿## Project Overview
 This project is a sophisticated **multi-agent RAG (Retrieval-Augmented Generation) system** for motorcycle information retrieval. It is designed to pass **OWASP ASVS Level 2** security standards and follows strict **Clean Architecture** principles.
 
 The system orchestrates specialized agents to search heterogeneous data sources (CSV specs, PDF manuals, Trusted Web) and provides a unified, cited response. It includes a **React WebUI** for users and a **.NET MAUI Admin App** (Windows-first) for data ingestion and management.

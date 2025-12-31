@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.Admin.ViewModels;
 
@@ -17,6 +18,7 @@ public class IngestionViewModel : INotifyPropertyChanged
     private readonly PdfChunker _pdfChunker;
     private readonly CsvChunker _csvChunker;
     private readonly OnnxEmbeddingService? _embeddingService;
+    private readonly ILogger<IngestionViewModel>? _logger;
     
     private string _statusMessage = string.Empty;
     private bool _isProcessing;
@@ -24,22 +26,21 @@ public class IngestionViewModel : INotifyPropertyChanged
     private string _selectedFilePath = string.Empty;
     private bool _enableLocalProcessing = true;
 
-    public IngestionViewModel(ApiClient apiClient)
+    public IngestionViewModel(
+        ApiClient apiClient,
+        PdfChunker pdfChunker,
+        CsvChunker csvChunker,
+        OnnxEmbeddingService? embeddingService = null,
+        ILogger<IngestionViewModel>? logger = null)
     {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
-        _pdfChunker = new PdfChunker();
-        _csvChunker = new CsvChunker();
+        _pdfChunker = pdfChunker ?? throw new ArgumentNullException(nameof(pdfChunker));
+        _csvChunker = csvChunker ?? throw new ArgumentNullException(nameof(csvChunker));
+        _embeddingService = embeddingService; // Optional - null means server-side processing only
+        _logger = logger;
         
-        // Try to initialize embedding service (optional)
-        try
-        {
-            _embeddingService = OnnxEmbeddingServiceFactory.CreateFromAppResources();
-        }
-        catch
-        {
-            // Embedding service is optional - can fall back to server-side processing
-            _enableLocalProcessing = false;
-        }
+        // Check if local processing is available (requires ONNX model)
+        _enableLocalProcessing = _embeddingService != null;
 
         ProcessedFiles = new ObservableCollection<ProcessedFileInfo>();
         
@@ -126,13 +127,32 @@ public class IngestionViewModel : INotifyPropertyChanged
 
             if (result != null)
             {
+                // File size validation
+                var info = new FileInfo(result.FullPath);
+                var ext = Path.GetExtension(result.FullPath).ToLowerInvariant();
+                long sizeLimit = ext == ".pdf" ? 100 * 1024 * 1024 : 50 * 1024 * 1024; // 100MB PDF, 50MB CSV
+                if (info.Length > sizeLimit)
+                {
+                    await ShowErrorAsync("File too large", $"File exceeds limit ({sizeLimit / (1024 * 1024)}MB).");
+                    return;
+                }
+
+                // Simple MIME validation (magic numbers)
+                if (!IsValidMime(result.FullPath, ext))
+                {
+                    await ShowErrorAsync("Invalid file", "The selected file type does not match its content.");
+                    return;
+                }
+
                 SelectedFilePath = result.FullPath;
                 StatusMessage = $"Selected: {Path.GetFileName(result.FullPath)}";
+                _logger?.LogInformation("File selected: {FileName}, SizeBytes: {Size}, Ext: {Ext}", info.Name, info.Length, ext);
             }
         }
         catch (Exception ex)
         {
             await ShowErrorAsync("File Selection Error", ex.Message);
+            _logger?.LogError(ex, "File selection failed");
         }
     }
 
@@ -175,11 +195,13 @@ public class IngestionViewModel : INotifyPropertyChanged
             fileInfo.EndTime = DateTime.Now;
             StatusMessage = $"Completed: {fileInfo.FileName}";
             ProgressPercentage = 100;
+            _logger?.LogInformation("Processing completed for file {FileName}", fileInfo.FileName);
         }
         catch (Exception ex)
         {
             StatusMessage = $"Error: {ex.Message}";
             await ShowErrorAsync("Processing Error", ex.Message);
+            _logger?.LogError(ex, "Processing failed for file {FilePath}", SelectedFilePath);
         }
         finally
         {
@@ -296,6 +318,61 @@ public class IngestionViewModel : INotifyPropertyChanged
         {
             await window.Page.DisplayAlertAsync(title, message, "OK");
         }
+    }
+
+    private bool IsValidMime(string path, string ext)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+
+            // PDF header: 25 50 44 46 => "%PDF"
+            if (ext == ".pdf")
+            {
+                Span<byte> pdfHeader = stackalloc byte[4];
+                if (fs.Length < 4) return false;
+                fs.Read(pdfHeader);
+                return pdfHeader[0] == 0x25 && pdfHeader[1] == 0x50 && pdfHeader[2] == 0x44 && pdfHeader[3] == 0x46;
+            }
+
+            // CSV validation: enhanced heuristic with larger sample size (1KB)
+            if (ext == ".csv")
+            {
+                const int sampleSize = 1024; // Read 1KB for validation
+                int readSize = Math.Min(sampleSize, (int)Math.Min(fs.Length, int.MaxValue));
+                Span<byte> buffer = stackalloc byte[sampleSize];
+                int bytesRead = fs.Read(buffer.Slice(0, readSize));
+
+                if (bytesRead == 0) return false;
+
+                // Check for binary signatures that indicate non-text files
+                // Look for null bytes, which are common in binary files
+                for (int i = 0; i < bytesRead; i++)
+                {
+                    if (buffer[i] == 0x00)
+                        return false; // Null byte indicates binary file
+                }
+
+                // Check that majority of bytes are text-like (ASCII printable + whitespace)
+                int textLikeCount = 0;
+                for (int i = 0; i < bytesRead; i++)
+                {
+                    byte b = buffer[i];
+                    // Allow: tab (0x09), newline (0x0A), carriage return (0x0D), printable ASCII (0x20-0x7E)
+                    if (b == 0x09 || b == 0x0A || b == 0x0D || (b >= 0x20 && b <= 0x7E))
+                        textLikeCount++;
+                }
+
+                // At least 90% of the sample should be text-like
+                return textLikeCount >= (bytesRead * 0.9);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed MIME validation for {Path}", path);
+            return false;
+        }
+        return false;
     }
 
     protected bool SetProperty<T>(ref T backingStore, T value, [CallerMemberName] string propertyName = "")

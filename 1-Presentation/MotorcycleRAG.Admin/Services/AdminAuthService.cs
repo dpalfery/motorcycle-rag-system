@@ -1,5 +1,6 @@
 using Microsoft.Identity.Client;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.Admin.Services;
 
@@ -12,8 +13,9 @@ public class AdminAuthService : IAdminAuthService
     private readonly IPublicClientApplication _msalClient;
     private readonly string[] _scopes;
     private AuthenticationResult? _currentAuthResult;
+    private readonly ILogger<AdminAuthService>? _logger;
 
-    public AdminAuthService(string clientId, string authority, string[] scopes)
+    public AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService>? logger = null, IPublicClientApplication? msalClient = null)
     {
         if (string.IsNullOrEmpty(clientId))
             throw new ArgumentException("Client ID cannot be null or empty", nameof(clientId));
@@ -23,12 +25,14 @@ public class AdminAuthService : IAdminAuthService
             throw new ArgumentException("Scopes cannot be null or empty", nameof(scopes));
 
         _scopes = scopes;
+        _logger = logger;
 
-        _msalClient = PublicClientApplicationBuilder
-            .Create(clientId)
-            .WithAuthority(authority)
-            .WithDefaultRedirectUri()
-            .Build();
+        _msalClient = msalClient ??
+            PublicClientApplicationBuilder
+                .Create(clientId)
+                .WithAuthority(authority)
+                .WithDefaultRedirectUri()
+                .Build();
     }
 
     /// <summary>
@@ -56,12 +60,18 @@ public class AdminAuthService : IAdminAuthService
             }
 
             // Interactive sign-in with device code flow
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+
             _currentAuthResult = await _msalClient
                 .AcquireTokenWithDeviceCode(_scopes, deviceCodeResult =>
                 {
                     // Display the device code to the user
+                    // Sanitize message before logging to prevent injection attacks
+                    var sanitizedMessage = SanitizeForLogging(deviceCodeResult.Message);
+                    _logger?.LogInformation("Device code flow initiated. ExpiresOn: {Expires}, VerificationUrl: {Url}, CodeLength: {CodeLength}",
+                        deviceCodeResult.ExpiresOn, deviceCodeResult.VerificationUrl, deviceCodeResult.DeviceCode?.Length ?? 0);
                     Console.WriteLine(deviceCodeResult.Message);
-                    
+
                     // On Windows, we can also show this in the UI
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
@@ -71,10 +81,10 @@ public class AdminAuthService : IAdminAuthService
                             deviceCodeResult.Message,
                             "OK");
                     });
-                    
+
                     return Task.CompletedTask;
                 })
-                .ExecuteAsync();
+                .ExecuteAsync(cts.Token);
 
             return _currentAuthResult != null;
         }
@@ -89,6 +99,23 @@ public class AdminAuthService : IAdminAuthService
                     await window.Page.DisplayAlertAsync(
                         "Authentication Error",
                         $"Failed to sign in: {ex.Message}",
+                        "OK");
+                }
+            });
+            _logger?.LogError(ex, "Authentication failed");
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger?.LogWarning("Device code authentication timed out after 5 minutes.");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                var window = Application.Current?.Windows?.FirstOrDefault();
+                if (window?.Page != null)
+                {
+                    await window.Page.DisplayAlertAsync(
+                        "Authentication Timeout",
+                        "Device code sign-in timed out after 5 minutes. Please try again.",
                         "OK");
                 }
             });
@@ -146,7 +173,9 @@ public class AdminAuthService : IAdminAuthService
     /// </summary>
     public bool IsSignedIn()
     {
-        return _currentAuthResult != null && _currentAuthResult.ExpiresOn > DateTimeOffset.UtcNow;
+        var signedIn = _currentAuthResult != null && _currentAuthResult.ExpiresOn > DateTimeOffset.UtcNow;
+        _logger?.LogDebug("IsSignedIn: {SignedIn}, ExpiresOn: {Expires}", signedIn, _currentAuthResult?.ExpiresOn);
+        return signedIn;
     }
 
     /// <summary>
@@ -157,7 +186,9 @@ public class AdminAuthService : IAdminAuthService
         if (_currentAuthResult?.Account == null)
             return null;
 
-        return _currentAuthResult.Account.Username;
+        var name = _currentAuthResult.Account.Username;
+        _logger?.LogDebug("GetUserDisplayName: {Name}", name);
+        return name;
     }
 
     /// <summary>
@@ -178,7 +209,7 @@ public class AdminAuthService : IAdminAuthService
             // Extract roles from claims
             var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
             var token = handler.ReadJwtToken(idToken);
-            
+
             var roleClaims = token.Claims
                 .Where(c => c.Type == "roles" || c.Type == ClaimTypes.Role)
                 .Select(c => c.Value)
@@ -186,9 +217,30 @@ public class AdminAuthService : IAdminAuthService
 
             return roleClaims;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogWarning(ex, "Failed to parse user roles from token");
             return Enumerable.Empty<string>();
         }
+    }
+
+    /// <summary>
+    /// Sanitizes a message for safe logging to prevent injection attacks
+    /// </summary>
+    private static string SanitizeForLogging(string? message)
+    {
+        if (string.IsNullOrEmpty(message))
+            return string.Empty;
+
+        // Remove or escape potentially problematic characters that could be used for log injection
+        // Keep only alphanumeric, whitespace, and safe punctuation
+        var sanitized = System.Text.RegularExpressions.Regex.Replace(
+            message,
+            @"[^\w\s\-\.\:\(\)\,]",
+            "",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        // Limit length to prevent log flooding
+        return sanitized.Length > 500 ? sanitized.Substring(0, 500) + "..." : sanitized;
     }
 }

@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -7,20 +9,35 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
 using Xunit;
 using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.IntegrationTests;
 
 namespace MotorcycleRAG.IntegrationTests.Api;
 
 /// <summary>
-/// Integration tests for the MotorcycleController REST API.
+/// Integration tests for MotorcycleController REST API.
 /// </summary>
-public class MotorcycleApiIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private static JsonSerializerOptions GetJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            PropertyNameCaseInsensitive = true
+        };
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+        return options;
+    }
+    private readonly TestWebApplicationFactory _factory;
 
-    public MotorcycleApiIntegrationTests(WebApplicationFactory<Program> factory)
+    public MotorcycleApiIntegrationTests(TestWebApplicationFactory factory)
+    {
+        _factory = factory;
+    }
+
+    private WebApplicationFactory<Program> CreateFactoryWithMockedService()
     {
         // Override IMotorcycleRAGService with a mocked implementation so that tests do not call external services.
-        _factory = factory.WithWebHostBuilder(builder =>
+        return _factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -35,13 +52,63 @@ public class MotorcycleApiIntegrationTests : IClassFixture<WebApplicationFactory
                 var mockService = new Mock<IMotorcycleRAGService>();
 
                 mockService.Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
-                            .ReturnsAsync((MotorcycleQueryRequest r) => new MotorcycleQueryResponse
+                            .ReturnsAsync((MotorcycleQueryRequest r) =>
                             {
-                                QueryId = Guid.NewGuid().ToString("N"),
-                                Response = $"Echo: {r.Query}",
-                                GeneratedAt = DateTime.UtcNow,
-                                Sources = Array.Empty<SearchResult>(),
-                                Metrics = new QueryMetrics()
+                                var sources = new[]
+                                {
+                                    new SearchResult
+                                    {
+                                        Id = "mock-1",
+                                        Content = "Mock content",
+                                        RelevanceScore = 1.0f,
+                                        Source = new SearchSource
+                                        {
+                                            AgentType = SearchAgentType.PDFSearch,
+                                            SourceName = "Mock Manual",
+                                            SourceUrl = "https://example.invalid/manual",
+                                            DocumentId = "mock-doc",
+                                            LastUpdated = DateTime.UtcNow,
+                                            Citation = new Citation
+                                            {
+                                                SourceType = CitationSourceType.ManualPdf,
+                                                SourceName = "Mock Manual",
+                                                SourceUrl = "https://example.invalid/manual",
+                                                PageNumber = 1,
+                                                Section = "Mock Section",
+                                                ConfidenceScore = 1.0f,
+                                                Verified = false,
+                                                Locator = new ManualPdfCitationLocator
+                                                {
+                                                    DocumentId = "mock-doc",
+                                                    Title = "Mock Manual",
+                                                    PageNumber = 1,
+                                                    PageRange = "1",
+                                                    PrimarySection = "Mock Section",
+                                                    SectionLevel = 1,
+                                                    SectionHeadings = new[] { "Mock Section" },
+                                                    ChunkIndex = 0,
+                                                    Section = "Mock Section",
+                                                    SourceUrl = "https://example.invalid/manual"
+                                                }
+                                            }
+                                        }
+                                    }
+                                };
+
+                                return new MotorcycleQueryResponse
+                                {
+                                    QueryId = Guid.NewGuid().ToString("N"),
+                                    Response = $"Echo: {r.Query}",
+                                    GeneratedAt = DateTime.UtcNow,
+                                    Sources = sources,
+                                    Metrics = new QueryMetrics
+                                    {
+                                        TotalDuration = TimeSpan.FromMilliseconds(123),
+                                        ProcessingTimeMs = 100,
+                                        ResultsFound = sources.Length,
+                                        CacheHit = false
+                                    }
+                                };
                             });
 
                 mockService.Setup(s => s.GetHealthAsync())
@@ -55,18 +122,19 @@ public class MotorcycleApiIntegrationTests : IClassFixture<WebApplicationFactory
     [Fact]
     public async Task QueryEndpoint_ReturnsOkAndResponseBody()
     {
-        var client = _factory.CreateClient();
+        var factory = CreateFactoryWithMockedService();
+        var client = factory.CreateClientWithRoles("User");
 
         var request = new MotorcycleQueryRequest
         {
-            Query = "What is the top speed of Ducati Panigale V4?"
+            Query = "What is top speed of Ducati Panigale V4?"
         };
 
         var response = await client.PostAsJsonAsync("/api/motorcycles/query", request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var body = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
+        var body = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>(GetJsonOptions());
         Assert.NotNull(body);
         Assert.StartsWith("Echo:", body!.Response);
     }
@@ -74,7 +142,8 @@ public class MotorcycleApiIntegrationTests : IClassFixture<WebApplicationFactory
     [Fact]
     public async Task QueryEndpoint_InvalidModel_ReturnsBadRequest()
     {
-        var client = _factory.CreateClient();
+        var factory = CreateFactoryWithMockedService();
+        var client = factory.CreateClientWithRoles("User");
 
         var request = new MotorcycleQueryRequest { Query = string.Empty }; // Invalid due to [Required]
 
@@ -86,7 +155,8 @@ public class MotorcycleApiIntegrationTests : IClassFixture<WebApplicationFactory
     [Fact]
     public async Task HealthEndpoint_ReturnsOk()
     {
-        var client = _factory.CreateClient();
+        var factory = CreateFactoryWithMockedService();
+        var client = factory.CreateClientWithRoles("User");
 
         var response = await client.GetAsync("/api/motorcycles/health");
 
@@ -100,18 +170,19 @@ public class MotorcycleApiIntegrationTests : IClassFixture<WebApplicationFactory
     [Fact]
     public async Task QueryEndpoint_ReturnsCitationsAndSources_WhenValidRequest()
     {
-        var client = _factory.CreateClient();
+        var factory = CreateFactoryWithMockedService();
+        var client = factory.CreateClientWithRoles("User");
 
         var request = new MotorcycleQueryRequest
         {
-            Query = "What are the specifications of Honda CBR1000RR?"
+            Query = "What are specifications of Honda CBR1000RR?"
         };
 
         var response = await client.PostAsJsonAsync("/api/motorcycles/query", request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var body = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
+        var body = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>(GetJsonOptions());
         Assert.NotNull(body);
 
         // Verify response structure
@@ -138,7 +209,7 @@ public class MotorcycleApiIntegrationTests : IClassFixture<WebApplicationFactory
     public async Task QueryEndpoint_HandlesNoResultsWithRefinementSuggestions()
     {
         // Create a mock that returns empty results
-        var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        var factory = new TestWebApplicationFactory().WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -168,14 +239,14 @@ public class MotorcycleApiIntegrationTests : IClassFixture<WebApplicationFactory
             });
         });
 
-        var client = factory.CreateClient();
+        var client = factory.CreateClientWithRoles("User");
         var request = new MotorcycleQueryRequest { Query = "Some obscure query with no results" };
 
         var response = await client.PostAsJsonAsync("/api/motorcycles/query", request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var body = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
+        var body = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>(GetJsonOptions());
         Assert.NotNull(body);
 
         // Verify no-results response structure
@@ -189,18 +260,19 @@ public class MotorcycleApiIntegrationTests : IClassFixture<WebApplicationFactory
     [Fact]
     public async Task QueryEndpoint_ReturnsStableQueryIdAndCompleteMetrics()
     {
-        var client = _factory.CreateClient();
+        var factory = CreateFactoryWithMockedService();
+        var client = factory.CreateClientWithRoles("User");
 
         var request = new MotorcycleQueryRequest
         {
-            Query = "What is the top speed of Ducati Panigale V4?"
+            Query = "What is top speed of Ducati Panigale V4?"
         };
 
         var response = await client.PostAsJsonAsync("/api/motorcycles/query", request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var body = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
+        var body = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>(GetJsonOptions());
         Assert.NotNull(body);
 
         // Verify stable query ID format (GUID without hyphens)

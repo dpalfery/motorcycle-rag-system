@@ -11,6 +11,7 @@ using MotorcycleRAG.API;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.DTOs;
 using Xunit;
+using MotorcycleRAG.IntegrationTests;
 
 
 namespace MotorcycleRAG.IntegrationTests.Api
@@ -18,11 +19,11 @@ namespace MotorcycleRAG.IntegrationTests.Api
     /// <summary>
     /// Integration tests for admin user management and plan assignment
     /// </summary>
-    public class AdminUserManagementIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+    public class AdminUserManagementIntegrationTests : IClassFixture<TestWebApplicationFactory>
     {
-        private readonly WebApplicationFactory<Program> _factory;
+        private readonly TestWebApplicationFactory _factory;
 
-        public AdminUserManagementIntegrationTests(WebApplicationFactory<Program> factory)
+        public AdminUserManagementIntegrationTests(TestWebApplicationFactory factory)
         {
             _factory = factory;
         }
@@ -57,7 +58,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                 {
                     services.AddSingleton(mockUserService.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("User");
 
             // Act
             var response = await client.PutAsync("/api/admin/users/user-1/enabled", 
@@ -96,7 +97,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockUserAdminService.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("Admin");
 
             // Act
             var response = await client.PutAsync("/api/admin/users/test-user-1/enabled", 
@@ -140,7 +141,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockUserAdminService.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("Admin");
 
             // Act
             var response = await client.PutAsync("/api/admin/users/test-user-1/plan", 
@@ -205,7 +206,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("Admin");
 
             // Act
             var response = await client.GetAsync("/api/admin/plans");
@@ -239,7 +240,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("Admin");
 
             // Act
             var response = await client.PostAsync("/api/admin/plans", 
@@ -282,7 +283,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("Admin");
 
             // Act
             var response = await client.PutAsync("/api/admin/plans/premium-plan", 
@@ -324,7 +325,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("Admin");
 
             // Act
             var response = await client.DeleteAsync("/api/admin/plans/premium-plan");

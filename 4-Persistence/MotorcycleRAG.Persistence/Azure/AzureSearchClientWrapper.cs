@@ -6,9 +6,9 @@ using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Domain.Entities;
-using MotorcycleRAG.Core.Options;   
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
 
@@ -451,7 +451,15 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             Size = options.MaxSearchResults,
             Skip = 0,
             IncludeTotalCount = true,
-            Select = { "id", "title", "content", "documentType", "make", "model", "year", "sourceFile", "section", "createdAt", "tags", "metadata" },
+            // T055: Include locator metadata fields in search results
+            Select =
+            {
+                "id", "title", "content", "documentType",
+                "make", "model", "year",
+                "sourceFile", "sourceUrl", "author", "publishedDate",
+                "section", "pageNumber", "pageRange", "primarySection", "sectionLevel", "sectionHeadings", "tableCaption", "chunkIndex",
+                "createdAt", "updatedAt", "tags"
+            },
             OrderBy = { "search.score() desc" },
             // Filter = options.Filter, // TODO: Add filter support if needed
             QueryType = SearchQueryType.Simple,

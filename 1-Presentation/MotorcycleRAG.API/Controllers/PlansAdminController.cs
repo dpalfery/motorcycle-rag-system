@@ -148,7 +148,9 @@ public sealed class PlansAdminController : ControllerBase
 
             var createdPlan = await _planRepository.CreatePlanAsync(plan);
             _logger.LogInformation("Admin created plan {PlanId} with name {PlanName}", createdPlan.Id, createdPlan.Name);
-            return CreatedAtAction(nameof(GetPlanByIdAsync), new { id = createdPlan.Id }, createdPlan);
+
+            // Avoid route generation failures under test hosts by returning an explicit location.
+            return Created($"/api/admin/plans/{createdPlan.Id}", createdPlan);
         }
         catch (Exception ex)
         {

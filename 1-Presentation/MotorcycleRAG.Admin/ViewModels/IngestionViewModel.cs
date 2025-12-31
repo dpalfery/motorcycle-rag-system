@@ -1,0 +1,346 @@
+using MotorcycleRAG.Admin.Services;
+using MotorcycleRAG.Admin.Processing;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Windows.Input;
+
+namespace MotorcycleRAG.Admin.ViewModels;
+
+/// <summary>
+/// ViewModel for the data ingestion workflow
+/// Handles file upload, local processing, and API submission
+/// </summary>
+public class IngestionViewModel : INotifyPropertyChanged
+{
+    private readonly ApiClient _apiClient;
+    private readonly PdfChunker _pdfChunker;
+    private readonly CsvChunker _csvChunker;
+    private readonly OnnxEmbeddingService? _embeddingService;
+    
+    private string _statusMessage = string.Empty;
+    private bool _isProcessing;
+    private double _progressPercentage;
+    private string _selectedFilePath = string.Empty;
+    private bool _enableLocalProcessing = true;
+
+    public IngestionViewModel(ApiClient apiClient)
+    {
+        _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
+        _pdfChunker = new PdfChunker();
+        _csvChunker = new CsvChunker();
+        
+        // Try to initialize embedding service (optional)
+        try
+        {
+            _embeddingService = OnnxEmbeddingServiceFactory.CreateFromAppResources();
+        }
+        catch
+        {
+            // Embedding service is optional - can fall back to server-side processing
+            _enableLocalProcessing = false;
+        }
+
+        ProcessedFiles = new ObservableCollection<ProcessedFileInfo>();
+        
+        // Commands
+        SelectFileCommand = new Command(async () => await SelectFileAsync());
+        ProcessFileCommand = new Command(async () => await ProcessFileAsync(), () => !IsProcessing && !string.IsNullOrEmpty(SelectedFilePath));
+        ClearCommand = new Command(Clear, () => !IsProcessing);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    #region Properties
+
+    public ObservableCollection<ProcessedFileInfo> ProcessedFiles { get; }
+
+    public string StatusMessage
+    {
+        get => _statusMessage;
+        set => SetProperty(ref _statusMessage, value);
+    }
+
+    public bool IsProcessing
+    {
+        get => _isProcessing;
+        set
+        {
+            if (SetProperty(ref _isProcessing, value))
+            {
+                ((Command)ProcessFileCommand).ChangeCanExecute();
+                ((Command)ClearCommand).ChangeCanExecute();
+            }
+        }
+    }
+
+    public double ProgressPercentage
+    {
+        get => _progressPercentage;
+        set => SetProperty(ref _progressPercentage, value);
+    }
+
+    public string SelectedFilePath
+    {
+        get => _selectedFilePath;
+        set
+        {
+            if (SetProperty(ref _selectedFilePath, value))
+            {
+                ((Command)ProcessFileCommand).ChangeCanExecute();
+            }
+        }
+    }
+
+    public bool EnableLocalProcessing
+    {
+        get => _enableLocalProcessing;
+        set => SetProperty(ref _enableLocalProcessing, value);
+    }
+
+    #endregion
+
+    #region Commands
+
+    public ICommand SelectFileCommand { get; }
+    public ICommand ProcessFileCommand { get; }
+    public ICommand ClearCommand { get; }
+
+    #endregion
+
+    #region Methods
+
+    private async Task SelectFileAsync()
+    {
+        try
+        {
+            var result = await FilePicker.PickAsync(new PickOptions
+            {
+                PickerTitle = "Select a file to process",
+                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                    { DevicePlatform.WinUI, new[] { ".pdf", ".csv" } },
+                    { DevicePlatform.macOS, new[] { "pdf", "csv" } }
+                })
+            });
+
+            if (result != null)
+            {
+                SelectedFilePath = result.FullPath;
+                StatusMessage = $"Selected: {Path.GetFileName(result.FullPath)}";
+            }
+        }
+        catch (Exception ex)
+        {
+            await ShowErrorAsync("File Selection Error", ex.Message);
+        }
+    }
+
+    private async Task ProcessFileAsync()
+    {
+        if (string.IsNullOrEmpty(SelectedFilePath))
+            return;
+
+        IsProcessing = true;
+        ProgressPercentage = 0;
+        StatusMessage = "Starting processing...";
+
+        try
+        {
+            var fileInfo = new ProcessedFileInfo
+            {
+                FileName = Path.GetFileName(SelectedFilePath),
+                FilePath = SelectedFilePath,
+                Status = "Processing",
+                StartTime = DateTime.Now
+            };
+
+            ProcessedFiles.Add(fileInfo);
+
+            // Determine file type
+            var extension = Path.GetExtension(SelectedFilePath).ToLowerInvariant();
+            
+            if (EnableLocalProcessing && _embeddingService != null)
+            {
+                // Local processing workflow
+                await ProcessLocallyAsync(fileInfo, extension);
+            }
+            else
+            {
+                // Server-side processing workflow
+                await ProcessOnServerAsync(fileInfo);
+            }
+
+            fileInfo.Status = "Completed";
+            fileInfo.EndTime = DateTime.Now;
+            StatusMessage = $"Completed: {fileInfo.FileName}";
+            ProgressPercentage = 100;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error: {ex.Message}";
+            await ShowErrorAsync("Processing Error", ex.Message);
+        }
+        finally
+        {
+            IsProcessing = false;
+        }
+    }
+
+    private async Task ProcessLocallyAsync(ProcessedFileInfo fileInfo, string extension)
+    {
+        ProgressPercentage = 10;
+        StatusMessage = "Chunking document...";
+
+        // Step 1: Chunk the document
+        if (extension == ".pdf")
+        {
+            var chunkResult = await _pdfChunker.ProcessPdfAsync(fileInfo.FilePath);
+            if (!chunkResult.Success)
+            {
+                throw new Exception($"PDF chunking failed: {string.Join(", ", chunkResult.Errors)}");
+            }
+            fileInfo.ChunkCount = chunkResult.Chunks.Count;
+            fileInfo.Metadata = $"Pages: {chunkResult.Metadata.PageCount}";
+            
+            ProgressPercentage = 40;
+            StatusMessage = $"Chunked into {chunkResult.Chunks.Count} chunks, generating embeddings...";
+
+            // Step 2: Generate embeddings
+            if (_embeddingService != null)
+            {
+                var embeddings = new List<float[]>();
+                for (int i = 0; i < chunkResult.Chunks.Count; i++)
+                {
+                    var embeddingResult = await _embeddingService.GenerateEmbeddingAsync(chunkResult.Chunks[i].Text);
+                    if (embeddingResult.Success)
+                    {
+                        embeddings.Add(embeddingResult.Embedding);
+                    }
+                    ProgressPercentage = 40 + (50.0 * (i + 1) / chunkResult.Chunks.Count);
+                }
+                fileInfo.EmbeddingCount = embeddings.Count;
+            }
+        }
+        else if (extension == ".csv")
+        {
+            var chunkResult = await _csvChunker.ProcessCsvAsync(fileInfo.FilePath);
+            if (!chunkResult.Success)
+            {
+                throw new Exception($"CSV chunking failed: {string.Join(", ", chunkResult.Errors)}");
+            }
+            fileInfo.ChunkCount = chunkResult.Chunks.Count;
+            fileInfo.Metadata = $"Rows: {chunkResult.Metadata.TotalRows}, Columns: {chunkResult.Metadata.ColumnCount}";
+            
+            ProgressPercentage = 40;
+            StatusMessage = $"Chunked {chunkResult.Metadata.TotalRows} rows, generating embeddings...";
+
+            // Step 2: Generate embeddings for CSV chunks
+            if (_embeddingService != null)
+            {
+                var embeddings = new List<float[]>();
+                for (int i = 0; i < chunkResult.Chunks.Count; i++)
+                {
+                    var searchableText = _csvChunker.CreateSearchableText(
+                        chunkResult.Chunks[i].Rows, 
+                        chunkResult.Metadata.ColumnNames);
+                    
+                    var embeddingResult = await _embeddingService.GenerateEmbeddingAsync(searchableText);
+                    if (embeddingResult.Success)
+                    {
+                        embeddings.Add(embeddingResult.Embedding);
+                    }
+                    ProgressPercentage = 40 + (50.0 * (i + 1) / chunkResult.Chunks.Count);
+                }
+                fileInfo.EmbeddingCount = embeddings.Count;
+            }
+        }
+
+        ProgressPercentage = 90;
+        StatusMessage = "Uploading to server...";
+
+        // Step 3: Upload processed artifacts to API
+        var uploadResult = await _apiClient.UploadFileAsync(fileInfo.FilePath, processImmediately: true);
+        fileInfo.ExecutionId = uploadResult.FileId;
+    }
+
+    private async Task ProcessOnServerAsync(ProcessedFileInfo fileInfo)
+    {
+        ProgressPercentage = 20;
+        StatusMessage = "Uploading to server...";
+
+        // Direct upload to server for processing
+        var uploadResult = await _apiClient.UploadFileAsync(fileInfo.FilePath, processImmediately: true);
+        fileInfo.ExecutionId = uploadResult.FileId;
+
+        ProgressPercentage = 50;
+        StatusMessage = "Server processing...";
+
+        // Poll for completion
+        await Task.Delay(2000); // Give server time to start processing
+
+        ProgressPercentage = 90;
+    }
+
+    private void Clear()
+    {
+        SelectedFilePath = string.Empty;
+        StatusMessage = string.Empty;
+        ProgressPercentage = 0;
+    }
+
+    private async Task ShowErrorAsync(string title, string message)
+    {
+        var window = Application.Current?.Windows?.FirstOrDefault();
+        if (window?.Page != null)
+        {
+            await window.Page.DisplayAlertAsync(title, message, "OK");
+        }
+    }
+
+    protected bool SetProperty<T>(ref T backingStore, T value, [CallerMemberName] string propertyName = "")
+    {
+        if (EqualityComparer<T>.Default.Equals(backingStore, value))
+            return false;
+
+        backingStore = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
+    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    #endregion
+}
+
+/// <summary>
+/// Information about a processed file
+/// </summary>
+public class ProcessedFileInfo : INotifyPropertyChanged
+{
+    private string _status = string.Empty;
+
+    public string FileName { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
+    public string ExecutionId { get; set; } = string.Empty;
+    public int ChunkCount { get; set; }
+    public int EmbeddingCount { get; set; }
+    public string Metadata { get; set; } = string.Empty;
+    public DateTime StartTime { get; set; }
+    public DateTime? EndTime { get; set; }
+
+    public string Status
+    {
+        get => _status;
+        set
+        {
+            _status = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}

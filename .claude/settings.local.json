@@ -3,6 +3,10 @@
   "permissions": {
     "allow": [
       "Bash(mv:*)",
+      "Bash(if [ -d \".specify/specs\" ])",
+      "Bash(then ls -1 .specify/specs)",
+      "Bash(fi)",
+      "Bash(pwsh:*)"
       "Skill(clean-architecture)",
       "Bash(dotnet list:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File \".specify/scripts/powershell/setup-plan.ps1\" -Json)",

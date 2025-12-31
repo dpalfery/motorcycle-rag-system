@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:MotorcycleRAG.MobileApp.ViewModels"
+             xmlns:models="clr-namespace:MotorcycleRAG.MobileApp.Models"
+             xmlns:converters="clr-namespace:MotorcycleRAG.MobileApp.Converters"
+             x:Class="MotorcycleRAG.MobileApp.Views.ChatPage"
+             Title="Chat">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="New Chat"
+                     Command="{Binding StartNewChatCommand}"/>
+    </ContentPage.ToolbarItems>
+
+    <ContentPage.Resources>
+        <converters:SenderToColorConverter x:Key="SenderToColorConverter"
+                                           UserColor="#DCF8C6"
+                                           SystemColor="#E5E5EA"/>
+        <converters:SenderToHorizontalOptionsConverter x:Key="SenderToHorizontalOptionsConverter"/>
+        <converters:IntToBoolConverter x:Key="IntToBoolConverter"/>
+        <converters:InvertedBoolConverter x:Key="InvertedBoolConverter"/>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto"
+          Padding="10">
+
+        <!-- Context Indicator -->
+        <Label Grid.Row="0"
+               Text="{Binding SessionId, StringFormat='Session: {0}'}"
+               FontSize="10"
+               TextColor="Gray"
+               HorizontalOptions="Center"
+               IsVisible="{Binding SessionId, Converter={StaticResource IntToBoolConverter}}"/>
+        <!-- Using IntToBoolConverter for string length check might fail if it expects int. Let's check converter. -->
+
+        <!-- Messages List -->
+        <CollectionView Grid.Row="1"
+                        ItemsSource="{Binding Messages}"
+                        ItemsUpdatingScrollMode="KeepLastItemInView">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:ChatMessage">
+                    <Grid Padding="5">
+                        <Frame CornerRadius="10"
+                               Padding="10"
+                               BackgroundColor="{Binding Sender, Converter={StaticResource SenderToColorConverter}}"
+                               HorizontalOptions="{Binding Sender, Converter={StaticResource SenderToHorizontalOptionsConverter}}"
+                               MaximumWidthRequest="300">
+                            <StackLayout>
+                                <Label Text="{Binding Content}"
+                                       TextColor="Black"/>
+
+                                <!-- Citations -->
+                                <StackLayout BindableLayout.ItemsSource="{Binding Citations}"
+                                             Orientation="Horizontal"
+                                             Spacing="5"
+                                             Margin="0,5,0,0"
+                                             IsVisible="{Binding Citations.Count, Converter={StaticResource IntToBoolConverter}}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="models:SourceCitation">
+                                            <Frame Padding="5"
+                                                   CornerRadius="5"
+                                                   BackgroundColor="#007AFF"
+                                                   HasShadow="False">
+                                                <Frame.GestureRecognizers>
+                                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:ChatViewModel}}, Path=CitationTappedCommand}"
+                                                                          CommandParameter="{Binding .}"/>
+                                                </Frame.GestureRecognizers>
+                                                <Label Text="{Binding Title}"
+                                                       TextColor="White"
+                                                       FontSize="10"/>
+                                            </Frame>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </StackLayout>
+                            </StackLayout>
+                        </Frame>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- Input Area -->
+        <Grid Grid.Row="2"
+              ColumnDefinitions="*,Auto"
+              Padding="0,10,0,0">
+            <Entry Grid.Column="0"
+                   Text="{Binding QuestionText}"
+                   Placeholder="Ask about motorcycles..."
+                   ReturnCommand="{Binding SendQuestionCommand}"/>
+
+            <Button Grid.Column="1"
+                    Text="Send"
+                    Command="{Binding SendQuestionCommand}"
+                    IsEnabled="{Binding IsSending, Converter={StaticResource InvertedBoolConverter}}"
+                    Margin="5,0,0,0"/>
+
+            <ActivityIndicator Grid.Column="1"
+                               IsRunning="{Binding IsSending}"
+                               IsVisible="{Binding IsSending}"
+                               Color="{StaticResource Primary}"/>
+        </Grid>
+    </Grid>
+</ContentPage>

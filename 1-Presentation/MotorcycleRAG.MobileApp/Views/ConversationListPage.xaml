@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:MotorcycleRAG.MobileApp.ViewModels"
+             xmlns:models="clr-namespace:MotorcycleRAG.MobileApp.Persistence.Entities"
+             x:Class="MotorcycleRAG.MobileApp.Views.ConversationListPage"
+             Title="Conversations"
+             x:DataType="vm:ConversationListViewModel">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Profile"
+                     Command="{Binding GoToProfileCommand}"
+                     Order="Secondary"/>
+        <ToolbarItem Text="+"
+                     Command="{Binding NewConversationCommand}"/>
+    </ContentPage.ToolbarItems>
+
+    <Grid RowDefinitions="Auto,*">
+        <SearchBar Grid.Row="0"
+                   Placeholder="Search conversations..."
+                   Text="{Binding SearchQuery}"
+                   SearchCommand="{Binding SearchCommand}"/>
+
+        <CollectionView Grid.Row="1"
+                        ItemsSource="{Binding Conversations}"
+                        SelectionMode="None"
+                        ItemSizingStrategy="MeasureFirstItem">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:ConversationEntity">
+                    <SwipeView>
+                        <SwipeView.RightItems>
+                            <SwipeItems>
+                                <SwipeItem Text="Delete"
+                                           BackgroundColor="Red"
+                                           Command="{Binding Source={RelativeSource AncestorType={x:Type vm:ConversationListViewModel}}, Path=DeleteConversationCommand}"
+                                           CommandParameter="{Binding .}"/>
+                            </SwipeItems>
+                        </SwipeView.RightItems>
+                        <Grid Padding="10">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:ConversationListViewModel}}, Path=OpenConversationCommand}"
+                                                      CommandParameter="{Binding .}"/>
+                            </Grid.GestureRecognizers>
+                            <VerticalStackLayout>
+                                <Label Text="{Binding Title}"
+                                       FontAttributes="Bold"
+                                       FontSize="16"/>
+                                <Label Text="{Binding UpdatedAt}"
+                                       FontSize="12"
+                                       TextColor="Gray"/>
+                            </VerticalStackLayout>
+                        </Grid>
+                    </SwipeView>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <Button Grid.Row="1"
+                Text="+"
+                Style="{StaticResource FabStyle}"
+                Command="{Binding NewConversationCommand}"
+                HorizontalOptions="End"
+                VerticalOptions="End"
+                Margin="16"
+                IsVisible="{OnPlatform Android=True, Default=False}"/>
+    </Grid>
+</ContentPage>

@@ -489,6 +489,113 @@ public class UserMemoryEntity
 
 ---
 
+## Entra ID B2C Configuration Automation
+
+### Decision: PowerShell Script with Azure CLI
+
+**Approach**: Automate Entra ID B2C app registration and configuration using PowerShell script with Azure CLI commands
+
+**Rationale**:
+- **Security Compliance (Constitution I)**: Keeps client secrets out of source control; uses Azure CLI's secure authentication
+- **Windows Environment (Constitution VII)**: Constitution explicitly requires PowerShell syntax for Windows development environment
+- **Repeatability**: Idempotent script can be run multiple times across environments (dev, staging, prod)
+- **Audit Trail**: Script is version-controlled; execution produces documented configuration
+- **Key Vault Integration**: Client secrets stored directly in Azure Key Vault during setup, never exposed in console or files
+- **Simplicity**: Azure CLI provides straightforward commands for app registration management
+- **No Additional Tools**: Leverages existing Azure CLI installation, no Terraform/Bicep complexity for one-time setup
+
+**Alternatives Considered**:
+- **Manual Azure Portal Configuration**: Not repeatable, no audit trail, prone to human error
+- **Terraform/Bicep**: Adds infrastructure-as-code complexity for what is primarily a one-time setup; better suited for resources that change frequently
+- **Azure PowerShell Module**: Valid alternative, but Azure CLI is more widely documented for Entra operations
+
+**Implementation Location**:
+```
+7-Deployment/
+└── scripts/
+    ├── setup-entra-b2c.ps1           # Main app registration automation
+    ├── README-EntraB2C.md            # Prerequisites, permissions, usage guide
+    └── validate-entra-b2c.ps1        # Optional: Validate configuration
+```
+
+**Script Capabilities**:
+1. **Idempotency**: Check if app registration already exists before creating
+2. **Multi-Platform Redirect URIs**: Configure redirects for iOS (`msauth.com.motorcyclerag.mobile://auth`), Android (`msauth://com.motorcyclerag.mobile/...`), Windows
+3. **Social Identity Providers**: Configure Google, Microsoft, GitHub, Facebook provider mappings
+4. **Client Secret Management**: Generate secret and store in Azure Key Vault immediately
+5. **Environment-Specific**: Support dev, staging, prod configurations via parameters
+6. **Output Configuration**: Generate appsettings.json snippet WITHOUT secrets (secrets retrieved from Key Vault at runtime)
+
+**Script Parameters**:
+```powershell
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$TenantId,                    # Entra B2C tenant (e.g., "motorcyclerag.onmicrosoft.com")
+
+    [Parameter(Mandatory=$true)]
+    [ValidateSet("Dev", "Staging", "Prod")]
+    [string]$Environment,
+
+    [Parameter(Mandatory=$true)]
+    [string]$KeyVaultName,                # Key Vault for storing secrets
+
+    [Parameter(Mandatory=$false)]
+    [string]$AppDisplayName = "MotorcycleRAG Mobile App"
+)
+```
+
+**Security Pattern**:
+```powershell
+# Generate and store secret securely
+$clientSecret = az ad app credential reset --id $appId --query password -o tsv
+az keyvault secret set `
+    --vault-name $KeyVaultName `
+    --name "EntraB2C-ClientSecret-$Environment" `
+    --value $clientSecret
+
+# Output configuration WITHOUT secrets
+Write-Host "=== Add to appsettings.$Environment.json ==="
+@{
+    "AzureAdB2C" = @{
+        "Instance" = "https://$TenantName.b2clogin.com"
+        "Domain" = "$TenantName.onmicrosoft.com"
+        "ClientId" = $appId
+        "SignUpSignInPolicyId" = "B2C_1_SignUpSignIn"
+        # Note: ClientSecret retrieved from Key Vault at runtime
+    }
+} | ConvertTo-Json -Depth 3
+
+# Secret is stored in Key Vault, never printed or saved to files
+```
+
+**Prerequisites Documentation**:
+- Azure CLI installed and authenticated (`az login`)
+- Required permissions: Application Administrator or Cloud Application Administrator role in Entra B2C tenant
+- Key Vault must exist with appropriate access policies for storing secrets
+- Mobile app redirect URIs must be known in advance (configured in platform manifests)
+
+**Usage Example**:
+```powershell
+# Navigate to deployment scripts
+cd 7-Deployment/scripts
+
+# Run setup for development environment
+.\setup-entra-b2c.ps1 `
+    -TenantId "motorcyclerag.onmicrosoft.com" `
+    -Environment Dev `
+    -KeyVaultName "kv-motorcyclerag-dev"
+
+# Output: App registration created, client secret stored in Key Vault,
+# configuration snippet displayed for appsettings.Development.json
+```
+
+**Alignment with Constitution**:
+- **Security (I)**: Secrets stored in Key Vault, never in source control or console output
+- **Process & Workflow (VII)**: PowerShell syntax required by constitution for Windows environment
+- **Deployment (7-Deployment layer)**: Infrastructure setup scripts belong in deployment layer
+
+---
+
 ## Implementation Dependencies
 
 **NuGet Packages** (minimum versions):
@@ -535,6 +642,7 @@ public class UserMemoryEntity
 |------|------------|-----------|
 | Local Persistence | sqlite-net-pcl | Industry standard, excellent query support, ACID compliance |
 | Authentication | Microsoft.Identity.Client (MSAL) | Official SDK, automatic token management, platform security |
+| Entra B2C Setup | PowerShell + Azure CLI | Repeatable automation, Key Vault integration, Windows-native |
 | MVVM Framework | CommunityToolkit.Mvvm | Source generators, zero reflection, modern C# |
 | HTTP Client | Typed HttpClient + Polly | Singleton pattern, DI integration, resilience policies |
 | Secure Storage | MAUI SecureStorage | Cross-platform abstraction over Keychain/EncryptedSharedPreferences |

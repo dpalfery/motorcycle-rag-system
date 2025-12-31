@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+
+# VS Code
+.vscode/
+.history/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Docker
+Dockerfile*
+.dockerignore
+docker-compose*
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Local settings
+appsettings.Development.json
+appsettings.local.json
+*.local.json
+.env
+.env.*
+! .env.example
+
+# Tests
+[Tt]est[Rr]esult*/
+coverage/

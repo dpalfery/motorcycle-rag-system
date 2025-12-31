@@ -7,7 +7,7 @@
 
 **Rationale**:
 - The repository already contains a React 19 app (`react`/`react-dom` 19.x) and modern tooling.
-- The user explicitly requested “C# + React 19”.
+- The user explicitly requested "C# + React 19".
 
 **Notes**:
 - The repo also includes a YARP-based BFF at `1-Presentation/MotorcycleRag.WebUI.BFF/` to front the SPA and attach user access tokens to downstream API calls.
@@ -15,6 +15,21 @@
 **Alternatives considered**:
 - SvelteKit + Open WebUI base (documented in `6-Docs/ui-technology-stack.md`).
   - Rejected for this plan due to conflict with current repo implementation and stated direction; treat that document as legacy/out-of-date unless you want to revive it.
+
+### 1a) UI Styling: MUI v7 with Pigment CSS (chosen)
+**Decision**: Use MUI v7 component library with Pigment CSS for zero-runtime styling instead of Emotion CSS.
+
+**Rationale**:
+- **Security**: Pigment CSS eliminates the need for `unsafe-inline` Content Security Policy directives that Emotion CSS requires, achieving full CSP compliance.
+- **Performance**: CSS is extracted at build time rather than runtime, reducing JavaScript bundle size and improving initial page load.
+- **Developer Experience**: Maintains familiar MUI API while providing improved type safety and build-time optimizations.
+- **OWASP ASVS Compliance**: Supports ASVS Level 2 security requirements (14.4.3) by allowing strict CSP without compromising functionality.
+
+**Alternatives considered**:
+- MUI with Emotion CSS (runtime styling).
+  - Rejected: Requires `unsafe-inline` CSP directive, which violates security best practices and complicates ASVS Level 2 compliance.
+- Tailwind CSS only.
+  - Rejected: While CSP-safe, lacks the comprehensive component library and design system that MUI provides for complex enterprise applications.
 
 ### 2) Admin Ingestion UI: .NET MAUI app (chosen)
 **Decision**: Implement a dedicated .NET MAUI admin application as a separate project, targeting .NET 10 (Windows-first).

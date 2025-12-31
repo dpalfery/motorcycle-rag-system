@@ -18,7 +18,8 @@ The system orchestrates specialized agents to search heterogeneous data sources 
 *   **Identity**: Microsoft Entra External ID / B2C (OIDC).
 
 ### Frontend
-*   **User UI**: React 19 + Vite + Tailwind CSS (`1-Presentation/MotorcycleRag.WebUI`).
+*   **User UI**: React 19 + Vite + MUI v7 with Pigment CSS (`1-Presentation/MotorcycleRag.WebUI`).
+*   **Styling**: Pigment CSS for zero-runtime, CSP-compliant styling (no `unsafe-inline` required).
 *   **Admin UI**: .NET MAUI for Windows (`1-Presentation/MotorcycleRAG.Admin`).
 *   **BFF**: Backend-for-Frontend pattern using YARP/ASP.NET Core (`1-Presentation/MotorcycleRag.WebUI.BFF`).
 

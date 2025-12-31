@@ -132,14 +132,14 @@
 
 **Independent Test**: Ingest a known manual and query for a procedure; verify response includes page/section references.
 
-- [ ] T053 [US3] Ensure PDF processing extracts page/section metadata in 4-Persistence/MotorcycleRAG.Persistence/DataProcessing/MotorcyclePDFProcessor.cs
-- [ ] T054 [US3] Ensure manual chunks preserve structure (tables/sections) in 4-Persistence/MotorcycleRAG.Persistence/DataProcessing/MotorcyclePDFProcessor.cs
-- [ ] T055 [US3] Index manual chunks with locator metadata in 4-Persistence/MotorcycleRAG.Persistence/Search/MotorcycleIndexingService.cs
-- [ ] T056 [US3] Add manual citation locator mapping into response in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
-- [ ] T057 [US3] Enforce manual citation fields (when available) in 2-Application/MotorcycleRAG.Application/Services/ModelValidationService.cs
+- [X] T053 [US3] Ensure PDF processing extracts page/section metadata in 4-Persistence/MotorcycleRAG.Persistence/DataProcessing/MotorcyclePDFProcessor.cs
+- [X] T054 [US3] Ensure manual chunks preserve structure (tables/sections) in 4-Persistence/MotorcycleRAG.Persistence/DataProcessing/MotorcyclePDFProcessor.cs
+- [X] T055 [US3] Index manual chunks with locator metadata in 4-Persistence/MotorcycleRAG.Persistence/Search/MotorcycleIndexingService.cs
+- [X] T056 [US3] Add manual citation locator mapping into response in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
+- [X] T057 [US3] Enforce manual citation fields (when available) in 2-Application/MotorcycleRAG.Application/Services/ModelValidationService.cs
 
-- [ ] T111 [P] [US3] Extend PDF processor unit tests for page/section extraction in 5-Test/tests/MotorcycleRAG.UnitTests/DataProcessing/MotorcyclePDFProcessorTests.cs
-- [ ] T112 [US3] Add/extend integration test asserting manual locators appear in query response in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MotorcycleManualCitationIntegrationTests.cs
+- [X] T111 [P] [US3] Extend PDF processor unit tests for page/section extraction in 5-Test/tests/MotorcycleRAG.UnitTests/DataProcessing/MotorcyclePDFProcessorTests.cs
+- [X] T112 [US3] Add/extend integration test asserting manual locators appear in query response in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MotorcycleManualCitationIntegrationTests.cs
 
 ---
 

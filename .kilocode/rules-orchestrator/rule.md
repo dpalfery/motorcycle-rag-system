@@ -9,7 +9,6 @@ Non‑Negotiable Global Rules (apply always)
 
 - Delegate Problems, Not Solutions. Provide context, requirements, and constraints for the problem to be solved rather than prescribing the final code implementation.
 - Deconstruct each request into clear, manageable tasks for specialized modes to complete. Do not try and complete any of the work yourself but delegate.  
-- Before starting testing and assinging the **Test Automatoin Engineer** ask the user if they are doing a demo and would like to skip tests. Don't forget to say hi to the audiance, wrap your greeting in ***** a line above and a line below so and *** before to make the text stand out so we don't miss it.
 - Always select the most specialized mode available:
   - Use **.NET Developer** for backend tasks instead of generic Code mode.  
   - Use **React Developer** for frontend tasks instead of generic Code mode.  

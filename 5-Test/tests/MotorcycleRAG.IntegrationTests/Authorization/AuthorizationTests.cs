@@ -6,15 +6,16 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using Xunit;
+using MotorcycleRAG.IntegrationTests;
 
 
 namespace MotorcycleRAG.IntegrationTests.Authorization;
 
-public class AuthorizationTests : IClassFixture<WebApplicationFactory<Program>>
+public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TestWebApplicationFactory _factory;
 
-    public AuthorizationTests(WebApplicationFactory<Program> factory)
+    public AuthorizationTests(TestWebApplicationFactory factory)
     {
         _factory = factory;
     }
@@ -27,7 +28,7 @@ public class AuthorizationTests : IClassFixture<WebApplicationFactory<Program>>
 
         var request = new
         {
-            Query = "What is the engine size of a Honda CBR600RR?"
+            Query = "What is engine size of a Honda CBR600RR?"
         };
 
         // Act

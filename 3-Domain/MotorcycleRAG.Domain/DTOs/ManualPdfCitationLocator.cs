@@ -28,7 +28,40 @@ public class ManualPdfCitationLocator
     public int PageNumber { get; set; } = 1;
 
     /// <summary>
-    /// Section or chapter name
+    /// Page range (e.g., "5", "5-7")
+    /// </summary>
+    [StringLength(20)]
+    public string? PageRange { get; set; }
+
+    /// <summary>
+    /// Primary section heading (highest-level heading on the page)
+    /// </summary>
+    [StringLength(200)]
+    public string? PrimarySection { get; set; }
+
+    /// <summary>
+    /// Hierarchy level (1=Chapter, 2=Section, 3=Subsection)
+    /// </summary>
+    public int? SectionLevel { get; set; }
+
+    /// <summary>
+    /// All section headings in the hierarchy path
+    /// </summary>
+    public string[] SectionHeadings { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Table caption (for table chunks)
+    /// </summary>
+    [StringLength(200)]
+    public string? TableCaption { get; set; }
+
+    /// <summary>
+    /// Chunk index within the section
+    /// </summary>
+    public int? ChunkIndex { get; set; }
+
+    /// <summary>
+    /// Section or chapter name (legacy field, use PrimarySection for new data)
     /// </summary>
     [StringLength(100)]
     public string Section { get; set; } = string.Empty;

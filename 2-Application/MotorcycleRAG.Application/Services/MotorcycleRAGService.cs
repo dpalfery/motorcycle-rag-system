@@ -498,14 +498,7 @@ Factual claims (JSON array):
                 TrustTier = WebsiteTrustTier.Standard
             },
             
-            SearchAgentType.PDFSearch => new ManualPdfCitationLocator
-            {
-                DocumentId = source.Source.DocumentId,
-                Title = source.Source.SourceName,
-                PageNumber = 1, // Default, could be extracted from metadata
-                SourceUrl = source.Source.SourceUrl,
-                PublicationDate = source.Source.LastUpdated
-            },
+            SearchAgentType.PDFSearch => CreateManualPdfLocator(source),
             
             _ => new DatasetCitationLocator
             {
@@ -515,6 +508,95 @@ Factual claims (JSON array):
                 RetrievalTimestamp = source.GeneratedAt
             }
         };
+    }
+
+    /// <summary>
+    /// Creates a ManualPdfCitationLocator from search result metadata
+    /// Maps locator fields from T055 indexed chunk metadata
+    /// </summary>
+    private ManualPdfCitationLocator CreateManualPdfLocator(SearchResult source)
+    {
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = source.Source.DocumentId,
+            Title = source.Source.SourceName,
+            PageNumber = 1, // Default value
+            SourceUrl = source.Source.SourceUrl,
+            PublicationDate = source.Source.LastUpdated
+        };
+
+        // Try to extract locator from metadata (T055 fields)
+        if (source.Metadata != null && source.Metadata.Count > 0)
+        {
+            // Map PageNumber from metadata
+            if (source.Metadata.TryGetValue("PageNumber", out var pageNumberObj) &&
+                pageNumberObj is int pageNumber)
+            {
+                locator.PageNumber = pageNumber > 0 ? pageNumber : 1;
+            }
+
+            // Map PageRange from metadata
+            if (source.Metadata.TryGetValue("PageRange", out var pageRangeObj) &&
+                pageRangeObj is string pageRange)
+            {
+                locator.PageRange = pageRange;
+            }
+
+            // Map PrimarySection from metadata
+            if (source.Metadata.TryGetValue("PrimarySection", out var primarySectionObj) &&
+                primarySectionObj is string primarySection)
+            {
+                locator.PrimarySection = primarySection;
+            }
+
+            // Map SectionLevel from metadata
+            if (source.Metadata.TryGetValue("SectionLevel", out var sectionLevelObj) &&
+                sectionLevelObj is int sectionLevel)
+            {
+                locator.SectionLevel = sectionLevel;
+            }
+
+            // Map SectionHeadings from metadata
+            if (source.Metadata.TryGetValue("SectionHeadings", out var sectionHeadingsObj) &&
+                sectionHeadingsObj is string[] sectionHeadings)
+            {
+                locator.SectionHeadings = sectionHeadings;
+            }
+
+            // Enforce convention: PrimarySection matches the first entry in SectionHeadings when available
+            if (locator.SectionHeadings.Length > 0)
+            {
+                locator.PrimarySection = locator.SectionHeadings[0];
+            }
+
+            // Map TableCaption from metadata
+            if (source.Metadata.TryGetValue("TableCaption", out var tableCaptionObj) &&
+                tableCaptionObj is string tableCaption)
+            {
+                locator.TableCaption = tableCaption;
+            }
+
+            // Map ChunkIndex from metadata
+            if (source.Metadata.TryGetValue("ChunkIndex", out var chunkIndexObj) &&
+                chunkIndexObj is int chunkIndex)
+            {
+                locator.ChunkIndex = chunkIndex;
+            }
+        }
+
+        // Fallback: try to get locator from AdditionalProperties["Locator"] if metadata is empty
+        if (source.Metadata != null && source.Metadata.TryGetValue("AdditionalProperties", out var additionalPropsObj) &&
+            additionalPropsObj is Dictionary<string, object> additionalProps &&
+            additionalProps.TryGetValue("Locator", out var legacyLocatorObj))
+        {
+            // If we have a legacy locator string, use it for Section
+            if (legacyLocatorObj is string legacyLocator && !string.IsNullOrWhiteSpace(legacyLocator))
+            {
+                locator.Section = legacyLocator;
+            }
+        }
+
+        return locator;
     }
 
     private async Task<string> GenerateCitedAnswerAsync(string originalAnswer, string[] claims, Dictionary<string, List<Citation>> citationMap)

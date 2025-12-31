@@ -10,7 +10,7 @@ public class ProcessingScheduleConfig
 {
     public bool IsEnabled { get; set; } = true;
 
-    public string CronExpression { get; set; } = "0 0 2 * * *"; // Daily at 2 AM
+    public string CronExpression { get; set; } = "0 2 * * *"; // Daily at 2 AM (minute, hour, day, month, day-of-week)
 
     public TimeSpan ProcessingWindow { get; set; } = TimeSpan.FromHours(4);
 

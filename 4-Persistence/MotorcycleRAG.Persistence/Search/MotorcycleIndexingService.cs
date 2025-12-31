@@ -1,5 +1,6 @@
 using Azure;
 using Azure.Search.Documents.Indexes;
+using Azure.Search.Documents.Indexes.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -49,6 +50,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
             _logger.LogInformation("Starting batch indexing of {DocumentCount} documents to index {IndexName}",
                 documentList.Count, _searchOptions.IndexName);
 
+            // T055: Locator metadata is now populated on MotorcycleDocument directly by PDF processor
             // Process in batches based on configured batch size
             var batches = documentList
                 .Select((doc, index) => new { doc, index })
@@ -166,11 +168,13 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
                 _logger.LogDebug("Index {IndexName} does not exist, will create new", _searchOptions.IndexName);
             }
 
-            // Create new index with schema
-            // Note: In a full implementation, you would define the index schema here
+            // Create new index with schema including locator fields
+            var indexDefinition = CreateMotorcycleDocumentIndexDefinition();
+            await _indexClient.CreateIndexAsync(indexDefinition);
+            
             result.CreatedIndexes.Add(_searchOptions.IndexName);
             result.Success = true;
-            result.Message = $"Successfully rebuilt index {_searchOptions.IndexName}";
+            result.Message = $"Successfully rebuilt index {_searchOptions.IndexName} with locator fields";
 
             _logger.LogInformation("Index rebuild completed: {Message}", result.Message);
 
@@ -186,5 +190,90 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
 
             return result;
         }
+    }
+
+    /// <summary>
+    /// Creates the Azure AI Search index schema for MotorcycleDocument including locator fields
+    /// </summary>
+    private SearchIndex CreateMotorcycleDocumentIndexDefinition()
+    {
+        var indexName = _searchOptions.IndexName;
+        
+        var index = new SearchIndex(indexName)
+        {
+            Fields = new List<SearchField>
+            {
+                // Key field
+                new SimpleField("id", SearchFieldDataType.String) { IsKey = true, IsFilterable = true },
+                
+                // Core document fields
+                new SearchField("title", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true, IsSortable = true },
+                new SearchField("content", SearchFieldDataType.String) { IsSearchable = true },
+                new SimpleField("documentType", SearchFieldDataType.String) { IsFilterable = true, IsFacetable = true },
+                
+                // Motorcycle specification fields
+                new SearchField("make", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true, IsFacetable = true },
+                new SearchField("model", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true, IsFacetable = true },
+                new SimpleField("year", SearchFieldDataType.Int32) { IsFilterable = true, IsSortable = true, IsFacetable = true },
+                
+                // Source metadata fields (from DocumentMetadata)
+                new SearchField("sourceFile", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
+                new SearchField("sourceUrl", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
+                new SearchField("author", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
+                new SimpleField("publishedDate", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
+                
+                // Section field (from DocumentMetadata - kept for backward compatibility)
+                new SearchField("section", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
+                
+                // T055: Locator metadata fields for citation support
+                new SimpleField("pageNumber", SearchFieldDataType.Int32) { IsFilterable = true, IsSortable = true },
+                new SearchField("pageRange", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
+                new SearchField("primarySection", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
+                new SimpleField("sectionLevel", SearchFieldDataType.Int32) { IsFilterable = true, IsSortable = true },
+                new SearchField("sectionHeadings", SearchFieldDataType.Collection(SearchFieldDataType.String)) { IsSearchable = true, IsFilterable = true },
+                new SearchField("tableCaption", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
+                new SimpleField("chunkIndex", SearchFieldDataType.Int32) { IsFilterable = true, IsSortable = true },
+                
+                // Timestamp fields
+                new SimpleField("createdAt", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
+                new SimpleField("updatedAt", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
+                
+                // Tags field (from DocumentMetadata)
+                new SearchField("tags", SearchFieldDataType.Collection(SearchFieldDataType.String)) { IsSearchable = true, IsFilterable = true, IsFacetable = true },
+                
+                // Vector field for semantic search
+                new SearchField("contentVector", SearchFieldDataType.Collection(SearchFieldDataType.Single))
+                {
+                    IsSearchable = true,
+                    IsHidden = false,
+                    VectorSearchDimensions = 1536, // OpenAI text-embedding-3-large dimensions
+                    VectorSearchProfileName = "vector-config"
+                }
+            },
+            VectorSearch = new VectorSearch
+            {
+                Algorithms =
+                {
+                    new HnswAlgorithmConfiguration("vector-algo")
+                    {
+                        Parameters = new HnswParameters
+                        {
+                            M = 4,
+                            EfConstruction = 400,
+                            EfSearch = 500
+                        }
+                    }
+                },
+                Profiles =
+                {
+                    new VectorSearchProfile("vector-config", "vector-algo")
+                }
+            }
+        };
+
+        _logger.LogDebug("Created index schema for {IndexName} with {FieldCount} fields including locator fields",
+            indexName, index.Fields.Count);
+
+        return index;
     }
 }

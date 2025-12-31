@@ -1,0 +1,403 @@
+Test run for c:\git\motorcycle-rag-system\5-Test\tests\MotorcycleRAG.UnitTests\bin\Debug\net10.0\MotorcycleRAG.UnitTests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+c:\git\motorcycle-rag-system\5-Test\tests\MotorcycleRAG.UnitTests\bin\Debug\net10.0\MotorcycleRAG.UnitTests.dll
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.1)
+[xUnit.net 00:00:00.08]   Discovering: MotorcycleRAG.UnitTests
+[xUnit.net 00:00:00.16]   Discovered:  MotorcycleRAG.UnitTests
+[xUnit.net 00:00:00.20]   Starting:    MotorcycleRAG.UnitTests
+     Warning:
+     The component "Fluent Assertions" is governed by the rules defined in the Xceed License Agreement and
+     the Xceed Fluent Assertions Community License. You may use Fluent Assertions free of charge for
+     non-commercial use only. An active subscription is required to use Fluent Assertions for commercial use.
+     Please contact Xceed Sales mailto:sales@xceed.com to acquire a subscription at a very low cost.
+     A paid commercial license supports the development and continued increasing support of
+     Fluent Assertions users under both commercial and community licenses. Help us
+     keep Fluent Assertions at the forefront of unit testing.
+     For more information, visit https://xceed.com/products/unit-testing/fluent-assertions/
+[xUnit.net 00:00:00.28]     MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperIntegrationTests.GetChatCompletionsAsync_WithValidRequest_ShouldReturnResponse [SKIP]
+[xUnit.net 00:00:00.28]       Integration test - requires actual Azure OpenAI service
+[xUnit.net 00:00:00.29]     MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperIntegrationTests.IndexDocumentsAsync_WithValidDocuments_ShouldIndexSuccessfully [SKIP]
+[xUnit.net 00:00:00.29]       Integration test - requires actual Azure Search service
+[xUnit.net 00:00:00.29]     MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperIntegrationTests.AnalyzeDocumentFromUriAsync_WithValidUri_ShouldReturnAnalysis [SKIP]
+[xUnit.net 00:00:00.29]       Integration test - requires actual Document Intelligence service
+[xUnit.net 00:00:00.30]     MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperIntegrationTests.SearchAsync_WithValidQuery_ShouldReturnResults [SKIP]
+[xUnit.net 00:00:00.30]       Integration test - requires actual Azure Search service
+[xUnit.net 00:00:00.30]     MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperIntegrationTests.IsHealthyAsync_WithValidService_ShouldReturnTrue [SKIP]
+[xUnit.net 00:00:00.30]       Integration test - requires actual Document Intelligence service
+[xUnit.net 00:00:00.30]     MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperIntegrationTests.AnalyzeDocumentAsync_WithValidPDF_ShouldReturnAnalysis [SKIP]
+[xUnit.net 00:00:00.30]       Integration test - requires actual Document Intelligence service
+[xUnit.net 00:00:00.30]     MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperIntegrationTests.IsHealthyAsync_WithValidService_ShouldReturnTrue [SKIP]
+[xUnit.net 00:00:00.30]       Integration test - requires actual Azure Search service
+  Skipped MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperIntegrationTests.AnalyzeDocumentFromUriAsync_WithValidUri_ShouldReturnAnalysis [1 ms]
+  Error Message:
+   Integration test - requires actual Document Intelligence service
+
+  Skipped MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperIntegrationTests.GetChatCompletionsAsync_WithValidRequest_ShouldReturnResponse [1 ms]
+  Error Message:
+   Integration test - requires actual Azure OpenAI service
+
+  Skipped MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperIntegrationTests.IndexDocumentsAsync_WithValidDocuments_ShouldIndexSuccessfully [1 ms]
+  Error Message:
+   Integration test - requires actual Azure Search service
+
+  Skipped MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperIntegrationTests.SearchAsync_WithValidQuery_ShouldReturnResults [1 ms]
+  Error Message:
+   Integration test - requires actual Azure Search service
+
+  Skipped MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperIntegrationTests.IsHealthyAsync_WithValidService_ShouldReturnTrue [1 ms]
+  Error Message:
+   Integration test - requires actual Document Intelligence service
+
+  Skipped MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperIntegrationTests.AnalyzeDocumentAsync_WithValidPDF_ShouldReturnAnalysis [1 ms]
+  Error Message:
+   Integration test - requires actual Document Intelligence service
+
+  Skipped MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperIntegrationTests.IsHealthyAsync_WithValidService_ShouldReturnTrue [1 ms]
+  Error Message:
+   Integration test - requires actual Azure Search service
+
+[xUnit.net 00:00:00.31]     MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperIntegrationTests.GetEmbeddingsAsync_WithValidRequest_ShouldReturnEmbeddings [SKIP]
+[xUnit.net 00:00:00.31]       Integration test - requires actual Azure OpenAI service
+[xUnit.net 00:00:00.31]     MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperIntegrationTests.IsHealthyAsync_WithValidService_ShouldReturnTrue [SKIP]
+[xUnit.net 00:00:00.31]       Integration test - requires actual Azure OpenAI service
+  Skipped MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperIntegrationTests.GetEmbeddingsAsync_WithValidRequest_ShouldReturnEmbeddings [1 ms]
+  Error Message:
+   Integration test - requires actual Azure OpenAI service
+
+  Skipped MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperIntegrationTests.IsHealthyAsync_WithValidService_ShouldReturnTrue [1 ms]
+  Error Message:
+   Integration test - requires actual Azure OpenAI service
+
+  Passed MotorcycleRAG.UnitTests.Azure.SearchConfigurationValidatorTests.Validate_WithInvalidMaxSearchResults_ShouldReturnFailure(maxResults: -1, expectedError: "Search:MaxSearchResults must be greater than 0") [35 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 504) [40 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.SearchConfigurationValidatorTests.Validate_WithInvalidMaxSearchResults_ShouldReturnFailure(maxResults: 0, expectedError: "Search:MaxSearchResults must be greater than 0") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidOpenAIEndpoint_ShouldReturnFailure(endpoint: "", expectedError: "AzureAI:OpenAIEndpoint is required") [36 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 429) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 503) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 502) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 500) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidOpenAIEndpoint_ShouldReturnFailure(endpoint: "invalid-uri", expectedError: "AzureAI:OpenAIEndpoint must be a valid URI") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.SearchConfigurationValidatorTests.Validate_WithInvalidIndexName_ShouldReturnFailure(indexName: "", expectedError: "Search:IndexName is required") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 502) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidMaxTokens_ShouldReturnFailure(maxTokens: -1, expectedError: "AzureAI:Models:MaxTokens must be greater than 0") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.SearchConfigurationValidatorTests.Validate_WithInvalidIndexName_ShouldReturnFailure(indexName: null, expectedError: "Search:IndexName is required") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 500) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 503) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 504) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidMaxTokens_ShouldReturnFailure(maxTokens: 0, expectedError: "AzureAI:Models:MaxTokens must be greater than 0") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidTemperature_ShouldReturnFailure(temperature: -0.100000001, expectedError: "AzureAI:Models:Temperature must be between 0 and 2") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidTemperature_ShouldReturnFailure(temperature: 2.0999999, expectedError: "AzureAI:Models:Temperature must be between 0 and 2") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidMaxRetries_ShouldReturnFailure(maxRetries: -1, expectedError: "AzureAI:Retry:MaxRetries must be greater than 0") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.SearchConfigurationValidatorTests.Validate_WithValidConfiguration_ShouldReturnSuccess [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidMaxRetries_ShouldReturnFailure(maxRetries: 0, expectedError: "AzureAI:Retry:MaxRetries must be greater than 0") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidFoundryEndpoint_ShouldReturnFailure(endpoint: "", expectedError: "AzureAI:FoundryEndpoint is required") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.SearchConfigurationValidatorTests.Validate_WithInvalidBatchSize_ShouldReturnFailure(batchSize: 0, expectedError: "Search:BatchSize must be greater than 0") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithInvalidFoundryEndpoint_ShouldReturnFailure(endpoint: "invalid-uri", expectedError: "AzureAI:FoundryEndpoint must be a valid URI") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.SearchConfigurationValidatorTests.Validate_WithInvalidBatchSize_ShouldReturnFailure(batchSize: -1, expectedError: "Search:BatchSize must be greater than 0") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureAIConfigurationValidatorTests.Validate_WithValidConfiguration_ShouldReturnSuccess [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.ServiceCollectionExtensionsTests.AddAzureServices_ShouldRegisterConfigurationOptions [58 ms]
+[xUnit.net 00:00:00.34]     MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_WithLongDocumentId_TruncatesInErrorMessage [FAIL]
+[xUnit.net 00:00:00.34]       Assert.Contains() Failure: Sub-string not found
+[xUnit.net 00:00:00.34]       String:    "Manual citation must have either PageNumb"···
+[xUnit.net 00:00:00.34]       Not found: "DocumentId: aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"···
+[xUnit.net 00:00:00.34]       Stack Trace:
+[xUnit.net 00:00:00.34]         c:\git\motorcycle-rag-system\5-Test\tests\MotorcycleRAG.UnitTests\Services\ModelValidationServiceTests.cs(898,0): at MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_WithLongDocumentId_TruncatesInErrorMessage()
+[xUnit.net 00:00:00.34]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+[xUnit.net 00:00:00.34]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Passed MotorcycleRAG.UnitTests.Azure.ServiceCollectionExtensionsTests.AddAzureServices_ShouldRegisterHttpClient [1 ms]
+  Failed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_WithLongDocumentId_TruncatesInErrorMessage [89 ms]
+  Error Message:
+   Assert.Contains() Failure: Sub-string not found
+String:    "Manual citation must have either PageNumb"···
+Not found: "DocumentId: aaaaaaaaaaaaaaaaaaaaaaaaaaaaa"···
+  Stack Trace:
+     at MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_WithLongDocumentId_TruncatesInErrorMessage() in c:\git\motorcycle-rag-system\5-Test\tests\MotorcycleRAG.UnitTests\Services\ModelValidationServiceTests.cs:line 898
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_InvalidSectionLevelTen_ReturnsError [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_NonManualPdfSourceWithLocator_ReturnsEmptyErrors [2 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_ValidSectionHeadings_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_SectionHeadingsWithTabAndNewline_ReturnsError [2 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_InvalidPageNumberZeroAndWhitespacePageRange_ReturnsError [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_ValidSectionLevelZero_ReturnsEmptyErrors [10 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_ValidSectionLevelThree_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_ValidSectionLevelTwo_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_SectionHeadingsWithWhitespaceOnly_ReturnsError [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_ManualPdfWithNullLocator_ReturnsEmptyErrors_BestEffort [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_SectionHeadingsWithMultipleEmptyStrings_ReturnsErrorWithAllIndices [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_InvalidPageNumberZeroAndEmptyStringPageRange_ReturnsError [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_EmptySectionHeadingsArray_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_DatasetSourceWithLocator_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_WithSourceIndex_IncludesSourceIndexInErrorMessage [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_InvalidPageNumberZeroAndEmptyPageRange_ReturnsError [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_CompleteValidManualPdfCitation_ReturnsEmptyErrors [1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_NullSectionHeadings_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_BothPageNumberAndPageRangeValid_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_WithEmptyDocumentId_ShowsEmptyPlaceholder [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_InvalidPageNumberNegativeAndEmptyPageRange_ReturnsError [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_ValidPageRangeOnly_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_InvalidSectionLevelNegativeOne_ReturnsError [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_WithNegativeSourceIndex_DoesNotIncludeSourceIndex [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_SectionHeadingsWithEmptyString_ReturnsError [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.RecordUsageAsync_ThrowsOnNullEndpoint [126 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.SetCorrelationId_ValidId_SetsSuccessfully [137 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.CreateLoggingScope_WithAdditionalProperties_IncludesAllProperties [4 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.GetOrCreateCorrelationId_NoExistingId_GeneratesNewId [3 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.GeneratedCorrelationIds_AreUnique [9 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.GetOrCreateCorrelationId_WithActivity_UsesActivityId [1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.GetUsageByDateRangeAsync_ValidParameters_ReturnsUsageRecords [35 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.GetDailyUsageCountAsync_ValidUserId_ReturnsCount [163 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.ExecuteAsync_UnknownPolicyKey_ExecutesWithoutResilience [163 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_ManualPdfWithWrongLocatorType_LogsWarning_ReturnsEmptyErrors [40 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.RecordUsageAsync_ThrowsOnEmptyEndpoint [3 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.ClearCorrelationId_WithExistingId_ClearsSuccessfully [10 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_MultipleValidationErrors_ReturnsAllErrors [6 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.GetUsageByDateRangeAsync_ThrowsOnNullUserId [3 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_ValidPageNumberOnly_ReturnsEmptyErrors [1 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.GetOrCreateCorrelationId_WithExistingId_ReturnsSameId [2 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_NullCitation_ReturnsEmptyErrors_NoException [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.Dispose_ShouldDisposeResourcesGracefully [126 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_ValidSectionLevelOne_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.Constructor_WithValidConfiguration_ShouldInitializeSuccessfully [173 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_NullSectionLevel_ReturnsEmptyErrors [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_InvalidSectionLevelFour_ReturnsError [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.ModelValidationServiceTests.ValidateCitation_WithNullDocumentId_ShowsEmptyPlaceholder [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.Constructor_WithNullConfiguration_ShouldThrowArgumentNullException [2 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.GetCircuitBreakerState_ValidPolicyKey_ReturnsState [12 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 400) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 404) [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 403) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 401) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 400) [4 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 401) [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 404) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 429) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 400) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 403) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.ExecuteWithCorrelationAsync_NoReturnValue_ExecutesSuccessfully [10 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 429) [4 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.CreateLoggingScope_CreatesValidScope [1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.RecordSuccessAsync_CallsRepositoryWithSuccessStatus [14 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.Constructor_ShouldLogInitializationMessage [6 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 404) [3 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.GetUsageByDateRangeAsync_ThrowsOnEmptyUserId [2 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.Constructor_WithValidConfiguration_ShouldInitializeSuccessfully [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.DocumentIntelligenceClientWrapperTests.Constructor_WithNullLogger_ShouldThrowArgumentNullException [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 401) [3 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.ExecuteWithCorrelationAsync_SetsAndRestoresCorrelationId [7 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.RecordUsageAsync_ThrowsOnNullHttpMethod [3 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.HasExceededDailyLimitAsync_UsageAtLimit_ReturnsTrue [28 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.GeneratedCorrelationIds_FollowExpectedFormat [2 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.ServiceCollectionExtensionsTests.AddAzureServices_WithValidConfiguration_ShouldRegisterAllServices [133 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.GetDailyUsageCountAsync_ThrowsOnEmptyUserId [3 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 403) [4 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.Constructor_WithValidConfiguration_ShouldInitializeSuccessfully [196 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.SetCorrelationId_NullOrEmpty_ThrowsArgumentException [3 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.GetDailyRequestLimitAsync_UserWithPlan_ReturnsPlanLimit [4 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.RecordFailureAsync_CallsRepositoryWithFailureStatus [8 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 502) [6 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.GetUsageByDateRangeAsync_ThrowsOnInvalidDateRange [3 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.Constructor_ShouldLogInitializationMessage [7 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 429) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 500) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 503) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 504) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 502) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.RecordUsageAsync_ThrowsOnNullUserId [1 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldHandleOpenAIFailure_WhenEmbeddingGenerationFails [206 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 400) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 403) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 401) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 404) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 504) [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 500) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 503) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 502) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.RecordUsageAsync_ThrowsOnEmptyUserId [2 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldReturnEmptyArray_WhenQueryIsEmpty [2 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 500) [8 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.Dispose_ShouldDisposeResourcesGracefully [4 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldReturnEmptyArray_WhenQueryIsNull [3 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 401) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.GetRemainingDailyRequestsAsync_ReturnsCorrectValue [13 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 400) [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 429) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 404) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(statusCode: 403) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Telemetry.TelemetryServiceTests.TrackQuery_ShouldSendTelemetryEvent [215 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.Constructor_WithNullLogger_ShouldThrowArgumentNullException [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 429) [5 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperResilienceTests.GetEmbeddingAsync_SingleText_ReturnsFirstEmbedding [217 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperTests.Constructor_WithNullConfiguration_ShouldThrowArgumentNullException [2 ms]
+  Passed MotorcycleRAG.UnitTests.Services.UsageTrackingServiceTests.RecordUsageAsync_ValidUsage_CallsRepository [9 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 504) [4 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.ServiceCollectionExtensionsTests.AddAzureServices_ShouldRegisterServicesAsSingletons [26 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.CorrelationServiceTests.ExecuteWithCorrelationAsync_ThrowsException_RestoresOriginalId [24 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(statusCode: 503) [2 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.HasExceededDailyLimitAsync_UsageBelowLimit_ReturnsFalse [9 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.QueryAsync_ShouldHandleNoResultsWithRefinementSuggestions [223 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.GetDailyUsageCountAsync_ThrowsOnNullUserId [2 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.GetDailyRequestLimitAsync_PlanNotFound_ReturnsDefaultLimit [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.Constructor_ShouldLogInitializationMessage [7 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.HasExceededDailyLimitAsync_UsageAboveLimit_ReturnsTrue [4 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.StatsTracking_ShouldUpdateCorrectlyAfterExecution [232 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 503) [2 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.GetDailyRequestLimitAsync_UserWithoutPlan_ReturnsDefaultLimit [3 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 502) [3 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperResilienceTests.GetEmbeddingsAsync_WithFallback_ReturnsZeroEmbeddings [19 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 504) [9 ms]
+  Passed MotorcycleRAG.UnitTests.Services.PlanPolicyServiceTests.GetRemainingDailyRequestsAsync_NegativeResult_ReturnsZero [11 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(statusCode: 500) [2 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 400) [1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.ExecuteImmediateRunAsync_WithValidFiles_ShouldProcessSuccessfully [21 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 401) [3 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperResilienceTests.GetEmbeddingsAsync_Success_ReturnsEmbeddings [18 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 404) [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(statusCode: 403) [1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.GetProcessingStatsAsync_ShouldReturnValidStats [7 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.QueryAsync_ShouldReturnResponseWithCitations_WhenValidRequest [38 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperResilienceTests.GetChatCompletionAsync_Success_ReturnsResult [6 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.QueryAsync_ShouldThrow_WhenRequestIsNull [2 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.Constructor_ShouldThrow_WhenOpenAIClientIsNull [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperResilienceTests.GetChatCompletionAsync_WithCancellation_PassesCancellationToken [4 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.UpdateScheduleAsync_WithValidCronExpression_ShouldUpdateSuccessfully [5 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.Constructor_ShouldThrow_WhenOrchestratorIsNull [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.ExecuteImmediateRunAsync_WithProcessingErrors_ShouldHandleGracefully [6 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithSinglePageTable_SetsSinglePageRange [273 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.QueryAsync_ShouldReturnResponse_WhenValidRequest [8 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.UpdateScheduleAsync_WithDisabledSchedule_ShouldDisableExecution [2 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.QueryAsync_ShouldThrow_WhenQueryIsEmpty(query: "   ") [1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.QueryAsync_ShouldThrow_WhenQueryIsEmpty(query: "") [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithTitleCaseColonHeading_SetsSectionLevel3 [4 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.GetHealthAsync_ShouldReturnHealthyResult [3 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithMultiPageTable_SetsCorrectPageRangeInLocator [4 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.ExecuteImmediateRunAsync_ShouldDetectCorrectFileTypes(fileName: "test.csv", expectedType: CSV) [7 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.QueryAsync_ShouldReturnStableQueryIdAndCompleteMetrics [3 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.Constructor_ShouldThrow_WhenLoggerIsNull [1 ms]
+  Passed MotorcycleRAG.UnitTests.Services.MotorcycleRAGServiceTests.Constructor_ShouldThrow_WhenTelemetryIsNull [1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.ExecuteImmediateRunAsync_ShouldDetectCorrectFileTypes(fileName: "unknown.txt", expectedType: Unknown) [3 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.ExecuteImmediateRunAsync_ShouldDetectCorrectFileTypes(fileName: "manual.pdf", expectedType: PDF) [12 ms]
+[xUnit.net 00:00:00.56]     MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithoutSectionPatterns_FallsBackToGeneralContent [FAIL]
+[xUnit.net 00:00:00.56]       Expected sectionHeadings to be empty because SectionHeadings should be empty when no patterns match, but found at least one item {
+[xUnit.net 00:00:00.56]           "Introduction"
+[xUnit.net 00:00:00.56]       }.
+[xUnit.net 00:00:00.56]       Stack Trace:
+[xUnit.net 00:00:00.56]            at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Execution.DefaultAssertionStrategy.HandleFailure(String message)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Execution.AssertionScope.AddPreFormattedFailure(String formattedFailureMessage)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Execution.AssertionChain.FailWith(Func`1 getFailureReason)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Execution.AssertionChain.FailWith(Func`1 getFailureReason)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Execution.AssertionChain.FailWith(String message, Object[] args)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Execution.GivenSelector`1.FailWith(String message, Object[] args)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Collections.GenericCollectionAssertions`3.<>c__DisplayClass10_0.<BeEmpty>b__0(AssertionChain chain)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain, Object[] args)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain)
+[xUnit.net 00:00:00.57]            at FluentAssertions.Collections.GenericCollectionAssertions`3.BeEmpty(String because, Object[] becauseArgs)
+[xUnit.net 00:00:00.57]         c:\git\motorcycle-rag-system\5-Test\tests\MotorcycleRAG.UnitTests\DataProcessing\MotorcyclePDFProcessorTests.cs(555,0): at MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithoutSectionPatterns_FallsBackToGeneralContent()
+[xUnit.net 00:00:00.57]         --- End of stack trace from previous location ---
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.ExecuteImmediateRunAsync_WithCancellation_ShouldHandleCancellationGracefully [5 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.ExecuteImmediateRunAsync_WithException_ShouldReturnFailedResult [5 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.UpdateScheduleAsync_WithInvalidCronExpression_ShouldHandleGracefully [2 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldValidateSourceCredibility_WhenCredibilityCheckEnabled [316 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.ExecuteImmediateRunAsync_WithNoFiles_ShouldCompleteSuccessfully [3 ms]
+  Failed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithoutSectionPatterns_FallsBackToGeneralContent [41 ms]
+  Error Message:
+   Expected sectionHeadings to be empty because SectionHeadings should be empty when no patterns match, but found at least one item {
+    "Introduction"
+}.
+  Stack Trace:
+     at FluentAssertions.Execution.LateBoundTestFramework.Throw(String message)
+   at FluentAssertions.Execution.DefaultAssertionStrategy.HandleFailure(String message)
+   at FluentAssertions.Execution.AssertionScope.AddPreFormattedFailure(String formattedFailureMessage)
+   at FluentAssertions.Execution.AssertionChain.FailWith(Func`1 getFailureReason)
+   at FluentAssertions.Execution.AssertionChain.FailWith(Func`1 getFailureReason)
+   at FluentAssertions.Execution.AssertionChain.FailWith(String message, Object[] args)
+   at FluentAssertions.Execution.GivenSelector`1.FailWith(String message, Object[] args)
+   at FluentAssertions.Collections.GenericCollectionAssertions`3.<>c__DisplayClass10_0.<BeEmpty>b__0(AssertionChain chain)
+   at FluentAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain, Object[] args)
+   at FluentAssertions.Execution.AssertionChain.WithExpectation(String message, Action`1 chain)
+   at FluentAssertions.Collections.GenericCollectionAssertions`3.BeEmpty(String because, Object[] becauseArgs)
+   at MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithoutSectionPatterns_FallsBackToGeneralContent() in c:\git\motorcycle-rag-system\5-Test\tests\MotorcycleRAG.UnitTests\DataProcessing\MotorcyclePDFProcessorTests.cs:line 555
+--- End of stack trace from previous location ---
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithTableCaption_IncludesCaptionInLocator [3 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(query: "Honda CBR1000RR") [15 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.ScheduledPipelineServiceReliabilityTests.StartAsync_WithValidConfiguration_ShouldInitializeSuccessfully [8 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithChapterHeading_SetsPrimarySectionAndLevel1 [4 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(query: "Yamaha YZF-R1") [120 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithSectionHeading_SetsSectionLevel2 [2 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithEmptyPage_FallsBackToEmptyPage [2 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.UploadFileAsync_WithOversizedFile_ShouldFail [340 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithMultipleHeadings_CapturesAllHeadings [2 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(query: "Ducati Panigale V4") [8 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithNumberedSectionHeading_SetsSectionLevel2 [1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.ValidateFileAsync_ShouldDetectCorrectFileType(fileName: "unknown.txt", contentType: "text/plain", expectedType: Unknown) [2 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithAllCapsHeading_SetsSectionLevel2 [1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.ValidateFileAsync_ShouldDetectCorrectFileType(fileName: "manual.pdf", contentType: "application/pdf", expectedType: PDF) [1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.ValidateFileAsync_ShouldDetectCorrectFileType(fileName: "test.csv", contentType: "text/csv", expectedType: CSV) [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.ValidateFileAsync_WithCorruptedPDF_ShouldDetectIssue [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.DataProcessing.MotorcyclePDFProcessorTests.ProcessAsync_WithTableWithoutPageNumbers_DefaultsToPage1 [3 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(query: "Yamaha YZF-R1") [7 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.DeleteFileAsync_WithExistingFile_ShouldReturnTrue [2 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.ValidateFileAsync_WithMalformedCSV_ShouldProvideWarning [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.UploadFileAsync_WithInvalidExtension_ShouldFail [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.DeleteFileAsync_WithNonExistentFile_ShouldReturnFalse [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.GetUploadConstraints_ShouldReturnValidConstraints [2 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(query: "Kawasaki Ninja ZX-10R") [7 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.UploadFileAsync_WithValidCSVFile_ShouldSucceed [4 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.UploadFileAsync_WithValidPDFFile_ShouldSucceed [2 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldIncludeWebSourceMetadata_WhenIncludeMetadataIsTrue [8 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.UploadFilesAsync_WithMixedValidAndInvalidFiles_ShouldProcessAll [5 ms]
+  Passed MotorcycleRAG.UnitTests.Pipeline.FileUploadServiceReliabilityTests.UploadFileAsync_WithEmptyFile_ShouldFail [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldReturnCachedResults_WhenCachingEnabledAndResultsExist [6 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.SearchAsync_WithValidQuery_ShouldReturnResults [123 ms]
+[xUnit.net 00:00:00.63]     MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IndexDocumentsAsync_WithValidDocuments_ShouldReturnTrue [SKIP]
+[xUnit.net 00:00:00.63]       Integration test - requires actual Azure Search service
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.Constructor_WithNullLogger_ShouldThrowArgumentNullException [2 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperResilienceTests.GetEmbeddingsAsync_CreatesLoggingScopeWithTextCount [116 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.Constructor_WithNullAzureConfiguration_ShouldThrowArgumentNullException [1 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.Dispose_ShouldDisposeResourcesGracefully [2 ms]
+  Skipped MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.IndexDocumentsAsync_WithValidDocuments_ShouldReturnTrue [1 ms]
+  Error Message:
+   Integration test - requires actual Azure Search service
+
+  Passed MotorcycleRAG.UnitTests.Azure.AzureSearchClientWrapperTests.Constructor_WithNullSearchConfiguration_ShouldThrowArgumentNullException [1 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(query: "Ducati Panigale V4") [108 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldApplyRateLimiting_WhenMultipleRequestsMade [120 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldHandleOpenAIFailure_WhenSearchTermGenerationFails [7 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperResilienceTests.GetChatCompletionAsync_CreatesLoggingScope [116 ms]
+  Passed MotorcycleRAG.UnitTests.Azure.AzureOpenAIClientWrapperResilienceTests.GetChatCompletionAsync_WithFallback_UsesFallbackOnFailure [2 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldRespectMaxResultsLimit_WhenLimitSet [6 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldReturnEmptyArray_WhenQueryIsNull [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.AgentType_ShouldReturnWebSearch [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldExecuteWebSearch_WhenValidQueryProvided [5 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldApplyMinRelevanceScoreFilter_WhenFilterSet [6 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldHandleHttpErrors_WhenWebRequestFails [4 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.Constructor_ShouldThrowArgumentNullException_WhenRequiredParametersAreNull [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.WebSearchAgentTests.SearchAsync_ShouldReturnEmptyArray_WhenQueryIsEmpty [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(query: "Kawasaki Ninja ZX-10R") [104 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(query: "Honda CBR1000RR") [108 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldExecuteSearch_WhenValidQueryProvided [109 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.Constructor_ShouldThrowArgumentNullException_WhenRequiredParametersAreNull [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldIncludeMetadata_WhenIncludeMetadataIsTrue [105 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldApplyMinRelevanceScoreFilter_WhenFilterSet [105 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.AgentType_ShouldReturnVectorSearch [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Agents.VectorSearchAgentTests.SearchAsync_ShouldRespectMaxResultsLimit_WhenLimitSet [107 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.ExecuteAsync_FallbackThrowsException_PropagatesOriginalException [6 s]
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.GetHealthStatus_ReturnsAllCircuitBreakerStates [2 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.GetCircuitBreakerState_InvalidPolicyKey_ReturnsClosedState [< 1 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.ExecuteAsync_OperationFailsWithCircuitBreakerOpen_UsesFallback [6 s]
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.ExecuteAsync_WithCorrelationId_LogsWithCorrelation [4 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.ExecuteAsync_CancellationRequested_ThrowsOperationCanceledException [1 ms]
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.ExecuteAsync_SuccessfulOperation_ReturnsResult [< 1 ms]
+[xUnit.net 00:00:15.59]   Finished:    MotorcycleRAG.UnitTests
+  Passed MotorcycleRAG.UnitTests.Resilience.ResilienceServiceTests.ExecuteAsync_OperationThrowsException_RetriesAndThenFails [3 s]
+
+Test Run Failed.
+Total tests: 274
+     Passed: 262
+     Failed: 2
+    Skipped: 10
+ Total time: 16.1983 Seconds

@@ -11,7 +11,9 @@ using Moq;
 using MotorcycleRAG.API;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 using Xunit;
+using MotorcycleRAG.IntegrationTests;
 
 
 namespace MotorcycleRAG.IntegrationTests.Api
@@ -19,22 +21,22 @@ namespace MotorcycleRAG.IntegrationTests.Api
     /// <summary>
     /// Integration tests for /api/me endpoints
     /// </summary>
-    public class MeApiIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+    public class MeApiIntegrationTests : IClassFixture<TestWebApplicationFactory>
     {
-        private readonly WebApplicationFactory<Program> _factory;
-        private readonly HttpClient _client;
+        private readonly TestWebApplicationFactory _factory;
 
-        public MeApiIntegrationTests(WebApplicationFactory<Program> factory)
+        public MeApiIntegrationTests(TestWebApplicationFactory factory)
         {
             _factory = factory;
-            _client = factory.CreateClient();
         }
 
         [Fact]
         public async Task GetProfile_Unauthenticated_ReturnsUnauthorized()
         {
             // Act
-            var response = await _client.GetAsync("/api/me");
+            var client = _factory.CreateClient();
+
+            var response = await client.GetAsync("/api/me");
 
             // Assert
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -58,7 +60,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                 {
                     services.AddSingleton(mockUserService.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("User");
 
             // Act
             var response = await client.GetAsync("/api/me");
@@ -81,7 +83,9 @@ namespace MotorcycleRAG.IntegrationTests.Api
         public async Task GetUsage_Unauthenticated_ReturnsUnauthorized()
         {
             // Act
-            var response = await _client.GetAsync("/api/me/usage");
+            var client = _factory.CreateClient();
+
+            var response = await client.GetAsync("/api/me/usage");
 
             // Assert
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -101,7 +105,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                 {
                     services.AddSingleton(mockUserService.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("User");
 
             // Act
             var response = await client.GetAsync("/api/me/usage?days=7");
@@ -132,7 +136,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                 {
                     services.AddSingleton(mockUserService.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("User");
 
             // Act - test with days > 30
             var response = await client.GetAsync("/api/me/usage?days=50");
@@ -156,10 +160,10 @@ namespace MotorcycleRAG.IntegrationTests.Api
 
             var mockPlanPolicyService = new Mock<IPlanPolicyService>();
             mockPlanPolicyService
-                .Setup(s => s.HasExceededDailyLimitAsync("test-user-1", It.IsAny<DateTime>()))
+                .Setup(s => s.HasExceededDailyLimitAsync("test-user-1", It.IsAny<DateTime?>()))
                 .ReturnsAsync(true);
             mockPlanPolicyService
-                .Setup(s => s.GetRemainingDailyRequestsAsync("test-user-1", It.IsAny<DateTime>()))
+                .Setup(s => s.GetRemainingDailyRequestsAsync("test-user-1", It.IsAny<DateTime?>()))
                 .ReturnsAsync(0);
 
             var mockUsageTrackingService = new Mock<IUsageTrackingService>();
@@ -182,7 +186,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockPlanPolicyService.Object);
                     services.AddSingleton(mockUsageTrackingService.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("User");
 
             // Act
             var response = await client.PostAsync("/api/motorcycles/query", 
@@ -209,10 +213,10 @@ namespace MotorcycleRAG.IntegrationTests.Api
 
             var mockPlanPolicyService = new Mock<IPlanPolicyService>();
             mockPlanPolicyService
-                .Setup(s => s.HasExceededDailyLimitAsync("test-user-1", It.IsAny<DateTime>()))
+                .Setup(s => s.HasExceededDailyLimitAsync("test-user-1", It.IsAny<DateTime?>()))
                 .ReturnsAsync(false);
             mockPlanPolicyService
-                .Setup(s => s.GetRemainingDailyRequestsAsync("test-user-1", It.IsAny<DateTime>()))
+                .Setup(s => s.GetRemainingDailyRequestsAsync("test-user-1", It.IsAny<DateTime?>()))
                 .ReturnsAsync(50);
 
             var mockUsageTrackingService = new Mock<IUsageTrackingService>();
@@ -235,7 +239,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockPlanPolicyService.Object);
                     services.AddSingleton(mockUsageTrackingService.Object);
                 });
-            }).CreateClient();
+            }).CreateClientWithRoles("User");
 
             // Act
             var response = await client.PostAsync("/api/motorcycles/query", 

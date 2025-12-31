@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:MotorcycleRAG.MobileApp.ViewModels"
+             x:Class="MotorcycleRAG.MobileApp.Views.AuthenticationPage"
+             Title="Authentication"
+             Padding="{StaticResource PagePadding}">
+
+    <VerticalStackLayout Spacing="25"
+            VerticalOptions="Center">
+
+        <Image Source="dotnet_bot.png"
+               HeightRequest="200"
+               HorizontalOptions="Center"/>
+
+        <Label Text="Welcome to MotorcycleRAG"
+               Style="{StaticResource Headline}"
+               SemanticProperties.HeadingLevel="Level1"/>
+
+        <Label Text="Ask questions about motorcycles and get instant answers."
+               Style="{StaticResource SubHeadline}"
+               SemanticProperties.HeadingLevel="Level2"
+               SemanticProperties.Description="App description"/>
+
+        <Button Text="Sign In"
+                Command="{Binding SignInCommand}"
+                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
+                HorizontalOptions="Center"/>
+
+        <ActivityIndicator IsRunning="{Binding IsBusy}"
+                           IsVisible="{Binding IsBusy}"
+                           HorizontalOptions="Center"/>
+
+    </VerticalStackLayout>
+</ContentPage>

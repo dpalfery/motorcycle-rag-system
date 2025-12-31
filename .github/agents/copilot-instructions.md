@@ -28,4 +28,5 @@ npm test; npm run lint
 - 001-system-spec: Added .NET 10 / C# (server + MAUI admin app), TypeScript + React 19 (web UI)
 
 <!-- MANUAL ADDITIONS START -->
+don't forget to update the tasks file when you finish a task!
 <!-- MANUAL ADDITIONS END -->

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:MotorcycleRAG.MobileApp.ViewModels"
+             xmlns:models="clr-namespace:MotorcycleRAG.MobileApp.Models"
+             x:Class="MotorcycleRAG.MobileApp.Views.UserMemoryPage"
+             Title="My Profile">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Refresh"
+                     Command="{Binding LoadMemoriesCommand}"/>
+    </ContentPage.ToolbarItems>
+
+    <Grid>
+        <CollectionView ItemsSource="{Binding Memories}"
+                        SelectionMode="None">
+            <CollectionView.Header>
+                <VerticalStackLayout Padding="15"
+                                     Spacing="10">
+                    <Label Text="The app learns about you from your conversations. You can manage what is stored here."
+                           TextColor="Gray"
+                           FontSize="Small"/>
+
+                    <Grid ColumnDefinitions="*, Auto">
+                        <Label Text="Storage Usage"
+                               FontAttributes="Bold"/>
+                        <Label Text="{Binding StorageUsageMB, StringFormat='{0:F1} MB / 100 MB'}"
+                               HorizontalOptions="End"/>
+                    </Grid>
+                    <ProgressBar Progress="{Binding StorageUsagePercent}"
+                                 ProgressColor="{StaticResource Primary}"/>
+
+                    <BoxView HeightRequest="1"
+                            Color="LightGray"/>
+
+                    <Grid ColumnDefinitions="*, Auto">
+                        <Label Text="Subscription Plan"
+                                FontAttributes="Bold"/>
+                        <Label Text="{Binding UserProfile.Plan}"
+                               HorizontalOptions="End"/>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*, Auto">
+                        <Label Text="Daily Requests"
+                                FontAttributes="Bold"/>
+                        <HorizontalStackLayout Grid.Column="1"
+                                Spacing="5">
+                            <Label Text="{Binding UserProfile.RequestsUsedToday}"/>
+                            <Label Text="/"/>
+                            <Label Text="{Binding UserProfile.DailyRequestLimit}"/>
+                        </HorizontalStackLayout>
+                    </Grid>
+                    <ProgressBar Progress="{Binding DailyUsagePercent}"
+                                 ProgressColor="{StaticResource Primary}"/>
+                </VerticalStackLayout>
+            </CollectionView.Header>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:UserMemory">
+                    <SwipeView>
+                        <SwipeView.RightItems>
+                            <SwipeItems>
+                                <SwipeItem Text="Delete"
+                                           BackgroundColor="Red"
+                                           Command="{Binding Source={RelativeSource AncestorType={x:Type vm:UserMemoryViewModel}}, Path=DeleteMemoryCommand}"
+                                           CommandParameter="{Binding .}"/>
+                            </SwipeItems>
+                        </SwipeView.RightItems>
+                        <Grid Padding="15,10"
+                              ColumnDefinitions="*, Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="{Binding Category}"
+                                       FontAttributes="Bold"/>
+                                <Label Text="{Binding Value}"
+                                       TextColor="Gray"/>
+                            </VerticalStackLayout>
+                            <Button Grid.Column="1"
+                                    Text="Edit"
+                                    FontSize="Small"
+                                    HeightRequest="35"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:UserMemoryViewModel}}, Path=EditMemoryCommand}"
+                                    CommandParameter="{Binding .}"/>
+                        </Grid>
+                    </SwipeView>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+            <CollectionView.EmptyView>
+                <Label Text="No memories stored yet."
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"/>
+            </CollectionView.EmptyView>
+        </CollectionView>
+
+        <ActivityIndicator IsRunning="{Binding IsBusy}"
+                           IsVisible="{Binding IsBusy}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"
+                           Color="{StaticResource Primary}"/>
+    </Grid>
+</ContentPage>

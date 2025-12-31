@@ -2,6 +2,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using MotorcycleRAG.Domain.DTOs;
+using Polly;
+using Polly.Retry;
+using Polly.CircuitBreaker;
+using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.Admin.Services;
 
@@ -14,17 +18,41 @@ public class ApiClient
     private readonly HttpClient _httpClient;
     private readonly IAdminAuthService _authService;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy;
+    private readonly AsyncCircuitBreakerPolicy<HttpResponseMessage> _circuitBreaker;
+    private readonly ILogger<ApiClient>? _logger;
 
-    public ApiClient(HttpClient httpClient, IAdminAuthService authService)
+    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient>? logger = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _logger = logger;
         
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+
+        _retryPolicy = Policy
+            .Handle<HttpRequestException>()
+            .OrResult<HttpResponseMessage>(r => r.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                                                (int)r.StatusCode == 503)
+            .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                (outcome, timespan, retryCount, context) =>
+                {
+                    _logger?.LogWarning("ApiClient retry {Retry} after {Delay}s. Reason: {Reason}",
+                        retryCount, timespan.TotalSeconds, outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString());
+                });
+
+        _circuitBreaker = Policy
+            .Handle<HttpRequestException>()
+            .OrResult<HttpResponseMessage>(r => (int)r.StatusCode >= 500)
+            .CircuitBreakerAsync(5, TimeSpan.FromMinutes(1),
+                onBreak: (outcome, ts) => _logger?.LogWarning("ApiClient circuit opened for {Duration}s. Reason: {Reason}",
+                    ts.TotalSeconds, outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString()),
+                onReset: () => _logger?.LogInformation("ApiClient circuit reset"),
+                onHalfOpen: () => _logger?.LogInformation("ApiClient circuit half-open"));
     }
 
     /// <summary>
@@ -51,19 +79,19 @@ public class ApiClient
         await EnsureAuthenticatedAsync();
 
         using var content = new MultipartFormDataContent();
-        var fileStream = File.OpenRead(filePath);
+        using var fileStream = File.OpenRead(filePath);
         var streamContent = new StreamContent(fileStream);
         streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
-        
+
         content.Add(streamContent, "file", Path.GetFileName(filePath));
 
-        var response = await _httpClient.PostAsync(
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
             $"api/datapipeline/upload?processImmediately={processImmediately}",
             content,
-            cancellationToken);
+            cancellationToken));
 
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<FileUploadResult>(_jsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Failed to deserialize upload response");
     }
@@ -76,22 +104,22 @@ public class ApiClient
         await EnsureAuthenticatedAsync();
 
         using var content = new MultipartFormDataContent();
-        
+
         foreach (var filePath in filePaths)
         {
-            var fileStream = File.OpenRead(filePath);
+            using var fileStream = File.OpenRead(filePath);
             var streamContent = new StreamContent(fileStream);
             streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
             content.Add(streamContent, "files", Path.GetFileName(filePath));
         }
 
-        var response = await _httpClient.PostAsync(
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
             $"api/datapipeline/upload-batch?processImmediately={processImmediately}",
             content,
-            cancellationToken);
+            cancellationToken));
 
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<BatchFileUploadResult>(_jsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Failed to deserialize batch upload response");
     }
@@ -119,15 +147,16 @@ public class ApiClient
     /// </summary>
     public async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken = default)
     {
+        ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync();
 
-        var response = await _httpClient.PostAsync(
-            $"api/datapipeline/process/{executionId}",
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
+            $"api/datapipeline/process/{Uri.EscapeDataString(executionId)}",
             null,
-            cancellationToken);
+            cancellationToken));
 
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<ProcessingResult>(_jsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Failed to deserialize processing response");
     }
@@ -137,11 +166,12 @@ public class ApiClient
     /// </summary>
     public async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken = default)
     {
+        ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync();
 
-        var response = await _httpClient.GetAsync($"api/datapipeline/status/{executionId}", cancellationToken);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync($"api/datapipeline/status/{Uri.EscapeDataString(executionId)}", cancellationToken));
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<PipelineStatusResponse>(_jsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Failed to deserialize status response");
     }
@@ -151,11 +181,12 @@ public class ApiClient
     /// </summary>
     public async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken = default)
     {
+        ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync();
 
-        var response = await _httpClient.GetAsync($"api/datapipeline/metrics/{executionId}", cancellationToken);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync($"api/datapipeline/metrics/{Uri.EscapeDataString(executionId)}", cancellationToken));
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<PipelineMetrics>(_jsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Failed to deserialize metrics response");
     }
@@ -165,15 +196,16 @@ public class ApiClient
     /// </summary>
     public async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken = default)
     {
+        ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync();
 
-        var response = await _httpClient.PostAsync(
-            $"api/datapipeline/cancel/{executionId}",
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
+            $"api/datapipeline/cancel/{Uri.EscapeDataString(executionId)}",
             null,
-            cancellationToken);
+            cancellationToken));
 
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<CancelPipelineResponse>(_jsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Failed to deserialize cancel response");
     }
@@ -189,21 +221,27 @@ public class ApiClient
     {
         await EnsureAuthenticatedAsync();
 
-        var queryParams = new List<string>();
-        if (status.HasValue)
-            queryParams.Add($"status={status.Value}");
-        if (startTime.HasValue)
-            queryParams.Add($"startTime={startTime.Value:O}");
-        if (endTime.HasValue)
-            queryParams.Add($"endTime={endTime.Value:O}");
+        var query = new System.Collections.Generic.List<string>();
 
-        var query = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : string.Empty;
-        
-        var response = await _httpClient.GetAsync($"api/datapipeline/executions{query}", cancellationToken);
+        if (status.HasValue)
+            query.Add($"status={Uri.EscapeDataString(status.Value.ToString())}");
+        if (startTime.HasValue)
+            query.Add($"startTime={Uri.EscapeDataString(startTime.Value.ToString("O"))}");
+        if (endTime.HasValue)
+            query.Add($"endTime={Uri.EscapeDataString(endTime.Value.ToString("O"))}");
+
+        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
+
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync($"api/datapipeline/executions{queryString}", cancellationToken));
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<List<PipelineExecution>>(_jsonOptions, cancellationToken)
                ?? new List<PipelineExecution>();
+    }
+
+    private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action)
+    {
+        return await _retryPolicy.WrapAsync(_circuitBreaker).ExecuteAsync(action);
     }
 
     #endregion
@@ -218,7 +256,8 @@ public class ApiClient
         await EnsureAuthenticatedAsync();
 
         var query = isEnabled.HasValue ? $"?isEnabled={isEnabled.Value}" : string.Empty;
-        var response = await _httpClient.GetAsync($"api/users-admin{query}", cancellationToken);
+        var uri = $"api/users-admin{query}";
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken));
         response.EnsureSuccessStatusCode();
         
         return await response.Content.ReadFromJsonAsync<List<UserDto>>(_jsonOptions, cancellationToken)
@@ -256,6 +295,18 @@ public class ApiClient
     #endregion
 
     #region Helpers
+
+    /// <summary>
+    /// Validates that executionId is in a valid GUID format
+    /// </summary>
+    private static void ValidateExecutionId(string executionId)
+    {
+        if (string.IsNullOrWhiteSpace(executionId))
+            throw new ArgumentException("Execution ID cannot be null or empty", nameof(executionId));
+
+        if (!Guid.TryParse(executionId, out _))
+            throw new ArgumentException($"Invalid execution ID format. Expected valid GUID, got: {executionId}", nameof(executionId));
+    }
 
     /// <summary>
     /// Gets the MIME content type for a file based on its extension

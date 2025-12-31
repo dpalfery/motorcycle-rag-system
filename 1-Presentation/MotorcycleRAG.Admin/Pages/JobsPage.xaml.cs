@@ -8,13 +8,15 @@ namespace MotorcycleRAG.Admin.Pages;
 public partial class JobsPage : ContentPage
 {
     private readonly ApiClient _apiClient;
+    private readonly IAdminAuthService _authService;
     private readonly System.Timers.Timer _pollTimer;
     private readonly ObservableCollection<JobViewModel> _jobs;
 
-    public JobsPage(ApiClient apiClient)
+    public JobsPage(ApiClient apiClient, IAdminAuthService authService)
     {
         InitializeComponent();
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
+        _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         
         _jobs = new ObservableCollection<JobViewModel>();
         JobsCollectionView.ItemsSource = _jobs;
@@ -28,6 +30,7 @@ public partial class JobsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        await EnsureAuthorizedAsync();
         await LoadJobsAsync();
         _pollTimer.Start();
     }
@@ -40,6 +43,7 @@ public partial class JobsPage : ContentPage
 
     private async void OnRefreshClicked(object? sender, EventArgs e)
     {
+        await EnsureAuthorizedAsync();
         await LoadJobsAsync();
     }
 
@@ -70,6 +74,7 @@ public partial class JobsPage : ContentPage
                 }
                 catch (Exception ex)
                 {
+                    System.Diagnostics.Debug.WriteLine($"Error cancelling job {executionId}: {ex}");
                     await DisplayAlertAsync("Error", $"Error cancelling job: {ex.Message}", "OK");
                 }
             }
@@ -83,12 +88,13 @@ public partial class JobsPage : ContentPage
         {
             try
             {
+                await EnsureAuthorizedAsync();
                 var runningJobs = _jobs.Where(j => j.IsRunning).ToList();
                 foreach (var job in runningJobs)
                 {
                     var statusResponse = await _apiClient.GetPipelineStatusAsync(job.ExecutionId);
                     job.Status = statusResponse.Status;
-                    
+
                     // If job completed, reload full job list
                     if (!IsRunningStatus(statusResponse.Status))
                     {
@@ -97,8 +103,9 @@ public partial class JobsPage : ContentPage
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Error polling job status: {ex}");
                 // Silently fail polling - user can manually refresh
             }
         });
@@ -127,9 +134,40 @@ public partial class JobsPage : ContentPage
                 });
             }
         }
+        catch (UnauthorizedAccessException)
+        {
+            // Don't show error for missing authentication - this is expected in demo mode
+            _jobs.Clear();
+        }
+        catch (HttpRequestException)
+        {
+            // API not available - silently fail
+            _jobs.Clear();
+        }
         catch (Exception ex)
         {
+            // Only show error for unexpected exceptions
             await DisplayAlertAsync("Error", $"Failed to load jobs: {ex.Message}", "OK");
+        }
+    }
+
+    private async Task EnsureAuthorizedAsync()
+    {
+        if (!_authService.IsSignedIn())
+        {
+            await DisplayAlertAsync("Unauthorized", "Please sign in to view jobs.", "OK");
+            throw new UnauthorizedAccessException();
+        }
+
+        var roles = await _authService.GetUserRolesAsync();
+        var isAdmin = roles.Any(r => r.Equals("Admin", StringComparison.OrdinalIgnoreCase)
+                                  || r.Equals("DataAdmin", StringComparison.OrdinalIgnoreCase)
+                                  || r.Equals("ContentAdmin", StringComparison.OrdinalIgnoreCase)
+                                  || r.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase));
+        if (!isAdmin)
+        {
+            await DisplayAlertAsync("Forbidden", "You do not have permission to view pipeline jobs.", "OK");
+            throw new UnauthorizedAccessException();
         }
     }
 

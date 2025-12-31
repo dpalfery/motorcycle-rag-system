@@ -65,9 +65,34 @@ public class CsvChunker
 
         try
         {
-            if (!File.Exists(filePath))
+            // Input validation
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                result.Errors.Add("File path is required.");
+                return result;
+            }
+
+            // Canonicalize path to prevent directory traversal attacks
+            var canonicalPath = Path.GetFullPath(filePath);
+
+            if (!File.Exists(canonicalPath))
             {
                 result.Errors.Add($"File not found: {filePath}");
+                return result;
+            }
+
+            var extension = Path.GetExtension(canonicalPath).ToLowerInvariant();
+            if (extension != ".csv")
+            {
+                result.Errors.Add("Invalid file type. Only CSV files are supported.");
+                return result;
+            }
+
+            var fileInfo = new FileInfo(canonicalPath);
+            const long maxSizeBytes = 50 * 1024 * 1024; // 50 MB
+            if (fileInfo.Length > maxSizeBytes)
+            {
+                result.Errors.Add($"File too large. Max allowed size is 50MB. Actual size: {fileInfo.Length / (1024 * 1024)}MB");
                 return result;
             }
 
@@ -84,7 +109,7 @@ public class CsvChunker
                     }
                 };
 
-                using var reader = new StreamReader(filePath);
+                using var reader = new StreamReader(canonicalPath);
                 using var csv = new CsvReader(reader, config);
 
                 // Read header
@@ -255,12 +280,22 @@ public class CsvChunker
 
         try
         {
+            // Canonicalize path to prevent directory traversal attacks
+            var canonicalPath = Path.GetFullPath(filePath);
+
+            if (!File.Exists(canonicalPath))
+            {
+                result.IsValid = false;
+                result.Errors.Add($"File not found: {filePath}");
+                return result;
+            }
+
             var config = new CsvConfiguration(CultureInfo.InvariantCulture)
             {
                 HasHeaderRecord = true
             };
 
-            using var reader = new StreamReader(filePath);
+            using var reader = new StreamReader(canonicalPath);
             using var csv = new CsvReader(reader, config);
 
             csv.Read();

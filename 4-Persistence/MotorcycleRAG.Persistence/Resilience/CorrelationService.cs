@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using System.Diagnostics;
 
+
 namespace MotorcycleRAG.Persistence.Resilience;
 
 /// <summary>
@@ -57,6 +58,17 @@ public class CorrelationService : ICorrelationService
 
         _logger.LogDebug("Generated new correlation ID: {CorrelationId}", newId);
         return newId;
+    }
+
+    /// <inheritdoc />
+    public string GetOrGenerateCorrelationId() => GetOrCreateCorrelationId();
+
+    /// <inheritdoc />
+    public IDisposable StartActivity(string name)
+    {
+        var activity = new Activity(name);
+        activity.Start();
+        return activity;
     }
 
     /// <summary>
@@ -130,7 +142,7 @@ public class CorrelationService : ICorrelationService
         return _logger.BeginScope(new Dictionary<string, object>
         {
             ["CorrelationId"] = correlationId
-        });
+        })!;
     }
 
     /// <summary>
@@ -144,7 +156,7 @@ public class CorrelationService : ICorrelationService
             ["CorrelationId"] = correlationId
         };
 
-        return _logger.BeginScope(scopeProperties);
+        return _logger.BeginScope(scopeProperties)!;
     }
 
 }

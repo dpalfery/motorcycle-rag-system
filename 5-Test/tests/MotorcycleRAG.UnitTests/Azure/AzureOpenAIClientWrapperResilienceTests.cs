@@ -2,11 +2,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 using Xunit;
+
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
@@ -23,17 +25,17 @@ public class AzureOpenAIClientWrapperResilienceTests
         _mockResilienceService = new Mock<IResilienceService>();
         _mockCorrelationService = new Mock<ICorrelationService>();
 
-        var config = new AzureAIConfiguration
+        var config = new AzureAIOptions
         {
             OpenAIEndpoint = "https://test-openai.openai.azure.com/",
             FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
             DocumentIntelligenceEndpoint = "https://test-docint.cognitiveservices.azure.com/",
-            Models = new ModelConfiguration(),
-            Retry = new RetryConfiguration()
+            Models = new ModelOptions(),
+            Retry = new RetryOptions()
         };
 
-        var mockOptions = new Mock<IOptions<AzureAIConfiguration>>();
+        var mockOptions = new Mock<IOptions<AzureAIOptions>>();
         mockOptions.Setup(x => x.Value).Returns(config);
 
         _client = new AzureOpenAIClientWrapper(

@@ -1,551 +1,955 @@
-using MotorcycleRAG.Domain.Models;
+using System;
+using Microsoft.Extensions.Logging;
+using Moq;
 using MotorcycleRAG.Application.Services;
+using MotorcycleRAG.Domain.DTOs;
+using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Services;
 
+/// <summary>
+/// Unit tests for ModelValidationService, focusing on manual PDF citation validation.
+/// Tests cover validation rules, edge cases, and error scenarios.
+/// </summary>
 public class ModelValidationServiceTests
 {
-    private readonly ModelValidationService _validationService;
+    private readonly Mock<ILogger<ModelValidationService>> _loggerMock;
+    private readonly ModelValidationService _sut;
 
     public ModelValidationServiceTests()
     {
-        _validationService = new ModelValidationService();
+        _loggerMock = new Mock<ILogger<ModelValidationService>>();
+        _sut = new ModelValidationService(_loggerMock.Object);
     }
 
-    #region Generic Model Validation Tests
+    #region Null Citation Tests
 
     [Fact]
-    public void ValidateModel_WithNullModel_ShouldReturnInvalid()
-    {
-        // Act
-        var result = _validationService.ValidateModel<MotorcycleSpecification>(null!);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain("Model cannot be null");
-    }
-
-    [Fact]
-    public void ValidateModel_WithValidModel_ShouldReturnValid()
+    public void ValidateCitation_NullCitation_ReturnsEmptyErrors_NoException()
     {
         // Arrange
-        var specification = CreateValidMotorcycleSpecification();
+        Citation? citation = null;
 
         // Act
-        var result = _validationService.ValidateModel(specification);
+        var errors = _sut.ValidateCitation(citation!);
 
         // Assert
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
     }
 
     #endregion
 
-    #region MotorcycleSpecification Validation Tests
+    #region Null Locator Tests
 
     [Fact]
-    public void ValidateMotorcycleSpecification_WithValidSpecification_ShouldReturnValid()
+    public void ValidateCitation_ManualPdfWithNullLocator_ReturnsEmptyErrors_BestEffort()
     {
         // Arrange
-        var specification = CreateValidMotorcycleSpecification();
-
-        // Act
-        var result = _validationService.ValidateMotorcycleSpecification(specification);
-
-        // Assert
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void ValidateMotorcycleSpecification_WithMissingRequiredFields_ShouldReturnInvalid()
-    {
-        // Arrange
-        var specification = new MotorcycleSpecification
+        var citation = new Citation
         {
-            // Missing required fields: Id, Make, Model
-            Year = 2023
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = null
         };
 
         // Act
-        var result = _validationService.ValidateMotorcycleSpecification(specification);
+        var errors = _sut.ValidateCitation(citation);
 
         // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().HaveCountGreaterThan(0);
-        result.Errors.Should().Contain(e => e.Contains("Id"));
-        result.Errors.Should().Contain(e => e.Contains("Make"));
-        result.Errors.Should().Contain(e => e.Contains("Model"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleSpecification_WithInvalidYear_ShouldReturnInvalid()
-    {
-        // Arrange
-        var specification = CreateValidMotorcycleSpecification();
-        specification.Year = 1800; // Invalid year
-
-        // Act
-        var result = _validationService.ValidateMotorcycleSpecification(specification);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Year"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleSpecification_WithInconsistentEngineSpecs_ShouldReturnInvalid()
-    {
-        // Arrange
-        var specification = CreateValidMotorcycleSpecification();
-        specification.Engine = new EngineSpecification
-        {
-            Type = "V-Twin",
-            DisplacementCC = 1000,
-            Horsepower = 10, // Too low for 1000cc
-            Torque = 80,
-            FuelSystem = "Fuel Injection",
-            Cylinders = 2
-        };
-
-        // Act
-        var result = _validationService.ValidateMotorcycleSpecification(specification);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("horsepower seems inconsistent"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleSpecification_WithFuturePriceDate_ShouldReturnInvalid()
-    {
-        // Arrange
-        var specification = CreateValidMotorcycleSpecification();
-        specification.Pricing = new PricingInformation
-        {
-            MSRP = 15000,
-            Currency = "USD",
-            PriceDate = DateTime.UtcNow.AddDays(30), // Future date
-            Market = "US"
-        };
-
-        // Act
-        var result = _validationService.ValidateMotorcycleSpecification(specification);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Price date cannot be in the future"));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    public void ValidateMotorcycleSpecification_WithInvalidMake_ShouldReturnInvalid(string? make)
-    {
-        // Arrange
-        var specification = CreateValidMotorcycleSpecification();
-        specification.Make = make!;
-
-        // Act
-        var result = _validationService.ValidateMotorcycleSpecification(specification);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Make"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleSpecification_WithTooLongMake_ShouldReturnInvalid()
-    {
-        // Arrange
-        var specification = CreateValidMotorcycleSpecification();
-        specification.Make = new string('A', 101); // Exceeds 100 character limit
-
-        // Act
-        var result = _validationService.ValidateMotorcycleSpecification(specification);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Make"));
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
     }
 
     #endregion
 
-    #region MotorcycleDocument Validation Tests
+    #region Wrong Locator Type Tests
 
     [Fact]
-    public void ValidateMotorcycleDocument_WithValidDocument_ShouldReturnValid()
+    public void ValidateCitation_ManualPdfWithWrongLocatorType_LogsWarning_ReturnsEmptyErrors()
     {
         // Arrange
-        var document = CreateValidMotorcycleDocument();
+        var wrongLocator = new { SomeProperty = "value" };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = wrongLocator
+        };
 
         // Act
-        var result = _validationService.ValidateMotorcycleDocument(document);
+        var errors = _sut.ValidateCitation(citation);
 
         // Assert
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData(null)]
-    public void ValidateMotorcycleDocument_WithEmptyContent_ShouldReturnInvalid(string? content)
-    {
-        // Arrange
-        var document = CreateValidMotorcycleDocument();
-        document.Content = content!;
-
-        // Act
-        var result = _validationService.ValidateMotorcycleDocument(document);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Content field is required") || e.Contains("content cannot be empty"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleDocument_WithTooShortContent_ShouldReturnInvalid()
-    {
-        // Arrange
-        var document = CreateValidMotorcycleDocument();
-        document.Content = "Short"; // Less than 10 characters
-
-        // Act
-        var result = _validationService.ValidateMotorcycleDocument(document);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("content is too short"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleDocument_WithTooLongContent_ShouldReturnInvalid()
-    {
-        // Arrange
-        var document = CreateValidMotorcycleDocument();
-        document.Content = new string('A', 1000001); // Exceeds 1MB limit
-
-        // Act
-        var result = _validationService.ValidateMotorcycleDocument(document);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("content is too large"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleDocument_WithEmptyVector_ShouldReturnInvalid()
-    {
-        // Arrange
-        var document = CreateValidMotorcycleDocument();
-        document.ContentVector = new float[0]; // Empty vector
-
-        // Act
-        var result = _validationService.ValidateMotorcycleDocument(document);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Content vector cannot be empty"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleDocument_WithWrongVectorDimensions_ShouldReturnInvalid()
-    {
-        // Arrange
-        var document = CreateValidMotorcycleDocument();
-        document.ContentVector = new float[1536]; // Wrong dimensions (should be 3072)
-
-        // Act
-        var result = _validationService.ValidateMotorcycleDocument(document);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Content vector must have 3072 dimensions"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleDocument_WithCorrectVectorDimensions_ShouldReturnValid()
-    {
-        // Arrange
-        var document = CreateValidMotorcycleDocument();
-        document.ContentVector = new float[3072]; // Correct dimensions for text-embedding-3-large
-
-        // Act
-        var result = _validationService.ValidateMotorcycleDocument(document);
-
-        // Assert
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    public void ValidateMotorcycleDocument_WithInvalidTitle_ShouldReturnInvalid(string? title)
-    {
-        // Arrange
-        var document = CreateValidMotorcycleDocument();
-        document.Title = title!;
-
-        // Act
-        var result = _validationService.ValidateMotorcycleDocument(document);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Title"));
-    }
-
-    [Fact]
-    public void ValidateMotorcycleDocument_WithTooLongTitle_ShouldReturnInvalid()
-    {
-        // Arrange
-        var document = CreateValidMotorcycleDocument();
-        document.Title = new string('A', 501); // Exceeds 500 character limit
-
-        // Act
-        var result = _validationService.ValidateMotorcycleDocument(document);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Title"));
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Citation locator is not ManualPdfCitationLocator")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 
     #endregion
 
-    #region QueryRequest Validation Tests
+    #region PageNumber and PageRange Validation Tests
 
     [Fact]
-    public void ValidateQueryRequest_WithValidRequest_ShouldReturnValid()
+    public void ValidateCitation_ValidPageNumberOnly_ReturnsEmptyErrors()
     {
         // Arrange
-        var request = CreateValidQueryRequest();
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            PageRange = null
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
 
         // Act
-        var result = _validationService.ValidateQueryRequest(request);
+        var errors = _sut.ValidateCitation(citation);
 
         // Assert
-        result.IsValid.Should().BeTrue();
-        result.Errors.Should().BeEmpty();
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData(null)]
-    public void ValidateQueryRequest_WithEmptyQuery_ShouldReturnInvalid(string? query)
-    {
-        // Arrange
-        var request = CreateValidQueryRequest();
-        request.Query = query!;
-
-        // Act
-        var result = _validationService.ValidateQueryRequest(request);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Query field is required") || e.Contains("Query cannot be empty"));
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
     }
 
     [Fact]
-    public void ValidateQueryRequest_WithTooShortQuery_ShouldReturnInvalid()
+    public void ValidateCitation_ValidPageRangeOnly_ReturnsEmptyErrors()
     {
         // Arrange
-        var request = CreateValidQueryRequest();
-        request.Query = "Hi"; // Less than 3 characters
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 0,
+            PageRange = "5-7"
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
 
         // Act
-        var result = _validationService.ValidateQueryRequest(request);
+        var errors = _sut.ValidateCitation(citation);
 
         // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Query is too short"));
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
     }
 
     [Fact]
-    public void ValidateQueryRequest_WithTooLongQuery_ShouldReturnInvalid()
+    public void ValidateCitation_BothPageNumberAndPageRangeValid_ReturnsEmptyErrors()
     {
         // Arrange
-        var request = CreateValidQueryRequest();
-        request.Query = new string('A', 1001); // Exceeds 1000 character limit
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            PageRange = "5-7"
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
 
         // Act
-        var result = _validationService.ValidateQueryRequest(request);
+        var errors = _sut.ValidateCitation(citation);
 
         // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("Query"));
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void ValidateQueryRequest_WithInvalidMaxResults_ShouldReturnInvalid(int maxResults)
-    {
-        // Arrange
-        var request = CreateValidQueryRequest();
-        request.Preferences.MaxResults = maxResults;
-
-        // Act
-        var result = _validationService.ValidateQueryRequest(request);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("MaxResults must be greater than 0"));
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
     }
 
     [Fact]
-    public void ValidateQueryRequest_WithTooHighMaxResults_ShouldReturnInvalid()
+    public void ValidateCitation_InvalidPageNumberZeroAndEmptyPageRange_ReturnsError()
     {
         // Arrange
-        var request = CreateValidQueryRequest();
-        request.Preferences.MaxResults = 101; // Exceeds limit of 100
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 0,
+            PageRange = null
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
 
         // Act
-        var result = _validationService.ValidateQueryRequest(request);
+        var errors = _sut.ValidateCitation(citation);
 
         // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("MaxResults cannot exceed 100"));
-    }
-
-    [Theory]
-    [InlineData(-0.1f)]
-    [InlineData(1.1f)]
-    public void ValidateQueryRequest_WithInvalidMinRelevanceScore_ShouldReturnInvalid(float minScore)
-    {
-        // Arrange
-        var request = CreateValidQueryRequest();
-        request.Preferences.MinRelevanceScore = minScore;
-
-        // Act
-        var result = _validationService.ValidateQueryRequest(request);
-
-        // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("MinRelevanceScore must be between 0 and 1"));
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("must have either PageNumber (> 0) or PageRange", errors[0]);
     }
 
     [Fact]
-    public void ValidateQueryRequest_WithTooLongUserId_ShouldReturnInvalid()
+    public void ValidateCitation_InvalidPageNumberNegativeAndEmptyPageRange_ReturnsError()
     {
         // Arrange
-        var request = CreateValidQueryRequest();
-        request.UserId = new string('A', 101); // Exceeds 100 character limit
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = -1,
+            PageRange = null
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
 
         // Act
-        var result = _validationService.ValidateQueryRequest(request);
+        var errors = _sut.ValidateCitation(citation);
 
         // Assert
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.Contains("UserId"));
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("must have either PageNumber (> 0) or PageRange", errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_InvalidPageNumberZeroAndWhitespacePageRange_ReturnsError()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 0,
+            PageRange = "   "
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("must have either PageNumber (> 0) or PageRange", errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_InvalidPageNumberZeroAndEmptyStringPageRange_ReturnsError()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 0,
+            PageRange = string.Empty
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("must have either PageNumber (> 0) or PageRange", errors[0]);
     }
 
     #endregion
 
-    #region Helper Methods
+    #region SectionHeadings Validation Tests
 
-    private static MotorcycleSpecification CreateValidMotorcycleSpecification()
+    [Fact]
+    public void ValidateCitation_ValidSectionHeadings_ReturnsEmptyErrors()
     {
-        return new MotorcycleSpecification
+        // Arrange
+        var locator = new ManualPdfCitationLocator
         {
-            Id = "test-id-123",
-            Make = "Honda",
-            Model = "CBR1000RR",
-            Year = 2023,
-            Engine = new EngineSpecification
-            {
-                Type = "Inline-4",
-                DisplacementCC = 1000,
-                Horsepower = 200,
-                Torque = 113,
-                FuelSystem = "Fuel Injection",
-                Cylinders = 4
-            },
-            Performance = new PerformanceMetrics
-            {
-                TopSpeedKmh = 299,
-                Acceleration0To100 = 3.1m,
-                FuelConsumptionL100km = 6.5m,
-                RangeKm = 300
-            },
-            Safety = new SafetyFeatures
-            {
-                ABS = true,
-                TractionControl = true,
-                StabilityControl = true,
-                AntiWheelieControl = true,
-                AdditionalFeatures = new List<string> { "Cornering ABS", "Wheelie Control" }
-            },
-            Pricing = new PricingInformation
-            {
-                MSRP = 17999,
-                Currency = "USD",
-                PriceDate = DateTime.UtcNow.AddDays(-1),
-                Market = "US"
-            },
-            AdditionalSpecs = new Dictionary<string, object>
-            {
-                { "Color", "Racing Red" },
-                { "Weight", 201 }
-            }
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionHeadings = new[] { "Chapter 1", "Section 1.1", "Subsection 1.1.1" }
         };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
     }
 
-    private static MotorcycleDocument CreateValidMotorcycleDocument()
+    [Fact]
+    public void ValidateCitation_EmptySectionHeadingsArray_ReturnsEmptyErrors()
     {
-        return new MotorcycleDocument
+        // Arrange
+        var locator = new ManualPdfCitationLocator
         {
-            Id = "doc-123",
-            Title = "Honda CBR1000RR Specifications",
-            Content = "This is a detailed specification document for the Honda CBR1000RR motorcycle.",
-            Type = DocumentType.Specification,
-            Metadata = new DocumentMetadata
-            {
-                SourceFile = "honda-cbr1000rr.pdf",
-                SourceUrl = "https://example.com/honda-cbr1000rr.pdf",
-                PageNumber = 1,
-                Section = "Specifications",
-                Author = "Honda Motor Co.",
-                PublishedDate = DateTime.UtcNow.AddDays(-30),
-                Tags = new List<string> { "Honda", "CBR1000RR", "Specifications" },
-                AdditionalProperties = new Dictionary<string, object>
-                {
-                    { "Language", "English" },
-                    { "Version", "2023.1" }
-                }
-            },
-            CreatedAt = DateTime.UtcNow.AddDays(-1),
-            UpdatedAt = DateTime.UtcNow
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionHeadings = Array.Empty<string>()
         };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
     }
 
-    private static MotorcycleQueryRequest CreateValidQueryRequest()
+    [Fact]
+    public void ValidateCitation_NullSectionHeadings_ReturnsEmptyErrors()
     {
-        return new MotorcycleQueryRequest
+        // Arrange
+        var locator = new ManualPdfCitationLocator
         {
-            Query = "What are the specifications of Honda CBR1000RR?",
-            UserId = "user-123",
-            Preferences = new SearchPreferences
-            {
-                IncludeWebSources = true,
-                IncludePDFSources = true,
-                MaxResults = 10,
-                MinRelevanceScore = 0.5f,
-                PreferredSources = new List<string> { "Honda", "Official" }
-            },
-            Context = new QueryContext
-            {
-                SessionId = "session-123",
-                PreviousQueries = new List<string> { "Honda motorcycles" },
-                UserPreferences = new Dictionary<string, object>
-                {
-                    { "PreferredBrand", "Honda" }
-                },
-                Language = "en"
-            }
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionHeadings = null!
         };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateCitation_SectionHeadingsWithEmptyString_ReturnsError()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionHeadings = new[] { "Chapter 1", "", "Subsection 1.1.1" }
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("SectionHeadings contains empty or whitespace-only strings at indices: 1", errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_SectionHeadingsWithWhitespaceOnly_ReturnsError()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionHeadings = new[] { "Chapter 1", "   ", "Subsection 1.1.1" }
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("SectionHeadings contains empty or whitespace-only strings at indices: 1", errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_SectionHeadingsWithMultipleEmptyStrings_ReturnsErrorWithAllIndices()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionHeadings = new[] { "", "Chapter 1", "   ", "Subsection 1.1.1", "" }
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("SectionHeadings contains empty or whitespace-only strings at indices: 0, 2, 4", errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_SectionHeadingsWithTabAndNewline_ReturnsError()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionHeadings = new[] { "Chapter 1", "\t\n", "Subsection 1.1.1" }
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("SectionHeadings contains empty or whitespace-only strings at indices: 1", errors[0]);
+    }
+
+    #endregion
+
+    #region SectionLevel Validation Tests
+
+    [Fact]
+    public void ValidateCitation_ValidSectionLevelZero_ReturnsEmptyErrors()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionLevel = 0
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateCitation_ValidSectionLevelOne_ReturnsEmptyErrors()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionLevel = 1
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateCitation_ValidSectionLevelTwo_ReturnsEmptyErrors()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionLevel = 2
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateCitation_ValidSectionLevelThree_ReturnsEmptyErrors()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionLevel = 3
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateCitation_NullSectionLevel_ReturnsEmptyErrors()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionLevel = null
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateCitation_InvalidSectionLevelNegativeOne_ReturnsError()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionLevel = -1
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("SectionLevel must be between 0 and 3", errors[0]);
+        Assert.Contains("Actual: -1", errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_InvalidSectionLevelFour_ReturnsError()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionLevel = 4
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("SectionLevel must be between 0 and 3", errors[0]);
+        Assert.Contains("Actual: 4", errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_InvalidSectionLevelTen_ReturnsError()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5,
+            SectionLevel = 10
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("SectionLevel must be between 0 and 3", errors[0]);
+        Assert.Contains("Actual: 10", errors[0]);
+    }
+
+    #endregion
+
+    #region Multiple Validation Errors Tests
+
+    [Fact]
+    public void ValidateCitation_MultipleValidationErrors_ReturnsAllErrors()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 0,
+            PageRange = null,
+            SectionHeadings = new[] { "Chapter 1", "", "Subsection 1.1.1" },
+            SectionLevel = 5
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Equal(3, errors.Count);
+        Assert.Contains(errors, e => e.Contains("must have either PageNumber (> 0) or PageRange"));
+        Assert.Contains(errors, e => e.Contains("SectionHeadings contains empty or whitespace-only strings"));
+        Assert.Contains(errors, e => e.Contains("SectionLevel must be between 0 and 3"));
+    }
+
+    #endregion
+
+    #region SourceIndex Error Reporting Tests
+
+    [Fact]
+    public void ValidateCitation_WithSourceIndex_IncludesSourceIndexInErrorMessage()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 0,
+            PageRange = null
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+        const int sourceIndex = 3;
+
+        // Act
+        var errors = _sut.ValidateCitation(citation, sourceIndex);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("Source[3]:", errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_WithNegativeSourceIndex_DoesNotIncludeSourceIndex()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 0,
+            PageRange = null
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+        const int sourceIndex = -1;
+
+        // Act
+        var errors = _sut.ValidateCitation(citation, sourceIndex);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.DoesNotContain("Source[-1]:", errors[0]);
+        Assert.DoesNotContain("Source[", errors[0]);
+    }
+
+    #endregion
+
+    #region Non-ManualPdf Source Type Tests
+
+    [Fact]
+    public void ValidateCitation_NonManualPdfSourceWithLocator_ReturnsEmptyErrors()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.Website,
+            SourceName = "Test Website",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateCitation_DatasetSourceWithLocator_ReturnsEmptyErrors()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "doc-001",
+            PageNumber = 5
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.Dataset,
+            SourceName = "Test Dataset",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+    }
+
+    #endregion
+
+    #region Complete Valid Citation Tests
+
+    [Fact]
+    public void ValidateCitation_CompleteValidManualPdfCitation_ReturnsEmptyErrors()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = "honda-cb500f-2023-manual",
+            Title = "Honda CB500F 2023 Owner's Manual",
+            PageNumber = 42,
+            PageRange = "42-45",
+            PrimarySection = "Maintenance",
+            SectionLevel = 2,
+            SectionHeadings = new[] { "Chapter 3: Maintenance", "Section 3.2: Oil Change", "Subsection 3.2.1: Oil Selection" },
+            TableCaption = null,
+            ChunkIndex = 3,
+            Section = "Oil Change",
+            FigureReference = "Fig 3.1",
+            Version = "1.0",
+            PublicationDate = new DateTime(2023, 1, 1),
+            SourceUrl = "https://example.com/manuals/honda-cb500f-2023.pdf"
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Honda CB500F 2023 Owner's Manual",
+            SourceUrl = "https://example.com/manuals/honda-cb500f-2023.pdf",
+            PageNumber = 42,
+            Section = "Oil Change",
+            ConfidenceScore = 0.95f,
+            Verified = true,
+            VerificationMethod = "Document Intelligence OCR",
+            VerifiedAt = DateTime.UtcNow,
+            Metadata = new Dictionary<string, object>
+            {
+                { "extractionMethod", "azure-document-intelligence" },
+                { "chunkId", "chunk-123" }
+            },
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Empty(errors);
+    }
+
+    #endregion
+
+    #region DocumentId Sanitization Tests
+
+    [Fact]
+    public void ValidateCitation_WithLongDocumentId_TruncatesInErrorMessage()
+    {
+        // Arrange
+        var longDocumentId = new string('a', 100); // 100 characters
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = longDocumentId,
+            PageNumber = 0,
+            PageRange = null
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        // DocumentId should be truncated to 50 chars + "..."
+        Assert.Contains("DocumentId: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...", errors[0]);
+        Assert.Contains("must have either PageNumber (> 0) or PageRange", errors[0]);
+        Assert.DoesNotContain(longDocumentId, errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_WithEmptyDocumentId_ShowsEmptyPlaceholder()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = string.Empty,
+            PageNumber = 0,
+            PageRange = null
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("DocumentId: [empty]", errors[0]);
+    }
+
+    [Fact]
+    public void ValidateCitation_WithNullDocumentId_ShowsEmptyPlaceholder()
+    {
+        // Arrange
+        var locator = new ManualPdfCitationLocator
+        {
+            DocumentId = null!,
+            PageNumber = 0,
+            PageRange = null
+        };
+        var citation = new Citation
+        {
+            SourceType = CitationSourceType.ManualPdf,
+            SourceName = "Test Manual",
+            Locator = locator
+        };
+
+        // Act
+        var errors = _sut.ValidateCitation(citation);
+
+        // Assert
+        Assert.NotNull(errors);
+        Assert.Single(errors);
+        Assert.Contains("DocumentId: [empty]", errors[0]);
     }
 
     #endregion

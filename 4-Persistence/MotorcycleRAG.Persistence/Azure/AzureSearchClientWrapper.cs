@@ -6,12 +6,13 @@ using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Persistence.Resilience;
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Entities;
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
 
-namespace MotorcycleRAG.Infrastructure.Azure;
+namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
 /// Azure AI Search client wrapper with connection management and resilience
@@ -20,7 +21,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
 {
     private readonly SearchClient _searchClient;
     private readonly SearchIndexClient _indexClient;
-    private readonly SearchConfiguration _searchConfig;
+    private readonly Core.Options.SearchOptions _searchConfig;
     private readonly ILogger<AzureSearchClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
@@ -28,8 +29,8 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
     private bool _disposed;
 
     public AzureSearchClientWrapper(
-        IOptions<AzureAIConfiguration> azureConfig,
-        IOptions<SearchConfiguration> searchConfig,
+        IOptions<AzureAIOptions> azureConfig,
+        IOptions<Core.Options.SearchOptions> searchConfig,
         ILogger<AzureSearchClientWrapper> logger,
         IResilienceService resilienceService,
         ICorrelationService correlationService)
@@ -219,7 +220,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
     }
 
     // Implement VectorSearchAsync
-    public async Task<SearchResult[]> VectorSearchAsync(string query, Domain.Models.SearchOptions options)
+    public async Task<SearchResult[]> VectorSearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         return await _resilienceService.ExecuteAsync(
@@ -273,7 +274,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             correlationId);
     }
 
-    public async Task<SearchResult[]> HybridSearchAsync(string query, Domain.Models.SearchOptions options)
+    public async Task<SearchResult[]> HybridSearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         return await _resilienceService.ExecuteAsync(
@@ -327,7 +328,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
             correlationId);
     }
 
-    public async Task<SearchResult[]> SearchAsync(string query, Domain.Models.SearchOptions options)
+    public async Task<SearchResult[]> SearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
         return await _resilienceService.ExecuteAsync(
@@ -443,14 +444,22 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         }
     }
 
-    private AzureSearchOptions ConvertToAzureSearchOptions(Domain.Models.SearchOptions options)
+    private AzureSearchOptions ConvertToAzureSearchOptions(MotorcycleRAG.Core.Options.SearchOptions options)
     {
         return new AzureSearchOptions
         {
-            Size = options.MaxResults,
+            Size = options.MaxSearchResults,
             Skip = 0,
             IncludeTotalCount = true,
-            Select = { "id", "title", "content", "documentType", "make", "model", "year", "sourceFile", "section", "createdAt", "tags", "metadata" },
+            // T055: Include locator metadata fields in search results
+            Select =
+            {
+                "id", "title", "content", "documentType",
+                "make", "model", "year",
+                "sourceFile", "sourceUrl", "author", "publishedDate",
+                "section", "pageNumber", "pageRange", "primarySection", "sectionLevel", "sectionHeadings", "tableCaption", "chunkIndex",
+                "createdAt", "updatedAt", "tags"
+            },
             OrderBy = { "search.score() desc" },
             // Filter = options.Filter, // TODO: Add filter support if needed
             QueryType = SearchQueryType.Simple,
@@ -458,7 +467,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable
         };
     }
 
-    private IAsyncPolicy CreateRetryPolicy(RetryConfiguration retryConfig)
+    private IAsyncPolicy CreateRetryPolicy(RetryOptions retryConfig)
     {
         return Policy
             .Handle<RequestFailedException>(ex => IsRetryableError(ex))

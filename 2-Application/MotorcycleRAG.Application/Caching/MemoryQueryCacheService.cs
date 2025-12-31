@@ -1,10 +1,11 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+
 
 namespace MotorcycleRAG.Application.Caching;
 
@@ -36,7 +37,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
             WriteIndented = false
         };
 
-        _logger.LogInformation("Memory query cache service initialized with max size: {MaxSize}MB", 
+        _logger.LogInformation("Memory query cache service initialized with max size: {MaxSize}MB",
             _config.MaxMemorySizeMB);
     }
 
@@ -59,9 +60,12 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
                     _statistics.CacheHits++;
                 }
 
-                var response = DeserializeResponse((byte[])cachedData);
-                _logger.LogDebug("Cache hit for query key: {QueryKey}", queryKey);
-                return response;
+                if (cachedData is byte[] data)
+                {
+                    var response = DeserializeResponse(data);
+                    _logger.LogDebug("Cache hit for query key: {QueryKey}", queryKey);
+                    return response;
+                }
             }
 
             lock (_statsLock)
@@ -87,7 +91,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
         try
         {
             var serializedData = SerializeResponse(response);
-            
+
             var cacheEntryOptions = new MemoryCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = expiration,
@@ -106,7 +110,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
                         _statistics.TotalMemoryUsage = Math.Max(0, _statistics.TotalMemoryUsage - data.Length);
                     }
                 }
-                
+
                 _logger.LogDebug("Cache entry evicted: {Key}, Reason: {Reason}", key, reason);
             });
 
@@ -119,7 +123,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
                 _statistics.LastUpdated = DateTime.UtcNow;
             }
 
-            _logger.LogDebug("Cached response for query key: {QueryKey}, Size: {Size} bytes, Expiration: {Expiration}", 
+            _logger.LogDebug("Cached response for query key: {QueryKey}, Size: {Size} bytes, Expiration: {Expiration}",
                 queryKey, serializedData.Length, expiration);
         }
         catch (Exception ex)
@@ -166,7 +170,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
         var keyJson = JsonSerializer.Serialize(keyData, _jsonOptions);
         var keyBytes = Encoding.UTF8.GetBytes(keyJson);
         var hashBytes = SHA256.HashData(keyBytes);
-        
+
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 
@@ -226,10 +230,10 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
     {
         // Check if data is compressed (simple magic number check)
         var isCompressed = data.Length > 2 && data[0] == 0x1f && data[1] == 0x8b;
-        
+
         var jsonBytes = isCompressed ? DecompressData(data) : data;
         var json = Encoding.UTF8.GetString(jsonBytes);
-        
+
         return JsonSerializer.Deserialize<MotorcycleQueryResponse>(json, _jsonOptions)
             ?? throw new InvalidOperationException("Failed to deserialize cached response");
     }
@@ -258,10 +262,10 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
         // Prioritize responses with more sources and better metrics
         if (response.Sources?.Length > 5 && response.Metrics?.ProcessingTimeMs < 1000)
             return CacheItemPriority.High;
-        
+
         if (response.Sources?.Length > 2)
             return CacheItemPriority.Normal;
-        
+
         return CacheItemPriority.Low;
     }
 

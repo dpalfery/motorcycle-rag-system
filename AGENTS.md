@@ -1,0 +1,525 @@
+## Project Overview
+This project is a sophisticated **multi-agent RAG (Retrieval-Augmented Generation) system** for motorcycle information retrieval. It is designed to pass **OWASP ASVS Level 2** security standards and follows strict **Clean Architecture** principles.
+
+The system orchestrates specialized agents to search heterogeneous data sources (CSV specs, PDF manuals, Trusted Web) and provides a unified, cited response. It includes a **React WebUI** for users and a **.NET MAUI Admin App** (Windows-first) for data ingestion and management.
+
+## Authoritative Documentation
+*   **`AGENTS.md`**: Primary source for Architectural Rules (Folder Structure) and Security Directives.
+*   **`specs/001-system-spec/`**: Detailed functional requirements (`spec.md`), remediation plans (`plan.md`), and task tracking (`tasks.md`).
+
+## Technology Stack
+
+### Backend
+*   **Framework**: .NET 10.0 (ASP.NET Core Web API)
+*   **Language**: C# 13
+*   **Architecture**: Clean Architecture + DDD (8 Layers)
+*   **AI/RAG**: Semantic Kernel, Azure OpenAI (GPT-4o, text-embedding-3-large), Azure AI Search.
+*   **Data**: SQL Server (Dapper), Azure Blob Storage.
+*   **Identity**: Microsoft Entra External ID / B2C (OIDC).
+
+### Frontend
+*   **User UI**: React 19 + Vite + MUI v7 with Pigment CSS (`1-Presentation/MotorcycleRag.WebUI`).
+*   **Styling**: Pigment CSS for zero-runtime, CSP-compliant styling (no `unsafe-inline` required).
+*   **Admin UI**: .NET MAUI for Windows (`1-Presentation/MotorcycleRAG.Admin`).
+*   **BFF**: Backend-for-Frontend pattern using YARP/ASP.NET Core (`1-Presentation/MotorcycleRag.WebUI.BFF`).
+
+## Architecture & Folder Rules (`AGENTS.md`)
+
+The project strictly follows these layers. Dependencies must point **inward** (Presentation -> Application -> Domain <- Persistence).
+
+1.  **0-Base** (`MotorcycleRAG.Shared`): Cross-cutting concerns, shared config, utilities.
+2.  **1-Presentation**: API Controllers, WebUI, Admin App. Entry points only.
+3.  **2-Application**: Use cases, orchestration, agents, interfaces for infrastructure.
+4.  **3-Domain**: Pure business logic, entities, and repository interfaces. **No infrastructure dependencies.**
+5.  **4-Persistence**: Implementation of interfaces, Azure SDKs, DB context.
+6.  **5-Test**: Unit (`.UnitTests`), Integration (`.IntegrationTests`), and UI tests.
+7.  **6-Docs**: Documentation.
+8.  **7-Deployment**: IaC (Pulumi), Dockerfiles.
+
+## Security Rules (Mandatory)
+
+*   **Secrets**: NEVER store secrets in code/config files. Use Environment Variables or Key Vault.
+*   **Validation**: Sanitize all inputs. Use parameterized SQL queries ONLY.
+*   **Authorization**: Explicitly authorize every action (e.g., `[Authorize(Policy = "DataAdmin")]`).
+*   **Logging**: Redact sensitive data (PII, query text) from logs.
+
+## Key Features & Requirements (`spec.md`)
+
+*   **Multi-Agent Search**: Query Planner -> Vector Search -> Web Search (Trusted Sources only) -> PDF Search (with page/section citations).
+*   **Trust Tiers**: Tier A (OEM Manuals) > Tier B (Reputable Media) > Tier C (Community).
+*   **Ingestion Pipeline**: Batch processing of CSVs and PDFs with status tracking.
+*   **MCP Support**: Model Context Protocol integration for extensible tools (managed via Admin App).
+*   **User Plans**: Free (10 req/day), Plus (100 req/day), Pro (Unlimited).
+
+## Development Status (`tasks.md`)
+
+*   **Done**: Core Auth (Entra ID), SQL Persistence, User Story 1 (Ask Question), User Story 1a (Profiles/Limits).
+*   **In Progress/Pending**: PDF Manual Search (US3), MAUI Admin App (US3a), Web Source Management (US6), MCP Config (US7).
+
+## Usage Commands
+
+### Backend & API
+```powershell
+# Run API
+dotnet run --project 1-Presentation/MotorcycleRAG.API
+
+# Run Tests (Unit + Integration)
+dotnet test
+```
+
+### Frontend (User)
+```powershell
+cd 1-Presentation/MotorcycleRag.WebUI
+npm run dev
+```
+
+### Data Ingestion
+*   **API**: `POST /api/DataPipeline/upload` (Files), `POST /api/DataPipeline/process` (Trigger).
+*   **Admin App**: Launch `1-Presentation/MotorcycleRAG.Admin` (pending implementation).
+
+# Clean Architecture + DDD Folder Structure (C#)
+
+## **Core Architecture Principles**
+
+Based on Uncle Bob Martin's Clean Architecture, this structure enforces:
+
+1. **The Dependency Rule**: Source code dependencies can only point inward. Nothing in an inner circle can know anything about an outer circle.
+2. **Independence of Frameworks**: Architecture doesn't depend on frameworks; frameworks are tools.
+3. **Testability**: Business rules can be tested without UI, Database, or external elements.
+4. **Independence of UI**: The UI can change without changing business rules.
+5. **Independence of Database**: You can swap databases without affecting business rules.
+6. **Independence of External Agencies**: Business rules don't know about the outside world.
+
+### **Dependency Direction (Critical)**
+```
+Presentation → Application → Domain ← Persistence
+     ↓              ↓            ↑         ↓
+   Base ←──────────┴────────────┴─────────┘
+```
+
+**Allowed Dependencies:**
+- Presentation → Application, Base
+- Application → Domain, Base
+- Persistence → Domain, Base
+- Domain → Base (minimal, only for shared utilities)
+
+**Forbidden Dependencies:**
+- Domain → Application, Persistence, or Presentation
+- Application → Persistence or Presentation
+- Any layer → outer layer
+
+**Key Rules for Code Generation:**
+
+1. **Always respect the Dependency Rule** - inner layers never depend on outer layers
+2. **Keep domain pure** - no framework code in domain entities
+3. **Use interfaces for boundaries** - Application defines interfaces, Infrastructure implements
+4. **Thin controllers** - only call use cases and map responses
+5. **Rich domain models** - behavior with data, not anemic models
+6. **Test without infrastructure** - domain and application tests need no database
+7. **1 class or interface per file** - no multiple classes in one file
+8. **Single Responsibility Principle** - each class has one job
+9. **Open/Closed Principle** - open for extension, closed for modification
+10. **Liskov Substitution Principle** - derived classes must be substitutable for their base classes
+11. **Interface Segregation Principle** - many client-specific interfaces instead of one general-purpose interface
+12. **Dependency Inversion Principle** - high-level modules shouldn't depend on low-level ones; both should depend on abstractions
+
+---
+
+## **Quick Reference: Layer Dependencies**
+```
+Layer           | Can Depend On
+----------------|------------------
+Presentation    | Application, Base
+Application     | Domain, Contracts, Base
+Domain          | Base (minimal)
+Contracts       | Domain, Base
+Persistence     | Domain, Contracts, Base
+Tests           | Anything (for testing)
+```
+
+**Important Note on Contracts → Domain Dependency:**
+Contracts referencing Domain is **CORRECT** in this architecture because:
+- Repository interfaces need to reference Domain entities (e.g., `IRepository<Document>`)
+- Service interfaces need to use Domain value objects and entities in method signatures
+- DTOs in Contracts may need to reference Domain types for proper contract definitions
+- Both projects are conceptually part of the "Domain Layer" (3-Domain folder)
+- This follows the Dependency Inversion Principle: Application depends on Contracts (abstractions), Persistence implements them using Domain entities
+
+## **Key Benefits Achieved**
+
+✓ **Framework Independence:** Can swap ASP.NET for another framework
+✓ **Database Independence:** Can swap SQL Server for PostgreSQL, Cosmos DB, etc.
+✓ **UI Independence:** Can add mobile app without changing business logic
+✓ **Testability:** Can test business rules without UI, database, or frameworks
+✓ **Maintainability:** Clear boundaries make changes predictable
+✓ **Azure Migration Friendly:** Can modernize infrastructure without touching domain
+✓ **Vector Store Agnostic:** Can switch between Azure AI Search, Pinecone, Weaviate, etc.
+
+---
+
+*This architecture follows Uncle Bob Martin's Clean Architecture principles, ensuring that business logic remains independent of frameworks, databases, and delivery mechanisms, resulting in a system that is testable, maintainable, and adaptable to changing requirements.*
+---
+
+## **0-Base Layer (Shared Kernel)**
+
+**Purpose:** Cross-cutting concerns and shared abstractions used across layers. Keep minimal to avoid coupling.
+
+**Project:** `MotorcycleRAG.Core`
+
+**Clean Architecture Alignment:** This is infrastructure for all layers but must not contain business logic or create circular dependencies.
+
+**Contents:**
+
+* **Constants / Enums:** Shared value constants
+  *Folder:* `Constants`, `Enums`
+* **Utilities:** Pure functions with no business logic
+  *Folder:* `Utilities`
+* **Base Exceptions:** Custom exception types
+  *Folder:* `Exceptions`
+* **Result Types:** Success/failure wrappers
+  *Folder:* `Results`
+* **Logging Abstractions:** ILogger interfaces (not implementations)
+  *Folder:* `Abstractions/Logging`
+* **External API Contracts:** Interface definitions only
+  *Folder:* `Abstractions/External`
+
+**⚠️ Warning:** This layer should contain NO implementations that depend on external frameworks (EF Core, Azure SDK, etc.). Only abstractions and pure utilities.
+
+> Minimize dependencies on this layer to prevent tight coupling across your architecture.
+
+---
+
+## **1-Presentation Layer (Frameworks & Drivers)**
+
+**Purpose:** Entry point for external interactions. This is the outermost layer where delivery mechanisms live.
+
+**Projects:** `MotorcycleRAG.Api`, `MotorcycleRAG.UI`, or `MotorcycleRAG.Web`
+
+**Clean Architecture Alignment:** Frameworks and Drivers layer - contains delivery mechanisms (web, API) as details that can be swapped.
+
+**Contents:**
+
+* **Controllers / Endpoints:** ASP.NET Core API controllers or minimal APIs
+  *Folder:* `Controllers`
+* **Hubs:** SignalR hubs for real-time updates
+  *Folder:* `Hubs`
+* **Filters / Middleware:** Exception handling, logging, request validation
+  *Folder:* `Middleware`
+* **ViewModels / DTOs:** Request/response payloads (Interface Adapters)
+  *Folder:* `Models` or `ViewModels`
+* **Mappers:** Convert between external DTOs and Application DTOs
+  *Folder:* `Mappers`
+* **Static Content / Pages:** Razor pages or SPA static assets
+  *Folder:* `wwwroot` or `Pages`
+* **Program.cs / Startup.cs:** Composition root, DI setup, and pipeline config
+
+**Dependencies:** Application, Base
+**Dependency Rule:** ✓ Points inward to Application
+
+> **Key Principle:** Controllers are thin adapters. They receive requests, call Application use cases, and format responses. No business logic here.
+
+---
+
+## **2-Application Layer (Use Cases)**
+
+**Purpose:** Contains application-specific business rules. Orchestrates the flow of data between entities and implements use cases.
+
+**Project:** `MotorcycleRAG.Application`
+
+**Clean Architecture Alignment:** Use Cases layer - implements all application-specific business rules.
+
+**Contents:**
+
+* **Use Cases / Handlers:** CQRS commands and queries implementing business workflows
+  *Folder:* `Features/{FeatureName}/Commands`, `Features/{FeatureName}/Queries`
+  *Example:* `Features/Documents/Commands/IndexDocument/IndexDocumentCommand.cs`
+* **Services:** Application services coordinating between domain and infrastructure
+  *Folder:* `Services`
+* **DTOs:** Input/output models for use cases
+  *Folder:* `DTOs` or within feature folders
+* **Validators:** Input validation (FluentValidation)
+  *Folder:* `Validators` or within feature folders
+* **Authorization:** Application-level policy enforcement
+  *Folder:* `Authorization`
+* **Interfaces:** Abstractions for external dependencies (repositories, external services)
+  *Folder:* `Interfaces`
+* **Events / Notifications:** Application events
+  *Folder:* `Events`
+* **Dependency Injection Extensions:**
+  *File:* `DependencyInjection.cs`
+
+**Dependencies:** Domain, Base
+**Dependency Rule:** ✓ Points inward to Domain
+
+**Critical Rules:**
+- No references to Presentation or Persistence projects
+- No Entity Framework, SQL, HTTP, or framework-specific code
+- All external dependencies accessed through interfaces defined here
+- Orchestrates domain entities but doesn't contain domain logic
+
+> **Use Case Pattern:** Each use case handles one specific application action (IndexDocument, SearchMotorcycles, RetrieveContext). Use cases call domain entities to execute business rules and use interfaces to persist changes.
+
+---
+
+## **3-Domain Layer (Entities - Core Business Rules)**
+
+**Purpose:** Pure business logic and rules. The heart of the application. Enterprise-wide business rules that could be shared across applications.
+
+**Projects:**
+
+* `MotorcycleRAG.Domain` → Concrete domain models and logic
+* `MotorcycleRAG.Contracts` → Shared interfaces that domain defines
+
+**Clean Architecture Alignment:** Entities layer (innermost circle) - most stable, highest-level policies.
+
+### **3a. Domain (Entities)**
+
+**Contents:**
+
+* **Entities:** Aggregate roots with identity
+  *Folder:* `Entities`
+  *Example:* `Document.cs`, `MotorcycleManual.cs`, `VectorChunk.cs`
+  *Rule:* Rich domain models with behavior, not anemic data bags
+* **Value Objects:** Immutable types without identity
+  *Folder:* `ValueObjects`
+  *Example:* `DocumentMetadata.cs`, `Embedding.cs`, `SearchQuery.cs`
+* **Domain Services:** Business rules spanning multiple entities
+  *Folder:* `Services`
+  *Example:* `DocumentChunkingService.cs`
+* **Domain Events:** State change notifications
+  *Folder:* `Events`
+  *Example:* `DocumentIndexedEvent.cs`
+* **Specifications:** Reusable business rules for querying
+  *Folder:* `Specifications`
+* **Factories:** Complex object construction with invariants
+  *Folder:* `Factories`
+* **Exceptions:** Domain-specific exceptions
+  *Folder:* `Exceptions`
+* **Enums:** Domain-specific enums types
+  *Folder:* `Exceptions`
+
+**Dependencies:** Base (minimal - only utilities/enums)
+**Dependency Rule:** ✓ No outward dependencies. Most stable layer.
+
+### **3b. Contracts (Abstractions Owned by Domain)**
+
+**Contents:**
+
+* **Repository Interfaces:** Persistence contracts defined by domain needs
+  *Folder:* `Repositories`
+  *Example:* `IDocumentRepository.cs`, `IVectorStoreRepository.cs`
+* **External Service Interfaces:** Contracts for external dependencies
+  *Folder:* `Services`
+  *Example:* `IEmbeddingService.cs`, `ILlmService.cs`
+* **DTOs (Domain Contracts):** Data contracts for crossing boundaries
+  *Folder:* `DTOs`
+
+**Dependencies:** Domain, Base
+
+**Why Contracts → Domain is Correct:**
+- Interfaces must reference Domain entities to define proper contracts
+- Example: `Task<Document> GetDocumentAsync(Guid id)` requires `Document` from Domain
+- Prevents duplicate model definitions between Contracts and Domain
+- Maintains single source of truth for domain entities
+- Both are in 3-Domain layer, conceptually part of the core domain
+
+**Critical Rules:**
+- NO references to any infrastructure concerns (EF Core, Azure, SQL, HTTP, etc.)
+- NO persistence logic - only interfaces defining what domain needs
+- CAN reference Domain entities and value objects for interface definitions
+- All domain logic testable without any infrastructure
+
+> **Key Principle:** If you removed all outer layers (UI, DB, frameworks), your domain layer should still compile and contain all core business rules. This is the "screaming architecture" - the domain tells you what the system does.
+
+---
+
+## **4-Persistence Layer (Frameworks & Drivers - Data)**
+
+**Purpose:** Implements data storage and retrieval. A detail that can be swapped.
+
+**Project:** `MotorcycleRAG.Persistence`
+
+**Clean Architecture Alignment:** Frameworks and Drivers layer - infrastructure detail.
+
+**Contents:**
+
+* **DbContext:** EF Core database context
+  *Folder:* `Contexts`
+  *File:* `MotorcycleRAGDbContext.cs`
+* **Entity Configurations:** EF Core mappings, relationships, constraints
+  *Folder:* `Configurations`
+  *Example:* `DocumentConfiguration.cs`
+* **Repositories:** Implementation of Domain.Contracts repository interfaces
+  *Folder:* `Repositories`
+  *Rule:* Implement interfaces from Domain.Contracts
+* **Migrations:** Database schema migrations
+  *Folder:* `Migrations`
+* **Seed Data:** Initial data seeding
+  *Folder:* `Seed`
+* **ReadModels / Projections:** Query-optimized models (CQRS read side)
+  *Folder:* `ReadModels`
+* **Vector Store Implementations:** Azure AI Search, Pinecone, etc.
+  *Folder:* `VectorStores`
+* **Dependency Injection Extensions:**
+  *File:* `DependencyInjection.cs`
+
+**Dependencies:** Domain, Contracts, Base
+**Dependency Rule:** ✓ Points inward to Domain
+
+**Critical Rules:**
+- NEVER reference Presentation or Application
+- Implements interfaces defined in Domain.Contracts
+- Contains all SQL, EF Core, vector database, and database-specific code
+- Can be swapped for Dapper, Cosmos DB, or file storage without affecting domain
+
+> **Dependency Inversion:** Domain defines `IDocumentRepository`, Persistence implements it. Application depends on the interface, not the implementation. This allows the database to be swapped without changing business logic.
+
+---
+
+## **5-Test Layer**
+
+**Purpose:** Comprehensive testing at all levels, proving independence of frameworks and testability.
+
+**Projects:**
+
+* `MotorcycleRAG.Domain.Tests` → Unit tests for domain logic
+* `MotorcycleRAG.Application.Tests` → Unit tests for use cases
+* `MotorcycleRAG.Api.Tests` → Integration tests for API endpoints
+* `MotorcycleRAG.IntegrationTests` → Full integration tests with database
+* `MotorcycleRAG.Playwright-UI.Tests` → End-to-end UI tests
+
+**Test Strategy:**
+
+* **Domain Tests (Unit):**
+  - Test entities, value objects, domain services
+  - NO external dependencies (DB, APIs, frameworks)
+  - Fast, isolated, pure logic tests
+  
+* **Application Tests (Unit):**
+  - Test use cases with mocked repositories
+  - Verify orchestration logic
+  - No real database or external services
+  
+* **Integration Tests:**
+  - Test full slices through Application → Domain → Persistence
+  - Use real database (in-memory or TestContainers)
+  - Verify data persistence and retrieval
+  
+* **API Tests:**
+  - Test Controllers → Application integration
+  - Use WebApplicationFactory
+  - Verify HTTP contracts
+  
+* **UI Tests (E2E):**
+  - Full user workflows
+  - Real browser automation
+
+**Contents:**
+
+* **Unit Tests:** Test individual classes in isolation
+* **Test Data Builders:** Fluent builders for test data
+  *Folder:* `Builders`
+* **Fixtures:** Shared test setup
+  *Folder:* `Fixtures`
+* **Mocks/Fakes:** Test doubles for external dependencies
+  *Folder:* `Mocks`
+
+> **Clean Architecture Benefit:** Because business logic is decoupled from infrastructure, you can test most of your system without databases, APIs, or UI frameworks.
+
+---
+
+## **6-Docs**
+
+**Purpose:** Internal documentation, architectural decisions, and design rationale.
+
+* `architecture-general.md` - This file
+* `adr/` - Architecture Decision Records
+* `diagrams/` - System diagrams (C4 model, sequence diagrams)
+* `rag-pipeline.md` - RAG pipeline documentation
+
+---
+
+## **7-Deployment**
+
+**Purpose:** CI/CD scripts, containerization, infrastructure as code.
+
+**Contents:**
+
+* **Docker:**
+  *Folder:* `docker/`
+  *Files:* `Dockerfile`, `docker-compose.yml`
+* **Azure Bicep/Terraform:**
+  *Folder:* `infrastructure/`
+* **CI/CD Pipelines:**
+  *Folder:* `.github/workflows/` or `azure-pipelines.yml`
+* **Scripts:**
+  *Folder:* `scripts/`
+
+**Azure SKU Rule:** When deploying to Azure, use free tier SKUs from the 1-year Azure free account:
+- App Service: F1 (Free)
+- SQL Database: Basic (if needed)
+- Storage: Standard GRS (5 GB free)
+- Azure Functions: Consumption plan
+- Azure AI Search: Free tier
+
+> **Clean Architecture Benefit:** Your deployment choices are details. You can deploy to Azure App Service, Container Apps, AKS, or even AWS without changing your application code.
+
+---
+
+
+## Secrets Management
+
+- Never use a .env file always use environment variabled. if they don't exist ask the user to create one for you
+- Never check secrets into source control or store them in plain text.
+- Appsettings files are not secure and secrets and passwords should never be stored there.
+- database connection strings are secrets and should never be stored in any file. Every for any reason. even as a fall back or generic string. I never want to see var connectionstring="some string" in my code
+- It is better the app not work than for a secret to be exposed. Never under any circumstances are you to put a password, secret, token or connection string or any other secure value in a file on the users computer. I mean NEVER!!!!!!!!!
+
+#### **1. Secrets Management (Immediate Actions)**
+*   **NEVER** hardcode secrets. Reject any code containing strings like `password=`, `ConnectionString=`, `api_key=`, `token=`, or `secret=` in plain text.
+*   **ALWAYS** retrieve secrets from a secure source. In code, this must be represented as a call to:
+    *   `Environment.GetEnvironmentVariable("SECRET_NAME")` (or language equivalent).
+    *   A secure service like `AzureKeyVault.getSecret("secret-name")`.
+*   **VALIDATE** that any configuration file (e.g., `appsettings.json`, `.env`) loaded in code is excluded from version control via `.gitignore`. If you see a secret in a config file in a code block, flag it.
+
+#### **2. Input Validation & Sanitization (For Every User Input)**
+*   **ESCAPE ALL INPUTS** contextually before use:
+    *   **For SQL:** Use **parameterized queries ONLY**. Never construct queries with string concatenation (`"SELECT ... WHERE id = " + userInput` is forbidden).
+    *   **For HTML/UI:** Encode output (e.g., `HtmlEncode()` in C#, `escape()` in Python) before rendering to prevent XSS.
+    *   **For OS Commands:** Avoid if possible. If necessary, use APIs that accept arguments as a list, not a single command string.
+*   **SANITIZE BEFORE LOGGING:** For any user-provided data going into a log, you MUST:
+    *   Replace newlines (`\n`, `\r`) and tabs with spaces.
+    *   Use structured logging with placeholders: `logger.LogInfo("User {UserId} logged in", sanitizedUserId)`.
+    *   **NEVER** do: `logger.LogInfo("User " + rawUserInput + " logged in")`.
+
+#### **3. Secure Communication & Configuration (Production-Readiness)**
+*   **ENFORCE HTTPS:** Any code configuring a web server must:
+    *   Redirect HTTP to HTTPS.
+    *   Set HSTS headers.
+
+#### **4. Authentication & Authorization (Access Controls)**
+*   **PRINCIPLE OF LEAST PRIVILEGE:** When defining roles or permissions, the default must be **no access**. Permissions are explicitly granted.
+*   **AUTHORIZE EVERY ACTION:** For any function that accesses data or performs an action, you MUST see an authorization check *after* the authentication check.
+    *   Example: `if (user.IsInRole("Admin")) { // allow action }` or `[Authorize(Roles="Admin")]` attribute.
+
+#### **5. Dependency & Operational Security**
+*   **FLAG VULNERABLE DEPENDENCIES:** If you generate a dependency file (e.g., `package.json`, `requirements.txt`), include a comment instructing the user to regularly scan for vulnerabilities using `npm audit`, `snyk test`, etc.
+*   **IMPLEMENT RATE LIMITING:** Enforce rate limiting on public APIs. Document requirements in code and infrastructure (example comment: `// TODO: enforce rate limiting - 60 reqs/min - use gateway or throttling middleware`). Advise implementers to configure API gateway rules or middleware to prevent abuse.
+### **Directives for Code Review & Threat Analysis**
+
+When reviewing code, act as a security auditor. For each function or endpoint, ask these questions:
+
+1.  **Spoofing (Authentication):** Is the user who they claim to be? Is there a clear login/authentication step?
+2.  **Tampering (Integrity):** Could an attacker change the data in transit or at rest? Is there input validation? Is HTTPS enforced?
+3.  **Repudiation (Logging):** Are there sufficient audit logs? Are logs tamper-resistant? Is user activity logged with a correlation ID instead of raw input?
+4.  **Information Disclosure (Secrets/Data):** Could this code leak secrets (e.g., in logs, errors)? Does it enforce authorization before returning sensitive data?
+5.  **Denial of Service (Resilience):** Could this be abused to crash the service? Is there resource limiting on expensive operations (file uploads, complex calculations)?
+6.  **Elevation of Privilege (Authorization):** Does the code check the user's permissions *every time* it accesses a resource? Can a user access another user's data by changing an ID (Insecure Direct Object Reference)?
+
+### **Incident Response Readiness (Code-Level)**
+*   **LOG FOR INCIDENTS:** Ensure logs are structured and include correlation IDs. This is non-negotiable for forensic analysis.
+*   **CLEAR ERROR HANDLING:** Code must catch exceptions gracefully without exposing stack traces or internal system details to the end-user.
+
+Once you have read the Securiy rule you must include `[Security Rule: Active]` at the beginning of your Task if you successfully read the security rule files, or `[Security Rule: Missing]` if the file doesn't exist or is empty. If security rule is missing. STOP all further work and warn the user about running unsecurly. Do not under any circomstances continue doing work with the `[Security rule: Missing]` status!. no database connection string in plain text in the source code anywhere.
+
+These rules are not optional and should be followed always

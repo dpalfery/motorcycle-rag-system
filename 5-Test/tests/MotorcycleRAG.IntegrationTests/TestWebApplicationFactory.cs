@@ -1,148 +1,155 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Identity.Web;
 using Moq;
+using MotorcycleRAG.API.Services;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.IntegrationTests;
 
 /// <summary>
-/// Test web application factory for integration tests
+/// Custom WebApplicationFactory for integration tests
+/// Provides test-specific configuration including dummy AzureAd settings
+/// and adds test authentication handler for simulating authenticated users
 /// </summary>
 public class TestWebApplicationFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Ensure SQL connection string requirement does not crash app startup in tests.
+        // This is NOT a secret and MUST NOT include embedded credentials.
+        Environment.SetEnvironmentVariable(
+            "SQL_CONNECTION_STRING",
+            "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Authentication=Active Directory Integrated;");
+
+        base.ConfigureWebHost(builder);
+
         builder.ConfigureAppConfiguration((context, config) =>
         {
-            // Override configuration for testing
+            // Add in-memory configuration with dummy AzureAd settings
+            // These are NOT secrets - they're dummy values for test purposes only
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["AzureAI:FoundryEndpoint"] = "https://test-foundry.cognitiveservices.azure.com/",
-                ["AzureAI:OpenAIEndpoint"] = "https://test-openai.openai.azure.com/",
-                ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
-                ["AzureAI:DocumentIntelligenceEndpoint"] = "https://test-document.cognitiveservices.azure.com/",
-                ["AzureAI:Models:ChatModel"] = "gpt-4o-mini",
-                ["AzureAI:Models:EmbeddingModel"] = "text-embedding-3-large",
-                ["AzureAI:Models:QueryPlannerModel"] = "gpt-4o",
-                ["AzureAI:Models:VisionModel"] = "gpt-4-vision-preview",
-                ["AzureAI:Models:MaxTokens"] = "4096",
-                ["AzureAI:Models:Temperature"] = "0.1",
-                ["Search:IndexName"] = "test-motorcycle-index",
-                ["Search:BatchSize"] = "100",
-                ["Search:MaxSearchResults"] = "50",
+                // AzureAd configuration - dummy values for testing (NOT secrets)
+                ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
+                ["AzureAd:Domain"] = "testdomain.onmicrosoft.com",
+                ["AzureAd:TenantId"] = "00000000-0000-0000-0000-000000000000",
+                ["AzureAd:ClientId"] = "11111111-1111-1111-1111-111111111111",
+                ["AzureAd:CallbackPath"] = "/signin-oidc",
+                ["AzureAd:SignedOutCallbackPath"] = "/signout-callback-oidc",
+                ["AzureAd:ClientSecret"] = "test-client-secret-not-a-real-secret",
+
+                // Ensure AppConfig is disabled for tests
+                ["AppConfig:Endpoint"] = string.Empty,
+
+                // Disable Application Insights for tests
                 ["ApplicationInsights:ConnectionString"] = "InstrumentationKey=test-key",
-                ["ApplicationInsights:EnableTelemetry"] = "false",
-                ["ApplicationInsights:ApplicationName"] = "MotorcycleRAG-Test",
-                ["Pipeline:MaxConcurrentExecutions"] = "3",
-                ["Pipeline:DefaultTimeout"] = "00:30:00",
-                ["Pipeline:MaxRetries"] = "3",
-                ["Pipeline:TempDirectory"] = "temp-test",
-                ["FileUpload:BaseUploadDirectory"] = "uploads-test",
-                ["FileUpload:MaxFileSizeBytes"] = "52428800",
-                ["FileUpload:MaxFilesPerBatch"] = "10",
-                ["PipelineMonitoring:AlertsEnabled"] = "false",
-                ["PipelineMonitoring:FailureRateThreshold"] = "0.10",
-                ["PipelineMonitoring:MaxActiveExecutions"] = "10",
-                ["ScheduledProcessing:DefaultCronExpression"] = "0 0 2 * * *",
-                ["ScheduledProcessing:IsEnabledByDefault"] = "true",
-                ["ScheduledProcessing:BaseDirectory"] = "data-test"
+                ["ApplicationInsights:EnableTelemetry"] = "false"
             });
         });
 
         builder.ConfigureServices(services =>
         {
-            // Replace Azure services with mocks for testing
-            ReplaceWithMocks(services);
-        });
+            // Replace production authentication with test authentication scheme
+            // This allows tests to use X-Test-Auth header for authentication
+            services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = "Test";
+                options.DefaultChallengeScheme = "Test";
+            })
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", options =>
+                {
+                    options.TimeProvider = TimeProvider.System;
+                });
 
-        builder.UseEnvironment("Testing");
+            // Ensure current user service exists by default (tests can override).
+            services.AddHttpContextAccessor();
+            services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+            // Provide safe default mocks for services that otherwise require SQL persistence.
+            // Individual tests may override these with their own registrations.
+            var userRepo = new Mock<IUserRepository>();
+            userRepo.Setup(r => r.GetUserByIdAsync(It.IsAny<string>()))
+                .ReturnsAsync((string userId) => new UserDTO
+                {
+                    Id = userId,
+                    Email = "test@example.com",
+                    DisplayName = "Test User",
+                    FirstName = "Test",
+                    LastName = "User",
+                    IsEnabled = true,
+                    CreatedDate = DateTime.UtcNow.AddDays(-1),
+                    LastUpdatedDate = DateTime.UtcNow,
+                    PlanId = "free-plan"
+                });
+            services.AddSingleton(userRepo.Object);
+
+            var usageTracking = new Mock<IUsageTrackingService>();
+            usageTracking.Setup(s => s.GetUsageByDateRangeAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+                .ReturnsAsync((string userId, DateTime start, DateTime end) =>
+                {
+                    var days = Math.Max(1, (int)Math.Floor((end - start).TotalDays));
+                    return Enumerable.Range(1, days).Select(i => new Usage
+                    {
+                        Id = i,
+                        UserId = userId,
+                        Endpoint = "/api/me/usage",
+                        HttpMethod = "GET",
+                        QueryId = string.Empty,
+                        RequestTime = start.AddDays(i - 1),
+                        DurationMs = 10,
+                        StatusCode = 200,
+                        IsSuccess = true
+                    }).ToArray();
+                });
+            usageTracking.Setup(s => s.RecordSuccessAsync(
+                    It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                    It.IsAny<string?>(), It.IsAny<long>(), It.IsAny<string?>(), It.IsAny<string?>()))
+                .ReturnsAsync(new Usage { Id = 1, IsSuccess = true, StatusCode = 200 });
+            usageTracking.Setup(s => s.RecordFailureAsync(
+                    It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
+                    It.IsAny<string?>(), It.IsAny<long>(), It.IsAny<string?>(), It.IsAny<string?>()))
+                .ReturnsAsync(new Usage { Id = 1, IsSuccess = false, StatusCode = 500 });
+            services.AddSingleton(usageTracking.Object);
+
+            var planPolicy = new Mock<IPlanPolicyService>();
+            planPolicy.Setup(s => s.HasExceededDailyLimitAsync(It.IsAny<string>(), It.IsAny<DateTime?>())).ReturnsAsync(false);
+            planPolicy.Setup(s => s.GetDailyUsageCountAsync(It.IsAny<string>(), It.IsAny<DateTime?>())).ReturnsAsync(0);
+            planPolicy.Setup(s => s.GetRemainingDailyRequestsAsync(It.IsAny<string>(), It.IsAny<DateTime?>())).ReturnsAsync(1000);
+            planPolicy.Setup(s => s.GetDailyRequestLimitAsync(It.IsAny<UserDTO>())).ReturnsAsync(1000);
+            services.AddSingleton(planPolicy.Object);
+
+            var planRepo = new Mock<IPlanRepository>();
+            planRepo.Setup(r => r.GetAllPlansAsync()).ReturnsAsync(Array.Empty<UserPlan>());
+            planRepo.Setup(r => r.GetPlanByIdAsync(It.IsAny<string>())).ReturnsAsync((UserPlan?)null);
+            planRepo.Setup(r => r.CreatePlanAsync(It.IsAny<UserPlan>())).ReturnsAsync((UserPlan p) => p);
+            planRepo.Setup(r => r.UpdatePlanAsync(It.IsAny<UserPlan>())).ReturnsAsync(true);
+            planRepo.Setup(r => r.DeletePlanAsync(It.IsAny<string>())).ReturnsAsync(true);
+            services.AddSingleton(planRepo.Object);
+
+            var userAdmin = new Mock<IUserAdminService>();
+            userAdmin.Setup(s => s.SetUserEnabledStatusAsync(It.IsAny<string>(), It.IsAny<bool>()))
+                .ReturnsAsync((string userId, bool enabled) => new UserDTO { Id = userId, IsEnabled = enabled, Email = "test@example.com" });
+            userAdmin.Setup(s => s.AssignPlanToUserAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ReturnsAsync((string userId, string planId) => new UserDTO { Id = userId, PlanId = planId, Email = "test@example.com" });
+            userAdmin.Setup(s => s.GetAllUsersAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Array.Empty<UserDTO>());
+            services.AddSingleton(userAdmin.Object);
+        });
     }
 
-    private void ReplaceWithMocks(IServiceCollection services)
+    protected override IHost CreateHost(IHostBuilder builder)
     {
-        // Remove existing Azure service registrations
-        var servicesToRemove = services
-            .Where(s => s.ServiceType.Namespace?.StartsWith("Azure") == true ||
-                       s.ServiceType == typeof(IAzureOpenAIClient) ||
-                       s.ServiceType == typeof(IAzureSearchClient) ||
-                       s.ServiceType == typeof(IDocumentIntelligenceClient) ||
-                       s.ServiceType == typeof(IMotorcycleIndexingService))
-            .ToList();
+        // Set environment to Testing
+        builder.UseEnvironment("Testing");
 
-        foreach (var service in servicesToRemove)
-        {
-            services.Remove(service);
-        }
-
-        // Add mock implementations
-        var mockAzureOpenAI = new Mock<IAzureOpenAIClient>();
-        mockAzureOpenAI.Setup(x => x.GenerateEmbeddingsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new float[] { 0.1f, 0.2f, 0.3f });
-
-        var mockAzureSearch = new Mock<IAzureSearchClient>();
-        mockAzureSearch.Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SearchResults
-            {
-                Results = new List<SearchResult>(),
-                TotalCount = 0
-            });
-
-        var mockDocumentIntelligence = new Mock<IDocumentIntelligenceClient>();
-        mockDocumentIntelligence.Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new DocumentAnalysisResult
-            {
-                Content = "Mock extracted content",
-                Pages = new List<DocumentPage>
-                {
-                    new DocumentPage
-                    {
-                        PageNumber = 1,
-                        Content = "Mock page content"
-                    }
-                }
-            });
-
-        var mockIndexingService = new Mock<IMotorcycleIndexingService>();
-        mockIndexingService.Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
-            .ReturnsAsync(new BatchIndexingResult
-            {
-                IsSuccessful = true,
-                DocumentsProcessed = 1,
-                IndexName = "test-index",
-                Message = "Mock indexing successful"
-            });
-
-        services.AddSingleton(mockAzureOpenAI.Object);
-        services.AddSingleton(mockAzureSearch.Object);
-        services.AddSingleton(mockDocumentIntelligence.Object);
-        services.AddSingleton(mockIndexingService.Object);
-
-        // Mock resilience and correlation services
-        var mockResilienceService = new Mock<IResilienceService>();
-        mockResilienceService.Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<ProcessedData>>>(), It.IsAny<CancellationToken>()))
-            .Returns<Func<Task<ProcessedData>>, CancellationToken>((func, token) => func());
-
-        mockResilienceService.Setup(x => x.ExecuteWithResilienceAsync(It.IsAny<Func<Task<BatchIndexingResult>>>(), It.IsAny<CancellationToken>()))
-            .Returns<Func<Task<BatchIndexingResult>>, CancellationToken>((func, token) => func());
-
-        var mockCorrelationService = new Mock<ICorrelationService>();
-        mockCorrelationService.Setup(x => x.GetOrGenerateCorrelationId())
-            .Returns("test-correlation-id");
-        mockCorrelationService.Setup(x => x.StartActivity(It.IsAny<string>()))
-            .Returns((IDisposable)null!);
-
-        services.AddSingleton(mockResilienceService.Object);
-        services.AddSingleton(mockCorrelationService.Object);
-
-        // Ensure logging is configured for tests
-        services.AddLogging(builder =>
-        {
-            builder.AddConsole();
-            builder.SetMinimumLevel(LogLevel.Warning);
-        });
+        return base.CreateHost(builder);
     }
 }

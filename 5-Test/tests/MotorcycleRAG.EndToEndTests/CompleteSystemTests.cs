@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Xunit;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.EndToEndTests;
 

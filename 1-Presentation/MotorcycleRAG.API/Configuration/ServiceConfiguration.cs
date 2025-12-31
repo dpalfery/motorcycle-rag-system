@@ -1,10 +1,13 @@
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Net.NetworkInformation;
 using MotorcycleRAG.Persistence.Azure;
-using MotorcycleRAG.Infrastructure.DataProcessing;
+using MotorcycleRAG.Persistence.Sql;
+using MotorcycleRAG.Persistence.Sql.Repositories;
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Persistence.DataProcessing;
 
 namespace MotorcycleRAG.API.Configuration;
 
@@ -19,14 +22,14 @@ public static class ServiceConfiguration
     public static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration)
     {
         // Configure Azure AI settings with validation
-        services.Configure<AzureAIConfiguration>(configuration.GetSection("AzureAI"));
-        services.Configure<SearchConfiguration>(configuration.GetSection("Search"));
-        services.Configure<TelemetryConfiguration>(configuration.GetSection("ApplicationInsights"));
+        services.Configure<AzureAIOptions>(configuration.GetSection("AzureAI"));
+        services.Configure<SearchOptions>(configuration.GetSection("Search"));
+        services.Configure<TelemetryOptions>(configuration.GetSection("ApplicationInsights"));
 
         // Add options validation
-        services.AddSingleton<IValidateOptions<AzureAIConfiguration>, AzureAIConfigurationValidator>();
-        services.AddSingleton<IValidateOptions<SearchConfiguration>, SearchConfigurationValidator>();
-        services.AddSingleton<IValidateOptions<TelemetryConfiguration>, TelemetryConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<AzureAIOptions>, AzureAIConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<TelemetryOptions>, TelemetryConfigurationValidator>();
 
         // Register Azure service clients (now implemented in Infrastructure layer)
         services.AddAzureServices(configuration);
@@ -42,6 +45,9 @@ public static class ServiceConfiguration
         // Register core service interfaces to concrete implementations in Application layer
         services.AddScoped<IMotorcycleRAGService, MotorcycleRAG.Application.Services.MotorcycleRAGService>();
         services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Application.Services.AgentOrchestrator>();
+        
+        // Add Application Insights TelemetryClient
+        services.AddApplicationInsightsTelemetry();
         services.AddSingleton<ITelemetryService, MotorcycleRAG.Persistence.Telemetry.TelemetryService>();
 
         return services;
@@ -53,9 +59,10 @@ public static class ServiceConfiguration
     public static IServiceCollection AddSearchAgents(this IServiceCollection services)
     {
         // Register search agent implementations from Application layer
+        // Note: QueryPlannerAgent is registered separately to avoid circular dependency
         services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.VectorSearchAgent>();
         services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.WebSearchAgent>();
-        services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();
+        services.AddScoped<IQueryPlannerAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();
 
         return services;
     }
@@ -66,8 +73,8 @@ public static class ServiceConfiguration
     public static IServiceCollection AddDataProcessors(this IServiceCollection services)
     {
         // Register data processor implementations from Persistence layer
-        services.AddScoped<IDataProcessor<CSVFile>, MotorcycleRAG.Infrastructure.DataProcessing.MotorcycleCSVProcessor>();
-        services.AddScoped<IDataProcessor<PDFDocument>, MotorcycleRAG.Infrastructure.DataProcessing.MotorcyclePDFProcessor>();
+        services.AddScoped<IDataProcessor<CSVFile>, MotorcycleCSVProcessor>();
+        services.AddScoped<IDataProcessor<PDFDocument>, MotorcyclePDFProcessor>();
 
         return services;
     }
@@ -132,6 +139,27 @@ public static class ServiceConfiguration
     }
 
     /// <summary>
+    /// Configure SQL persistence services
+    /// </summary>
+    public static IServiceCollection AddSqlPersistence(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Configure SQL options
+        services.Configure<MotorcycleRAG.Core.Options.SqlOptions>(configuration.GetSection("Sql"));
+        services.AddSingleton<IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions>, SqlOptionsValidator>();
+
+        // Register SQL connection factory
+        services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+
+        // Register repository implementations
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IUsageRepository, UsageRepository>();
+        services.AddScoped<IWebSourceRepository, WebSourceRepository>();
+        services.AddScoped<IAuditRepository, AuditRepository>();
+
+        return services;
+    }
+
+    /// <summary>
     /// Validate overall configuration health
     /// </summary>
     private static Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult ValidateConfiguration(IConfiguration configuration)
@@ -163,6 +191,31 @@ public static class ServiceConfiguration
         catch (Exception ex)
         {
             return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy("Configuration validation failed", ex);
+        }
+    }
+    
+    /// <summary>
+    /// Validator for SQL configuration options
+    /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
+    /// </summary>
+    public class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions>
+    {
+        public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Core.Options.SqlOptions options)
+        {
+            var failures = new List<string>();
+
+            if (options.CommandTimeout <= 0)
+                failures.Add("Sql:CommandTimeout must be greater than 0");
+
+            if (options.ConnectionTimeout <= 0)
+                failures.Add("Sql:ConnectionTimeout must be greater than 0");
+
+            if (options.MaxPoolSize <= 0)
+                failures.Add("Sql:MaxPoolSize must be greater than 0");
+
+            return failures.Count > 0
+                ? ValidateOptionsResult.Fail(failures)
+                : ValidateOptionsResult.Success;
         }
     }
 
@@ -198,9 +251,9 @@ public static class ServiceConfiguration
 /// <summary>
 /// Validator for Azure AI configuration
 /// </summary>
-public class AzureAIConfigurationValidator : IValidateOptions<AzureAIConfiguration>
+public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
 {
-    public ValidateOptionsResult Validate(string? name, AzureAIConfiguration options)
+    public ValidateOptionsResult Validate(string? name, AzureAIOptions options)
     {
         var failures = new List<string>();
 
@@ -247,9 +300,9 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIConfigurati
 /// <summary>
 /// Validator for Search configuration
 /// </summary>
-public class SearchConfigurationValidator : IValidateOptions<SearchConfiguration>
+public class SearchConfigurationValidator : IValidateOptions<SearchOptions>
 {
-    public ValidateOptionsResult Validate(string? name, SearchConfiguration options)
+    public ValidateOptionsResult Validate(string? name, SearchOptions options)
     {
         var failures = new List<string>();
 
@@ -271,9 +324,9 @@ public class SearchConfigurationValidator : IValidateOptions<SearchConfiguration
 /// <summary>
 /// Validator for Telemetry configuration
 /// </summary>
-public class TelemetryConfigurationValidator : IValidateOptions<TelemetryConfiguration>
+public class TelemetryConfigurationValidator : IValidateOptions<TelemetryOptions>
 {
-    public ValidateOptionsResult Validate(string? name, TelemetryConfiguration options)
+    public ValidateOptionsResult Validate(string? name, TelemetryOptions options)
     {
         var failures = new List<string>();
 

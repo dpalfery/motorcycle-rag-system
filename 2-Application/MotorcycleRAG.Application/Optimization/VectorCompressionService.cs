@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using MotorcycleRAG.Contracts.Optimization;
+
 
 namespace MotorcycleRAG.Application.Optimization;
 

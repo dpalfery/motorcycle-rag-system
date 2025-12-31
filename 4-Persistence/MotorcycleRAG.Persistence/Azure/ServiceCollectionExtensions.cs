@@ -3,13 +3,13 @@ using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Persistence.Resilience;
-using MotorcycleRAG.Infrastructure.Search;
-using MotorcycleRAG.Infrastructure.Resilience;
+using MotorcycleRAG.Persistence.Sql;
+using MotorcycleRAG.Persistence.Search;
 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Persistence.Azure;
 
@@ -26,34 +26,33 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         // Configure options from appsettings
-        services.Configure<AzureAIConfiguration>(
+        services.Configure<AzureAIOptions>(
             configuration.GetSection("AzureAI"));
-        services.Configure<SearchConfiguration>(
+        services.Configure<SearchOptions>(
             configuration.GetSection("Search"));
-        services.Configure<TelemetryConfiguration>(
+        services.Configure<TelemetryOptions>(
             configuration.GetSection("ApplicationInsights"));
-        services.Configure<ResilienceConfiguration>(
+        services.Configure<ResilienceOptions>(
             configuration.GetSection("Resilience"));
 
         // Validate configuration on startup
-        services.AddSingleton<IValidateOptions<AzureAIConfiguration>, AzureAIConfigurationValidator>();
-        services.AddSingleton<IValidateOptions<SearchConfiguration>, SearchConfigurationValidator>();
-        services.AddSingleton<IValidateOptions<ResilienceConfiguration>, ResilienceConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<AzureAIOptions>, AzureAIConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<ResilienceOptions>, ResilienceConfigurationValidator>();
 
         // Register resilience services as singletons
-        services.AddSingleton<IResilienceService, ResilienceService>();
-        services.AddSingleton<ICorrelationService, CorrelationService>();
+        services.AddSingleton<IResilienceService, MotorcycleRAG.Persistence.Resilience.ResilienceService>();
+        services.AddSingleton<ICorrelationService, MotorcycleRAG.Persistence.Resilience.CorrelationService>();
 
         // Register Azure service clients as singletons for connection pooling
-        services.AddSingleton<IAzureOpenAIClient, AzureOpenAIClientWrapper>();
-        // TODO: Fix compilation issues with search and document intelligence clients
-        // services.AddSingleton<IAzureSearchClient, AzureSearchClientWrapper>();
-        // services.AddSingleton<IDocumentIntelligenceClient, DocumentIntelligenceClientWrapper>();
+        services.AddSingleton<IAzureOpenAIClient, MotorcycleRAG.Persistence.Azure.AzureOpenAIClientWrapper>();
+        services.AddSingleton<IAzureSearchClient, MotorcycleRAG.Persistence.Azure.AzureSearchClientWrapper>();
+        services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
 
         // Register SearchIndexClient for direct Azure Search operations
         services.AddSingleton<SearchIndexClient>(serviceProvider =>
         {
-            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIConfiguration>>().Value;
+            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIOptions>>().Value;
             var credential = new DefaultAzureCredential();
             return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), credential);
         });
@@ -61,11 +60,11 @@ public static class ServiceCollectionExtensions
         // Register indexing service
         services.AddScoped<IMotorcycleIndexingService, MotorcycleIndexingService>();
 
-        // Register search agents
-        services.AddScoped<ISearchAgent, VectorSearchAgent>();
-
         // Configure HTTP clients for external services
         services.AddHttpClient();
+
+        // Register SQL persistence services
+        services.AddSqlPersistenceServices(configuration);
 
         return services;
     }
@@ -74,9 +73,9 @@ public static class ServiceCollectionExtensions
 /// <summary>
 /// Validates Azure AI configuration on startup
 /// </summary>
-public class AzureAIConfigurationValidator : IValidateOptions<AzureAIConfiguration>
+public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
 {
-    public ValidateOptionsResult Validate(string? name, AzureAIConfiguration options)
+    public ValidateOptionsResult Validate(string? name, AzureAIOptions options)
     {
         var failures = new List<string>();
 
@@ -122,9 +121,9 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIConfigurati
 /// <summary>
 /// Validates Search configuration on startup
 /// </summary>
-public class SearchConfigurationValidator : IValidateOptions<SearchConfiguration>
+public class SearchConfigurationValidator : IValidateOptions<SearchOptions>
 {
-    public ValidateOptionsResult Validate(string? name, SearchConfiguration options)
+    public ValidateOptionsResult Validate(string? name, SearchOptions options)
     {
         var failures = new List<string>();
 
@@ -146,9 +145,9 @@ public class SearchConfigurationValidator : IValidateOptions<SearchConfiguration
 /// <summary>
 /// Validates Resilience configuration on startup
 /// </summary>
-public class ResilienceConfigurationValidator : IValidateOptions<ResilienceConfiguration>
+public class ResilienceConfigurationValidator : IValidateOptions<ResilienceOptions>
 {
-    public ValidateOptionsResult Validate(string? name, ResilienceConfiguration options)
+    public ValidateOptionsResult Validate(string? name, ResilienceOptions options)
     {
         var failures = new List<string>();
 

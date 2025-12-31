@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Requests;
 using MotorcycleRAG.Contracts.Responses;
 using System.Net.Http.Json;
 using System.Text.Json;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.EndToEndTests;
 

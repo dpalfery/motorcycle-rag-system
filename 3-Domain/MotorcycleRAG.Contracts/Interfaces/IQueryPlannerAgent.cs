@@ -1,14 +1,15 @@
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
-/// Interface for query planning agents
+/// Defines the contract for query planner agents
 /// </summary>
 public interface IQueryPlannerAgent : ISearchAgent
 {
     /// <summary>
-    /// Generates a query plan for the given query
+    /// Plans a search strategy for the given query
     /// </summary>
-    Task<QueryPlan> GeneratePlanAsync(string query, SearchOptions options);
+    Task<string> PlanQueryAsync(string userQuery);
 }

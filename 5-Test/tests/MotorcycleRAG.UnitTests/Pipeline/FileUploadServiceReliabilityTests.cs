@@ -1,11 +1,11 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Xunit;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.UnitTests.Pipeline;
 
@@ -44,7 +44,7 @@ public class FileUploadServiceReliabilityTests
     {
         // Arrange
         var content = "Make,Model,Year\nHonda,CBR600RR,2023";
-        var file = CreateMockFile("test.csv", content, "text/csv");
+        var (stream, metadata) = CreateMockFile("test.csv", content, "text/csv");
         var options = new FileUploadOptions
         {
             UploadDirectory = "test-uploads",
@@ -53,7 +53,7 @@ public class FileUploadServiceReliabilityTests
         };
 
         // Act
-        var result = await _service.UploadFileAsync(file, options);
+        var result = await _service.UploadFileAsync(stream, metadata, options);
 
         // Assert
         Assert.True(result.IsValid);
@@ -74,7 +74,7 @@ public class FileUploadServiceReliabilityTests
     {
         // Arrange
         var content = "%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj";
-        var file = CreateMockFile("manual.pdf", content, "application/pdf");
+        var (stream, metadata) = CreateMockFile("manual.pdf", content, "application/pdf");
         var options = new FileUploadOptions
         {
             UploadDirectory = "test-uploads",
@@ -83,7 +83,7 @@ public class FileUploadServiceReliabilityTests
         };
 
         // Act
-        var result = await _service.UploadFileAsync(file, options);
+        var result = await _service.UploadFileAsync(stream, metadata, options);
 
         // Assert
         Assert.True(result.IsValid);
@@ -101,14 +101,14 @@ public class FileUploadServiceReliabilityTests
     {
         // Arrange
         var largeContent = new string('x', 100 * 1024 * 1024); // 100MB content
-        var file = CreateMockFile("large.csv", largeContent, "text/csv");
+        var (stream, metadata) = CreateMockFile("large.csv", largeContent, "text/csv");
         var options = new FileUploadOptions
         {
             MaxFileSizeBytes = 50 * 1024 * 1024 // 50MB limit
         };
 
         // Act
-        var result = await _service.UploadFileAsync(file, options);
+        var result = await _service.UploadFileAsync(stream, metadata, options);
 
         // Assert
         Assert.False(result.IsValid);
@@ -120,14 +120,14 @@ public class FileUploadServiceReliabilityTests
     {
         // Arrange
         var content = "Invalid file content";
-        var file = CreateMockFile("test.txt", content, "text/plain");
+        var (stream, metadata) = CreateMockFile("test.txt", content, "text/plain");
         var options = new FileUploadOptions
         {
             AllowedFileExtensions = new HashSet<string> { ".csv", ".pdf" }
         };
 
         // Act
-        var result = await _service.UploadFileAsync(file, options);
+        var result = await _service.UploadFileAsync(stream, metadata, options);
 
         // Assert
         Assert.False(result.IsValid);
@@ -138,11 +138,11 @@ public class FileUploadServiceReliabilityTests
     public async Task UploadFileAsync_WithEmptyFile_ShouldFail()
     {
         // Arrange
-        var file = CreateMockFile("empty.csv", "", "text/csv");
+        var (stream, metadata) = CreateMockFile("empty.csv", "", "text/csv");
         var options = new FileUploadOptions();
 
         // Act
-        var result = await _service.UploadFileAsync(file, options);
+        var result = await _service.UploadFileAsync(stream, metadata, options);
 
         // Assert
         Assert.False(result.IsValid);
@@ -153,7 +153,7 @@ public class FileUploadServiceReliabilityTests
     public async Task UploadFilesAsync_WithMixedValidAndInvalidFiles_ShouldProcessAll()
     {
         // Arrange
-        var files = new List<IFormFile>
+        var files = new List<(Stream stream, FileMetadata metadata)>
         {
             CreateMockFile("valid.csv", "Make,Model\nHonda,CBR", "text/csv"),
             CreateMockFile("invalid.txt", "Invalid content", "text/plain"),
@@ -189,14 +189,14 @@ public class FileUploadServiceReliabilityTests
     {
         // Arrange
         var corruptedContent = "This is not a PDF file";
-        var file = CreateMockFile("corrupted.pdf", corruptedContent, "application/pdf");
+        var (stream, metadata) = CreateMockFile("corrupted.pdf", corruptedContent, "application/pdf");
         var options = new FileUploadOptions
         {
             ValidateFileContent = true
         };
 
         // Act
-        var result = await _service.ValidateFileAsync(file, options);
+        var result = await _service.ValidateFileAsync(stream, metadata, options);
 
         // Assert
         Assert.False(result.IsValid);
@@ -208,14 +208,14 @@ public class FileUploadServiceReliabilityTests
     {
         // Arrange
         var malformedContent = "NoCommasOrSemicolonsHere";
-        var file = CreateMockFile("malformed.csv", malformedContent, "text/csv");
+        var (stream, metadata) = CreateMockFile("malformed.csv", malformedContent, "text/csv");
         var options = new FileUploadOptions
         {
             ValidateFileContent = true
         };
 
         // Act
-        var result = await _service.ValidateFileAsync(file, options);
+        var result = await _service.ValidateFileAsync(stream, metadata, options);
 
         // Assert
         Assert.True(result.IsValid); // Should still be valid but with warnings
@@ -273,33 +273,26 @@ public class FileUploadServiceReliabilityTests
     {
         // Arrange
         var content = fileName.EndsWith(".pdf") ? "%PDF-1.4 content" : "test,content";
-        var file = CreateMockFile(fileName, content, contentType);
+        var (stream, metadata) = CreateMockFile(fileName, content, contentType);
         var options = new FileUploadOptions();
 
         // Act
-        var result = await _service.ValidateFileAsync(file, options);
+        var result = await _service.ValidateFileAsync(stream, metadata, options);
 
         // Assert
         Assert.Equal(expectedType, result.DetectedFileType);
     }
 
-    private IFormFile CreateMockFile(string fileName, string content, string contentType)
+    private (Stream stream, FileMetadata metadata) CreateMockFile(string fileName, string content, string contentType)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(content);
         var stream = new MemoryStream(bytes);
-        
-        var file = new Mock<IFormFile>();
-        file.Setup(f => f.FileName).Returns(fileName);
-        file.Setup(f => f.ContentType).Returns(contentType);
-        file.Setup(f => f.Length).Returns(bytes.Length);
-        file.Setup(f => f.OpenReadStream()).Returns(stream);
-        file.Setup(f => f.CopyToAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
-            .Returns((Stream target, CancellationToken token) =>
-            {
-                stream.Position = 0;
-                return stream.CopyToAsync(target, token);
-            });
-
-        return file.Object;
+        var metadata = new FileMetadata
+        {
+            FileName = fileName,
+            ContentType = contentType,
+            ContentLength = bytes.Length
+        };
+        return (stream, metadata);
     }
 }

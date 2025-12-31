@@ -1,4 +1,6 @@
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Entities;
+
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 

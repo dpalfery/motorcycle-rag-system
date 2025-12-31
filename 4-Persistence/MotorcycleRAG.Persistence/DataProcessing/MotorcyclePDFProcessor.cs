@@ -1,11 +1,14 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MotorcycleRAG.Infrastructure.DataProcessing;
+namespace MotorcycleRAG.Persistence.DataProcessing;
 
 /// <summary>
 /// PDF processor for motorcycle manuals and documentation with semantic chunking and multimodal support
@@ -16,7 +19,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly IAzureSearchClient _searchClient;
     private readonly PDFProcessingConfiguration _config;
-    private readonly AzureAIConfiguration _azureConfig;
+    private readonly AzureAIOptions _azureConfig;
     private readonly ILogger<MotorcyclePDFProcessor> _logger;
 
     public MotorcyclePDFProcessor(
@@ -24,7 +27,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
         IAzureOpenAIClient openAIClient,
         IAzureSearchClient searchClient,
         IOptions<PDFProcessingConfiguration> config,
-        IOptions<AzureAIConfiguration> azureConfig,
+        IOptions<AzureAIOptions> azureConfig,
         ILogger<MotorcyclePDFProcessor> logger)
     {
         _documentClient = documentClient ?? throw new ArgumentNullException(nameof(documentClient));
@@ -146,7 +149,202 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
         _logger.LogDebug("Document Intelligence extraction completed. Pages: {PageCount}, Tables: {TableCount}",
             analysisResult.Pages.Length, analysisResult.Tables.Length);
 
+        // T053/T054: Enrich the analysis result with page/section/table metadata
+        // This populates locator fields that the Document Intelligence wrapper doesn't provide
+        EnrichDocumentAnalysisResult(analysisResult);
+
         return analysisResult;
+    }
+
+    /// <summary>
+    /// T053/T054: Enriches DocumentAnalysisResult with page/section/table locator metadata
+    /// Populates fields that IDocumentIntelligenceClient doesn't provide using regex/heuristics
+    /// </summary>
+    private void EnrichDocumentAnalysisResult(DocumentAnalysisResult analysisResult)
+    {
+        _logger.LogDebug("Enriching document analysis result with locator metadata");
+
+        // Enrich page-level section metadata
+        foreach (var page in analysisResult.Pages)
+        {
+            EnrichPageMetadata(page);
+        }
+
+        // Enrich table locator metadata
+        foreach (var table in analysisResult.Tables)
+        {
+            EnrichTableMetadata(table, analysisResult.Pages);
+        }
+
+        _logger.LogDebug("Document enrichment completed");
+    }
+
+    /// <summary>
+    /// T053/T054: Enriches a single page with section metadata (PrimarySection, SectionHeadings, SectionLevel)
+    /// Uses regex pattern matching to detect document structure
+    /// </summary>
+    private void EnrichPageMetadata(DocumentPage page)
+    {
+        _logger.LogDebug("EnrichPageMetadata: Before enrichment - PrimarySection={PrimarySection}, SectionLevel={SectionLevel}",
+            page.PrimarySection, page.SectionLevel);
+
+        if (string.IsNullOrWhiteSpace(page.Content))
+        {
+            page.PrimarySection = "Empty Page";
+            page.SectionHeadings = Array.Empty<string>();
+            page.SectionLevel = 0;
+            _logger.LogDebug("EnrichPageMetadata: Empty page, set SectionLevel=0");
+            return;
+        }
+
+        // Only enrich if metadata is not already set (for test data with pre-enriched metadata)
+        if (page.SectionLevel > 0)
+        {
+            // Use pre-set values if SectionLevel is > 0
+            _logger.LogDebug("EnrichPageMetadata: Skipped enrichment, using pre-set values - PrimarySection={PrimarySection}, SectionLevel={SectionLevel}",
+                page.PrimarySection, page.SectionLevel);
+        }
+        else if (string.IsNullOrEmpty(page.PrimarySection))
+        {
+            // Extract section metadata using regex/heuristics
+            var (primarySection, headings, level) = ExtractSectionMetadata(page.Content);
+
+            page.PrimarySection = primarySection;
+            page.SectionHeadings = headings;
+            page.SectionLevel = level;
+
+            _logger.LogDebug("EnrichPageMetadata: Enriched - PrimarySection={PrimarySection}, SectionLevel={SectionLevel}",
+                page.PrimarySection, page.SectionLevel);
+        }
+        else
+        {
+            _logger.LogDebug("EnrichPageMetadata: Skipped enrichment, using pre-set PrimarySection - PrimarySection={PrimarySection}, SectionLevel={SectionLevel}",
+                page.PrimarySection, page.SectionLevel);
+        }
+    }
+
+    /// <summary>
+    /// T053/T054: Enriches table with locator metadata (StartPageNumber, EndPageNumber, Caption, Section)
+    /// Uses heuristics from table cells and surrounding context
+    /// </summary>
+    private void EnrichTableMetadata(DocumentTable table, DocumentPage[] pages)
+    {
+        // Determine page range from cells
+        if (table.Cells.Length > 0)
+        {
+            var minPage = table.Cells.Min(c => c.PageNumber);
+            var maxPage = table.Cells.Max(c => c.PageNumber);
+            
+            // If cells have page numbers, use them; otherwise default to 1
+            table.StartPageNumber = minPage > 0 ? minPage : 1;
+            table.EndPageNumber = maxPage > 0 ? maxPage : table.StartPageNumber;
+        }
+        else
+        {
+            // Fallback for tables with no cells
+            table.StartPageNumber = 1;
+            table.EndPageNumber = 1;
+        }
+
+        // Extract caption from first header row or nearby text
+        table.Caption = ExtractTableCaption(table);
+
+        // Determine section from page context or table content
+        table.Section = DetermineTableSection(table, pages);
+    }
+
+    /// <summary>
+    /// T053/T054: Extracts table caption from header row cells using heuristics
+    /// Looks for patterns like "Table 1.1:", "Table:", "Table of", etc.
+    /// </summary>
+    private string ExtractTableCaption(DocumentTable table)
+    {
+        // Check header cells for caption-like content
+        var headerCells = table.Cells.Where(c => c.IsHeader).OrderBy(c => c.RowIndex).ThenBy(c => c.ColumnIndex).ToArray();
+        
+        if (headerCells.Length > 0)
+        {
+            // Look for caption patterns in first few header cells
+            var captionPatterns = new[]
+            {
+                @"^Table\s+\d+[\.\d]*\s*:\s*(.+)$",  // "Table 1.1: Description"
+                @"^Table\s*:\s*(.+)$",                // "Table: Description"
+                @"^Table\s+(.+)$",                    // "Table Description"
+                @"^Table\s+of\s+(.+)$"                // "Table of Contents"
+            };
+
+            foreach (var cell in headerCells.Take(3))
+            {
+                var content = cell.Content.Trim();
+                foreach (var pattern in captionPatterns)
+                {
+                    var match = Regex.Match(content, pattern, RegexOptions.IgnoreCase);
+                    if (match.Success)
+                    {
+                        return match.Groups[1].Value.Trim();
+                    }
+                }
+            }
+
+            // If no caption pattern found, use first header cell content as fallback
+            if (!string.IsNullOrWhiteSpace(headerCells[0].Content))
+            {
+                var content = headerCells[0].Content.Trim();
+                // Only use as caption if it's not a standard column name
+                var standardColumns = new[] { "Item", "Description", "Value", "Unit", "Note", "Remark" };
+                if (!standardColumns.Any(sc => content.Equals(sc, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return content;
+                }
+            }
+        }
+
+        // Fallback: look for caption in first row of all cells
+        var firstRowCells = table.Cells.Where(c => c.RowIndex == 0).OrderBy(c => c.ColumnIndex).ToArray();
+        if (firstRowCells.Length > 0)
+        {
+            var combinedFirstRow = string.Join(" ", firstRowCells.Select(c => c.Content.Trim()));
+            if (combinedFirstRow.Length < 100) // Only if reasonable length
+            {
+                return combinedFirstRow;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// T053/T054: Determines the section where a table is located
+    /// Uses page context and table content heuristics
+    /// </summary>
+    private string DetermineTableSection(DocumentTable table, DocumentPage[] pages)
+    {
+        // Try to get section from the page where the table starts
+        var startPage = pages.FirstOrDefault(p => p.PageNumber == table.StartPageNumber);
+        if (startPage != null && !string.IsNullOrWhiteSpace(startPage.PrimarySection))
+        {
+            return startPage.PrimarySection;
+        }
+
+        // Fallback: analyze table content to infer section
+        var allCellText = string.Join(" ", table.Cells.Select(c => c.Content.ToLowerInvariant()));
+        
+        if (allCellText.Contains("specification") || allCellText.Contains("spec"))
+            return "Specifications";
+        if (allCellText.Contains("maintenance") || allCellText.Contains("service"))
+            return "Maintenance";
+        if (allCellText.Contains("torque"))
+            return "Torque Specifications";
+        if (allCellText.Contains("dimension"))
+            return "Dimensions";
+        if (allCellText.Contains("capacity"))
+            return "Capacities";
+        if (allCellText.Contains("wiring") || allCellText.Contains("circuit"))
+            return "Electrical";
+        if (allCellText.Contains("part") || allCellText.Contains("component"))
+            return "Parts List";
+        
+        return "Table Data";
     }
 
     private async Task<List<string>> ProcessMultimodalContentAsync(PDFDocument input, DocumentAnalysisResult analysisResult)
@@ -210,7 +408,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         // Process tables separately
         foreach (var table in analysisResult.Tables)
         {
-            var tableChunk = CreateTableChunk(table, input, chunkId++);
+            var tableChunk = CreateTableChunk(table, analysisResult.Pages, input, chunkId++);
             chunks.Add(tableChunk);
         }
 
@@ -262,18 +460,32 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
             foreach (var chunkContent in sectionChunks)
             {
+                // Determine the section title to use - prioritize detected section, fallback to page metadata
+                var sectionTitle = !string.IsNullOrEmpty(section.Title) ? section.Title : page.PrimarySection;
+                
                 var chunk = new PDFChunk
                 {
                     Id = $"{input.FileName}_page_{page.PageNumber}_chunk_{chunkId++}",
                     Content = chunkContent,
                     PageNumber = page.PageNumber,
-                    Section = section.Title,
+                    Section = sectionTitle,
                     Type = ChunkType.Text,
                     Metadata = new Dictionary<string, object>
                     {
                         ["PageWidth"] = page.Width,
                         ["PageHeight"] = page.Height,
-                        ["SectionType"] = section.Type
+                        ["SectionType"] = section.Type,
+                        // T053: Add page/section metadata for locator tracking
+                        // Use pre-enriched metadata if available, otherwise use detected section
+                        ["PageNumber"] = page.PageNumber,
+                        ["PageRange"] = $"{page.PageNumber}-{page.PageNumber}",
+                        ["PrimarySection"] = !string.IsNullOrEmpty(page.PrimarySection) ? page.PrimarySection : sectionTitle,
+                        ["SectionLevel"] = page.SectionLevel > 0 ? page.SectionLevel : (section.Level > 0 ? section.Level : 0),
+                        ["AllSectionHeadings"] = page.SectionHeadings != null && page.SectionHeadings.Length > 0
+                            ? page.SectionHeadings
+                            : (section.Level > 0 && sectionTitle != null ? new[] { sectionTitle } : Array.Empty<string>()),
+                        ["SectionTitle"] = sectionTitle ?? string.Empty,
+                        ["ChunkIndex"] = chunkId - startingChunkId - 1
                     }
                 };
                 chunks.Add(chunk);
@@ -283,72 +495,114 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         return chunks;
     }
 
-    private PDFChunk CreateTableChunk(DocumentTable table, PDFDocument input, int chunkId)
+    private PDFChunk CreateTableChunk(DocumentTable table, DocumentPage[] pages, PDFDocument input, int chunkId)
     {
         var tableContent = new StringBuilder();
+        
+        // T054: Preserve table structure - include caption and structured format
+        if (!string.IsNullOrEmpty(table.Caption))
+        {
+            tableContent.AppendLine($"Table: {table.Caption}");
+            tableContent.AppendLine();
+        }
+        
         tableContent.AppendLine($"Table with {table.RowCount} rows and {table.ColumnCount} columns:");
+        tableContent.AppendLine();
 
-        // Convert table to readable text format
+        // T054: Convert table to structured text format preserving rows/columns
         var rows = table.Cells.GroupBy(c => c.RowIndex).OrderBy(g => g.Key);
         foreach (var row in rows)
         {
             var cells = row.OrderBy(c => c.ColumnIndex).Select(c => c.Content);
             tableContent.AppendLine(string.Join(" | ", cells));
+            
+            // Add separator line after header row for readability
+            if (row.Any(c => c.IsHeader))
+            {
+                var separator = string.Join("-+-", cells.Select(_ => new string('-', 20)));
+                tableContent.AppendLine(separator);
+            }
         }
+
+        // T053: Determine page range for table
+        var pageRange = table.StartPageNumber == table.EndPageNumber
+            ? $"{table.StartPageNumber}"
+            : $"{table.StartPageNumber}-{table.EndPageNumber}";
+        
+        // T053: Use table section or fallback to "Table Data"
+        var section = !string.IsNullOrEmpty(table.Section) ? table.Section : "Table Data";
+
+        // Best-effort: inherit section hierarchy from the page where the table starts
+        var startPage = pages.FirstOrDefault(p => p.PageNumber == table.StartPageNumber);
+        var sectionLevel = startPage?.SectionLevel ?? 0;
+        var sectionHeadings = startPage?.SectionHeadings ?? Array.Empty<string>();
 
         return new PDFChunk
         {
             Id = $"{input.FileName}_table_{chunkId}",
             Content = tableContent.ToString(),
-            PageNumber = 0, // Tables might span multiple pages
-            Section = "Table Data",
+            PageNumber = table.StartPageNumber, // Use start page as primary page
+            Section = section,
             Type = ChunkType.Table,
             Metadata = new Dictionary<string, object>
             {
                 ["RowCount"] = table.RowCount,
                 ["ColumnCount"] = table.ColumnCount,
-                ["CellCount"] = table.Cells.Length
+                ["CellCount"] = table.Cells.Length,
+                // T053: Add page/section locator metadata for tables
+                ["PageNumber"] = table.StartPageNumber,
+                ["PageRange"] = pageRange,
+                ["EndPageNumber"] = table.EndPageNumber,
+                ["Section"] = section,
+                ["SectionLevel"] = sectionLevel,
+                ["AllSectionHeadings"] = sectionHeadings,
+                ["TableCaption"] = table.Caption,
+                ["IsMultiPageTable"] = table.StartPageNumber != table.EndPageNumber
             }
         };
     }
 
+    /// <summary>
+    /// T053: Detects sections with hierarchy level tracking for locator metadata
+    /// </summary>
     private List<DocumentSection> DetectSections(string content)
     {
         var sections = new List<DocumentSection>();
 
-        // Simple section detection based on common patterns in motorcycle manuals
+        // T053: Enhanced section detection with hierarchy levels for motorcycle manuals
         var headerPatterns = new[]
         {
-            @"^\d+\.\s+(.+)$", // Numbered sections (1. Introduction)
-            @"^([A-Z][A-Z\s]+)$", // ALL CAPS headers
-            @"^([A-Z][a-z\s]+):$", // Title case with colon
-            @"^(CHAPTER\s+\d+.*)$", // Chapter headers
-            @"^(SECTION\s+\d+.*)$" // Section headers
+            new { Pattern = @"^(CHAPTER\s+\d+.*)$", Level = 1, Name = "Chapter" },
+            new { Pattern = @"^(\d+\.\s+.+)$", Level = 2, Name = "Section" }, // Numbered sections (1. Introduction)
+            new { Pattern = @"^([A-Z][A-Z\s]+)$", Level = 2, Name = "Header" }, // ALL CAPS headers
+            new { Pattern = @"^([A-Z][a-z\s]+):$", Level = 3, Name = "Subsection" }, // Title case with colon
+            new { Pattern = @"^(SECTION\s+\d+.*)$", Level = 2, Name = "Section" } // Section headers
         };
 
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        var currentSection = new DocumentSection { Title = "Introduction", Content = new StringBuilder(), Type = "General" };
+        DocumentSection? currentSection = null;
 
         foreach (var line in lines)
         {
             var isHeader = false;
-            foreach (var pattern in headerPatterns)
+            foreach (var headerDef in headerPatterns)
             {
-                var match = Regex.Match(line.Trim(), pattern, RegexOptions.Multiline);
+                var match = Regex.Match(line.Trim(), headerDef.Pattern, RegexOptions.Multiline);
                 if (match.Success)
                 {
                     // Save current section
-                    if (currentSection.Content.Length > 0)
+                    if (currentSection != null && currentSection.Content.Length > 0)
                     {
                         sections.Add(currentSection);
                     }
 
-                    // Start new section
+                    // Start new section with hierarchy level
                     currentSection = new DocumentSection
                     {
                         Title = match.Groups[1].Value.Trim(),
                         Content = new StringBuilder(),
-                        Type = DetermineContentType(match.Groups[1].Value)
+                        Type = DetermineContentType(match.Groups[1].Value),
+                        Level = headerDef.Level
                     };
                     isHeader = true;
                     break;
@@ -357,17 +611,81 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
             if (!isHeader)
             {
+                // If no section has been started yet, create a default "General Content" section
+                if (currentSection == null)
+                {
+                    currentSection = new DocumentSection
+                    {
+                        Title = "General Content",
+                        Content = new StringBuilder(),
+                        Type = "General",
+                        Level = 0
+                    };
+                }
                 currentSection.Content.AppendLine(line);
             }
         }
 
         // Add the last section
-        if (currentSection.Content.Length > 0)
+        if (currentSection != null && currentSection.Content.Length > 0)
         {
             sections.Add(currentSection);
         }
 
         return sections;
+    }
+
+    /// <summary>
+    /// T053: Extracts section headings and hierarchy from page content
+    /// Returns primary section, all headings, and hierarchy level
+    /// </summary>
+    private (string primarySection, string[] headings, int level) ExtractSectionMetadata(string content)
+    {
+        var headings = new List<string>();
+        var primarySection = string.Empty;
+        var maxLevel = int.MaxValue;
+        
+        // Header patterns with hierarchy levels
+        var headerPatterns = new[]
+        {
+            new { Pattern = @"^(CHAPTER\s+\d+.*)$", Level = 1 },
+            new { Pattern = @"^(\d+\.\s+.+)$", Level = 2 },
+            new { Pattern = @"^([A-Z][A-Z\s]+)$", Level = 2 },
+            new { Pattern = @"^([A-Z][a-z\s]+):$", Level = 3 },
+            new { Pattern = @"^(SECTION\s+\d+.*)$", Level = 2 }
+        };
+        
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        
+        foreach (var line in lines)
+        {
+            foreach (var headerDef in headerPatterns)
+            {
+                var match = Regex.Match(line.Trim(), headerDef.Pattern, RegexOptions.Multiline);
+                if (match.Success)
+                {
+                    var heading = match.Groups[1].Value.Trim();
+                    headings.Add(heading);
+                    
+                    // Track primary section (highest level heading)
+                    if (primarySection == string.Empty || headerDef.Level < maxLevel)
+                    {
+                        primarySection = heading;
+                        maxLevel = headerDef.Level;
+                    }
+                    
+                    break;
+                }
+            }
+        }
+        
+        // Fallback if no headings found
+        if (primarySection == string.Empty)
+        {
+            primarySection = "General Content";
+        }
+        
+        return (primarySection, headings.ToArray(), maxLevel == int.MaxValue ? 0 : maxLevel);
     }
 
     private string DetermineContentType(string sectionTitle)
@@ -469,6 +787,13 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                     new[] { currentChunk.Content, nextChunk.Content },
                     CancellationToken.None);
 
+                if (embeddings.Length < 2)
+                {
+                    _logger.LogWarning("Failed to generate embeddings for similarity comparison between chunks {CurrentId} and {NextId}", currentChunk.Id, nextChunk.Id);
+                    refinedChunks.Add(currentChunk);
+                    continue;
+                }
+
                 var similarity = CalculateCosineSimilarity(embeddings[0], embeddings[1]);
 
                 // If chunks are very similar and from the same section, consider merging
@@ -538,17 +863,82 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         _logger.LogDebug("Embedding generation completed");
     }
 
+    /// <summary>
+    /// T053/T054: Creates MotorcycleDocument objects with locator metadata for citation support
+    /// T055: Populates top-level locator fields for indexing
+    /// </summary>
     private async Task<List<MotorcycleDocument>> CreateMotorcycleDocumentsAsync(
         List<PDFChunk> chunks,
         PDFDocument input,
         DocumentAnalysisResult analysisResult)
     {
-        _logger.LogDebug("Creating MotorcycleDocument objects from chunks");
+        _logger.LogDebug("Creating MotorcycleDocument objects from chunks with locator metadata");
 
         var documents = new List<MotorcycleDocument>();
 
         foreach (var chunk in chunks)
         {
+            // T053/T055: Extract locator metadata from chunk metadata for citation support with defensive type checking
+            int pageNumber;
+            try
+            {
+                pageNumber = chunk.Metadata.ContainsKey("PageNumber") ? Convert.ToInt32(chunk.Metadata["PageNumber"]) : chunk.PageNumber;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse PageNumber from metadata for chunk {ChunkId}, using fallback", chunk.Id);
+                pageNumber = chunk.PageNumber;
+            }
+            
+            var pageRange = chunk.Metadata.ContainsKey("PageRange") ? chunk.Metadata["PageRange"]?.ToString() : $"{pageNumber}";
+            var primarySection = chunk.Metadata.ContainsKey("PrimarySection") ? chunk.Metadata["PrimarySection"]?.ToString() : chunk.Section;
+            
+            int sectionLevel;
+            try
+            {
+                sectionLevel = chunk.Metadata.ContainsKey("SectionLevel") ? Convert.ToInt32(chunk.Metadata["SectionLevel"]) : 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse SectionLevel from metadata for chunk {ChunkId}, using default 0", chunk.Id);
+                sectionLevel = 0;
+            }
+            
+            string[] sectionHeadings;
+            try
+            {
+                sectionHeadings = chunk.Metadata.ContainsKey("AllSectionHeadings") ? (string[])chunk.Metadata["AllSectionHeadings"] : Array.Empty<string>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse AllSectionHeadings from metadata for chunk {ChunkId}, using empty array", chunk.Id);
+                sectionHeadings = Array.Empty<string>();
+            }
+            
+            var tableCaption = chunk.Metadata.ContainsKey("TableCaption") ? chunk.Metadata["TableCaption"]?.ToString() : null;
+            
+            int chunkIndex;
+            try
+            {
+                chunkIndex = chunk.Metadata.ContainsKey("ChunkIndex") ? Convert.ToInt32(chunk.Metadata["ChunkIndex"]) : 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse ChunkIndex from metadata for chunk {ChunkId}, using default 0", chunk.Id);
+                chunkIndex = 0;
+            }
+            
+            bool isMultiPageTable;
+            try
+            {
+                isMultiPageTable = chunk.Metadata.ContainsKey("IsMultiPageTable") && (bool)chunk.Metadata["IsMultiPageTable"];
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse IsMultiPageTable from metadata for chunk {ChunkId}, using default false", chunk.Id);
+                isMultiPageTable = false;
+            }
+             
             var document = new MotorcycleDocument
             {
                 Id = chunk.Id,
@@ -556,11 +946,19 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 Content = chunk.Content,
                 Type = DocumentType.Manual,
                 ContentVector = chunk.Embedding,
+                // T055: Populate top-level locator fields for indexing
+                PageNumber = pageNumber,
+                PageRange = pageRange,
+                PrimarySection = primarySection,
+                SectionLevel = sectionLevel,
+                SectionHeadings = sectionHeadings,
+                TableCaption = tableCaption,
+                ChunkIndex = chunkIndex,
                 Metadata = new DocumentMetadata
                 {
                     SourceFile = input.FileName,
                     SourceUrl = input.Source,
-                    PageNumber = chunk.PageNumber,
+                    PageNumber = pageNumber,
                     Section = chunk.Section,
                     Author = $"{input.Make} {input.Model}",
                     PublishedDate = input.UploadedAt,
@@ -575,7 +973,20 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                         ["ChunkType"] = chunk.Type.ToString(),
                         ["ProcessedAt"] = DateTime.UtcNow,
                         ["Language"] = input.Language,
-                        ["ChunkMetadata"] = chunk.Metadata
+                        ["ChunkMetadata"] = chunk.Metadata,
+                        ["IsMultiPageTable"] = isMultiPageTable, // T054: Table metadata for multi-page tables
+                        // T053: Locator metadata preserved for reference (T055 indexes top-level fields)
+                        ["Locator"] = new
+                        {
+                            PageNumber = pageNumber,
+                            PageRange = pageRange,
+                            Section = chunk.Section,
+                            PrimarySection = primarySection,
+                            SectionLevel = sectionLevel,
+                            SectionHeadings = sectionHeadings,
+                            TableCaption = tableCaption,
+                            ChunkIndex = chunkIndex
+                        }
                     }
                 }
             };
@@ -583,7 +994,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             documents.Add(document);
         }
 
-        _logger.LogDebug("Created {DocumentCount} MotorcycleDocument objects", documents.Count);
+        _logger.LogDebug("Created {DocumentCount} MotorcycleDocument objects with locator metadata", documents.Count);
         return documents;
     }
 
@@ -617,10 +1028,17 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         };
     }
 
+    /// <summary>
+    /// T053: Internal class for tracking detected sections with hierarchy level
+    /// </summary>
     private class DocumentSection
     {
         public string Title { get; set; } = string.Empty;
         public StringBuilder Content { get; set; } = new();
         public string Type { get; set; } = string.Empty;
+        /// <summary>
+        /// Hierarchy level: 1=Chapter, 2=Section, 3=Subsection
+        /// </summary>
+        public int Level { get; set; }
     }
 }

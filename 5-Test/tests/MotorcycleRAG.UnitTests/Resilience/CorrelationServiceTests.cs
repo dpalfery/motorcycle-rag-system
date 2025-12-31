@@ -4,6 +4,7 @@ using MotorcycleRAG.Persistence.Resilience;
 using System.Diagnostics;
 using Xunit;
 
+
 namespace MotorcycleRAG.UnitTests.Resilience;
 
 public class CorrelationServiceTests

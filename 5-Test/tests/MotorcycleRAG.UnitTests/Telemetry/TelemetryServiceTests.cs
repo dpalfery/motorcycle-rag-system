@@ -1,11 +1,15 @@
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.Channel;
 using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Options; 
 using MotorcycleRAG.Persistence.Telemetry;
 using System.Collections.Concurrent;
 using FluentAssertions;
+
 
 namespace MotorcycleRAG.UnitTests.Telemetry;
 
@@ -14,16 +18,28 @@ public class TelemetryServiceTests
     private readonly StubTelemetryChannel _channel;
     private readonly TelemetryClient _client;
     private readonly Mock<ICorrelationService> _mockCorrelation;
+    private readonly Mock<ILogger<TelemetryService>> _mockLogger;
     private readonly ITelemetryService _service;
 
     public TelemetryServiceTests()
     {
         _channel = new StubTelemetryChannel();
-        var config = new TelemetryConfiguration("00000000-0000-0000-0000-000000000000", _channel);
-        _client = new TelemetryClient(config);
+        var aiConfig = new Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration
+        {
+            TelemetryChannel = _channel,
+            ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+        };
+        _client = new TelemetryClient(aiConfig);
         _mockCorrelation = new Mock<ICorrelationService>();
+        _mockLogger = new Mock<ILogger<TelemetryService>>();
         _mockCorrelation.Setup(c => c.GetOrCreateCorrelationId()).Returns("corr-test");
-        _service = new TelemetryService(_client, _mockCorrelation.Object);
+        
+        // Create options for telemetryConfig (domain model) and sqlOptions
+        var domainTelemetryConfig = new MotorcycleRAG.Core.Options.TelemetryOptions();
+        var telemetryOptions = Options.Create(domainTelemetryConfig);
+        var sqlOptions = Options.Create(new SqlOptions());
+        
+        _service = new TelemetryService(_client, _mockLogger.Object, telemetryOptions, sqlOptions);
     }
 
     [Fact]
@@ -34,11 +50,11 @@ public class TelemetryServiceTests
 
         // Assert
         var ev = _channel.Telemetries.OfType<Microsoft.ApplicationInsights.DataContracts.EventTelemetry>().Single();
-        ev.Name.Should().Be("MotorcycleQuery");
-        ev.Properties["QueryId"].Should().Be("query1");
-        ev.Properties["CorrelationId"].Should().Be("corr-test");
-        ev.Metrics["DurationMs"].Should().BeApproximately(123d, 0.0001);
-        ev.Metrics["ResultsCount"].Should().Be(5d);
+        ev.Name.Should().Be("QueryExecuted");
+        ev.Properties["queryId"].Should().Be("query1");
+        ev.Properties["redactedQuery"].Should().Be("tell me about bikes");
+        ev.Properties["resultsCount"].Should().Be("5");
+        ev.Properties["estimatedCost"].Should().Be("0.0020");
     }
 
     /* TrackCost test commented out - method not implemented in ITelemetryService interface

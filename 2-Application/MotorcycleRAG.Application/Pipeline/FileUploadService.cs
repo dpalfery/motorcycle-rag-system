@@ -1,9 +1,10 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
+using System.Linq;
 using System.Text;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.Application.Pipeline;
 
@@ -26,34 +27,52 @@ public class FileUploadService : IFileUploadService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<FileUploadResult> UploadFileAsync(IFormFile file, FileUploadOptions options, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Sanitizes user-provided values for logging to prevent log injection attacks.
+    /// Replaces newlines, carriage returns, and tabs with spaces.
+    /// </summary>
+    private string SanitizeForLogging(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        return input
+            .Replace('\n', ' ')
+            .Replace('\r', ' ')
+            .Replace('\t', ' ');
+    }
+
+    public async Task<FileUploadResult> UploadFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options, CancellationToken cancellationToken = default)
     {
         var result = new FileUploadResult
         {
-            OriginalFileName = file.FileName,
-            FileSize = file.Length,
-            ContentType = file.ContentType
+            OriginalFileName = metadata.FileName,
+            FileSize = metadata.ContentLength,
+            ContentType = metadata.ContentType
         };
 
         try
         {
-            _logger.LogInformation("Starting file upload for {FileName} ({Size} bytes)", file.FileName, file.Length);
+            _logger.LogInformation("Starting file upload for {FileName} ({Size} bytes)", SanitizeForLogging(metadata.FileName), metadata.ContentLength);
 
             // Validate the file
-            result.ValidationResult = await ValidateFileAsync(file, options);
+            result.ValidationResult = await ValidateFileAsync(fileStream, metadata, options);
             if (!result.ValidationResult.IsValid)
             {
-                _logger.LogWarning("File validation failed for {FileName}: {Errors}", 
-                    file.FileName, string.Join(", ", result.ValidationResult.Errors));
+                _logger.LogWarning("File validation failed for {FileName}: {Errors}",
+                    SanitizeForLogging(metadata.FileName), string.Join(", ", result.ValidationResult.Errors));
                 return result;
             }
 
             result.DetectedFileType = result.ValidationResult.DetectedFileType;
 
-            // Generate unique filename if required
-            result.StoredFileName = options.GenerateUniqueFileName 
-                ? GenerateUniqueFileName(file.FileName)
-                : file.FileName;
+            // Generate unique filename if required, always sanitize to prevent path traversal
+            var safeFileName = SanitizeFileName(metadata.FileName);
+            result.StoredFileName = options.GenerateUniqueFileName
+                ? GenerateUniqueFileName(safeFileName)
+                : safeFileName;
 
             // Ensure upload directory exists
             var uploadPath = Path.Combine(_config.BaseUploadDirectory, options.UploadDirectory);
@@ -64,37 +83,37 @@ public class FileUploadService : IFileUploadService
             
             using (var stream = new FileStream(result.FilePath, FileMode.Create))
             {
-                await file.CopyToAsync(stream, cancellationToken);
+                await fileStream.CopyToAsync(stream, cancellationToken);
             }
 
             // Add metadata
             result.Metadata["UploadedBy"] = "System"; // Could be extracted from user context
-            result.Metadata["ContentType"] = file.ContentType;
-            result.Metadata["OriginalSize"] = file.Length;
+            result.Metadata["ContentType"] = metadata.ContentType;
+            result.Metadata["OriginalSize"] = metadata.ContentLength;
             result.Metadata["ValidationResults"] = result.ValidationResult;
 
-            _logger.LogInformation("File upload completed successfully: {StoredFileName} at {FilePath}", 
-                result.StoredFileName, result.FilePath);
+            _logger.LogInformation("File upload completed successfully: {StoredFileName} at {FilePath}",
+                SanitizeForLogging(result.StoredFileName), SanitizeForLogging(result.FilePath));
 
             // Track telemetry
             _telemetryService.TrackEvent("FileUploaded", new Dictionary<string, string>
             {
-                ["FileName"] = file.FileName,
+                ["FileName"] = SanitizeForLogging(metadata.FileName),
                 ["FileType"] = result.DetectedFileType.ToString(),
-                ["FileSize"] = file.Length.ToString()
+                ["FileSize"] = metadata.ContentLength.ToString()
             });
 
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload file {FileName}", file.FileName);
+            _logger.LogError(ex, "Failed to upload file {FileName}", SanitizeForLogging(metadata.FileName));
             result.ValidationResult.AddError($"Upload failed: {ex.Message}");
             return result;
         }
     }
 
-    public async Task<BatchFileUploadResult> UploadFilesAsync(IEnumerable<IFormFile> files, FileUploadOptions options, CancellationToken cancellationToken = default)
+    public async Task<BatchFileUploadResult> UploadFilesAsync(IEnumerable<(Stream stream, FileMetadata metadata)> files, FileUploadOptions options, CancellationToken cancellationToken = default)
     {
         var result = new BatchFileUploadResult();
         var fileList = files.ToList();
@@ -105,11 +124,11 @@ public class FileUploadService : IFileUploadService
         try
         {
             // Process files sequentially to avoid overwhelming the system
-            foreach (var file in fileList)
+            foreach (var (stream, metadata) in fileList)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 
-                var uploadResult = await UploadFileAsync(file, options, cancellationToken);
+                var uploadResult = await UploadFileAsync(stream, metadata, options, cancellationToken);
                 result.Results.Add(uploadResult);
 
                 if (uploadResult.IsValid)
@@ -136,29 +155,29 @@ public class FileUploadService : IFileUploadService
         }
     }
 
-    public async Task<FileValidationResult> ValidateFileAsync(IFormFile file, FileUploadOptions options)
+    public async Task<FileValidationResult> ValidateFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options)
     {
         var result = new FileValidationResult
         {
-            ContentType = file.ContentType,
-            FileSize = file.Length
+            ContentType = metadata.ContentType,
+            FileSize = metadata.ContentLength
         };
 
         try
         {
             // Check file size
-            if (file.Length > options.MaxFileSizeBytes)
+            if (metadata.ContentLength > options.MaxFileSizeBytes)
             {
-                result.AddError($"File size ({file.Length:N0} bytes) exceeds maximum allowed size ({options.MaxFileSizeBytes:N0} bytes)");
+                result.AddError($"File size ({metadata.ContentLength:N0} bytes) exceeds maximum allowed size ({options.MaxFileSizeBytes:N0} bytes)");
             }
 
-            if (file.Length == 0)
+            if (metadata.ContentLength == 0)
             {
                 result.AddError("File is empty");
             }
 
             // Check file extension
-            var extension = Path.GetExtension(file.FileName)?.ToLowerInvariant();
+            var extension = Path.GetExtension(metadata.FileName)?.ToLowerInvariant();
             if (string.IsNullOrEmpty(extension))
             {
                 result.AddError("File has no extension");
@@ -169,18 +188,18 @@ public class FileUploadService : IFileUploadService
             }
 
             // Check content type
-            if (!options.AllowedContentTypes.Contains(file.ContentType))
+            if (!options.AllowedContentTypes.Contains(metadata.ContentType))
             {
-                result.AddWarning($"Content type '{file.ContentType}' may not be supported");
+                result.AddWarning($"Content type '{metadata.ContentType}' may not be supported");
             }
 
             // Detect file type
-            result.DetectedFileType = DetectFileType(file.FileName, file.ContentType);
+            result.DetectedFileType = DetectFileType(metadata.FileName, metadata.ContentType);
 
             // Validate file content if required
             if (options.ValidateFileContent && result.IsValid)
             {
-                await ValidateFileContentAsync(file, result);
+                await ValidateFileContentAsync(fileStream, metadata, result);
             }
 
             return result;
@@ -244,17 +263,16 @@ public class FileUploadService : IFileUploadService
         };
     }
 
-    private async Task ValidateFileContentAsync(IFormFile file, FileValidationResult result)
+    private async Task ValidateFileContentAsync(Stream fileStream, FileMetadata metadata, FileValidationResult result)
     {
         try
         {
-            using var stream = file.OpenReadStream();
-            var buffer = new byte[1024];
-            var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                        var buffer = new byte[1024];
+            var bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length);
 
             if (bytesRead > 0)
             {
-                var fileExtension = Path.GetExtension(file.FileName)?.ToLowerInvariant();
+                var fileExtension = Path.GetExtension(metadata.FileName)?.ToLowerInvariant();
 
                 switch (fileExtension)
                 {
@@ -320,6 +338,49 @@ public class FileUploadService : IFileUploadService
         var uniqueId = Guid.NewGuid().ToString("N")[..8];
         
         return $"{nameWithoutExtension}_{timestamp}_{uniqueId}{extension}";
+    }
+
+    /// <summary>
+    /// Sanitizes a filename to prevent path traversal attacks.
+    /// Removes invalid characters, path separators, drive letters, and path root indicators.
+    /// </summary>
+    private string SanitizeFileName(string fileName)
+    {
+        if (string.IsNullOrEmpty(fileName))
+        {
+            return "unnamed_file";
+        }
+
+        // CRITICAL: Strip path separators and drive letters BEFORE Path.GetFileName()
+        // This prevents edge cases like "C:autorun.csv" or UNC paths from being preserved
+        var safeFileName = fileName.Replace(":", "_").Replace("/", "_").Replace("\\", "_");
+
+        // Get only the filename (no directory path) - now safe after stripping dangerous chars
+        safeFileName = Path.GetFileName(safeFileName);
+
+        // Remove invalid filename characters
+        var invalidChars = Path.GetInvalidFileNameChars();
+        safeFileName = new string(safeFileName
+            .Where(c => !invalidChars.Contains(c))
+            .ToArray());
+
+        // If filename is empty after sanitization, use a default
+        if (string.IsNullOrWhiteSpace(safeFileName))
+        {
+            return "unnamed_file";
+        }
+
+        // Limit filename length to avoid issues
+        const int maxFileNameLength = 255;
+        if (safeFileName.Length > maxFileNameLength)
+        {
+            var extension = Path.GetExtension(safeFileName);
+            var nameWithoutExt = Path.GetFileNameWithoutExtension(safeFileName);
+            var maxNameLength = maxFileNameLength - extension.Length;
+            safeFileName = nameWithoutExt[..maxNameLength] + extension;
+        }
+
+        return safeFileName;
     }
 
     private string FormatFileSize(long bytes)

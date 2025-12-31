@@ -1,0 +1,27 @@
+# Prettier ignore patterns for MotorcycleRAG WebUI
+
+# Build output
+dist/
+build/
+coverage/
+
+# Dependencies
+node_modules/
+
+# Lock files (keep for reproducibility)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Configuration files that shouldn't be formatted
+*.config.js
+*.config.cjs
+*.config.mjs
+
+# Minified files
+*.min.js
+*.min.css
+*.bundle.js
+
+# Log files
+*.log

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Application.Agents;
 
@@ -108,15 +109,14 @@ public class AgentFrameworkAdapter
                     };
                 }
 
-                var searchOptions = new SearchOptions
-                {
+                var searchParameters = new SearchParameters {
                     MaxResults = Math.Min(maxResults, 50),
                     MinRelevanceScore = minRelevanceScore,
                     EnableCaching = true,
                     IncludeMetadata = true
                 };
 
-                var results = await agent.SearchAsync(query, searchOptions);
+                var results = await agent.SearchAsync(query, searchParameters);
 
                 return new ToolExecutionResult
                 {
@@ -170,15 +170,14 @@ public class AgentFrameworkAdapter
                     };
                 }
 
-                var searchOptions = new SearchOptions
-                {
+                var searchParameters = new SearchParameters {
                     MaxResults = Math.Min(maxResults, 50),
                     MinRelevanceScore = minRelevanceScore,
                     EnableCaching = true,
                     IncludeMetadata = true
                 };
 
-                var results = await orchestrator.OrchestrateSearchAsync(query, searchOptions);
+                var results = await orchestrator.OrchestrateSearchAsync(query, searchParameters);
 
                 return new ToolExecutionResult
                 {

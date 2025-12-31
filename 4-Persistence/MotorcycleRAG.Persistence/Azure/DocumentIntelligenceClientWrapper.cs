@@ -4,10 +4,13 @@ using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 using Polly;
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
-namespace MotorcycleRAG.Infrastructure.Azure;
+
+namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
 /// Azure Document Intelligence client wrapper with resilience patterns
@@ -15,13 +18,13 @@ namespace MotorcycleRAG.Infrastructure.Azure;
 public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, IDisposable
 {
     private readonly DocumentIntelligenceClient _client;
-    private readonly AzureAIConfiguration _config;
+    private readonly AzureAIOptions _config;
     private readonly ILogger<DocumentIntelligenceClientWrapper> _logger;
     private readonly IAsyncPolicy _retryPolicy;
     private bool _disposed;
 
     public DocumentIntelligenceClientWrapper(
-        IOptions<AzureAIConfiguration> config,
+        IOptions<AzureAIOptions> config,
         ILogger<DocumentIntelligenceClientWrapper> logger)
     {
         if (config == null) throw new ArgumentNullException(nameof(config));
@@ -57,7 +60,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                 Content = $"Extracted text content from document at {documentUri}",
                 Pages = new[]
                 {
-                    new MotorcycleRAG.Domain.Models.DocumentPage
+                    new MotorcycleRAG.Domain.DTOs.DocumentPage
                     {
                         PageNumber = 1,
                         Content = "Page 1 content from URI",
@@ -65,7 +68,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                         Height = 11.0f
                     }
                 },
-                Tables = Array.Empty<MotorcycleRAG.Domain.Models.DocumentTable>(),
+                Tables = Array.Empty<MotorcycleRAG.Domain.DTOs.DocumentTable>(),
                 Metadata = new Dictionary<string, object>
                 {
                     ["ModelId"] = "prebuilt-layout",
@@ -125,7 +128,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                 Content = "Extracted text content from the document stream",
                 Pages = new[]
                 {
-                    new MotorcycleRAG.Domain.Models.DocumentPage
+                    new MotorcycleRAG.Domain.DTOs.DocumentPage
                     {
                         PageNumber = 1,
                         Content = "Page 1 content from stream",
@@ -135,16 +138,16 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                 },
                 Tables = new[]
                 {
-                    new MotorcycleRAG.Domain.Models.DocumentTable
+                    new MotorcycleRAG.Domain.DTOs.DocumentTable
                     {
                         RowCount = 2,
                         ColumnCount = 2,
                         Cells = new[]
                         {
-                            new MotorcycleRAG.Domain.Models.DocumentTableCell { RowIndex = 0, ColumnIndex = 0, Content = "Header 1" },
-                            new MotorcycleRAG.Domain.Models.DocumentTableCell { RowIndex = 0, ColumnIndex = 1, Content = "Header 2" },
-                            new MotorcycleRAG.Domain.Models.DocumentTableCell { RowIndex = 1, ColumnIndex = 0, Content = "Data 1" },
-                            new MotorcycleRAG.Domain.Models.DocumentTableCell { RowIndex = 1, ColumnIndex = 1, Content = "Data 2" }
+                            new MotorcycleRAG.Domain.DTOs.DocumentTableCell { RowIndex = 0, ColumnIndex = 0, Content = "Header 1" },
+                            new MotorcycleRAG.Domain.DTOs.DocumentTableCell { RowIndex = 0, ColumnIndex = 1, Content = "Header 2" },
+                            new MotorcycleRAG.Domain.DTOs.DocumentTableCell { RowIndex = 1, ColumnIndex = 0, Content = "Data 1" },
+                            new MotorcycleRAG.Domain.DTOs.DocumentTableCell { RowIndex = 1, ColumnIndex = 1, Content = "Data 2" }
                         }
                     }
                 },

@@ -1,6 +1,21 @@
-# Git
-.git
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Tests
+[Tt]est[Rr]esult*/
+coverage/
+
+# Git repository
+.git/
 .gitignore
+.gitattributes
+
+# Docker files (prevent recursive copying)
+Dockerfile*
+.dockerignore
+docker-compose*
 
 # Build results
 [Bb]in/
@@ -11,25 +26,20 @@ x64/
 x86/
 build/
 
-# VS Code
-.vscode/
-.history/
-
-# Visual Studio
-.vs/
-*.user
-*.suo
-
-# Docker
-Dockerfile*
-.dockerignore
-docker-compose*
-
-# Node
+# Node.js dependencies and build output
 node_modules/
-npm-debug.log
-yarn-error.log
+dist/
+build/
 
+# Log files
+*.log
+*.log.*
+
+# Environment files
+.env*
+.env.local
+.env.development
+.env.production
 # Local settings
 appsettings.Development.json
 appsettings.local.json
@@ -38,6 +48,39 @@ appsettings.local.json
 .env.*
 ! .env.example
 
-# Tests
-[Tt]est[Rr]esult*/
+# IDE and editor files
+.vs/
+.vscode/
+.history/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Test and coverage output
 coverage/
+TestResults/
+
+# Package and dependency files (keep lock files for reproducibility)
+*.tar.gz
+*.zip
+*.rar
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Temporary and backup files
+*.tmp
+*.swp
+*.bak
+*.cache
+
+# Documentation and build artifacts
+docs/
+artifacts/
+
+# Local settings and configuration
+local.settings.json
+appsettings.Development.json

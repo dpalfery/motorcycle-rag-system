@@ -249,6 +249,22 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
+# Node.js dependencies and build output
+dist/
+build/
+*.log
+.env*
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Node.js coverage and test output
+coverage/
+.nyc_output/
+
+# Node.js lock files (keep package-lock.json for reproducibility)
+pnpm-lock.yaml
+
 # Visual Studio 6 build log
 *.plg
 

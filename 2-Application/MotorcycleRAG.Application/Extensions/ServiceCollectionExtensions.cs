@@ -4,6 +4,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Application.Optimization;
+using MotorcycleRAG.Contracts.Optimization;
+
 
 namespace MotorcycleRAG.Application.Extensions;
 

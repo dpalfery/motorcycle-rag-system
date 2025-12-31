@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using HtmlAgilityPack;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Application.Agents;
 
@@ -15,7 +17,7 @@ public class WebSearchAgent : ISearchAgent
 {
     private readonly HttpClient _httpClient;
     private readonly IAzureOpenAIClient _openAIClient;
-    private readonly WebSearchConfiguration _config;
+    private readonly WebSearchOptions _config;
     private readonly ILogger<WebSearchAgent> _logger;
     private readonly SemaphoreSlim _rateLimitSemaphore;
     private readonly Dictionary<string, DateTime> _lastRequestTimes;
@@ -26,7 +28,7 @@ public class WebSearchAgent : ISearchAgent
     public WebSearchAgent(
         HttpClient httpClient,
         IAzureOpenAIClient openAIClient,
-        IOptions<WebSearchConfiguration> config,
+        IOptions<WebSearchOptions> config,
         ILogger<WebSearchAgent> logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
@@ -44,7 +46,7 @@ public class WebSearchAgent : ISearchAgent
     /// <summary>
     /// Execute web search with rate limiting and credibility validation
     /// </summary>
-    public async Task<SearchResult[]> SearchAsync(string query, SearchOptions options)
+    public async Task<SearchResult[]> SearchAsync(string query, SearchParameters options)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -204,9 +206,9 @@ Return only the search terms, one per line, without explanations.
     /// Search a specific trusted source
     /// </summary>
     private async Task<List<SearchResult>> SearchSourceAsync(
-        TrustedSource source, 
+        TrustedSourceOptions source, 
         List<string> searchTerms, 
-        SearchOptions options)
+        SearchParameters options)
     {
         var results = new List<SearchResult>();
         
@@ -235,7 +237,7 @@ Return only the search terms, one per line, without explanations.
     /// <summary>
     /// Build search URL for a specific source
     /// </summary>
-    private string BuildSearchUrl(TrustedSource source, string searchTerm)
+    private string BuildSearchUrl(TrustedSourceOptions source, string searchTerm)
     {
         var encodedTerm = Uri.EscapeDataString(searchTerm);
         return source.SearchUrlTemplate.Replace("{query}", encodedTerm);
@@ -273,7 +275,7 @@ Return only the search terms, one per line, without explanations.
     /// <summary>
     /// Extract search results from HTML content
     /// </summary>
-    private List<SearchResult> ExtractSearchResults(string htmlContent, string searchTerm, TrustedSource source)
+    private List<SearchResult> ExtractSearchResults(string htmlContent, string searchTerm, TrustedSourceOptions source)
     {
         var results = new List<SearchResult>();
         
@@ -561,7 +563,7 @@ Respond with only a JSON object:
     /// <summary>
     /// Apply final ranking and filtering to results
     /// </summary>
-    private SearchResult[] ApplyFinalRankingAndFiltering(List<SearchResult> results, SearchOptions options)
+    private SearchResult[] ApplyFinalRankingAndFiltering(List<SearchResult> results, SearchParameters options)
     {
         return results
             .Where(r => r.RelevanceScore >= options.MinRelevanceScore)

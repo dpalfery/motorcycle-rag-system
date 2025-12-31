@@ -1,243 +1,223 @@
-using System.ComponentModel.DataAnnotations;
-using MotorcycleRAG.Domain.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.Application.Services;
 
 /// <summary>
-/// Service for validating domain models
+/// Validates model outputs and ensures citation data integrity.
+/// Provides best-effort validation for citation metadata without rejecting
+/// responses when locator information is legitimately unavailable.
 /// </summary>
 public class ModelValidationService
 {
-    /// <summary>
-    /// Validates a model and returns validation results
-    /// </summary>
-    /// <typeparam name="T">Type of model to validate</typeparam>
-    /// <param name="model">Model instance to validate</param>
-    /// <returns>Validation result with any errors</returns>
-    public ValidationResult ValidateModel<T>(T model) where T : class
+    private readonly ILogger<ModelValidationService> _logger;
+
+    public ModelValidationService(ILogger<ModelValidationService> logger)
     {
-        if (model == null)
-        {
-            return new ValidationResult
-            {
-                IsValid = false,
-                Errors = new List<string> { "Model cannot be null" }
-            };
-        }
-
-        var validationContext = new ValidationContext(model);
-        var validationResults = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
-        
-        bool isValid = Validator.TryValidateObject(model, validationContext, validationResults, true);
-
-        return new ValidationResult
-        {
-            IsValid = isValid,
-            Errors = validationResults.Select(vr => vr.ErrorMessage ?? "Unknown validation error").ToList()
-        };
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
-    /// Validates a MotorcycleSpecification with business rules
+    /// Validates a motorcycle query response, including all citations.
     /// </summary>
-    /// <param name="specification">Motorcycle specification to validate</param>
-    /// <returns>Validation result</returns>
-    public ValidationResult ValidateMotorcycleSpecification(MotorcycleSpecification specification)
+    /// <param name="response">The response to validate</param>
+    /// <returns>Validation result with any errors found</returns>
+    public ValidationResult ValidateResponse(MotorcycleQueryResponse response)
     {
-        var result = ValidateModel(specification);
-        
-        if (!result.IsValid)
-            return result;
-
-        // Additional business rule validations
-        var businessErrors = new List<string>();
-
-        // Validate engine specifications if present
-        if (specification.Engine != null)
+        if (response == null)
         {
-            var engineValidation = ValidateModel(specification.Engine);
-            if (!engineValidation.IsValid)
-            {
-                businessErrors.AddRange(engineValidation.Errors.Select(e => $"Engine: {e}"));
-            }
+            return ValidationResult.Failure("Response cannot be null");
+        }
 
-            // Business rule: Displacement should match horsepower range
-            if (specification.Engine.DisplacementCC > 0 && specification.Engine.Horsepower > 0)
+        var errors = new List<string>();
+
+        // Validate each search result's citations
+        if (response.Sources != null)
+        {
+            for (int i = 0; i < response.Sources.Length; i++)
             {
-                var expectedMinHp = specification.Engine.DisplacementCC / 20; // Rough estimate
-                var expectedMaxHp = specification.Engine.DisplacementCC / 5;
-                
-                if (specification.Engine.Horsepower < expectedMinHp * 0.5 || 
-                    specification.Engine.Horsepower > expectedMaxHp * 2)
+                var source = response.Sources[i];
+                if (source?.Source?.Citation != null)
                 {
-                    businessErrors.Add("Engine horsepower seems inconsistent with displacement");
+                    var citationErrors = ValidateCitation(source.Source.Citation, i);
+                    errors.AddRange(citationErrors);
                 }
             }
         }
 
-        // Validate performance metrics if present
-        if (specification.Performance != null)
-        {
-            var performanceValidation = ValidateModel(specification.Performance);
-            if (!performanceValidation.IsValid)
-            {
-                businessErrors.AddRange(performanceValidation.Errors.Select(e => $"Performance: {e}"));
-            }
-        }
-
-        // Validate safety features if present
-        if (specification.Safety != null)
-        {
-            var safetyValidation = ValidateModel(specification.Safety);
-            if (!safetyValidation.IsValid)
-            {
-                businessErrors.AddRange(safetyValidation.Errors.Select(e => $"Safety: {e}"));
-            }
-        }
-
-        // Validate pricing if present
-        if (specification.Pricing != null)
-        {
-            var pricingValidation = ValidateModel(specification.Pricing);
-            if (!pricingValidation.IsValid)
-            {
-                businessErrors.AddRange(pricingValidation.Errors.Select(e => $"Pricing: {e}"));
-            }
-
-            // Business rule: Price date should not be in the future
-            if (specification.Pricing.PriceDate > DateTime.UtcNow.AddDays(1))
-            {
-                businessErrors.Add("Price date cannot be in the future");
-            }
-        }
-
-        return new ValidationResult
-        {
-            IsValid = businessErrors.Count == 0,
-            Errors = businessErrors
-        };
+        return errors.Count == 0
+            ? ValidationResult.Success()
+            : ValidationResult.Failure(errors);
     }
 
     /// <summary>
-    /// Validates a MotorcycleDocument with content rules
+    /// Validates a single citation object.
     /// </summary>
-    /// <param name="document">Document to validate</param>
-    /// <returns>Validation result</returns>
-    public ValidationResult ValidateMotorcycleDocument(MotorcycleDocument document)
+    /// <param name="citation">The citation to validate</param>
+    /// <param name="sourceIndex">Index of the source for error reporting</param>
+    /// <returns>List of validation errors (empty if valid)</returns>
+    public List<string> ValidateCitation(Citation citation, int sourceIndex = -1)
     {
-        var result = ValidateModel(document);
-        
-        if (!result.IsValid)
-            return result;
+        var errors = new List<string>();
 
-        var businessErrors = new List<string>();
-
-        // Validate content length (only if basic validation passed)
-        if (result.IsValid && string.IsNullOrWhiteSpace(document.Content))
+        if (citation == null)
         {
-            businessErrors.Add("Document content cannot be empty");
-        }
-        else if (document.Content.Length < 10)
-        {
-            businessErrors.Add("Document content is too short (minimum 10 characters)");
-        }
-        else if (document.Content.Length > 1000000) // 1MB limit
-        {
-            businessErrors.Add("Document content is too large (maximum 1MB)");
+            return errors; // Null citations are acceptable (best-effort)
         }
 
-        // Validate vector dimensions if present
-        if (document.ContentVector != null)
+        // Only validate manual/PDF citations with locator metadata
+        if (citation.SourceType == CitationSourceType.ManualPdf && citation.Locator != null)
         {
-            if (document.ContentVector.Length == 0)
-            {
-                businessErrors.Add("Content vector cannot be empty if provided");
-            }
-            else if (document.ContentVector.Length != 3072) // text-embedding-3-large dimension
-            {
-                businessErrors.Add("Content vector must have 3072 dimensions for text-embedding-3-large model");
-            }
+            var locatorErrors = ValidateManualPdfLocator(citation.Locator, sourceIndex);
+            errors.AddRange(locatorErrors);
         }
 
-        // Validate metadata if present
-        if (document.Metadata != null)
-        {
-            var metadataValidation = ValidateModel(document.Metadata);
-            if (!metadataValidation.IsValid)
-            {
-                businessErrors.AddRange(metadataValidation.Errors.Select(e => $"Metadata: {e}"));
-            }
-        }
-
-        return new ValidationResult
-        {
-            IsValid = businessErrors.Count == 0,
-            Errors = businessErrors
-        };
+        return errors;
     }
 
     /// <summary>
-    /// Validates a query request
+    /// Validates a ManualPdfCitationLocator for required fields and well-formed data.
+    /// This is a best-effort validation - does not reject when locator is unavailable.
     /// </summary>
-    /// <param name="request">Query request to validate</param>
-    /// <returns>Validation result</returns>
-    public ValidationResult ValidateQueryRequest(MotorcycleQueryRequest request)
+    /// <param name="locator">The locator object (expected to be ManualPdfCitationLocator)</param>
+    /// <param name="sourceIndex">Index of the source for error reporting</param>
+    /// <returns>List of validation errors (empty if valid)</returns>
+    private List<string> ValidateManualPdfLocator(object locator, int sourceIndex)
     {
-        var result = ValidateModel(request);
-        
-        if (!result.IsValid)
-            return result;
+        var errors = new List<string>();
 
-        var businessErrors = new List<string>();
-
-        // Validate query content
-        if (string.IsNullOrWhiteSpace(request.Query))
+        if (locator is not ManualPdfCitationLocator manualLocator)
         {
-            businessErrors.Add("Query cannot be empty");
-        }
-        else if (request.Query.Length < 3)
-        {
-            businessErrors.Add("Query is too short (minimum 3 characters)");
+            // If locator is not the expected type, log but don't fail (best-effort)
+            _logger.LogWarning(
+                "Citation locator is not ManualPdfCitationLocator for source {SourceIndex}. Type: {LocatorType}",
+                sourceIndex,
+                locator?.GetType().Name ?? "null");
+            return errors;
         }
 
-        // Validate preferences if present
-        if (request.Preferences != null)
+        var sourcePrefix = sourceIndex >= 0 ? $"Source[{sourceIndex}]: " : string.Empty;
+
+        // Rule 1: PageNumber OR PageRange must exist (at least one meaningful value)
+        bool hasValidPageNumber = manualLocator.PageNumber > 0;
+        bool hasValidPageRange = !string.IsNullOrWhiteSpace(manualLocator.PageRange);
+
+        if (!hasValidPageNumber && !hasValidPageRange)
         {
-            var preferencesValidation = ValidateModel(request.Preferences);
-            if (!preferencesValidation.IsValid)
+            errors.Add($"{sourcePrefix}Manual citation must have either PageNumber (> 0) or PageRange (non-empty). DocumentId: {SanitizeLogValue(manualLocator.DocumentId)}");
+        }
+
+        // Rule 2: If SectionHeadings exists, it must be non-empty strings (trimmed)
+        if (manualLocator.SectionHeadings != null && manualLocator.SectionHeadings.Length > 0)
+        {
+            var emptyHeadingIndices = new List<int>();
+            for (int i = 0; i < manualLocator.SectionHeadings.Length; i++)
             {
-                businessErrors.AddRange(preferencesValidation.Errors.Select(e => $"Preferences: {e}"));
+                if (string.IsNullOrWhiteSpace(manualLocator.SectionHeadings[i]))
+                {
+                    emptyHeadingIndices.Add(i);
+                }
             }
 
-            // Business rules for preferences
-            if (request.Preferences.MaxResults <= 0)
+            if (emptyHeadingIndices.Count > 0)
             {
-                businessErrors.Add("MaxResults must be greater than 0");
-            }
-            else if (request.Preferences.MaxResults > 100)
-            {
-                businessErrors.Add("MaxResults cannot exceed 100");
-            }
-
-            if (request.Preferences.MinRelevanceScore < 0 || request.Preferences.MinRelevanceScore > 1)
-            {
-                businessErrors.Add("MinRelevanceScore must be between 0 and 1");
+                errors.Add($"{sourcePrefix}SectionHeadings contains empty or whitespace-only strings at indices: {string.Join(", ", emptyHeadingIndices)}. DocumentId: {SanitizeLogValue(manualLocator.DocumentId)}");
             }
         }
 
-        return new ValidationResult
+        // Rule 3: If SectionLevel exists, it must be within valid range (0-3)
+        if (manualLocator.SectionLevel.HasValue)
         {
-            IsValid = businessErrors.Count == 0,
-            Errors = businessErrors
-        };
+            const int minSectionLevel = 0;
+            const int maxSectionLevel = 3;
+
+            if (manualLocator.SectionLevel.Value < minSectionLevel || manualLocator.SectionLevel.Value > maxSectionLevel)
+            {
+                errors.Add($"{sourcePrefix}SectionLevel must be between {minSectionLevel} and {maxSectionLevel}. Actual: {manualLocator.SectionLevel.Value}. DocumentId: {SanitizeLogValue(manualLocator.DocumentId)}");
+            }
+        }
+
+        return errors;
+    }
+
+    /// <summary>
+    /// Sanitizes a value for logging to prevent leaking sensitive data.
+    /// </summary>
+    /// <param name="value">The value to sanitize</param>
+    /// <returns>A sanitized version of the value (truncated if too long)</returns>
+    private string SanitizeLogValue(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "[empty]";
+        }
+
+        // Truncate long values to prevent log bloat and potential data leakage
+        const int maxLogLength = 48;
+        if (value.Length > maxLogLength)
+        {
+            return value.Substring(0, maxLogLength) + "...";
+        }
+
+        return value;
     }
 }
 
 /// <summary>
-/// Result of model validation
+/// Result of a validation operation.
 /// </summary>
 public class ValidationResult
 {
-    public bool IsValid { get; set; }
-    public List<string> Errors { get; set; } = new();
+    /// <summary>
+    /// Whether validation passed.
+    /// </summary>
+    public bool IsValid { get; }
+
+    /// <summary>
+    /// List of validation error messages.
+    /// </summary>
+    public List<string> Errors { get; }
+
+    private ValidationResult(bool isValid, List<string> errors)
+    {
+        IsValid = isValid;
+        Errors = errors ?? new List<string>();
+    }
+
+    /// <summary>
+    /// Creates a successful validation result.
+    /// </summary>
+    public static ValidationResult Success()
+    {
+        return new ValidationResult(true, new List<string>());
+    }
+
+    /// <summary>
+    /// Creates a failed validation result with errors.
+    /// </summary>
+    /// <param name="errors">List of error messages</param>
+    public static ValidationResult Failure(List<string> errors)
+    {
+        return new ValidationResult(false, errors);
+    }
+
+    /// <summary>
+    /// Creates a failed validation result with a single error.
+    /// </summary>
+    /// <param name="error">Error message</param>
+    public static ValidationResult Failure(string error)
+    {
+        return new ValidationResult(false, new List<string> { error });
+    }
+
+    /// <summary>
+    /// Gets a formatted error message string.
+    /// </summary>
+    public string GetErrorMessage()
+    {
+        return IsValid ? "Validation passed" : string.Join("; ", Errors);
+    }
 }

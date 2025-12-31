@@ -4,8 +4,10 @@ using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.Entities;
 using Polly;
+
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project & tests
 
@@ -15,7 +17,7 @@ namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project &
 public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
 {
     private readonly AzureOpenAIClient _client;
-    private readonly AzureAIConfiguration _config;
+    private readonly AzureAIOptions _config;
     private readonly ILogger<AzureOpenAIClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
@@ -23,7 +25,7 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
     private bool _disposed;
 
     public AzureOpenAIClientWrapper(
-        IOptions<AzureAIConfiguration> config,
+        IOptions<AzureAIOptions> config,
         ILogger<AzureOpenAIClientWrapper> logger,
         IResilienceService resilienceService,
         ICorrelationService correlationService)

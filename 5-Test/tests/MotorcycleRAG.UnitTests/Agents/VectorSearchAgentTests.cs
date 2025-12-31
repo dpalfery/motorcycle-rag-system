@@ -3,8 +3,10 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using Xunit;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Agents;
 
@@ -17,7 +19,7 @@ public class VectorSearchAgentTests : IDisposable
     private readonly Mock<IAzureSearchClient> _mockSearchClient;
     private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
     private readonly Mock<ILogger<VectorSearchAgent>> _mockLogger;
-    private readonly IOptions<SearchConfiguration> _searchConfig;
+    private readonly IOptions<SearchOptions> _searchConfig;
     private readonly VectorSearchAgent _vectorSearchAgent;
 
     public VectorSearchAgentTests()
@@ -26,8 +28,7 @@ public class VectorSearchAgentTests : IDisposable
         _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         _mockLogger = new Mock<ILogger<VectorSearchAgent>>();
         
-        _searchConfig = Options.Create(new SearchConfiguration
-        {
+        _searchConfig = Options.Create(new SearchOptions {
             IndexName = "test-motorcycle-index",
             BatchSize = 100,
             MaxSearchResults = 50,
@@ -120,7 +121,7 @@ public class VectorSearchAgentTests : IDisposable
 
         // Verify search was called (provide all parameters explicitly)
         _mockSearchClient.Verify(x => x.SearchAsync(
-            It.Is<string>(s => s == query), 
+            It.Is<string>(s => s == query),
             It.IsAny<SearchOptions>()
         ), Times.Once);
     }
@@ -130,8 +131,7 @@ public class VectorSearchAgentTests : IDisposable
     {
         // Arrange
         var query = "Yamaha R1 engine specs";
-        var searchOptions = new SearchOptions
-        {
+        var searchParameters = new SearchParameters {
             MaxResults = 10,
             MinRelevanceScore = 0.8f,
             IncludeMetadata = true
@@ -141,11 +141,11 @@ public class VectorSearchAgentTests : IDisposable
         SetupMockOpenAIClient();
 
         // Act
-        var results = await _vectorSearchAgent.SearchAsync(query, searchOptions);
+        var results = await _vectorSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
         Assert.All(results, result => 
-            Assert.True(result.RelevanceScore >= searchOptions.MinRelevanceScore));
+            Assert.True(result.RelevanceScore >= searchParameters.MinRelevanceScore));
     }
 
     [Fact]
@@ -153,8 +153,7 @@ public class VectorSearchAgentTests : IDisposable
     {
         // Arrange
         var query = "Kawasaki Ninja performance";
-        var searchOptions = new SearchOptions
-        {
+        var searchParameters = new SearchParameters {
             MaxResults = 3,
             MinRelevanceScore = 0.0f,
             IncludeMetadata = true
@@ -164,10 +163,10 @@ public class VectorSearchAgentTests : IDisposable
         SetupMockOpenAIClient();
 
         // Act
-        var results = await _vectorSearchAgent.SearchAsync(query, searchOptions);
+        var results = await _vectorSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
-        Assert.True(results.Length <= searchOptions.MaxResults);
+        Assert.True(results.Length <= searchParameters.MaxResults);
     }
 
     [Fact]
@@ -175,8 +174,7 @@ public class VectorSearchAgentTests : IDisposable
     {
         // Arrange
         var query = "Ducati Panigale features";
-        var searchOptions = new SearchOptions
-        {
+        var searchParameters = new SearchParameters {
             MaxResults = 5,
             MinRelevanceScore = 0.0f,
             IncludeMetadata = true
@@ -186,7 +184,7 @@ public class VectorSearchAgentTests : IDisposable
         SetupMockOpenAIClient();
 
         // Act
-        var results = await _vectorSearchAgent.SearchAsync(query, searchOptions);
+        var results = await _vectorSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
         Assert.All(results, result => 
@@ -217,7 +215,7 @@ public class VectorSearchAgentTests : IDisposable
         
         // Verify keyword search was still executed (provide all parameters explicitly)
         _mockSearchClient.Verify(x => x.SearchAsync(
-            It.Is<string>(s => s == query), 
+            It.Is<string>(s => s == query),
             It.IsAny<SearchOptions>()
         ), Times.Once);
     }
@@ -250,10 +248,9 @@ public class VectorSearchAgentTests : IDisposable
 
     #region Helper Methods
 
-    private SearchOptions CreateDefaultSearchOptions()
+    private SearchParameters CreateDefaultSearchOptions()
     {
-        return new SearchOptions
-        {
+        return new SearchParameters {
             MaxResults = 10,
             MinRelevanceScore = 0.5f,
             IncludeMetadata = true,
@@ -303,7 +300,7 @@ public class VectorSearchAgentTests : IDisposable
 
         // Setup with explicit parameters to avoid expression tree issues
         _mockSearchClient.Setup(x => x.SearchAsync(
-            It.IsAny<string>(), 
+            It.IsAny<string>(),
             It.IsAny<SearchOptions>()
         )).ReturnsAsync(mockResults);
     }

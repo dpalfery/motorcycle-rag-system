@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -13,7 +15,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
 {
     private readonly IReadOnlyList<ISearchAgent> _agents;
     private readonly IAzureOpenAIClient _openAIClient;
-    private readonly SearchConfiguration _searchConfig;
+    private readonly SearchOptions _searchConfig;
     private readonly ILogger<AgentOrchestrator> _logger;
     private readonly AgentFrameworkAdapter _frameworkAdapter;
     private readonly AgentState _executionState;
@@ -21,7 +23,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     public AgentOrchestrator(
         IEnumerable<ISearchAgent> agents,
         IAzureOpenAIClient openAIClient,
-        IOptions<SearchConfiguration> searchConfig,
+        IOptions<SearchOptions> searchConfig,
         ILogger<AgentOrchestrator> logger)
     {
         _agents = agents?.ToList() ?? throw new ArgumentNullException(nameof(agents));
@@ -70,51 +72,18 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         }
 
         context ??= new SearchContext();
-        var searchOptions = BuildSearchOptions(context);
-        var aggregatedResults = new List<SearchResult>();
 
         _executionState.OriginalQuery = query;
         _executionState.SearchContext = context;
-        _executionState.SearchOptions = searchOptions;
         _executionState.Status = AgentExecutionStatus.Running;
 
         try
         {
-            foreach (var agent in _agents)
-            {
-                try
-                {
-                    _logger.LogInformation("Running {AgentType} agent sequentially…", agent.AgentType);
-                    _executionState.AddMessage(
-                        agent.AgentType.ToString(),
-                        $"Executing search for: {query}",
-                        AgentMessageType.SearchQuery);
-
-                    var results = await agent.SearchAsync(query, searchOptions);
-                    aggregatedResults.AddRange(results);
-
-                    _executionState.AccumulatedResults.AddRange(results);
-                    _executionState.AddMessage(
-                        agent.AgentType.ToString(),
-                        $"Found {results.Length} results",
-                        AgentMessageType.SearchResult);
-
-                    if (aggregatedResults.Count >= searchOptions.MaxResults)
-                    {
-                        _logger.LogInformation("Desired number of results collected – skipping remaining agents.");
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Agent {AgentType} failed – continuing with remaining agents", agent.AgentType);
-                    _executionState.RecordError(agent.AgentType.ToString(), ex.Message, ex);
-                }
-            }
-
-            var fused = await FuseAndRankResultsAsync(aggregatedResults, query, searchOptions);
+            // Use the sequential retrieval policy: index → web → pdf fallback
+            var results = await ExecuteSequentialRetrievalPolicyAsync(query, context);
+            
             _executionState.MarkComplete();
-            return fused;
+            return results;
         }
         catch (Exception ex)
         {
@@ -174,7 +143,7 @@ Answer in markdown:
     }
 
     /// <inheritdoc />
-    public async Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchOptions options)
+    public async Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchParameters options)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -205,18 +174,18 @@ Answer in markdown:
     #region Parallel Execution Helpers
 
     /// <summary>
-    /// Executes all agents in parallel and returns the merged & ranked results.  
+    /// Executes all agents in parallel and returns the merged & ranked results.
     /// This is not part of the public interface yet but can be exposed later.
     /// </summary>
     private async Task<SearchResult[]> ExecuteParallelSearchInternalAsync(string query, SearchContext context)
     {
-        var searchOptions = BuildSearchOptions(context);
+        var searchParameters = BuildSearchOptions(context);
         var searchTasks = _agents.Select(async agent =>
         {
             try
             {
                 _logger.LogInformation("Running {AgentType} agent in parallel…", agent.AgentType);
-                return await agent.SearchAsync(query, searchOptions);
+                return await agent.SearchAsync(query, searchParameters);
             }
             catch (Exception ex)
             {
@@ -227,14 +196,94 @@ Answer in markdown:
 
         var results = await Task.WhenAll(searchTasks);
         var aggregated = results.SelectMany(r => r).ToList();
-        return await FuseAndRankResultsAsync(aggregated, query, searchOptions);
+        return await FuseAndRankResultsAsync(aggregated, query, searchParameters);
+    }
+
+    /// <summary>
+    /// Executes sequential retrieval policy: index → web → pdf fallback
+    /// </summary>
+    private async Task<SearchResult[]> ExecuteSequentialRetrievalPolicyAsync(string query, SearchContext context)
+    {
+        var searchParameters = BuildSearchOptions(context);
+        var aggregatedResults = new List<SearchResult>();
+        var executionMetrics = new Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)>();
+
+        // Define the execution order: VectorSearch (index) → WebSearch → PDFSearch (fallback)
+        var executionOrder = new[]
+        {
+            SearchAgentType.VectorSearch,
+            SearchAgentType.WebSearch,
+            SearchAgentType.PDFSearch
+        };
+
+        var stopwatch = Stopwatch.StartNew();
+
+        foreach (var agentType in executionOrder)
+        {
+            var agent = _agents.FirstOrDefault(a => a.AgentType == agentType);
+            if (agent == null)
+            {
+                _logger.LogDebug("No agent found for {AgentType}, skipping", agentType);
+                continue;
+            }
+
+            try
+            {
+                _logger.LogInformation("Executing {AgentType} in sequential retrieval policy…", agentType);
+                var agentStopwatch = Stopwatch.StartNew();
+
+                var results = await agent.SearchAsync(query, searchParameters);
+                agentStopwatch.Stop();
+
+                executionMetrics[agentType] = (agentStopwatch.Elapsed, results.Length);
+                aggregatedResults.AddRange(results);
+
+                _logger.LogInformation("Agent {AgentType} completed: {Results} results in {Duration}ms",
+                    agentType, results.Length, agentStopwatch.ElapsedMilliseconds);
+
+                // Early exit if we have enough results and this is a high-confidence source
+                if (aggregatedResults.Count >= searchParameters.MaxResults && agentType == SearchAgentType.VectorSearch)
+                {
+                    _logger.LogInformation("Sufficient results from primary index search, skipping fallback sources");
+                    break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Agent {AgentType} failed in sequential policy – continuing with fallback", agentType);
+                executionMetrics[agentType] = (TimeSpan.Zero, 0);
+            }
+        }
+
+        stopwatch.Stop();
+        _logger.LogInformation("Sequential retrieval policy completed in {Duration}ms with {TotalResults} total results",
+            stopwatch.ElapsedMilliseconds, aggregatedResults.Count);
+
+        // Update search pattern metrics
+        if (context.QueryContext != null)
+        {
+            context.QueryContext.AdditionalProperties["SearchPatternMetrics"] = new SearchPatternMetrics
+            {
+                VectorSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.VectorSearch),
+                WebSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.WebSearch),
+                PDFSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.PDFSearch),
+                VectorSearchTime = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var vectorMetrics) ? vectorMetrics.Duration : TimeSpan.Zero,
+                WebSearchTime = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var webMetrics) ? webMetrics.Duration : TimeSpan.Zero,
+                PDFSearchTime = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var pdfMetrics) ? pdfMetrics.Duration : TimeSpan.Zero,
+                VectorResultsFound = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var vectorResults) ? vectorResults.ResultsFound : 0,
+                WebResultsFound = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var webResults) ? webResults.ResultsFound : 0,
+                PDFResultsFound = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var pdfResults) ? pdfResults.ResultsFound : 0
+            };
+        }
+
+        return await FuseAndRankResultsAsync(aggregatedResults, query, searchParameters);
     }
 
     #endregion
 
     #region Result Fusion & Ranking
 
-    private async Task<SearchResult[]> FuseAndRankResultsAsync(List<SearchResult> results, string query, SearchOptions options)
+    private async Task<SearchResult[]> FuseAndRankResultsAsync(List<SearchResult> results, string query, SearchParameters options)
     {
         if (results.Count == 0)
             return Array.Empty<SearchResult>();
@@ -306,11 +355,10 @@ Answer in markdown:
 
     #region Helpers
 
-    private static SearchOptions BuildSearchOptions(SearchContext context)
+    private static SearchParameters BuildSearchOptions(SearchContext context)
     {
         var prefs = context.Preferences ?? new SearchPreferences();
-        return new SearchOptions
-        {
+        return new SearchParameters {
             MaxResults = prefs.MaxResults,
             MinRelevanceScore = prefs.MinRelevanceScore,
             EnableCaching = true,

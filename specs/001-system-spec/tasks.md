@@ -10,12 +10,12 @@
 
 **Purpose**: Ensure the repo is ready for incremental implementation and consistent local execution.
 
-- [ ] T001 Validate Quickstart commands on Windows in specs/001-system-spec/quickstart.md
-- [ ] T002 Add ASVS L2 evidence checklist skeleton in specs/001-system-spec/checklists/asvs-v5-level2.md
-- [ ] T003 [P] Document local dev env vars for API/BFF in specs/001-system-spec/quickstart.md
-- [ ] T004 [P] Confirm OpenAPI reflects current contract in specs/001-system-spec/contracts/openapi.yaml
-- [ ] T005 [P] Add MAUI admin app placeholder section in specs/001-system-spec/quickstart.md
-- [ ] T006 Update agent context after tasks generation via .specify/scripts/powershell/update-agent-context.ps1 (reference: .github/agents/copilot-instructions.md)
+- [X] T001 Validate Quickstart commands on Windows in specs/001-system-spec/quickstart.md
+- [X] T002 Add ASVS L2 evidence checklist skeleton in specs/001-system-spec/checklists/asvs-v5-level2.md
+- [X] T003 [P] Document local dev env vars for API/BFF in specs/001-system-spec/quickstart.md
+- [X] T004 [P] Confirm OpenAPI reflects current contract in specs/001-system-spec/contracts/openapi.yaml
+- [X] T005 [P] Add MAUI admin app placeholder section in specs/001-system-spec/quickstart.md
+- [X] T006 Update agent context after tasks generation via .specify/scripts/powershell/update-agent-context.ps1 (reference: .github/agents/copilot-instructions.md)
 
 ---
 
@@ -23,22 +23,22 @@
 
 **Purpose**: Cross-cutting foundations needed before any user story work (auth, persistence, error handling, telemetry, security baseline).
 
-- [ ] T007 Define SQL-backed persistence interfaces in 3-Domain/MotorcycleRAG.Contracts/Interfaces (e.g., IUserRepository.cs, IUsageRepository.cs, IWebSourceRepository.cs, IAuditRepository.cs)
-- [ ] T008 [P] Add domain models for user/usage/web-source/audit in 3-Domain/MotorcycleRAG.Domain/Models (e.g., UserModels.cs, UsageModels.cs, WebSourceModels.cs)
-- [ ] T009 Create SQL schema script for core entities in 4-Persistence/MotorcycleRAG.Persistence/Sql/schema.sql
-- [ ] T010 Implement ADO.NET connection factory/options in 4-Persistence/MotorcycleRAG.Persistence/Sql/SqlConnectionFactory.cs
-- [ ] T011 Implement ADO.NET repositories in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories (Users/Usage/WebSources/Audit)
-- [ ] T012 Wire SQL persistence into DI in 1-Presentation/MotorcycleRAG.API/Configuration/ServiceConfiguration.cs
-- [ ] T013 Add SQL and AppConfig options binding + validation in 1-Presentation/MotorcycleRAG.API/Program.cs
-- [ ] T014 Implement JWT bearer auth for B2C + Entra ID issuers in 1-Presentation/MotorcycleRAG.API/Program.cs
-- [ ] T015 Add admin authorization policies (Entra app roles) in 1-Presentation/MotorcycleRAG.API/Program.cs
-- [ ] T016 Add ProblemDetails + exception handling middleware in 1-Presentation/MotorcycleRAG.API/Program.cs
-- [ ] T017 Add request correlation ID propagation in 1-Presentation/MotorcycleRAG.API/Program.cs
-- [ ] T018 Add rate limiting policy for public endpoints in 1-Presentation/MotorcycleRAG.API/Program.cs
-- [ ] T019 Add security headers baseline for API in 1-Presentation/MotorcycleRAG.API/Program.cs
-- [ ] T020 Add cookie/redirect hardening for BFF OIDC in 1-Presentation/MotorcycleRag.WebUI.BFF/Program.cs
-- [ ] T021 Implement log redaction strategy for query text in 4-Persistence/MotorcycleRAG.Persistence/Telemetry (e.g., TelemetryService.cs)
-- [ ] T022 Update ASVS evidence checklist to reference implemented controls in specs/001-system-spec/checklists/asvs-v5-level2.md
+- [X] T007 Define SQL-backed persistence interfaces in 3-Domain/MotorcycleRAG.Contracts/Interfaces (e.g., IUserRepository.cs, IUsageRepository.cs, IWebSourceRepository.cs, IAuditRepository.cs)
+- [X] T008 [P] Add domain models for user/usage/web-source/audit in 3-Domain/MotorcycleRAG.Domain/Models (e.g., UserModels.cs, UsageModels.cs, WebSourceModels.cs)
+- [X] T009 Create SQL schema script for core entities in 4-Persistence/MotorcycleRAG.Persistence/Sql/schema.sql
+- [X] T010 Implement ADO.NET connection factory/options in 4-Persistence/MotorcycleRAG.Persistence/Sql/SqlConnectionFactory.cs
+- [X] T011 Implement ADO.NET repositories in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories (Users/Usage/WebSources/Audit)
+- [X] T012 Wire SQL persistence into DI in 1-Presentation/MotorcycleRAG.API/Configuration/ServiceConfiguration.cs
+- [X] T013 Add SQL and AppConfig options binding + validation in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [X] T014 Implement JWT bearer auth for B2C + Entra ID issuers in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [X] T015 Add admin authorization policies (Entra app roles) in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [X] T016 Add ProblemDetails + exception handling middleware in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [X] T017 Add request correlation ID propagation in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [X] T018 Add rate limiting policy for public endpoints in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [X] T019 Add security headers baseline for API in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [X] T020 Add cookie/redirect hardening for BFF OIDC in 1-Presentation/MotorcycleRag.WebUI.BFF/Program.cs
+- [X] T021 Implement log redaction strategy for query text in 4-Persistence/MotorcycleRAG.Persistence/Telemetry (e.g., TelemetryService.cs)
+- [X] T022 Update ASVS evidence checklist to reference implemented controls in specs/001-system-spec/checklists/asvs-v5-level2.md
 
 **Checkpoint**: API has auth, persistence, ProblemDetails, telemetry, and ASVS-traceable baseline controls.
 
@@ -50,20 +50,20 @@
 
 **Independent Test**: Call `POST /api/motorcycles/query` and verify response includes answer + sources/citations and handles “no results”.
 
-- [ ] T103 [P] [US1] Extend unit tests for verification/citations in 5-Test/tests/MotorcycleRAG.UnitTests/Services/ModelValidationServiceTests.cs
-- [ ] T104 [P] [US1] Extend unit tests for answer composition + citations in 5-Test/tests/MotorcycleRAG.UnitTests/Services/MotorcycleRAGServiceTests.cs
-- [ ] T105 [US1] Extend integration tests for POST /api/motorcycles/query (no-results + citations) in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MotorcycleApiIntegrationTests.cs
+- [X] T103 [P] [US1] Extend unit tests for verification/citations in 5-Test/tests/MotorcycleRAG.UnitTests/Services/ModelValidationServiceTests.cs
+- [X] T104 [P] [US1] Extend unit tests for answer composition + citations in 5-Test/tests/MotorcycleRAG.UnitTests/Services/MotorcycleRAGServiceTests.cs
+- [X] T105 [US1] Extend integration tests for POST /api/motorcycles/query (no-results + citations) in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MotorcycleApiIntegrationTests.cs
 
-- [ ] T023 [P] [US1] Align request/response models (claims/citations/metrics/queryId) in 3-Domain/MotorcycleRAG.Domain/Models/QueryModels.cs
-- [ ] T024 [P] [US1] Add citation locator models (ManualPdf/Website/Dataset) in 3-Domain/MotorcycleRAG.Domain/Models/QueryModels.cs
-- [ ] T025 [US1] Implement sequential retrieval policy (index → web → pdf fallback) in 2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs
-- [ ] T026 [US1] Implement claim extraction from evidence in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
-- [ ] T027 [US1] Implement independent claim verification against citations in 2-Application/MotorcycleRAG.Application/Services/ModelValidationService.cs
-- [ ] T028 [US1] Enforce “every factual claim has citation or is qualified/omitted” in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
-- [ ] T029 [US1] Add “no results + refine suggestions” behavior in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
-- [ ] T030 [US1] Return stable queryId + metrics in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
-- [ ] T031 [US1] Ensure response includes source attribution + locators in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
-- [ ] T032 [US1] Add input validation rules for query + preferences in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
+- [X] T023 [P] [US1] Align request/response models (claims/citations/metrics/queryId) in 3-Domain/MotorcycleRAG.Domain/Models/QueryModels.cs
+- [X] T024 [P] [US1] Add citation locator models (ManualPdf/Website/Dataset) in 3-Domain/MotorcycleRAG.Domain/Models/QueryModels.cs
+- [X] T025 [US1] Implement sequential retrieval policy (index → web → pdf fallback) in 2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs
+- [X] T026 [US1] Implement claim extraction from evidence in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
+- [X] T027 [US1] Implement independent claim verification against citations in 2-Application/MotorcycleRAG.Application/Services/ModelValidationService.cs
+- [X] T028 [US1] Enforce "every factual claim has citation or is qualified/omitted" in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
+- [X] T029 [US1] Add "no results + refine suggestions" behavior in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
+- [X] T030 [US1] Return stable queryId + metrics in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
+- [X] T031 [US1] Ensure response includes source attribution + locators in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
+- [X] T032 [US1] Add input validation rules for query + preferences in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
 
 ---
 
@@ -73,26 +73,35 @@
 
 **Independent Test**: Sign in via BFF; call `GET /api/me` and `GET /api/me/usage`; confirm query calls are tracked and limited.
 
-- [ ] T033 [US1a] Add “current user” resolver abstraction in 3-Domain/MotorcycleRAG.Contracts/Interfaces/ICurrentUserService.cs
-- [ ] T034 [US1a] Implement current user resolution from claims in 2-Application/MotorcycleRAG.Application/Services/CurrentUserService.cs
-- [ ] T035 [US1a] Implement user provisioning/update-on-login in 2-Application/MotorcycleRAG.Application/Services/UserProvisioningService.cs
-- [ ] T036 [US1a] Implement plan SKU + daily limit rules in 2-Application/MotorcycleRAG.Application/Services/PlanPolicyService.cs
-- [ ] T037 [US1a] Implement usage tracking repository calls in 2-Application/MotorcycleRAG.Application/Services/UsageTrackingService.cs
-- [ ] T038 [US1a] Enforce per-user daily request limits at query entry in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
-- [ ] T039 [US1a] Create profile endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
-- [ ] T040 [US1a] Create usage endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
-- [ ] T041 [US1a] Add minimal profile update endpoint (allowed fields) in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
-- [ ] T042 [US1a] Configure B2C OIDC settings for the BFF in 1-Presentation/MotorcycleRag.WebUI.BFF/appsettings.Development.json
-- [ ] T043 [US1a] Propagate access token to API via BFF proxy in 1-Presentation/MotorcycleRag.WebUI.BFF/Program.cs
+- [X] T093 [US1a] Implement RoleRequirementHandler for role-based authorization in 2-Application/MotorcycleRAG.Application/Authorization/RoleRequirementHandler.cs
+- [X] T094 [US1a] Implement ResourceAuthorizationHandler for resource-level authorization in 2-Application/MotorcycleRAG.Application/Authorization/ResourceAuthorizationHandler.cs
+- [X] T095 [US1a] Create AuthorizationMiddleware for comprehensive authorization logging in 1-Presentation/MotorcycleRAG.API/Middleware/AuthorizationMiddleware.cs
+- [X] T096 [US1a] Add [Authorize] attributes to MotorcycleController endpoints in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
+- [X] T097 [US1a] Add [Authorize(Policy = "DataAdmin")] to DataPipelineController endpoints in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T098 [US1a] Update Program.cs with comprehensive authorization policies and handlers in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [X] T099 [US1a] Create unit tests for RoleRequirementHandler in 5-Test/tests/MotorcycleRAG.UnitTests/Authorization/RoleRequirementHandlerTests.cs
+- [X] T100 [US1a] Create unit tests for ResourceAuthorizationHandler in 5-Test/tests/MotorcycleRAG.UnitTests/Authorization/ResourceAuthorizationHandlerTests.cs
+- [X] T101 [US1a] Create integration tests for endpoint authorization in 5-Test/tests/MotorcycleRAG.IntegrationTests/Authorization/AuthorizationTests.cs
+- [X] T033 [US1a] Add "current user" resolver abstraction in 3-Domain/MotorcycleRAG.Contracts/Interfaces/ICurrentUserService.cs
+- [X] T034 [US1a] Implement current user resolution from claims in 2-Application/MotorcycleRAG.Application/Services/CurrentUserService.cs
+- [X] T035 [US1a] Implement user provisioning/update-on-login in 2-Application/MotorcycleRAG.Application/Services/UserProvisioningService.cs
+- [X] T036 [US1a] Implement plan SKU + daily limit rules in 2-Application/MotorcycleRAG.Application/Services/PlanPolicyService.cs
+- [X] T037 [US1a] Implement usage tracking repository calls in 2-Application/MotorcycleRAG.Application/Services/UsageTrackingService.cs
+- [X] T038 [US1a] Enforce per-user daily request limits at query entry in 1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs
+- [X] T039 [US1a] Create profile endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
+- [X] T040 [US1a] Create usage endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
+- [X] T041 [US1a] Add minimal profile update endpoint (allowed fields) in 1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs
+- [X] T042 [US1a] Configure B2C OIDC settings for the BFF in 1-Presentation/MotorcycleRag.WebUI.BFF/appsettings.Development.json
+- [X] T043 [US1a] Propagate access token to API via BFF proxy in 1-Presentation/MotorcycleRag.WebUI.BFF/Program.cs
 
-- [ ] T106 [P] [US1a] Add unit tests for plan limit logic in 5-Test/tests/MotorcycleRAG.UnitTests/Services/PlanPolicyServiceTests.cs
-- [ ] T107 [P] [US1a] Add unit tests for usage tracking in 5-Test/tests/MotorcycleRAG.UnitTests/Services/UsageTrackingServiceTests.cs
-- [ ] T108 [US1a] Add integration tests for GET /api/me + /api/me/usage + limit exceeded response in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MeApiIntegrationTests.cs
-- [ ] T120 [US1a] Add admin user management controller (enable/disable) in 1-Presentation/MotorcycleRAG.API/Controllers/UsersAdminController.cs
-- [ ] T121 [US1a] Add admin plan assignment endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/PlansAdminController.cs
-- [ ] T122 [US1a] Implement user enable/disable + plan assignment services in 2-Application/MotorcycleRAG.Application/Services (UserAdminService.cs, PlanAdminService.cs)
-- [ ] T123 [US1a] Add persistence for user state + plan assignment in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories (UserRepository.cs, PlanRepository.cs)
-- [ ] T124 [US1a] Add integration tests for admin user mgmt + plan assignment in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/AdminUserManagementIntegrationTests.cs
+- [X] T106 [P] [US1a] Add unit tests for plan limit logic in 5-Test/tests/MotorcycleRAG.UnitTests/Services/PlanPolicyServiceTests.cs
+- [X] T107 [P] [US1a] Add unit tests for usage tracking in 5-Test/tests/MotorcycleRAG.UnitTests/Services/UsageTrackingServiceTests.cs
+- [X] T108 [US1a] Add integration tests for GET /api/me + /api/me/usage + limit exceeded response in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MeApiIntegrationTests.cs
+- [X] T120 [US1a] Add admin user management controller (enable/disable) in 1-Presentation/MotorcycleRAG.API/Controllers/UsersAdminController.cs
+- [X] T121 [US1a] Add admin plan assignment endpoint in 1-Presentation/MotorcycleRAG.API/Controllers/PlansAdminController.cs
+- [X] T122 [US1a] Implement user enable/disable + plan assignment services in 2-Application/MotorcycleRAG.Application/Services (UserAdminService.cs, PlanAdminService.cs)
+- [X] T123 [US1a] Add persistence for user state + plan assignment in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories (UserRepository.cs, PlanRepository.cs)
+- [X] T124 [US1a] Add integration tests for admin user mgmt + plan assignment in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/AdminUserManagementIntegrationTests.cs
 
 ---
 
@@ -102,18 +111,18 @@
 
 **Independent Test**: Upload sample CSV, process it, confirm status/metrics available and query returns dataset-derived results.
 
-- [ ] T044 [US2] Implement upload constraints response in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
-- [ ] T045 [US2] Implement batch upload endpoint behavior in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
-- [ ] T046 [US2] Implement batch processing endpoint behavior in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
-- [ ] T047 [US2] Persist ingestion job records (execution/status/metrics/errors) via SQL in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/IngestionJobRepository.cs
-- [ ] T048 [US2] Wire ingestion job persistence into monitoring service in 2-Application/MotorcycleRAG.Application/Services/PipelineMonitoringService.cs
-- [ ] T049 [US2] Implement cancellation behavior in 2-Application/MotorcycleRAG.Application/Services/DataPipelineOrchestrator.cs
-- [ ] T050 [US2] Implement scheduled run trigger + stats in 2-Application/MotorcycleRAG.Application/Services/ScheduledPipelineService.cs
-- [ ] T051 [US2] Ensure structured spec ingestion writes documents/vectors to Azure AI Search in 4-Persistence/MotorcycleRAG.Persistence/Search/MotorcycleIndexingService.cs
-- [ ] T052 [US2] Require Entra ID admin auth + roles for pipeline endpoints in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T044 [US2] Implement upload constraints response in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T045 [US2] Implement batch upload endpoint behavior in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T046 [US2] Implement batch processing endpoint behavior in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
+- [X] T047 [US2] Persist ingestion job records (execution/status/metrics/errors) via SQL in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/IngestionJobRepository.cs
+- [X] T048 [US2] Wire ingestion job persistence into monitoring service in 2-Application/MotorcycleRAG.Application/Services/PipelineMonitoringService.cs
+- [X] T049 [US2] Implement cancellation behavior in 2-Application/MotorcycleRAG.Application/Services/DataPipelineOrchestrator.cs
+- [X] T050 [US2] Implement scheduled run trigger + stats in 2-Application/MotorcycleRAG.Application/Services/ScheduledPipelineService.cs
+- [X] T051 [US2] Ensure structured spec ingestion writes documents/vectors to Azure AI Search in 4-Persistence/MotorcycleRAG.Persistence/Search/MotorcycleIndexingService.cs
+- [X] T052 [US2] Require Entra ID admin auth + roles for pipeline endpoints in 1-Presentation/MotorcycleRAG.API/Controllers/DataPipelineController.cs
 
-- [ ] T109 [US2] Extend integration coverage for upload/process/status/metrics/cancel/scheduled endpoints in 5-Test/tests/MotorcycleRAG.IntegrationTests/Pipeline/DataPipelineIntegrationTests.cs
-- [ ] T110 [P] [US2] Extend unit tests for orchestration/cancellation in 5-Test/tests/MotorcycleRAG.UnitTests/Pipeline/DataPipelineOrchestratorTests.cs
+- [X] T109 [US2] Extend integration coverage for upload/process/status/metrics/cancel/scheduled endpoints in 5-Test/tests/MotorcycleRAG.IntegrationTests/Pipeline/DataPipelineIntegrationTests.cs
+- [X] T110 [P] [US2] Extend unit tests for orchestration/cancellation in 5-Test/tests/MotorcycleRAG.UnitTests/Pipeline/DataPipelineOrchestratorTests.cs
 
 ---
 
@@ -123,14 +132,14 @@
 
 **Independent Test**: Ingest a known manual and query for a procedure; verify response includes page/section references.
 
-- [ ] T053 [US3] Ensure PDF processing extracts page/section metadata in 4-Persistence/MotorcycleRAG.Persistence/DataProcessing/MotorcyclePDFProcessor.cs
-- [ ] T054 [US3] Ensure manual chunks preserve structure (tables/sections) in 4-Persistence/MotorcycleRAG.Persistence/DataProcessing/MotorcyclePDFProcessor.cs
-- [ ] T055 [US3] Index manual chunks with locator metadata in 4-Persistence/MotorcycleRAG.Persistence/Search/MotorcycleIndexingService.cs
-- [ ] T056 [US3] Add manual citation locator mapping into response in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
-- [ ] T057 [US3] Enforce manual citation fields (when available) in 2-Application/MotorcycleRAG.Application/Services/ModelValidationService.cs
+- [X] T053 [US3] Ensure PDF processing extracts page/section metadata in 4-Persistence/MotorcycleRAG.Persistence/DataProcessing/MotorcyclePDFProcessor.cs
+- [X] T054 [US3] Ensure manual chunks preserve structure (tables/sections) in 4-Persistence/MotorcycleRAG.Persistence/DataProcessing/MotorcyclePDFProcessor.cs
+- [X] T055 [US3] Index manual chunks with locator metadata in 4-Persistence/MotorcycleRAG.Persistence/Search/MotorcycleIndexingService.cs
+- [X] T056 [US3] Add manual citation locator mapping into response in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
+- [X] T057 [US3] Enforce manual citation fields (when available) in 2-Application/MotorcycleRAG.Application/Services/ModelValidationService.cs
 
-- [ ] T111 [P] [US3] Extend PDF processor unit tests for page/section extraction in 5-Test/tests/MotorcycleRAG.UnitTests/DataProcessing/MotorcyclePDFProcessorTests.cs
-- [ ] T112 [US3] Add/extend integration test asserting manual locators appear in query response in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MotorcycleManualCitationIntegrationTests.cs
+- [X] T111 [P] [US3] Extend PDF processor unit tests for page/section extraction in 5-Test/tests/MotorcycleRAG.UnitTests/DataProcessing/MotorcyclePDFProcessorTests.cs
+- [X] T112 [US3] Add/extend integration test asserting manual locators appear in query response in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/MotorcycleManualCitationIntegrationTests.cs
 
 ---
 

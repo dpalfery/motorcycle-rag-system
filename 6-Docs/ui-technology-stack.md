@@ -13,9 +13,21 @@ This project leverages Open WebUI as the foundational interface, customized for 
 
 #### UI Framework & Design System
 
-* **Tailwind CSS** - For rapid, utility-first styling and theme customization
+* **Tailwind CSS** - For rapid, utility-first styling and theme customization (Svelte portions)
+* **Pigment CSS** - Zero-runtime CSS-in-JS for React components (CSP-safe, no `unsafe-inline` required)
+* **MUI v7** - React component library with Pigment CSS integration for type-safe, performant styling
 * **Custom "High Performance" Design** - Racing-inspired aesthetic with neon orange and charcoal
 * **Lucide Icons** - Clean, consistent iconography
+
+#### Styling Architecture Decision
+
+**React Components**: MUI v7 with **Pigment CSS** (replaces Emotion CSS)
+- **Rationale**: Pigment CSS provides zero-runtime styling, eliminating the need for `unsafe-inline` CSP directives that Emotion requires
+- **Security**: Full Content Security Policy compliance without compromising security
+- **Performance**: CSS extracted at build time, reducing runtime overhead
+- **Developer Experience**: Maintains familiar MUI API with improved type safety
+
+**Svelte Components**: Continue using Tailwind CSS for utility-first styling
 
 #### State Management
 

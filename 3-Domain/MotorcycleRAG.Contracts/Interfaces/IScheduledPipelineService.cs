@@ -1,4 +1,5 @@
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
@@ -21,6 +22,11 @@ public interface IScheduledPipelineService
     /// Execute an immediate processing run
     /// </summary>
     Task<PipelineExecutionResult> ExecuteImmediateRunAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cancel the currently running scheduled execution
+    /// </summary>
+    Task<bool> CancelCurrentRunAsync();
 
     /// <summary>
     /// Get next scheduled execution time

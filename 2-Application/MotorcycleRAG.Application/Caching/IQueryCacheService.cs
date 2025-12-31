@@ -1,4 +1,5 @@
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
+
 
 namespace MotorcycleRAG.Application.Caching;
 

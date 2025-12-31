@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using MotorcycleRAG.Domain.Models;
-using MotorcycleRAG.Infrastructure.Resilience;
+using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 using Xunit;
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.UnitTests.Resilience;
 
@@ -17,18 +19,18 @@ public class ResilienceServiceTests
     {
         _mockLogger = new Mock<ILogger<ResilienceService>>();
         
-        var config = new ResilienceConfiguration
+        var config = new ResilienceOptions
         {
-            CircuitBreaker = new CircuitBreakerConfiguration
+            CircuitBreaker = new CircuitBreakerOptions
             {
-                OpenAI = new ServiceCircuitBreakerConfig
+                OpenAI = new ServiceCircuitBreakerOptions
                 {
                     FailureThreshold = 2,
                     SamplingDuration = TimeSpan.FromSeconds(30),
                     MinimumThroughput = 1
                 }
             },
-            Retry = new RetryConfiguration
+            Retry = new RetryOptions
             {
                 MaxRetries = 2,
                 BaseDelaySeconds = 1,
@@ -37,7 +39,7 @@ public class ResilienceServiceTests
             }
         };
 
-        var mockOptions = new Mock<IOptions<ResilienceConfiguration>>();
+        var mockOptions = new Mock<IOptions<ResilienceOptions>>();
         mockOptions.Setup(x => x.Value).Returns(config);
 
         _resilienceService = new ResilienceService(mockOptions.Object, _mockLogger.Object);

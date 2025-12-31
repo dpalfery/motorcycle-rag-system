@@ -1,5 +1,6 @@
 using System.Text.Json;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.EndToEndTests;
 

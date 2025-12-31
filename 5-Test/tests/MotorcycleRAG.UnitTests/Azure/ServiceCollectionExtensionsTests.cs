@@ -2,8 +2,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Persistence.Azure;
+
+using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
@@ -68,15 +70,15 @@ public class ServiceCollectionExtensionsTests
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
-        var azureConfig = serviceProvider.GetService<IOptions<AzureAIConfiguration>>();
+        var azureConfig = serviceProvider.GetService<IOptions<AzureAIOptions>>();
         azureConfig.Should().NotBeNull();
         azureConfig!.Value.OpenAIEndpoint.Should().Be("https://test-openai.openai.azure.com/");
 
-        var searchConfig = serviceProvider.GetService<IOptions<SearchConfiguration>>();
+        var searchConfig = serviceProvider.GetService<IOptions<SearchOptions>>();
         searchConfig.Should().NotBeNull();
         searchConfig!.Value.IndexName.Should().Be("test-index");
 
-        var telemetryConfig = serviceProvider.GetService<IOptions<TelemetryConfiguration>>();
+        var telemetryConfig = serviceProvider.GetService<IOptions<TelemetryOptions>>();
         telemetryConfig.Should().NotBeNull();
         telemetryConfig!.Value.ApplicationName.Should().Be("MotorcycleRAG");
     }
@@ -121,13 +123,13 @@ public class AzureAIConfigurationValidatorTests
     public void Validate_WithValidConfiguration_ShouldReturnSuccess()
     {
         // Arrange
-        var config = new AzureAIConfiguration
+        var config = new AzureAIOptions
         {
             FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
             OpenAIEndpoint = "https://test-openai.openai.azure.com/",
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
             DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Models = new ModelConfiguration
+            Models = new ModelOptions
             {
                 ChatModel = "gpt-4o-mini",
                 EmbeddingModel = "text-embedding-3-large",
@@ -137,7 +139,7 @@ public class AzureAIConfigurationValidatorTests
                 Temperature = 0.1f,
                 TopP = 1.0f
             },
-            Retry = new RetryConfiguration
+            Retry = new RetryOptions
             {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,
@@ -238,15 +240,15 @@ public class AzureAIConfigurationValidatorTests
         result.Failures.Should().Contain(expectedError);
     }
 
-    private static AzureAIConfiguration CreateValidConfiguration()
+    private static AzureAIOptions CreateValidConfiguration()
     {
-        return new AzureAIConfiguration
+        return new AzureAIOptions
         {
             FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
             OpenAIEndpoint = "https://test-openai.openai.azure.com/",
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
             DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Models = new ModelConfiguration
+            Models = new ModelOptions
             {
                 ChatModel = "gpt-4o-mini",
                 EmbeddingModel = "text-embedding-3-large",
@@ -256,7 +258,7 @@ public class AzureAIConfigurationValidatorTests
                 Temperature = 0.1f,
                 TopP = 1.0f
             },
-            Retry = new RetryConfiguration
+            Retry = new RetryOptions
             {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,
@@ -280,8 +282,7 @@ public class SearchConfigurationValidatorTests
     public void Validate_WithValidConfiguration_ShouldReturnSuccess()
     {
         // Arrange
-        var config = new SearchConfiguration
-        {
+        var config = new SearchOptions {
             IndexName = "test-index",
             BatchSize = 100,
             MaxSearchResults = 50,
@@ -302,8 +303,7 @@ public class SearchConfigurationValidatorTests
     public void Validate_WithInvalidIndexName_ShouldReturnFailure(string? indexName, string expectedError)
     {
         // Arrange
-        var config = new SearchConfiguration
-        {
+        var config = new SearchOptions {
             IndexName = indexName!,
             BatchSize = 100,
             MaxSearchResults = 50
@@ -323,8 +323,7 @@ public class SearchConfigurationValidatorTests
     public void Validate_WithInvalidBatchSize_ShouldReturnFailure(int batchSize, string expectedError)
     {
         // Arrange
-        var config = new SearchConfiguration
-        {
+        var config = new SearchOptions {
             IndexName = "test-index",
             BatchSize = batchSize,
             MaxSearchResults = 50
@@ -344,8 +343,7 @@ public class SearchConfigurationValidatorTests
     public void Validate_WithInvalidMaxSearchResults_ShouldReturnFailure(int maxResults, string expectedError)
     {
         // Arrange
-        var config = new SearchConfiguration
-        {
+        var config = new SearchOptions {
             IndexName = "test-index",
             BatchSize = 100,
             MaxSearchResults = maxResults

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Models;
+using MotorcycleRAG.Domain.DTOs;
 using NCrontab;
 
 namespace MotorcycleRAG.Application.Pipeline;
@@ -17,7 +17,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     private readonly ILogger<ScheduledPipelineService> _logger;
     private readonly ScheduledProcessingConfiguration _config;
     private readonly SemaphoreSlim _executionSemaphore;
-    
+
     private ProcessingScheduleConfig _scheduleConfig;
     private CrontabSchedule? _schedule;
     private DateTime? _nextExecutionTime;
@@ -32,10 +32,10 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
         _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        
+
         _executionSemaphore = new SemaphoreSlim(1, 1);
         _stats = new ScheduledProcessingStats();
-        
+
         // Initialize with default schedule
         _scheduleConfig = new ProcessingScheduleConfig
         {
@@ -44,14 +44,14 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             ProcessingWindow = _config.DefaultProcessingWindow,
             MaxConcurrentJobs = _config.DefaultMaxConcurrentJobs
         };
-        
+
         UpdateScheduleInternal();
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken = default)
+    public override async Task StartAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting scheduled pipeline service with cron expression: {CronExpression}", _scheduleConfig.CronExpression);
-        
+
         if (_scheduleConfig.IsEnabled)
         {
             _cancellationTokenSource = new CancellationTokenSource();
@@ -64,24 +64,24 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         }
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken = default)
+    public override async Task StopAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Stopping scheduled pipeline service");
-        
+
         _cancellationTokenSource?.Cancel();
         await base.StopAsync(cancellationToken);
-        
+
         _logger.LogInformation("Scheduled pipeline service stopped");
     }
 
     public async Task<PipelineExecutionResult> ExecuteImmediateRunAsync(CancellationToken cancellationToken = default)
     {
         await _executionSemaphore.WaitAsync(cancellationToken);
-        
+
         try
         {
             _logger.LogInformation("Executing immediate scheduled pipeline run");
-            
+
             using var scope = _serviceScopeFactory.CreateScope();
             return await ExecuteScheduledProcessingAsync(scope.ServiceProvider, cancellationToken);
         }
@@ -105,10 +105,16 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     {
         _scheduleConfig = config ?? throw new ArgumentNullException(nameof(config));
         UpdateScheduleInternal();
-        
-        _logger.LogInformation("Schedule updated. New cron expression: {CronExpression}, Enabled: {Enabled}", 
+
+        _logger.LogInformation("Schedule updated. New cron expression: {CronExpression}, Enabled: {Enabled}",
             config.CronExpression, config.IsEnabled);
-        
+
+        await Task.CompletedTask;
+    }
+
+    public async Task CancelCurrentRunAsync()
+    {
+        _cancellationTokenSource?.Cancel();
         await Task.CompletedTask;
     }
 
@@ -126,12 +132,12 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             {
                 var now = DateTime.UtcNow;
                 var nextRun = GetNextScheduledTime(now);
-                
+
                 if (nextRun.HasValue)
                 {
                     _nextExecutionTime = nextRun.Value;
                     var delay = nextRun.Value - now;
-                    
+
                     if (delay > TimeSpan.Zero)
                     {
                         _logger.LogDebug("Next scheduled execution in {Delay} at {NextRun}", delay, nextRun.Value);
@@ -141,7 +147,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
                     if (!stoppingToken.IsCancellationRequested)
                     {
                         await _executionSemaphore.WaitAsync(stoppingToken);
-                        
+
                         try
                         {
                             using var scope = _serviceScopeFactory.CreateScope();
@@ -167,7 +173,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in scheduled pipeline service execution loop");
-                
+
                 // Wait before retrying to avoid tight error loops
                 await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
             }
@@ -187,14 +193,14 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         try
         {
             _logger.LogInformation("Starting scheduled pipeline processing at {StartTime}", startTime);
-            
+
             // Update stats
             _stats.TotalScheduledRuns++;
             _stats.LastExecutionTime = startTime;
             _stats.LastExecutionStatus = PipelineStatus.Processing;
 
             var orchestrator = serviceProvider.GetRequiredService<IDataPipelineOrchestrator>();
-            
+
             // Find files to process
             var filesToProcess = await DiscoverFilesToProcessAsync();
             _logger.LogInformation("Found {FileCount} files to process", filesToProcess.Count);
@@ -204,21 +210,21 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
                 result.Status = PipelineStatus.Completed;
                 result.Message = "No files found to process";
                 result.EndTime = DateTime.UtcNow;
-                
+
                 _stats.LastExecutionStatus = PipelineStatus.Completed;
                 _stats.FilesProcessedInLastRun = 0;
-                
+
                 return result;
             }
 
             // Process files in batch
             var batchResult = await orchestrator.ProcessBatchAsync(filesToProcess, cancellationToken);
-            
+
             // Update result based on batch processing
             result.Status = batchResult.HasErrors ? PipelineStatus.PartiallyCompleted : PipelineStatus.Completed;
             result.EndTime = batchResult.EndTime;
             result.Message = $"Processed {batchResult.ProcessedSuccessfully} files successfully, {batchResult.Failed} failed";
-            
+
             if (batchResult.HasErrors)
             {
                 result.Errors.AddRange(batchResult.Results.SelectMany(r => r.Errors));
@@ -227,7 +233,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             // Update statistics
             _stats.LastExecutionStatus = result.Status;
             _stats.FilesProcessedInLastRun = batchResult.TotalFiles;
-            
+
             if (result.Status == PipelineStatus.Completed)
             {
                 _stats.SuccessfulRuns++;
@@ -242,7 +248,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             _stats.AverageProcessingTime = TimeSpan.FromMilliseconds(
                 (_stats.AverageProcessingTime.TotalMilliseconds * (_stats.TotalScheduledRuns - 1) + duration.TotalMilliseconds) / _stats.TotalScheduledRuns);
 
-            _logger.LogInformation("Scheduled pipeline processing completed. Status: {Status}, Duration: {Duration}", 
+            _logger.LogInformation("Scheduled pipeline processing completed. Status: {Status}, Duration: {Duration}",
                 result.Status, duration);
 
             return result;
@@ -250,16 +256,16 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         catch (Exception ex)
         {
             _logger.LogError(ex, "Scheduled pipeline processing failed");
-            
+
             result.Status = PipelineStatus.Failed;
             result.EndTime = DateTime.UtcNow;
             result.Errors.Add(ex.Message);
             result.Message = $"Scheduled processing failed: {ex.Message}";
-            
+
             _stats.FailedRuns++;
             _stats.LastExecutionStatus = PipelineStatus.Failed;
             _stats.LastErrorMessage = ex.Message;
-            
+
             return result;
         }
     }
@@ -267,11 +273,11 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     private async Task<List<DataPipelineRequest>> DiscoverFilesToProcessAsync()
     {
         var requests = new List<DataPipelineRequest>();
-        
+
         try
         {
             var processingDirectory = Path.Combine(_config.BaseDirectory, _scheduleConfig.ProcessingDirectory);
-            
+
             if (!Directory.Exists(processingDirectory))
             {
                 Directory.CreateDirectory(processingDirectory);
@@ -279,12 +285,12 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             }
 
             var files = Directory.GetFiles(processingDirectory, "*.*", SearchOption.TopDirectoryOnly);
-            
+
             foreach (var filePath in files)
             {
                 var fileName = Path.GetFileName(filePath);
                 var extension = Path.GetExtension(fileName).ToLowerInvariant();
-                
+
                 var fileType = extension switch
                 {
                     ".csv" => FileType.CSV,
@@ -316,7 +322,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         {
             _logger.LogError(ex, "Error discovering files to process");
         }
-        
+
         return requests;
     }
 
@@ -344,14 +350,14 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             {
                 _schedule = CrontabSchedule.Parse(_scheduleConfig.CronExpression);
                 _nextExecutionTime = GetNextScheduledTime(DateTime.UtcNow);
-                
+
                 _logger.LogDebug("Schedule updated successfully. Next execution: {NextExecution}", _nextExecutionTime);
             }
             else
             {
                 _schedule = null;
                 _nextExecutionTime = null;
-                
+
                 _logger.LogDebug("Scheduled processing disabled");
             }
         }
@@ -369,6 +375,11 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         _cancellationTokenSource?.Dispose();
         _executionSemaphore?.Dispose();
         base.Dispose();
+    }
+
+    Task<bool> IScheduledPipelineService.CancelCurrentRunAsync()
+    {
+        throw new NotImplementedException();
     }
 }
 

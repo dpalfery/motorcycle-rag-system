@@ -70,9 +70,31 @@ public class PdfChunker
 
         try
         {
+            // Input validation
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                result.Errors.Add("File path is required.");
+                return result;
+            }
+
             if (!File.Exists(filePath))
             {
                 result.Errors.Add($"File not found: {filePath}");
+                return result;
+            }
+
+            var extension = Path.GetExtension(filePath).ToLowerInvariant();
+            if (extension != ".pdf")
+            {
+                result.Errors.Add("Invalid file type. Only PDF files are supported.");
+                return result;
+            }
+
+            var fileInfo = new FileInfo(filePath);
+            const long maxSizeBytes = 100 * 1024 * 1024; // 100 MB
+            if (fileInfo.Length > maxSizeBytes)
+            {
+                result.Errors.Add($"File too large. Max allowed size is 100MB. Actual size: {fileInfo.Length / (1024 * 1024)}MB");
                 return result;
             }
 

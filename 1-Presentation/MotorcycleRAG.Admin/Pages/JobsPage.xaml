@@ -23,8 +23,18 @@
 
         <!-- Jobs List -->
         <ScrollView Grid.Row="1">
-            <CollectionView x:Name="JobsCollectionView"
-                            EmptyView="No pipeline executions found">
+            <CollectionView x:Name="JobsCollectionView">
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10" Padding="20">
+                        <Label Text="No pipeline executions found" 
+                               FontSize="16" 
+                               HorizontalOptions="Center" />
+                        <Label Text="Configure authentication to load jobs from the API" 
+                               FontSize="12" 
+                               TextColor="Gray" 
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
                         <Frame BorderColor="LightGray" 

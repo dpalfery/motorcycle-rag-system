@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Admin.Services;
 
 namespace MotorcycleRAG.Admin;
@@ -6,21 +5,17 @@ namespace MotorcycleRAG.Admin;
 public partial class App : Application
 {
 	private readonly IAdminAuthService _authService;
+	private readonly IServiceProvider _serviceProvider;
 
-	public App()
+	public App(IAdminAuthService authService, IServiceProvider serviceProvider)
 	{
 		InitializeComponent();
-		
-		// TODO: Replace with actual configuration from appsettings.json or environment
-		_authService = new AdminAuthService(
-			clientId: Environment.GetEnvironmentVariable("ENTRA_CLIENT_ID") ?? "YOUR_CLIENT_ID",
-			authority: Environment.GetEnvironmentVariable("ENTRA_AUTHORITY") ?? "https://login.microsoftonline.com/YOUR_TENANT_ID",
-			scopes: new[] { Environment.GetEnvironmentVariable("API_SCOPE") ?? "api://YOUR_API_ID/.default" }
-		);
+		_authService = authService;
+		_serviceProvider = serviceProvider;
 	}
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		return new Window(new AppShell(_authService));
+		return new Window(new AppShell(_authService, _serviceProvider));
 	}
 }

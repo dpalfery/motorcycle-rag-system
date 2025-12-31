@@ -1,5 +1,6 @@
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Processing;
+using MotorcycleRAG.Admin.Utilities;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -151,7 +152,8 @@ public class IngestionViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            await ShowErrorAsync("File Selection Error", ex.Message);
+            var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
+            await ShowErrorAsync("File Selection Error", sanitizedMessage);
             _logger?.LogError(ex, "File selection failed");
         }
     }
@@ -199,8 +201,9 @@ public class IngestionViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error: {ex.Message}";
-            await ShowErrorAsync("Processing Error", ex.Message);
+            var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
+            StatusMessage = $"Error: {sanitizedMessage}";
+            await ShowErrorAsync("Processing Error", sanitizedMessage);
             _logger?.LogError(ex, "Processing failed for file {FilePath}", SelectedFilePath);
         }
         finally

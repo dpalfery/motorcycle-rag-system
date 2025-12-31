@@ -27,6 +27,17 @@
             }
         },
         {
+            "name": ".NET MAUI Admin (Windows)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build: admin",
+            "program": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-windows10.0.19041.0/win-x64/MotorcycleRAG.Admin.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
             "name": ".NET Core Attach",
             "type": "coreclr",
             "request": "attach"

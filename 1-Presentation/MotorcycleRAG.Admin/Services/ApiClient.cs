@@ -20,13 +20,13 @@ public class ApiClient
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy;
     private readonly AsyncCircuitBreakerPolicy<HttpResponseMessage> _circuitBreaker;
-    private readonly ILogger<ApiClient>? _logger;
+    private readonly ILogger<ApiClient> _logger;
 
-    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient>? logger = null)
+    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         
         _jsonOptions = new JsonSerializerOptions
         {
@@ -41,7 +41,7 @@ public class ApiClient
             .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
                 (outcome, timespan, retryCount, context) =>
                 {
-                    _logger?.LogWarning("ApiClient retry {Retry} after {Delay}s. Reason: {Reason}",
+                    _logger.LogWarning("ApiClient retry {Retry} after {Delay}s. Reason: {Reason}",
                         retryCount, timespan.TotalSeconds, outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString());
                 });
 
@@ -49,10 +49,10 @@ public class ApiClient
             .Handle<HttpRequestException>()
             .OrResult<HttpResponseMessage>(r => (int)r.StatusCode >= 500)
             .CircuitBreakerAsync(5, TimeSpan.FromMinutes(1),
-                onBreak: (outcome, ts) => _logger?.LogWarning("ApiClient circuit opened for {Duration}s. Reason: {Reason}",
+                onBreak: (outcome, ts) => _logger.LogWarning("ApiClient circuit opened for {Duration}s. Reason: {Reason}",
                     ts.TotalSeconds, outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString()),
-                onReset: () => _logger?.LogInformation("ApiClient circuit reset"),
-                onHalfOpen: () => _logger?.LogInformation("ApiClient circuit half-open"));
+                onReset: () => _logger.LogInformation("ApiClient circuit reset"),
+                onHalfOpen: () => _logger.LogInformation("ApiClient circuit half-open"));
     }
 
     /// <summary>
@@ -78,22 +78,31 @@ public class ApiClient
     {
         await EnsureAuthenticatedAsync();
 
-        using var content = new MultipartFormDataContent();
-        using var fileStream = File.OpenRead(filePath);
-        var streamContent = new StreamContent(fileStream);
-        streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
+        try
+        {
+            using var fileStream = File.OpenRead(filePath);
+            using var content = new MultipartFormDataContent();
+            var streamContent = new StreamContent(fileStream);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
 
-        content.Add(streamContent, "file", Path.GetFileName(filePath));
+            content.Add(streamContent, "file", Path.GetFileName(filePath));
 
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
-            $"api/datapipeline/upload?processImmediately={processImmediately}",
-            content,
-            cancellationToken));
+            var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
+                $"api/datapipeline/upload?processImmediately={processImmediately}",
+                content,
+                cancellationToken));
 
-        response.EnsureSuccessStatusCode();
+            response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<FileUploadResult>(_jsonOptions, cancellationToken)
-               ?? throw new InvalidOperationException("Failed to deserialize upload response");
+            var result = await response.Content.ReadFromJsonAsync<FileUploadResult>(_jsonOptions, cancellationToken);
+            UploadResultValidator.ValidateFileUploadResult(result);
+            return result!;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading file: {FilePath}", Path.GetFileName(filePath));
+            throw;
+        }
     }
 
     /// <summary>
@@ -103,25 +112,50 @@ public class ApiClient
     {
         await EnsureAuthenticatedAsync();
 
-        using var content = new MultipartFormDataContent();
+        var streams = new List<FileStream>();  // Track all opened streams
 
-        foreach (var filePath in filePaths)
+        try
         {
-            using var fileStream = File.OpenRead(filePath);
-            var streamContent = new StreamContent(fileStream);
-            streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
-            content.Add(streamContent, "files", Path.GetFileName(filePath));
+            using var content = new MultipartFormDataContent();
+
+            foreach (var filePath in filePaths)
+            {
+                // Validate before opening
+                if (!File.Exists(filePath))
+                    throw new FileNotFoundException($"File not found: {filePath}");
+
+                var fileStream = File.OpenRead(filePath);
+                streams.Add(fileStream);  // Track for cleanup
+
+                var streamContent = new StreamContent(fileStream);
+                streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
+                content.Add(streamContent, "files", Path.GetFileName(filePath));
+            }
+
+            var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
+                $"api/datapipeline/upload-batch?processImmediately={processImmediately}",
+                content,
+                cancellationToken));
+
+            response.EnsureSuccessStatusCode();
+
+            var batchResult = await response.Content.ReadFromJsonAsync<BatchFileUploadResult>(_jsonOptions, cancellationToken);
+            UploadResultValidator.ValidateBatchFileUploadResult(batchResult);
+            return batchResult!;
+        }  // <-- content disposed here AFTER PostAsync completes
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading batch files");
+            throw;
         }
-
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
-            $"api/datapipeline/upload-batch?processImmediately={processImmediately}",
-            content,
-            cancellationToken));
-
-        response.EnsureSuccessStatusCode();
-
-        return await response.Content.ReadFromJsonAsync<BatchFileUploadResult>(_jsonOptions, cancellationToken)
-               ?? throw new InvalidOperationException("Failed to deserialize batch upload response");
+        finally
+        {
+            // Ensure all streams are disposed even on exception
+            foreach (var stream in streams)
+            {
+                stream?.Dispose();
+            }
+        }
     }
 
     /// <summary>

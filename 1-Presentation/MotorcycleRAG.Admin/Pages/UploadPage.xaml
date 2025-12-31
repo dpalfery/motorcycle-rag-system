@@ -5,10 +5,6 @@
              x:Class="MotorcycleRAG.Admin.Pages.UploadPage"
             Title="Upload and Process">
     
-    <ContentPage.BindingContext>
-        <viewmodels:IngestionViewModel x:Name="ViewModel" />
-    </ContentPage.BindingContext>
-
     <ScrollView>
         <VerticalStackLayout Padding="20" Spacing="15">
             

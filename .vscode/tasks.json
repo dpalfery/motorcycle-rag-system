@@ -2,10 +2,25 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "build: admin",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
+        "/p:Configuration=Debug",
+        "/p:TargetFramework=net10.0-windows10.0.19041.0"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
       "label": "Git: Complete Push Workflow",
       "type": "shell",
       "command": "git",
-      "args": ["add", "."],
+      "args": [
+        "add",
+        "."
+      ],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -27,7 +42,10 @@
       "label": "Git: Stage All Changes",
       "type": "shell",
       "command": "git",
-      "args": ["add", "."],
+      "args": [
+        "add",
+        "."
+      ],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -59,7 +77,10 @@
       "label": "Git: Push to Origin",
       "type": "shell",
       "command": "git",
-      "args": ["push", "origin"],
+      "args": [
+        "push",
+        "origin"
+      ],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -73,7 +94,10 @@
       "label": "Git: Status Check",
       "type": "shell",
       "command": "git",
-      "args": ["status", "--porcelain"],
+      "args": [
+        "status",
+        "--porcelain"
+      ],
       "group": "test",
       "presentation": {
         "echo": true,
@@ -84,4 +108,4 @@
       "problemMatcher": []
     }
   ]
-} 
+}

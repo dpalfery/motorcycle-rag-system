@@ -149,20 +149,20 @@
 
 **Independent Test**: Use MAUI app to upload PDF/CSV, run local processing, submit artifacts, monitor job status, and verify content is searchable.
 
-- [ ] T058 [US3a] Create MAUI project scaffold in 1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj
-- [ ] T059 [US3a] Add solution/project references and build configuration in MotorcycleRAG.sln
-- [ ] T060 [US3a] Create API client wrapper for pipeline/admin endpoints in 1-Presentation/MotorcycleRAG.Admin/Services/ApiClient.cs
-- [ ] T061 [US3a] Implement Entra ID sign-in flow (device code / MSAL) in 1-Presentation/MotorcycleRAG.Admin/Services/AdminAuthService.cs
-- [ ] T062 [US3a] Implement role-gated admin navigation in 1-Presentation/MotorcycleRAG.Admin/AppShell.xaml
-- [ ] T063 [US3a] Implement file picker + validation (type/size) in 1-Presentation/MotorcycleRAG.Admin/Pages/UploadPage.xaml
-- [ ] T064 [US3a] Implement local PDF chunking pipeline in 1-Presentation/MotorcycleRAG.Admin/Processing/PdfChunker.cs
-- [ ] T065 [US3a] Implement local CSV parsing/chunking pipeline in 1-Presentation/MotorcycleRAG.Admin/Processing/CsvChunker.cs
-- [ ] T066 [US3a] Implement ONNX Runtime embedding generation in 1-Presentation/MotorcycleRAG.Admin/Processing/OnnxEmbeddingService.cs
-- [ ] T067 [US3a] Package embedding model as app content in 1-Presentation/MotorcycleRAG.Admin/Resources/Raw/embedding-model.onnx
-- [ ] T068 [US3a] Implement “upload artifacts then process” workflow in 1-Presentation/MotorcycleRAG.Admin/ViewModels/IngestionViewModel.cs
-- [ ] T069 [US3a] Implement job status polling + display in 1-Presentation/MotorcycleRAG.Admin/Pages/JobsPage.xaml
-- [ ] T070 [US3a] Implement cancellation action in 1-Presentation/MotorcycleRAG.Admin/Pages/JobsPage.xaml
-- [ ] T071 [US3a] Add operational error reporting UX in 1-Presentation/MotorcycleRAG.Admin/Utilities/ErrorPresenter.cs
+- [X] T058 [US3a] Create MAUI project scaffold in 1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj
+- [X] T059 [US3a] Add solution/project references and build configuration in MotorcycleRAG.sln
+- [X] T060 [US3a] Create API client wrapper for pipeline/admin endpoints in 1-Presentation/MotorcycleRAG.Admin/Services/ApiClient.cs
+- [X] T061 [US3a] Implement Entra ID sign-in flow (device code / MSAL) in 1-Presentation/MotorcycleRAG.Admin/Services/AdminAuthService.cs
+- [X] T062 [US3a] Implement role-gated admin navigation in 1-Presentation/MotorcycleRAG.Admin/AppShell.xaml
+- [X] T063 [US3a] Implement file picker + validation (type/size) in 1-Presentation/MotorcycleRAG.Admin/Pages/UploadPage.xaml
+- [X] T064 [US3a] Implement local PDF chunking pipeline in 1-Presentation/MotorcycleRAG.Admin/Processing/PdfChunker.cs
+- [X] T065 [US3a] Implement local CSV parsing/chunking pipeline in 1-Presentation/MotorcycleRAG.Admin/Processing/CsvChunker.cs
+- [X] T066 [US3a] Implement ONNX Runtime embedding generation in 1-Presentation/MotorcycleRAG.Admin/Processing/OnnxEmbeddingService.cs
+- [X] T067 [US3a] Package embedding model as app content in 1-Presentation/MotorcycleRAG.Admin/Resources/Raw/embedding-model.onnx
+- [X] T068 [US3a] Implement "upload artifacts then process" workflow in 1-Presentation/MotorcycleRAG.Admin/ViewModels/IngestionViewModel.cs
+- [X] T069 [US3a] Implement job status polling + display in 1-Presentation/MotorcycleRAG.Admin/Pages/JobsPage.xaml
+- [X] T070 [US3a] Implement cancellation action in 1-Presentation/MotorcycleRAG.Admin/Pages/JobsPage.xaml
+- [X] T071 [US3a] Add operational error reporting UX in 1-Presentation/MotorcycleRAG.Admin/Utilities/ErrorPresenter.cs
 
 ---
 

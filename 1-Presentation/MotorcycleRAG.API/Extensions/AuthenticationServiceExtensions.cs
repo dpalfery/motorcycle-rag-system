@@ -31,8 +31,31 @@ internal class SigningKeyCache
     }
 
     /// <summary>
-    /// Gets signing keys for an issuer, refreshing from OpenID endpoint if cache expired.
-    /// This is a blocking operation but should be fast from cache.
+    /// Pre-warms the cache with signing keys from the specified issuers.
+    /// Should be called during application startup to avoid blocking requests.
+    /// </summary>
+    public async Task PreWarmCacheAsync(string workforceIssuer, string? externalIdIssuer = null)
+    {
+        _logger.LogInformation("Pre-warming signing key cache for issuers");
+
+        // Warm up the workforce issuer
+        if (!string.IsNullOrEmpty(workforceIssuer))
+        {
+            await RefreshKeysAsync(workforceIssuer);
+        }
+
+        // Warm up the external ID issuer if configured
+        if (!string.IsNullOrEmpty(externalIdIssuer))
+        {
+            await RefreshKeysAsync(externalIdIssuer);
+        }
+
+        _logger.LogInformation("Signing key cache pre-warming completed");
+    }
+
+    /// <summary>
+    /// Gets signing keys for an issuer from the cache.
+    /// Returns cached keys without blocking. Cache must be pre-warmed at startup.
     /// </summary>
     public IEnumerable<SecurityKey> GetSigningKeys(string issuer)
     {
@@ -46,22 +69,21 @@ internal class SigningKeyCache
             return cached.Keys;
         }
 
-        // Keys expired or missing - refresh them (blocking but async-safe)
-        _logger.LogInformation("Refreshing signing keys for issuer {Issuer}", issuer);
-        RefreshKeysSync(issuer).Wait(TimeSpan.FromSeconds(10));  // Wait max 10 seconds
-
-        if (_keyCache.TryGetValue(issuer, out var refreshed))
-            return refreshed.Keys;
-
-        // If refresh failed, return empty to reject token
-        _logger.LogError("Failed to refresh signing keys for issuer {Issuer}", issuer);
+        // Cache miss - either cache wasn't pre-warmed or keys expired
+        // Return empty to reject token, triggering fallback handling
+        // A warning is logged to alert operators that cache pre-warming may have failed
+        _logger.LogWarning(
+            "Signing keys not available in cache for issuer {Issuer}. " +
+            "Cache may not have been pre-warmed at startup. Token will be rejected.",
+            issuer);
         return [];
     }
 
     /// <summary>
     /// Asynchronously refreshes signing keys for an issuer from OpenID metadata.
+    /// Safe to call from background operations, but not from request pipeline.
     /// </summary>
-    private async Task RefreshKeysSync(string issuer)
+    private async Task RefreshKeysAsync(string issuer)
     {
         // Use semaphore to prevent multiple concurrent refreshes for same issuer
         await _refreshSemaphore.WaitAsync();

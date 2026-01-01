@@ -29,5 +29,13 @@
     "chat.tools.terminal.autoApprove": {
         ".specify/scripts/bash/": true,
         ".specify/scripts/powershell/": true
-    }
+    },
+    "chat.useNestedAgentsMdFiles": true,
+    "github.copilot.chat.cli.customAgents.enabled": true,
+    "github.copilot.chat.customAgents.showOrganizationAndEnterpriseAgents": true,
+    "chat.useAgentSkills": true,
+    "chat.customAgentInSubagent.enabled": true,
+    "github.copilot.chat.cli.mcp.enabled": true,
+    "chat.agentSessionsViewLocation": "view",
+    "chat.viewSessions.enabled": true
 }

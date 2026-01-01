@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.RateLimiting;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -308,7 +308,32 @@ public class Program
         logger.LogInformation("Motorcycle RAG API starting up...");
         logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
 
-        app.Run();
+        // Pre-warm the JWT signing key cache to avoid blocking on first request
+        // This is critical to prevent deadlocks under concurrent load
+        try
+        {
+            var authConfig = builder.Configuration.GetSection("Authentication:Issuers");
+            var workforceIssuer = authConfig["Workforce"];
+            var externalIdIssuer = authConfig["ExternalId"];
+
+            if (!string.IsNullOrEmpty(workforceIssuer))
+            {
+                var signingKeyCache = app.Services.GetRequiredService<SigningKeyCache>();
+                logger.LogInformation("Pre-warming JWT signing key cache...");
+                await signingKeyCache.PreWarmCacheAsync(workforceIssuer, externalIdIssuer);
+                logger.LogInformation("JWT signing key cache pre-warming completed");
+            }
+            else
+            {
+                logger.LogWarning("Workforce issuer not configured - signing key cache will not be pre-warmed");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error pre-warming JWT signing key cache. Application will continue but JWT validation may fail on first request.");
+        }
+
+        await app.RunAsync();
     }
 
     /// <summary>

@@ -8,6 +8,7 @@ using MotorcycleRAG.MobileApp.Persistence.Repositories;
 using MotorcycleRAG.MobileApp.Services;
 using MotorcycleRAG.MobileApp.Views;
 using MotorcycleRAG.MobileApp.ViewModels;
+using Material.Components.Maui.Extensions;
 
 namespace MotorcycleRAG.MobileApp;
 
@@ -18,6 +19,7 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
+            .UseMaterialComponents()
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

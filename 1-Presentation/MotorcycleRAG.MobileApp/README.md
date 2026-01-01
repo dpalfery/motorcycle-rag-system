@@ -39,9 +39,33 @@ A .NET MAUI mobile application for the Motorcycle RAG System.
 ## Architecture
 
 - **MVVM Pattern**: Uses CommunityToolkit.Mvvm.
+- **UI Components**: Material.Components.Maui for Material Design 3.
 - **Dependency Injection**: Configured in `MauiProgram.cs`.
 - **Persistence**: SQLite for local storage of conversations and messages.
 - **Resilience**: Polly policies for API retries and circuit breaking.
+
+## UI Framework
+
+This app uses **Material.Components.Maui** (v0.2.2-preview) to implement Material Design 3 (Material You) components across all platforms.
+
+### Key Components
+- **Material Buttons**: Elevated, filled, outlined, text variants
+- **Material Cards**: For message bubbles and content containers
+- **Material TextFields**: With floating labels and validation
+- **Material Navigation**: Bottom nav and app bars
+- **Dynamic Theming**: Automatic light/dark mode support
+
+### Usage Example
+
+```xml
+<ContentPage xmlns:material="clr-namespace:Material.Components.Maui.Core;assembly=Material.Components.Maui">
+    <material:Button Text="Send" 
+                    Style="{StaticResource ElevatedButton}"
+                    Command="{Binding SendCommand}" />
+</ContentPage>
+```
+
+For more details, see `/specs/001-mobile-app/research.md` section 9.
 
 ## Testing
 

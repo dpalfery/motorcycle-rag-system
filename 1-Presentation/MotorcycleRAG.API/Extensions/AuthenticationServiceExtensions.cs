@@ -324,12 +324,9 @@ public static class AuthenticationServiceExtensions
                 }
             };
 
-            // Configure JWT security token handler
-            options.SecurityTokenValidators.Clear();
-            options.SecurityTokenValidators.Add(new JwtSecurityTokenHandler
-            {
-                MapInboundClaims = false // Preserve original claim types (don't map to Windows claims)
-            });
+            // Note: In modern ASP.NET Core, the default JwtSecurityTokenHandler behavior
+            // automatically preserves original claim types without mapping to Windows claims.
+            // This is the secure default and no custom handler configuration is needed.
 
             // Challenge/forbidden handling
             options.Events = new JwtBearerEvents

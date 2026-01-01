@@ -39,33 +39,29 @@ A .NET MAUI mobile application for the Motorcycle RAG System.
 ## Architecture
 
 - **MVVM Pattern**: Uses CommunityToolkit.Mvvm.
-- **UI Components**: Material.Components.Maui for Material Design 3.
+- **UI Toolkit**: Uses built-in MAUI controls plus CommunityToolkit.Maui helpers.
 - **Dependency Injection**: Configured in `MauiProgram.cs`.
 - **Persistence**: SQLite for local storage of conversations and messages.
 - **Resilience**: Polly policies for API retries and circuit breaking.
 
-## UI Framework
+## UI Toolkit
 
-This app uses **Material.Components.Maui** (v0.2.2-preview) to implement Material Design 3 (Material You) components across all platforms.
-
-### Key Components
-- **Material Buttons**: Elevated, filled, outlined, text variants
-- **Material Cards**: For message bubbles and content containers
-- **Material TextFields**: With floating labels and validation
-- **Material Navigation**: Bottom nav and app bars
-- **Dynamic Theming**: Automatic light/dark mode support
+This app uses **CommunityToolkit.Maui** plus built-in MAUI controls. The toolkit provides useful building blocks (behaviors, converters, and a small set of views) without forcing a full design system.
 
 ### Usage Example
 
 ```xml
-<ContentPage xmlns:material="clr-namespace:Material.Components.Maui.Core;assembly=Material.Components.Maui">
-    <material:Button Text="Send" 
-                    Style="{StaticResource ElevatedButton}"
-                    Command="{Binding SendCommand}" />
+<ContentPage xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit">
+    <Grid>
+        <Grid.Behaviors>
+            <toolkit:TouchBehavior Command="{Binding SendCommand}" />
+        </Grid.Behaviors>
+        <Label Text="Tap to Send" />
+    </Grid>
 </ContentPage>
 ```
 
-For more details, see `/specs/001-mobile-app/research.md` section 9.
+For more details, see `specs/001-mobile-app/research.md`.
 
 ## Testing
 

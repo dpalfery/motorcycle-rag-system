@@ -1422,25 +1422,11 @@ Mobile App:
 └── Profile (User info & usage)
 ```
 
-## 6. Material.Components.Maui Integration
+## 6. .NET MAUI Community Toolkit Integration
 
-### 6.1 Component Mapping
+### 6.1 UI Building Blocks
 
-| UI Element | Material Component | Usage |
-|------------|-------------------|--------|
-| Left Menu | Flyout | Navigation menu |
-| Top Header | TopAppBar | Page header with profile |
-| Profile Avatar | Avatar | User profile display |
-| Sign Out Button | IconButton | Logout action |
-| Upload Button | Button (Filled) | Primary action |
-| File Picker | TextField + Button | File selection |
-| Progress Bar | ProgressBar | Upload/processing progress |
-| Status Cards | Card | Job status display |
-| Source List | Card Collection | Web sources display |
-| Tool Toggle | Switch | Enable/disable tools |
-| Chat Bubbles | Card | Message display |
-| Query Input | TextField | User input |
-| Send Button | IconButton (Filled) | Submit query |
+The MAUI apps use built-in MAUI controls (Shell, Grid, Label, Button, Entry, CollectionView, ProgressBar) and leverage `CommunityToolkit.Maui` for MVVM-friendly behaviors, converters, animations, and helper views where appropriate.
 
 ### 6.2 Navigation Shell Configuration
 
@@ -1448,7 +1434,7 @@ Mobile App:
 <!-- AppShell.xaml -->
 <Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-       xmlns:mc="clr-namespace:Material.Components.Maui;assembly=Material.Components.Maui"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
        xmlns:pages="clr-namespace:MotorcycleRAG.Admin.Pages"
        FlyoutBehavior="Locked"
        FlyoutWidth="300">
@@ -1504,11 +1490,11 @@ Mobile App:
             <HorizontalStackLayout Grid.Column="1"
                                 Spacing="10"
                                 VerticalOptions="Center">
-                <!-- User Avatar -->
-                <mc:Avatar WidthRequest="32"
-                           HeightRequest="32"
-                           Source="{Binding UserAvatar}"
-                           Initials="{Binding UserInitials}"/>
+                  <!-- User Avatar -->
+                  <Image WidthRequest="32"
+                      HeightRequest="32"
+                      Source="{Binding UserAvatar}"
+                      Aspect="AspectFill"/>
                 
                 <!-- User Name -->
                 <Label Text="{Binding UserName}"
@@ -1516,9 +1502,8 @@ Mobile App:
                        VerticalOptions="Center"/>
                 
                 <!-- Sign Out Button -->
-                <mc:IconButton Icon="logout.png"
-                               Command="{Binding SignOutCommand}"
-                               ToolTip="Sign Out"/>
+                <Button Text="Sign out"
+                    Command="{Binding SignOutCommand}"/>
             </HorizontalStackLayout>
         </Grid>
     </Shell.TitleView>
@@ -1534,6 +1519,6 @@ This data model document provides:
 3. **UI View Models**: MAUI-specific models for Admin and MobileApp (Authentication, Dashboard, Upload, Jobs, WebSources, Tools, Chat, UserProfile)
 4. **Navigation Models**: Navigation items and user profile models
 5. **API Contracts**: Request/response DTOs for API communication
-6. **Material.Components.Maui Integration**: Component mapping and navigation shell configuration
+6. **CommunityToolkit.Maui Integration**: UI building blocks and navigation shell configuration
 
 All models follow Clean Architecture principles with clear separation between domain entities, UI view models, and API contracts.

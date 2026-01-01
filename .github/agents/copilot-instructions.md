@@ -6,7 +6,7 @@ Auto-generated from all feature plans. Last updated: 2025-12-25
 - .NET 10 / C# (server + MAUI admin app), TypeScript + React 19 (web UI) (001-system-spec)
 - [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION] (001-system-spec)
 - [if applicable, e.g., PostgreSQL, CoreData, files or N/A] (001-system-spec)
-- C# 13 / .NET 10.0 + ASP.NET Core Web API, .NET MAUI, Azure AI Foundry (OpenAI, AI Search, Document Intelligence), Semantic Kernel, Material.Components.Maui, Polly, Serilog (001-system-spec)
+- C# 13 / .NET 10.0 + ASP.NET Core Web API, .NET MAUI, Azure AI Foundry (OpenAI, AI Search, Document Intelligence), Semantic Kernel, CommunityToolkit.Maui, Polly, Serilog (001-system-spec)
 - Azure AI Search (vector store), Azure SQL Database (user/usage/metadata), Azure App Configuration (MCP config), Azure Key Vault (secrets) (001-system-spec)
 
 ## Project Structure
@@ -26,7 +26,7 @@ npm test; npm run lint
 .NET 10 / C# (server + MAUI admin app), TypeScript + React 19 (web UI): Follow standard conventions
 
 ## Recent Changes
-- 001-system-spec: Added C# 13 / .NET 10.0 + ASP.NET Core Web API, .NET MAUI, Azure AI Foundry (OpenAI, AI Search, Document Intelligence), Semantic Kernel, Material.Components.Maui, Polly, Serilog
+- 001-system-spec: Added C# 13 / .NET 10.0 + ASP.NET Core Web API, .NET MAUI, Azure AI Foundry (OpenAI, AI Search, Document Intelligence), Semantic Kernel, CommunityToolkit.Maui, Polly, Serilog
 - 001-system-spec: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
 - 001-system-spec: Added .NET 10 / C# (server + MAUI admin app), TypeScript + React 19 (web UI)
 

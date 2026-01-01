@@ -91,13 +91,17 @@ builder.Services.AddAuthentication(options =>
 
 var app = builder.Build();
 
-// Pipeline
+// Pipeline - Security-first approach
+// 1. HTTPS enforcement
 app.UseHttpsRedirection();
 
-// HSTS (HTTP Strict Transport Security) - force HTTPS for 1 year
+// 2. HSTS (HTTP Strict Transport Security) - force HTTPS for 1 year
 app.UseHsts();
 
-// Security Headers
+// 3. Host Header Validation MUST be early to prevent injection attacks
+app.UseHostHeaderValidation();
+
+// 4. Security Headers
 app.Use(async (context, next) =>
 {
     // Prevent clickjacking attacks
@@ -156,11 +160,13 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseHostHeaderValidation();
+// 5. Static files
 app.UseStaticFiles();
+
+// 6. Routing (must come before CORS)
 app.UseRouting();
 
-// Apply CORS policy before authentication
+// 7. CORS - must be after routing but before authentication
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();

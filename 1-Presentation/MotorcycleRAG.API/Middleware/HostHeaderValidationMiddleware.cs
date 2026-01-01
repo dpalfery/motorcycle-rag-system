@@ -42,6 +42,17 @@ public class HostHeaderValidationMiddleware
             StringComparer.OrdinalIgnoreCase
         );
 
+        // Fail fast if AllowedHosts is empty - this indicates a misconfiguration
+        if (_allowedHosts.Count == 0)
+        {
+            var errorMessage =
+                "HostHeaderValidationMiddleware configuration error: AllowedHosts is empty. " +
+                "Configure 'AllowedHosts' in appsettings.json with a comma-separated list of allowed hostnames. " +
+                "Example: 'AllowedHosts': 'localhost,api.example.com,api-staging.example.com'";
+            _logger.LogError(errorMessage);
+            throw new InvalidOperationException(errorMessage);
+        }
+
         _logger.LogInformation(
             "HostHeaderValidationMiddleware initialized with allowed hosts: {AllowedHosts}",
             string.Join(", ", _allowedHosts)
@@ -139,10 +150,11 @@ public class HostHeaderValidationMiddleware
 
     /// <summary>
     /// Extracts the hostname from a Host header value (removes port if present).
-    /// Handles both IPv4 addresses and domain names.
+    /// RFC 3986 format: IPv6 addresses are enclosed in brackets, e.g., [::1]:8080
+    /// IPv4/hostname format: hostname or hostname:port
     /// </summary>
     /// <param name="hostValue">The Host header value</param>
-    /// <returns>The hostname without port</returns>
+    /// <returns>The hostname without port, or empty string if malformed</returns>
     private static string ExtractHostname(string hostValue)
     {
         if (string.IsNullOrWhiteSpace(hostValue))
@@ -150,26 +162,35 @@ public class HostHeaderValidationMiddleware
             return string.Empty;
         }
 
-        // For IPv6 addresses in brackets, look for ] to find end of address
+        // Handle IPv6 addresses in brackets (RFC 3986)
+        // Format: [address] or [address]:port
+        // Example: [::1] or [2001:db8::1]:8080
         if (hostValue.StartsWith("[", StringComparison.Ordinal))
         {
             var closingBracket = hostValue.IndexOf(']');
+
+            // closingBracket returns -1 if not found, or the index position if found
+            // We require closingBracket > 0 to ensure there's at least one character between [ and ]
+            // (position 0 would mean empty brackets [], which is invalid)
             if (closingBracket > 0)
             {
+                // Return the entire IPv6 address including brackets, excluding any port after ]
                 return hostValue.Substring(0, closingBracket + 1).ToLowerInvariant();
             }
             else
             {
-                // Malformed IPv6 address (missing closing bracket) - reject
+                // Malformed IPv6 address (missing closing bracket)
                 return string.Empty;
             }
         }
 
-        // For IPv4 and domain names, split by colon to remove port
+        // Handle IPv4 addresses and domain names
+        // Look for port separator from the end (LastIndexOf to handle domain names with dots)
         var colonIndex = hostValue.LastIndexOf(':');
         if (colonIndex > 0)
         {
-            // Ensure the part after colon is actually a port number
+            // Verify that what follows the colon is actually a valid port number
+            // This prevents misinterpreting part of the hostname as a port
             var potentialPort = hostValue.Substring(colonIndex + 1);
             if (int.TryParse(potentialPort, out _))
             {
@@ -177,6 +198,7 @@ public class HostHeaderValidationMiddleware
             }
         }
 
+        // No port found, return the entire hostname
         return hostValue.ToLowerInvariant();
     }
 

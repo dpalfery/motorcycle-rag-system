@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.API.Configuration;
-using MotorcycleRAG.API.Conventions;
-using MotorcycleRAG.API.Extensions;
 using MotorcycleRAG.Application.Extensions;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
@@ -99,12 +97,8 @@ public class Program
         // Add services to the container with rate limiting conventions
         // The RateLimitingConvention scans all controllers for [RateLimited] attributes
         // and automatically applies the specified rate limiting policies to matching endpoints
-        builder.Services.AddControllers(options =>
-        {
-            var conventionLogger = LoggerFactory.Create(b => b.AddConsole())
-                .CreateLogger<RateLimitingConvention>();
-            options.Conventions.Add(new RateLimitingConvention(conventionLogger));
-        });
+        builder.Services.AddControllers();
+        // TODO: RateLimitingConvention will be added in next commit
 
         // Configure JSON serialization
         builder.Services.ConfigureJsonSerialization(builder.Environment.IsDevelopment());
@@ -164,12 +158,17 @@ public class Program
             builder.Services.AddSqlPersistence(configuration);
             builder.Services.AddHealthChecks(configuration);
 
-            // Add dual-issuer JWT bearer authentication
-            // Supports tokens from BOTH Entra ID (workforce/admin users) and Entra External ID/B2C (customer users)
-            // Hard invariant: The API MUST NOT accept cross-issuer tokens (token.iss must match one of the configured issuers)
-            var authenticationBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
-            var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
-            authenticationBuilder.AddDualIssuerJwtBearer(builder.Configuration, startupLogger);
+            // Add JWT bearer authentication
+            // TODO: Dual-issuer JWT validation will be added in next commit
+            // This will support tokens from BOTH Entra ID (workforce/admin users) and Entra External ID/B2C (customer users)
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+                {
+                    options.Authority = $"https://login.microsoftonline.com/{builder.Configuration["AzureAd:TenantId"]}/v2.0";
+                    options.Audience = builder.Configuration["Jwt:ValidAudience"];
+                    options.TokenValidationParameters.ValidateIssuer = true;
+                    options.TokenValidationParameters.ValidIssuer = $"https://login.microsoftonline.com/{builder.Configuration["AzureAd:TenantId"]}/v2.0";
+                });
 
             // Add authorization policies for admin roles
             // Per spec.md (FR-038e.8) and plan.md: Admin-only operations require BOTH:

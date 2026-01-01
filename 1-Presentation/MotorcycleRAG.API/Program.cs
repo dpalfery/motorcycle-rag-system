@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.API.Configuration;
+using MotorcycleRAG.API.Extensions;
+using MotorcycleRAG.API.Middleware;
 using MotorcycleRAG.Application.Extensions;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
@@ -8,7 +10,6 @@ using MotorcycleRAG.Core.Options;
 using Swashbuckle.AspNetCore.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using MotorcycleRAG.API.Middleware;
 using Microsoft.AspNetCore.RateLimiting;
 
 public class Program
@@ -94,11 +95,9 @@ public class Program
             builder.Services.AddSingleton<Microsoft.ApplicationInsights.Extensibility.ITelemetryInitializer, CustomTelemetryInitializer>();
         }
 
-        // Add services to the container with rate limiting conventions
-        // The RateLimitingConvention scans all controllers for [RateLimited] attributes
-        // and automatically applies the specified rate limiting policies to matching endpoints
+        // Add services to the container
+        // Rate limiting is applied globally via MapControllers().RequireRateLimiting("authenticated")
         builder.Services.AddControllers();
-        // TODO: RateLimitingConvention will be added in next commit
 
         // Configure JSON serialization
         builder.Services.ConfigureJsonSerialization(builder.Environment.IsDevelopment());
@@ -158,17 +157,12 @@ public class Program
             builder.Services.AddSqlPersistence(configuration);
             builder.Services.AddHealthChecks(configuration);
 
-            // Add JWT bearer authentication
-            // TODO: Dual-issuer JWT validation will be added in next commit
-            // This will support tokens from BOTH Entra ID (workforce/admin users) and Entra External ID/B2C (customer users)
-            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
-                {
-                    options.Authority = $"https://login.microsoftonline.com/{builder.Configuration["AzureAd:TenantId"]}/v2.0";
-                    options.Audience = builder.Configuration["Jwt:ValidAudience"];
-                    options.TokenValidationParameters.ValidateIssuer = true;
-                    options.TokenValidationParameters.ValidIssuer = $"https://login.microsoftonline.com/{builder.Configuration["AzureAd:TenantId"]}/v2.0";
-                });
+            // Add dual-issuer JWT bearer authentication
+            // Supports tokens from BOTH Entra ID (workforce/admin users) and Entra External ID/B2C (customer users)
+            // Hard invariant: The API MUST NOT accept cross-issuer tokens (token.iss must match one of the configured issuers)
+            var authenticationBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
+            var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
+            authenticationBuilder.AddDualIssuerJwtBearer(builder.Configuration, startupLogger);
 
             // Add authorization policies for admin roles
             // Per spec.md (FR-038e.8) and plan.md: Admin-only operations require BOTH:
@@ -272,8 +266,6 @@ public class Program
             });
         }
 
-        app.UseHttpsRedirection();
-
         // Enable automatic refresh of configuration values from Azure App Configuration
         var isAppConfigEndpointConfigured = !string.IsNullOrEmpty(appConfigEndpointConfigured);
         if (isAppConfigEndpointConfigured)
@@ -283,14 +275,17 @@ public class Program
 
         // Middleware order is critical for security:
         // 1. HTTPS redirection (enforce secure transport)
-        // 2. Security headers (defense-in-depth)
-        // 3. Correlation tracking (observability)
-        // 4. Rate limiting (DOS/CSRF prevention - MUST be before CORS to prevent bypass)
-        // 5. Exception handling (graceful error responses)
-        // 6. CORS (restricted cross-origin access)
-        // 7. Authentication (identity verification)
-        // 8. Authorization (access control)
+        // 2. Host header validation (OWASP A07:2021 - prevent Host Header Injection)
+        // 3. Security headers (defense-in-depth)
+        // 4. Correlation tracking (observability)
+        // 5. Rate limiting (DOS/CSRF prevention - MUST be before CORS to prevent bypass)
+        // 6. Exception handling (graceful error responses)
+        // 7. CORS (restricted cross-origin access)
+        // 8. Authentication (identity verification)
+        // 9. Authorization (access control)
 
+        app.UseHttpsRedirection();
+        app.UseHostHeaderValidation(); // CRITICAL: Prevent Host Header Injection attacks
         app.UseSecurityHeaders();
         app.UseCorrelationId();
         app.UseRateLimiter(); // CRITICAL: Before CORS to prevent preflight bypass
@@ -349,7 +344,7 @@ public class Program
 
         // Update configuration with environment values
         var azureAdSection = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string>
+            .AddInMemoryCollection((IEnumerable<KeyValuePair<string, string?>>)new Dictionary<string, string?>
             {
                 { "AzureAd:TenantId", tenantId },
                 { "AzureAd:ClientId", clientId },
@@ -398,7 +393,7 @@ public class Program
         ValidateEndpoint("Foundry", foundryEndpoint, "AZURE_FOUNDRY_ENDPOINT", environment.IsProduction());
 
         // Update configuration with environment values (environment variables take precedence)
-        var azureAIConfig = new Dictionary<string, string>
+        var azureAIConfig = new Dictionary<string, string?>
         {
             { "AzureAI:OpenAIEndpoint", openAIEndpoint },
             { "AzureAI:SearchServiceEndpoint", searchEndpoint },
@@ -407,7 +402,7 @@ public class Program
         };
 
         var azureAISection = new ConfigurationBuilder()
-            .AddInMemoryCollection(azureAIConfig)
+            .AddInMemoryCollection((IEnumerable<KeyValuePair<string, string?>>)azureAIConfig)
             .Build();
 
         // Merge environment-based config into the existing configuration
@@ -420,7 +415,7 @@ public class Program
     /// <summary>
     /// Validates a single Azure service endpoint.
     /// </summary>
-    private static void ValidateEndpoint(string serviceName, string endpoint, string envVarName, bool isProduction)
+    private static void ValidateEndpoint(string serviceName, string? endpoint, string envVarName, bool isProduction)
     {
         if (string.IsNullOrWhiteSpace(endpoint))
         {

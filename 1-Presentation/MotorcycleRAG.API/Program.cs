@@ -1,14 +1,15 @@
 using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.API.Configuration;
+using MotorcycleRAG.API.Conventions;
+using MotorcycleRAG.API.Extensions;
 using MotorcycleRAG.Application.Extensions;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 using Swashbuckle.AspNetCore.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Identity.Web;
 using MotorcycleRAG.API.Middleware;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -65,10 +66,22 @@ public class Program
             builder.Services.AddAzureAppConfiguration();
         }
 
-        // Add Application Insights telemetry
+        // Validate Application Insights configuration early
+        var appInsightsSection = configuration.GetSection("ApplicationInsights");
+        var enableTelemetry = appInsightsSection.GetValue<bool>("EnableTelemetry", false);
         var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights")
             ?? configuration["ApplicationInsights:ConnectionString"];
 
+        // Fail fast if telemetry is enabled but connection string is not configured
+        if (enableTelemetry && string.IsNullOrWhiteSpace(appInsightsConnectionString))
+        {
+            throw new InvalidOperationException(
+                "Application Insights is enabled (EnableTelemetry=true) but ConnectionString is not configured. " +
+                "Set the APPINSIGHTS_CONNECTION_STRING environment variable or set EnableTelemetry=false in appsettings. " +
+                "For development, disable telemetry in appsettings.Development.json.");
+        }
+
+        // Add Application Insights telemetry only if connection string is provided
         if (!string.IsNullOrEmpty(appInsightsConnectionString))
         {
             builder.Services.AddApplicationInsightsTelemetry(options =>
@@ -83,8 +96,15 @@ public class Program
             builder.Services.AddSingleton<Microsoft.ApplicationInsights.Extensibility.ITelemetryInitializer, CustomTelemetryInitializer>();
         }
 
-        // Add services to the container
-        builder.Services.AddControllers();
+        // Add services to the container with rate limiting conventions
+        // The RateLimitingConvention scans all controllers for [RateLimited] attributes
+        // and automatically applies the specified rate limiting policies to matching endpoints
+        builder.Services.AddControllers(options =>
+        {
+            var conventionLogger = LoggerFactory.Create(b => b.AddConsole())
+                .CreateLogger<RateLimitingConvention>();
+            options.Conventions.Add(new RateLimitingConvention(conventionLogger));
+        });
 
         // Configure JSON serialization
         builder.Services.ConfigureJsonSerialization(builder.Environment.IsDevelopment());
@@ -107,16 +127,30 @@ public class Program
             });
         });
 
-        // Configure CORS
+        // Configure CORS with strict security controls
+        // OWASP A01:2021 - CSRF Risk Mitigation
+        // Only allows explicitly configured origins and limits HTTP methods to necessary operations
+        var corsOrigins = configuration["Cors:AllowedOrigins"]?.Split(";", StringSplitOptions.RemoveEmptyEntries)
+            ?? new[] { "https://localhost:3000" }; // Default for local development only
+
         builder.Services.AddCors(options =>
         {
             options.AddDefaultPolicy(policy =>
             {
-                policy.AllowAnyOrigin()
-                      .AllowAnyMethod()
-                      .AllowAnyHeader();
+                policy.WithOrigins(corsOrigins)
+                      .AllowCredentials() // Support HttpOnly cookies for secure auth
+                      .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // Exclude PATCH, CONNECT, TRACE
+                      .WithHeaders("Content-Type", "Authorization", "X-Requested-With") // Whitelist specific headers
+                      .WithExposedHeaders("X-Total-Count") // Only expose necessary headers
+                      .SetPreflightMaxAge(TimeSpan.FromSeconds(600)); // 10-minute preflight cache
             });
         });
+
+        // Validate and populate Azure AD configuration from environment variables
+        ValidateAndPopulateAzureAdConfiguration(configuration, builder.Environment);
+
+        // Validate and populate Azure AI endpoints from environment variables
+        ValidateAndPopulateAzureAIConfiguration(configuration, builder.Environment);
 
         // Configure custom services with validation
         try
@@ -130,49 +164,59 @@ public class Program
             builder.Services.AddSqlPersistence(configuration);
             builder.Services.AddHealthChecks(configuration);
 
-            // Add authentication services
-            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+            // Add dual-issuer JWT bearer authentication
+            // Supports tokens from BOTH Entra ID (workforce/admin users) and Entra External ID/B2C (customer users)
+            // Hard invariant: The API MUST NOT accept cross-issuer tokens (token.iss must match one of the configured issuers)
+            var authenticationBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
+            var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
+            authenticationBuilder.AddDualIssuerJwtBearer(builder.Configuration, startupLogger);
 
             // Add authorization policies for admin roles
+            // Per spec.md (FR-038e.8) and plan.md: Admin-only operations require BOTH:
+            //   1. "admin_access" in the 'scp' (scope) claim
+            //   2. An allowed value in the 'roles' claim (e.g., Admin, DataAdmin, ContentAdmin, SuperAdmin)
             builder.Services.AddAuthorization(options =>
             {
-                // Admin policy - requires Admin app role
+                // Admin policy - requires BOTH admin_access scope AND Admin app role
                 options.AddPolicy("Admin", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Admin");
+                    policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Admin"); // Role requirement
                 });
 
-                // DataAdmin policy - requires DataAdmin app role
+                // DataAdmin policy - requires BOTH admin_access scope AND DataAdmin app role
                 options.AddPolicy("DataAdmin", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "DataAdmin");
+                    policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "DataAdmin"); // Role requirement
                 });
 
-                // ContentAdmin policy - requires ContentAdmin app role
+                // ContentAdmin policy - requires BOTH admin_access scope AND ContentAdmin app role
                 options.AddPolicy("ContentAdmin", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "ContentAdmin");
+                    policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "ContentAdmin"); // Role requirement
                 });
 
-                // SuperAdmin policy - requires SuperAdmin app role
+                // SuperAdmin policy - requires BOTH admin_access scope AND SuperAdmin app role
                 options.AddPolicy("SuperAdmin", policy =>
                 {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "SuperAdmin");
+                    policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
+                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "SuperAdmin"); // Role requirement
                 });
 
-                // User policy - requires User app role (basic authenticated user)
+                // User policy - requires User app role (no scope requirement for regular users)
                 options.AddPolicy("User", policy =>
                 {
                     policy.RequireAuthenticatedUser();
                     policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "User");
                 });
 
-                // Viewer policy - requires Viewer app role (read-only access)
+                // Viewer policy - requires Viewer app role (no scope requirement for read-only access)
                 options.AddPolicy("Viewer", policy =>
                 {
                     policy.RequireAuthenticatedUser();
@@ -230,24 +274,40 @@ public class Program
         }
 
         app.UseHttpsRedirection();
+
         // Enable automatic refresh of configuration values from Azure App Configuration
         var isAppConfigEndpointConfigured = !string.IsNullOrEmpty(appConfigEndpointConfigured);
         if (isAppConfigEndpointConfigured)
         {
             app.UseAzureAppConfiguration();
         }
+
+        // Middleware order is critical for security:
+        // 1. HTTPS redirection (enforce secure transport)
+        // 2. Security headers (defense-in-depth)
+        // 3. Correlation tracking (observability)
+        // 4. Rate limiting (DOS/CSRF prevention - MUST be before CORS to prevent bypass)
+        // 5. Exception handling (graceful error responses)
+        // 6. CORS (restricted cross-origin access)
+        // 7. Authentication (identity verification)
+        // 8. Authorization (access control)
+
         app.UseSecurityHeaders();
         app.UseCorrelationId();
-        app.UseRateLimiter();
+        app.UseRateLimiter(); // CRITICAL: Before CORS to prevent preflight bypass
         app.UseExceptionHandling();
         app.UseCors();
         app.UseAuthentication();
         app.UseAuthorizationLogging(); // Add authorization logging middleware
         app.UseAuthorization();
 
-        // Map controllers and health checks
-        app.MapControllers();
-        app.MapHealthChecks("/health");
+        // Map controllers and health checks with rate limiting policies applied
+        // Controllers with [RateLimited] attributes will automatically have the rate limiter applied
+        app.MapControllers().RequireRateLimiting("authenticated");
+
+        // Map global health check endpoint to use "public" policy (not authenticated, higher limit)
+        // Health checks should be accessible to monitoring systems without authentication
+        app.MapHealthChecks("/health").RequireRateLimiting("public");
 
         // Log startup information
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
@@ -255,5 +315,139 @@ public class Program
         logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
 
         app.Run();
+    }
+
+    /// <summary>
+    /// Validates and populates Azure AD configuration from environment variables.
+    /// This ensures sensitive identifiers are not hardcoded in appsettings files.
+    /// </summary>
+    /// <param name="configuration">The application configuration</param>
+    /// <param name="environment">The hosting environment</param>
+    private static void ValidateAndPopulateAzureAdConfiguration(IConfiguration configuration, IHostEnvironment environment)
+    {
+        var tenantId = Environment.GetEnvironmentVariable("AZURE_AD_TENANT_ID")
+            ?? (configuration["AzureAd:TenantId"] != "" ? configuration["AzureAd:TenantId"] : null);
+
+        var clientId = Environment.GetEnvironmentVariable("AZURE_AD_CLIENT_ID")
+            ?? (configuration["AzureAd:ClientId"] != "" ? configuration["AzureAd:ClientId"] : null);
+
+        // In production or when appsettings values are empty, environment variables are required
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            throw new InvalidOperationException(
+                "Azure AD Tenant ID is not configured. " +
+                "Set the AZURE_AD_TENANT_ID environment variable or populate AzureAd:TenantId in appsettings.json. " +
+                "For local development, use 'dotnet user-secrets set \"AzureAd:TenantId\" \"your-tenant-id\"'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            throw new InvalidOperationException(
+                "Azure AD Client ID is not configured. " +
+                "Set the AZURE_AD_CLIENT_ID environment variable or populate AzureAd:ClientId in appsettings.json. " +
+                "For local development, use 'dotnet user-secrets set \"AzureAd:ClientId\" \"your-client-id\"'.");
+        }
+
+        // Update configuration with environment values
+        var azureAdSection = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string>
+            {
+                { "AzureAd:TenantId", tenantId },
+                { "AzureAd:ClientId", clientId },
+                { "AzureAd:Audience", clientId }, // Audience typically matches ClientId
+                { "Authentication:Audience", clientId },
+                { "Jwt:ValidAudience", clientId },
+                { "Jwt:ValidIssuer", $"https://login.microsoftonline.com/{tenantId}/v2.0" },
+                { "Jwt:IssuerSigningKeyUrl", $"https://login.microsoftonline.com/{tenantId}/discovery/v2.0/keys" },
+                { "Authentication:Issuers:Workforce", $"https://login.microsoftonline.com/{tenantId}/v2.0" }
+            })
+            .Build();
+
+        // Merge environment-based config into the existing configuration
+        foreach (var kvp in azureAdSection.AsEnumerable().Where(x => x.Value != null))
+        {
+            ((IConfigurationBuilder)configuration).AddInMemoryCollection(new[] { kvp });
+        }
+    }
+
+    /// <summary>
+    /// Validates and populates Azure AI service endpoints from environment variables.
+    /// Ensures endpoints are HTTPS URLs and not empty/placeholder values.
+    /// Environment variables take precedence over configuration file values.
+    /// </summary>
+    /// <param name="configuration">The application configuration</param>
+    /// <param name="environment">The hosting environment</param>
+    private static void ValidateAndPopulateAzureAIConfiguration(IConfiguration configuration, IHostEnvironment environment)
+    {
+        // Load Azure AI endpoints from environment variables, falling back to config
+        var openAIEndpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT")
+            ?? (configuration["AzureAI:OpenAIEndpoint"] != "" ? configuration["AzureAI:OpenAIEndpoint"] : null);
+
+        var searchEndpoint = Environment.GetEnvironmentVariable("AZURE_SEARCH_ENDPOINT")
+            ?? (configuration["AzureAI:SearchServiceEndpoint"] != "" ? configuration["AzureAI:SearchServiceEndpoint"] : null);
+
+        var documentIntelligenceEndpoint = Environment.GetEnvironmentVariable("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+            ?? (configuration["AzureAI:DocumentIntelligenceEndpoint"] != "" ? configuration["AzureAI:DocumentIntelligenceEndpoint"] : null);
+
+        var foundryEndpoint = Environment.GetEnvironmentVariable("AZURE_FOUNDRY_ENDPOINT")
+            ?? (configuration["AzureAI:FoundryEndpoint"] != "" ? configuration["AzureAI:FoundryEndpoint"] : null);
+
+        // Validate endpoints are provided and valid HTTPS URLs
+        ValidateEndpoint("OpenAI", openAIEndpoint, "AZURE_OPENAI_ENDPOINT", environment.IsProduction());
+        ValidateEndpoint("Search", searchEndpoint, "AZURE_SEARCH_ENDPOINT", environment.IsProduction());
+        ValidateEndpoint("Document Intelligence", documentIntelligenceEndpoint, "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", environment.IsProduction());
+        ValidateEndpoint("Foundry", foundryEndpoint, "AZURE_FOUNDRY_ENDPOINT", environment.IsProduction());
+
+        // Update configuration with environment values (environment variables take precedence)
+        var azureAIConfig = new Dictionary<string, string>
+        {
+            { "AzureAI:OpenAIEndpoint", openAIEndpoint },
+            { "AzureAI:SearchServiceEndpoint", searchEndpoint },
+            { "AzureAI:DocumentIntelligenceEndpoint", documentIntelligenceEndpoint },
+            { "AzureAI:FoundryEndpoint", foundryEndpoint }
+        };
+
+        var azureAISection = new ConfigurationBuilder()
+            .AddInMemoryCollection(azureAIConfig)
+            .Build();
+
+        // Merge environment-based config into the existing configuration
+        foreach (var kvp in azureAISection.AsEnumerable().Where(x => x.Value != null))
+        {
+            ((IConfigurationBuilder)configuration).AddInMemoryCollection(new[] { kvp });
+        }
+    }
+
+    /// <summary>
+    /// Validates a single Azure service endpoint.
+    /// </summary>
+    private static void ValidateEndpoint(string serviceName, string endpoint, string envVarName, bool isProduction)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            throw new InvalidOperationException(
+                $"Azure {serviceName} endpoint is not configured. " +
+                $"Set the {envVarName} environment variable. " +
+                $"For local development, use 'dotnet user-secrets set \"{envVarName}\" \"https://your-{serviceName.ToLower()}-endpoint.com/\"'. " +
+                $"Endpoint must be a valid HTTPS URL.");
+        }
+
+        // Verify endpoint is HTTPS
+        if (!endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Azure {serviceName} endpoint must use HTTPS protocol. " +
+                $"Current endpoint: {endpoint}. " +
+                $"Set a valid HTTPS URL in the {envVarName} environment variable.");
+        }
+
+        // Verify endpoint is a valid URI
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || uri.Scheme != "https")
+        {
+            throw new InvalidOperationException(
+                $"Azure {serviceName} endpoint is not a valid HTTPS URL. " +
+                $"Current endpoint: {endpoint}. " +
+                $"Verify the URL is properly formatted in the {envVarName} environment variable.");
+        }
     }
 }

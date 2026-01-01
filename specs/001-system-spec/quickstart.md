@@ -5,8 +5,102 @@ This quickstart describes how to run the system locally for development.
 ## Prereqs
 - .NET SDK 10
 - Node.js (LTS)
+- Azure CLI (`az`)
 - (Optional) Azure credentials for real cloud integrations
 - Visual Studio 2022 with .NET MAUI workload (for MAUI development)
+
+## Infrastructure Setup (Auth & Secrets)
+
+Before running the applications, you need to set up the Azure resources (Key Vault, App Registrations) and local secrets.
+
+### Step 1: Create Azure Resources
+
+Run the setup script to create Azure resources:
+
+```powershell
+./7-Deployment/scripts/setup-azure-auth.ps1 -Environment dev -SubscriptionId <your-sub-id>
+```
+
+This script will:
+- Create an Azure Key Vault.
+- Create 4 Entra ID App Registrations (API, Web BFF, Admin, Mobile).
+- Generate secrets and store them in Key Vault.
+- Output the necessary environment variables for local development.
+
+### Step 2: Set Up Local Environment Variables
+
+**SECURITY NOTICE**: Real Azure tenant IDs and client IDs must NEVER be committed to source control. The `appsettings.json` files contain only empty placeholders. All configuration must come from environment variables or secure storage (User Secrets, Key Vault).
+
+1. **Copy the environment template file**:
+   ```powershell
+   cp .env.example .env
+   ```
+
+2. **Fill in the `.env` file with your actual values** from the setup script output:
+   - `AZURE_AD_TENANT_ID`: Your Azure AD tenant ID
+   - `AZURE_AD_CLIENT_ID`: API application client ID
+   - `AZURE_AD_CLIENT_SECRET`: API application client secret
+   - All Azure service endpoints and keys
+   - See `.env.example` for complete list of variables
+
+3. **DO NOT commit the `.env` file** to source control. It is already included in `.gitignore` for safety.
+
+### Step 3: Load Environment Variables for Local Development
+
+Choose one method appropriate for your development workflow:
+
+**Option A: Using User Secrets (Recommended for Visual Studio)**
+```powershell
+cd 1-Presentation/MotorcycleRAG.API
+dotnet user-secrets init
+dotnet user-secrets set "AzureAd:TenantId" "your-actual-tenant-id"
+dotnet user-secrets set "AzureAd:ClientId" "your-actual-client-id"
+dotnet user-secrets set "AzureAd:Audience" "your-actual-client-id"
+```
+
+User Secrets are stored securely outside the repository and override `appsettings.json` values during development.
+
+**Option B: Load from `.env` File (PowerShell)**
+```powershell
+# Load all environment variables from .env file before running the application
+Get-Content .env | ForEach-Object {
+  if (-not [string]::IsNullOrWhiteSpace($_) -and -not $_.StartsWith('#')) {
+    $name, $value = $_.Split('=')
+    [Environment]::SetEnvironmentVariable($name, $value, "Process")
+  }
+}
+
+# Then run the API
+dotnet run --project 1-Presentation/MotorcycleRAG.API
+```
+
+**Option C: Set Environment Variables (Command Prompt)**
+```cmd
+set AZURE_AD_TENANT_ID=your-actual-tenant-id
+set AZURE_AD_CLIENT_ID=your-actual-client-id
+set AZURE_AD_CLIENT_SECRET=your-actual-secret
+REM ... set other required variables
+dotnet run --project 1-Presentation/MotorcycleRAG.API
+```
+
+**Option D: VS Code / IDE Launch Configuration**
+Add to `.vscode/launch.json`:
+```json
+{
+  "configurations": [
+    {
+      "name": "Motorcycle RAG API",
+      "type": "coreclr",
+      "request": "launch",
+      "env": {
+        "AZURE_AD_TENANT_ID": "your-actual-tenant-id",
+        "AZURE_AD_CLIENT_ID": "your-actual-client-id",
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  ]
+}
+```
 
 ## Backend API
 
@@ -238,11 +332,16 @@ The MAUI admin app uses Entra ID authentication with device code flow:
 
 ```bash
 # Set required environment variables for authentication
-$env:MAUI_AUTH_AUTHORITY="https://login.microsoftonline.com/your-tenant-id"
-$env:MAUI_AUTH_CLIENT_ID="your-maui-client-id"
-$env:MAUI_AUTH_REDIRECT_URI="msalyour-maui-client-id://auth"
-$env:MAUI_AUTH_SCOPES="api://your-api-client-id/.default"
+$env:MAUI_AUTH_AUTHORITY="https://login.microsoftonline.com/<tenant-id>"
+$env:MAUI_AUTH_CLIENT_ID="<maui-admin-client-id>"
+$env:MAUI_AUTH_REDIRECT_URI="msalmauiadmin:/auth"
+$env:MAUI_AUTH_SCOPES="api://<api-client-id>/.default"
 ```
+
+Where:
+- `<tenant-id>`: Your Azure Tenant ID
+- `<maui-admin-client-id>`: Client ID of the MAUI Admin app registration
+- `<api-client-id>`: Client ID of the API resource app registration
 
 ### Configuration
 
@@ -439,11 +538,16 @@ The mobile app uses Entra External ID / B2C authentication with social sign-in:
 
 ```bash
 # Set required environment variables for authentication
-$env:MOBILE_AUTH_AUTHORITY="https://your-b2c-tenant.b2clogin.com"
-$env:MOBILE_AUTH_CLIENT_ID="your-mobile-client-id"
-$env:MOBILE_AUTH_REDIRECT_URI="msalyour-mobile-client-id://auth"
-$env:MOBILE_AUTH_SCOPES="openid profile email api://your-api-client-id/.default"
+$env:MOBILE_AUTH_AUTHORITY="https://<tenant-name>.b2clogin.com"
+$env:MOBILE_AUTH_CLIENT_ID="<mobile-client-id>"
+$env:MOBILE_AUTH_REDIRECT_URI="msamobile:/auth"
+$env:MOBILE_AUTH_SCOPES="openid profile email api://<api-client-id>/.default"
 ```
+
+Where:
+- `<tenant-name>`: Your B2C tenant name
+- `<mobile-client-id>`: Client ID of the Mobile app registration
+- `<api-client-id>`: Client ID of the API resource app registration
 
 ### Configuration
 
@@ -467,37 +571,60 @@ The mobile app uses SQLite for local data persistence:
 
 ### API Environment Variables
 
-For local development, set these environment variables for the API:
+For local development, you **must** set these environment variables for the API. The application will fail fast with clear error messages if required endpoints are not configured.
+
+#### Critical Azure AI Service Endpoints (Required)
+
+These endpoints are **MANDATORY** for the API to start. They must be valid HTTPS URLs.
 
 ```bash
-# Azure AI Services
-AZURE_OPENAI_ENDPOINT="https://your-dev-openai-endpoint.openai.azure.com/"
-AZURE_OPENAI_API_KEY="your-openai-api-key"
-AZURE_OPENAI_DEPLOYMENT_NAME="gpt-4o"
-AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME="text-embedding-3-large"
+# Azure OpenAI Service - Required for chat and query planning
+# Format: https://<your-resource-name>.openai.azure.com/
+AZURE_OPENAI_ENDPOINT="https://<your-openai-endpoint>.openai.azure.com/"
 
-AZURE_SEARCH_ENDPOINT="https://your-dev-search-service.search.windows.net/"
-AZURE_SEARCH_API_KEY="your-search-api-key"
-AZURE_SEARCH_INDEX_NAME="motorcycle-rag-index"
+# Azure AI Search - Required for hybrid vector/keyword search on motorcycle data
+# Format: https://<your-resource-name>.search.windows.net/
+AZURE_SEARCH_ENDPOINT="https://<your-search-service>.search.windows.net/"
 
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT="https://your-dev-document-intelligence.cognitiveservices.azure.com/"
-AZURE_DOCUMENT_INTELLIGENCE_API_KEY="your-document-intelligence-api-key"
+# Azure Document Intelligence - Required for PDF processing and chunking
+# Format: https://<your-resource-name>.cognitiveservices.azure.com/
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT="https://<your-di-service>.cognitiveservices.azure.com/"
 
-# Application Insights
-APPLICATION_INSIGHTS_CONNECTION_STRING="your-application-insights-connection-string"
+# Azure AI Foundry - Required for additional AI services
+# Format: https://<your-foundry>.cognitiveservices.azure.com/ or AI Foundry hub URL
+AZURE_FOUNDRY_ENDPOINT="https://<your-foundry-endpoint>.cognitiveservices.azure.com/"
+```
 
-# Database
-CONNECTION_STRINGS__DEFAULT="Server=localhost;Database=MotorcycleRAG;User Id=sa;Password=your-password;TrustServerCertificate=True"
+#### Azure Service API Keys (Required)
 
-# Authentication
-AUTHENTICATION__ENTRA_ID__TENANT_ID="your-tenant-id"
-AUTHENTICATION__ENTRA_ID__CLIENT_ID="your-client-id"
-AUTHENTICATION__ENTRA_ID__CLIENT_SECRET="your-client-secret"
+These keys authenticate requests to the Azure services above:
 
-# JWT Settings
-JWT__ISSUER="https://your-issuer.com"
-JWT__AUDIENCE="your-audience"
-JWT__SIGNING_KEY="your-signing-key-with-at-least-32-characters"
+```bash
+# OpenAI API Key - Required for LLM operations
+AZURE_OPENAI_API_KEY="<your-openai-api-key>"
+
+# Search Service API Key - Required for search operations
+AZURE_SEARCH_API_KEY="<your-search-api-key>"
+
+# Document Intelligence API Key - Required for PDF processing
+AZURE_DOCUMENT_INTELLIGENCE_API_KEY="<your-document-intelligence-api-key>"
+```
+
+#### Azure AD Authentication (Required)
+
+```bash
+# Azure AD Tenant ID - Required for authentication
+AZURE_AD_TENANT_ID="<your-tenant-id>"
+
+# Azure AD Client ID (API Application) - Required for API authentication
+AZURE_AD_CLIENT_ID="<your-api-client-id>"
+```
+
+#### Optional/Development Configuration
+
+```bash
+# Database (if using SQL Server)
+CONNECTION_STRINGS__DEFAULT="Server=localhost;Database=MotorcycleRAG;User Id=sa;Password=<redacted>;TrustServerCertificate=True"
 
 # CORS
 CORS__ALLOWED_ORIGINS="http://localhost:5173,https://localhost:5001"
@@ -508,29 +635,140 @@ RATE_LIMITING__PERIOD=1m
 RATE_LIMITING__LIMIT=100
 ```
 
+#### Endpoint Validation on Startup
+
+The API performs strict validation of Azure endpoints:
+
+1. **All required endpoints must be configured** - Application fails if any endpoint is missing
+2. **Endpoints must use HTTPS** - HTTP endpoints are rejected
+3. **Endpoints must be valid URIs** - Malformed URLs are rejected
+
+Example error message if AZURE_OPENAI_ENDPOINT is not set:
+
+```
+Azure OpenAI endpoint is not configured. Set the AZURE_OPENAI_ENDPOINT environment variable.
+For local development, use 'dotnet user-secrets set "AZURE_OPENAI_ENDPOINT" "https://your-openai-endpoint.com/"'.
+Endpoint must be a valid HTTPS URL.
+```
+
+#### Setting Environment Variables for Development
+
+**Option A: Using User Secrets (Recommended)**
+```powershell
+cd 1-Presentation/MotorcycleRAG.API
+dotnet user-secrets init
+dotnet user-secrets set "AZURE_OPENAI_ENDPOINT" "https://your-openai-endpoint.openai.azure.com/"
+dotnet user-secrets set "AZURE_OPENAI_API_KEY" "your-api-key"
+dotnet user-secrets set "AZURE_SEARCH_ENDPOINT" "https://your-search-service.search.windows.net/"
+dotnet user-secrets set "AZURE_SEARCH_API_KEY" "your-search-key"
+dotnet user-secrets set "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT" "https://your-di-service.cognitiveservices.azure.com/"
+dotnet user-secrets set "AZURE_DOCUMENT_INTELLIGENCE_API_KEY" "your-di-key"
+dotnet user-secrets set "AZURE_FOUNDRY_ENDPOINT" "https://your-foundry-endpoint.cognitiveservices.azure.com/"
+dotnet user-secrets set "AZURE_AD_TENANT_ID" "your-tenant-id"
+dotnet user-secrets set "AZURE_AD_CLIENT_ID" "your-api-client-id"
+```
+
+**Option B: Load from Environment File**
+```powershell
+# Create a .env file with all variables (do NOT commit to git - it's in .gitignore)
+Get-Content .env | ForEach-Object {
+  if (-not [string]::IsNullOrWhiteSpace($_) -and -not $_.StartsWith('#')) {
+    $name, $value = $_.Split('=')
+    [Environment]::SetEnvironmentVariable($name, $value, "Process")
+  }
+}
+dotnet run --project 1-Presentation/MotorcycleRAG.API
+```
+
+**Option C: Set Environment Variables Directly**
+```powershell
+$env:AZURE_OPENAI_ENDPOINT="https://your-openai-endpoint.openai.azure.com/"
+$env:AZURE_OPENAI_API_KEY="your-key"
+# ... set other required variables
+dotnet run --project 1-Presentation/MotorcycleRAG.API
+```
+
+#### Application Insights Configuration
+
+**For Development (Local)**:
+- Application Insights telemetry is **disabled by default** in `appsettings.Development.json`
+- `EnableTelemetry` is set to `false`
+- No environment variable needed for local development
+
+**For Production**:
+- Application Insights telemetry is **enabled** in `appsettings.json` and `appsettings.Production.json`
+- `EnableTelemetry` is set to `true`
+- `APPINSIGHTS_CONNECTION_STRING` environment variable **must be set**
+- The application will fail fast with a clear error message if telemetry is enabled without a connection string
+
+**Configuration precedence**:
+1. Environment variable: `APPINSIGHTS_CONNECTION_STRING`
+2. Configuration file: `ConnectionStrings:ApplicationInsights` (from `appsettings.json`)
+3. Configuration file: `ApplicationInsights:ConnectionString` (from `appsettings.json`)
+
+**Validation behavior**:
+- If `EnableTelemetry=true` and `ConnectionString` is empty/missing: Application startup fails with clear error message
+- If `EnableTelemetry=false`: Connection string is not required (telemetry disabled)
+- Error message: "Application Insights is enabled (EnableTelemetry=true) but ConnectionString is not configured. Set the APPINSIGHTS_CONNECTION_STRING environment variable..."
+
 ### BFF Environment Variables
 
-For the BFF (Backend for Frontend), set these environment variables:
+The BFF (Backend for Frontend) requires proper configuration to forward API requests via reverse proxy. **IMPORTANT**: The `API_BASE_URL` environment variable is mandatory for the BFF to function.
+
+**Required Environment Variables:**
 
 ```bash
-# OIDC Configuration
-OIDC__AUTHORITY="https://your-identity-provider.com"
-OIDC__CLIENT_ID="your-bff-client-id"
-OIDC__CLIENT_SECRET="your-bff-client-secret"
-OIDC__RESPONSE_TYPE="code"
-OIDC__SCOPE="openid profile email api-access"
-
-# API Configuration
-API__BASE_URL="http://localhost:5028"
-API__RESOURCE="your-api-resource-id"
-
-# Session Configuration
-SESSION__SECRET="your-session-secret-with-at-least-32-characters"
-SESSION__TIMEOUT_MINUTES=60
-
-# CORS for BFF
-CORS__ALLOWED_ORIGINS="http://localhost:5173"
+# Reverse Proxy / API Configuration (REQUIRED)
+# This tells the BFF where to forward API requests
+# For development: Use the API's local address
+# For production: Must be a valid HTTPS URL with the correct domain
+API_BASE_URL="http://localhost:5028"  # For development (HTTP allowed for localhost)
+API_BASE_URL="https://api.example.com"  # For production (HTTPS required)
 ```
+
+**Azure AD / OIDC Configuration (from setup script):**
+
+```bash
+# Entra ID Tenant Configuration
+AZURE_AD_TENANT_ID="<your-tenant-id>"
+AZURE_AD_CLIENT_ID="<bff-app-client-id>"
+AZURE_AD_CLIENT_SECRET="<bff-app-client-secret>"
+
+# API Token Validation
+API_VALID_AUDIENCE="<api-client-id>"
+API_VALID_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
+```
+
+**Complete Example for Development:**
+
+```bash
+# Required: API reverse proxy target
+API_BASE_URL="http://localhost:5028"
+
+# Entra ID (from setup-azure-auth.ps1 output)
+AZURE_AD_TENANT_ID="12345678-1234-1234-1234-123456789012"
+AZURE_AD_CLIENT_ID="87654321-4321-4321-4321-210987654321"
+AZURE_AD_CLIENT_SECRET="client-secret-value"
+
+# API token validation
+API_VALID_AUDIENCE="87654321-4321-4321-4321-210987654321"
+API_VALID_ISSUER="https://login.microsoftonline.com/12345678-1234-1234-1234-123456789012/v2.0"
+```
+
+**Configuration Precedence:**
+
+1. Environment variable (`API_BASE_URL`) - takes priority
+2. `appsettings.json` - base/default configuration (empty, requires env var or file override)
+3. `appsettings.{Environment}.json`:
+   - `appsettings.Development.json` - defaults to `http://localhost:5028` for convenience
+   - `appsettings.Production.json` - empty, requires env var for security
+
+**Important Notes:**
+
+- If `API_BASE_URL` is not set and running in Production, the BFF will fail with a clear error message at startup
+- In Development, if `API_BASE_URL` is not set, it falls back to `appsettings.Development.json` (`http://localhost:5028`)
+- **Production HTTPS requirement**: If the environment is Production and `API_BASE_URL` uses HTTP, the BFF will fail to start
+- The BFF uses YARP (reverse proxy) to forward all `/api/*` requests to the configured API_BASE_URL with the user's access token attached
 
 ### MAUI Admin App Environment Variables
 
@@ -538,14 +776,14 @@ For the MAUI admin app, set these environment variables:
 
 ```bash
 # Authentication
-MAUI_AUTH_AUTHORITY="https://login.microsoftonline.com/your-tenant-id"
-MAUI_AUTH_CLIENT_ID="your-maui-client-id"
-MAUI_AUTH_REDIRECT_URI="msalyour-maui-client-id://auth"
-MAUI_AUTH_SCOPES="api://your-api-client-id/.default"
+MAUI_AUTH_AUTHORITY="https://login.microsoftonline.com/<tenant-id>"
+MAUI_AUTH_CLIENT_ID="<redacted>"
+MAUI_AUTH_REDIRECT_URI="msalmauiadmin:/auth"
+MAUI_AUTH_SCOPES="api://<api-client-id>/.default"
 
 # API Configuration
 MAUI_API_BASE_URL="http://localhost:5028"
-MAUI_API_RESOURCE="your-api-resource-id"
+MAUI_API_RESOURCE="<redacted>"
 ```
 
 ### MAUI Mobile App Environment Variables
@@ -554,14 +792,14 @@ For the MAUI mobile app, set these environment variables:
 
 ```bash
 # Authentication
-MOBILE_AUTH_AUTHORITY="https://your-b2c-tenant.b2clogin.com"
-MOBILE_AUTH_CLIENT_ID="your-mobile-client-id"
-MOBILE_AUTH_REDIRECT_URI="msalyour-mobile-client-id://auth"
-MOBILE_AUTH_SCOPES="openid profile email api://your-api-client-id/.default"
+MOBILE_AUTH_AUTHORITY="https://<tenant-name>.b2clogin.com"
+MOBILE_AUTH_CLIENT_ID="<redacted>"
+MOBILE_AUTH_REDIRECT_URI="msamobile:/auth"
+MOBILE_AUTH_SCOPES="openid profile email api://<api-client-id>/.default"
 
 # API Configuration
 MOBILE_API_BASE_URL="http://localhost:5028"
-MOBILE_API_RESOURCE="your-api-resource-id"
+MOBILE_API_RESOURCE="<redacted>"
 ```
 
 ### Running with Environment Variables
@@ -569,25 +807,23 @@ MOBILE_API_RESOURCE="your-api-resource-id"
 **Windows (PowerShell):**
 ```powershell
 # Set variables and run API
-$env:AZURE_OPENAI_ENDPOINT="https://your-dev-openai-endpoint.openai.azure.com/"
-$env:AZURE_OPENAI_API_KEY="your-openai-api-key"
+$env:AZURE_OPENAI_ENDPOINT="https://<your-openai-endpoint>.openai.azure.com/"
+$env:AZURE_OPENAI_API_KEY="<your-key>"
 # ... set other variables
 dotnet run --project 1-Presentation/MotorcycleRAG.API/MotorcycleRAG.API.csproj
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-set AZURE_OPENAI_ENDPOINT=https://your-dev-openai-endpoint.openai.azure.com/
-set AZURE_OPENAI_API_KEY=your-openai-api-key
+set AZURE_OPENAI_ENDPOINT=https://<your-openai-endpoint>.openai.azure.com/
+set AZURE_OPENAI_API_KEY=<your-key>
 rem ... set other variables
 dotnet run --project 1-Presentation/MotorcycleRAG.API/MotorcycleRAG.API.csproj
 ```
 
-**Using .env file (recommended for development):**
+**Using environment variables directly:**
 
-1. Create a `.env` file in project root
-2. Add your environment variables
-3. Use a tool like `dotnet-user-secrets` or `env-cmd` to load them
+Set variables in your shell before running the application.
 
 ### Development Secrets Management
 

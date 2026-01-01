@@ -85,8 +85,8 @@ Edit `1-Presentation/MotorcycleRAG.MobileApp/MotorcycleRAG.MobileApp.csproj`:
     <!-- MVVM -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.0" />
 
-    <!-- UI Components - Material Design 3 -->
-    <PackageReference Include="Material.Components.Maui" Version="0.2.2-preview" />
+    <!-- MAUI Toolkit -->
+    <PackageReference Include="CommunityToolkit.Maui" />
 
     <!-- Local Database -->
     <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
@@ -268,7 +268,7 @@ public static class MauiProgram
 
         builder
             .UseMauiApp<App>()
-            .UseMaterialComponents()  // Initialize Material Design 3 components
+            .UseMauiCommunityToolkit()  // Initialize .NET MAUI Community Toolkit
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

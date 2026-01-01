@@ -1,0 +1,28 @@
+{
+    "mcpServers": {
+        "auth0": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "npx",
+                "-y",
+                "@auth0/auth0-mcp-server",
+                "run"
+            ],
+            "env": {
+                "DEBUG": "auth0-mcp"
+            }
+        },
+        "playwright": {
+            "type": "stdio",
+            "command": "cmd",
+            "args": [
+                "/c",
+                "npx",
+                "-y",
+                "@playwright/mcp@latest"
+            ],
+            "env": {}
+        }
+    }
+}

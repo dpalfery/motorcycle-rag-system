@@ -130,7 +130,7 @@ The Motorcycle RAG System includes a .NET MAUI admin application for data ingest
 ### Features
 
 - **Windows-first** .NET MAUI application targeting .NET 10
-- **Material.Components.Maui** UI components for consistent Material Design 3 styling
+- **.NET MAUI Community Toolkit** (`CommunityToolkit.Maui`) for common UI behaviors and helper views
 - **Navigation Shell**: Left menu (Flyout) + top header with profile/login
 - **Local processing** capabilities including:
   - PDF chunking and text extraction
@@ -149,28 +149,28 @@ The Motorcycle RAG System includes a .NET MAUI admin application for data ingest
   - Cancel running jobs
   - View processing metrics
 
-### Material.Components.Maui Setup
+### .NET MAUI Community Toolkit Setup
 
-The admin application uses **Material.Components.Maui** for all UI components.
+The admin application uses built-in .NET MAUI controls, augmented by **.NET MAUI Community Toolkit** (`CommunityToolkit.Maui`).
 
 #### Installation
 
-Add the Material.Components.Maui NuGet package to the project:
+Add the CommunityToolkit.Maui NuGet package to the project:
 
 ```xml
 <!-- 1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj -->
 <ItemGroup>
-  <PackageReference Include="Material.Components.Maui" Version="1.0.0" />
+  <PackageReference Include="CommunityToolkit.Maui" />
 </ItemGroup>
 ```
 
 #### Initialization
 
-Initialize Material Components in `MauiProgram.cs`:
+Initialize the .NET MAUI Community Toolkit in `MauiProgram.cs`:
 
 ```csharp
 // 1-Presentation/MotorcycleRAG.Admin/MauiProgram.cs
-using Material.Components.Maui;
+using CommunityToolkit.Maui;
 
 public static class MauiProgram
 {
@@ -179,12 +179,11 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
-            .UseMaterialComponents() // Initialize Material Components
+          .UseMauiCommunityToolkit() // Initialize .NET MAUI Community Toolkit
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
-                fonts.AddFont("MaterialIcons-Regular.ttf", "MaterialIcons");
             });
 
         return builder.Build();
@@ -194,13 +193,13 @@ public static class MauiProgram
 
 #### Navigation Shell Configuration
 
-The admin app uses MAUI Shell with Flyout for left menu navigation and TopAppBar for header:
+The admin app uses MAUI Shell with Flyout for left menu navigation and a `Shell.TitleView` header:
 
 ```xml
 <!-- 1-Presentation/MotorcycleRAG.Admin/AppShell.xaml -->
 <Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-       xmlns:mc="clr-namespace:Material.Components.Maui;assembly=Material.Components.Maui"
+  xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
        xmlns:pages="clr-namespace:MotorcycleRAG.Admin.Pages"
        FlyoutBehavior="Locked"
        FlyoutWidth="300">
@@ -243,7 +242,7 @@ The admin app uses MAUI Shell with Flyout for left menu navigation and TopAppBar
         <ShellContent ContentTemplate="{DataTemplate pages:ToolsPage}"/>
     </FlyoutItem>
 
-    <!-- Top Header with Profile/Login -->
+    <!-- Header with Profile/Login -->
     <Shell.TitleView>
         <Grid ColumnDefinitions="*,Auto">
             <!-- App Title (Left) -->
@@ -257,11 +256,11 @@ The admin app uses MAUI Shell with Flyout for left menu navigation and TopAppBar
             <HorizontalStackLayout Grid.Column="1"
                                 Spacing="10"
                                 VerticalOptions="Center">
-                <!-- User Avatar -->
-                <mc:Avatar WidthRequest="32"
-                           HeightRequest="32"
-                           Source="{Binding UserAvatar}"
-                           Initials="{Binding UserInitials}"/>
+                  <!-- User Avatar -->
+                  <Image WidthRequest="32"
+                    HeightRequest="32"
+                    Source="{Binding UserAvatar}"
+                    Aspect="AspectFill"/>
                 
                 <!-- User Name -->
                 <Label Text="{Binding UserName}"
@@ -269,9 +268,8 @@ The admin app uses MAUI Shell with Flyout for left menu navigation and TopAppBar
                        VerticalOptions="Center"/>
                 
                 <!-- Sign Out Button -->
-                <mc:IconButton Icon="logout.png"
-                               Command="{Binding SignOutCommand}"
-                               ToolTip="Sign Out"/>
+                <Button Text="Sign out"
+                  Command="{Binding SignOutCommand}"/>
             </HorizontalStackLayout>
         </Grid>
     </Shell.TitleView>
@@ -371,9 +369,9 @@ The admin app enforces role-based access control:
 
 ### Development Notes
 
-- The MAUI app uses Material.Components.Maui for consistent UI
-- UI/UX design follows Material Design 3 principles
-- Navigation shell uses Flyout + TopAppBar pattern
+- The MAUI app uses CommunityToolkit.Maui plus built-in controls for consistent UI patterns
+- UI/UX design follows shared MAUI theming tokens and accessibility guidelines
+- Navigation shell uses Flyout + Shell.TitleView header pattern
 - App configuration is managed through Azure App Configuration
 - Audit logging is implemented for all administrative actions
 
@@ -384,35 +382,35 @@ The Motorcycle RAG System includes a cross-platform .NET MAUI mobile app for use
 ### Features
 
 - **Cross-platform** .NET MAUI application (Android, iOS, Windows, macOS)
-- **Material.Components.Maui** UI components for consistent Material Design 3 styling
+- **.NET MAUI Community Toolkit** (`CommunityToolkit.Maui`) for common UI behaviors and helper views
 - **Navigation Shell**: Left menu (Flyout) + top header with profile/login
 - **Chat Interface**: Query motorcycle information with real-time responses
 - **Conversation History**: View and manage past conversations
 - **User Profile**: View profile, plan, and usage statistics
 - **Citations**: View source citations for each response
 
-### Material.Components.Maui Setup
+### .NET MAUI Community Toolkit Setup
 
-The mobile application uses **Material.Components.Maui** for all UI components.
+The mobile application uses built-in .NET MAUI controls, augmented by **.NET MAUI Community Toolkit** (`CommunityToolkit.Maui`).
 
 #### Installation
 
-Add the Material.Components.Maui NuGet package to the project:
+Add the CommunityToolkit.Maui NuGet package to the project:
 
 ```xml
 <!-- 1-Presentation/MotorcycleRAG.MobileApp/MotorcycleRAG.MobileApp.csproj -->
 <ItemGroup>
-  <PackageReference Include="Material.Components.Maui" Version="1.0.0" />
+  <PackageReference Include="CommunityToolkit.Maui" />
 </ItemGroup>
 ```
 
 #### Initialization
 
-Initialize Material Components in `MauiProgram.cs`:
+Initialize the .NET MAUI Community Toolkit in `MauiProgram.cs`:
 
 ```csharp
 // 1-Presentation/MotorcycleRAG.MobileApp/MauiProgram.cs
-using Material.Components.Maui;
+using CommunityToolkit.Maui;
 
 public static class MauiProgram
 {
@@ -421,12 +419,11 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
-            .UseMaterialComponents() // Initialize Material Components
+          .UseMauiCommunityToolkit() // Initialize .NET MAUI Community Toolkit
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
-                fonts.AddFont("MaterialIcons-Regular.ttf", "MaterialIcons");
             });
 
         return builder.Build();
@@ -442,7 +439,7 @@ The mobile app uses MAUI Shell with Flyout for left menu navigation:
 <!-- 1-Presentation/MotorcycleRAG.MobileApp/AppShell.xaml -->
 <Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-       xmlns:mc="clr-namespace:Material.Components.Maui;assembly=Material.Components.Maui"
+  xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
        xmlns:views="clr-namespace:MotorcycleRAG.MobileApp.Views"
        FlyoutBehavior="Flyout"
        FlyoutWidth="250">
@@ -475,7 +472,7 @@ The mobile app uses MAUI Shell with Flyout for left menu navigation:
         <ShellContent ContentTemplate="{DataTemplate views:UserProfilePage}"/>
     </FlyoutItem>
 
-    <!-- Top Header with Profile/Login -->
+    <!-- Header with Profile/Login -->
     <Shell.TitleView>
         <Grid ColumnDefinitions="*,Auto">
             <!-- App Title (Left) -->
@@ -489,16 +486,15 @@ The mobile app uses MAUI Shell with Flyout for left menu navigation:
             <HorizontalStackLayout Grid.Column="1"
                                 Spacing="8"
                                 VerticalOptions="Center">
-                <!-- User Avatar -->
-                <mc:Avatar WidthRequest="28"
-                           HeightRequest="28"
-                           Source="{Binding UserAvatar}"
-                           Initials="{Binding UserInitials}"/>
+                  <!-- User Avatar -->
+                  <Image WidthRequest="28"
+                    HeightRequest="28"
+                    Source="{Binding UserAvatar}"
+                    Aspect="AspectFill"/>
                 
                 <!-- Sign Out Button -->
-                <mc:IconButton Icon="logout.png"
-                               Command="{Binding SignOutCommand}"
-                               ToolTip="Sign Out"/>
+                <Button Text="Sign out"
+                  Command="{Binding SignOutCommand}"/>
             </HorizontalStackLayout>
         </Grid>
     </Shell.TitleView>
@@ -841,61 +837,10 @@ Set variables in your shell before running the application.
 
 - Run unit tests: `dotnet test MotorcycleRAG.sln`
 
-## Material.Components.Maui Component Reference
+## CommunityToolkit.Maui Reference
 
-### Available Components
+The .NET MAUI Community Toolkit provides MVVM-friendly helpers (behaviors, converters, animations, and helper views) that complement built-in MAUI controls.
 
-| Component | Description | Usage Example |
-|-----------|-------------|----------------|
-| **Flyout** | Left navigation drawer | AppShell.xaml |
-| **TopAppBar** | Application header | AppShell.xaml |
-| **Avatar** | User profile image | Profile/Login area |
-| **IconButton** | Icon-only button | Sign out, actions |
-| **Button** | Material button (Filled, Outlined, Text) | Primary actions |
-| **TextField** | Text input with floating label | Query input, forms |
-| **TextArea** | Multi-line text input | Long-form content |
-| **Card** | Material card with elevation | Job status, sources |
-| **ProgressBar** | Linear progress indicator | Upload/processing |
-| **CircularProgress** | Circular progress indicator | Loading states |
-| **Snackbar** | Brief message | Notifications |
-| **Switch** | Toggle switch | Enable/disable tools |
-| **CheckBox** | Checkbox | Form inputs |
-| **ComboBox** | Dropdown selection | Plan selection |
-
-### Theming
-
-Define Material Design 3 color scheme in `App.xaml`:
-
-```xml
-<Application.Resources>
-    <ResourceDictionary>
-        <!-- Primary Colors -->
-        <Color x:Key="Primary">#512BD4</Color>
-        <Color x:Key="OnPrimary">#FFFFFF</Color>
-        <Color x:Key="PrimaryContainer">#EADDFF</Color>
-        <Color x:Key="OnPrimaryContainer">#21005D</Color>
-        
-        <!-- Secondary Colors -->
-        <Color x:Key="Secondary">#625B71</Color>
-        <Color x:Key="OnSecondary">#FFFFFF</Color>
-        <Color x:Key="SecondaryContainer">#E8DEF8</Color>
-        <Color x:Key="OnSecondaryContainer">#1D192B</Color>
-        
-        <!-- Tertiary Colors -->
-        <Color x:Key="Tertiary">#7D5260</Color>
-        <Color x:Key="OnTertiary">#FFFFFF</Color>
-        <Color x:Key="TertiaryContainer">#FFD8E4</Color>
-        <Color x:Key="OnTertiaryContainer">#31111D</Color>
-        
-        <!-- Error Colors -->
-        <Color x:Key="Error">#B3261E</Color>
-        <Color x:Key="OnError">#FFFFFF</Color>
-        
-        <!-- Surface Colors -->
-        <Color x:Key="Background">#FFFBFE</Color>
-        <Color x:Key="OnBackground">#1C1B1F</Color>
-        <Color x:Key="Surface">#FFFBFE</Color>
-        <Color x:Key="OnSurface">#1C1B1F</Color>
-    </ResourceDictionary>
-</Application.Resources>
-```
+- Docs: https://learn.microsoft.com/dotnet/communitytoolkit/maui/get-started
+- XAML namespace:
+  - `xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"`

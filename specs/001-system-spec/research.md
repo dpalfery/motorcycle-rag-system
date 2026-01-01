@@ -2,81 +2,49 @@
 
 **Date**: 2025-12-31  
 **Phase**: 0 (Research)  
-**Purpose**: Research findings to inform design and implementation decisions for Material.Components.Maui integration and navigation shell architecture.
+**Purpose**: Research findings to inform design and implementation decisions for .NET MAUI Community Toolkit (`CommunityToolkit.Maui`) adoption and navigation shell architecture.
 
 ## Executive Summary
 
-This document summarizes research findings for standardizing the Motorcycle RAG System UI on **Material.Components.Maui** across all MAUI applications (Admin and MobileApp). Key findings include:
+This document summarizes research findings for standardizing the Motorcycle RAG System MAUI UI patterns using built-in MAUI controls, augmented by **.NET MAUI Community Toolkit** (`CommunityToolkit.Maui`) across all MAUI applications (Admin and MobileApp). Key findings include:
 
-- **Material.Components.Maui** provides comprehensive Material Design 3 components compatible with .NET MAUI 10.0
+- **CommunityToolkit.Maui** provides widely-used MAUI helpers (behaviors, converters, and helper views) but is not a full Material Design component library
 - **MAUI Shell + Flyout** pattern is the recommended approach for left menu navigation
-- **TopAppBar** integration provides consistent header with profile/login area
+- **Shell.TitleView** using built-in controls provides a consistent header with profile/login area
 - **Responsive design** patterns support collapsible flyout on mobile devices
 - **Local processing** capabilities are achievable with ONNX Runtime and PDF/CSV libraries
 - **Azure AI Foundry** integration patterns are well-established with Semantic Kernel
 
-## 1. Material.Components.Maui Research
+## 1. .NET MAUI Community Toolkit Research
 
 ### 1.1 Package Information
 
-**Package**: `Material.Components.Maui`  
-**Latest Version**: 1.0.0+ (compatible with .NET MAUI 10.0)  
-**NuGet**: `https://www.nuget.org/packages/Material.Components.Maui`  
-**Repository**: `https://github.com/MaterialComponents/Material.Components.Maui`
+**Package**: `CommunityToolkit.Maui`  
+**NuGet**: `https://www.nuget.org/packages/CommunityToolkit.Maui`  
+**Repository**: `https://github.com/CommunityToolkit/Maui`
 
 ### 1.2 Available Components
 
-Material.Components.Maui provides a comprehensive set of Material Design 3 components:
+CommunityToolkit.Maui provides reusable building blocks (toolkit helpers) that pair with built-in MAUI controls:
 
-#### Navigation Components
-- **Flyout**: Drawer-style navigation menu (left sidebar)
-- **TopAppBar**: Application header with title, actions, and profile area
-- **NavigationBar**: Bottom navigation bar (alternative to flyout for mobile)
-- **TabView**: Tab-based navigation
-
-#### Layout Components
-- **Card**: Material card with elevation and ripple effects
-- **CardView**: Enhanced card with more customization options
-- **Chip**: Compact element representing input, attribute, or action
-- **Divider**: Visual separator between content
-
-#### Input Components
-- **TextField**: Material text input with floating label
-- **TextArea**: Multi-line text input
-- **ComboBox**: Dropdown selection
-- **CheckBox**: Checkbox with Material styling
-- **RadioButton**: Radio button group
-- **Switch**: Toggle switch
-
-#### Action Components
-- **Button**: Material button variants (Filled, Outlined, Text, Elevated, Tonal)
-- **IconButton**: Icon-only button
-- **FloatingActionButton**: Prominent action button
-- **Menu**: Dropdown menu with items
-
-#### Feedback Components
-- **ProgressBar**: Linear progress indicator
-- **CircularProgress**: Circular progress indicator
-- **Snackbar**: Brief message about an operation
-- **Dialog**: Modal dialog with content and actions
-
-#### Display Components
-- **Avatar**: User profile image with initials fallback
-- **Badge**: Small count or status indicator
-- **Icon**: Material Design icons (using Material Icons font)
+#### Common Toolkit Categories
+- **Behaviors**: MVVM-friendly UI interactions without code-behind
+- **Converters**: Reusable value converters
+- **Animations**: Common UI animation helpers
+- **Views**: Helper views provided by the toolkit (feature-specific)
 
 ### 1.3 Installation & Setup
 
 ```xml
 <!-- Add to .csproj -->
 <ItemGroup>
-  <PackageReference Include="Material.Components.Maui" Version="1.0.0" />
+    <PackageReference Include="CommunityToolkit.Maui" />
 </ItemGroup>
 ```
 
 ```csharp
 // In MauiProgram.cs
-using Material.Components.Maui;
+using CommunityToolkit.Maui;
 
 public static class MauiProgram
 {
@@ -85,11 +53,10 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
-            .UseMaterialComponents() // Initialize Material Components
+            .UseMauiCommunityToolkit() // Initialize .NET MAUI Community Toolkit
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
-                fonts.AddFont("MaterialIcons-Regular.ttf", "MaterialIcons");
             });
 
         return builder.Build();
@@ -99,13 +66,13 @@ public static class MauiProgram
 
 ### 1.4 Theming & Styling
 
-Material.Components.Maui supports Material Design 3 theming:
+CommunityToolkit.Maui does not impose a specific design system. Define shared MAUI theme tokens (colors/typography) in `App.xaml` (or theme dictionaries) and reference them consistently across pages:
 
 ```xml
 <!-- App.xaml -->
 <Application.Resources>
     <ResourceDictionary>
-        <!-- Material Design 3 Color Scheme -->
+        <!-- Example color scheme tokens -->
         <Color x:Key="Primary">#512BD4</Color>
         <Color x:Key="OnPrimary">#FFFFFF</Color>
         <Color x:Key="PrimaryContainer">#EADDFF</Color>
@@ -129,7 +96,7 @@ Material.Components.Maui supports Material Design 3 theming:
 **Windows**: Full support with native Windows styling  
 **macOS**: Full support with native macOS styling  
 **iOS**: Full support with iOS-specific adaptations  
-**Android**: Full support with Material Design 3 (Android 12+)  
+**Android**: Full support with native Android styling (optionally align with Android 12+ dynamic color)  
 
 ## 2. Navigation Shell Architecture Research
 
@@ -183,7 +150,7 @@ The recommended approach for left menu navigation in MAUI is using **Shell** wit
         <ShellContent ContentTemplate="{DataTemplate pages:ToolsPage}"/>
     </FlyoutItem>
 
-    <!-- Top Header with Profile/Login -->
+    <!-- Header with Profile/Login -->
     <Shell.TitleView>
         <Grid ColumnDefinitions="*,Auto">
             <!-- App Title (Left) -->
@@ -197,11 +164,11 @@ The recommended approach for left menu navigation in MAUI is using **Shell** wit
             <HorizontalStackLayout Grid.Column="1"
                                 Spacing="10"
                                 VerticalOptions="Center">
-                <!-- User Avatar -->
-                <mc:Avatar WidthRequest="32"
-                           HeightRequest="32"
-                           Source="{Binding UserAvatar}"
-                           Initials="{Binding UserInitials}"/>
+                  <!-- User Avatar -->
+                  <Image WidthRequest="32"
+                      HeightRequest="32"
+                      Source="{Binding UserAvatar}"
+                      Aspect="AspectFill"/>
                 
                 <!-- User Name -->
                 <Label Text="{Binding UserName}"
@@ -209,9 +176,8 @@ The recommended approach for left menu navigation in MAUI is using **Shell** wit
                        VerticalOptions="Center"/>
                 
                 <!-- Sign Out Button -->
-                <mc:IconButton Icon="logout.png"
-                               Command="{Binding SignOutCommand}"
-                               ToolTip="Sign Out"/>
+                <Button Text="Sign out"
+                    Command="{Binding SignOutCommand}"/>
             </HorizontalStackLayout>
         </Grid>
     </Shell.TitleView>
@@ -252,38 +218,26 @@ protected override void OnAppearing()
 }
 ```
 
-### 2.3 TopAppBar Integration
+### 2.3 Header Integration (Shell.TitleView)
 
-Material.Components.Maui provides **TopAppBar** for consistent header:
+Use `Shell.TitleView` with built-in MAUI controls to implement a consistent header (title + profile + sign-out), and keep it responsive via `DeviceInfo.Idiom` where needed:
 
 ```xml
-<!-- Alternative: Using Material TopAppBar -->
-<mc:TopAppBar>
-    <mc:TopAppBar.Leading>
-        <!-- Hamburger menu button (mobile) -->
-        <mc:IconButton Icon="menu.png"
-                       Command="{Binding ToggleFlyoutCommand}"
-                       IsVisible="{Binding IsMobile}"/>
-    </mc:TopAppBar.Leading>
-    
-    <mc:TopAppBar.Title>
-        <Label Text="{Binding PageTitle}"
-               FontSize="18"
-               FontAttributes="Bold"/>
-    </mc:TopAppBar.Title>
-    
-    <mc:TopAppBar.Trailing>
-        <!-- Profile/Login Area -->
-        <HorizontalStackLayout Spacing="10">
-            <mc:Avatar WidthRequest="32"
-                       HeightRequest="32"
-                       Source="{Binding UserAvatar}"
-                       Initials="{Binding UserInitials}"/>
-            <mc:IconButton Icon="logout.png"
-                           Command="{Binding SignOutCommand}"/>
+<Shell.TitleView>
+    <Grid ColumnDefinitions="Auto,*,Auto" Padding="8,0">
+        <!-- Optional hamburger/menu button (mobile) -->
+        <Button Grid.Column="0" Text="☰" Command="{Binding ToggleFlyoutCommand}" IsVisible="{Binding IsMobile}" />
+
+        <!-- Page title -->
+        <Label Grid.Column="1" Text="{Binding PageTitle}" FontSize="18" FontAttributes="Bold" VerticalOptions="Center" />
+
+        <!-- Profile / actions -->
+        <HorizontalStackLayout Grid.Column="2" Spacing="10" VerticalOptions="Center">
+            <Image WidthRequest="32" HeightRequest="32" Source="{Binding UserAvatar}" Aspect="AspectFill" />
+            <Button Text="Sign out" Command="{Binding SignOutCommand}" />
         </HorizontalStackLayout>
-    </mc:TopAppBar.Trailing>
-</mc:TopAppBar>
+    </Grid>
+</Shell.TitleView>
 ```
 
 ### 2.4 Authentication State Management
@@ -985,40 +939,36 @@ public class TelemetryService
 
 ## 9. Key Findings & Recommendations
 
-### 9.1 Material.Components.Maui Adoption
+### 9.1 .NET MAUI Community Toolkit Adoption
 
-**Recommendation**: Adopt `Material.Components.Maui` for both Admin and MobileApp MAUI applications.
+**Recommendation**: Adopt `CommunityToolkit.Maui` for both Admin and MobileApp MAUI applications as the standardized MAUI toolkit dependency.
 
 **Rationale**:
-- Provides comprehensive Material Design 3 components
-- Fully compatible with .NET MAUI 10.0
-- Consistent theming and styling across platforms
-- Well-maintained and documented
-- Reduces custom UI development effort
+- Provides common MAUI helpers (behaviors, converters, animations, helper views)
+- Widely adopted and maintained by the .NET community
+- Keeps UI implementation primarily on built-in MAUI controls (no custom design system lock-in)
 
 **Implementation Steps**:
-1. Add `Material.Components.Maui` NuGet package to both projects
-2. Initialize Material Components in `MauiProgram.cs`
-3. Define Material Design 3 color scheme in `App.xaml`
-4. Migrate existing pages to use Material components
-5. Implement unified navigation shell (Flyout + TopAppBar)
-6. Establish responsive design patterns
+1. Add `CommunityToolkit.Maui` NuGet package to both projects
+2. Initialize the toolkit in `MauiProgram.cs` via `.UseMauiCommunityToolkit()`
+3. Define shared theme tokens (colors/typography) in `App.xaml` / theme dictionaries
+4. Implement unified navigation shell (Flyout + `Shell.TitleView`)
+5. Establish responsive design patterns
 
 ### 9.2 Navigation Shell Architecture
 
-**Recommendation**: Use MAUI Shell with Flyout for left menu navigation and TopAppBar for header with profile/login.
+**Recommendation**: Use MAUI Shell with Flyout for left menu navigation and `Shell.TitleView` for header with profile/login.
 
 **Rationale**:
 - MAUI Shell provides built-in navigation infrastructure
 - Flyout pattern is standard for desktop admin applications
-- TopAppBar provides consistent header across all pages
+- `Shell.TitleView` provides a consistent header across all pages
 - Responsive design adapts to desktop vs mobile
-- Material.Components.Maui integrates seamlessly with Shell
 
 **Implementation Pattern**:
 - **Desktop**: Locked flyout (always visible), 300px width
 - **Mobile**: Collapsible flyout (hamburger menu), 250px width
-- **Header**: TopAppBar with page title (left) and profile/login (right)
+- **Header**: `Shell.TitleView` with page title (left) and profile/login (right)
 - **Profile**: Avatar with initials fallback, user name, sign-out button
 
 ### 9.3 Local Processing Capabilities
@@ -1075,7 +1025,8 @@ public class TelemetryService
 
 ## 11. References
 
-- Material.Components.Maui: https://github.com/MaterialComponents/Material.Components.Maui
+- .NET MAUI Community Toolkit: https://learn.microsoft.com/dotnet/communitytoolkit/maui/get-started
+- CommunityToolkit.Maui (GitHub): https://github.com/CommunityToolkit/Maui
 - .NET MAUI Documentation: https://learn.microsoft.com/dotnet/maui/
 - Azure AI Foundry: https://azure.microsoft.com/products/ai-foundry
 - Semantic Kernel: https://learn.microsoft.com/semantic-kernel/

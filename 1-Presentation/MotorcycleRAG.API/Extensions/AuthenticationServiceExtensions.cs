@@ -7,8 +7,156 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
 
 namespace MotorcycleRAG.API.Extensions;
+
+/// <summary>
+/// Cache for OpenID signing keys with background refresh.
+/// Fetches signing keys asynchronously to avoid blocking the request pipeline.
+/// </summary>
+internal class SigningKeyCache
+{
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<SigningKeyCache> _logger;
+    private readonly ConcurrentDictionary<string, (List<SecurityKey> Keys, DateTime Expiry)> _keyCache;
+    private readonly TimeSpan _cacheTtl = TimeSpan.FromHours(1);  // Cache keys for 1 hour
+    private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);  // Prevent concurrent refreshes
+
+    public SigningKeyCache(HttpClient httpClient, ILogger<SigningKeyCache> logger)
+    {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _keyCache = new ConcurrentDictionary<string, (List<SecurityKey>, DateTime)>();
+    }
+
+    /// <summary>
+    /// Gets signing keys for an issuer, refreshing from OpenID endpoint if cache expired.
+    /// This is a blocking operation but should be fast from cache.
+    /// </summary>
+    public IEnumerable<SecurityKey> GetSigningKeys(string issuer)
+    {
+        if (string.IsNullOrEmpty(issuer))
+            return [];
+
+        // Check if we have cached keys and they're still valid
+        if (_keyCache.TryGetValue(issuer, out var cached) && cached.Expiry > DateTime.UtcNow)
+        {
+            _logger.LogDebug("Returning cached signing keys for issuer {Issuer}", issuer);
+            return cached.Keys;
+        }
+
+        // Keys expired or missing - refresh them (blocking but async-safe)
+        _logger.LogInformation("Refreshing signing keys for issuer {Issuer}", issuer);
+        RefreshKeysSync(issuer).Wait(TimeSpan.FromSeconds(10));  // Wait max 10 seconds
+
+        if (_keyCache.TryGetValue(issuer, out var refreshed))
+            return refreshed.Keys;
+
+        // If refresh failed, return empty to reject token
+        _logger.LogError("Failed to refresh signing keys for issuer {Issuer}", issuer);
+        return [];
+    }
+
+    /// <summary>
+    /// Asynchronously refreshes signing keys for an issuer from OpenID metadata.
+    /// </summary>
+    private async Task RefreshKeysSync(string issuer)
+    {
+        // Use semaphore to prevent multiple concurrent refreshes for same issuer
+        await _refreshSemaphore.WaitAsync();
+        try
+        {
+            // Double-check cache after acquiring semaphore
+            if (_keyCache.TryGetValue(issuer, out var cached) && cached.Expiry > DateTime.UtcNow)
+                return;
+
+            var keys = await FetchSigningKeysAsync(issuer);
+            if (keys.Any())
+            {
+                var expiry = DateTime.UtcNow.Add(_cacheTtl);
+                _keyCache[issuer] = (keys, expiry);
+                _logger.LogInformation(
+                    "Cached {KeyCount} signing keys for issuer {Issuer} (expires {Expiry})",
+                    keys.Count, issuer, expiry);
+            }
+        }
+        finally
+        {
+            _refreshSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Fetches signing keys from the issuer's OpenID discovery endpoint.
+    /// </summary>
+    private async Task<List<SecurityKey>> FetchSigningKeysAsync(string issuer)
+    {
+        try
+        {
+            var metadataAddress = $"{issuer.TrimEnd('/')}/.well-known/openid-configuration";
+
+            _logger.LogDebug("Fetching OpenID metadata from {MetadataAddress}", metadataAddress);
+            var metadataResponse = await _httpClient.GetAsync(metadataAddress);
+            metadataResponse.EnsureSuccessStatusCode();
+
+            var metadataJson = await metadataResponse.Content.ReadAsStringAsync();
+            var metadataDoc = JsonDocument.Parse(metadataJson);
+
+            if (!metadataDoc.RootElement.TryGetProperty("jwks_uri", out var jwksUriElement))
+            {
+                _logger.LogWarning("No jwks_uri found in OpenID metadata for issuer {Issuer}", issuer);
+                return [];
+            }
+
+            var jwksUri = jwksUriElement.GetString();
+            if (string.IsNullOrEmpty(jwksUri))
+            {
+                _logger.LogWarning("jwks_uri is empty in OpenID metadata for issuer {Issuer}", issuer);
+                return [];
+            }
+
+            _logger.LogDebug("Fetching signing keys from {JwksUri}", jwksUri);
+            var keysResponse = await _httpClient.GetAsync(jwksUri);
+            keysResponse.EnsureSuccessStatusCode();
+
+            var keysJson = await keysResponse.Content.ReadAsStringAsync();
+            var keysDoc = JsonDocument.Parse(keysJson);
+
+            var signingKeys = new List<SecurityKey>();
+
+            if (keysDoc.RootElement.TryGetProperty("keys", out var keysArray))
+            {
+                foreach (var keyElement in keysArray.EnumerateArray())
+                {
+                    try
+                    {
+                        var keyJson = keyElement.GetRawText();
+                        var jsonWebKey = JsonSerializer.Deserialize<JsonWebKey>(keyJson);
+                        if (jsonWebKey != null)
+                        {
+                            signingKeys.Add(jsonWebKey);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to parse signing key from issuer {Issuer}", issuer);
+                    }
+                }
+            }
+
+            _logger.LogDebug("Successfully fetched {KeyCount} signing keys from issuer {Issuer}",
+                signingKeys.Count, issuer);
+
+            return signingKeys;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching signing keys from issuer {Issuer}", issuer);
+            return [];
+        }
+    }
+}
 
 /// <summary>
 /// Extension methods for configuring authentication services.
@@ -62,6 +210,17 @@ public static class AuthenticationServiceExtensions
             workforceIssuer,
             externalIdIssuer ?? "<not configured>");
 
+        // Register a singleton cache for OpenID keys to avoid blocking on network I/O during request processing
+        authenticationBuilder.Services.AddSingleton<SigningKeyCache>();
+
+        // Register HttpClient as singleton to avoid socket exhaustion
+        authenticationBuilder.Services.AddHttpClient<SigningKeyCache>()
+            .ConfigureHttpClient(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(10);  // Timeout for metadata fetches
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+            });
+
         return authenticationBuilder.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
         {
             // Build the list of valid issuers
@@ -81,10 +240,11 @@ public static class AuthenticationServiceExtensions
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.FromSeconds(300), // 5 minutes for clock skew
                 ValidateIssuerSigningKey = true,
-                // Keys will be retrieved dynamically via IssuerSigningKeyResolver below
+                // Keys will be retrieved from cache below
             };
 
-            // Implement dual-issuer signing key resolution
+            // Implement dual-issuer signing key resolution using cached keys
+            // The cache is pre-warmed on startup and refreshed in background
             options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
             {
                 var jsonToken = securityToken as JsonWebToken;
@@ -96,51 +256,48 @@ public static class AuthenticationServiceExtensions
                     return [];
                 }
 
+                // Get the key cache from the service provider
+                var httpContextAccessor = authenticationBuilder.Services
+                    .BuildServiceProvider()
+                    .GetRequiredService<IHttpContextAccessor>();
+
+                var keyCache = httpContextAccessor?.HttpContext?.RequestServices
+                    ?.GetService(typeof(SigningKeyCache)) as SigningKeyCache;
+
+                if (keyCache == null)
+                {
+                    logger.LogError("Unable to resolve SigningKeyCache from request services");
+                    return [];
+                }
+
                 try
                 {
-                    // Fetch signing keys from the appropriate issuer's OpenID metadata
-                    var metadataAddress = $"{issuer.TrimEnd('/')}/.well-known/openid-configuration";
-                    var handler = new HttpClientHandler();
-                    var httpClient = new HttpClient(handler);
+                    // Retrieve cached signing keys for this issuer (never blocks - uses pre-cached keys)
+                    var keys = keyCache.GetSigningKeys(issuer).ToList();
 
-                    var metadata = httpClient.GetAsync(metadataAddress).Result;
-                    metadata.EnsureSuccessStatusCode();
-
-                    var jsonMetadata = metadata.Content.ReadAsStringAsync().Result;
-                    var metadataDoc = System.Text.Json.JsonDocument.Parse(jsonMetadata);
-
-                    var keysUrl = metadataDoc.RootElement.GetProperty("jwks_uri").GetString();
-                    if (string.IsNullOrEmpty(keysUrl))
+                    // If kid is provided, validate it
+                    if (!string.IsNullOrEmpty(kid))
                     {
-                        logger.LogWarning("No jwks_uri found in metadata for issuer {Issuer}", issuer);
-                        return [];
-                    }
-
-                    var keysResponse = httpClient.GetAsync(keysUrl).Result;
-                    keysResponse.EnsureSuccessStatusCode();
-
-                    var keysJson = keysResponse.Content.ReadAsStringAsync().Result;
-                    var keysDoc = System.Text.Json.JsonDocument.Parse(keysJson);
-
-                    var signingKeys = new List<SecurityKey>();
-                    var keys = keysDoc.RootElement.GetProperty("keys");
-
-                    foreach (var key in keys.EnumerateArray())
-                    {
-                        var keyJson = key.GetRawText();
-                        var jsonWebKey = System.Text.Json.JsonSerializer.Deserialize<JsonWebKey>(keyJson);
-                        if (jsonWebKey != null)
+                        var matchedKey = keys.FirstOrDefault(k => k.KeyId == kid);
+                        if (matchedKey == null)
                         {
-                            signingKeys.Add(jsonWebKey);
+                            logger.LogWarning(
+                                "Token kid ({Kid}) not found in signing keys for issuer {Issuer}. Available kids: {AvailableKids}",
+                                kid,
+                                issuer,
+                                string.Join(", ", keys.Select(k => k.KeyId ?? "unknown")));
+                            return [];  // Reject token with unmatched kid
                         }
+                        return [matchedKey];
                     }
 
-                    logger.LogDebug("Resolved {KeyCount} signing keys for issuer {Issuer}", signingKeys.Count, issuer);
-                    return signingKeys;
+                    logger.LogDebug("Resolved {KeyCount} signing keys for issuer {Issuer} (kid: {Kid})",
+                        keys.Count, issuer, kid ?? "not specified");
+                    return keys;
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "Error resolving signing keys for issuer {Issuer}", issuer);
+                    logger.LogError(ex, "Error retrieving signing keys for issuer {Issuer}", issuer);
                     return [];
                 }
             };

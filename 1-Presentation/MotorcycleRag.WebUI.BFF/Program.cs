@@ -1,11 +1,27 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using MotorcycleRag.WebUI.BFF.Middleware;
 using Yarp.ReverseProxy.Transforms;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// CORS - Allow requests from the frontend SPA
+builder.Services.AddCors(options =>
+{
+    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins")?.Get<string[]>() ?? ["http://localhost:3000"];
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials()
+            .WithExposedHeaders("Content-Disposition"); // Allow download headers
+    });
+});
 
 // YARP
 builder.Services.AddReverseProxy()
@@ -77,8 +93,75 @@ var app = builder.Build();
 
 // Pipeline
 app.UseHttpsRedirection();
+
+// HSTS (HTTP Strict Transport Security) - force HTTPS for 1 year
+app.UseHsts();
+
+// Security Headers
+app.Use(async (context, next) =>
+{
+    // Prevent clickjacking attacks
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+
+    // Prevent MIME type sniffing
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+
+    // Enable XSS protection
+    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+
+    // Content Security Policy - restrict resource loading
+    context.Response.Headers.Append("Content-Security-Policy",
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // React development requires inline scripts
+        "style-src 'self' 'unsafe-inline'; " + // Material UI uses inline styles
+        "img-src 'self' data: https:; " +
+        "font-src 'self' data:; " +
+        "connect-src 'self'; " +
+        "frame-ancestors 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self'");
+
+    // Referrer Policy - control referrer information
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+
+    // Permissions Policy - restrict browser features
+    context.Response.Headers.Append("Permissions-Policy",
+        "accelerometer=(), " +
+        "ambient-light-sensor=(), " +
+        "autoplay=(), " +
+        "battery=(), " +
+        "camera=(), " +
+        "cross-origin-isolated=(), " +
+        "display-capture=(), " +
+        "document-domain=(), " +
+        "encrypted-media=(), " +
+        "execution-while-not-rendered=(), " +
+        "execution-while-out-of-viewport=(), " +
+        "fullscreen=(), " +
+        "geolocation=(), " +
+        "gyroscope=(), " +
+        "magnetometer=(), " +
+        "microphone=(), " +
+        "midi=(), " +
+        "navigation-override=(), " +
+        "payment=(), " +
+        "picture-in-picture=(), " +
+        "publickey-credentials-get=(), " +
+        "speaker-selection=(), " +
+        "sync-xhr=(), " +
+        "usb=(), " +
+        "vr=(), " +
+        "xr-spatial-tracking=()");
+
+    await next();
+});
+
+app.UseHostHeaderValidation();
 app.UseStaticFiles();
 app.UseRouting();
+
+// Apply CORS policy before authentication
+app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();

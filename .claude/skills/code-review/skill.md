@@ -13,7 +13,7 @@ description: Code review and quality validation. MUST be executed before any git
 
 **Action Required:**
 Before taking the final step, you MUST:
-1. Call the `code-reviewer` sub-agent.
-2. Ask it to: "Review the changes in [files you modified] for bugs, security issues, and style."
+1. Call the `code-reviewer` sub-agent using the `mandatory-review` code-review skill.
+2. Ask it to: "Review the entire repository (not just your diff) for bugs, security issues, and best practices, grounding the review in the design docs under `specs/` and the constitution at `.specify/memory/constitution.md`."
 3. If the reviewer finds issues, FIX them.
 4. Only mark the task as done after the reviewer gives a "LGTM" (Looks Good To Me) or passes the code

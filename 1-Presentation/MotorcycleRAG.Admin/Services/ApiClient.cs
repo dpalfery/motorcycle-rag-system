@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using MotorcycleRAG.Admin.Services.Dtos;
 using MotorcycleRAG.Domain.DTOs;
 using Polly;
 using Polly.Retry;
@@ -276,6 +277,44 @@ public class ApiClient
     private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action)
     {
         return await _retryPolicy.WrapAsync(_circuitBreaker).ExecuteAsync(action);
+    }
+
+    #endregion
+
+    #region MCP Tools
+
+    /// <summary>
+    /// Gets all MCP tool configurations
+    /// </summary>
+    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync();
+
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync("api/admin/mcp-tools", cancellationToken));
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]>(_jsonOptions, cancellationToken)
+               ?? Array.Empty<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto>();
+    }
+
+    /// <summary>
+    /// Updates an MCP tool configuration
+    /// </summary>
+    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(string toolId, MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(toolId))
+            throw new ArgumentException("Tool ID cannot be null or empty", nameof(toolId));
+        if (request == null)
+            throw new ArgumentNullException(nameof(request));
+
+        await EnsureAuthenticatedAsync();
+
+        var response = await ExecuteWithResilienceAsync(() =>
+            _httpClient.PutAsJsonAsync($"api/admin/mcp-tools/{Uri.EscapeDataString(toolId)}", request, _jsonOptions, cancellationToken));
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto>(_jsonOptions, cancellationToken)
+               ?? throw new InvalidOperationException("Failed to deserialize MCP tool response");
     }
 
     #endregion

@@ -1,10 +1,8 @@
-#pragma warning disable CS8601 // Possible null reference assignment
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.Application.Services;
@@ -127,7 +125,7 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
         {
             SessionId = request.Context?.SessionId ?? Guid.NewGuid().ToString(),
             Preferences = request.Preferences,
-            QueryContext = request.Context
+            QueryContext = request.Context ?? new QueryContext()
         };
 
         // 3. Execute orchestrated search across all agents.

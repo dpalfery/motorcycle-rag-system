@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 using Xunit;

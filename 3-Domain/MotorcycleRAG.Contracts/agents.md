@@ -1,10 +1,13 @@
 # Agent Context: MotorcycleRAG.Contracts
 
+**you must not put DTOs and Models in the contracts project** never!!
+
+
 ## Invariant Rules
 - **Layer**: 3-Domain (Abstractions).
 - **Purpose**: Defines shared interfaces and contracts used by Domain and Application layers.
 - **Dependency Rule**: Can depend on `Domain` and `Base`. Must NOT depend on `Persistence` or `Presentation`.
-- **Contents**: Repository interfaces, service interfaces. Absolutely no DTOs, Entities, or Models in this project
+- **Contents**: Repository interfaces, service interfaces. **Absolutely no DTOs, Entities, or Models in this project**
 
 
 

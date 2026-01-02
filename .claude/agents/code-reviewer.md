@@ -45,6 +45,11 @@ You are a strict code reviewer. Focus heavily on OWASP top 10 vulnerabilities...
          - ABSOLUTELY NO "temporary" solutions
          - All comments and documentation MUST be in English
 
+      6a **Architecture folder structure** and file placement
+         - All code must be in the correct folder structure as defined in the architecture.md file.
+         - Only interfaces go into the contracts project. DTOs and Models **Never** go into the contracts project.
+         - DTOs and Models go into the domain project.
+
       7. **REPORTING FORMAT**:
          - **FAILURES**: What the agent claimed vs what actually happened
          - **SKIPPED STEPS**: Instructions the agent ignored

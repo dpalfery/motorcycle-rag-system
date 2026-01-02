@@ -174,6 +174,12 @@ public static class ServiceConfiguration
         services.AddScoped<WebSourceRegistryService>();
         services.AddScoped<IWebScrapeOrchestrator, MotorcycleRAG.Application.Services.WebScrapeOrchestrator>();
 
+        // MCP Tool Configuration
+        services.AddScoped<IToolConfigurationRepository, MotorcycleRAG.Persistence.Sql.Repositories.ToolConfigurationRepository>();
+        services.AddScoped<IToolConfigurationAuditRepository, MotorcycleRAG.Persistence.Sql.Repositories.ToolConfigurationAuditRepository>();
+        services.AddScoped<IToolConfigurationService, MotorcycleRAG.Application.Services.ToolConfigurationService>();
+        services.AddScoped<IMcpConfigurationProvider, MotorcycleRAG.Application.Services.McpConfigurationProvider>();
+
         return services;
     }
 

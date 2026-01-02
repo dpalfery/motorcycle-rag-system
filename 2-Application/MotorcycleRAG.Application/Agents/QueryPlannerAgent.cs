@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Core.Options;
 

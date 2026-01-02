@@ -1,4 +1,4 @@
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 using System.Threading;
 
 

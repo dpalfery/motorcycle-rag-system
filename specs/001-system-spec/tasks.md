@@ -146,19 +146,19 @@
 
 ---
 
-## Phase 9: User Story 7 — Configure MCP tools in the MAUI admin application (Priority: P3)
+## Phase 9: User Story 7 — Configure MCP tools in the MAUI admin application (Priority: P3) ✅ COMPLETE
 
 **Independent Test**: Admin updates tool config; enabled tool set changes are visible to orchestration and audited.
 
-- [ ] T085 [P] [US7] Define MCP config domain models in 3-Domain/MotorcycleRAG.Domain/Entities/McpToolConfiguration.cs
-- [ ] T086 [US7] Implement MCP config store (AppConfig) in 4-Persistence/MotorcycleRAG.Persistence/Configuration/McpConfigurationStore.cs
-- [ ] T087 [US7] Implement MCP config provider with refresh behavior in 2-Application/MotorcycleRAG.Application/Services/McpConfigurationProvider.cs
-- [ ] T088 [US7] Implement MCP audit persistence in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/ToolConfigurationAuditRepository.cs
-- [ ] T089 [US7] Implement MCP admin controller in 1-Presentation/MotorcycleRAG.API/Controllers/McpAdminController.cs
-- [ ] T090 [US7] Wire orchestration to consume enabled MCP tools in 2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs
-- [ ] T091 [US7] Add Admin Tools page in 1-Presentation/MotorcycleRAG.Admin/Pages/ToolsPage.xaml
-- [ ] T092 [US7] Add ToolsViewModel with validation in 1-Presentation/MotorcycleRAG.Admin/ViewModels/ToolsViewModel.cs
-- [ ] T093 [P] [US7] Add unit tests for config provider refresh behavior in 5-Test/tests/MotorcycleRAG.UnitTests/Configuration/McpConfigurationProviderTests.cs
+- [x] T085 [P] [US7] Define MCP config domain models in 3-Domain/MotorcycleRAG.Domain/Entities/McpToolConfiguration.cs
+- [x] T086 [US7] Implement MCP config store (AppConfig) in 4-Persistence/MotorcycleRAG.Persistence/Configuration/McpConfigurationStore.cs
+- [x] T087 [US7] Implement MCP config provider with refresh behavior in 2-Application/MotorcycleRAG.Application/Services/McpConfigurationProvider.cs
+- [x] T088 [US7] Implement MCP audit persistence in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/ToolConfigurationAuditRepository.cs
+- [x] T089 [US7] Implement MCP admin controller in 1-Presentation/MotorcycleRAG.API/Controllers/McpAdminController.cs
+- [x] T090 [US7] Wire orchestration to consume enabled MCP tools in 2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs
+- [x] T091 [US7] Add Admin Tools page in 1-Presentation/MotorcycleRAG.Admin/Pages/ToolsPage.xaml
+- [x] T092 [US7] Add ToolsViewModel with validation in 1-Presentation/MotorcycleRAG.Admin/ViewModels/ToolsViewModel.cs
+- [x] T093 [P] [US7] Add unit tests for config provider refresh behavior in 5-Test/tests/MotorcycleRAG.UnitTests/Configuration/McpConfigurationProviderTests.cs
 
 ---
 

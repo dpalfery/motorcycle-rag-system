@@ -234,6 +234,11 @@ public class AdminAuthService : IAdminAuthService
     }
 
     /// <summary>
+    /// Gets a value indicating whether the user is currently authenticated
+    /// </summary>
+    public bool IsAuthenticated => IsSignedIn();
+
+    /// <summary>
     /// Gets the current user's display name
     /// </summary>
     public string? GetUserDisplayName()

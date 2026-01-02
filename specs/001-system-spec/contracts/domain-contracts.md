@@ -793,4 +793,4 @@ public interface IUserRepository
 
 - **Data Model**: `specs/001-system-spec/data-model.md` - Model definitions
 - **Research**: `specs/001-system-spec/research.md` - Interface design patterns
-- **Shared Models**: `specs/001-system-spec/contracts/shared-models.md` - DTOs and value objects used by interfaces
+- **Shared Types**: Prefer Domain value objects / records referenced by interfaces (the `MotorcycleRAG.Contracts` project is interfaces only)

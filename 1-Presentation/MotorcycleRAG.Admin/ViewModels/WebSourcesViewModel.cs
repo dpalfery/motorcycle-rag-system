@@ -84,7 +84,6 @@ public partial class WebSourcesViewModel : ObservableObject
 
             _logger.LogInformation("Loaded {Count} web sources", sources.Count);
         }
-#pragma warning disable CS0168
         catch (UnauthorizedAccessException)
         {
             // User not authorized - expected in demo mode
@@ -97,7 +96,6 @@ public partial class WebSourcesViewModel : ObservableObject
             _logger.LogWarning("API not available for loading web sources");
             await MainThread.InvokeOnMainThreadAsync(() => WebSources.Clear());
         }
-#pragma warning restore CS0168
         catch (Exception ex)
         {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
@@ -200,13 +198,11 @@ public partial class WebSourcesViewModel : ObservableObject
                 await window.Page.DisplayAlertAsync("Success", "Web source added successfully", "OK");
             }
         }
-#pragma warning disable CS0168
         catch (UnauthorizedAccessException)
         {
             ErrorMessage = "You do not have permission to add web sources";
             _logger.LogWarning("User not authorized to add web sources");
         }
-#pragma warning restore CS0168
         catch (InvalidOperationException ex)
         {
             ErrorMessage = ex.Message;
@@ -273,7 +269,6 @@ public partial class WebSourcesViewModel : ObservableObject
 
             await window.Page.DisplayAlertAsync("Success", "Web source deleted successfully", "OK");
         }
-#pragma warning disable CS0168
         catch (UnauthorizedAccessException)
         {
             ErrorMessage = "You do not have permission to delete web sources";
@@ -285,7 +280,6 @@ public partial class WebSourcesViewModel : ObservableObject
                 await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
             }
         }
-#pragma warning restore CS0168
         catch (InvalidOperationException ex)
         {
             ErrorMessage = ex.Message;

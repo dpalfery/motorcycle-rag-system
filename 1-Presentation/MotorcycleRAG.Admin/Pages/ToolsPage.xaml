@@ -2,101 +2,128 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="MotorcycleRAG.Admin.Pages.ToolsPage"
-             Title="Tools and Settings">
+             x:DataType="local:ToolsViewModel"
+             xmlns:local="clr-namespace:MotorcycleRAG.Admin.ViewModels"
+             Title="MCP Tools Configuration">
 
-    <ScrollView>
-        <VerticalStackLayout Padding="20" Spacing="15">
+    <Grid RowDefinitions="Auto,*,Auto" Padding="0">
 
-            <!-- MCP Configuration Section -->
-            <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
-                <VerticalStackLayout Spacing="10">
-                    <Label Text="Model Context Protocol (MCP)"
-                           FontSize="18"
-                           FontAttributes="Bold" />
+        <!-- Header with Refresh Button -->
+        <Grid ColumnDefinitions="*,Auto" Padding="20,15" ColumnSpacing="10">
+            <Label Grid.Column="0"
+                   Text="Model Context Protocol (MCP) Tools"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   VerticalOptions="Center" />
 
-                    <Label Text="Configure MCP tools for extensible functionality."
-                           FontSize="12"
-                           TextColor="Gray" />
+            <Button Grid.Column="1"
+                    Text="Refresh"
+                    Command="{Binding RefreshCommand}"
+                    IsEnabled="{Binding IsLoading, Converter={StaticResource InvertedBoolConverter}}"
+                    BackgroundColor="{StaticResource Primary}"
+                    TextColor="White"
+                    Padding="15,10" />
+        </Grid>
 
-                    <Button Text="Configure MCP Tools"
-                            BackgroundColor="{StaticResource Primary}"
-                            TextColor="White" />
+        <!-- Tools List -->
+        <RefreshView Grid.Row="1"
+                     Command="{Binding RefreshCommand}"
+                     IsRefreshing="{Binding IsLoading}"
+                     Padding="20,0">
+            <CollectionView ItemsSource="{Binding Tools}"
+                           SelectionMode="Single"
+                           SelectionChangedCommand="{Binding SelectToolCommand}"
+                           SelectionChangedCommandParameter="{Binding SelectionChangedItem, Source={RelativeSource Self}}">
 
-                    <Label Text="Status: Not Configured"
-                           FontSize="11"
-                           TextColor="Orange" />
-                </VerticalStackLayout>
-            </Frame>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Frame BorderColor="LightGray"
+                               CornerRadius="8"
+                               Padding="15"
+                               Margin="0,0,0,10"
+                               HasShadow="False">
 
-            <!-- System Settings Section -->
-            <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
-                <VerticalStackLayout Spacing="10">
-                    <Label Text="System Settings"
-                           FontSize="18"
-                           FontAttributes="Bold" />
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                <!-- Tool Details -->
+                                <VerticalStackLayout Grid.Column="0" Spacing="5">
+                                    <Label Text="{Binding Name}"
+                                           FontSize="16"
+                                           FontAttributes="Bold" />
 
-                    <HorizontalStackLayout Spacing="10">
-                        <Label Text="Enable Local Processing"
-                               VerticalOptions="Center" />
-                        <CheckBox IsChecked="True" HorizontalOptions="End" />
-                    </HorizontalStackLayout>
+                                    <Label Text="{Binding Description}"
+                                           FontSize="12"
+                                           TextColor="Gray"
+                                           LineBreakMode="TailTruncation" />
 
-                    <HorizontalStackLayout Spacing="10">
-                        <Label Text="Use ONNX Embeddings"
-                               VerticalOptions="Center" />
-                        <CheckBox IsChecked="False" HorizontalOptions="End" />
-                    </HorizontalStackLayout>
+                                    <HorizontalStackLayout Spacing="10" Margin="0,5,0,0">
+                                        <Label Text="{StringFormat='Type: {0}', Binding ToolType}"
+                                               FontSize="11"
+                                               TextColor="DarkGray" />
+                                        <Label Text="{StringFormat='v{0}', Binding Version}"
+                                               FontSize="11"
+                                               TextColor="DarkGray" />
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
 
-                    <HorizontalStackLayout Spacing="10">
-                        <Label Text="Enable Logging"
-                               VerticalOptions="Center" />
-                        <CheckBox IsChecked="True" HorizontalOptions="End" />
-                    </HorizontalStackLayout>
-                </VerticalStackLayout>
-            </Frame>
+                                <!-- Enable/Disable Toggle -->
+                                <VerticalStackLayout Grid.Column="1"
+                                                    VerticalOptions="Center"
+                                                    Spacing="8">
+                                    <Label Text="{Binding IsEnabled, StringFormat='{0:Status}'}"
+                                           FontSize="11"
+                                           HorizontalOptions="Center"
+                                           FontAttributes="Bold">
+                                        <Label.TextColor>
+                                            <MultiBinding Converter="{StaticResource StatusColorConverter}">
+                                                <Binding Path="IsEnabled" />
+                                            </MultiBinding>
+                                        </Label.TextColor>
+                                    </Label>
 
-            <!-- API Configuration Section -->
-            <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
-                <VerticalStackLayout Spacing="10">
-                    <Label Text="API Configuration"
-                           FontSize="18"
-                           FontAttributes="Bold" />
+                                    <Switch IsToggled="{Binding IsEnabled}"
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type local:ToolsPage}},
+                                                             Path=BindingContext.SaveToolCommand}"
+                                            CommandParameter="{Binding .}" />
+                                </VerticalStackLayout>
+                            </Grid>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
 
-                    <Label Text="Base URL:" FontSize="12" FontAttributes="Bold" />
-                    <Entry Placeholder="https://api.example.com"
-                           IsReadOnly="True"
-                           Text="Configured via environment" />
+                <!-- Empty State -->
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout Padding="20"
+                                       Spacing="10"
+                                       VerticalOptions="Center"
+                                       HorizontalOptions="Center">
+                        <Label Text="No MCP tools configured"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="Configure tools via the API or import from settings"
+                               FontSize="12"
+                               TextColor="Gray"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+            </CollectionView>
+        </RefreshView>
 
-                    <Label Text="Timeout (seconds):" FontSize="12" FontAttributes="Bold" />
-                    <Entry Placeholder="30"
-                           IsReadOnly="True"
-                           Text="30" />
-                </VerticalStackLayout>
-            </Frame>
+        <!-- Footer Info -->
+        <Frame Grid.Row="2" BorderColor="LightGray" CornerRadius="8" Padding="15" Margin="20,10">
+            <VerticalStackLayout Spacing="5">
+                <Label Text="MCP Configuration"
+                       FontSize="12"
+                       FontAttributes="Bold" />
+                <Label Text="Enable or disable tools to control which MCP tools are available to the orchestrator."
+                       FontSize="11"
+                       TextColor="Gray" />
+                <Label Text="Changes are audited and synchronized with the backend API."
+                       FontSize="11"
+                       TextColor="Gray" />
+            </VerticalStackLayout>
+        </Frame>
 
-            <!-- About Section -->
-            <Frame BorderColor="LightGray" CornerRadius="8" Padding="15" BackgroundColor="#F9F9F9">
-                <VerticalStackLayout Spacing="10">
-                    <Label Text="About"
-                           FontSize="18"
-                           FontAttributes="Bold" />
-
-                    <Label Text="Motorcycle RAG Admin v1.0.0"
-                           FontSize="12"
-                           FontAttributes="Bold" />
-
-                    <Label Text="Built with .NET 10 MAUI and Community Toolkit"
-                           FontSize="11"
-                           TextColor="Gray" />
-
-                    <Label Text="© 2025 Motorcycle RAG Team"
-                           FontSize="10"
-                           TextColor="Gray"
-                           Margin="0,10,0,0" />
-                </VerticalStackLayout>
-            </Frame>
-
-        </VerticalStackLayout>
-    </ScrollView>
+    </Grid>
 
 </ContentPage>

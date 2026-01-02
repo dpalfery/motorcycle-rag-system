@@ -2,7 +2,8 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
-using MotorcycleRAG.Contracts.Optimization;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Domain.DTOs.Optimization;
 
 
 namespace MotorcycleRAG.Application.Optimization;

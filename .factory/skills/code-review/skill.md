@@ -1,5 +1,5 @@
 ---
-name: mandatory-review
+name: code-review
 description: Code review and quality validation. MUST be executed before any git commit and before marking tasks as complete. Triggers: "commit", "push", "done", "finished", "complete the task"
 ---
 # Quality Assurance Protocol

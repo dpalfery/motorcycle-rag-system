@@ -1,10 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 using System.Linq;
 using System.Text;
-using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.Application.Pipeline;
 

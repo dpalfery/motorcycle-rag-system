@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -9,9 +10,10 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using MotorcycleRAG.API;
+using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Entities;
 using Xunit;
 using MotorcycleRAG.IntegrationTests;
 
@@ -168,15 +170,19 @@ namespace MotorcycleRAG.IntegrationTests.Api
 
             var mockUsageTrackingService = new Mock<IUsageTrackingService>();
             mockUsageTrackingService
-                .Setup(s => s.RecordSuccessAsync(
+                .Setup(s => s.RecordFailureAsync(
                     "test-user-1",
                     "/api/motorcycles/query",
                     "POST",
+                    429,
                     It.IsAny<string>(),
                     It.IsAny<long>(),
                     It.IsAny<string>(),
                     It.IsAny<string>()))
                 .ReturnsAsync(new Usage { Id = 1 });
+
+            var mockMcpProvider = new Mock<IMcpConfigurationProvider>();
+            mockMcpProvider.Setup(m => m.GetEnabledToolsAsync()).ReturnsAsync(Array.Empty<McpToolConfiguration>());
 
             var client = _factory.WithWebHostBuilder(builder =>
             {
@@ -185,17 +191,23 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanPolicyService.Object);
                     services.AddSingleton(mockUsageTrackingService.Object);
+                    services.AddSingleton(mockMcpProvider.Object);
                 });
             }).CreateClientWithRoles("User");
 
             // Act
-            var response = await client.PostAsync("/api/motorcycles/query", 
+            var response = await client.PostAsync("/api/motorcycles/query",
                 new StringContent(
-                    """{"query": "test query"}""",
+                    """{"Query": "test query"}""",
                     Encoding.UTF8,
                     "application/json"));
 
             // Assert
+            if (response.StatusCode != HttpStatusCode.TooManyRequests)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new Xunit.Sdk.XunitException($"Expected TooManyRequests but got {response.StatusCode}. Response: {errorContent}");
+            }
             Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
 
             var content = await response.Content.ReadAsStringAsync();
@@ -231,6 +243,20 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     It.IsAny<string>()))
                 .ReturnsAsync(new Usage { Id = 1 });
 
+            var mockRagService = new Mock<IMotorcycleRAGService>();
+            mockRagService
+                .Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
+                .ReturnsAsync(new MotorcycleQueryResponse
+                {
+                    QueryId = Guid.NewGuid().ToString(),
+                    Response = "Test answer",
+                    Sources = Array.Empty<SearchResult>(),
+                    Metrics = new QueryMetrics { ProcessingTimeMs = 100 }
+                });
+
+            var mockMcpProvider = new Mock<IMcpConfigurationProvider>();
+            mockMcpProvider.Setup(m => m.GetEnabledToolsAsync()).ReturnsAsync(Array.Empty<McpToolConfiguration>());
+
             var client = _factory.WithWebHostBuilder(builder =>
             {
                 builder.ConfigureServices(services =>
@@ -238,17 +264,24 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanPolicyService.Object);
                     services.AddSingleton(mockUsageTrackingService.Object);
+                    services.AddSingleton(mockRagService.Object);
+                    services.AddSingleton(mockMcpProvider.Object);
                 });
             }).CreateClientWithRoles("User");
 
             // Act
-            var response = await client.PostAsync("/api/motorcycles/query", 
+            var response = await client.PostAsync("/api/motorcycles/query",
                 new StringContent(
-                    """{"query": "test query"}""",
+                    """{"Query": "test query"}""",
                     Encoding.UTF8,
                     "application/json"));
 
             // Assert
+            if (response.StatusCode != HttpStatusCode.OK)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new Xunit.Sdk.XunitException($"Expected OK but got {response.StatusCode}. Response: {errorContent}");
+            }
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
     }

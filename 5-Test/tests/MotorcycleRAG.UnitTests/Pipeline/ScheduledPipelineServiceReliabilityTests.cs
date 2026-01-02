@@ -5,7 +5,6 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
 using MotorcycleRAG.Domain.DTOs;
 using Xunit;
 

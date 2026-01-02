@@ -26,6 +26,10 @@ Generated\ Files/
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+# Agent-generated notes (keep repo root clean)
+6-Docs/agent-notes/**
+!6-Docs/agent-notes/.gitkeep
+
 # NUnit
 *.VisualState.xml
 TestResult.xml

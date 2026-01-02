@@ -1,6 +1,4 @@
 using System.Security.Claims;
-using MotorcycleRAG.Contracts.Models;
-
 
 namespace MotorcycleRAG.Contracts.Interfaces
 {

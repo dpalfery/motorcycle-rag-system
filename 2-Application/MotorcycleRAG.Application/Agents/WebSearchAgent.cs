@@ -1,12 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 using HtmlAgilityPack;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Collections.Concurrent;
-using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Enums; 
 

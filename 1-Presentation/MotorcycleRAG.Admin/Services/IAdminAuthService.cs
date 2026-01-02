@@ -34,4 +34,9 @@ public interface IAdminAuthService
     /// Gets the current user's roles
     /// </summary>
     Task<IEnumerable<string>> GetUserRolesAsync();
+
+    /// <summary>
+    /// Gets a value indicating whether the user is currently authenticated
+    /// </summary>
+    bool IsAuthenticated { get; }
 }

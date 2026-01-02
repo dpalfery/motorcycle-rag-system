@@ -1,4 +1,6 @@
-namespace MotorcycleRAG.Contracts.Optimization;
+using MotorcycleRAG.Domain.DTOs.Optimization;
+
+namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
 /// Interface for managing connection pools and HTTP client optimization.
@@ -38,39 +40,4 @@ public interface IConnectionPoolService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Health check results</returns>
     Task<Dictionary<string, bool>> HealthCheckAsync(CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// Settings for connection pool configuration.
-/// </summary>
-public class ConnectionPoolSettings
-{
-    public int MaxConnectionsPerEndpoint { get; set; } = 10;
-    public TimeSpan ConnectionTimeout { get; set; } = TimeSpan.FromSeconds(30);
-    public TimeSpan ConnectionIdleTimeout { get; set; } = TimeSpan.FromMinutes(2);
-    public TimeSpan ConnectionLifetime { get; set; } = TimeSpan.FromMinutes(10);
-    public bool EnableKeepAlive { get; set; } = true;
-    public bool EnableCompression { get; set; } = true;
-    public int MaxRetries { get; set; } = 3;
-    public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
-    public Dictionary<string, string> DefaultHeaders { get; set; } = new();
-}
-
-/// <summary>
-/// Statistics for connection pool monitoring.
-/// </summary>
-public class ConnectionPoolStatistics
-{
-    public string ServiceName { get; set; } = string.Empty;
-    public int ActiveConnections { get; set; }
-    public int IdleConnections { get; set; }
-    public int TotalConnectionsCreated { get; set; }
-    public int TotalConnectionsDestroyed { get; set; }
-    public int TotalRequests { get; set; }
-    public int SuccessfulRequests { get; set; }
-    public int FailedRequests { get; set; }
-    public double SuccessRate => TotalRequests > 0 ? (double)SuccessfulRequests / TotalRequests : 0;
-    public TimeSpan AverageResponseTime { get; set; }
-    public DateTime LastActivity { get; set; }
-    public bool IsHealthy { get; set; } = true;
 }

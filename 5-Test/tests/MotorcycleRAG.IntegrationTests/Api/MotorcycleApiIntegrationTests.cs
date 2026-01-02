@@ -6,9 +6,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using Xunit;
 using MotorcycleRAG.Domain.DTOs;
+using Xunit;
 using MotorcycleRAG.IntegrationTests;
 
 namespace MotorcycleRAG.IntegrationTests.Api;

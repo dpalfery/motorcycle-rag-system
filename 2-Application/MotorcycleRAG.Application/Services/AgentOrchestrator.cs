@@ -4,12 +4,14 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.DTOs;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.Application.Services;
 
 /// <summary>
 /// Coordinates multiple search agents using the Microsoft Agent Framework to rank and fuse their results.
+/// Integrates MCP (Model Context Protocol) tool configuration for extensible tool management.
 /// </summary>
 public sealed class AgentOrchestrator : IAgentOrchestrator
 {
@@ -19,22 +21,29 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     private readonly ILogger<AgentOrchestrator> _logger;
     private readonly AgentFrameworkAdapter _frameworkAdapter;
     private readonly AgentState _executionState;
+    private readonly IMcpConfigurationProvider _mcpConfigProvider;
+    private McpToolConfiguration[]? _cachedEnabledTools;
+    private DateTime _lastToolRefresh = DateTime.MinValue;
+    private readonly TimeSpan _toolRefreshInterval = TimeSpan.FromMinutes(5);
 
     public AgentOrchestrator(
         IEnumerable<ISearchAgent> agents,
         IAzureOpenAIClient openAIClient,
         IOptions<SearchOptions> searchConfig,
-        ILogger<AgentOrchestrator> logger)
+        ILogger<AgentOrchestrator> logger,
+        IMcpConfigurationProvider mcpConfigProvider)
     {
         _agents = agents?.ToList() ?? throw new ArgumentNullException(nameof(agents));
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _searchConfig = searchConfig?.Value ?? throw new ArgumentNullException(nameof(searchConfig));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _mcpConfigProvider = mcpConfigProvider ?? throw new ArgumentNullException(nameof(mcpConfigProvider));
 
         _frameworkAdapter = new AgentFrameworkAdapter(logger);
         _executionState = new AgentState();
 
         InitializeFrameworkAdapter();
+        InitializeMcpTools();
     }
 
     /// <summary>
@@ -60,6 +69,58 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         _logger.LogInformation("Agent Framework adapter initialized with {AgentCount} agents", _agents.Count);
     }
 
+    /// <summary>
+    /// Initialize MCP tool configurations
+    /// </summary>
+    private void InitializeMcpTools()
+    {
+        try
+        {
+            // Load enabled tools on startup
+            _cacheMcpToolsAsync().GetAwaiter().GetResult();
+            _logger.LogInformation("MCP tools initialized successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to initialize MCP tools on startup - will retry later");
+        }
+    }
+
+    /// <summary>
+    /// Cache enabled MCP tools with refresh interval
+    /// </summary>
+    private async Task _cacheMcpToolsAsync()
+    {
+        var now = DateTime.UtcNow;
+        if (_lastToolRefresh != DateTime.MinValue &&
+            (now - _lastToolRefresh) < _toolRefreshInterval)
+        {
+            // Use cached tools if refresh interval hasn't elapsed
+            return;
+        }
+
+        try
+        {
+            _cachedEnabledTools = await _mcpConfigProvider.GetEnabledToolsAsync();
+            _lastToolRefresh = now;
+            _logger.LogDebug("Cached {ToolCount} enabled MCP tools", _cachedEnabledTools.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load MCP tools - orchestration will continue with builtin agents only");
+            _cachedEnabledTools ??= Array.Empty<McpToolConfiguration>();
+        }
+    }
+
+    /// <summary>
+    /// Get enabled MCP tools for current execution
+    /// </summary>
+    private async Task<McpToolConfiguration[]> GetEnabledMcpToolsAsync()
+    {
+        await _cacheMcpToolsAsync();
+        return _cachedEnabledTools ?? Array.Empty<McpToolConfiguration>();
+    }
+
     #region IAgentOrchestrator Implementation
 
     /// <inheritdoc />
@@ -79,9 +140,18 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
 
         try
         {
+            // Load enabled MCP tools for this execution
+            var enabledMcpTools = await GetEnabledMcpToolsAsync();
+            if (enabledMcpTools.Length > 0)
+            {
+                _logger.LogInformation("Executing search with {McpToolCount} enabled MCP tools: {Tools}",
+                    enabledMcpTools.Length,
+                    string.Join(", ", enabledMcpTools.Select(t => t.ToolId)));
+            }
+
             // Use the sequential retrieval policy: index → web → pdf fallback
             var results = await ExecuteSequentialRetrievalPolicyAsync(query, context);
-            
+
             _executionState.MarkComplete();
             return results;
         }

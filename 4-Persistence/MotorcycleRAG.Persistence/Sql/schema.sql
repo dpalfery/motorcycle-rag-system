@@ -368,9 +368,68 @@ BEGIN
         [UpdatedAt] DATETIME2 NULL,
         CONSTRAINT [UQ_WebTrustPolicies_DomainPattern] UNIQUE ([DomainPattern])
     );
-    
+
     CREATE INDEX [IX_WebTrustPolicies_Tier] ON [dbo].[WebTrustPolicies]([Tier]);
     CREATE INDEX [IX_WebTrustPolicies_IsBlocked] ON [dbo].[WebTrustPolicies]([IsBlocked]);
+END
+GO
+
+-- Create ToolConfigurations table for MCP tool configuration management
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ToolConfigurations')
+BEGIN
+    CREATE TABLE [dbo].[ToolConfigurations] (
+        [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+        [ToolId] NVARCHAR(255) NOT NULL,
+        [Name] NVARCHAR(255) NOT NULL,
+        [Description] NVARCHAR(1000) NULL,
+        [ServerUrl] NVARCHAR(500) NOT NULL,
+        [ToolType] NVARCHAR(100) NOT NULL,
+        [Version] NVARCHAR(50) NULL,
+        [IsEnabled] BIT NOT NULL DEFAULT 1,
+        [IsSystemTool] BIT NOT NULL DEFAULT 0,
+        [Priority] INT NOT NULL DEFAULT 0,
+        [TimeoutMs] INT NULL,
+        [RetryOnFailure] BIT NOT NULL DEFAULT 0,
+        [MaxRetries] INT NOT NULL DEFAULT 0,
+        [DisabledReason] NVARCHAR(500) NULL,
+        [LastConnectionStatus] NVARCHAR(50) NULL,
+        [LastTestedAt] DATETIME2 NULL,
+        [ConfigurationJson] NVARCHAR(MAX) NULL,
+        [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        [UpdatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT [UQ_ToolConfigurations_ToolId] UNIQUE ([ToolId])
+    );
+
+    CREATE INDEX [IX_ToolConfigurations_ToolId] ON [dbo].[ToolConfigurations]([ToolId]);
+    CREATE INDEX [IX_ToolConfigurations_IsEnabled] ON [dbo].[ToolConfigurations]([IsEnabled]);
+    CREATE INDEX [IX_ToolConfigurations_ToolType] ON [dbo].[ToolConfigurations]([ToolType]);
+    CREATE INDEX [IX_ToolConfigurations_Priority] ON [dbo].[ToolConfigurations]([Priority]);
+    CREATE INDEX [IX_ToolConfigurations_CreatedAt] ON [dbo].[ToolConfigurations]([CreatedAt]);
+END
+GO
+
+-- Create ToolConfigurationAuditLog table for tracking changes to tool configurations
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ToolConfigurationAuditLog')
+BEGIN
+    CREATE TABLE [dbo].[ToolConfigurationAuditLog] (
+        [Id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [ToolConfigurationId] UNIQUEIDENTIFIER NOT NULL,
+        [ToolId] NVARCHAR(255) NOT NULL,
+        [Action] NVARCHAR(50) NOT NULL,
+        [BeforeJson] NVARCHAR(MAX) NULL,
+        [AfterJson] NVARCHAR(MAX) NULL,
+        [UserId] NVARCHAR(256) NULL,
+        [ChangeReason] NVARCHAR(500) NULL,
+        [IpAddress] NVARCHAR(50) NULL,
+        [ChangedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT [FK_ToolConfigurationAuditLog_ToolConfigurations] FOREIGN KEY ([ToolConfigurationId]) REFERENCES [dbo].[ToolConfigurations]([Id]) ON DELETE CASCADE
+    );
+
+    CREATE INDEX [IX_ToolConfigurationAuditLog_ToolConfigurationId] ON [dbo].[ToolConfigurationAuditLog]([ToolConfigurationId]);
+    CREATE INDEX [IX_ToolConfigurationAuditLog_ToolId] ON [dbo].[ToolConfigurationAuditLog]([ToolId]);
+    CREATE INDEX [IX_ToolConfigurationAuditLog_Action] ON [dbo].[ToolConfigurationAuditLog]([Action]);
+    CREATE INDEX [IX_ToolConfigurationAuditLog_ChangedAt] ON [dbo].[ToolConfigurationAuditLog]([ChangedAt]);
+    CREATE INDEX [IX_ToolConfigurationAuditLog_UserId] ON [dbo].[ToolConfigurationAuditLog]([UserId]);
 END
 GO
 

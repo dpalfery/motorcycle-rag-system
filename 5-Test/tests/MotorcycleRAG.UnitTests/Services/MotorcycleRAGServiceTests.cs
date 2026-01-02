@@ -2,11 +2,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
+using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Application.Caching;
 using Xunit;
-using MotorcycleRAG.Domain.DTOs;
 
 namespace MotorcycleRAG.UnitTests.Services;
 

@@ -3,9 +3,8 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Contracts.Models;
-using Xunit;
 using MotorcycleRAG.Domain.DTOs;
+using Xunit;
 using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Agents;

@@ -239,8 +239,11 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 * **External Service Interfaces:** Contracts for external dependencies
   *Folder:* `Services`
   *Example:* `IEmbeddingService.cs`, `ILlmService.cs`
-* **DTOs (Domain Contracts):** Data contracts for crossing boundaries
-  *Folder:* `DTOs`
+* **Factories (Domain Contracts):** Factory abstractions for creating aggregates/value objects while enforcing invariants
+  *Folder:* `Factories`
+  *Example names:* `IDocumentFactory`, `IMotorcycleManualFactory`, `IVectorChunkFactory`
+
+* **Rule:** `MotorcycleRAG.Contracts` contains interfaces only (no DTOs/models)
 
 **Dependencies:** Domain, Base
 

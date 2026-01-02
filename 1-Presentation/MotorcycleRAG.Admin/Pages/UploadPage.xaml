@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:viewmodels="clr-namespace:MotorcycleRAG.Admin.ViewModels"
              x:Class="MotorcycleRAG.Admin.Pages.UploadPage"
-            Title="Upload and Process">
+             x:DataType="viewmodels:IngestionViewModel"
+             Title="Upload and Process">
     
     <ScrollView>
         <VerticalStackLayout Padding="20" Spacing="15">

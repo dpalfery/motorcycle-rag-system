@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MotorcycleRAG.Admin.Pages.WebSourcesPage"
+             Title="Web Sources">
+
+    <Grid RowDefinitions="Auto,*" Padding="20">
+
+        <!-- Header with Add Button -->
+        <HorizontalStackLayout Grid.Row="0" Spacing="10" Margin="0,0,0,15">
+            <Label Text="Trusted Web Sources"
+                   FontSize="24"
+                   FontAttributes="Bold"
+                   VerticalOptions="Center"
+                   HorizontalOptions="Start" />
+
+            <Button Text="Add Source"
+                    BackgroundColor="{StaticResource Primary}"
+                    TextColor="White"
+                    HorizontalOptions="End" />
+        </HorizontalStackLayout>
+
+        <!-- Web Sources List -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Spacing="10">
+
+                <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="No web sources configured"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="Add trusted web sources to enable web-based search in the RAG system."
+                               FontSize="12"
+                               TextColor="Gray"
+                               HorizontalTextAlignment="Center"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Instructions -->
+                <Frame BorderColor="LightGray" CornerRadius="8" Padding="15" BackgroundColor="#F9F9F9">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="About Web Sources"
+                               FontSize="16"
+                               FontAttributes="Bold" />
+
+                        <Label Text="Web sources are trusted domains used for supplementary search results. The system will only retrieve information from explicitly approved domains."
+                               FontSize="12"
+                               TextColor="Gray"
+                               LineBreakMode="WordWrap" />
+
+                        <Label Text="Trust Tiers:"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               Margin="0,10,0,5" />
+
+                        <Label Text="Tier A: OEM Manuals (Highest Trust)"
+                               FontSize="11"
+                               Margin="10,0,0,0" />
+
+                        <Label Text="Tier B: Reputable Media (Medium Trust)"
+                               FontSize="11"
+                               Margin="10,0,0,0" />
+
+                        <Label Text="Tier C: Community Sources (Lower Trust)"
+                               FontSize="11"
+                               Margin="10,0,0,0" />
+                    </VerticalStackLayout>
+                </Frame>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+    </Grid>
+
+</ContentPage>

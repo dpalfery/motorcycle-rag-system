@@ -118,15 +118,15 @@
 - [x] T064 [US3a] Implement ingestion workflow VM in 1-Presentation/MotorcycleRAG.Admin/ViewModels/IngestionViewModel.cs
 - [x] T065 [US3a] Implement upload UI page in 1-Presentation/MotorcycleRAG.Admin/Pages/UploadPage.xaml
 - [x] T066 [US3a] Implement jobs UI page in 1-Presentation/MotorcycleRAG.Admin/Pages/JobsPage.xaml
-- [ ] T067 [US3a] Refactor Admin navigation to Shell Flyout + TitleView in 1-Presentation/MotorcycleRAG.Admin/AppShell.xaml
-- [ ] T068 [US3a] Add INavigationService wrapper for Shell navigation in 1-Presentation/MotorcycleRAG.Admin/Services/INavigationService.cs
-- [ ] T069 [US3a] Add ISettingsService wrapping Preferences/SecureStorage in 1-Presentation/MotorcycleRAG.Admin/Services/ISettingsService.cs
-- [ ] T070 [US3a] Register Admin services/ViewModels/pages in DI in 1-Presentation/MotorcycleRAG.Admin/MauiProgram.cs
-- [ ] T071 [US3a] Add resilience handler for Admin HttpClient in 1-Presentation/MotorcycleRAG.Admin/MauiProgram.cs
-- [ ] T072 [US3a] Add connectivity checks for network operations in 1-Presentation/MotorcycleRAG.Admin/ViewModels/IngestionViewModel.cs
-- [ ] T073 [US3a] Add compiled bindings (x:DataType) for Admin pages in 1-Presentation/MotorcycleRAG.Admin/Pages/UploadPage.xaml
-- [ ] T074 [US3a] Add compiled bindings (x:DataType) for Admin pages in 1-Presentation/MotorcycleRAG.Admin/Pages/JobsPage.xaml
-- [ ] T075 [US3a] Add Admin theming tokens in 1-Presentation/MotorcycleRAG.Admin/App.xaml
+- [x] T067 [US3a] Refactor Admin navigation to Shell Flyout + TitleView in 1-Presentation/MotorcycleRAG.Admin/AppShell.xaml
+- [x] T068 [US3a] Add INavigationService wrapper for Shell navigation in 1-Presentation/MotorcycleRAG.Admin/Services/INavigationService.cs
+- [x] T069 [US3a] Add ISettingsService wrapping Preferences/SecureStorage in 1-Presentation/MotorcycleRAG.Admin/Services/ISettingsService.cs
+- [x] T070 [US3a] Register Admin services/ViewModels/pages in DI in 1-Presentation/MotorcycleRAG.Admin/MauiProgram.cs
+- [x] T071 [US3a] Add resilience handler for Admin HttpClient in 1-Presentation/MotorcycleRAG.Admin/MauiProgram.cs
+- [x] T072 [US3a] Add connectivity checks for network operations in 1-Presentation/MotorcycleRAG.Admin/ViewModels/IngestionViewModel.cs
+- [x] T073 [US3a] Add compiled bindings (x:DataType) for Admin pages in 1-Presentation/MotorcycleRAG.Admin/Pages/UploadPage.xaml
+- [x] T074 [US3a] Add compiled bindings (x:DataType) for Admin pages in 1-Presentation/MotorcycleRAG.Admin/Pages/JobsPage.xaml
+- [x] T075 [US3a] Add Admin theming tokens in 1-Presentation/MotorcycleRAG.Admin/App.xaml
 
 ---
 

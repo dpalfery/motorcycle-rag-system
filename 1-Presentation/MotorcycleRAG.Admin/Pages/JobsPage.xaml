@@ -1,29 +1,33 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:MotorcycleRAG.Admin.ViewModels"
              x:Class="MotorcycleRAG.Admin.Pages.JobsPage"
+             x:DataType="viewmodels:JobsViewModel"
              Title="Pipeline Jobs">
 
     <Grid RowDefinitions="Auto,*" Padding="20">
         
         <!-- Header with Refresh Button -->
         <HorizontalStackLayout Grid.Row="0" Spacing="10" Margin="0,0,0,15">
-            <Label Text="Pipeline Executions" 
-                   FontSize="24" 
-                   FontAttributes="Bold" 
-                   VerticalOptions="Center" 
+            <Label Text="Pipeline Executions"
+                   FontSize="24"
+                   FontAttributes="Bold"
+                   VerticalOptions="Center"
                    HorizontalOptions="Start" />
-            
-            <Button Text="Refresh" 
-                    Clicked="OnRefreshClicked"
+
+            <Button Text="Refresh"
+                    Command="{Binding LoadJobsCommand}"
                     BackgroundColor="{StaticResource Primary}"
                     TextColor="White"
+                    IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}"
                     HorizontalOptions="End" />
         </HorizontalStackLayout>
 
         <!-- Jobs List -->
         <ScrollView Grid.Row="1">
-            <CollectionView x:Name="JobsCollectionView">
+            <CollectionView ItemsSource="{Binding Jobs}"
+                            SelectionMode="Single">
                 <CollectionView.EmptyView>
                     <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10" Padding="20">
                         <Label Text="No pipeline executions found" 
@@ -66,7 +70,7 @@
                                 <!-- Cancel Button (visible only for running jobs) -->
                                 <Button Grid.Row="0" Grid.Column="1"
                                         Text="Cancel"
-                                        Clicked="OnCancelClicked"
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CancelJobCommand}"
                                         CommandParameter="{Binding ExecutionId}"
                                         BackgroundColor="Red"
                                         TextColor="White"

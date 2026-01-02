@@ -163,6 +163,18 @@ public class IngestionViewModel : INotifyPropertyChanged
         if (string.IsNullOrEmpty(SelectedFilePath))
             return;
 
+        // Check network connectivity before starting processing
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet)
+            {
+                StatusMessage = "No internet connection. Please check your network.";
+                await ShowErrorAsync("No Connection", "Internet connection is required to process files.");
+                _logger?.LogWarning("File processing attempted without internet connection");
+                return;
+            }
+        });
+
         IsProcessing = true;
         ProgressPercentage = 0;
         StatusMessage = "Starting processing...";
@@ -181,7 +193,7 @@ public class IngestionViewModel : INotifyPropertyChanged
 
             // Determine file type
             var extension = Path.GetExtension(SelectedFilePath).ToLowerInvariant();
-            
+
             if (EnableLocalProcessing && _embeddingService != null)
             {
                 // Local processing workflow
@@ -334,7 +346,8 @@ public class IngestionViewModel : INotifyPropertyChanged
             {
                 Span<byte> pdfHeader = stackalloc byte[4];
                 if (fs.Length < 4) return false;
-                fs.Read(pdfHeader);
+                int bytesRead = fs.Read(pdfHeader);
+                if (bytesRead < 4) return false;
                 return pdfHeader[0] == 0x25 && pdfHeader[1] == 0x50 && pdfHeader[2] == 0x44 && pdfHeader[3] == 0x46;
             }
 
@@ -344,7 +357,7 @@ public class IngestionViewModel : INotifyPropertyChanged
                 const int sampleSize = 1024; // Read 1KB for validation
                 int readSize = Math.Min(sampleSize, (int)Math.Min(fs.Length, int.MaxValue));
                 Span<byte> buffer = stackalloc byte[sampleSize];
-                int bytesRead = fs.Read(buffer.Slice(0, readSize));
+                int bytesRead = fs.Read(buffer[..readSize]);
 
                 if (bytesRead == 0) return false;
 

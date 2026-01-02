@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Http.Resilience;
+using Polly;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Pages;
 using MotorcycleRAG.Admin.ViewModels;
@@ -28,7 +30,15 @@ public static class MauiProgram
 		builder.Logging.SetMinimumLevel(LogLevel.Information);
 #endif
 
-		// Register Services
+		// ========== Core Services (Singletons) ==========
+
+		// Navigation Service - enables testable ViewModels
+		builder.Services.AddSingleton<INavigationService, NavigationService>();
+
+		// Settings Service - wraps Preferences and SecureStorage for testability
+		builder.Services.AddSingleton<ISettingsService, SettingsService>();
+
+		// Authentication Service
 		builder.Services.AddSingleton<IAdminAuthService>(sp =>
 		{
 			// Retrieve authentication configuration from environment variables
@@ -59,41 +69,44 @@ public static class MauiProgram
 			);
 		});
 
-		builder.Services.AddSingleton<HttpClient>(sp =>
-		{
-			// Validate and retrieve API base URL
-			var baseUrl = Environment.GetEnvironmentVariable("API_BASE_URL");
+		// ========== HTTP Client with Resilience Policies ==========
 
-			if (string.IsNullOrWhiteSpace(baseUrl))
+		// Configure HttpClient with resilience handlers (retry, circuit breaker, timeout)
+		// Using Microsoft.Extensions.Http.Resilience for production-grade policies
+		builder.Services
+			.AddHttpClient<ApiClient>(client =>
 			{
-				baseUrl = "https://localhost:7000";
-			}
+				// Validate and retrieve API base URL
+				var baseUrl = Environment.GetEnvironmentVariable("API_BASE_URL");
 
-			// Validate HTTPS in production (non-localhost URLs must use HTTPS)
-			if (!baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-			{
-				if (!baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+				if (string.IsNullOrWhiteSpace(baseUrl))
+				{
+					baseUrl = "https://localhost:7000";
+				}
+
+				// Validate HTTPS in production (non-localhost URLs must use HTTPS)
+				if (!baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+				{
+					if (!baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+					{
+						throw new InvalidOperationException(
+							$"API_BASE_URL must use HTTPS for non-localhost URLs. Got: {baseUrl}");
+					}
+				}
+
+				// Validate URL format
+				if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var apiUri))
 				{
 					throw new InvalidOperationException(
-						$"API_BASE_URL must use HTTPS for non-localhost URLs. Got: {baseUrl}");
+						$"API_BASE_URL is not a valid URI: {baseUrl}");
 				}
-			}
 
-			// Validate URL format
-			if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var apiUri))
-			{
-				throw new InvalidOperationException(
-					$"API_BASE_URL is not a valid URI: {baseUrl}");
-			}
+				client.BaseAddress = apiUri;
+				client.Timeout = TimeSpan.FromSeconds(30);
+			})
+			.AddStandardResilienceHandler(); // Includes retry + circuit breaker policies
 
-			return new HttpClient
-			{
-				BaseAddress = apiUri,
-				Timeout = TimeSpan.FromSeconds(30)
-			};
-		});
-
-		builder.Services.AddSingleton<ApiClient>();
+		// ========== Local Processing Services ==========
 
 		builder.Services.AddSingleton<PdfChunker>();
 		builder.Services.AddSingleton<CsvChunker>();
@@ -113,12 +126,22 @@ public static class MauiProgram
 			// Don't register the service - IngestionViewModel constructor should handle null
 		}
 
-		// Register Pages
+		// ========== Pages (Transient - Fresh instance per navigation) ==========
+
+		builder.Services.AddTransient<DashboardPage>();
 		builder.Services.AddTransient<UploadPage>();
 		builder.Services.AddTransient<JobsPage>();
+		builder.Services.AddTransient<WebSourcesPage>();
+		builder.Services.AddTransient<ToolsPage>();
 
-		// Register ViewModels
+		// ========== ViewModels (Transient - Fresh instance per navigation) ==========
+
 		builder.Services.AddTransient<IngestionViewModel>();
+		builder.Services.AddTransient<JobsViewModel>();
+
+		// Register App and AppShell (Singletons - single instance for app lifetime)
+		builder.Services.AddSingleton<App>();
+		builder.Services.AddSingleton<AppShell>();
 
 		return builder.Build();
 	}

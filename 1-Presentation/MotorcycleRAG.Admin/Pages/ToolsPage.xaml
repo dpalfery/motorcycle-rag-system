@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MotorcycleRAG.Admin.Pages.ToolsPage"
+             Title="Tools and Settings">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="15">
+
+            <!-- MCP Configuration Section -->
+            <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Model Context Protocol (MCP)"
+                           FontSize="18"
+                           FontAttributes="Bold" />
+
+                    <Label Text="Configure MCP tools for extensible functionality."
+                           FontSize="12"
+                           TextColor="Gray" />
+
+                    <Button Text="Configure MCP Tools"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White" />
+
+                    <Label Text="Status: Not Configured"
+                           FontSize="11"
+                           TextColor="Orange" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- System Settings Section -->
+            <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="System Settings"
+                           FontSize="18"
+                           FontAttributes="Bold" />
+
+                    <HorizontalStackLayout Spacing="10">
+                        <Label Text="Enable Local Processing"
+                               VerticalOptions="Center" />
+                        <CheckBox IsChecked="True" HorizontalOptions="End" />
+                    </HorizontalStackLayout>
+
+                    <HorizontalStackLayout Spacing="10">
+                        <Label Text="Use ONNX Embeddings"
+                               VerticalOptions="Center" />
+                        <CheckBox IsChecked="False" HorizontalOptions="End" />
+                    </HorizontalStackLayout>
+
+                    <HorizontalStackLayout Spacing="10">
+                        <Label Text="Enable Logging"
+                               VerticalOptions="Center" />
+                        <CheckBox IsChecked="True" HorizontalOptions="End" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- API Configuration Section -->
+            <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="API Configuration"
+                           FontSize="18"
+                           FontAttributes="Bold" />
+
+                    <Label Text="Base URL:" FontSize="12" FontAttributes="Bold" />
+                    <Entry Placeholder="https://api.example.com"
+                           IsReadOnly="True"
+                           Text="Configured via environment" />
+
+                    <Label Text="Timeout (seconds):" FontSize="12" FontAttributes="Bold" />
+                    <Entry Placeholder="30"
+                           IsReadOnly="True"
+                           Text="30" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- About Section -->
+            <Frame BorderColor="LightGray" CornerRadius="8" Padding="15" BackgroundColor="#F9F9F9">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="About"
+                           FontSize="18"
+                           FontAttributes="Bold" />
+
+                    <Label Text="Motorcycle RAG Admin v1.0.0"
+                           FontSize="12"
+                           FontAttributes="Bold" />
+
+                    <Label Text="Built with .NET 10 MAUI and Community Toolkit"
+                           FontSize="11"
+                           TextColor="Gray" />
+
+                    <Label Text="© 2025 Motorcycle RAG Team"
+                           FontSize="10"
+                           TextColor="Gray"
+                           Margin="0,10,0,0" />
+                </VerticalStackLayout>
+            </Frame>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

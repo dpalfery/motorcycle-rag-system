@@ -1,5 +1,4 @@
 using MotorcycleRAG.Admin.Services;
-using MotorcycleRAG.Admin.Pages;
 
 namespace MotorcycleRAG.Admin;
 
@@ -15,84 +14,81 @@ namespace MotorcycleRAG.Admin;
 /// </summary>
 public partial class AppShell : Shell
 {
-	private readonly IAdminAuthService _authService;
-	private readonly IServiceProvider _serviceProvider;
-	private ShellContent? _uploadTab;
-	private ShellContent? _jobsTab;
+    private readonly IAdminAuthService _authService;
+    private readonly ISettingsService _settingsService;
+    private readonly IServiceProvider _serviceProvider;
 
-	public AppShell(IAdminAuthService authService, IServiceProvider serviceProvider)
-	{
-		InitializeComponent();
-		_authService = authService;
-		_serviceProvider = serviceProvider;
+    public AppShell(IAdminAuthService authService, ISettingsService settingsService, IServiceProvider serviceProvider)
+    {
+        InitializeComponent();
+        _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
-		// Build tabs programmatically using DI
-		BuildTabs();
+        // Register routes for navigation
+        RegisterRoutes();
 
-		// Apply role-based visibility
-		Loaded += OnShellLoaded;
-	}
-	
-	private void BuildTabs()
-	{
-		// Create Upload tab
-		_uploadTab = new ShellContent
-		{
-			Title = "Upload",
-			Route = "UploadPage",
-			ContentTemplate = new DataTemplate(() => _serviceProvider.GetRequiredService<UploadPage>())
-		};
-		MainTabBar.Items.Add(_uploadTab);
-		
-		// Create Jobs tab
-		_jobsTab = new ShellContent
-		{
-			Title = "Jobs",
-			Route = "JobsPage",
-			ContentTemplate = new DataTemplate(() => _serviceProvider.GetRequiredService<JobsPage>())
-		};
-		MainTabBar.Items.Add(_jobsTab);
-	}
-	
-	private async void OnShellLoaded(object? sender, EventArgs e)
-	{
-		await ApplyRoleBasedVisibilityAsync();
-	}
-	
-	private async Task ApplyRoleBasedVisibilityAsync()
-	{
-		if (!_authService.IsSignedIn())
-		{
-			// Hide all admin tabs if not signed in
-			if (_uploadTab != null) _uploadTab.IsVisible = false;
-			if (_jobsTab != null) _jobsTab.IsVisible = false;
-			return;
-		}
+        // Update UI based on auth state
+        Loaded += OnShellLoaded;
+    }
 
-		try
-		{
-			var roles = await _authService.GetUserRolesAsync();
-			var roleList = roles.ToList();
+    private void RegisterRoutes()
+    {
+        // Register all routes for Shell-based navigation
+        Routing.RegisterRoute("dashboard", typeof(Pages.DashboardPage));
+        Routing.RegisterRoute("dashboardpage", typeof(Pages.DashboardPage));
+        Routing.RegisterRoute("uploadpage", typeof(Pages.UploadPage));
+        Routing.RegisterRoute("jobspage", typeof(Pages.JobsPage));
+        Routing.RegisterRoute("websourcespage", typeof(Pages.WebSourcesPage));
+        Routing.RegisterRoute("toolspage", typeof(Pages.ToolsPage));
+    }
 
-			// Check for admin roles (Admin, DataAdmin, ContentAdmin, SuperAdmin)
-			// NOTE: This is UI-only visibility. All protected endpoints must validate
-			// authorization independently on the server side. Do not depend on this
-			// client-side check for security.
-			bool isAdmin = roleList.Any(r =>
-				r.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
-				r.Equals("DataAdmin", StringComparison.OrdinalIgnoreCase) ||
-				r.Equals("ContentAdmin", StringComparison.OrdinalIgnoreCase) ||
-				r.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase));
+    private async void OnShellLoaded(object? sender, EventArgs e)
+    {
+        await UpdateUIAsync();
+    }
 
-			// Show/hide tabs based on roles (UI convenience only, not security)
-			if (_uploadTab != null) _uploadTab.IsVisible = isAdmin;
-			if (_jobsTab != null) _jobsTab.IsVisible = isAdmin;
-		}
-		catch
-		{
-			// On error, hide admin tabs for safety
-			if (_uploadTab != null) _uploadTab.IsVisible = false;
-			if (_jobsTab != null) _jobsTab.IsVisible = false;
-		}
-	}
+    private async void OnSignOutClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            // Sign out from auth service
+            await _authService.SignOutAsync();
+
+            // Clear any cached tokens
+            await _settingsService.RemoveSecureAsync("auth_token");
+            await _settingsService.RemoveSecureAsync("auth_refresh_token");
+
+            // Navigate back to main page or splash
+            await Shell.Current.GoToAsync("//");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Sign out error: {ex.Message}");
+            await DisplayAlertAsync("Sign Out Error", "Failed to sign out. Please try again.", "OK");
+        }
+    }
+
+    private async Task UpdateUIAsync()
+    {
+        try
+        {
+            // Update user display name in TitleView
+            if (_authService.IsSignedIn())
+            {
+                var displayName = _authService.GetUserDisplayName();
+                UserDisplayName.Text = displayName ?? "User";
+            }
+            else
+            {
+                UserDisplayName.Text = "Not signed in";
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
+            UserDisplayName.Text = "User";
+        }
+        await Task.CompletedTask;
+    }
 }

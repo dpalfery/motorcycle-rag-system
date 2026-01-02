@@ -1,4 +1,4 @@
-<?xml version = "1.0" encoding = "UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:MotorcycleRAG.Admin"
@@ -10,8 +10,99 @@
                 <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
                 <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            
-            <!-- Value Converters -->
+
+            <!-- ========== Material Design 3 Color System ========== -->
+            <!-- Primary Colors (Brand Color) -->
+            <Color x:Key="ColorPrimary">#512BD4</Color>
+            <Color x:Key="ColorOnPrimary">#FFFFFF</Color>
+            <Color x:Key="ColorPrimaryContainer">#EADDFF</Color>
+            <Color x:Key="ColorOnPrimaryContainer">#21005D</Color>
+
+            <!-- Secondary Colors (Supporting Color) -->
+            <Color x:Key="ColorSecondary">#7D5260</Color>
+            <Color x:Key="ColorOnSecondary">#FFFFFF</Color>
+            <Color x:Key="ColorSecondaryContainer">#FFD8E4</Color>
+            <Color x:Key="ColorOnSecondaryContainer">#31111D</Color>
+
+            <!-- Tertiary Colors (Accent Color) -->
+            <Color x:Key="ColorTertiary">#7D5260</Color>
+            <Color x:Key="ColorOnTertiary">#FFFFFF</Color>
+            <Color x:Key="ColorTertiaryContainer">#FFD8E4</Color>
+            <Color x:Key="ColorOnTertiaryContainer">#31111D</Color>
+
+            <!-- Error Colors -->
+            <Color x:Key="ColorError">#B3261E</Color>
+            <Color x:Key="ColorOnError">#FFFFFF</Color>
+            <Color x:Key="ColorErrorContainer">#F9DEDC</Color>
+            <Color x:Key="ColorOnErrorContainer">#410E0B</Color>
+
+            <!-- Neutral Colors (Backgrounds, Surfaces) -->
+            <Color x:Key="ColorBackground">#FFFBFE</Color>
+            <Color x:Key="ColorOnBackground">#1C1B1F</Color>
+            <Color x:Key="ColorSurface">#FFFBFE</Color>
+            <Color x:Key="ColorOnSurface">#1C1B1F</Color>
+            <Color x:Key="ColorSurfaceVariant">#E7E0EC</Color>
+            <Color x:Key="ColorOnSurfaceVariant">#49454E</Color>
+
+            <!-- Outline -->
+            <Color x:Key="ColorOutline">#79747E</Color>
+            <Color x:Key="ColorOutlineVariant">#C4C7C5</Color>
+
+            <!-- ========== Typography Tokens ========== -->
+            <!-- Display Styles (Largest) -->
+            <FontSize x:Key="FontSizeDisplayLarge">57</FontSize>
+            <FontSize x:Key="FontSizeDisplayMedium">45</FontSize>
+            <FontSize x:Key="FontSizeDisplaySmall">36</FontSize>
+
+            <!-- Headline Styles -->
+            <FontSize x:Key="FontSizeHeadlineLarge">32</FontSize>
+            <FontSize x:Key="FontSizeHeadlineMedium">28</FontSize>
+            <FontSize x:Key="FontSizeHeadlineSmall">24</FontSize>
+
+            <!-- Title Styles -->
+            <FontSize x:Key="FontSizeTitleLarge">22</FontSize>
+            <FontSize x:Key="FontSizeTitleMedium">16</FontSize>
+            <FontSize x:Key="FontSizeTitleSmall">14</FontSize>
+
+            <!-- Body Styles -->
+            <FontSize x:Key="FontSizeBodyLarge">16</FontSize>
+            <FontSize x:Key="FontSizeBodyMedium">14</FontSize>
+            <FontSize x:Key="FontSizeBodySmall">12</FontSize>
+
+            <!-- Label Styles (Smallest) -->
+            <FontSize x:Key="FontSizeLabelLarge">14</FontSize>
+            <FontSize x:Key="FontSizeLabelMedium">12</FontSize>
+            <FontSize x:Key="FontSizeLabelSmall">11</FontSize>
+
+            <!-- ========== Shape Tokens (Rounded Corners) ========== -->
+            <!-- Border radius for different component sizes -->
+            <CornerRadius x:Key="ShapeCornerExtraSmall">4</CornerRadius>
+            <CornerRadius x:Key="ShapeCornerSmall">8</CornerRadius>
+            <CornerRadius x:Key="ShapeCornerMedium">12</CornerRadius>
+            <CornerRadius x:Key="ShapeCornerLarge">16</CornerRadius>
+            <CornerRadius x:Key="ShapeCornerExtraLarge">28</CornerRadius>
+
+            <!-- ========== Spacing / Insets Tokens ========== -->
+            <!-- Spacing scale for layout consistency -->
+            <Thickness x:Key="SpacingXSmall">4</Thickness>
+            <Thickness x:Key="SpacingSmall">8</Thickness>
+            <Thickness x:Key="SpacingMedium">16</Thickness>
+            <Thickness x:Key="SpacingLarge">24</Thickness>
+            <Thickness x:Key="SpacingXLarge">32</Thickness>
+
+            <!-- Padding for content areas -->
+            <Thickness x:Key="ContentPadding">16</Thickness>
+
+            <!-- ========== Elevation / Shadow Tokens ========== -->
+            <!-- These can be used for visual hierarchy -->
+            <x:Double x:Key="ElevationLevel0">0</x:Double>
+            <x:Double x:Key="ElevationLevel1">1</x:Double>
+            <x:Double x:Key="ElevationLevel2">3</x:Double>
+            <x:Double x:Key="ElevationLevel3">6</x:Double>
+            <x:Double x:Key="ElevationLevel4">8</x:Double>
+            <x:Double x:Key="ElevationLevel5">12</x:Double>
+
+            <!-- ========== Value Converters ========== -->
             <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
             <converters:StringNotEmptyConverter x:Key="StringNotEmptyConverter" />
             <converters:PercentageConverter x:Key="PercentageConverter" />

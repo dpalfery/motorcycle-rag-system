@@ -3,10 +3,131 @@
     x:Class="MotorcycleRAG.Admin.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    Title="Motorcycle RAG Admin">
+    Title="Motorcycle RAG Admin"
+    FlyoutBehavior="Locked"
+    FlyoutIsPresented="False">
 
-    <!-- TabBar items will be added programmatically in code-behind -->
-    <TabBar x:Name="MainTabBar">
-    </TabBar>
+    <!-- Define Shell TitleView for top header with user profile and sign out -->
+    <Shell.TitleView>
+        <Grid ColumnDefinitions="*,Auto"
+              Padding="15,0"
+              VerticalOptions="Center"
+              HeightRequest="56">
+
+            <!-- Title -->
+            <Label Text="Motorcycle RAG Admin"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   VerticalOptions="Center"
+                   HorizontalOptions="Start"
+                   TextColor="{StaticResource Primary}" />
+
+            <!-- User Profile Section (Sign Out Button) -->
+            <HorizontalStackLayout Grid.Column="1"
+                                   Spacing="10"
+                                   VerticalOptions="Center"
+                                   HorizontalOptions="End">
+
+                <Label x:Name="UserDisplayName"
+                       FontSize="12"
+                       VerticalOptions="Center"
+                       TextColor="Gray" />
+
+                <Button x:Name="SignOutButton"
+                        Text="Sign Out"
+                        Clicked="OnSignOutClicked"
+                        BackgroundColor="{StaticResource Secondary}"
+                        TextColor="White"
+                        Padding="15,8"
+                        FontSize="12"
+                        CornerRadius="4" />
+            </HorizontalStackLayout>
+        </Grid>
+    </Shell.TitleView>
+
+    <!-- Flyout (Left Menu Navigation) -->
+    <Shell.Flyout>
+        <Grid RowDefinitions="Auto,*,Auto" Padding="0" BackgroundColor="{StaticResource Primary}">
+
+            <!-- Flyout Header -->
+            <Grid Grid.Row="0" Padding="20,20" BackgroundColor="{StaticResource Primary}">
+                <VerticalStackLayout Spacing="5">
+                    <Label Text="Motorcycle RAG"
+                           FontSize="20"
+                           FontAttributes="Bold"
+                           TextColor="White" />
+                    <Label Text="Admin Portal"
+                           FontSize="14"
+                           TextColor="White"
+                           Opacity="0.8" />
+                </VerticalStackLayout>
+            </Grid>
+
+            <!-- Flyout Items (Menu Navigation) -->
+            <CollectionView Grid.Row="1" ItemsSource="{Binding FlyoutItems}" SelectionMode="Single"
+                           SelectionChangedCommand="{Binding FlyoutItemSelectedCommand}"
+                           SelectionChangedCommandParameter="{Binding SelectedItem, Source={RelativeSource Self}}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <StackLayout Padding="20,15"
+                                    Spacing="0"
+                                    BackgroundColor="{Binding IsSelected, Converter={StaticResource BoolToObjectConverter}, ConverterParameter='#E8E8E8|Transparent'}">
+                            <Label Text="{Binding Title}"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   TextColor="{StaticResource Secondary}" />
+                            <Label Text="{Binding Description}"
+                                   FontSize="12"
+                                   TextColor="Gray"
+                                   Opacity="0.7" />
+                        </StackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <!-- Flyout Footer -->
+            <StackLayout Grid.Row="2" Padding="20" BackgroundColor="{StaticResource Primary}">
+                <Label Text="v1.0.0"
+                       FontSize="10"
+                       TextColor="White"
+                       HorizontalTextAlignment="Center"
+                       Opacity="0.6" />
+            </StackLayout>
+        </Grid>
+    </Shell.Flyout>
+
+    <!-- Navigation Structure -->
+    <FlyoutItem Title="Dashboard" Icon="home.png" Route="dashboard">
+        <ShellContent Title="Dashboard"
+                      Route="dashboardpage"
+                      ContentTemplate="{DataTemplate Pages:DashboardPage}" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Upload" Icon="upload.png" Route="upload">
+        <ShellContent Title="Upload and Process"
+                      Route="uploadpage"
+                      ContentTemplate="{DataTemplate Pages:UploadPage}" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Pipeline Jobs" Icon="tasks.png" Route="jobs">
+        <ShellContent Title="Pipeline Jobs"
+                      Route="jobspage"
+                      ContentTemplate="{DataTemplate Pages:JobsPage}" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Web Sources" Icon="globe.png" Route="websources">
+        <ShellContent Title="Web Sources"
+                      Route="websourcespage"
+                      ContentTemplate="{DataTemplate Pages:WebSourcesPage}" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Tools" Icon="tools.png" Route="tools">
+        <ShellContent Title="Tools and Settings"
+                      Route="toolspage"
+                      ContentTemplate="{DataTemplate Pages:ToolsPage}" />
+    </FlyoutItem>
+
+    <!-- TabBar can be used for modal or secondary navigation if needed -->
+    <TabBar x:Name="MainTabBar" />
 
 </Shell>

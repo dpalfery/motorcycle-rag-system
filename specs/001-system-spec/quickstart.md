@@ -29,21 +29,9 @@ This script will:
 
 ### Step 2: Set Up Local Environment Variables
 
-**SECURITY NOTICE**: Real Azure tenant IDs and client IDs must NEVER be committed to source control. The `appsettings.json` files contain only empty placeholders. All configuration must come from environment variables or secure storage (User Secrets, Key Vault).
+**SECURITY NOTICE**: Real Azure tenant IDs, client IDs, API keys, and connection strings must NEVER be committed to source control or stored in configuration files. The `appsettings.json` files contain only empty placeholders. All secrets must come from **secure storage only** (User Secrets for development, Azure Key Vault for production).
 
-1. **Copy the environment template file**:
-   ```powershell
-   cp .env.example .env
-   ```
-
-2. **Fill in the `.env` file with your actual values** from the setup script output:
-   - `AZURE_AD_TENANT_ID`: Your Azure AD tenant ID
-   - `AZURE_AD_CLIENT_ID`: API application client ID
-   - `AZURE_AD_CLIENT_SECRET`: API application client secret
-   - All Azure service endpoints and keys
-   - See `.env.example` for complete list of variables
-
-3. **DO NOT commit the `.env` file** to source control. It is already included in `.gitignore` for safety.
+**Never use `.env` files or commit secrets to version control.**
 
 ### Step 3: Load Environment Variables for Local Development
 
@@ -58,17 +46,14 @@ dotnet user-secrets set "AzureAd:ClientId" "your-actual-client-id"
 dotnet user-secrets set "AzureAd:Audience" "your-actual-client-id"
 ```
 
-User Secrets are stored securely outside the repository and override `appsettings.json` values during development.
+User Secrets are stored securely outside the repository and override `appsettings.json` values during development. This is the recommended approach.
 
-**Option B: Load from `.env` File (PowerShell)**
+**Option B: Set Environment Variables Directly (PowerShell)**
 ```powershell
-# Load all environment variables from .env file before running the application
-Get-Content .env | ForEach-Object {
-  if (-not [string]::IsNullOrWhiteSpace($_) -and -not $_.StartsWith('#')) {
-    $name, $value = $_.Split('=')
-    [Environment]::SetEnvironmentVariable($name, $value, "Process")
-  }
-}
+$env:AZURE_AD_TENANT_ID="your-tenant-id"
+$env:AZURE_AD_CLIENT_ID="your-client-id"
+$env:AZURE_AD_CLIENT_SECRET="your-client-secret"
+# ... set other required variables (see "Environment Variables (local)" section below)
 
 # Then run the API
 dotnet run --project 1-Presentation/MotorcycleRAG.API
@@ -76,15 +61,15 @@ dotnet run --project 1-Presentation/MotorcycleRAG.API
 
 **Option C: Set Environment Variables (Command Prompt)**
 ```cmd
-set AZURE_AD_TENANT_ID=your-actual-tenant-id
-set AZURE_AD_CLIENT_ID=your-actual-client-id
-set AZURE_AD_CLIENT_SECRET=your-actual-secret
-REM ... set other required variables
+set AZURE_AD_TENANT_ID=your-tenant-id
+set AZURE_AD_CLIENT_ID=your-client-id
+set AZURE_AD_CLIENT_SECRET=your-client-secret
+REM ... set other required variables (see "Environment Variables (local)" section below)
 dotnet run --project 1-Presentation/MotorcycleRAG.API
 ```
 
 **Option D: VS Code / IDE Launch Configuration**
-Add to `.vscode/launch.json`:
+For VS Code development, add to `.vscode/launch.json`:
 ```json
 {
   "configurations": [
@@ -93,14 +78,14 @@ Add to `.vscode/launch.json`:
       "type": "coreclr",
       "request": "launch",
       "env": {
-        "AZURE_AD_TENANT_ID": "your-actual-tenant-id",
-        "AZURE_AD_CLIENT_ID": "your-actual-client-id",
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     }
   ]
 }
 ```
+
+Then configure environment variables via User Secrets (Option A) or by setting them in your shell before launching. **Never hardcode secrets in launch.json**.
 
 ## Backend API
 
@@ -619,9 +604,6 @@ AZURE_AD_CLIENT_ID="<your-api-client-id>"
 #### Optional/Development Configuration
 
 ```bash
-# Database (if using SQL Server)
-CONNECTION_STRINGS__DEFAULT="Server=localhost;Database=MotorcycleRAG;User Id=sa;Password=<redacted>;TrustServerCertificate=True"
-
 # CORS
 CORS__ALLOWED_ORIGINS="http://localhost:5173,https://localhost:5001"
 
@@ -630,6 +612,11 @@ RATE_LIMITING__ENABLED=true
 RATE_LIMITING__PERIOD=1m
 RATE_LIMITING__LIMIT=100
 ```
+
+**Database Configuration:**
+- Database connection strings must NEVER be stored in code, configuration files, or launch configurations
+- Use User Secrets or environment variables to provide connection string at runtime
+- Set via: `dotnet user-secrets set "ConnectionStrings:Default" "your-connection-string"`
 
 #### Endpoint Validation on Startup
 
@@ -664,19 +651,7 @@ dotnet user-secrets set "AZURE_AD_TENANT_ID" "your-tenant-id"
 dotnet user-secrets set "AZURE_AD_CLIENT_ID" "your-api-client-id"
 ```
 
-**Option B: Load from Environment File**
-```powershell
-# Create a .env file with all variables (do NOT commit to git - it's in .gitignore)
-Get-Content .env | ForEach-Object {
-  if (-not [string]::IsNullOrWhiteSpace($_) -and -not $_.StartsWith('#')) {
-    $name, $value = $_.Split('=')
-    [Environment]::SetEnvironmentVariable($name, $value, "Process")
-  }
-}
-dotnet run --project 1-Presentation/MotorcycleRAG.API
-```
-
-**Option C: Set Environment Variables Directly**
+**Option B: Set Environment Variables Directly**
 ```powershell
 $env:AZURE_OPENAI_ENDPOINT="https://your-openai-endpoint.openai.azure.com/"
 $env:AZURE_OPENAI_API_KEY="your-key"

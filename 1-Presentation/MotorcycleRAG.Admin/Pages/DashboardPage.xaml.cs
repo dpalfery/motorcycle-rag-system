@@ -1,14 +1,12 @@
-using MotorcycleRAG.Admin.Services;
+using MotorcycleRAG.Admin.ViewModels;
 
 namespace MotorcycleRAG.Admin.Pages;
 
 public partial class DashboardPage : ContentPage
 {
-    private readonly INavigationService _navigationService;
-
-    public DashboardPage(INavigationService navigationService)
+    public DashboardPage(DashboardViewModel viewModel)
     {
         InitializeComponent();
-        _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
+        BindingContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
     }
 }

@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.ComponentModel;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Utilities;
+using MotorcycleRAG.Admin.Constants;
 using MotorcycleRAG.Domain.DTOs;
 using Microsoft.Extensions.Logging;
 using System.Timers;
@@ -222,10 +223,7 @@ public class JobsViewModel : IDisposable
         }
 
         var roles = await _authService.GetUserRolesAsync();
-        var isAdmin = roles.Any(r => r.Equals("Admin", StringComparison.OrdinalIgnoreCase)
-                                  || r.Equals("DataAdmin", StringComparison.OrdinalIgnoreCase)
-                                  || r.Equals("ContentAdmin", StringComparison.OrdinalIgnoreCase)
-                                  || r.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase));
+        var isAdmin = AdminRoles.GetValidAdminRoles(roles).Any();
         if (!isAdmin)
         {
             throw new UnauthorizedAccessException("User does not have admin permissions");
@@ -241,7 +239,26 @@ public class JobsViewModel : IDisposable
 
     public void Dispose()
     {
-        _pollTimer?.Dispose();
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // Stop the timer before disposing to prevent race conditions
+            if (_pollTimer != null)
+            {
+                _pollTimer.Stop();
+                _pollTimer.Dispose();
+            }
+        }
+    }
+
+    ~JobsViewModel()
+    {
+        Dispose(false);
     }
 
     #endregion

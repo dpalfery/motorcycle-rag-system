@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:MotorcycleRAG.Admin.ViewModels"
              x:Class="MotorcycleRAG.Admin.Pages.DashboardPage"
+             x:DataType="viewmodels:DashboardViewModel"
              Title="Dashboard">
 
     <ScrollView>
@@ -39,6 +41,11 @@
                             BackgroundColor="{StaticResource Tertiary}"
                             TextColor="White"
                             Command="{Binding NavigateToWebSourcesCommand}" />
+
+                    <Button Text="Configure Tools"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            Command="{Binding NavigateToToolsCommand}" />
                 </VerticalStackLayout>
             </Frame>
 

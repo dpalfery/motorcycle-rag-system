@@ -76,18 +76,22 @@ public static class MauiProgram
 		builder.Services
 			.AddHttpClient<ApiClient>(client =>
 			{
-				// Validate and retrieve API base URL
+				// CRITICAL: API_BASE_URL must be provided - no insecure fallbacks allowed
 				var baseUrl = Environment.GetEnvironmentVariable("API_BASE_URL");
 
 				if (string.IsNullOrWhiteSpace(baseUrl))
 				{
-					baseUrl = "https://localhost:7000";
+					throw new InvalidOperationException(
+						"API_BASE_URL environment variable is required and must not be empty. " +
+						"Set it to your API base URL (e.g., https://api.yourdomain.com). " +
+						"Never leave this unset as it could connect to an unintended server.");
 				}
 
 				// Validate HTTPS in production (non-localhost URLs must use HTTPS)
 				if (!baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
 				{
-					if (!baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+					if (!baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase) &&
+					    !baseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase))
 					{
 						throw new InvalidOperationException(
 							$"API_BASE_URL must use HTTPS for non-localhost URLs. Got: {baseUrl}");
@@ -112,8 +116,8 @@ public static class MauiProgram
 		builder.Services.AddSingleton<CsvChunker>();
 
 		// Optional: ONNX embedding service (requires model file in Resources/Raw/)
-		// Only register if model is available - IngestionViewModel will check for null
-		// and fall back to server-side processing if not registered
+		// Only register if model is available - IngestionViewModel will use server-side
+		// embedding processing as fallback if this service is not registered
 		try
 		{
 			var embeddingService = OnnxEmbeddingServiceFactory.CreateFromAppResources();
@@ -121,9 +125,14 @@ public static class MauiProgram
 		}
 		catch (Exception ex)
 		{
-			// Model not available - IngestionViewModel will work without local embeddings
-			System.Diagnostics.Debug.WriteLine($"ONNX model not available: {ex.Message}");
-			// Don't register the service - IngestionViewModel constructor should handle null
+			// Model not available - log warning and continue without local embeddings
+			var logger = LoggerFactory.Create(configure => configure.AddDebug())
+				.CreateLogger<MauiApp>();
+			logger.LogWarning(ex,
+				"ONNX embedding model not available. Local embedding processing will be disabled. " +
+				"To enable local processing, place the ONNX model file in Resources/Raw/. " +
+				"Server-side embedding will be used as fallback.");
+			// Don't register the service - IngestionViewModel will handle missing service gracefully
 		}
 
 		// ========== Pages (Transient - Fresh instance per navigation) ==========
@@ -136,6 +145,7 @@ public static class MauiProgram
 
 		// ========== ViewModels (Transient - Fresh instance per navigation) ==========
 
+		builder.Services.AddTransient<DashboardViewModel>();
 		builder.Services.AddTransient<IngestionViewModel>();
 		builder.Services.AddTransient<JobsViewModel>();
 

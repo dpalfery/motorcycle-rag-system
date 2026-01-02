@@ -163,17 +163,15 @@ public class IngestionViewModel : INotifyPropertyChanged
         if (string.IsNullOrEmpty(SelectedFilePath))
             return;
 
-        // Check network connectivity before starting processing
-        await MainThread.InvokeOnMainThreadAsync(async () =>
+        // SECURITY: Check network connectivity before starting processing
+        // Connectivity.Current is thread-safe and doesn't require MainThread dispatch
+        if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet)
         {
-            if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet)
-            {
-                StatusMessage = "No internet connection. Please check your network.";
-                await ShowErrorAsync("No Connection", "Internet connection is required to process files.");
-                _logger?.LogWarning("File processing attempted without internet connection");
-                return;
-            }
-        });
+            StatusMessage = "No internet connection. Please check your network.";
+            await ShowErrorAsync("No Connection", "Internet connection is required to process files.");
+            _logger?.LogWarning("File processing attempted without internet connection");
+            return;
+        }
 
         IsProcessing = true;
         ProgressPercentage = 0;

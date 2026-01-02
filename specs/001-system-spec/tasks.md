@@ -130,19 +130,19 @@
 
 ---
 
-## Phase 8: User Story 6 — Add websites for indexing (Priority: P2)
+## Phase 8: User Story 6 — Add websites for indexing (Priority: P2) ✅ COMPLETE
 
 **Independent Test**: Admin can add/remove a web source; a scrape/index run adds searchable content; query returns URL citations.
 
 - [x] T076 [P] [US6] Define web trust policy models (tier + allowlist) in 3-Domain/MotorcycleRAG.Domain/Entities/WebTrustPolicy.cs
-- [ ] T077 [US6] Implement web source registry service in 2-Application/MotorcycleRAG.Application/Services/WebSourceRegistryService.cs
-- [ ] T078 [US6] Implement web source admin controller in 1-Presentation/MotorcycleRAG.API/Controllers/WebSourcesAdminController.cs
-- [ ] T079 [US6] Implement scrape/index orchestrator in 2-Application/MotorcycleRAG.Application/Services/WebScrapeOrchestrator.cs
-- [ ] T080 [US6] Persist scrape/index run outcomes in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/WebScrapeRunRepository.cs
-- [ ] T081 [US6] Persist/serve trusted-domain policy in 4-Persistence/MotorcycleRAG.Persistence/Configuration/WebTrustPolicyStore.cs
-- [ ] T082 [US6] Enforce allowlist + trust tiers in 2-Application/MotorcycleRAG.Application/Agents/WebSearchAgent.cs
-- [ ] T083 [US6] Add/extend tests for web trust filtering in 5-Test/tests/MotorcycleRAG.UnitTests/Agents/WebSearchAgentTests.cs
-- [ ] T084 [US6] Add Admin Web Sources page wired to API in 1-Presentation/MotorcycleRAG.Admin/Pages/WebSourcesPage.xaml
+- [x] T077 [US6] Implement web source registry service in 2-Application/MotorcycleRAG.Application/Services/WebSourceRegistryService.cs
+- [x] T078 [US6] Implement web source admin controller in 1-Presentation/MotorcycleRAG.API/Controllers/WebSourcesAdminController.cs
+- [x] T079 [US6] Implement scrape/index orchestrator in 2-Application/MotorcycleRAG.Application/Services/WebScrapeOrchestrator.cs
+- [x] T080 [US6] Persist scrape/index run outcomes in 4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/WebScrapeRunRepository.cs
+- [x] T081 [US6] Persist/serve trusted-domain policy in 4-Persistence/MotorcycleRAG.Persistence/Configuration/WebTrustPolicyStore.cs
+- [x] T082 [US6] Enforce allowlist + trust tiers in 2-Application/MotorcycleRAG.Application/Agents/WebSearchAgent.cs
+- [x] T083 [US6] Add/extend tests for web trust filtering in 5-Test/tests/MotorcycleRAG.UnitTests/Agents/WebSearchAgentTests.cs
+- [x] T084 [US6] Add Admin Web Sources page wired to API in 1-Presentation/MotorcycleRAG.Admin/Pages/WebSourcesPage.xaml
 
 ---
 

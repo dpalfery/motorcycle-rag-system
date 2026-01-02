@@ -5,13 +5,15 @@ using MotorcycleRAG.Contracts.Models;
 using HtmlAgilityPack;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Collections.Concurrent;
 using MotorcycleRAG.Domain.DTOs;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Domain.Enums; 
 
 namespace MotorcycleRAG.Application.Agents;
 
 /// <summary>
-/// Web search agent for external source augmentation with rate limiting and credibility validation
+/// Web search agent for external source augmentation with rate limiting, credibility validation, and trust policy enforcement
 /// </summary>
 public class WebSearchAgent : ISearchAgent
 {
@@ -20,8 +22,9 @@ public class WebSearchAgent : ISearchAgent
     private readonly WebSearchOptions _config;
     private readonly ILogger<WebSearchAgent> _logger;
     private readonly SemaphoreSlim _rateLimitSemaphore;
-    private readonly Dictionary<string, DateTime> _lastRequestTimes;
-    private readonly Dictionary<string, List<SearchResult>> _cache;
+    private readonly ConcurrentDictionary<string, DateTime> _lastRequestTimes;
+    private readonly ConcurrentDictionary<string, List<SearchResult>> _cache;
+    private readonly IWebTrustPolicyStore? _trustPolicyStore;
 
     public SearchAgentType AgentType => SearchAgentType.WebSearch;
 
@@ -29,18 +32,25 @@ public class WebSearchAgent : ISearchAgent
         HttpClient httpClient,
         IAzureOpenAIClient openAIClient,
         IOptions<WebSearchOptions> config,
-        ILogger<WebSearchAgent> logger)
+        ILogger<WebSearchAgent> logger,
+        IWebTrustPolicyStore? trustPolicyStore = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _trustPolicyStore = trustPolicyStore;
         
         _rateLimitSemaphore = new SemaphoreSlim(_config.MaxConcurrentRequests, _config.MaxConcurrentRequests);
-        _lastRequestTimes = new Dictionary<string, DateTime>();
-        _cache = new Dictionary<string, List<SearchResult>>();
+        _lastRequestTimes = new ConcurrentDictionary<string, DateTime>();
+        _cache = new ConcurrentDictionary<string, List<SearchResult>>();
 
         ConfigureHttpClient();
+        
+        if (_trustPolicyStore == null)
+        {
+            _logger.LogInformation("WebTrustPolicyStore not configured. Trust policy filtering will be skipped for backward compatibility.");
+        }
     }
 
     /// <summary>
@@ -440,7 +450,66 @@ Return only the search terms, one per line, without explanations.
     }
 
     /// <summary>
-    /// Validate source credibility using AI analysis
+    /// Extract domain from URL
+    /// </summary>
+    private string ExtractDomainFromUrl(string? sourceUrl)
+    {
+        if (string.IsNullOrWhiteSpace(sourceUrl))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            if (Uri.TryCreate(sourceUrl, UriKind.Absolute, out var uri))
+            {
+                return uri.Host.ToLowerInvariant();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to extract domain from URL: {Url}", sourceUrl);
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// Check if a domain is allowed by trust policy
+    /// </summary>
+    private (bool IsAllowed, WebTrustTier Tier, string? BlockReason) CheckDomainTrustPolicy(string domain)
+    {
+        if (_trustPolicyStore == null)
+        {
+            // No policy store configured - allow by default for backward compatibility
+            return (true, WebTrustTier.None, null);
+        }
+
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            return (false, WebTrustTier.None, "Domain is empty");
+        }
+
+        var policy = _trustPolicyStore.GetPolicyForDomain(domain);
+
+        if (policy == null)
+        {
+            // Unknown domain - not on allowlist
+            _logger.LogDebug("Domain {Domain} is not in trust policy allowlist", domain);
+            return (false, WebTrustTier.None, $"Domain {domain} is not on the allowlist");
+        }
+
+        if (policy.IsBlocked)
+        {
+            _logger.LogWarning("Domain {Domain} is explicitly blocked: {Reason}", domain, policy.Reason);
+            return (false, policy.Tier, $"Domain is blocked: {policy.Reason}");
+        }
+
+        return (true, policy.Tier, null);
+    }
+
+    /// <summary>
+    /// Validate source credibility using AI analysis and trust policy
     /// </summary>
     private async Task<List<SearchResult>> ValidateSourceCredibilityAsync(List<SearchResult> results, CancellationToken cancellationToken)
     {
@@ -450,6 +519,27 @@ Return only the search terms, one per line, without explanations.
         {
             try
             {
+                // Extract domain from source URL
+                var domain = ExtractDomainFromUrl(result.Source.SourceUrl);
+                
+                // Check trust policy first (blocks take precedence over credibility scores)
+                var (isAllowed, tier, blockReason) = CheckDomainTrustPolicy(domain);
+                
+                if (!isAllowed && _trustPolicyStore != null)
+                {
+                    // Trust policy store is configured and domain is not allowed or blocked
+                    _logger.LogInformation("Rejecting result from domain {Domain} due to trust policy: {Reason}", domain, blockReason);
+                    result.Metadata["trustPolicyRejection"] = blockReason ?? "Domain not allowed";
+                    continue; // Skip this result
+                }
+
+                // Log trust tier information
+                if (_trustPolicyStore != null && tier != WebTrustTier.None)
+                {
+                    _logger.LogInformation("Result from domain {Domain} has trust tier: {Tier}", domain, tier);
+                    result.Metadata["domainTrustTier"] = tier.ToString();
+                }
+
                 // Get credibility score from source metadata
                 var credibilityScore = result.Metadata.TryGetValue("credibilityScore", out var score) 
                     ? Convert.ToSingle(score) 
@@ -461,10 +551,15 @@ Return only the search terms, one per line, without explanations.
                     // Enhance with AI-based content validation
                     var contentValidation = await ValidateContentQualityAsync(result.Content, cancellationToken);
                     
+                    // Apply trust tier relevance score adjustments
+                    var tierMultiplier = GetTierRelevanceMultiplier(tier);
+                    result.RelevanceScore *= tierMultiplier;
+                    
                     // Accept results even if validation fails (for testing robustness)
                     result.RelevanceScore *= Math.Max(contentValidation.QualityMultiplier, 0.7f);
                     result.Metadata["contentQuality"] = contentValidation.QualityScore;
                     result.Metadata["validationPassed"] = contentValidation.IsValid;
+                    result.Metadata["trustTierMultiplier"] = tierMultiplier;
                     
                     validatedResults.Add(result);
                 }
@@ -484,6 +579,20 @@ Return only the search terms, one per line, without explanations.
 
         _logger.LogDebug("Validated {ValidCount}/{TotalCount} web search results", validatedResults.Count, results.Count);
         return validatedResults;
+    }
+
+    /// <summary>
+    /// Get relevance score multiplier based on trust tier
+    /// </summary>
+    private float GetTierRelevanceMultiplier(WebTrustTier tier)
+    {
+        return tier switch
+        {
+            WebTrustTier.TierA => 1.5f,  // Boost for official sources
+            WebTrustTier.TierB => 1.1f,  // Small boost for reputable sources
+            WebTrustTier.TierC => 0.9f,  // Penalty for community sources
+            _ => 1.0f                     // No adjustment for uncategorized
+        };
     }
 
     /// <summary>
@@ -615,7 +724,7 @@ Respond with only a JSON object:
             }
             else
             {
-                _cache.Remove(query.ToLower());
+                _cache.TryRemove(query.ToLower(), out _);
             }
         }
         
@@ -633,7 +742,7 @@ Respond with only a JSON object:
         if (_cache.Count >= 100)
         {
             var oldestKey = _cache.Keys.First();
-            _cache.Remove(oldestKey);
+            _cache.TryRemove(oldestKey, out _);
         }
         
         _cache[cacheKey] = results;

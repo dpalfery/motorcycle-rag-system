@@ -107,6 +107,8 @@
             <converters:StringNotEmptyConverter x:Key="StringNotEmptyConverter" />
             <converters:PercentageConverter x:Key="PercentageConverter" />
             <converters:HasValueConverter x:Key="HasValueConverter" />
+            <converters:StringToVisibleConverter x:Key="StringToVisibleConverter" />
+            <converters:EnabledToColorConverter x:Key="EnabledToColorConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

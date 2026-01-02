@@ -17,3 +17,9 @@ Before taking the final step, you MUST:
 2. Ask it to: "Review the changes in [files you modified] for bugs, security issues, and style."
 3. If the reviewer finds issues, FIX them.
 4. Only mark the task as done after the reviewer gives a "LGTM" (Looks Good To Me) or passes the code
+
+5. **Code Quality**
+- No build errors
+- no Warnings of any kind. Un resolved warning make me cranky
+- Be sure to review the .specify\Constitution\memory\constitution.md file and ensure the code follows the rules in it.
+- Review the spec folder for the current spec (mathces the branch name) for alignment with the plan.md and any other files in the spec folder.

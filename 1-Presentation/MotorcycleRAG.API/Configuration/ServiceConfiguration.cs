@@ -8,6 +8,7 @@ using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Sql.Repositories;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Persistence.DataProcessing;
+using MotorcycleRAG.Application.Services;
 
 namespace MotorcycleRAG.API.Configuration;
 
@@ -61,7 +62,19 @@ public static class ServiceConfiguration
         // Register search agent implementations from Application layer
         // Note: QueryPlannerAgent is registered separately to avoid circular dependency
         services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.VectorSearchAgent>();
-        services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.WebSearchAgent>();
+        
+        // Register WebSearchAgent with optional IWebTrustPolicyStore for trust tier filtering
+        services.AddScoped<ISearchAgent>(provider =>
+        {
+            var httpClient = provider.GetRequiredService<HttpClient>();
+            var openAIClient = provider.GetRequiredService<MotorcycleRAG.Contracts.Interfaces.IAzureOpenAIClient>();
+            var config = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MotorcycleRAG.Core.Options.WebSearchOptions>>();
+            var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<MotorcycleRAG.Application.Agents.WebSearchAgent>>();
+            var trustPolicyStore = provider.GetService<MotorcycleRAG.Contracts.Interfaces.IWebTrustPolicyStore>();
+            
+            return new MotorcycleRAG.Application.Agents.WebSearchAgent(httpClient, openAIClient, config, logger, trustPolicyStore);
+        });
+        
         services.AddScoped<IQueryPlannerAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();
 
         return services;
@@ -155,6 +168,22 @@ public static class ServiceConfiguration
         services.AddScoped<IUsageRepository, UsageRepository>();
         services.AddScoped<IWebSourceRepository, WebSourceRepository>();
         services.AddScoped<IAuditRepository, AuditRepository>();
+        services.AddScoped<IWebScrapeRunRepository, MotorcycleRAG.Persistence.Sql.Repositories.WebScrapeRunRepository>();
+
+        // Register application services
+        services.AddScoped<WebSourceRegistryService>();
+        services.AddScoped<IWebScrapeOrchestrator, MotorcycleRAG.Application.Services.WebScrapeOrchestrator>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configure web trust policy services
+    /// </summary>
+    public static IServiceCollection AddWebTrustPolicyServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Register web trust policy store as singleton
+        services.AddSingleton<IWebTrustPolicyStore, MotorcycleRAG.Persistence.Configuration.WebTrustPolicyStore>();
 
         return services;
     }

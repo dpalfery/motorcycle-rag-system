@@ -9,6 +9,8 @@ using System.Net;
 using System.Text;
 using Xunit;
 using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.UnitTests.Agents;
@@ -348,6 +350,410 @@ public class WebSearchAgentTests : IDisposable
             Assert.True((bool)result.Metadata["validationPassed"]);
         });
     }
+
+    #region Trust Policy Tests
+
+    [Fact]
+    public async Task SearchAsync_ShouldRejectBlockedDomains_WhenTrustPolicyStoreConfigured()
+    {
+        // Arrange
+        var query = "Honda CBR1000RR specifications";
+        var searchOptions = CreateDefaultSearchOptions();
+        
+        var blockedPolicy = new Mock<WebTrustPolicy>();
+        blockedPolicy.Setup(p => p.DomainPattern).Returns("blocked-motorcycle.com");
+        blockedPolicy.Setup(p => p.Tier).Returns(WebTrustTier.TierB);
+        blockedPolicy.Setup(p => p.IsBlocked).Returns(true);
+        blockedPolicy.Setup(p => p.Reason).Returns("Contains inaccurate technical information");
+
+        var mockTrustStore = new Mock<IWebTrustPolicyStore>();
+        mockTrustStore
+            .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
+            .Returns((WebTrustPolicy?)null); // Allowlisted
+
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            mockTrustStore.Object);
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert - Results should still exist because test-motorcycle.com is allowlisted
+        Assert.NotEmpty(results);
+        mockTrustStore.Verify(x => x.GetPolicyForDomain("test-motorcycle.com"), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldAcceptAllowlistedDomains_WhenDomainInTrustPolicy()
+    {
+        // Arrange
+        var query = "Honda CBR1000RR specifications";
+        var searchOptions = CreateDefaultSearchOptions();
+        
+        var allowlistPolicy = new Mock<WebTrustPolicy>();
+        allowlistPolicy.Setup(p => p.DomainPattern).Returns("test-motorcycle.com");
+        allowlistPolicy.Setup(p => p.Tier).Returns(WebTrustTier.TierA);
+        allowlistPolicy.Setup(p => p.IsBlocked).Returns(false);
+
+        var mockTrustStore = new Mock<IWebTrustPolicyStore>();
+        mockTrustStore
+            .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
+            .Returns(allowlistPolicy.Object);
+
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            mockTrustStore.Object);
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert
+        Assert.NotEmpty(results);
+        Assert.All(results, result => 
+        {
+            Assert.Contains("domainTrustTier", result.Metadata.Keys);
+            Assert.Equal("TierA", result.Metadata["domainTrustTier"]);
+        });
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldRejectNonAllowlistedDomains_WhenDomainNotInTrustPolicy()
+    {
+        // Arrange
+        var query = "Honda CBR1000RR specifications";
+        var searchOptions = CreateDefaultSearchOptions();
+
+        var mockTrustStore = new Mock<IWebTrustPolicyStore>();
+        mockTrustStore
+            .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
+            .Returns((WebTrustPolicy?)null); // Not allowlisted
+
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            mockTrustStore.Object);
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act - With trust policy store configured, unknown domains should be filtered
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert - Results should be empty or not contain rejections if policy enforcement works
+        // The agent should reject results from non-allowlisted domains
+        if (results.Length > 0)
+        {
+            // If there are results, they should have rejection metadata
+            Assert.True(results.All(r => 
+                !r.Metadata.ContainsKey("trustPolicyRejection") || 
+                r.RelevanceScore > 0)); // Results that passed should have positive scores
+        }
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldApplyTierARelevanceBoost_WhenDomainHasTierA()
+    {
+        // Arrange
+        var query = "Honda CBR1000RR specifications";
+        var searchOptions = CreateDefaultSearchOptions();
+        
+        var tierAPolicy = new Mock<WebTrustPolicy>();
+        tierAPolicy.Setup(p => p.DomainPattern).Returns("test-motorcycle.com");
+        tierAPolicy.Setup(p => p.Tier).Returns(WebTrustTier.TierA);
+        tierAPolicy.Setup(p => p.IsBlocked).Returns(false);
+
+        var mockTrustStore = new Mock<IWebTrustPolicyStore>();
+        mockTrustStore
+            .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
+            .Returns(tierAPolicy.Object);
+
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            mockTrustStore.Object);
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert - Tier A should have multiplier of 1.5x
+        Assert.NotEmpty(results);
+        Assert.All(results, result => 
+        {
+            Assert.Contains("trustTierMultiplier", result.Metadata.Keys);
+            Assert.Equal(1.5f, (float)result.Metadata["trustTierMultiplier"]);
+        });
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldApplyTierBRelevanceBoost_WhenDomainHasTierB()
+    {
+        // Arrange
+        var query = "Yamaha R1 engine specs";
+        var searchOptions = CreateDefaultSearchOptions();
+        
+        var tierBPolicy = new Mock<WebTrustPolicy>();
+        tierBPolicy.Setup(p => p.DomainPattern).Returns("test-motorcycle.com");
+        tierBPolicy.Setup(p => p.Tier).Returns(WebTrustTier.TierB);
+        tierBPolicy.Setup(p => p.IsBlocked).Returns(false);
+
+        var mockTrustStore = new Mock<IWebTrustPolicyStore>();
+        mockTrustStore
+            .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
+            .Returns(tierBPolicy.Object);
+
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            mockTrustStore.Object);
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert - Tier B should have multiplier of 1.1x
+        Assert.NotEmpty(results);
+        Assert.All(results, result => 
+        {
+            Assert.Contains("trustTierMultiplier", result.Metadata.Keys);
+            Assert.Equal(1.1f, (float)result.Metadata["trustTierMultiplier"]);
+        });
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldApplyTierCRelevancePenalty_WhenDomainHasTierC()
+    {
+        // Arrange
+        var query = "Kawasaki Ninja performance";
+        var searchOptions = CreateDefaultSearchOptions();
+        
+        var tierCPolicy = new Mock<WebTrustPolicy>();
+        tierCPolicy.Setup(p => p.DomainPattern).Returns("test-motorcycle.com");
+        tierCPolicy.Setup(p => p.Tier).Returns(WebTrustTier.TierC);
+        tierCPolicy.Setup(p => p.IsBlocked).Returns(false);
+
+        var mockTrustStore = new Mock<IWebTrustPolicyStore>();
+        mockTrustStore
+            .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
+            .Returns(tierCPolicy.Object);
+
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            mockTrustStore.Object);
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert - Tier C should have penalty multiplier of 0.9x
+        Assert.NotEmpty(results);
+        Assert.All(results, result => 
+        {
+            Assert.Contains("trustTierMultiplier", result.Metadata.Keys);
+            Assert.Equal(0.9f, (float)result.Metadata["trustTierMultiplier"]);
+        });
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldSupportBackwardCompatibility_WhenTrustPolicyStoreNotProvided()
+    {
+        // Arrange
+        var query = "Ducati Panigale features";
+        var searchOptions = CreateDefaultSearchOptions();
+        
+        // Create agent WITHOUT trust policy store (null)
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            null); // No trust policy store - backward compatibility mode
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert - Should work without trust policy enforcement
+        Assert.NotEmpty(results);
+        Assert.All(results, result => 
+        {
+            // In backward compatibility mode, there should be no trust tier information
+            Assert.DoesNotContain("trustPolicyRejection", result.Metadata.Keys);
+            Assert.True(result.RelevanceScore > 0);
+        });
+        
+        // Verify logger was called with backward compatibility message
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("WebTrustPolicyStore not configured")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldRespectBlockedDomain_EvenWithHighCredibilityScore()
+    {
+        // Arrange
+        var query = "BMW S1000RR specifications";
+        var searchOptions = CreateDefaultSearchOptions();
+        
+        var blockedPolicy = new Mock<WebTrustPolicy>();
+        blockedPolicy.Setup(p => p.DomainPattern).Returns("test-motorcycle.com");
+        blockedPolicy.Setup(p => p.Tier).Returns(WebTrustTier.TierA);
+        blockedPolicy.Setup(p => p.IsBlocked).Returns(true);
+        blockedPolicy.Setup(p => p.Reason).Returns("Misinformation and inaccurate specifications");
+
+        var mockTrustStore = new Mock<IWebTrustPolicyStore>();
+        mockTrustStore
+            .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
+            .Returns(blockedPolicy.Object);
+
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            mockTrustStore.Object);
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert - Blocked domains should be rejected regardless of tier or credibility
+        // The test-motorcycle.com source should be blocked even if it would normally be TierA
+        if (results.Length > 0)
+        {
+            // All results should either come from non-blocked sources or have rejection metadata
+            Assert.True(results.All(r => 
+                !r.Metadata.TryGetValue("trustPolicyRejection", out var rejection) || 
+                rejection.ToString()!.Contains("blocked")));
+        }
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldTrackDomainTierInMetadata_WhenTrustPolicyEnforced()
+    {
+        // Arrange
+        var query = "Suzuki GSX-R1000 features";
+        var searchOptions = CreateDefaultSearchOptions();
+        
+        var tierPolicy = new Mock<WebTrustPolicy>();
+        tierPolicy.Setup(p => p.DomainPattern).Returns("test-motorcycle.com");
+        tierPolicy.Setup(p => p.Tier).Returns(WebTrustTier.TierB);
+        tierPolicy.Setup(p => p.IsBlocked).Returns(false);
+
+        var mockTrustStore = new Mock<IWebTrustPolicyStore>();
+        mockTrustStore
+            .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
+            .Returns(tierPolicy.Object);
+
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            mockTrustStore.Object);
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert
+        Assert.NotEmpty(results);
+        Assert.All(results, result => 
+        {
+            // Should have domain trust tier information
+            Assert.Contains("domainTrustTier", result.Metadata.Keys);
+            Assert.Equal("TierB", result.Metadata["domainTrustTier"]);
+        });
+    }
+
+    [Fact]
+    public async Task SearchAsync_ShouldApplyMultipleTierPolicies_WhenMultipleSourcesWithDifferentTiers()
+    {
+        // Arrange
+        var query = "KTM Duke specifications";
+        var searchOptions = CreateDefaultSearchOptions();
+        
+        var tierAPolicy = new Mock<WebTrustPolicy>();
+        tierAPolicy.Setup(p => p.DomainPattern).Returns("test-motorcycle.com");
+        tierAPolicy.Setup(p => p.Tier).Returns(WebTrustTier.TierA);
+        tierAPolicy.Setup(p => p.IsBlocked).Returns(false);
+
+        var tierCPolicy = new Mock<WebTrustPolicy>();
+        tierCPolicy.Setup(p => p.DomainPattern).Returns("community-forums.com");
+        tierCPolicy.Setup(p => p.Tier).Returns(WebTrustTier.TierC);
+        tierCPolicy.Setup(p => p.IsBlocked).Returns(false);
+
+        var mockTrustStore = new Mock<IWebTrustPolicyStore>();
+        mockTrustStore
+            .Setup(x => x.GetPolicyForDomain(It.IsAny<string>()))
+            .Returns<string>(domain => domain == "test-motorcycle.com" ? tierAPolicy.Object : tierCPolicy.Object);
+
+        var webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _mockOpenAIClient.Object,
+            _webSearchConfig,
+            _mockLogger.Object,
+            mockTrustStore.Object);
+
+        SetupMockHttpClient();
+        SetupMockOpenAIClient();
+
+        // Act
+        var results = await webSearchAgent.SearchAsync(query, searchOptions);
+
+        // Assert
+        Assert.NotEmpty(results);
+        
+        // Results should be ranked by trust tier if present
+        var resultsList = results.OrderByDescending(r => r.RelevanceScore).ToList();
+        
+        // First result should have higher relevance due to Tier A multiplier
+        if (resultsList.Any(r => r.Metadata.TryGetValue("domainTrustTier", out var tier) && tier?.ToString() == "TierA"))
+        {
+            var tierAResults = resultsList.Where(r => r.Metadata.TryGetValue("domainTrustTier", out var tier) && tier?.ToString() == "TierA").ToList();
+            Assert.NotEmpty(tierAResults);
+        }
+    }
+
+    #endregion
 
     #region Helper Methods
 

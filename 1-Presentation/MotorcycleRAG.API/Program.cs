@@ -2,11 +2,13 @@ using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.API.Extensions;
 using MotorcycleRAG.API.Middleware;
+using MotorcycleRAG.API.Services;
 using MotorcycleRAG.Application.Extensions;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Contracts.Interfaces;
 using Swashbuckle.AspNetCore.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -99,6 +101,10 @@ public class Program
         // Rate limiting is applied globally via MapControllers().RequireRateLimiting("authenticated")
         builder.Services.AddControllers();
 
+        // Register context-aware services
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
         // Configure JSON serialization
         builder.Services.ConfigureJsonSerialization(builder.Environment.IsDevelopment());
 
@@ -155,6 +161,7 @@ public class Program
             builder.Services.AddDataPipelineServices(configuration);
             builder.Services.AddCachingAndOptimization(configuration);
             builder.Services.AddSqlPersistence(configuration);
+            builder.Services.AddWebTrustPolicyServices(configuration);
             builder.Services.AddHealthChecks(configuration);
 
             // Add dual-issuer JWT bearer authentication

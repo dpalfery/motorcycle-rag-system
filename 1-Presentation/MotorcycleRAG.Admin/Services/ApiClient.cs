@@ -280,6 +280,78 @@ public class ApiClient
 
     #endregion
 
+    #region Web Sources
+
+    /// <summary>
+    /// Gets all web sources
+    /// </summary>
+    public async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync();
+
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync("api/admin/web-sources", cancellationToken));
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<List<WebSource>>(_jsonOptions, cancellationToken)
+               ?? new List<WebSource>();
+    }
+
+    /// <summary>
+    /// Adds a new web source
+    /// </summary>
+    public async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken = default)
+    {
+        if (source == null)
+            throw new ArgumentNullException(nameof(source));
+
+        await EnsureAuthenticatedAsync();
+
+        var response = await ExecuteWithResilienceAsync(() => 
+            _httpClient.PostAsJsonAsync("api/admin/web-sources", source, _jsonOptions, cancellationToken));
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<WebSource>(_jsonOptions, cancellationToken)
+               ?? throw new InvalidOperationException("Failed to deserialize web source response");
+    }
+
+    /// <summary>
+    /// Updates an existing web source
+    /// </summary>
+    public async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken = default)
+    {
+        if (source == null)
+            throw new ArgumentNullException(nameof(source));
+
+        if (source.Id <= 0)
+            throw new ArgumentException("Invalid web source ID", nameof(source));
+
+        await EnsureAuthenticatedAsync();
+
+        var response = await ExecuteWithResilienceAsync(() =>
+            _httpClient.PutAsJsonAsync($"api/admin/web-sources/{source.Id}", source, _jsonOptions, cancellationToken));
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<WebSource>(_jsonOptions, cancellationToken)
+               ?? throw new InvalidOperationException("Failed to deserialize web source response");
+    }
+
+    /// <summary>
+    /// Deletes a web source
+    /// </summary>
+    public async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken = default)
+    {
+        if (sourceId <= 0)
+            throw new ArgumentException("Invalid web source ID", nameof(sourceId));
+
+        await EnsureAuthenticatedAsync();
+
+        var response = await ExecuteWithResilienceAsync(() =>
+            _httpClient.DeleteAsync($"api/admin/web-sources/{sourceId}", cancellationToken));
+        response.EnsureSuccessStatusCode();
+    }
+
+    #endregion
+
     #region User Administration
 
     /// <summary>

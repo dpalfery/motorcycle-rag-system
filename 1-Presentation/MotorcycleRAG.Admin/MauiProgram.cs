@@ -148,6 +148,7 @@ public static class MauiProgram
 		builder.Services.AddTransient<DashboardViewModel>();
 		builder.Services.AddTransient<IngestionViewModel>();
 		builder.Services.AddTransient<JobsViewModel>();
+		builder.Services.AddTransient<WebSourcesViewModel>();
 
 		// Register App and AppShell (Singletons - single instance for app lifetime)
 		builder.Services.AddSingleton<App>();

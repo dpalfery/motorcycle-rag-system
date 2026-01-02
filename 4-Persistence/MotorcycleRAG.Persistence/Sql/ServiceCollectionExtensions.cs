@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options; 
 using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Persistence.Sql.Repositories;
+using MotorcycleRAG.Persistence.Configuration;
 
 
 
@@ -40,6 +41,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUsageRepository, UsageRepository>();
         services.AddScoped<IPlanRepository, PlanRepository>();
         services.AddScoped<IWebSourceRepository, WebSourceRepository>();
+
+        // Register web trust policy store for domain allowlist enforcement
+        services.AddSingleton<WebTrustPolicyStore>();
+        services.AddSingleton<IWebTrustPolicyStore>(sp => sp.GetRequiredService<WebTrustPolicyStore>());
 
         return services;
     }

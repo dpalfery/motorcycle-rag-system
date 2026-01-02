@@ -1,14 +1,22 @@
 using MotorcycleRAG.Admin.Services;
+using MotorcycleRAG.Admin.ViewModels;
 
 namespace MotorcycleRAG.Admin.Pages;
 
 public partial class WebSourcesPage : ContentPage
 {
-    private readonly INavigationService _navigationService;
+    private readonly WebSourcesViewModel _viewModel;
 
-    public WebSourcesPage(INavigationService navigationService)
+    public WebSourcesPage(WebSourcesViewModel viewModel)
     {
         InitializeComponent();
-        _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
+        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        BindingContext = _viewModel;
+    }
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        await _viewModel.InitializeAsync();
     }
 }

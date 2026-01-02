@@ -44,7 +44,17 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         // Add roles from header
         foreach (var role in roles)
         {
-            claims.Add(new Claim(ClaimTypes.Role, role.Trim()));
+            var trimmedRole = role.Trim();
+            claims.Add(new Claim(ClaimTypes.Role, trimmedRole));
+
+            // Per Program.cs policies, admin-level roles also require the "admin_access" scope
+            if (trimmedRole.EndsWith("Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!claims.Any(c => c.Type == "scp" && c.Value == "admin_access"))
+                {
+                    claims.Add(new Claim("scp", "admin_access"));
+                }
+            }
         }
 
         var identity = new ClaimsIdentity(claims, "Test");

@@ -354,4 +354,24 @@ BEGIN
 END
 GO
 
+-- Create WebTrustPolicies table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WebTrustPolicies')
+BEGIN
+    CREATE TABLE [dbo].[WebTrustPolicies] (
+        [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+        [DomainPattern] NVARCHAR(255) NOT NULL,
+        [Tier] INT NOT NULL,
+        [IsBlocked] BIT NOT NULL DEFAULT 0,
+        [Reason] NVARCHAR(1000) NULL,
+        [AllowSubdomains] BIT NOT NULL DEFAULT 0,
+        [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        [UpdatedAt] DATETIME2 NULL,
+        CONSTRAINT [UQ_WebTrustPolicies_DomainPattern] UNIQUE ([DomainPattern])
+    );
+    
+    CREATE INDEX [IX_WebTrustPolicies_Tier] ON [dbo].[WebTrustPolicies]([Tier]);
+    CREATE INDEX [IX_WebTrustPolicies_IsBlocked] ON [dbo].[WebTrustPolicies]([IsBlocked]);
+END
+GO
+
 PRINT 'Motorcycle RAG System database schema created successfully!';

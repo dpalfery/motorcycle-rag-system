@@ -37,7 +37,7 @@ public class HostHeaderValidationMiddleware
         var allowedHostsConfig = configuration["AllowedHosts"] ?? "localhost";
         _allowedHosts = new HashSet<string>(
             allowedHostsConfig
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(h => h.Trim().ToLowerInvariant()),
             StringComparer.OrdinalIgnoreCase
         );

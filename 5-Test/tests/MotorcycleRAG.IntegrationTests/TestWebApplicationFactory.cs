@@ -22,6 +22,12 @@ namespace MotorcycleRAG.IntegrationTests;
 /// </summary>
 public class TestWebApplicationFactory : WebApplicationFactory<Program>
 {
+    static TestWebApplicationFactory()
+    {
+        // Set environment to Testing early so Program.Main loads correct appsettings
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Ensure SQL connection string requirement does not crash app startup in tests.

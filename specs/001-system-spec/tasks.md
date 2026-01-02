@@ -134,7 +134,7 @@
 
 **Independent Test**: Admin can add/remove a web source; a scrape/index run adds searchable content; query returns URL citations.
 
-- [ ] T076 [P] [US6] Define web trust policy models (tier + allowlist) in 3-Domain/MotorcycleRAG.Domain/Entities/WebTrustPolicy.cs
+- [x] T076 [P] [US6] Define web trust policy models (tier + allowlist) in 3-Domain/MotorcycleRAG.Domain/Entities/WebTrustPolicy.cs
 - [ ] T077 [US6] Implement web source registry service in 2-Application/MotorcycleRAG.Application/Services/WebSourceRegistryService.cs
 - [ ] T078 [US6] Implement web source admin controller in 1-Presentation/MotorcycleRAG.API/Controllers/WebSourcesAdminController.cs
 - [ ] T079 [US6] Implement scrape/index orchestrator in 2-Application/MotorcycleRAG.Application/Services/WebScrapeOrchestrator.cs

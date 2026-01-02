@@ -121,7 +121,8 @@ public class MotorcycleRAGServiceTests
 
         // Assert
         Assert.NotNull(response);
-        Assert.Equal("Final answer", response.Response);
+        // Response should contain the final answer (may have limitation messages prepended)
+        Assert.Contains("Final answer", response.Response);
         Assert.Equal(results.Length, response.Sources.Length);
         Assert.Equal(results.Length, response.Metrics.ResultsFound);
         Assert.False(string.IsNullOrWhiteSpace(response.QueryId));

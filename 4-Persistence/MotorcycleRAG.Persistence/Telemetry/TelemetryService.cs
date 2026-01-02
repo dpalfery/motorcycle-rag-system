@@ -314,5 +314,141 @@ namespace MotorcycleRAG.Persistence.Telemetry
                 throw;
             }
         }
+
+        /// <inheritdoc />
+        public void TrackDegradedMode(string correlationId, List<string> failedSources, List<string> availableSources, TimeSpan duration, int resultsFound)
+        {
+            if (string.IsNullOrWhiteSpace(correlationId))
+            {
+                throw new ArgumentException("Correlation ID cannot be null or empty", nameof(correlationId));
+            }
+
+            if (failedSources == null)
+            {
+                throw new ArgumentNullException(nameof(failedSources));
+            }
+
+            if (availableSources == null)
+            {
+                throw new ArgumentNullException(nameof(availableSources));
+            }
+
+            try
+            {
+                var properties = new Dictionary<string, string>
+                {
+                    ["CorrelationId"] = correlationId,
+                    ["FailedSources"] = string.Join(",", failedSources),
+                    ["AvailableSources"] = string.Join(",", availableSources),
+                    ["FailureCount"] = failedSources.Count.ToString(),
+                    ["AvailableSourceCount"] = availableSources.Count.ToString()
+                };
+
+                var metrics = new Dictionary<string, double>
+                {
+                    ["DurationMs"] = duration.TotalMilliseconds,
+                    ["ResultsFound"] = resultsFound
+                };
+
+                _telemetryClient.TrackEvent("SearchDegradedMode", properties, metrics);
+                
+                _logger.LogWarning("Tracked degraded mode operation: CorrelationId={CorrelationId}, FailedSources={FailedSources}, " +
+                    "AvailableSources={AvailableSources}, Duration={Duration}ms, Results={Results}",
+                    correlationId, string.Join(",", failedSources), string.Join(",", availableSources), 
+                    duration.TotalMilliseconds, resultsFound);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to track degraded mode: {CorrelationId}", correlationId);
+                throw;
+            }
+        }
+
+        /// <inheritdoc />
+        public void TrackSourceFailure(string correlationId, string sourceName, string errorMessage, TimeSpan duration)
+        {
+            if (string.IsNullOrWhiteSpace(correlationId))
+            {
+                throw new ArgumentException("Correlation ID cannot be null or empty", nameof(correlationId));
+            }
+
+            if (string.IsNullOrWhiteSpace(sourceName))
+            {
+                throw new ArgumentException("Source name cannot be null or empty", nameof(sourceName));
+            }
+
+            try
+            {
+                var redactedErrorMessage = RedactSensitiveData(errorMessage);
+
+                var properties = new Dictionary<string, string>
+                {
+                    ["CorrelationId"] = correlationId,
+                    ["SourceName"] = sourceName,
+                    ["ErrorMessage"] = redactedErrorMessage ?? "Unknown error"
+                };
+
+                var metrics = new Dictionary<string, double>
+                {
+                    ["DurationMs"] = duration.TotalMilliseconds
+                };
+
+                _telemetryClient.TrackEvent("SourceFailure", properties, metrics);
+                
+                _logger.LogWarning("Tracked source failure: CorrelationId={CorrelationId}, Source={Source}, " +
+                    "Error={Error}, Duration={Duration}ms",
+                    correlationId, sourceName, redactedErrorMessage ?? "[Unknown error]", duration.TotalMilliseconds);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to track source failure: {CorrelationId}, {Source}", correlationId, sourceName);
+                throw;
+            }
+        }
+
+        /// <inheritdoc />
+        public void TrackSearchExecution(string correlationId, string queryId, TimeSpan totalDuration, int totalResults, int successfulSources, int failedSources, bool degradedMode)
+        {
+            if (string.IsNullOrWhiteSpace(correlationId))
+            {
+                throw new ArgumentException("Correlation ID cannot be null or empty", nameof(correlationId));
+            }
+
+            if (string.IsNullOrWhiteSpace(queryId))
+            {
+                throw new ArgumentException("Query ID cannot be null or empty", nameof(queryId));
+            }
+
+            try
+            {
+                var properties = new Dictionary<string, string>
+                {
+                    ["CorrelationId"] = correlationId,
+                    ["QueryId"] = queryId,
+                    ["SuccessfulSources"] = successfulSources.ToString(),
+                    ["FailedSources"] = failedSources.ToString(),
+                    ["DegradedMode"] = degradedMode.ToString()
+                };
+
+                var metrics = new Dictionary<string, double>
+                {
+                    ["TotalDurationMs"] = totalDuration.TotalMilliseconds,
+                    ["TotalResults"] = totalResults,
+                    ["SourceSuccessRate"] = successfulSources > 0 ? (successfulSources / (double)(successfulSources + failedSources)) * 100 : 0
+                };
+
+                _telemetryClient.TrackEvent("SearchExecution", properties, metrics);
+                
+                _logger.LogInformation("Tracked search execution: CorrelationId={CorrelationId}, QueryId={QueryId}, " +
+                    "Duration={Duration}ms, Results={Results}, SuccessfulSources={SuccessfulSources}, " +
+                    "FailedSources={FailedSources}, DegradedMode={DegradedMode}",
+                    correlationId, queryId, totalDuration.TotalMilliseconds, totalResults, successfulSources, failedSources, degradedMode);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to track search execution: {CorrelationId}, {QueryId}", correlationId, queryId);
+                throw;
+            }
+        }
     }
 }

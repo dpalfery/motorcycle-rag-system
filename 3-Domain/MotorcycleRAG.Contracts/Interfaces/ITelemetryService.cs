@@ -30,4 +30,35 @@ public interface ITelemetryService
     /// Tracks a query operation
     /// </summary>
     void TrackQuery(string queryId, string query, TimeSpan duration, int resultsCount, decimal estimatedCost);
+
+    /// <summary>
+    /// Tracks when the system operates in degraded mode due to source failures
+    /// </summary>
+    /// <param name="correlationId">Correlation ID for tracing</param>
+    /// <param name="failedSources">List of failed source names</param>
+    /// <param name="availableSources">List of available source names</param>
+    /// <param name="duration">Duration of the degraded operation</param>
+    /// <param name="resultsFound">Number of results obtained from partial sources</param>
+    void TrackDegradedMode(string correlationId, List<string> failedSources, List<string> availableSources, TimeSpan duration, int resultsFound);
+
+    /// <summary>
+    /// Tracks a source failure during search operations
+    /// </summary>
+    /// <param name="correlationId">Correlation ID for tracing</param>
+    /// <param name="sourceName">Name of the failed source</param>
+    /// <param name="errorMessage">Error message describing the failure</param>
+    /// <param name="duration">Duration until failure</param>
+    void TrackSourceFailure(string correlationId, string sourceName, string errorMessage, TimeSpan duration);
+
+    /// <summary>
+    /// Tracks search execution with source metrics
+    /// </summary>
+    /// <param name="correlationId">Correlation ID for tracing</param>
+    /// <param name="queryId">Query ID</param>
+    /// <param name="totalDuration">Total search execution duration</param>
+    /// <param name="totalResults">Total results collected</param>
+    /// <param name="successfulSources">Number of successful sources</param>
+    /// <param name="failedSources">Number of failed sources</param>
+    /// <param name="degradedMode">Whether operating in degraded mode</param>
+    void TrackSearchExecution(string correlationId, string queryId, TimeSpan totalDuration, int totalResults, int successfulSources, int failedSources, bool degradedMode);
 }

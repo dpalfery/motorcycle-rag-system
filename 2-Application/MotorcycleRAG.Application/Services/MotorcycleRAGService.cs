@@ -81,10 +81,10 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
         if (string.IsNullOrWhiteSpace(request.Query))
             throw new ArgumentException("Query cannot be null or empty", nameof(request));
 
-        _logger.LogInformation("Processing motorcycle RAG query: {Query}", request.Query);
+        var queryId = Guid.NewGuid().ToString("N");
+        _logger.LogInformation("[{QueryId}] Processing motorcycle RAG query: {Query}", queryId, request.Query);
 
         var stopwatch = Stopwatch.StartNew();
-        var queryId = Guid.NewGuid().ToString("N");
 
         // 1. Check cache first if enabled
         MotorcycleQueryResponse? cachedResponse = null;
@@ -110,7 +110,7 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
                     cachedMetrics.CacheHit = true;
                 }
 
-                _logger.LogInformation("Cache hit for query. Duration: {Duration}ms", stopwatch.ElapsedMilliseconds);
+                _logger.LogInformation("[{QueryId}] Cache hit for query. Duration: {Duration}ms", queryId, stopwatch.ElapsedMilliseconds);
 
                 // Track telemetry for cached response
                 _telemetryService.TrackQuery(queryId, request.Query, stopwatch.Elapsed,
@@ -172,10 +172,14 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
         // Extract claims and ensure citations before finalizing response
         var (finalAnswer, finalResults) = await ExtractClaimsAndEnsureCitationsAsync(answer ?? string.Empty, results ?? Array.Empty<SearchResult>(), request.Query);
 
+        // Analyze sources and inject limitation messaging when appropriate
+        var limitationMessages = AnalyzeLimitationsAndCreateMessages(results ?? Array.Empty<SearchResult>(), metrics, queryId);
+        var responseWithLimitations = InjectLimitationMessages(finalAnswer, limitationMessages);
+
         var response = new MotorcycleQueryResponse
         {
             QueryId = queryId,
-            Response = finalAnswer,
+            Response = responseWithLimitations,
             Sources = finalResults,
             Metrics = metrics,
             GeneratedAt = DateTime.UtcNow
@@ -187,11 +191,11 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService
             var expiration = DetermineCacheExpiration(response);
             await _cacheService.SetAsync(cacheKey, response, expiration);
 
-            _logger.LogDebug("Cached response with expiration: {Expiration}", expiration);
+            _logger.LogDebug("[{QueryId}] Cached response with expiration: {Expiration}", queryId, expiration);
         }
 
-        _logger.LogInformation("Query processed. {Results} results, duration {Duration}ms, cost: ${Cost:F4}",
-            results?.Length ?? 0, stopwatch.ElapsedMilliseconds, metrics.EstimatedCost);
+        _logger.LogInformation("[{QueryId}] Query processed. {Results} results, duration {Duration}ms, cost: ${Cost:F4}, limitations: {LimitationCount}",
+            queryId, results?.Length ?? 0, stopwatch.ElapsedMilliseconds, metrics.EstimatedCost, limitationMessages.Count);
 
         // Track telemetry
         _telemetryService.TrackQuery(queryId, request.Query, stopwatch.Elapsed, results?.Length ?? 0, metrics.EstimatedCost);
@@ -952,5 +956,149 @@ If you believe this information should be available, please try rephrasing your 
         var outputCost = (outputTokens / 1000m) * outputCostPer1K;
 
         return inputCost + outputCost;
+    }
+
+    /// <summary>
+    /// Analyzes search execution metadata to identify limitations and creates user-friendly messages.
+    /// </summary>
+    /// <remarks>
+    /// This method examines the SearchPatternMetrics from execution to determine:
+    /// - Whether all expected sources were searched
+    /// - Whether any sources failed or returned no results
+    /// - The overall quality and completeness of the response
+    /// 
+    /// Limitation messages are created to inform users about:
+    /// - Partial source availability (some sources unavailable)
+    /// - Complete failures (no results from any source)
+    /// - Degraded service (partial sources only)
+    /// </remarks>
+    private List<string> AnalyzeLimitationsAndCreateMessages(SearchResult[] results, QueryMetrics metrics, string queryId)
+    {
+        var messages = new List<string>();
+
+        try
+        {
+            // If we have no results at all, this is a special case handled elsewhere
+            if (results == null || results.Length == 0)
+            {
+                _logger.LogWarning("[{QueryId}] No results found from any source", queryId);
+                return messages; // Handled by GenerateNoResultsResponseWithRefinementSuggestions
+            }
+
+            // Check SearchPatternMetrics for source availability
+            if (metrics?.SearchPattern != null)
+            {
+                var pattern = metrics.SearchPattern;
+                var sourcesWithResults = 0;
+                var sourcesExecuted = 0;
+                var failedSources = new List<string>();
+
+                // Count vector search
+                if (pattern.VectorSearchExecuted)
+                {
+                    sourcesExecuted++;
+                    if (pattern.VectorResultsFound > 0)
+                    {
+                        sourcesWithResults++;
+                    }
+                    else
+                    {
+                        failedSources.Add("vector search (indexed specifications)");
+                    }
+                }
+
+                // Count web search
+                if (pattern.WebSearchExecuted)
+                {
+                    sourcesExecuted++;
+                    if (pattern.WebResultsFound > 0)
+                    {
+                        sourcesWithResults++;
+                    }
+                    else
+                    {
+                        failedSources.Add("web search (trusted sources)");
+                    }
+                }
+
+                // Count PDF search
+                if (pattern.PDFSearchExecuted)
+                {
+                    sourcesExecuted++;
+                    if (pattern.PDFResultsFound > 0)
+                    {
+                        sourcesWithResults++;
+                    }
+                    else
+                    {
+                        failedSources.Add("PDF manual search");
+                    }
+                }
+
+                // Generate limitation messages based on results
+                if (sourcesExecuted > 0 && sourcesWithResults < sourcesExecuted && sourcesWithResults > 0)
+                {
+                    // Some sources failed but we have results from others
+                    messages.Add($"⚠️ **Partial Results**: Some sources ({string.Join(", ", failedSources)}) are currently unavailable or returned no results. The information below may be limited.");
+                    _logger.LogInformation("[{QueryId}] Partial source availability: {Available}/{Total} sources returned results", queryId, sourcesWithResults, sourcesExecuted);
+                }
+                else if (sourcesWithResults == 0 && sourcesExecuted > 0)
+                {
+                    // All sources failed
+                    messages.Add($"❌ **Service Degradation**: We were unable to retrieve results from {(sourcesExecuted == 1 ? "the" : "any of the")} available source{(sourcesExecuted == 1 ? "" : "s")}. Try rephrasing your query or check back later.");
+                    _logger.LogWarning("[{QueryId}] All sources failed: {FailedCount} sources attempted", queryId, sourcesExecuted);
+                }
+            }
+
+            // Check for low result count (might indicate partial search)
+            if (results.Length == 1)
+            {
+                messages.Add("ℹ️ **Limited Results**: Only one result was found. For more comprehensive information, try refining your query with additional details.");
+                _logger.LogDebug("[{QueryId}] Very limited results: only {Count} result found", queryId, results.Length);
+            }
+
+            // Check for low relevance scores indicating poor matches
+            if (results.All(r => r.RelevanceScore < 0.5f))
+            {
+                messages.Add("⚠️ **Low Confidence**: The results found have low relevance scores. Consider rephrasing your question for better matches.");
+                _logger.LogDebug("[{QueryId}] Low relevance scores detected (all < 0.5)", queryId);
+            }
+
+            _logger.LogDebug("[{QueryId}] Limitation analysis complete: {MessageCount} messages generated", queryId, messages.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[{QueryId}] Error analyzing limitations", queryId);
+            // Continue without limitation messages on error
+        }
+
+        return messages;
+    }
+
+    /// <summary>
+    /// Injects limitation messages into the response in a user-friendly format.
+    /// </summary>
+    /// <remarks>
+    /// Messages are prepended to the response with clear visual separation and actionable guidance.
+    /// The format is designed for both markdown rendering and plain text display.
+    /// </remarks>
+    private string InjectLimitationMessages(string originalResponse, List<string> limitationMessages)
+    {
+        if (limitationMessages == null || limitationMessages.Count == 0)
+        {
+            return originalResponse;
+        }
+
+        var messageText = string.Join("\n\n", limitationMessages);
+
+        var response = $"""
+{messageText}
+
+---
+
+{originalResponse}
+""";
+
+        return response;
     }
 }

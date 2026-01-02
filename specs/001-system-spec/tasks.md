@@ -168,9 +168,9 @@
 
 - [x] T094 [US4] Implement resilience service policies in 4-Persistence/MotorcycleRAG.Persistence/Resilience/ResilienceService.cs
 - [x] T095 [US4] Add resilience unit tests in 5-Test/tests/MotorcycleRAG.UnitTests/Resilience/ResilienceServiceTests.cs
-- [ ] T096 [US4] Implement partial-results aggregation in 2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs
-- [ ] T097 [US4] Ensure limitation messaging surfaced in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
-- [ ] T098 [US4] Track degraded-mode telemetry consistently in 4-Persistence/MotorcycleRAG.Persistence/Telemetry/TelemetryService.cs
+- [x] T096 [US4] Implement partial-results aggregation in 2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs
+- [x] T097 [US4] Ensure limitation messaging surfaced in 2-Application/MotorcycleRAG.Application/Services/MotorcycleRAGService.cs
+- [x] T098 [US4] Track degraded-mode telemetry consistently in 4-Persistence/MotorcycleRAG.Persistence/Telemetry/TelemetryService.cs
 
 ---
 
@@ -178,13 +178,13 @@
 
 **Independent Test**: No secrets or connection strings in repo/docs; logs redact query text; admin endpoints require authorization.
 
-- [ ] T099 [US5] Remove .env workflow and connection string examples from specs/001-system-spec/quickstart.md
-- [ ] T100 [US5] Add/confirm secrets are read from environment only (no fallbacks) in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [x] T099 [US5] Remove .env workflow and connection string examples from specs/001-system-spec/quickstart.md
+- [x] T100 [US5] Add/confirm secrets are read from environment only (no fallbacks) in 1-Presentation/MotorcycleRAG.API/Program.cs
 - [x] T101 [US5] Ensure query logging uses redaction/correlation IDs in 4-Persistence/MotorcycleRAG.Persistence/Telemetry/TelemetryService.cs
-- [ ] T102 [US5] Add audit logging application service in 2-Application/MotorcycleRAG.Application/Services/AuditService.cs
-- [ ] T103 [US5] Add /health dependency checks in 1-Presentation/MotorcycleRAG.API/Program.cs
-- [ ] T104 [US5] Add integration test for /health contract in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/HealthIntegrationTests.cs
-- [ ] T105 [US5] Update ASVS evidence to reference implemented controls in specs/001-system-spec/checklists/asvs-v5-level2.md
+- [x] T102 [US5] Add audit logging application service in 2-Application/MotorcycleRAG.Application/Services/AuditService.cs
+- [x] T103 [US5] Add /health dependency checks in 1-Presentation/MotorcycleRAG.API/Program.cs
+- [x] T104 [US5] Add integration test for /health contract in 5-Test/tests/MotorcycleRAG.IntegrationTests/Api/HealthIntegrationTests.cs
+- [x] T105 [US5] Update ASVS evidence to reference implemented controls in specs/001-system-spec/checklists/asvs-v5-level2.md
 
 ---
 

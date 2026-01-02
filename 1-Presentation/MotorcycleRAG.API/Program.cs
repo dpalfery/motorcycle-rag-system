@@ -70,16 +70,16 @@ public class Program
         // Validate Application Insights configuration early
         var appInsightsSection = configuration.GetSection("ApplicationInsights");
         var enableTelemetry = appInsightsSection.GetValue<bool>("EnableTelemetry", false);
-        var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights")
-            ?? configuration["ApplicationInsights:ConnectionString"];
+        var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights");
 
         // Fail fast if telemetry is enabled but connection string is not configured
         if (enableTelemetry && string.IsNullOrWhiteSpace(appInsightsConnectionString))
         {
             throw new InvalidOperationException(
                 "Application Insights is enabled (EnableTelemetry=true) but ConnectionString is not configured. " +
-                "Set the APPINSIGHTS_CONNECTION_STRING environment variable or set EnableTelemetry=false in appsettings. " +
-                "For development, disable telemetry in appsettings.Development.json.");
+                "REQUIRED: Set the APPINSIGHTS_CONNECTION_STRING environment variable. " +
+                "No fallback to configuration files is permitted for security compliance. " +
+                "For development, use: dotnet user-secrets set \"APPINSIGHTS_CONNECTION_STRING\" \"your-connection-string\"");
         }
 
         // Add Application Insights telemetry only if connection string is provided
@@ -308,7 +308,12 @@ public class Program
 
         // Map global health check endpoint to use "public" policy (not authenticated, higher limit)
         // Health checks should be accessible to monitoring systems without authentication
-        app.MapHealthChecks("/health").RequireRateLimiting("public");
+        // Returns structured JSON response with individual dependency status
+        app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+        {
+            ResponseWriter = HealthCheckResponseWriter.WriteResponse,
+            AllowCachingResponses = false
+        }).RequireRateLimiting("public");
 
         // Log startup information
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
@@ -345,34 +350,39 @@ public class Program
 
     /// <summary>
     /// Validates and populates Azure AD configuration from environment variables.
-    /// This ensures sensitive identifiers are not hardcoded in appsettings files.
+    /// This ensures sensitive identifiers are read from environment variables ONLY.
+    /// No fallbacks to configuration files are permitted for security compliance.
     /// </summary>
     /// <param name="configuration">The application configuration</param>
     /// <param name="environment">The hosting environment</param>
     private static void ValidateAndPopulateAzureAdConfiguration(IConfiguration configuration, IHostEnvironment environment)
     {
-        var tenantId = Environment.GetEnvironmentVariable("AZURE_AD_TENANT_ID")
-            ?? (configuration["AzureAd:TenantId"] != "" ? configuration["AzureAd:TenantId"] : null);
+        // SECURITY: Environment variables ONLY - no fallbacks to config files
+        var tenantId = Environment.GetEnvironmentVariable("AZURE_AD_TENANT_ID");
+        var clientId = Environment.GetEnvironmentVariable("AZURE_AD_CLIENT_ID");
 
-        var clientId = Environment.GetEnvironmentVariable("AZURE_AD_CLIENT_ID")
-            ?? (configuration["AzureAd:ClientId"] != "" ? configuration["AzureAd:ClientId"] : null);
-
-        // In production or when appsettings values are empty, environment variables are required
+        // Fail fast if required secrets are missing
         if (string.IsNullOrWhiteSpace(tenantId))
         {
             throw new InvalidOperationException(
                 "Azure AD Tenant ID is not configured. " +
-                "Set the AZURE_AD_TENANT_ID environment variable or populate AzureAd:TenantId in appsettings.json. " +
-                "For local development, use 'dotnet user-secrets set \"AzureAd:TenantId\" \"your-tenant-id\"'.");
+                "REQUIRED: Set the AZURE_AD_TENANT_ID environment variable. " +
+                "No fallback to configuration files is permitted for security compliance. " +
+                "For local development, use: dotnet user-secrets set \"AZURE_AD_TENANT_ID\" \"your-tenant-id\"");
         }
 
         if (string.IsNullOrWhiteSpace(clientId))
         {
             throw new InvalidOperationException(
                 "Azure AD Client ID is not configured. " +
-                "Set the AZURE_AD_CLIENT_ID environment variable or populate AzureAd:ClientId in appsettings.json. " +
-                "For local development, use 'dotnet user-secrets set \"AzureAd:ClientId\" \"your-client-id\"'.");
+                "REQUIRED: Set the AZURE_AD_CLIENT_ID environment variable. " +
+                "No fallback to configuration files is permitted for security compliance. " +
+                "For local development, use: dotnet user-secrets set \"AZURE_AD_CLIENT_ID\" \"your-client-id\"");
         }
+
+        // Log secret sources for audit trail
+        var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
+        startupLogger.LogInformation("Azure AD configuration loaded from environment variables (AZURE_AD_TENANT_ID, AZURE_AD_CLIENT_ID)");
 
         // Update configuration with environment values
         var azureAdSection = new ConfigurationBuilder()
@@ -397,26 +407,19 @@ public class Program
     }
 
     /// <summary>
-    /// Validates and populates Azure AI service endpoints from environment variables.
+    /// Validates and populates Azure AI service endpoints from environment variables ONLY.
     /// Ensures endpoints are HTTPS URLs and not empty/placeholder values.
-    /// Environment variables take precedence over configuration file values.
+    /// No fallbacks to configuration files are permitted for security compliance.
     /// </summary>
     /// <param name="configuration">The application configuration</param>
     /// <param name="environment">The hosting environment</param>
     private static void ValidateAndPopulateAzureAIConfiguration(IConfiguration configuration, IHostEnvironment environment)
     {
-        // Load Azure AI endpoints from environment variables, falling back to config
-        var openAIEndpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT")
-            ?? (configuration["AzureAI:OpenAIEndpoint"] != "" ? configuration["AzureAI:OpenAIEndpoint"] : null);
-
-        var searchEndpoint = Environment.GetEnvironmentVariable("AZURE_SEARCH_ENDPOINT")
-            ?? (configuration["AzureAI:SearchServiceEndpoint"] != "" ? configuration["AzureAI:SearchServiceEndpoint"] : null);
-
-        var documentIntelligenceEndpoint = Environment.GetEnvironmentVariable("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-            ?? (configuration["AzureAI:DocumentIntelligenceEndpoint"] != "" ? configuration["AzureAI:DocumentIntelligenceEndpoint"] : null);
-
-        var foundryEndpoint = Environment.GetEnvironmentVariable("AZURE_FOUNDRY_ENDPOINT")
-            ?? (configuration["AzureAI:FoundryEndpoint"] != "" ? configuration["AzureAI:FoundryEndpoint"] : null);
+        // SECURITY: Environment variables ONLY - no fallbacks to config files
+        var openAIEndpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
+        var searchEndpoint = Environment.GetEnvironmentVariable("AZURE_SEARCH_ENDPOINT");
+        var documentIntelligenceEndpoint = Environment.GetEnvironmentVariable("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT");
+        var foundryEndpoint = Environment.GetEnvironmentVariable("AZURE_FOUNDRY_ENDPOINT");
 
         // Validate endpoints are provided and valid HTTPS URLs
         ValidateEndpoint("OpenAI", openAIEndpoint, "AZURE_OPENAI_ENDPOINT", environment.IsProduction());
@@ -424,7 +427,11 @@ public class Program
         ValidateEndpoint("Document Intelligence", documentIntelligenceEndpoint, "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", environment.IsProduction());
         ValidateEndpoint("Foundry", foundryEndpoint, "AZURE_FOUNDRY_ENDPOINT", environment.IsProduction());
 
-        // Update configuration with environment values (environment variables take precedence)
+        // Log secret sources for audit trail
+        var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
+        startupLogger.LogInformation("Azure AI configuration loaded from environment variables (AZURE_OPENAI_ENDPOINT, AZURE_SEARCH_ENDPOINT, AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, AZURE_FOUNDRY_ENDPOINT)");
+
+        // Update configuration with environment values (environment variables ONLY)
         var azureAIConfig = new Dictionary<string, string?>
         {
             { "AzureAI:OpenAIEndpoint", openAIEndpoint },
@@ -445,26 +452,27 @@ public class Program
     }
 
     /// <summary>
-    /// Validates a single Azure service endpoint.
+    /// Validates a single Azure service endpoint from environment variables.
+    /// Ensures endpoint is a valid HTTPS URL (not a placeholder or example value).
     /// </summary>
     private static void ValidateEndpoint(string serviceName, string? endpoint, string envVarName, bool isProduction)
     {
         if (string.IsNullOrWhiteSpace(endpoint))
         {
             throw new InvalidOperationException(
-                $"Azure {serviceName} endpoint is not configured. " +
-                $"Set the {envVarName} environment variable. " +
-                $"For local development, use 'dotnet user-secrets set \"{envVarName}\" \"https://your-{serviceName.ToLower()}-endpoint.com/\"'. " +
-                $"Endpoint must be a valid HTTPS URL.");
+                $"Azure {serviceName} endpoint is REQUIRED but not configured. " +
+                $"Set the {envVarName} environment variable to a valid HTTPS URL. " +
+                $"No fallback to configuration files is permitted for security compliance. " +
+                $"For local development, use: dotnet user-secrets set \"{envVarName}\" \"https://your-{serviceName.ToLower()}-endpoint.openai.azure.com/\"");
         }
 
         // Verify endpoint is HTTPS
         if (!endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"Azure {serviceName} endpoint must use HTTPS protocol. " +
+                $"Azure {serviceName} endpoint MUST use HTTPS protocol for security. " +
                 $"Current endpoint: {endpoint}. " +
-                $"Set a valid HTTPS URL in the {envVarName} environment variable.");
+                $"Update the {envVarName} environment variable with a valid HTTPS URL.");
         }
 
         // Verify endpoint is a valid URI
@@ -473,7 +481,18 @@ public class Program
             throw new InvalidOperationException(
                 $"Azure {serviceName} endpoint is not a valid HTTPS URL. " +
                 $"Current endpoint: {endpoint}. " +
-                $"Verify the URL is properly formatted in the {envVarName} environment variable.");
+                $"Ensure the {envVarName} environment variable contains a properly formatted HTTPS URL.");
+        }
+
+        // Warn if endpoint looks like a placeholder or example value
+        if (endpoint.Contains("your-", StringComparison.OrdinalIgnoreCase) || 
+            endpoint.Contains("example", StringComparison.OrdinalIgnoreCase) || 
+            endpoint.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Azure {serviceName} endpoint appears to be a placeholder or example value. " +
+                $"Current endpoint: {endpoint}. " +
+                $"Set the {envVarName} environment variable to your actual Azure service endpoint URL.");
         }
     }
 }

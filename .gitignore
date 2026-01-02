@@ -30,6 +30,9 @@ Generated\ Files/
 6-Docs/agent-notes/**
 !6-Docs/agent-notes/.gitkeep
 
+# Ignore any root-level .txt scratch files
+/*.txt
+
 # NUnit
 *.VisualState.xml
 TestResult.xml

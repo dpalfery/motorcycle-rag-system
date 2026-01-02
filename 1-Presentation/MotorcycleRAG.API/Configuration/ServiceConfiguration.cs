@@ -116,7 +116,7 @@ public static class ServiceConfiguration
     }
 
     /// <summary>
-    /// Configure health checks
+    /// Configure health checks for all critical dependencies
     /// </summary>
     public static IServiceCollection AddHealthChecks(this IServiceCollection services, IConfiguration configuration)
     {
@@ -124,29 +124,49 @@ public static class ServiceConfiguration
             .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("API is running"))
             .AddCheck("configuration", () => ValidateConfiguration(configuration));
 
-        // Add Azure service health checks if endpoints are configured
-        var azureConfig = configuration.GetSection("AzureAI");
-        
-        var openAIEndpoint = azureConfig["OpenAIEndpoint"];
-        if (!string.IsNullOrWhiteSpace(openAIEndpoint) && Uri.TryCreate(openAIEndpoint, UriKind.Absolute, out var openAIUri))
-        {
-            healthChecksBuilder.AddCheck("azure-openai-config", () => 
-                ValidateEndpointConfiguration("Azure OpenAI", openAIEndpoint));
-        }
+        // Add dependency-specific health checks
+        // Azure AI Search health check
+        healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.AzureSearchHealthCheck>(
+            "azure_ai_search",
+            failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+            tags: new[] { "azure", "search" },
+            timeout: TimeSpan.FromSeconds(5));
 
-        var searchEndpoint = azureConfig["SearchServiceEndpoint"];
-        if (!string.IsNullOrWhiteSpace(searchEndpoint) && Uri.TryCreate(searchEndpoint, UriKind.Absolute, out var searchUri))
-        {
-            healthChecksBuilder.AddCheck("azure-search-config", () => 
-                ValidateEndpointConfiguration("Azure Search", searchEndpoint));
-        }
+        // Azure OpenAI health check
+        healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.AzureOpenAIHealthCheck>(
+            "azure_openai",
+            failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+            tags: new[] { "azure", "ai" },
+            timeout: TimeSpan.FromSeconds(10));
 
-        var documentIntelligenceEndpoint = azureConfig["DocumentIntelligenceEndpoint"];
-        if (!string.IsNullOrWhiteSpace(documentIntelligenceEndpoint) && Uri.TryCreate(documentIntelligenceEndpoint, UriKind.Absolute, out var docUri))
+        // Azure Document Intelligence health check
+        healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.DocumentIntelligenceHealthCheck>(
+            "azure_document_intelligence",
+            failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+            tags: new[] { "azure", "document" },
+            timeout: TimeSpan.FromSeconds(5));
+
+        // SQL Database health check
+        healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.SqlDatabaseHealthCheck>(
+            "sql_database",
+            failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+            tags: new[] { "database", "sql" },
+            timeout: TimeSpan.FromSeconds(5));
+
+        // Azure AI Foundry health check
+        healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.AzureFoundryHealthCheck>(
+            "azure_foundry",
+            failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+            tags: new[] { "azure", "foundry" },
+            timeout: TimeSpan.FromSeconds(5));
+
+        // Configure health check response caching to prevent health check storms
+        // Cache successful responses for 30 seconds
+        services.Configure<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherOptions>(options =>
         {
-            healthChecksBuilder.AddCheck("azure-document-intelligence-config", () => 
-                ValidateEndpointConfiguration("Azure Document Intelligence", documentIntelligenceEndpoint));
-        }
+            options.Delay = TimeSpan.FromSeconds(30);
+            options.Period = TimeSpan.FromSeconds(30);
+        });
 
         return services;
     }

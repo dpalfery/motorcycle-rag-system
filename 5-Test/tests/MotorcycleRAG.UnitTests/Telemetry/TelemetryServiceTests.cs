@@ -57,6 +57,124 @@ public class TelemetryServiceTests
         ev.Properties["estimatedCost"].Should().Be("0.0020");
     }
 
+    [Fact]
+    public void TrackDegradedMode_ShouldSendDegradedModeEvent()
+    {
+        // Arrange
+        var failedSources = new List<string> { "WebSearch", "PDFSearch" };
+        var availableSources = new List<string> { "VectorSearch" };
+        var duration = TimeSpan.FromMilliseconds(500);
+        var resultsFound = 3;
+
+        // Act
+        _service.TrackDegradedMode("corr-123", failedSources, availableSources, duration, resultsFound);
+
+        // Assert
+        var ev = _channel.Telemetries.OfType<Microsoft.ApplicationInsights.DataContracts.EventTelemetry>().Single();
+        ev.Name.Should().Be("SearchDegradedMode");
+        ev.Properties["CorrelationId"].Should().Be("corr-123");
+        ev.Properties["FailedSources"].Should().Be("WebSearch,PDFSearch");
+        ev.Properties["AvailableSources"].Should().Be("VectorSearch");
+        ev.Properties["FailureCount"].Should().Be("2");
+        ev.Properties["AvailableSourceCount"].Should().Be("1");
+        ev.Metrics["DurationMs"].Should().Be(500d);
+        ev.Metrics["ResultsFound"].Should().Be(3d);
+    }
+
+    [Fact]
+    public void TrackDegradedMode_WithNullFailedSources_ShouldThrowArgumentNullException()
+    {
+        // Act & Assert
+        var act = () => _service.TrackDegradedMode("corr-123", null!, new List<string> { "VectorSearch" }, TimeSpan.Zero, 0);
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void TrackDegradedMode_WithNullAvailableSources_ShouldThrowArgumentNullException()
+    {
+        // Act & Assert
+        var act = () => _service.TrackDegradedMode("corr-123", new List<string> { "WebSearch" }, null!, TimeSpan.Zero, 0);
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void TrackDegradedMode_WithEmptyCorrelationId_ShouldThrowArgumentException()
+    {
+        // Act & Assert
+        var act = () => _service.TrackDegradedMode(string.Empty, new List<string>(), new List<string>(), TimeSpan.Zero, 0);
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void TrackSourceFailure_ShouldSendSourceFailureEvent()
+    {
+        // Arrange
+        var duration = TimeSpan.FromMilliseconds(250);
+
+        // Act
+        _service.TrackSourceFailure("corr-456", "WebSearch", "Connection timeout", duration);
+
+        // Assert
+        var ev = _channel.Telemetries.OfType<Microsoft.ApplicationInsights.DataContracts.EventTelemetry>().Single();
+        ev.Name.Should().Be("SourceFailure");
+        ev.Properties["CorrelationId"].Should().Be("corr-456");
+        ev.Properties["SourceName"].Should().Be("WebSearch");
+        ev.Properties["ErrorMessage"].Should().NotBeNullOrEmpty();
+        ev.Metrics["DurationMs"].Should().Be(250d);
+    }
+
+    [Fact]
+    public void TrackSourceFailure_WithEmptySourceName_ShouldThrowArgumentException()
+    {
+        // Act & Assert
+        var act = () => _service.TrackSourceFailure("corr-456", string.Empty, "Error", TimeSpan.Zero);
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void TrackSearchExecution_ShouldSendSearchExecutionEvent()
+    {
+        // Arrange
+        var duration = TimeSpan.FromMilliseconds(1000);
+
+        // Act
+        _service.TrackSearchExecution("corr-789", "query-1", duration, 10, 2, 1, true);
+
+        // Assert
+        var ev = _channel.Telemetries.OfType<Microsoft.ApplicationInsights.DataContracts.EventTelemetry>().Single();
+        ev.Name.Should().Be("SearchExecution");
+        ev.Properties["CorrelationId"].Should().Be("corr-789");
+        ev.Properties["QueryId"].Should().Be("query-1");
+        ev.Properties["SuccessfulSources"].Should().Be("2");
+        ev.Properties["FailedSources"].Should().Be("1");
+        ev.Properties["DegradedMode"].Should().Be("True");
+        ev.Metrics["TotalDurationMs"].Should().Be(1000d);
+        ev.Metrics["TotalResults"].Should().Be(10d);
+        ev.Metrics["SourceSuccessRate"].Should().BeApproximately(66.666666d, 0.1d);
+    }
+
+    [Fact]
+    public void TrackSearchExecution_WithEmptyQueryId_ShouldThrowArgumentException()
+    {
+        // Act & Assert
+        var act = () => _service.TrackSearchExecution("corr-789", string.Empty, TimeSpan.Zero, 0, 0, 0, false);
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void TrackSearchExecution_CalculatesSuccessRateCorrectly()
+    {
+        // Arrange
+        var duration = TimeSpan.FromMilliseconds(500);
+
+        // Act - All sources successful
+        _service.TrackSearchExecution("corr-test", "query-1", duration, 5, 3, 0, false);
+
+        // Assert
+        var ev = _channel.Telemetries.OfType<Microsoft.ApplicationInsights.DataContracts.EventTelemetry>().Single();
+        ev.Metrics["SourceSuccessRate"].Should().Be(100d);
+    }
+
     /* TrackCost test commented out - method not implemented in ITelemetryService interface
     [Fact]
     public void TrackCost_ShouldSendTelemetryEvent()

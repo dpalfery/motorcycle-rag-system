@@ -190,13 +190,13 @@
 
 ## Phase 12: Polish & Cross-Cutting Concerns
 
-- [ ] T106 Align plan/spec terminology for citations + queryId in specs/001-system-spec/spec.md
-- [ ] T107 Validate OpenAPI contract consistency in specs/001-system-spec/contracts/openapi.yaml
-- [ ] T108 Validate quickstart end-to-end steps in specs/001-system-spec/quickstart.md
-- [ ] T109 Run dotnet build for MotorcycleRAG.sln in MotorcycleRAG.sln
-- [ ] T110 Run dotnet test for MotorcycleRAG.sln in MotorcycleRAG.sln
-- [ ] T111 Run npm build for WebUI in 1-Presentation/MotorcycleRag.WebUI/package.json
-- [ ] T112 Document deployment config keys in 6-Docs/deployment.md
+- [x] T106 Align plan/spec terminology for citations + queryId in specs/001-system-spec/spec.md
+- [x] T107 Validate OpenAPI contract consistency in specs/001-system-spec/contracts/openapi.yaml
+- [x] T108 Validate quickstart end-to-end steps in specs/001-system-spec/quickstart.md
+- [x] T109 Run dotnet build for MotorcycleRAG.sln in MotorcycleRAG.sln
+- [x] T110 Run dotnet test for MotorcycleRAG.sln in MotorcycleRAG.sln
+- [x] T111 Run npm build for WebUI in 1-Presentation/MotorcycleRag.WebUI/package.json
+- [x] T112 Document deployment config keys in 6-Docs/deployment.md
 
 ---
 

@@ -1,4 +1,31 @@
-﻿## Project Overview
+﻿## Working agreement rules:
+  1. Always Ask Before Creating Infrastructure
+    - Don't create docker-compose, Makefiles, or deployment scripts without explicit approval
+    - Ask about the team's actual development environment first
+  2. Permission Before Major Decisions
+    - Ask before creating new documentation files
+    - Get approval before adding new dependencies
+    - Confirm approach before implementing cross-cutting concerns
+  3. Communication Protocol
+    - Present options and ask which to pursue
+    - Explain trade-offs before implementing
+    - Wait for user confirmation on architectural decisions  1. Always Ask Before Creating Infrastructure
+    - Don't create docker-compose, Makefiles, or deployment scripts without explicit approval
+    - Ask about the team's actual development environment first
+  4. Status and summary files
+    - Don't ever put any file in the root of the project without asking the user
+    - Rule: Do not create agent-generated status/plan/summary/change-log files in the repository root (or other top-level folders) unless a tool strictly requires it. 
+      - The docs/agent-notes/ folder is ignored by git.
+      - Examples include (but are not limited to): *status*, *plan*, *summary*, detailed_changes*, build_output*, verification*.
+      
+## Development Environment Constraints
+
+### Windows 
+  - Developers work on windows with WSL2 and docker
+  - Assume Windows-native solutions unless easy docker alternative exists
+  - Assume Windows 11 
+
+## Project Overview
 This project is a sophisticated **multi-agent RAG (Retrieval-Augmented Generation) system** for motorcycle information retrieval. It is designed to pass **OWASP ASVS Level 2** security standards and follows strict **Clean Architecture** principles.
 
 The system orchestrates specialized agents to search heterogeneous data sources (CSV specs, PDF manuals, Trusted Web) and provides a unified, cited response. It includes a **React WebUI** for users and a **.NET MAUI Admin App** (Windows-first) for data ingestion and management.

@@ -77,9 +77,9 @@ public class Program
         {
             throw new InvalidOperationException(
                 "Application Insights is enabled (EnableTelemetry=true) but ConnectionString is not configured. " +
-                "REQUIRED: Set the APPINSIGHTS_CONNECTION_STRING environment variable. " +
+                "REQUIRED: Set the MCR_API_APPINSIGHTS_CONNECTION_STRING environment variable. " +
                 "No fallback to configuration files is permitted for security compliance. " +
-                "For development, use: dotnet user-secrets set \"APPINSIGHTS_CONNECTION_STRING\" \"your-connection-string\"");
+                "For development, use: dotnet user-secrets set \"MCR_API_APPINSIGHTS_CONNECTION_STRING\" \"your-connection-string\"");
         }
 
         // Add Application Insights telemetry only if connection string is provided
@@ -358,31 +358,31 @@ public class Program
     private static void ValidateAndPopulateAzureAdConfiguration(IConfiguration configuration, IHostEnvironment environment)
     {
         // SECURITY: Environment variables ONLY - no fallbacks to config files
-        var tenantId = Environment.GetEnvironmentVariable("AZURE_AD_TENANT_ID");
-        var clientId = Environment.GetEnvironmentVariable("AZURE_AD_CLIENT_ID");
+        var tenantId = Environment.GetEnvironmentVariable("MCR_API_AZURE_AD_TENANT_ID");
+        var clientId = Environment.GetEnvironmentVariable("MCR_API_AZURE_AD_CLIENT_ID");
 
         // Fail fast if required secrets are missing
         if (string.IsNullOrWhiteSpace(tenantId))
         {
             throw new InvalidOperationException(
                 "Azure AD Tenant ID is not configured. " +
-                "REQUIRED: Set the AZURE_AD_TENANT_ID environment variable. " +
+                "REQUIRED: Set the MCR_API_AZURE_AD_TENANT_ID environment variable. " +
                 "No fallback to configuration files is permitted for security compliance. " +
-                "For local development, use: dotnet user-secrets set \"AZURE_AD_TENANT_ID\" \"your-tenant-id\"");
+                "For local development, use: dotnet user-secrets set \"MCR_API_AZURE_AD_TENANT_ID\" \"your-tenant-id\"");
         }
 
         if (string.IsNullOrWhiteSpace(clientId))
         {
             throw new InvalidOperationException(
                 "Azure AD Client ID is not configured. " +
-                "REQUIRED: Set the AZURE_AD_CLIENT_ID environment variable. " +
+                "REQUIRED: Set the MCR_API_AZURE_AD_CLIENT_ID environment variable. " +
                 "No fallback to configuration files is permitted for security compliance. " +
-                "For local development, use: dotnet user-secrets set \"AZURE_AD_CLIENT_ID\" \"your-client-id\"");
+                "For local development, use: dotnet user-secrets set \"MCR_API_AZURE_AD_CLIENT_ID\" \"your-client-id\"");
         }
 
         // Log secret sources for audit trail
         var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
-        startupLogger.LogInformation("Azure AD configuration loaded from environment variables (AZURE_AD_TENANT_ID, AZURE_AD_CLIENT_ID)");
+        startupLogger.LogInformation("Azure AD configuration loaded from environment variables (MCR_API_AZURE_AD_TENANT_ID, MCR_API_AZURE_AD_CLIENT_ID)");
 
         // Update configuration with environment values
         var azureAdSection = new ConfigurationBuilder()
@@ -416,20 +416,20 @@ public class Program
     private static void ValidateAndPopulateAzureAIConfiguration(IConfiguration configuration, IHostEnvironment environment)
     {
         // SECURITY: Environment variables ONLY - no fallbacks to config files
-        var openAIEndpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
-        var searchEndpoint = Environment.GetEnvironmentVariable("AZURE_SEARCH_ENDPOINT");
-        var documentIntelligenceEndpoint = Environment.GetEnvironmentVariable("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT");
-        var foundryEndpoint = Environment.GetEnvironmentVariable("AZURE_FOUNDRY_ENDPOINT");
+        var openAIEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_OPENAI_ENDPOINT");
+        var searchEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_SEARCH_ENDPOINT");
+        var documentIntelligenceEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT");
+        var foundryEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT");
 
         // Validate endpoints are provided and valid HTTPS URLs
-        ValidateEndpoint("OpenAI", openAIEndpoint, "AZURE_OPENAI_ENDPOINT", environment.IsProduction());
-        ValidateEndpoint("Search", searchEndpoint, "AZURE_SEARCH_ENDPOINT", environment.IsProduction());
-        ValidateEndpoint("Document Intelligence", documentIntelligenceEndpoint, "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", environment.IsProduction());
-        ValidateEndpoint("Foundry", foundryEndpoint, "AZURE_FOUNDRY_ENDPOINT", environment.IsProduction());
+        ValidateEndpoint("OpenAI", openAIEndpoint, "MCR_API_AZURE_OPENAI_ENDPOINT", environment.IsProduction());
+        ValidateEndpoint("Search", searchEndpoint, "MCR_API_AZURE_SEARCH_ENDPOINT", environment.IsProduction());
+        ValidateEndpoint("Document Intelligence", documentIntelligenceEndpoint, "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", environment.IsProduction());
+        ValidateEndpoint("Foundry", foundryEndpoint, "MCR_API_AZURE_FOUNDRY_ENDPOINT", environment.IsProduction());
 
         // Log secret sources for audit trail
         var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
-        startupLogger.LogInformation("Azure AI configuration loaded from environment variables (AZURE_OPENAI_ENDPOINT, AZURE_SEARCH_ENDPOINT, AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, AZURE_FOUNDRY_ENDPOINT)");
+        startupLogger.LogInformation("Azure AI configuration loaded from environment variables (MCR_API_AZURE_OPENAI_ENDPOINT, MCR_API_AZURE_SEARCH_ENDPOINT, MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, MCR_API_AZURE_FOUNDRY_ENDPOINT)");
 
         // Update configuration with environment values (environment variables ONLY)
         var azureAIConfig = new Dictionary<string, string?>

@@ -43,19 +43,19 @@ public static class MauiProgram
 		{
 			// Retrieve authentication configuration from environment variables
 			// Never use placeholder values - fail fast if configuration is missing
-			var clientId = Environment.GetEnvironmentVariable("ENTRA_CLIENT_ID")
+			var clientId = Environment.GetEnvironmentVariable("MCR_ADMIN_CLIENT_ID")
 				?? throw new InvalidOperationException(
-					"ENTRA_CLIENT_ID environment variable is required. " +
+					"MCR_ADMIN_CLIENT_ID environment variable is required. " +
 					"Please set it to your Microsoft Entra (Azure AD) application client ID.");
 
-			var authority = Environment.GetEnvironmentVariable("ENTRA_AUTHORITY")
+			var authority = Environment.GetEnvironmentVariable("MCR_ADMIN_AUTHORITY")
 				?? throw new InvalidOperationException(
-					"ENTRA_AUTHORITY environment variable is required. " +
+					"MCR_ADMIN_AUTHORITY environment variable is required. " +
 					"Please set it to your Microsoft Entra authority URL (e.g., https://login.microsoftonline.com/{tenant-id}).");
 
-			var apiScope = Environment.GetEnvironmentVariable("API_SCOPE")
+			var apiScope = Environment.GetEnvironmentVariable("MCR_ADMIN_API_SCOPE")
 				?? throw new InvalidOperationException(
-					"API_SCOPE environment variable is required. " +
+					"MCR_ADMIN_API_SCOPE environment variable is required. " +
 					"Please set it to your API scope (e.g., api://{client-id}/.default).");
 
 			// Get logger from service provider - required for AdminAuthService
@@ -76,13 +76,13 @@ public static class MauiProgram
 		builder.Services
 			.AddHttpClient<ApiClient>(client =>
 			{
-				// CRITICAL: API_BASE_URL must be provided - no insecure fallbacks allowed
-				var baseUrl = Environment.GetEnvironmentVariable("API_BASE_URL");
+				// CRITICAL: MCR_ADMIN_API_BASE_URL must be provided - no insecure fallbacks allowed
+				var baseUrl = Environment.GetEnvironmentVariable("MCR_ADMIN_API_BASE_URL");
 
 				if (string.IsNullOrWhiteSpace(baseUrl))
 				{
 					throw new InvalidOperationException(
-						"API_BASE_URL environment variable is required and must not be empty. " +
+						"MCR_ADMIN_API_BASE_URL environment variable is required and must not be empty. " +
 						"Set it to your API base URL (e.g., https://api.yourdomain.com). " +
 						"Never leave this unset as it could connect to an unintended server.");
 				}
@@ -94,7 +94,7 @@ public static class MauiProgram
 					    !baseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase))
 					{
 						throw new InvalidOperationException(
-							$"API_BASE_URL must use HTTPS for non-localhost URLs. Got: {baseUrl}");
+							$"MCR_ADMIN_API_BASE_URL must use HTTPS for non-localhost URLs. Got: {baseUrl}");
 					}
 				}
 
@@ -102,7 +102,7 @@ public static class MauiProgram
 				if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var apiUri))
 				{
 					throw new InvalidOperationException(
-						$"API_BASE_URL is not a valid URI: {baseUrl}");
+						$"MCR_ADMIN_API_BASE_URL is not a valid URI: {baseUrl}");
 				}
 
 				client.BaseAddress = apiUri;

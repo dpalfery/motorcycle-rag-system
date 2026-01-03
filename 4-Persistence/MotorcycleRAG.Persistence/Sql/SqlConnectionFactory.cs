@@ -12,7 +12,7 @@ namespace MotorcycleRAG.Persistence.Sql
 {
     /// <summary>
     /// Factory for creating SQL database connections
-    /// Connection string is retrieved from SQL_CONNECTION_STRING environment variable
+    /// Connection string is retrieved from MCR_API_SQL_CONNECTION_STRING environment variable
     /// </summary>
     public class SqlConnectionFactory : ISqlConnectionFactory
     {
@@ -29,12 +29,12 @@ namespace MotorcycleRAG.Persistence.Sql
         {
             _sqlOptions = sqlOptions.Value ?? throw new ArgumentNullException(nameof(sqlOptions));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            
-            var connectionString = Environment.GetEnvironmentVariable("SQL_CONNECTION_STRING");
+
+            var connectionString = Environment.GetEnvironmentVariable("MCR_API_SQL_CONNECTION_STRING");
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new InvalidOperationException(
-                    "SQL_CONNECTION_STRING environment variable is required but not set. " +
+                    "MCR_API_SQL_CONNECTION_STRING environment variable is required but not set. " +
                     "Please set this environment variable before starting the application.");
             }
 
@@ -47,7 +47,7 @@ namespace MotorcycleRAG.Persistence.Sql
                 upperConnectionString.Contains("UID="))
             {
                 throw new InvalidOperationException(
-                    "SQL_CONNECTION_STRING must not contain embedded credentials (Password, Pwd, User ID, or UID). " +
+                    "MCR_API_SQL_CONNECTION_STRING must not contain embedded credentials (Password, Pwd, User ID, or UID). " +
                     "Azure AD / Managed Identity authentication is required. " +
                     "Please configure your connection string to use Azure AD authentication.");
             }

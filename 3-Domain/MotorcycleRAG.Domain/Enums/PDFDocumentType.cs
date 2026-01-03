@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -7,7 +7,7 @@ namespace MotorcycleRAG.Domain.Enums
     /// <summary>
     /// Types of PDF documents in the motorcycle domain
     /// </summary>
-    public enum PDFDocumentType
+    public enum PdfDocumentType
     {
         Manual,
         ServiceGuide,
@@ -18,3 +18,4 @@ namespace MotorcycleRAG.Domain.Enums
         Other
     }
 }
+

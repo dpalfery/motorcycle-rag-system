@@ -4,7 +4,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace MotorcycleRAG.Domain.DTOs;
@@ -111,3 +110,4 @@ public class Citation
     /// </summary>
     public object? Locator { get; set; }
 }
+

@@ -123,7 +123,7 @@ public class MotorcycleManualCitationComponentTests
             Make = "Honda",
             Model = "CBR1000RR",
             Year = "2024",
-            DocumentType = PDFDocumentType.Manual,
+            DocumentType = PdfDocumentType.Manual,
             Language = "en",
             UploadedAt = DateTime.UtcNow,
             Source = "https://manuals.honda.com/cbr1000rr-2024",
@@ -298,7 +298,7 @@ public class MotorcycleManualCitationComponentTests
             Make = "Ducati",
             Model = "Panigale V4",
             Year = "2024",
-            DocumentType = PDFDocumentType.Manual,
+            DocumentType = PdfDocumentType.Manual,
             Language = "en",
             UploadedAt = DateTime.UtcNow,
             Source = "https://manuals.ducati.com/panigale-v4-2024",
@@ -386,7 +386,7 @@ public class MotorcycleManualCitationComponentTests
             Make = "Yamaha",
             Model = "YZF-R1",
             Year = "2024",
-            DocumentType = PDFDocumentType.Manual,
+            DocumentType = PdfDocumentType.Manual,
             Language = "en",
             UploadedAt = DateTime.UtcNow,
             Source = "https://manuals.yamaha.com/yzf-r1-2024",
@@ -689,3 +689,4 @@ public class MotorcycleManualCitationComponentTests
         return embedding;
     }
 }
+

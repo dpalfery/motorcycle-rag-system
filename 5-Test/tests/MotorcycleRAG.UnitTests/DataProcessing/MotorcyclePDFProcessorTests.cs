@@ -898,7 +898,7 @@ public class MotorcyclePDFProcessorTests
         {
             FileName = "test-manual.pdf",
             Content = new MemoryStream(contentBytes),
-            DocumentType = PDFDocumentType.Manual,
+            DocumentType = PdfDocumentType.Manual,
             Language = "en",
             Make = "TestMake",
             Model = "TestModel",
@@ -926,3 +926,4 @@ public class MotorcyclePDFProcessorTests
 
     #endregion
 }
+

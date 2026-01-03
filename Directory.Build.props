@@ -1,0 +1,50 @@
+<Project>
+  <PropertyGroup>
+    <!-- Enable .NET analyzer support for all projects -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    
+    <!-- Use latest analysis level for .NET 10 (includes all rules) -->
+    <AnalysisLevel>latest-All</AnalysisLevel>
+    
+    <!-- Analyze all categories (API design, security, performance, reliability, maintainability) -->
+    <AnalysisMode>all</AnalysisMode>
+    
+    <!-- Treat warnings as errors to enforce quality (Option A: Aggressive) -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- Enable nullable reference types analysis -->
+    <Nullable>enable</Nullable>
+    
+    <!-- Enable implicit usings -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    
+    <!-- Code analysis results -->
+    <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+    <RunAnalyzers>true</RunAnalyzers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- SonarAnalyzer.CSharp - Roslyn analyzers for bugs, vulnerabilities, and code smells -->
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.10.0.116381">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
+    <!-- Microsoft.CodeAnalysis.NetAnalyzers - Built-in .NET code quality rules -->
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.100">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
+    <!-- Additional analyzer configuration files -->
+    <AdditionalFiles Include="$(SolutionDir).editorconfig" Link=".editorconfig" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- Analyzer verbosity for CI/CD -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    
+    <!-- Suppress S1451 (file header requirement) -->
+    <NoWarn>$(NoWarn);S1451</NoWarn>
+  </PropertyGroup>
+</Project>

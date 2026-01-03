@@ -1,5 +1,10 @@
+// <copyright file="Citation.cs" company="MotorcycleRAG">
+// Copyright (c) MotorcycleRAG. All rights reserved.
+// </copyright>
+
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace MotorcycleRAG.Domain.DTOs;
@@ -61,9 +66,7 @@ public class Citation
     /// <summary>
     /// URL to the original source
     /// </summary>
-    [Url]
-    [StringLength(1000)]
-    public string SourceUrl { get; set; } = string.Empty;
+    public Uri? SourceUrl { get; set; }
 
     /// <summary>
     /// Page number in the source document
@@ -85,7 +88,7 @@ public class Citation
     /// <summary>
     /// Whether this citation has been verified
     /// </summary>
-    public bool Verified { get; set; } = false;
+    public bool Verified { get; set; }
 
     /// <summary>
     /// Method used for verification
@@ -101,7 +104,7 @@ public class Citation
     /// <summary>
     /// Additional metadata about the citation
     /// </summary>
-    public Dictionary<string, object> Metadata { get; set; } = new();
+    public IReadOnlyDictionary<string, object> Metadata { get; init; } = new Dictionary<string, object>();
 
     /// <summary>
     /// Source-specific locator information

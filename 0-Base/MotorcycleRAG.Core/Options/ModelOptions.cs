@@ -7,12 +7,17 @@ namespace MotorcycleRAG.Core.Options;
 /// </summary>
 public class ModelOptions
 {
+    private const int DefaultMaxTokens = 4096;
+    private const int MaxTokensLimit = 32_000;
+    private const float DefaultTemperature = 0.1f;
+    private const float DefaultTopP = 1.0f;
+
     [Required] public string ChatModel        { get; set; } = "gpt-4o-mini";
     [Required] public string EmbeddingModel   { get; set; } = "text-embedding-3-large";
     [Required] public string QueryPlannerModel{ get; set; } = "gpt-4o";
     [Required] public string VisionModel      { get; set; } = "gpt-4-vision-preview";
 
-    [Range(1, 32_000)] public int   MaxTokens   { get; set; } = 4096;
-    [Range(0, 2)]      public float Temperature { get; set; } = 0.1f;
-    [Range(0, 1)]      public float TopP        { get; set; } = 1.0f;
+    [Range(1, MaxTokensLimit)] public int   MaxTokens   { get; set; } = DefaultMaxTokens;
+    [Range(0, 2)]           public float Temperature { get; set; } = DefaultTemperature;
+    [Range(0, 1)]           public float TopP        { get; set; } = DefaultTopP;
 }

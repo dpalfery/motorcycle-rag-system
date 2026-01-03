@@ -31,8 +31,9 @@ builder.Services.AddReverseProxy()
         // Attach Bearer Token from User Identity to downstream requests
         builderContext.AddRequestTransform(async transformContext =>
         {
-            var user = transformContext.HttpContext.User;
-            var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.GetTokenAsync(transformContext.HttpContext, "access_token");
+            var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions
+                .GetTokenAsync(transformContext.HttpContext, "access_token")
+                .ConfigureAwait(false);
             if (!string.IsNullOrEmpty(token))
             {
                 transformContext.ProxyRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
@@ -185,5 +186,3 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Motorcycl
 
 // Fallback to React (SPA)
 app.MapFallbackToFile("index.html");
-
-app.Run();

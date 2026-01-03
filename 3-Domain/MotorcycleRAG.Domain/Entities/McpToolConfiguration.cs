@@ -1,3 +1,8 @@
+// <copyright file="McpToolConfiguration.cs" company="MotorcycleRAG">
+// Copyright (c) MotorcycleRAG. All rights reserved.
+// </copyright>
+
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace MotorcycleRAG.Domain.Entities;
@@ -35,8 +40,7 @@ public class McpToolConfiguration
     /// The MCP server URL or connection string
     /// </summary>
     [Required]
-    [StringLength(500)]
-    public string ServerUrl { get; set; } = string.Empty;
+    public Uri ServerUrl { get; set; } = new("about:blank");
 
     /// <summary>
     /// Whether this tool is enabled for use in orchestration
@@ -65,12 +69,12 @@ public class McpToolConfiguration
     /// <summary>
     /// Whether the tool is a built-in system tool
     /// </summary>
-    public bool IsSystemTool { get; set; } = false;
+    public bool IsSystemTool { get; set; }
 
     /// <summary>
     /// Priority for orchestration (higher = more preferred)
     /// </summary>
-    public int Priority { get; set; } = 0;
+    public int Priority { get; set; }
 
     /// <summary>
     /// Connection timeout in milliseconds

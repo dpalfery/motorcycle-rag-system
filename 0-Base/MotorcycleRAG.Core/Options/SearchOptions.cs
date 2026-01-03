@@ -7,14 +7,19 @@ namespace MotorcycleRAG.Core.Options;
 /// </summary>
 public class SearchOptions
 {
+    private const int DefaultBatchSize = 100;
+    private const int DefaultMaxSearchResults = 50;
+    private const int MaxBatchSize = 1000;
+    private const int MaxSearchResultsLimit = 100;
+
     [Required]
     public string IndexName { get; set; } = "motorcycle-index";
 
-    [Range(1, 1000)]
-    public int BatchSize { get; set; } = 100;
+    [Range(1, MaxBatchSize)]
+    public int BatchSize { get; set; } = DefaultBatchSize;
 
-    [Range(1, 100)]
-    public int MaxSearchResults { get; set; } = 50;
+    [Range(1, MaxSearchResultsLimit)]
+    public int MaxSearchResults { get; set; } = DefaultMaxSearchResults;
 
     public bool EnableHybridSearch { get; set; } = true;
 

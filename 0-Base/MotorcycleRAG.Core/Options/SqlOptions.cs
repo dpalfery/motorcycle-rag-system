@@ -21,4 +21,4 @@ namespace MotorcycleRAG.Core.Options
         /// </summary>
         public int MaxPoolSize { get; set; } = 100;
     }
-}
+}

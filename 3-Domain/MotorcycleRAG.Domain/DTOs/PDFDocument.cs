@@ -17,7 +17,7 @@ public class PDFDocument
     /// <summary>
     /// Document type (manual, specification, etc.)
     /// </summary>
-    public PDFDocumentType DocumentType { get; set; } = PDFDocumentType.Manual;
+    public PdfDocumentType DocumentType { get; set; } = PdfDocumentType.Manual;
 
     /// <summary>
     /// Language of the document

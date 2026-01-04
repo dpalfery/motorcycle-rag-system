@@ -1,18 +1,21 @@
-# Agent Context: MotorcycleRAG.Domain
+# Agent Context: MotorcycleRAG.Domain (3-Domain / Business Rules)
 
-## Invariant Rules
-- **Layer**: 3-Domain (Core Business Rules).
-- **Purpose**: Pure business logic and rules. Most stable layer.
-- **Dependency Rule**: No outward dependencies except for `Base` (minimal). Must NOT depend on `Application`, `Persistence`, or `Presentation`.
-- **Contents**: Rich Entities (behavior + data), Value Objects (immutable), Domain Services, Domain Events and DTOs
-- **Security**: [Security Rule: Active]. No secrets or security-specific implementation details here.
-- **Framework Independence**: Pure C#. No framework code or external dependencies.
+This file is **domain-layer specific** context. Global rules live in `AGENTS.md`.
 
-## Workflow Skills
-- **Test**: `dotnet test` (Unit tests for domain logic)
-- **Analyze**: `speckit.analyze`
-- **Plan**: `speckit.plan`
-- **Implement**: `speckit.implement`
+## What to read first (authoritative)
+- Clean architecture + DTO placement rules: `AGENTS.md`
+- Trust policy + core requirements: `specs/001-system-spec/spec.md`
 
+## What belongs here (in this repo)
+- Entities/value objects that enforce invariants (the “source of truth”)
+- Domain events and domain services (framework-free)
 
-Once you have read the Securiy rule you **MUST** include `[I Read the Domain Instructions]` at the beginning of your Task 
+## What must NOT be here
+- No transport DTOs for HTTP/UI/persistence (put shared DTOs in `3-Domain/MotorcycleRAG.Contracts.Models`)
+- No infrastructure code, SDKs, ORMs, HTTP clients, or logging sinks
+
+## Domain-specific reminders
+- The system has explicit trust-tier rules (Tier A/B/C). If you model this concept, prefer a value object / enum here and keep policy enforcement in Application.
+
+## Useful commands
+- Run unit tests: `dotnet test`

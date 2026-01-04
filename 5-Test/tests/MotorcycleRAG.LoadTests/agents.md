@@ -1,12 +1,11 @@
 # Agent Context: MotorcycleRAG.LoadTests
 
-## Invariant Rules
-- **Type**: Load Tests.
-- **Scope**: Evaluate system stability and performance under concurrent user load.
-- **Security**: [Security Rule: Active]. Ensure load tests do not impact production environments.
+## What this test suite covers
+- Concurrency and throughput testing for API/BFF endpoints
 
-## Workflow Skills
-- **Test**: `dotnet test`
-- **Analyze**: `speckit.analyze`
-- **Plan**: `speckit.plan`
-- **Implement**: `speckit.implement`
+## Project-specific expectations
+- Never point load tests at production.
+- Keep test data non-sensitive.
+
+## Useful commands
+- Run: `dotnet test --project 5-Test/tests/MotorcycleRAG.LoadTests`

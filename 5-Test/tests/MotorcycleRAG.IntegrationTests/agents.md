@@ -1,14 +1,12 @@
 # Agent Context: MotorcycleRAG.IntegrationTests
 
-## Invariant Rules
-- **Type**: Integration Tests.
-- **Stack**: .NET 10.0, xUnit, WebApplicationFactory.
-- **Scope**: Test full slices (Application → Domain → Persistence).
-- **Infrastructure**: Uses real database (or TestContainers).
-- **Security**: [Security Rule: Active]. Verify authentication and authorization flows.
+## What this test suite covers
+- Cross-layer slices through API/Application/Domain/Persistence
+- Authn/authz and request/response contracts where feasible
 
-## Workflow Skills
-- **Test**: `dotnet test`
-- **Analyze**: `speckit.analyze`
-- **Plan**: `speckit.plan`
-- **Implement**: `speckit.implement`
+## Project-specific expectations
+- Prefer running against a dedicated test configuration (e.g., `appsettings.Testing.json`) and isolated resources.
+- Do not embed secrets; use environment variables/user-secrets.
+
+## Useful commands
+- Run: `dotnet test --project 5-Test/tests/MotorcycleRAG.IntegrationTests`

@@ -1,31 +1,23 @@
-# Agent Context: MotorcycleRag.WebUI.BFF
+# Agent Context: MotorcycleRag.WebUI.BFF (1-Presentation / BFF)
 
-**Mandatory Compliance**: This agent MUST adhere to the [Mobile App Specification](../../specs/001-mobile-app/spec.md) and general project architecture rules.
+This file is **BFF-specific** context. For global rules (security, clean architecture), use the root `AGENTS.md`.
 
-## Invariant Rules
-- **Layer**: 1-Presentation (BFF - Backend for Frontend).
-- **Stack**: .NET 10.0, ASP.NET Core.
-- **Purpose**: YARP-based proxy or specialized API for the WebUI.
-- **Dependency Rule**: Can depend on `Application` and `Base`.
-- **Security**: [Security Rule: Active]. Manages authentication sessions for the WebUI (OIDC/Cookie Auth).
-- **Architecture**: Follows the same rules as the API for middleware and configuration.
+## What to read first (authoritative)
+- Baseline requirements (auth split + trust policy): `specs/001-system-spec/spec.md`
+- Environment variable naming: `6-Docs/environment-variables.md` (look for `MCR_BFF_*`)
+- UI stack context: `6-Docs/ui-technology-stack.md`
 
-## BFF Responsibilities
-- **Proxying**: Forward requests to backend services (MotorcycleRAG.API) using YARP.
-- **Authentication**: Handle OIDC flows and session management (Cookies) for the WebUI.
-- **Aggregation**: (Optional) Aggregate data from multiple services if needed for specific UI views.
-- **Transformation**: (Optional) Transform backend data into UI-specific models.
+## What this project is responsible for
+- Browser-facing backend for the WebUI (session/auth boundary)
+- Reverse proxying and/or UI-specific aggregation (commonly via YARP)
 
-## Integration Context
-- **Mobile App**: The BFF may share authentication patterns or endpoints with the Mobile App (see `specs/001-mobile-app`).
-- **WebUI**: Serves as the backend for the `MotorcycleRag.WebUI` frontend.
+## Security and auth boundaries
+- Prefer server-side session management (HTTP-only cookies) and PKCE/OIDC flows.
+- Do not forward client secrets to the browser; secrets stay in server environment variables.
+- Keep token/claims handling consistent with the system spec:
+	- Customers: Entra External ID / B2C
+	- Admins: Entra ID workforce (admin UI is MAUI)
 
-## Workflow Skills
-- **Run**: `dotnet run`
-- **Dev**: `dotnet watch`
-- **Test**: `dotnet test`
-- **Analyze**: `speckit.analyze`
-- **Plan**: `speckit.plan`
-- **Implement**: `speckit.implement`
-
-Once you have read the Securiy rule you **MUST** include `[I Read the WebUI.BFF Instructions]` at the beginning of your Task 
+## Useful commands
+- Run: `dotnet run --project 1-Presentation/MotorcycleRag.WebUI.BFF`
+- Test: `dotnet test`

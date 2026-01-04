@@ -1,16 +1,18 @@
-# Agent Context: MotorcycleRAG.MobileApp.Tests
+# Agent Context: MotorcycleRAG.MobileApp.Tests (5-Test)
 
-## Invariant Rules
-- **Type**: Unit/Integration Tests for Mobile App.
-- **Stack**: .NET 10.0, xUnit (likely).
-- **Security**: [Security Rule: Active]. Use mocks for sensitive services.
-- **Rules**: Test ViewModels (logic) and Services (data). Do not test Views (UI). Use Moq/NSubstitute.
+This file is **mobile-test specific** context. Root rules live in `AGENTS.md`.
 
-## Workflow Skills
-- **Test**: `dotnet test`
-- **Analyze**: `speckit.analyze`
-- **Plan**: `speckit.plan`
-- **Implement**: `speckit.implement`
+## What to read first (authoritative)
+- Mobile requirements: `specs/001-mobile-app/spec.md`
+- MAUI testing constraints: `6-Docs/MAUI_ARCHITECT.md` (testing strategy section)
 
+## What we test here (in this repo)
+- ViewModels and services (logic + orchestration)
+- Storage and “user memory” behavior (pruning, persistence), where feasible without UI
 
-Once you have read the Securiy rule you **MUST** include `[I Read the Tests Instructions]` at the beginning of your Task 
+## What we do NOT test here
+- No UI view snapshot testing unless a dedicated UI test harness exists
+- Avoid tests that require device/emulator unless explicitly set up
+
+## Useful commands
+- Run tests: `dotnet test --project 5-Test/MotorcycleRAG.MobileApp.Tests`

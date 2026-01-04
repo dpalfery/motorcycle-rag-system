@@ -1,14 +1,15 @@
-# Agent Context: MotorcycleRAG.Contracts
+# Agent Context: MotorcycleRAG.Contracts (3-Domain / Interfaces)
 
-**you must not put DTOs and Models in the contracts project** never!!
+This file is **contracts-project specific** context. Root rules live in `AGENTS.md`.
 
+## What to read first (authoritative)
+- DTO vs Contracts vs Domain guidance: `AGENTS.md`
+- System baseline: `specs/001-system-spec/spec.md`
 
-## Invariant Rules
-- **Layer**: 3-Domain (Abstractions).
-- **Purpose**: Defines shared interfaces and contracts used by Domain and Application layers.
-- **Dependency Rule**: Can depend on `Domain` and `Base`. Must NOT depend on `Persistence` or `Presentation`.
-- **Contents**: Repository interfaces, service interfaces. **Absolutely no DTOs, Entities, or Models in this project**
+## What belongs in `MotorcycleRAG.Contracts`
+- Interfaces only (repositories, service abstractions, factories)
+- Signatures may reference Domain types (this repo treats Contracts as “domain-owned abstractions”)
 
-
-
-Once you have read the Securiy rule you **MUST** include `[I Read the Contracts Instructions]` at the beginning of your Task 
+## What must NOT be here
+- No DTOs/models (shared DTO shapes live in `3-Domain/MotorcycleRAG.Contracts.Models`)
+- No implementations (those belong in Persistence / Application / Presentation depending on concern)

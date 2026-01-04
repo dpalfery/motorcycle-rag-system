@@ -1,15 +1,20 @@
-# Agent Context: MotorcycleRAG.Persistence
+# Agent Context: MotorcycleRAG.Persistence (4-Persistence / Infrastructure)
 
-## Invariant Rules
-- **Layer**: 4-Persistence (Infrastructure).
-- **Purpose**: Implements data storage, retrieval, and external services.
-- **Dependency Rule**: Can depend on `Domain`, `Contracts`, and `Base`. Must NOT depend on `Application` or `Presentation`.
-- **Stack**: SQL Server, Azure AI Search, Azure Blob Storage.
-- **Data Access**: ADO.NET / Dapper for SQL. Azure SDKs for Cloud services. NO ENTITYFRAMEWORK used here please beyond migrations
-- **Security**: [Security Rule: Active]. NEVER hardcode connection strings. Use managed identities or environment variables. All SQL must be parameterized.
-- **Resilience**: Implement Polly-based retry policies for all external calls.
+This file is **persistence-layer specific** context. Root rules live in `AGENTS.md`.
 
-## Workflow Skills
-- **Test**: `dotnet test` (Integration tests)
+## What to read first (authoritative)
+- Security + secrets rules: `AGENTS.md`
+- Environment variables naming: `6-Docs/environment-variables.md` (API expects `MCR_API_*` for most infra dependencies)
+- Baseline system requirements: `specs/001-system-spec/spec.md`
 
-Once you have read the Securiy rule you **MUST** include `[I Read the Persistence Instructions]` at the beginning of your Task 
+## What this project is responsible for
+- Implement repository/service interfaces from `3-Domain/MotorcycleRAG.Contracts`
+- Data access + external service integrations (SQL Server, Azure services)
+
+## Project-specific constraints
+- SQL access must be parameterized (no string concatenation).
+- No secrets in code/config; use environment variables / managed identity.
+- Keep dependencies one-way: Persistence depends inward on Domain/Contracts/Base, never on Application/Presentation.
+
+## Useful commands
+- Run tests: `dotnet test`

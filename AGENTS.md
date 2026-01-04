@@ -599,6 +599,6 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 
 These rules are not optional and you **MUST** follow them always.
 
-## Task header markers
+## 23. Task header markers
 - At the beginning of each task/response, include:
   - `[******Working Agreement: Active******]` after reading the Working Agreement rules in this AGENTS.md document

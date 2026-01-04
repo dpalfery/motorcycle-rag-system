@@ -1,14 +1,12 @@
 # Agent Context: MotorcycleRAG.UnitTests
 
-## Invariant Rules
-- **Type**: Unit Tests for Core, Domain, and Application layers.
-- **Stack**: .NET 10.0, xUnit.
-- **Isolation**: NO external dependencies (DB, APIs, frameworks). Fast and pure logic tests.
-- **Security**: [Security Rule: Active].
-- **Clean Architecture**: Verify business rules independence.
+## What this test suite covers
+- Unit tests for `0-Base`, `2-Application`, and `3-Domain` projects
+- Pure logic only (no DB/HTTP/Azure; no filesystem)
 
-## Workflow Skills
-- **Test**: `dotnet test`
-- **Analyze**: `speckit.analyze`
-- **Plan**: `speckit.plan`
-- **Implement**: `speckit.implement`
+## Project-specific expectations
+- Keep tests fast and deterministic.
+- If a test needs an interface implementation, prefer a simple fake/mock instead of bringing in infrastructure.
+
+## Useful commands
+- Run: `dotnet test --project 5-Test/tests/MotorcycleRAG.UnitTests`

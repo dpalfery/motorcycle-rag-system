@@ -1,13 +1,11 @@
 # Agent Context: MotorcycleRAG.EndToEndTests
 
-## Invariant Rules
-- **Type**: End-to-End Tests.
-- **Stack**: .NET 10.0, Playwright (likely).
-- **Scope**: Full system workflows from user perspective.
-- **Security**: [Security Rule: Active]. Use test accounts and safe data.
+## What this test suite covers
+- Full user journeys across the system (UI/BFF/API) where the harness exists
 
-## Workflow Skills
-- **Test**: `dotnet test`
-- **Analyze**: `speckit.analyze`
-- **Plan**: `speckit.plan`
-- **Implement**: `speckit.implement`
+## Project-specific expectations
+- Use non-production environments and dedicated test identities.
+- Avoid leaking query text or secrets into test logs/artifacts.
+
+## Useful commands
+- Run: `dotnet test --project 5-Test/tests/MotorcycleRAG.EndToEndTests`

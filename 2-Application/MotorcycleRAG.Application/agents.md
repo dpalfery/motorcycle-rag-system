@@ -1,19 +1,20 @@
-# Agent Context: MotorcycleRAG.Application
+# Agent Context: MotorcycleRAG.Application (2-Application / Use Cases)
 
-## Invariant Rules
-- **Layer**: 2-Application (Use Cases).
-- **Stack**: .NET 10.0, C# 13.
-- **Pattern**: CQRS (Commands & Queries).
-- **Dependency Rule**: Can depend on `Domain`, `Contracts`, and `Base`. Must NOT depend on `Persistence` or `Presentation`.
-- **Logic**: Orchestrates domain entities. Contains application-specific business rules.
-- **Abstractions**: Defines interfaces for external dependencies (repositories, services).
-- **Security**: [Security Rule: Active]. Enforce application-level authorization policies.
-- **No Infrastructure**: No references to SQL, HTTP, or specific frameworks (e.g., EF Core).
+This file is **application-layer specific** context. Root rules live in `AGENTS.md`.
 
-## Workflow Skills
-- **Test**: `dotnet test`
-- **Analyze**: `speckit.analyze`
-- **Plan**: `speckit.plan`
-- **Implement**: `speckit.implement`
+## What to read first (authoritative)
+- Baseline requirements + trust policy: `specs/001-system-spec/spec.md`
+- Security checklist: `specs/001-system-spec/checklists/asvs-v5-level2.md`
 
-Once you have read the Securiy rule you **MUST** include `[I Read the Application Instructions]` at the beginning of your Task 
+## What belongs here (in this repo)
+- Use-case orchestration (commands/queries/handlers)
+- Interfaces/abstractions for infrastructure (repositories, external services)
+- Authorization decisions that are policy-like (enforce “who can do what” without framework specifics)
+
+## What must NOT be here
+- No HTTP concerns (that’s Presentation)
+- No SQL/Azure/SDK usage (that’s Persistence)
+- No domain invariants baked into DTOs (those belong in Domain entities/value objects)
+
+## Useful commands
+- Test: `dotnet test`

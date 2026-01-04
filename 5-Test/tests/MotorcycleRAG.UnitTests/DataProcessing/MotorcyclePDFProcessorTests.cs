@@ -17,8 +17,7 @@ namespace MotorcycleRAG.UnitTests.DataProcessing;
 /// T111: Unit tests for MotorcyclePDFProcessor page/section extraction and table page-range locator metadata
 /// Tests are deterministic and use fakes/mocks for external services
 /// </summary>
-public class MotorcyclePDFProcessorTests
-{
+public class MotorcyclePDFProcessorTests {
     private readonly Mock<IDocumentIntelligenceClient> _mockDocumentClient;
     private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
     private readonly Mock<IAzureSearchClient> _mockSearchClient;
@@ -26,14 +25,12 @@ public class MotorcyclePDFProcessorTests
     private readonly IOptions<AzureAIOptions> _azureConfigOptions;
     private readonly MotorcyclePDFProcessor _processor;
 
-    public MotorcyclePDFProcessorTests()
-    {
+    public MotorcyclePDFProcessorTests() {
         _mockDocumentClient = new Mock<IDocumentIntelligenceClient>();
         _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         _mockSearchClient = new Mock<IAzureSearchClient>();
 
-        var config = new PDFProcessingConfiguration
-        {
+        var config = new PDFProcessingConfiguration {
             MaxChunkSize = 2000,
             MinChunkSize = 200,
             ChunkOverlap = 200,
@@ -45,10 +42,8 @@ public class MotorcyclePDFProcessorTests
         };
         _configOptions = Options.Create(config);
 
-        var azureConfig = new AzureAIOptions
-        {
-            Models = new ModelOptions
-            {
+        var azureConfig = new AzureAIOptions {
+            Models = new ModelOptions {
                 EmbeddingModel = "text-embedding-3-large",
                 VisionModel = "gpt-4-vision"
             }
@@ -70,14 +65,12 @@ public class MotorcyclePDFProcessorTests
     /// T111-1: Test that page with CHAPTER heading results in chunk metadata with PrimarySection and SectionLevel=1
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithChapterHeading_SetsPrimarySectionAndLevel1()
-    {
+    public async Task ProcessAsync_WithChapterHeading_SetsPrimarySectionAndLevel1() {
         // Arrange
         var documentContent = "CHAPTER 3 Maintenance Procedures\n\nThis chapter covers maintenance procedures.";
         var pdfDocument = CreateTestPDFDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 3,
                 Content = documentContent,
                 Width = 800,
@@ -134,14 +127,12 @@ public class MotorcyclePDFProcessorTests
     /// Note: Pattern requires "digit + dot + space" format (e.g., "3. Maintenance" not "3.2 Maintenance")
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithNumberedSectionHeading_SetsSectionLevel2()
-    {
+    public async Task ProcessAsync_WithNumberedSectionHeading_SetsSectionLevel2() {
         // Arrange
         var documentContent = "3. Maintenance\n\nRegular maintenance is essential.";
         var pdfDocument = CreateTestPDFDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 5,
                 Content = documentContent,
                 Width = 800,
@@ -176,11 +167,10 @@ public class MotorcyclePDFProcessorTests
         // Verify PrimarySection is detected
         var primarySectionValue = GetPropertyValue(locator, "PrimarySection") as string;
         primarySectionValue.Should().NotBeNullOrEmpty();
-        
+
         // Verify SectionLevel is set (using BeGreaterThanOrEqualTo for flexible assertion)
         var sectionLevel = GetPropertyValue(locator, "SectionLevel");
-        if (sectionLevel != null)
-        {
+        if (sectionLevel != null) {
             ((int)sectionLevel).Should().BeGreaterThanOrEqualTo(0);
         }
 
@@ -197,14 +187,12 @@ public class MotorcyclePDFProcessorTests
     /// T111-3: Test that page with ALL CAPS heading results in SectionLevel=2
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithAllCapsHeading_SetsSectionLevel2()
-    {
+    public async Task ProcessAsync_WithAllCapsHeading_SetsSectionLevel2() {
         // Arrange
         var documentContent = "SAFETY PRECAUTIONS\n\nRead all safety warnings carefully.";
         var pdfDocument = CreateTestPDFDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 2,
                 Content = documentContent,
                 Width = 800,
@@ -258,14 +246,12 @@ public class MotorcyclePDFProcessorTests
     /// T111-4: Test that page with title case heading ending in colon results in SectionLevel=3
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithTitleCaseColonHeading_SetsSectionLevel3()
-    {
+    public async Task ProcessAsync_WithTitleCaseColonHeading_SetsSectionLevel3() {
         // Arrange
         var documentContent = "Oil Change Procedure:\n\nFollow these steps to change oil.";
         var pdfDocument = CreateTestPDFDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 10,
                 Content = documentContent,
                 Width = 800,
@@ -300,11 +286,10 @@ public class MotorcyclePDFProcessorTests
         // Verify PrimarySection is detected (may be "General Content" if pattern doesn't match)
         var primarySectionValue = GetPropertyValue(locator, "PrimarySection") as string;
         primarySectionValue.Should().NotBeNullOrEmpty();
-        
+
         // Verify SectionLevel is set (may be 0 if pattern doesn't match)
         var sectionLevel = GetPropertyValue(locator, "SectionLevel");
-        if (sectionLevel != null)
-        {
+        if (sectionLevel != null) {
             ((int)sectionLevel).Should().BeGreaterThanOrEqualTo(0);
         }
 
@@ -321,8 +306,7 @@ public class MotorcyclePDFProcessorTests
     /// T111-5: Test that table chunk has correct StartPageNumber, EndPageNumber, and PageRange when cells have PageNumber values
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithMultiPageTable_SetsCorrectPageRangeInLocator()
-    {
+    public async Task ProcessAsync_WithMultiPageTable_SetsCorrectPageRangeInLocator() {
         // Arrange
         var documentContent = "Specifications Table";
         var pdfDocument = CreateTestPDFDocument(documentContent);
@@ -340,8 +324,7 @@ public class MotorcyclePDFProcessorTests
             new DocumentTableCell { RowIndex = 3, ColumnIndex = 1, Content = "200kg", IsHeader = false, PageNumber = 7 }
         };
 
-        var table = new DocumentTable
-        {
+        var table = new DocumentTable {
             RowCount = 4,
             ColumnCount = 2,
             Cells = tableCells,
@@ -350,8 +333,7 @@ public class MotorcyclePDFProcessorTests
         };
 
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 5,
                 Content = documentContent,
                 Width = 800,
@@ -399,7 +381,7 @@ public class MotorcyclePDFProcessorTests
         // Verify EndPageNumber is in ChunkMetadata for multi-page tables
         tableChunk.Metadata.AdditionalProperties.Should().ContainKey("ChunkMetadata");
         var chunkMetadata = tableChunk.Metadata.AdditionalProperties["ChunkMetadata"] as Dictionary<string, object>;
-        
+
         // EndPageNumber should be present for multi-page tables
         chunkMetadata.Should().ContainKey("EndPageNumber");
         var endPage = chunkMetadata["EndPageNumber"];
@@ -415,8 +397,7 @@ public class MotorcyclePDFProcessorTests
     /// T111-6: Test that single-page table has correct page range (single number)
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithSinglePageTable_SetsSinglePageRange()
-    {
+    public async Task ProcessAsync_WithSinglePageTable_SetsSinglePageRange() {
         // Arrange
         var documentContent = "Quick Reference";
         var pdfDocument = CreateTestPDFDocument(documentContent);
@@ -430,8 +411,7 @@ public class MotorcyclePDFProcessorTests
             new DocumentTableCell { RowIndex = 1, ColumnIndex = 1, Content = "OK", IsHeader = false, PageNumber = 3 }
         };
 
-        var table = new DocumentTable
-        {
+        var table = new DocumentTable {
             RowCount = 2,
             ColumnCount = 2,
             Cells = tableCells,
@@ -440,8 +420,7 @@ public class MotorcyclePDFProcessorTests
         };
 
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 3,
                 Content = documentContent,
                 Width = 800,
@@ -501,14 +480,12 @@ public class MotorcyclePDFProcessorTests
     /// T111-7: Test that page without section patterns falls back gracefully to "General Content"
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithoutSectionPatterns_FallsBackToGeneralContent()
-    {
+    public async Task ProcessAsync_WithoutSectionPatterns_FallsBackToGeneralContent() {
         // Arrange
         var documentContent = "This is some regular text without any headings or section markers. Just plain content that describes motorcycle maintenance procedures in a straightforward manner.";
         var pdfDocument = CreateTestPDFDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 4,
                 Content = documentContent,
                 Width = 800,
@@ -567,14 +544,12 @@ public class MotorcyclePDFProcessorTests
     /// T111-8: Test that empty page falls back gracefully to "Empty Page"
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithEmptyPage_FallsBackToEmptyPage()
-    {
+    public async Task ProcessAsync_WithEmptyPage_FallsBackToEmptyPage() {
         // Arrange
         var documentContent = string.Empty;
         var pdfDocument = CreateTestPDFDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 1,
                 Content = documentContent,
                 Width = 800,
@@ -608,14 +583,12 @@ public class MotorcyclePDFProcessorTests
     /// Note: Implementation captures all matched headings, not just primary
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithMultipleHeadings_CapturesAllHeadings()
-    {
+    public async Task ProcessAsync_WithMultipleHeadings_CapturesAllHeadings() {
         // Arrange
         var documentContent = "CHAPTER 3 Maintenance\n\n3. Oil Change\n\n3. Brake Service\n\nRegular maintenance is important.";
         var pdfDocument = CreateTestPDFDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 3,
                 Content = documentContent,
                 Width = 800,
@@ -661,7 +634,7 @@ public class MotorcyclePDFProcessorTests
         sectionHeadings.Should().NotBeNull();
         sectionHeadings.Length.Should().BeGreaterThanOrEqualTo(1);
         sectionHeadings.Should().Contain("CHAPTER 3 Maintenance", "SectionHeadings should contain primary heading");
-        
+
         // Note: Implementation captures all headings, so may contain more than one
     }
 
@@ -669,8 +642,7 @@ public class MotorcyclePDFProcessorTests
     /// T111-10: Test that table without page numbers in cells defaults to page 1
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithTableWithoutPageNumbers_DefaultsToPage1()
-    {
+    public async Task ProcessAsync_WithTableWithoutPageNumbers_DefaultsToPage1() {
         // Arrange
         var documentContent = "Data Table";
         var pdfDocument = CreateTestPDFDocument(documentContent);
@@ -684,8 +656,7 @@ public class MotorcyclePDFProcessorTests
             new DocumentTableCell { RowIndex = 1, ColumnIndex = 1, Content = "2", IsHeader = false, PageNumber = 0 }
         };
 
-        var table = new DocumentTable
-        {
+        var table = new DocumentTable {
             RowCount = 2,
             ColumnCount = 2,
             Cells = tableCells,
@@ -694,8 +665,7 @@ public class MotorcyclePDFProcessorTests
         };
 
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 2,
                 Content = documentContent,
                 Width = 800,
@@ -750,8 +720,7 @@ public class MotorcyclePDFProcessorTests
     /// T111-11: Test that table with caption includes caption in locator metadata
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithTableCaption_IncludesCaptionInLocator()
-    {
+    public async Task ProcessAsync_WithTableCaption_IncludesCaptionInLocator() {
         // Arrange
         var documentContent = "Table with caption";
         var pdfDocument = CreateTestPDFDocument(documentContent);
@@ -764,8 +733,7 @@ public class MotorcyclePDFProcessorTests
             new DocumentTableCell { RowIndex = 1, ColumnIndex = 1, Content = "1000cc", IsHeader = false, PageNumber = 5 }
         };
 
-        var table = new DocumentTable
-        {
+        var table = new DocumentTable {
             RowCount = 2,
             ColumnCount = 2,
             Cells = tableCells,
@@ -774,8 +742,7 @@ public class MotorcyclePDFProcessorTests
         };
 
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 5,
                 Content = documentContent,
                 Width = 800,
@@ -818,14 +785,12 @@ public class MotorcyclePDFProcessorTests
     /// T111-12: Test that SECTION heading pattern is recognized
     /// </summary>
     [Fact]
-    public async Task ProcessAsync_WithSectionHeading_SetsSectionLevel2()
-    {
+    public async Task ProcessAsync_WithSectionHeading_SetsSectionLevel2() {
         // Arrange
         var documentContent = "SECTION 4 Electrical System\n\nThis section covers electrical components.";
         var pdfDocument = CreateTestPDFDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
-            new DocumentPage
-            {
+            new DocumentPage {
                 PageNumber = 4,
                 Content = documentContent,
                 Width = 800,
@@ -880,10 +845,9 @@ public class MotorcyclePDFProcessorTests
     /// <summary>
     /// Helper method to get property value from an anonymous object using reflection
     /// </summary>
-    private static object? GetPropertyValue(object obj, string propertyName)
-    {
+    private static object? GetPropertyValue(object obj, string propertyName) {
         if (obj == null) return null;
-        
+
         var property = obj.GetType().GetProperty(propertyName);
         return property?.GetValue(obj);
     }
@@ -891,11 +855,9 @@ public class MotorcyclePDFProcessorTests
     /// <summary>
     /// Creates a test PDF document with given content
     /// </summary>
-    private static PDFDocument CreateTestPDFDocument(string content)
-    {
+    private static PDFDocument CreateTestPDFDocument(string content) {
         var contentBytes = Encoding.UTF8.GetBytes(content);
-        return new PDFDocument
-        {
+        return new PDFDocument {
             FileName = "test-manual.pdf",
             Content = new MemoryStream(contentBytes),
             DocumentType = PdfDocumentType.Manual,
@@ -913,10 +875,8 @@ public class MotorcyclePDFProcessorTests
     /// <summary>
     /// Creates a test DocumentAnalysisResult with given pages and optional tables
     /// </summary>
-    private static DocumentAnalysisResult CreateTestAnalysisResult(DocumentPage page, DocumentTable[]? tables = null)
-    {
-        return new DocumentAnalysisResult
-        {
+    private static DocumentAnalysisResult CreateTestAnalysisResult(DocumentPage page, DocumentTable[]? tables = null) {
+        return new DocumentAnalysisResult {
             Content = page.Content,
             Pages = new[] { page },
             Tables = tables ?? Array.Empty<DocumentTable>(),

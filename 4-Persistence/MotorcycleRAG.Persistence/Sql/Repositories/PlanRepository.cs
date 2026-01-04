@@ -9,13 +9,11 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Enums;
 
 
-namespace MotorcycleRAG.Persistence.Sql.Repositories
-{
+namespace MotorcycleRAG.Persistence.Sql.Repositories {
     /// <summary>
     /// ADO.NET implementation of plan repository
     /// </summary>
-    public class PlanRepository : IPlanRepository
-    {
+    public class PlanRepository : IPlanRepository {
         private readonly ISqlConnectionFactory _connectionFactory;
         private readonly ILogger<PlanRepository> _logger;
 
@@ -24,8 +22,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="connectionFactory">SQL connection factory</param>
         /// <param name="logger">Logger</param>
-        public PlanRepository(ISqlConnectionFactory connectionFactory, ILogger<PlanRepository> logger)
-        {
+        public PlanRepository(ISqlConnectionFactory connectionFactory, ILogger<PlanRepository> logger) {
             _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -35,10 +32,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="plan">Plan to create</param>
         /// <returns>Created plan with ID</returns>
-        public async Task<UserPlan> CreatePlanAsync(UserPlan plan)
-        {
-            if (plan == null)
-            {
+        public async Task<UserPlan> CreatePlanAsync(UserPlan plan) {
+            if (plan == null) {
                 throw new ArgumentNullException(nameof(plan));
             }
 
@@ -52,16 +47,14 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
                 SELECT * FROM [dbo].[UserPlans] WHERE [Id] = @Id;
             ";
 
-            try
-            {
+            try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 var createdPlan = await connection.QueryFirstOrDefaultAsync<UserPlan>(sql, plan);
-                
+
                 _logger.LogInformation("Created plan with ID {PlanId}", createdPlan?.Id);
                 return createdPlan ?? throw new InvalidOperationException("Plan creation failed");
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create plan");
                 throw;
             }
@@ -72,10 +65,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="planId">Plan ID</param>
         /// <returns>Plan if found, null otherwise</returns>
-        public async Task<UserPlan?> GetPlanByIdAsync(string planId)
-        {
-            if (string.IsNullOrWhiteSpace(planId))
-            {
+        public async Task<UserPlan?> GetPlanByIdAsync(string planId) {
+            if (string.IsNullOrWhiteSpace(planId)) {
                 throw new ArgumentException("Plan ID cannot be null or empty", nameof(planId));
             }
 
@@ -83,13 +74,11 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
                 SELECT * FROM [dbo].[UserPlans] WHERE [Id] = @PlanId;
             ";
 
-            try
-            {
+            try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 return await connection.QueryFirstOrDefaultAsync<UserPlan>(sql, new { PlanId = planId });
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get plan by ID {PlanId}", planId);
                 throw;
             }
@@ -100,10 +89,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="planName">Plan name</param>
         /// <returns>Plan if found, null otherwise</returns>
-        public async Task<UserPlan?> GetPlanByNameAsync(string planName)
-        {
-            if (string.IsNullOrWhiteSpace(planName))
-            {
+        public async Task<UserPlan?> GetPlanByNameAsync(string planName) {
+            if (string.IsNullOrWhiteSpace(planName)) {
                 throw new ArgumentException("Plan name cannot be null or empty", nameof(planName));
             }
 
@@ -111,13 +98,11 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
                 SELECT * FROM [dbo].[UserPlans] WHERE [Name] = @PlanName;
             ";
 
-            try
-            {
+            try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 return await connection.QueryFirstOrDefaultAsync<UserPlan>(sql, new { PlanName = planName });
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get plan by name {PlanName}", planName);
                 throw;
             }
@@ -127,20 +112,17 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// Gets all plans
         /// </summary>
         /// <returns>List of all plans</returns>
-        public async Task<UserPlan[]> GetAllPlansAsync()
-        {
+        public async Task<UserPlan[]> GetAllPlansAsync() {
             const string sql = @"
                 SELECT * FROM [dbo].[UserPlans] ORDER BY [IsPaid] DESC, [Name];
             ";
 
-            try
-            {
+            try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 var plans = await connection.QueryAsync<UserPlan>(sql);
                 return plans.ToArray();
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get all plans");
                 throw;
             }
@@ -151,10 +133,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="plan">Plan to update</param>
         /// <returns>True if successful, false otherwise</returns>
-        public async Task<bool> UpdatePlanAsync(UserPlan plan)
-        {
-            if (plan == null)
-            {
+        public async Task<bool> UpdatePlanAsync(UserPlan plan) {
+            if (plan == null) {
                 throw new ArgumentNullException(nameof(plan));
             }
 
@@ -167,16 +147,14 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
                 WHERE [Id] = @Id;
             ";
 
-            try
-            {
+            try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 int rowsAffected = await connection.ExecuteAsync(sql, plan);
-                
+
                 _logger.LogInformation("Updated plan with ID {PlanId}, rows affected: {RowsAffected}", plan.Id, rowsAffected);
                 return rowsAffected > 0;
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to update plan with ID {PlanId}", plan.Id);
                 throw;
             }
@@ -187,10 +165,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="planId">Plan ID</param>
         /// <returns>True if successful, false otherwise</returns>
-        public async Task<bool> DeletePlanAsync(string planId)
-        {
-            if (string.IsNullOrWhiteSpace(planId))
-            {
+        public async Task<bool> DeletePlanAsync(string planId) {
+            if (string.IsNullOrWhiteSpace(planId)) {
                 throw new ArgumentException("Plan ID cannot be null or empty", nameof(planId));
             }
 
@@ -198,16 +174,14 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
                 DELETE FROM [dbo].[UserPlans] WHERE [Id] = @PlanId;
             ";
 
-            try
-            {
+            try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 int rowsAffected = await connection.ExecuteAsync(sql, new { PlanId = planId });
-                
+
                 _logger.LogInformation("Deleted plan with ID {PlanId}, rows affected: {RowsAffected}", planId, rowsAffected);
                 return rowsAffected > 0;
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to delete plan with ID {PlanId}", planId);
                 throw;
             }

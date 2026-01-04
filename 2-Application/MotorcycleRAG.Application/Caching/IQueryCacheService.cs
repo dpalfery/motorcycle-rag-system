@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Application.Caching;
 /// <summary>
 /// Interface for caching motorcycle query results to improve performance and reduce costs.
 /// </summary>
-public interface IQueryCacheService
-{
+public interface IQueryCacheService {
     /// <summary>
     /// Gets a cached query response if available.
     /// </summary>
@@ -56,8 +55,7 @@ public interface IQueryCacheService
 /// <summary>
 /// Cache statistics for monitoring and optimization.
 /// </summary>
-public class CacheStatistics
-{
+public class CacheStatistics {
     public long TotalRequests { get; set; }
     public long CacheHits { get; set; }
     public long CacheMisses { get; set; }

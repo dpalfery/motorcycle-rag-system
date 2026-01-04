@@ -22,7 +22,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
     {
         _factory = factory;
         _scope = _factory.Services.CreateScope();
-        
+
         _ragService = _scope.ServiceProvider.GetRequiredService<IMotorcycleRAGService>();
         _pipelineOrchestrator = _scope.ServiceProvider.GetRequiredService<IDataPipelineOrchestrator>();
         _fileUploadService = _scope.ServiceProvider.GetRequiredService<IFileUploadService>();
@@ -30,7 +30,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         // Create test data directory
         _testDataDirectory = Path.Combine(Path.GetTempPath(), $"E2ETest_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testDataDirectory);
-        
+
         // Create realistic test data
         CreateRealisticTestData();
     }
@@ -41,7 +41,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         // Arrange - Upload and process motorcycle specifications CSV
         var csvFile = Path.Combine(_testDataDirectory, "motorcycle_specs.csv");
         var file = CreateFormFileFromPath(csvFile);
-        
+
         var uploadOptions = new FileUploadOptions
         {
             UploadDirectory = "e2e-test",
@@ -96,7 +96,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         // Arrange - Upload and process motorcycle manual PDF
         var pdfFile = Path.Combine(_testDataDirectory, "honda_manual.pdf");
         var file = CreateFormFileFromPath(pdfFile);
-        
+
         var uploadOptions = new FileUploadOptions
         {
             UploadDirectory = "e2e-test",
@@ -122,9 +122,9 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         };
 
         var processingResult = await _pipelineOrchestrator.ProcessFileAsync(pipelineRequest);
-        
+
         // PDF processing might fail in test environment without real Azure services
-        Assert.True(processingResult.Status == PipelineStatus.Completed || 
+        Assert.True(processingResult.Status == PipelineStatus.Completed ||
                    processingResult.Status == PipelineStatus.Failed);
 
         if (processingResult.Status == PipelineStatus.Completed)
@@ -169,7 +169,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
 
         // Act - Batch upload
         var batchUploadResult = await _fileUploadService.UploadFilesAsync(files, uploadOptions);
-        
+
         // Assert uploads
         Assert.Equal(3, batchUploadResult.TotalFiles);
         Assert.True(batchUploadResult.SuccessfulUploads >= 2); // At least CSV files should succeed
@@ -215,10 +215,10 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
     {
         // Act - Check RAG service health
         var ragHealth = await _ragService.GetHealthAsync();
-        
+
         // Assert - RAG service should be healthy or degraded (not unhealthy)
         Assert.NotNull(ragHealth);
-        Assert.True(ragHealth.Status == HealthCheckStatus.Healthy || 
+        Assert.True(ragHealth.Status == HealthCheckStatus.Healthy ||
                    ragHealth.Status == HealthCheckStatus.Degraded);
 
         // Additional health checks can be added here for other components
@@ -251,7 +251,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         Assert.NotEmpty(response.Response);
         Assert.NotNull(response.QueryId);
         Assert.NotNull(response.Metrics);
-        
+
         // Response time should be reasonable
         Assert.True(response.Metrics.ResponseTime < TimeSpan.FromSeconds(30));
     }
@@ -406,7 +406,7 @@ startxref
         var contentType = fileName.EndsWith(".pdf") ? "application/pdf" : "text/csv";
         var content = File.ReadAllBytes(filePath);
         var stream = new MemoryStream(content);
-        
+
         var file = new FormFile(stream, 0, content.Length, "file", fileName)
         {
             Headers = new HeaderDictionary(),
@@ -419,7 +419,7 @@ startxref
     public void Dispose()
     {
         _scope?.Dispose();
-        
+
         // Cleanup test directory
         if (Directory.Exists(_testDataDirectory))
         {

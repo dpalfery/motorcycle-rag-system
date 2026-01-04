@@ -21,8 +21,7 @@ namespace MotorcycleRAG.Application.Services;
 /// - Timestamps use UTC to prevent timezone confusion
 /// - IP addresses are logged (optional) for forensic analysis
 /// </summary>
-public class AuditService : IAuditService
-{
+public class AuditService : IAuditService {
     private readonly IAuditRepository _auditRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly ICorrelationService _correlationService;
@@ -35,8 +34,7 @@ public class AuditService : IAuditService
         IAuditRepository auditRepository,
         ICurrentUserService currentUserService,
         ICorrelationService correlationService,
-        ILogger<AuditService> logger)
-    {
+        ILogger<AuditService> logger) {
         _auditRepository = auditRepository ?? throw new ArgumentNullException(nameof(auditRepository));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
@@ -51,16 +49,14 @@ public class AuditService : IAuditService
         string userId,
         string? email = null,
         string? ipAddress = null,
-        string? userAgent = null)
-    {
+        string? userAgent = null) {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be empty", nameof(userId));
 
         var sanitizedUserId = SanitizeUserId(userId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
-        var auditLog = new AuditLog
-        {
+        var auditLog = new AuditLog {
             UserId = sanitizedUserId,
             UserEmail = email, // Stored for audit trail but not exposed in logs directly
             Action = "authentication_success",
@@ -91,16 +87,14 @@ public class AuditService : IAuditService
     /// </summary>
     public async Task<AuditLog> LogLogoutAsync(
         string userId,
-        string? ipAddress = null)
-    {
+        string? ipAddress = null) {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be empty", nameof(userId));
 
         var sanitizedUserId = SanitizeUserId(userId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
-        var auditLog = new AuditLog
-        {
+        var auditLog = new AuditLog {
             UserId = sanitizedUserId,
             Action = "logout",
             EntityType = "User",
@@ -129,16 +123,14 @@ public class AuditService : IAuditService
         string? email,
         string reason,
         string? ipAddress = null,
-        string? userAgent = null)
-    {
+        string? userAgent = null) {
         if (string.IsNullOrWhiteSpace(reason))
             throw new ArgumentException("Reason cannot be empty", nameof(reason));
 
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
         var sanitizedEmail = RedactEmail(email); // Redact email in case of brute force attempts
 
-        var auditLog = new AuditLog
-        {
+        var auditLog = new AuditLog {
             UserEmail = email, // Store original for audit trail
             Action = "authentication_failure",
             EntityType = "User",
@@ -175,8 +167,7 @@ public class AuditService : IAuditService
         string action,
         string? beforeValue = null,
         string? afterValue = null,
-        string? changeReason = null)
-    {
+        string? changeReason = null) {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be empty", nameof(userId));
 
@@ -192,14 +183,12 @@ public class AuditService : IAuditService
         var sanitizedUserId = SanitizeUserId(userId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
-        var metadata = new
-        {
+        var metadata = new {
             CorrelationId = correlationId,
             ChangeReason = changeReason
         };
 
-        var auditLog = new AuditLog
-        {
+        var auditLog = new AuditLog {
             UserId = sanitizedUserId,
             Action = $"config_change_{action}",
             EntityType = entityType,
@@ -236,8 +225,7 @@ public class AuditService : IAuditService
         string action,
         string status = "Success",
         string? errorMessage = null,
-        string? metadata = null)
-    {
+        string? metadata = null) {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be empty", nameof(userId));
 
@@ -253,14 +241,12 @@ public class AuditService : IAuditService
         var sanitizedUserId = SanitizeUserId(userId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
-        var fullMetadata = new
-        {
+        var fullMetadata = new {
             CorrelationId = correlationId,
             AdditionalData = metadata
         };
 
-        var auditLog = new AuditLog
-        {
+        var auditLog = new AuditLog {
             UserId = sanitizedUserId,
             Action = $"data_access_{action}",
             EntityType = entityType,
@@ -296,8 +282,7 @@ public class AuditService : IAuditService
         string targetUserId,
         string action,
         string? changeDetails = null,
-        string? reason = null)
-    {
+        string? reason = null) {
         if (string.IsNullOrWhiteSpace(adminUserId))
             throw new ArgumentException("Admin user ID cannot be empty", nameof(adminUserId));
 
@@ -311,15 +296,13 @@ public class AuditService : IAuditService
         var sanitizedTargetUserId = SanitizeUserId(targetUserId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
-        var metadata = new
-        {
+        var metadata = new {
             CorrelationId = correlationId,
             ChangeDetails = changeDetails,
             Reason = reason
         };
 
-        var auditLog = new AuditLog
-        {
+        var auditLog = new AuditLog {
             UserId = sanitizedAdminUserId,
             Action = $"admin_{action}",
             EntityType = "User",
@@ -352,24 +335,21 @@ public class AuditService : IAuditService
         string endpoint,
         string? ipAddress = null,
         int limit = 100,
-        int windowSeconds = 60)
-    {
+        int windowSeconds = 60) {
         if (string.IsNullOrWhiteSpace(endpoint))
             throw new ArgumentException("Endpoint cannot be empty", nameof(endpoint));
 
         var sanitizedUserId = userId != null ? SanitizeUserId(userId) : "anonymous";
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
-        var metadata = new
-        {
+        var metadata = new {
             CorrelationId = correlationId,
             Endpoint = endpoint,
             Limit = limit,
             WindowSeconds = windowSeconds
         };
 
-        var auditLog = new AuditLog
-        {
+        var auditLog = new AuditLog {
             UserId = sanitizedUserId,
             Action = "rate_limit_exceeded",
             EntityType = "RateLimiter",
@@ -405,8 +385,7 @@ public class AuditService : IAuditService
         string eventType,
         string description,
         string? ipAddress = null,
-        string severity = "Medium")
-    {
+        string severity = "Medium") {
         if (string.IsNullOrWhiteSpace(eventType))
             throw new ArgumentException("Event type cannot be empty", nameof(eventType));
 
@@ -416,15 +395,13 @@ public class AuditService : IAuditService
         var sanitizedUserId = userId != null ? SanitizeUserId(userId) : "system";
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
-        var metadata = new
-        {
+        var metadata = new {
             CorrelationId = correlationId,
             Severity = severity,
             EventType = eventType
         };
 
-        var auditLog = new AuditLog
-        {
+        var auditLog = new AuditLog {
             UserId = sanitizedUserId,
             Action = $"security_event_{eventType}",
             EntityType = "Security",
@@ -439,8 +416,7 @@ public class AuditService : IAuditService
         var createdLog = await _auditRepository.CreateAuditLogAsync(auditLog);
 
         // Map severity to log level
-        var logLevel = severity switch
-        {
+        var logLevel = severity switch {
             "Critical" => LogLevel.Critical,
             "High" => LogLevel.Error,
             "Medium" => LogLevel.Warning,
@@ -463,16 +439,14 @@ public class AuditService : IAuditService
     /// <summary>
     /// Gets audit logs for a specific entity.
     /// </summary>
-    public async Task<AuditLog[]> GetAuditLogsAsync(string entityType, string entityId)
-    {
+    public async Task<AuditLog[]> GetAuditLogsAsync(string entityType, string entityId) {
         if (string.IsNullOrWhiteSpace(entityType))
             throw new ArgumentException("Entity type cannot be empty", nameof(entityType));
 
         if (string.IsNullOrWhiteSpace(entityId))
             throw new ArgumentException("Entity ID cannot be empty", nameof(entityId));
 
-        try
-        {
+        try {
             var logs = await _auditRepository.GetAuditLogsByEntityAsync(entityType, entityId);
             _logger.LogDebug(
                 "Retrieved {Count} audit logs for entity {EntityType}:{EntityId}",
@@ -482,8 +456,7 @@ public class AuditService : IAuditService
 
             return logs;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(
                 ex,
                 "Error retrieving audit logs for entity {EntityType}:{EntityId}",
@@ -496,19 +469,16 @@ public class AuditService : IAuditService
     /// <summary>
     /// Gets recent audit logs.
     /// </summary>
-    public async Task<AuditLog[]> GetRecentAuditLogsAsync(int limit = 100)
-    {
+    public async Task<AuditLog[]> GetRecentAuditLogsAsync(int limit = 100) {
         if (limit <= 0 || limit > 10000)
             throw new ArgumentException("Limit must be between 1 and 10000", nameof(limit));
 
-        try
-        {
+        try {
             var logs = await _auditRepository.GetRecentAuditLogsAsync(limit);
             _logger.LogDebug("Retrieved {Count} recent audit logs", logs.Length);
             return logs;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving recent audit logs");
             throw;
         }
@@ -519,23 +489,19 @@ public class AuditService : IAuditService
     /// This prevents direct user ID exposure in logs while maintaining uniqueness for tracking.
     /// OWASP ASVS 7.1: PII protection in logs
     /// </summary>
-    private static string SanitizeUserId(string userId)
-    {
+    private static string SanitizeUserId(string userId) {
         if (string.IsNullOrWhiteSpace(userId))
             return "unknown";
 
-        try
-        {
+        try {
             // Use SHA256 for consistent, one-way hashing
-            using (var sha256 = SHA256.Create())
-            {
+            using (var sha256 = SHA256.Create()) {
                 var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(userId));
                 // Return first 16 characters of hex representation for readability
                 return Convert.ToHexString(hashedBytes)[..16];
             }
         }
-        catch
-        {
+        catch {
             // Fallback if hashing fails
             return "redacted";
         }
@@ -546,8 +512,7 @@ public class AuditService : IAuditService
     /// Shows first character and domain, hides middle.
     /// Example: user@example.com → u*****@example.com
     /// </summary>
-    private static string RedactEmail(string? email)
-    {
+    private static string RedactEmail(string? email) {
         if (string.IsNullOrWhiteSpace(email))
             return "[not provided]";
 

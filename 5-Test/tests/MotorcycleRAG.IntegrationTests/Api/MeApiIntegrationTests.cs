@@ -18,23 +18,19 @@ using Xunit;
 using MotorcycleRAG.IntegrationTests;
 
 
-namespace MotorcycleRAG.IntegrationTests.Api
-{
+namespace MotorcycleRAG.IntegrationTests.Api {
     /// <summary>
     /// Integration tests for /api/me endpoints
     /// </summary>
-    public class MeApiIntegrationTests : IClassFixture<TestWebApplicationFactory>
-    {
+    public class MeApiIntegrationTests : IClassFixture<TestWebApplicationFactory> {
         private readonly TestWebApplicationFactory _factory;
 
-        public MeApiIntegrationTests(TestWebApplicationFactory factory)
-        {
+        public MeApiIntegrationTests(TestWebApplicationFactory factory) {
             _factory = factory;
         }
 
         [Fact]
-        public async Task GetProfile_Unauthenticated_ReturnsUnauthorized()
-        {
+        public async Task GetProfile_Unauthenticated_ReturnsUnauthorized() {
             // Act
             var client = _factory.CreateClient();
 
@@ -45,8 +41,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task GetProfile_Authenticated_ReturnsUserProfile()
-        {
+        public async Task GetProfile_Authenticated_ReturnsUserProfile() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
@@ -56,10 +51,8 @@ namespace MotorcycleRAG.IntegrationTests.Api
             mockUserService.Setup(s => s.LastName).Returns("User");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                 });
             }).CreateClientWithRoles("User");
@@ -82,8 +75,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task GetUsage_Unauthenticated_ReturnsUnauthorized()
-        {
+        public async Task GetUsage_Unauthenticated_ReturnsUnauthorized() {
             // Act
             var client = _factory.CreateClient();
 
@@ -94,17 +86,14 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task GetUsage_Authenticated_ReturnsUsageInformation()
-        {
+        public async Task GetUsage_Authenticated_ReturnsUsageInformation() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                 });
             }).CreateClientWithRoles("User");
@@ -125,17 +114,14 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task GetUsage_InvalidDays_ClampsToValidRange()
-        {
+        public async Task GetUsage_InvalidDays_ClampsToValidRange() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                 });
             }).CreateClientWithRoles("User");
@@ -153,8 +139,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task Query_WithExceededLimit_Returns429()
-        {
+        public async Task Query_WithExceededLimit_Returns429() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
@@ -184,10 +169,8 @@ namespace MotorcycleRAG.IntegrationTests.Api
             var mockMcpProvider = new Mock<IMcpConfigurationProvider>();
             mockMcpProvider.Setup(m => m.GetEnabledToolsAsync()).ReturnsAsync(Array.Empty<McpToolConfiguration>());
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanPolicyService.Object);
                     services.AddSingleton(mockUsageTrackingService.Object);
@@ -203,8 +186,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     "application/json"));
 
             // Assert
-            if (response.StatusCode != HttpStatusCode.TooManyRequests)
-            {
+            if (response.StatusCode != HttpStatusCode.TooManyRequests) {
                 var errorContent = await response.Content.ReadAsStringAsync();
                 throw new Xunit.Sdk.XunitException($"Expected TooManyRequests but got {response.StatusCode}. Response: {errorContent}");
             }
@@ -216,8 +198,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task Query_WithinLimit_AllowsRequest()
-        {
+        public async Task Query_WithinLimit_AllowsRequest() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
@@ -246,8 +227,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
             var mockRagService = new Mock<IMotorcycleRAGService>();
             mockRagService
                 .Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
-                .ReturnsAsync(new MotorcycleQueryResponse
-                {
+                .ReturnsAsync(new MotorcycleQueryResponse {
                     QueryId = Guid.NewGuid().ToString(),
                     Response = "Test answer",
                     Sources = Array.Empty<SearchResult>(),
@@ -257,10 +237,8 @@ namespace MotorcycleRAG.IntegrationTests.Api
             var mockMcpProvider = new Mock<IMcpConfigurationProvider>();
             mockMcpProvider.Setup(m => m.GetEnabledToolsAsync()).ReturnsAsync(Array.Empty<McpToolConfiguration>());
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanPolicyService.Object);
                     services.AddSingleton(mockUsageTrackingService.Object);
@@ -277,8 +255,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     "application/json"));
 
             // Assert
-            if (response.StatusCode != HttpStatusCode.OK)
-            {
+            if (response.StatusCode != HttpStatusCode.OK) {
                 var errorContent = await response.Content.ReadAsStringAsync();
                 throw new Xunit.Sdk.XunitException($"Expected OK but got {response.StatusCode}. Response: {errorContent}");
             }

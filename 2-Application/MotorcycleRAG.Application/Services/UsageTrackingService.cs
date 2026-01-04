@@ -5,13 +5,11 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
-namespace MotorcycleRAG.Application.Services
-{
+namespace MotorcycleRAG.Application.Services {
     /// <summary>
     /// Service for tracking API usage through repository calls
     /// </summary>
-    public class UsageTrackingService : IUsageTrackingService
-    {
+    public class UsageTrackingService : IUsageTrackingService {
         private readonly IUsageRepository _usageRepository;
         private readonly ILogger<UsageTrackingService> _logger;
 
@@ -22,8 +20,7 @@ namespace MotorcycleRAG.Application.Services
         /// <param name="logger">Logger</param>
         public UsageTrackingService(
             IUsageRepository usageRepository,
-            ILogger<UsageTrackingService> logger)
-        {
+            ILogger<UsageTrackingService> logger) {
             _usageRepository = usageRepository ?? throw new ArgumentNullException(nameof(usageRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -39,25 +36,20 @@ namespace MotorcycleRAG.Application.Services
             long durationMs = 0,
             int statusCode = 200,
             string? callerIp = null,
-            string? userAgent = null)
-        {
-            if (string.IsNullOrWhiteSpace(userId))
-            {
+            string? userAgent = null) {
+            if (string.IsNullOrWhiteSpace(userId)) {
                 throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
             }
 
-            if (string.IsNullOrWhiteSpace(endpoint))
-            {
+            if (string.IsNullOrWhiteSpace(endpoint)) {
                 throw new ArgumentException("Endpoint cannot be null or empty", nameof(endpoint));
             }
 
-            if (string.IsNullOrWhiteSpace(httpMethod))
-            {
+            if (string.IsNullOrWhiteSpace(httpMethod)) {
                 throw new ArgumentException("HTTP method cannot be null or empty", nameof(httpMethod));
             }
 
-            var usage = new Usage
-            {
+            var usage = new Usage {
                 UserId = userId,
                 Endpoint = endpoint,
                 HttpMethod = httpMethod,
@@ -70,14 +62,12 @@ namespace MotorcycleRAG.Application.Services
                 UserAgent = userAgent
             };
 
-            try
-            {
+            try {
                 var recordedUsage = await _usageRepository.RecordUsageAsync(usage);
                 _logger.LogDebug("Recorded usage for user {UserId} on endpoint {Endpoint}", userId, endpoint);
                 return recordedUsage;
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to record usage for user {UserId} on endpoint {Endpoint}", userId, endpoint);
                 throw;
             }
@@ -93,8 +83,7 @@ namespace MotorcycleRAG.Application.Services
             string? queryId = null,
             long durationMs = 0,
             string? callerIp = null,
-            string? userAgent = null)
-        {
+            string? userAgent = null) {
             return await RecordUsageAsync(
                 userId: userId,
                 endpoint: endpoint,
@@ -117,8 +106,7 @@ namespace MotorcycleRAG.Application.Services
             string? queryId = null,
             long durationMs = 0,
             string? callerIp = null,
-            string? userAgent = null)
-        {
+            string? userAgent = null) {
             return await RecordUsageAsync(
                 userId: userId,
                 endpoint: endpoint,
@@ -136,27 +124,22 @@ namespace MotorcycleRAG.Application.Services
         public async Task<Usage[]> GetUsageByDateRangeAsync(
             string userId,
             DateTime startDate,
-            DateTime endDate)
-        {
-            if (string.IsNullOrWhiteSpace(userId))
-            {
+            DateTime endDate) {
+            if (string.IsNullOrWhiteSpace(userId)) {
                 throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
             }
 
-            if (startDate > endDate)
-            {
+            if (startDate > endDate) {
                 throw new ArgumentException("Start date cannot be after end date");
             }
 
-            try
-            {
+            try {
                 var usageRecords = await _usageRepository.GetUsageByUserAndDateRangeAsync(userId, startDate, endDate);
                 _logger.LogDebug("Retrieved {Count} usage records for user {UserId} between {StartDate} and {EndDate}",
                     usageRecords.Length, userId, startDate, endDate);
                 return usageRecords;
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get usage for user {UserId} between {StartDate} and {EndDate}",
                     userId, startDate, endDate);
                 throw;

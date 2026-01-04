@@ -2,13 +2,11 @@ using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
-namespace MotorcycleRAG.Contracts.Interfaces
-{
+namespace MotorcycleRAG.Contracts.Interfaces {
     /// <summary>
     /// Repository interface for user data persistence operations
     /// </summary>
-    public interface IUserRepository
-    {
+    public interface IUserRepository {
         /// <summary>
         /// Creates a new user in the database
         /// </summary>

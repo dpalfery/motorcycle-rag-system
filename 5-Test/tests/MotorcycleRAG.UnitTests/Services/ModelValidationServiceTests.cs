@@ -11,13 +11,11 @@ namespace MotorcycleRAG.UnitTests.Services;
 /// Unit tests for ModelValidationService, focusing on manual PDF citation validation.
 /// Tests cover validation rules, edge cases, and error scenarios.
 /// </summary>
-public class ModelValidationServiceTests
-{
+public class ModelValidationServiceTests {
     private readonly Mock<ILogger<ModelValidationService>> _loggerMock;
     private readonly ModelValidationService _sut;
 
-    public ModelValidationServiceTests()
-    {
+    public ModelValidationServiceTests() {
         _loggerMock = new Mock<ILogger<ModelValidationService>>();
         _sut = new ModelValidationService(_loggerMock.Object);
     }
@@ -25,8 +23,7 @@ public class ModelValidationServiceTests
     #region Null Citation Tests
 
     [Fact]
-    public void ValidateCitation_NullCitation_ReturnsEmptyErrors_NoException()
-    {
+    public void ValidateCitation_NullCitation_ReturnsEmptyErrors_NoException() {
         // Arrange
         Citation? citation = null;
 
@@ -43,11 +40,9 @@ public class ModelValidationServiceTests
     #region Null Locator Tests
 
     [Fact]
-    public void ValidateCitation_ManualPdfWithNullLocator_ReturnsEmptyErrors_BestEffort()
-    {
+    public void ValidateCitation_ManualPdfWithNullLocator_ReturnsEmptyErrors_BestEffort() {
         // Arrange
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = null
@@ -66,12 +61,10 @@ public class ModelValidationServiceTests
     #region Wrong Locator Type Tests
 
     [Fact]
-    public void ValidateCitation_ManualPdfWithWrongLocatorType_LogsWarning_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_ManualPdfWithWrongLocatorType_LogsWarning_ReturnsEmptyErrors() {
         // Arrange
         var wrongLocator = new { SomeProperty = "value" };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = wrongLocator
@@ -98,17 +91,14 @@ public class ModelValidationServiceTests
     #region PageNumber and PageRange Validation Tests
 
     [Fact]
-    public void ValidateCitation_ValidPageNumberOnly_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_ValidPageNumberOnly_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             PageRange = null
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -123,17 +113,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_ValidPageRangeOnly_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_ValidPageRangeOnly_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 0,
             PageRange = "5-7"
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -148,17 +135,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_BothPageNumberAndPageRangeValid_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_BothPageNumberAndPageRangeValid_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             PageRange = "5-7"
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -173,17 +157,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_InvalidPageNumberZeroAndEmptyPageRange_ReturnsError()
-    {
+    public void ValidateCitation_InvalidPageNumberZeroAndEmptyPageRange_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 0,
             PageRange = null
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -199,17 +180,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_InvalidPageNumberNegativeAndEmptyPageRange_ReturnsError()
-    {
+    public void ValidateCitation_InvalidPageNumberNegativeAndEmptyPageRange_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = -1,
             PageRange = null
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -225,17 +203,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_InvalidPageNumberZeroAndWhitespacePageRange_ReturnsError()
-    {
+    public void ValidateCitation_InvalidPageNumberZeroAndWhitespacePageRange_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 0,
             PageRange = "   "
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -251,17 +226,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_InvalidPageNumberZeroAndEmptyStringPageRange_ReturnsError()
-    {
+    public void ValidateCitation_InvalidPageNumberZeroAndEmptyStringPageRange_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 0,
             PageRange = string.Empty
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -281,17 +253,14 @@ public class ModelValidationServiceTests
     #region SectionHeadings Validation Tests
 
     [Fact]
-    public void ValidateCitation_ValidSectionHeadings_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_ValidSectionHeadings_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionHeadings = new[] { "Chapter 1", "Section 1.1", "Subsection 1.1.1" }
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -306,17 +275,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_EmptySectionHeadingsArray_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_EmptySectionHeadingsArray_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionHeadings = Array.Empty<string>()
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -331,17 +297,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_NullSectionHeadings_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_NullSectionHeadings_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionHeadings = null!
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -356,17 +319,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_SectionHeadingsWithEmptyString_ReturnsError()
-    {
+    public void ValidateCitation_SectionHeadingsWithEmptyString_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionHeadings = new[] { "Chapter 1", "", "Subsection 1.1.1" }
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -382,17 +342,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_SectionHeadingsWithWhitespaceOnly_ReturnsError()
-    {
+    public void ValidateCitation_SectionHeadingsWithWhitespaceOnly_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionHeadings = new[] { "Chapter 1", "   ", "Subsection 1.1.1" }
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -408,17 +365,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_SectionHeadingsWithMultipleEmptyStrings_ReturnsErrorWithAllIndices()
-    {
+    public void ValidateCitation_SectionHeadingsWithMultipleEmptyStrings_ReturnsErrorWithAllIndices() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionHeadings = new[] { "", "Chapter 1", "   ", "Subsection 1.1.1", "" }
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -434,17 +388,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_SectionHeadingsWithTabAndNewline_ReturnsError()
-    {
+    public void ValidateCitation_SectionHeadingsWithTabAndNewline_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionHeadings = new[] { "Chapter 1", "\t\n", "Subsection 1.1.1" }
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -464,17 +415,14 @@ public class ModelValidationServiceTests
     #region SectionLevel Validation Tests
 
     [Fact]
-    public void ValidateCitation_ValidSectionLevelZero_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_ValidSectionLevelZero_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionLevel = 0
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -489,17 +437,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_ValidSectionLevelOne_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_ValidSectionLevelOne_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionLevel = 1
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -514,17 +459,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_ValidSectionLevelTwo_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_ValidSectionLevelTwo_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionLevel = 2
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -539,17 +481,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_ValidSectionLevelThree_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_ValidSectionLevelThree_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionLevel = 3
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -564,17 +503,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_NullSectionLevel_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_NullSectionLevel_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionLevel = null
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -589,17 +525,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_InvalidSectionLevelNegativeOne_ReturnsError()
-    {
+    public void ValidateCitation_InvalidSectionLevelNegativeOne_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionLevel = -1
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -616,17 +549,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_InvalidSectionLevelFour_ReturnsError()
-    {
+    public void ValidateCitation_InvalidSectionLevelFour_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionLevel = 4
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -643,17 +573,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_InvalidSectionLevelTen_ReturnsError()
-    {
+    public void ValidateCitation_InvalidSectionLevelTen_ReturnsError() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5,
             SectionLevel = 10
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -674,19 +601,16 @@ public class ModelValidationServiceTests
     #region Multiple Validation Errors Tests
 
     [Fact]
-    public void ValidateCitation_MultipleValidationErrors_ReturnsAllErrors()
-    {
+    public void ValidateCitation_MultipleValidationErrors_ReturnsAllErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 0,
             PageRange = null,
             SectionHeadings = new[] { "Chapter 1", "", "Subsection 1.1.1" },
             SectionLevel = 5
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -708,17 +632,14 @@ public class ModelValidationServiceTests
     #region SourceIndex Error Reporting Tests
 
     [Fact]
-    public void ValidateCitation_WithSourceIndex_IncludesSourceIndexInErrorMessage()
-    {
+    public void ValidateCitation_WithSourceIndex_IncludesSourceIndexInErrorMessage() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 0,
             PageRange = null
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -735,17 +656,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_WithNegativeSourceIndex_DoesNotIncludeSourceIndex()
-    {
+    public void ValidateCitation_WithNegativeSourceIndex_DoesNotIncludeSourceIndex() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 0,
             PageRange = null
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -767,16 +685,13 @@ public class ModelValidationServiceTests
     #region Non-ManualPdf Source Type Tests
 
     [Fact]
-    public void ValidateCitation_NonManualPdfSourceWithLocator_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_NonManualPdfSourceWithLocator_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.Website,
             SourceName = "Test Website",
             Locator = locator
@@ -791,16 +706,13 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_DatasetSourceWithLocator_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_DatasetSourceWithLocator_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "doc-001",
             PageNumber = 5
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.Dataset,
             SourceName = "Test Dataset",
             Locator = locator
@@ -819,11 +731,9 @@ public class ModelValidationServiceTests
     #region Complete Valid Citation Tests
 
     [Fact]
-    public void ValidateCitation_CompleteValidManualPdfCitation_ReturnsEmptyErrors()
-    {
+    public void ValidateCitation_CompleteValidManualPdfCitation_ReturnsEmptyErrors() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = "honda-cb500f-2023-manual",
             Title = "Honda CB500F 2023 Owner's Manual",
             PageNumber = 42,
@@ -839,8 +749,7 @@ public class ModelValidationServiceTests
             PublicationDate = new DateTime(2023, 1, 1),
             SourceUrl = "https://example.com/manuals/honda-cb500f-2023.pdf"
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Honda CB500F 2023 Owner's Manual",
             SourceUrl = "https://example.com/manuals/honda-cb500f-2023.pdf",
@@ -871,18 +780,15 @@ public class ModelValidationServiceTests
     #region DocumentId Sanitization Tests
 
     [Fact]
-    public void ValidateCitation_WithLongDocumentId_TruncatesInErrorMessage()
-    {
+    public void ValidateCitation_WithLongDocumentId_TruncatesInErrorMessage() {
         // Arrange
         var longDocumentId = new string('a', 100); // 100 characters
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = longDocumentId,
             PageNumber = 0,
             PageRange = null
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -901,17 +807,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_WithEmptyDocumentId_ShowsEmptyPlaceholder()
-    {
+    public void ValidateCitation_WithEmptyDocumentId_ShowsEmptyPlaceholder() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = string.Empty,
             PageNumber = 0,
             PageRange = null
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator
@@ -927,17 +830,14 @@ public class ModelValidationServiceTests
     }
 
     [Fact]
-    public void ValidateCitation_WithNullDocumentId_ShowsEmptyPlaceholder()
-    {
+    public void ValidateCitation_WithNullDocumentId_ShowsEmptyPlaceholder() {
         // Arrange
-        var locator = new ManualPdfCitationLocator
-        {
+        var locator = new ManualPdfCitationLocator {
             DocumentId = null!,
             PageNumber = 0,
             PageRange = null
         };
-        var citation = new Citation
-        {
+        var citation = new Citation {
             SourceType = CitationSourceType.ManualPdf,
             SourceName = "Test Manual",
             Locator = locator

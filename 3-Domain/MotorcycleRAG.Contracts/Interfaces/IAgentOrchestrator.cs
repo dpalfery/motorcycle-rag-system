@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Orchestrates execution of multiple search agents and generates a synthesized response.
 /// </summary>
-public interface IAgentOrchestrator
-{
+public interface IAgentOrchestrator {
     /// <summary>
     /// Execute agents sequentially with coordination context.
     /// </summary>

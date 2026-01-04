@@ -58,7 +58,7 @@ public class ConcurrentUserLoadTests
             };
 
             var httpClient = HttpClientFactory.Create();
-            
+
             var response = await httpClient
                 .Request($"{_baseUrl}/api/motorcycle/query")
                 .WithJsonBody(request, _jsonOptions)
@@ -80,7 +80,7 @@ public class ConcurrentUserLoadTests
 
         // Assert performance requirements
         var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "simple_queries");
-        
+
         scnStats.Ok.Response.Mean.Should().BeLessThan(3000); // < 3 seconds average
         scnStats.Ok.Response.Percentile95.Should().BeLessThan(5000); // < 5 seconds 95th percentile
         scnStats.AllOkCount.Should().BeGreaterThan(0);
@@ -115,7 +115,7 @@ public class ConcurrentUserLoadTests
             };
 
             var httpClient = HttpClientFactory.Create();
-            
+
             var response = await httpClient
                 .Request($"{_baseUrl}/api/motorcycle/query")
                 .WithJsonBody(request, _jsonOptions)
@@ -137,7 +137,7 @@ public class ConcurrentUserLoadTests
 
         // Assert performance requirements for complex queries
         var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "complex_queries");
-        
+
         scnStats.Ok.Response.Mean.Should().BeLessThan(8000); // < 8 seconds average for complex queries
         scnStats.Ok.Response.Percentile95.Should().BeLessThan(15000); // < 15 seconds 95th percentile
         scnStats.AllFailCount.Should().BeLessThan(scnStats.AllOkCount * 0.1); // < 10% failure rate
@@ -268,7 +268,7 @@ public class ConcurrentUserLoadTests
 
         // System should handle spikes gracefully
         var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "spike_test");
-        
+
         // Allow higher failure rate during spike, but should recover
         scnStats.AllFailCount.Should().BeLessThan(scnStats.AllOkCount * 0.15); // < 15% failure rate overall
         scnStats.AllOkCount.Should().BeGreaterThan(0);
@@ -313,7 +313,7 @@ public class ConcurrentUserLoadTests
 
         // Long-running stability requirements
         var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "stability_test");
-        
+
         scnStats.Ok.Response.Mean.Should().BeLessThan(4000); // < 4 seconds average
         scnStats.AllFailCount.Should().BeLessThan(scnStats.AllOkCount * 0.02); // < 2% failure rate
         scnStats.AllOkCount.Should().BeGreaterThan(1000); // Should handle significant volume
@@ -348,11 +348,11 @@ public class ConcurrentUserLoadTests
 
         // Resource utilization assertions
         var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "resource_monitoring");
-        
+
         // Verify throughput meets requirements
         var throughputPerSecond = scnStats.AllOkCount / stats.TestDuration.TotalSeconds;
         throughputPerSecond.Should().BeGreaterThan(10); // At least 10 requests per second
-        
+
         // Response time consistency
         var responseTimeStdDev = scnStats.Ok.Response.StdDev;
         responseTimeStdDev.Should().BeLessThan(2000); // Response times should be consistent

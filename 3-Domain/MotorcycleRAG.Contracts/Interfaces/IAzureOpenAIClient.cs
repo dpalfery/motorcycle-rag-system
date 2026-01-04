@@ -7,8 +7,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Interface for Azure OpenAI client operations (cancellation required)
 /// </summary>
-public interface IAzureOpenAIClient
-{
+public interface IAzureOpenAIClient {
     /// <summary>
     /// Gets chat completion from Azure OpenAI
     /// </summary>

@@ -2,13 +2,11 @@ using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
-namespace MotorcycleRAG.Contracts.Interfaces
-{
+namespace MotorcycleRAG.Contracts.Interfaces {
     /// <summary>
     /// Repository interface for user plan data persistence operations
     /// </summary>
-    public interface IPlanRepository
-    {
+    public interface IPlanRepository {
         /// <summary>
         /// Creates a new plan in the database
         /// </summary>

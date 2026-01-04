@@ -8,35 +8,30 @@ using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Persistence.Resilience;
 using Polly.CircuitBreaker;
 
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
-public class AzureOpenAIClientWrapperTests : IDisposable
-{
+public class AzureOpenAIClientWrapperTests : IDisposable {
     private readonly Mock<ILogger<AzureOpenAIClientWrapper>> _mockLogger;
     private readonly Mock<IResilienceService> _mockResilienceService;
     private readonly Mock<ICorrelationService> _mockCorrelationService;
     private readonly AzureAIOptions _config;
     private readonly IOptions<AzureAIOptions> _options;
 
-    public AzureOpenAIClientWrapperTests()
-    {
+    public AzureOpenAIClientWrapperTests() {
         _mockLogger = new Mock<ILogger<AzureOpenAIClientWrapper>>();
         _mockResilienceService = new Mock<IResilienceService>();
         _mockCorrelationService = new Mock<ICorrelationService>();
-        _config = new AzureAIOptions
-        {
+        _config = new AzureAIOptions {
             OpenAIEndpoint = "https://test-openai.openai.azure.com/",
-            Models = new ModelOptions
-            {
+            Models = new ModelOptions {
                 ChatModel = "gpt-4o-mini",
                 EmbeddingModel = "text-embedding-3-large",
                 MaxTokens = 4096,
                 Temperature = 0.1f
             },
-            Retry = new RetryOptions
-            {
+            Retry = new RetryOptions {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,
                 MaxDelaySeconds = 60,
@@ -47,34 +42,30 @@ public class AzureOpenAIClientWrapperTests : IDisposable
     }
 
     [Fact]
-    public void Constructor_WithValidConfiguration_ShouldInitializeSuccessfully()
-    {
+    public void Constructor_WithValidConfiguration_ShouldInitializeSuccessfully() {
         // Act & Assert
         var exception = Record.Exception(() => new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.Should().BeNull();
     }
 
     [Fact]
-    public void Constructor_WithNullConfiguration_ShouldThrowArgumentNullException()
-    {
+    public void Constructor_WithNullConfiguration_ShouldThrowArgumentNullException() {
         // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => 
+        var exception = Assert.Throws<ArgumentNullException>(() =>
             new AzureOpenAIClientWrapper(null!, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.ParamName.Should().Be("config");
     }
 
     [Fact]
-    public void Constructor_WithNullLogger_ShouldThrowArgumentNullException()
-    {
+    public void Constructor_WithNullLogger_ShouldThrowArgumentNullException() {
         // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => 
+        var exception = Assert.Throws<ArgumentNullException>(() =>
             new AzureOpenAIClientWrapper(_options, null!, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.ParamName.Should().Be("logger");
     }
 
     [Fact]
-    public void Constructor_ShouldLogInitializationMessage()
-    {
+    public void Constructor_ShouldLogInitializationMessage() {
         // Act
         using var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
@@ -95,8 +86,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable
     [InlineData(502)] // Bad Gateway
     [InlineData(503)] // Service Unavailable
     [InlineData(504)] // Gateway Timeout
-    public void IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(int statusCode)
-    {
+    public void IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -112,8 +102,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable
     [InlineData(401)] // Unauthorized
     [InlineData(403)] // Forbidden
     [InlineData(404)] // Not Found
-    public void IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(int statusCode)
-    {
+    public void IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -129,8 +118,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable
     [InlineData(502)] // Bad Gateway
     [InlineData(503)] // Service Unavailable
     [InlineData(504)] // Gateway Timeout
-    public void IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(int statusCode)
-    {
+    public void IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -147,8 +135,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable
     [InlineData(403)] // Forbidden
     [InlineData(404)] // Not Found
     [InlineData(429)] // Too Many Requests (client error, not server error)
-    public void IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(int statusCode)
-    {
+    public void IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -160,8 +147,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable
     }
 
     [Fact]
-    public void Dispose_ShouldDisposeResourcesGracefully()
-    {
+    public void Dispose_ShouldDisposeResourcesGracefully() {
         // Arrange
         var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
@@ -175,22 +161,19 @@ public class AzureOpenAIClientWrapperTests : IDisposable
     }
 
     // Helper methods to access private static methods for testing
-    private static bool IsRetryableErrorAccessor(RequestFailedException ex)
-    {
+    private static bool IsRetryableErrorAccessor(RequestFailedException ex) {
         // This would normally use reflection or make the method internal with InternalsVisibleTo
         // For now, we'll test the logic directly
         return ex.Status == 429 || ex.Status == 500 || ex.Status == 502 || ex.Status == 503 || ex.Status == 504;
     }
 
-    private static bool IsCircuitBreakerErrorAccessor(RequestFailedException ex)
-    {
+    private static bool IsCircuitBreakerErrorAccessor(RequestFailedException ex) {
         // This would normally use reflection or make the method internal with InternalsVisibleTo
         // For now, we'll test the logic directly
         return ex.Status >= 500;
     }
 
-    public void Dispose()
-    {
+    public void Dispose() {
         // Cleanup if needed
     }
 }
@@ -200,27 +183,23 @@ public class AzureOpenAIClientWrapperTests : IDisposable
 /// These tests are marked as integration tests and can be run separately
 /// </summary>
 [Trait("Category", "Integration")]
-public class AzureOpenAIClientWrapperIntegrationTests
-{
+public class AzureOpenAIClientWrapperIntegrationTests {
     [Fact(Skip = "Integration test - requires actual Azure OpenAI service")]
-    public async Task GetChatCompletionsAsync_WithValidRequest_ShouldReturnResponse()
-    {
+    public async Task GetChatCompletionsAsync_WithValidRequest_ShouldReturnResponse() {
         // This test would require actual Azure OpenAI credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;
     }
 
     [Fact(Skip = "Integration test - requires actual Azure OpenAI service")]
-    public async Task GetEmbeddingsAsync_WithValidRequest_ShouldReturnEmbeddings()
-    {
+    public async Task GetEmbeddingsAsync_WithValidRequest_ShouldReturnEmbeddings() {
         // This test would require actual Azure OpenAI credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;
     }
 
     [Fact(Skip = "Integration test - requires actual Azure OpenAI service")]
-    public async Task IsHealthyAsync_WithValidService_ShouldReturnTrue()
-    {
+    public async Task IsHealthyAsync_WithValidService_ShouldReturnTrue() {
         // This test would require actual Azure OpenAI credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;

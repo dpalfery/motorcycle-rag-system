@@ -7,8 +7,7 @@ namespace MotorcycleRAG.Domain.ValueObjects;
 /// <summary>
 /// Document metadata for additional context
 /// </summary>
-public class DocumentMetadata
-{
+public class DocumentMetadata {
     public string SourceFile { get; set; } = string.Empty;
     public Uri? SourceUrl { get; set; }
     public int PageNumber { get; set; }

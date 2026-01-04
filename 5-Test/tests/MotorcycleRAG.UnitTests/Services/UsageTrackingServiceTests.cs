@@ -8,19 +8,16 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 using Xunit;
 
 
-namespace MotorcycleRAG.UnitTests.Services
-{
+namespace MotorcycleRAG.UnitTests.Services {
     /// <summary>
     /// Unit tests for UsageTrackingService
     /// </summary>
-    public class UsageTrackingServiceTests
-    {
+    public class UsageTrackingServiceTests {
         private readonly Mock<IUsageRepository> _mockUsageRepository;
         private readonly Mock<ILogger<UsageTrackingService>> _mockLogger;
         private readonly UsageTrackingService _service;
 
-        public UsageTrackingServiceTests()
-        {
+        public UsageTrackingServiceTests() {
             _mockUsageRepository = new Mock<IUsageRepository>();
             _mockLogger = new Mock<ILogger<UsageTrackingService>>();
 
@@ -30,11 +27,9 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task RecordUsageAsync_ValidUsage_CallsRepository()
-        {
+        public async Task RecordUsageAsync_ValidUsage_CallsRepository() {
             // Arrange
-            var usage = new Usage
-            {
+            var usage = new Usage {
                 UserId = "user-1",
                 Endpoint = "/api/test",
                 HttpMethod = "GET",
@@ -45,8 +40,7 @@ namespace MotorcycleRAG.UnitTests.Services
                 IsSuccess = true
             };
 
-            var recordedUsage = new Usage
-            {
+            var recordedUsage = new Usage {
                 Id = 1,
                 UserId = usage.UserId,
                 Endpoint = usage.Endpoint,
@@ -80,51 +74,44 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task RecordUsageAsync_ThrowsOnNullUserId()
-        {
+        public async Task RecordUsageAsync_ThrowsOnNullUserId() {
             // Arrange, Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.RecordUsageAsync(null!, "/api/test", "GET"));
         }
 
         [Fact]
-        public async Task RecordUsageAsync_ThrowsOnEmptyUserId()
-        {
+        public async Task RecordUsageAsync_ThrowsOnEmptyUserId() {
             // Arrange, Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.RecordUsageAsync(string.Empty, "/api/test", "GET"));
         }
 
         [Fact]
-        public async Task RecordUsageAsync_ThrowsOnNullEndpoint()
-        {
+        public async Task RecordUsageAsync_ThrowsOnNullEndpoint() {
             // Arrange, Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.RecordUsageAsync("user-1", null!, "GET"));
         }
 
         [Fact]
-        public async Task RecordUsageAsync_ThrowsOnEmptyEndpoint()
-        {
+        public async Task RecordUsageAsync_ThrowsOnEmptyEndpoint() {
             // Arrange, Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.RecordUsageAsync("user-1", string.Empty, "GET"));
         }
 
         [Fact]
-        public async Task RecordUsageAsync_ThrowsOnNullHttpMethod()
-        {
+        public async Task RecordUsageAsync_ThrowsOnNullHttpMethod() {
             // Arrange, Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.RecordUsageAsync("user-1", "/api/test", null!));
         }
 
         [Fact]
-        public async Task RecordSuccessAsync_CallsRepositoryWithSuccessStatus()
-        {
+        public async Task RecordSuccessAsync_CallsRepositoryWithSuccessStatus() {
             // Arrange
-            var recordedUsage = new Usage
-            {
+            var recordedUsage = new Usage {
                 Id = 1,
                 UserId = "user-1",
                 Endpoint = "/api/test",
@@ -151,16 +138,14 @@ namespace MotorcycleRAG.UnitTests.Services
             // Assert
             Assert.Equal(200, result.StatusCode);
             Assert.True(result.IsSuccess);
-            _mockUsageRepository.Verify(r => r.RecordUsageAsync(It.Is<Usage>(u => 
+            _mockUsageRepository.Verify(r => r.RecordUsageAsync(It.Is<Usage>(u =>
                 u.StatusCode == 200 && u.IsSuccess == true)), Times.Once);
         }
 
         [Fact]
-        public async Task RecordFailureAsync_CallsRepositoryWithFailureStatus()
-        {
+        public async Task RecordFailureAsync_CallsRepositoryWithFailureStatus() {
             // Arrange
-            var recordedUsage = new Usage
-            {
+            var recordedUsage = new Usage {
                 Id = 1,
                 UserId = "user-1",
                 Endpoint = "/api/test",
@@ -188,13 +173,12 @@ namespace MotorcycleRAG.UnitTests.Services
             // Assert
             Assert.Equal(400, result.StatusCode);
             Assert.False(result.IsSuccess);
-            _mockUsageRepository.Verify(r => r.RecordUsageAsync(It.Is<Usage>(u => 
+            _mockUsageRepository.Verify(r => r.RecordUsageAsync(It.Is<Usage>(u =>
                 u.StatusCode == 400 && u.IsSuccess == false)), Times.Once);
         }
 
         [Fact]
-        public async Task GetUsageByDateRangeAsync_ValidParameters_ReturnsUsageRecords()
-        {
+        public async Task GetUsageByDateRangeAsync_ValidParameters_ReturnsUsageRecords() {
             // Arrange
             var userId = "user-1";
             var startDate = DateTime.UtcNow.AddDays(-7);
@@ -218,39 +202,36 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task GetUsageByDateRangeAsync_ThrowsOnNullUserId()
-        {
+        public async Task GetUsageByDateRangeAsync_ThrowsOnNullUserId() {
             // Arrange
             var startDate = DateTime.UtcNow.AddDays(-7);
             var endDate = DateTime.UtcNow;
 
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.GetUsageByDateRangeAsync(null!, startDate, endDate));
         }
 
         [Fact]
-        public async Task GetUsageByDateRangeAsync_ThrowsOnEmptyUserId()
-        {
+        public async Task GetUsageByDateRangeAsync_ThrowsOnEmptyUserId() {
             // Arrange
             var startDate = DateTime.UtcNow.AddDays(-7);
             var endDate = DateTime.UtcNow;
 
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.GetUsageByDateRangeAsync(string.Empty, startDate, endDate));
         }
 
         [Fact]
-        public async Task GetUsageByDateRangeAsync_ThrowsOnInvalidDateRange()
-        {
+        public async Task GetUsageByDateRangeAsync_ThrowsOnInvalidDateRange() {
             // Arrange
             var userId = "user-1";
             var startDate = DateTime.UtcNow;
             var endDate = DateTime.UtcNow.AddDays(-7);
 
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.GetUsageByDateRangeAsync(userId, startDate, endDate));
         }
     }

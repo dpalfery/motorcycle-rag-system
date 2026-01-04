@@ -20,16 +20,13 @@ namespace MotorcycleRAG.IntegrationTests;
 /// Provides test-specific configuration including dummy AzureAd settings
 /// and adds test authentication handler for simulating authenticated users
 /// </summary>
-public class TestWebApplicationFactory : WebApplicationFactory<Program>
-{
-    static TestWebApplicationFactory()
-    {
+public class TestWebApplicationFactory : WebApplicationFactory<Program> {
+    static TestWebApplicationFactory() {
         // Set environment to Testing early so Program.Main loads correct appsettings
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
     }
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
+    protected override void ConfigureWebHost(IWebHostBuilder builder) {
         // Ensure SQL connection string requirement does not crash app startup in tests.
         // This is NOT a secret and MUST NOT include embedded credentials.
         Environment.SetEnvironmentVariable(
@@ -38,12 +35,10 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
 
         base.ConfigureWebHost(builder);
 
-        builder.ConfigureAppConfiguration((context, config) =>
-        {
+        builder.ConfigureAppConfiguration((context, config) => {
             // Add in-memory configuration with dummy AzureAd settings
             // These are NOT secrets - they're dummy values for test purposes only
-            config.AddInMemoryCollection(new Dictionary<string, string?>
-            {
+            config.AddInMemoryCollection(new Dictionary<string, string?> {
                 // AzureAd configuration - dummy values for testing (NOT secrets)
                 ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
                 ["AzureAd:Domain"] = "testdomain.onmicrosoft.com",
@@ -62,17 +57,14 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
             });
         });
 
-        builder.ConfigureServices(services =>
-        {
+        builder.ConfigureServices(services => {
             // Replace production authentication with test authentication scheme
             // This allows tests to use X-Test-Auth header for authentication
-            services.AddAuthentication(options =>
-            {
+            services.AddAuthentication(options => {
                 options.DefaultAuthenticateScheme = "Test";
                 options.DefaultChallengeScheme = "Test";
             })
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", options =>
-                {
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", options => {
                     options.TimeProvider = TimeProvider.System;
                 });
 
@@ -84,8 +76,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
             // Individual tests may override these with their own registrations.
             var userRepo = new Mock<IUserRepository>();
             userRepo.Setup(r => r.GetUserByIdAsync(It.IsAny<string>()))
-                .ReturnsAsync((string userId) => new UserDTO
-                {
+                .ReturnsAsync((string userId) => new UserDTO {
                     Id = userId,
                     Email = "test@example.com",
                     DisplayName = "Test User",
@@ -100,11 +91,9 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
 
             var usageTracking = new Mock<IUsageTrackingService>();
             usageTracking.Setup(s => s.GetUsageByDateRangeAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>()))
-                .ReturnsAsync((string userId, DateTime start, DateTime end) =>
-                {
+                .ReturnsAsync((string userId, DateTime start, DateTime end) => {
                     var days = Math.Max(1, (int)Math.Floor((end - start).TotalDays));
-                    return Enumerable.Range(1, days).Select(i => new Usage
-                    {
+                    return Enumerable.Range(1, days).Select(i => new Usage {
                         Id = i,
                         UserId = userId,
                         Endpoint = "/api/me/usage",
@@ -151,8 +140,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         });
     }
 
-    protected override IHost CreateHost(IHostBuilder builder)
-    {
+    protected override IHost CreateHost(IHostBuilder builder) {
         // Set environment to Testing
         builder.UseEnvironment("Testing");
 

@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// Repository interface for managing MCP tool configuration audit trail.
 /// Tracks all changes to tool configurations for compliance and debugging.
 /// </summary>
-public interface IToolConfigurationAuditRepository
-{
+public interface IToolConfigurationAuditRepository {
     /// <summary>
     /// Record a tool configuration change with audit details.
     /// </summary>

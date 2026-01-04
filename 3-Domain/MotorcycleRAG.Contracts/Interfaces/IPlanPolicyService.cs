@@ -2,13 +2,11 @@ using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
-namespace MotorcycleRAG.Contracts.Interfaces
-{
+namespace MotorcycleRAG.Contracts.Interfaces {
     /// <summary>
     /// Service interface for plan policy enforcement and limit checking
     /// </summary>
-    public interface IPlanPolicyService
-    {
+    public interface IPlanPolicyService {
         /// <summary>
         /// Gets the daily request limit for a user's plan
         /// </summary>

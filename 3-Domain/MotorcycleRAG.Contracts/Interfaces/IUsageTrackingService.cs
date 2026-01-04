@@ -3,13 +3,11 @@ using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
-namespace MotorcycleRAG.Contracts.Interfaces
-{
+namespace MotorcycleRAG.Contracts.Interfaces {
     /// <summary>
     /// Service interface for tracking API usage
     /// </summary>
-    public interface IUsageTrackingService
-    {
+    public interface IUsageTrackingService {
         /// <summary>
         /// Records a usage event
         /// </summary>

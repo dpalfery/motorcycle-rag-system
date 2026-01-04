@@ -7,8 +7,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Interface for Azure Search client operations
 /// </summary>
-public interface IAzureSearchClient
-{
+public interface IAzureSearchClient {
     /// <summary>
     /// Performs vector search
     /// </summary>

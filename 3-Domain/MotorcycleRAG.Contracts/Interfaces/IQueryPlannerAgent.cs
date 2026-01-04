@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Defines the contract for query planner agents
 /// </summary>
-public interface IQueryPlannerAgent : ISearchAgent
-{
+public interface IQueryPlannerAgent : ISearchAgent {
     /// <summary>
     /// Plans a search strategy for the given query
     /// </summary>

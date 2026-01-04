@@ -1,13 +1,11 @@
 using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
-namespace MotorcycleRAG.Contracts.Interfaces
-{
+namespace MotorcycleRAG.Contracts.Interfaces {
     /// <summary>
     /// Repository interface for audit logging operations
     /// </summary>
-    public interface IAuditRepository
-    {
+    public interface IAuditRepository {
         /// <summary>
         /// Creates an audit log entry
         /// </summary>

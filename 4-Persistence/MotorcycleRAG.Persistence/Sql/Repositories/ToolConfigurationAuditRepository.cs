@@ -10,15 +10,13 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories;
 /// Repository for MCP tool configuration audit trail
 /// Tracks all changes to tool configurations for compliance and debugging
 /// </summary>
-public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepository
-{
+public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepository {
     private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<ToolConfigurationAuditRepository> _logger;
 
     public ToolConfigurationAuditRepository(
         ISqlConnectionFactory connectionFactory,
-        ILogger<ToolConfigurationAuditRepository> logger)
-    {
+        ILogger<ToolConfigurationAuditRepository> logger) {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -33,8 +31,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         string? beforeJson,
         string? afterJson,
         string? userId,
-        string? changeReason = null)
-    {
+        string? changeReason = null) {
         if (toolConfigurationId == Guid.Empty)
             throw new ArgumentException("Tool configuration ID cannot be empty", nameof(toolConfigurationId));
 
@@ -56,17 +53,14 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
             SELECT CAST(SCOPE_IDENTITY() AS BIGINT) AS [Id];
         ";
 
-        try
-        {
+        try {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
             using var transaction = connection.BeginTransaction();
 
-            try
-            {
+            try {
                 var auditId = await connection.QueryFirstOrDefaultAsync<long>(
                     sql,
-                    new
-                    {
+                    new {
                         ToolConfigurationId = toolConfigurationId,
                         ToolId = toolId,
                         Action = action,
@@ -80,8 +74,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
 
                 transaction.Commit();
 
-                var entry = new ToolConfigurationAuditEntry
-                {
+                var entry = new ToolConfigurationAuditEntry {
                     Id = auditId,
                     ToolConfigurationId = toolConfigurationId,
                     ToolId = toolId,
@@ -99,14 +92,12 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
 
                 return entry;
             }
-            catch
-            {
+            catch {
                 transaction.Rollback();
                 throw;
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex,
                 "Error recording audit entry for tool {ToolId}: {Action}",
                 toolId, action);
@@ -120,8 +111,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
     public async Task<ToolConfigurationAuditEntry[]> GetAuditHistoryAsync(
         Guid toolConfigurationId,
         int limit = 100,
-        int offset = 0)
-    {
+        int offset = 0) {
         if (toolConfigurationId == Guid.Empty)
             throw new ArgumentException("Tool configuration ID cannot be empty", nameof(toolConfigurationId));
 
@@ -135,8 +125,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
             FETCH NEXT @Limit ROWS ONLY;
         ";
 
-        try
-        {
+        try {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
             var entries = await connection.QueryAsync<ToolConfigurationAuditEntry>(
@@ -145,8 +134,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
 
             return entries.ToArray();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex,
                 "Error retrieving audit history for tool configuration {ToolConfigurationId}",
                 toolConfigurationId);
@@ -161,8 +149,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         string action,
         DateTime? fromDate = null,
         DateTime? toDate = null,
-        int limit = 100)
-    {
+        int limit = 100) {
         if (string.IsNullOrWhiteSpace(action))
             throw new ArgumentException("Action cannot be empty", nameof(action));
 
@@ -182,16 +169,14 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         parameters.Add("@FromDate", fromDate ?? (object?)DBNull.Value);
         parameters.Add("@ToDate", toDate ?? (object?)DBNull.Value);
 
-        try
-        {
+        try {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
             var entries = await connection.QueryAsync<ToolConfigurationAuditEntry>(sql, parameters);
 
             return entries.ToArray();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex,
                 "Error retrieving audit entries for action {Action}",
                 action);
@@ -205,8 +190,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
     public async Task<ToolConfigurationAuditEntry[]> GetAuditEntriesByUserAsync(
         string userId,
         int limit = 100,
-        int offset = 0)
-    {
+        int offset = 0) {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be empty", nameof(userId));
 
@@ -220,8 +204,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
             FETCH NEXT @Limit ROWS ONLY;
         ";
 
-        try
-        {
+        try {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
             var entries = await connection.QueryAsync<ToolConfigurationAuditEntry>(
@@ -230,8 +213,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
 
             return entries.ToArray();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex,
                 "Error retrieving audit entries for user {UserId}",
                 userId);
@@ -242,8 +224,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
     /// <summary>
     /// Get audit summary statistics
     /// </summary>
-    public async Task<ToolConfigurationAuditSummary> GetAuditSummaryAsync()
-    {
+    public async Task<ToolConfigurationAuditSummary> GetAuditSummaryAsync() {
         const string sql = @"
             SELECT
                 COUNT(*) AS TotalEntries,
@@ -254,16 +235,14 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
             FROM [dbo].[ToolConfigurationAuditLog];
         ";
 
-        try
-        {
+        try {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
             var summary = await connection.QueryFirstOrDefaultAsync<ToolConfigurationAuditSummary>(sql);
 
             return summary ?? new ToolConfigurationAuditSummary();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit summary");
             throw;
         }
@@ -272,15 +251,13 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
     /// <summary>
     /// Clear old audit entries (retention policy)
     /// </summary>
-    public async Task<int> PurgeOldEntriesAsync(int retentionDays = 90)
-    {
+    public async Task<int> PurgeOldEntriesAsync(int retentionDays = 90) {
         const string sql = @"
             DELETE FROM [dbo].[ToolConfigurationAuditLog]
             WHERE [ChangedAt] < DATEADD(DAY, -@RetentionDays, GETUTCDATE());
         ";
 
-        try
-        {
+        try {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
             var deletedCount = await connection.ExecuteAsync(
@@ -293,8 +270,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
 
             return deletedCount;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex,
                 "Error purging old audit entries");
             throw;

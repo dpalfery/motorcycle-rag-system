@@ -5,20 +5,17 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.Azure;
 
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
-public class ServiceCollectionExtensionsTests
-{
+public class ServiceCollectionExtensionsTests {
     private readonly IConfiguration _configuration;
     private readonly ServiceCollection _services;
 
-    public ServiceCollectionExtensionsTests()
-    {
+    public ServiceCollectionExtensionsTests() {
         var configurationBuilder = new ConfigurationBuilder();
-        configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
-        {
+        configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?> {
             ["AzureAI:FoundryEndpoint"] = "https://test-foundry.cognitiveservices.azure.com/",
             ["AzureAI:OpenAIEndpoint"] = "https://test-openai.openai.azure.com/",
             ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
@@ -49,8 +46,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAzureServices_WithValidConfiguration_ShouldRegisterAllServices()
-    {
+    public void AddAzureServices_WithValidConfiguration_ShouldRegisterAllServices() {
         // Act
         _services.AddAzureServices(_configuration);
         var serviceProvider = _services.BuildServiceProvider();
@@ -63,8 +59,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAzureServices_ShouldRegisterConfigurationOptions()
-    {
+    public void AddAzureServices_ShouldRegisterConfigurationOptions() {
         // Act
         _services.AddAzureServices(_configuration);
         var serviceProvider = _services.BuildServiceProvider();
@@ -84,8 +79,7 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddAzureServices_ShouldRegisterServicesAsSingletons()
-    {
+    public void AddAzureServices_ShouldRegisterServicesAsSingletons() {
         // Act
         _services.AddAzureServices(_configuration);
         var serviceProvider = _services.BuildServiceProvider();
@@ -93,13 +87,12 @@ public class ServiceCollectionExtensionsTests
         // Assert
         var client1 = serviceProvider.GetService<IAzureOpenAIClient>();
         var client2 = serviceProvider.GetService<IAzureOpenAIClient>();
-        
+
         client1.Should().BeSameAs(client2);
     }
 
     [Fact]
-    public void AddAzureServices_ShouldRegisterHttpClient()
-    {
+    public void AddAzureServices_ShouldRegisterHttpClient() {
         // Act
         _services.AddAzureServices(_configuration);
         var serviceProvider = _services.BuildServiceProvider();
@@ -110,27 +103,22 @@ public class ServiceCollectionExtensionsTests
     }
 }
 
-public class AzureAIConfigurationValidatorTests
-{
+public class AzureAIConfigurationValidatorTests {
     private readonly AzureAIConfigurationValidator _validator;
 
-    public AzureAIConfigurationValidatorTests()
-    {
+    public AzureAIConfigurationValidatorTests() {
         _validator = new AzureAIConfigurationValidator();
     }
 
     [Fact]
-    public void Validate_WithValidConfiguration_ShouldReturnSuccess()
-    {
+    public void Validate_WithValidConfiguration_ShouldReturnSuccess() {
         // Arrange
-        var config = new AzureAIOptions
-        {
+        var config = new AzureAIOptions {
             FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
             OpenAIEndpoint = "https://test-openai.openai.azure.com/",
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
             DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Models = new ModelOptions
-            {
+            Models = new ModelOptions {
                 ChatModel = "gpt-4o-mini",
                 EmbeddingModel = "text-embedding-3-large",
                 QueryPlannerModel = "gpt-4o",
@@ -139,8 +127,7 @@ public class AzureAIConfigurationValidatorTests
                 Temperature = 0.1f,
                 TopP = 1.0f
             },
-            Retry = new RetryOptions
-            {
+            Retry = new RetryOptions {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,
                 MaxDelaySeconds = 60,
@@ -158,8 +145,7 @@ public class AzureAIConfigurationValidatorTests
     [Theory]
     [InlineData("", "AzureAI:FoundryEndpoint is required")]
     [InlineData("invalid-uri", "AzureAI:FoundryEndpoint must be a valid URI")]
-    public void Validate_WithInvalidFoundryEndpoint_ShouldReturnFailure(string endpoint, string expectedError)
-    {
+    public void Validate_WithInvalidFoundryEndpoint_ShouldReturnFailure(string endpoint, string expectedError) {
         // Arrange
         var config = CreateValidConfiguration();
         config.FoundryEndpoint = endpoint;
@@ -175,8 +161,7 @@ public class AzureAIConfigurationValidatorTests
     [Theory]
     [InlineData("", "AzureAI:OpenAIEndpoint is required")]
     [InlineData("invalid-uri", "AzureAI:OpenAIEndpoint must be a valid URI")]
-    public void Validate_WithInvalidOpenAIEndpoint_ShouldReturnFailure(string endpoint, string expectedError)
-    {
+    public void Validate_WithInvalidOpenAIEndpoint_ShouldReturnFailure(string endpoint, string expectedError) {
         // Arrange
         var config = CreateValidConfiguration();
         config.OpenAIEndpoint = endpoint;
@@ -192,8 +177,7 @@ public class AzureAIConfigurationValidatorTests
     [Theory]
     [InlineData(0, "AzureAI:Models:MaxTokens must be greater than 0")]
     [InlineData(-1, "AzureAI:Models:MaxTokens must be greater than 0")]
-    public void Validate_WithInvalidMaxTokens_ShouldReturnFailure(int maxTokens, string expectedError)
-    {
+    public void Validate_WithInvalidMaxTokens_ShouldReturnFailure(int maxTokens, string expectedError) {
         // Arrange
         var config = CreateValidConfiguration();
         config.Models.MaxTokens = maxTokens;
@@ -209,8 +193,7 @@ public class AzureAIConfigurationValidatorTests
     [Theory]
     [InlineData(-0.1f, "AzureAI:Models:Temperature must be between 0 and 2")]
     [InlineData(2.1f, "AzureAI:Models:Temperature must be between 0 and 2")]
-    public void Validate_WithInvalidTemperature_ShouldReturnFailure(float temperature, string expectedError)
-    {
+    public void Validate_WithInvalidTemperature_ShouldReturnFailure(float temperature, string expectedError) {
         // Arrange
         var config = CreateValidConfiguration();
         config.Models.Temperature = temperature;
@@ -226,8 +209,7 @@ public class AzureAIConfigurationValidatorTests
     [Theory]
     [InlineData(0, "AzureAI:Retry:MaxRetries must be greater than 0")]
     [InlineData(-1, "AzureAI:Retry:MaxRetries must be greater than 0")]
-    public void Validate_WithInvalidMaxRetries_ShouldReturnFailure(int maxRetries, string expectedError)
-    {
+    public void Validate_WithInvalidMaxRetries_ShouldReturnFailure(int maxRetries, string expectedError) {
         // Arrange
         var config = CreateValidConfiguration();
         config.Retry.MaxRetries = maxRetries;
@@ -240,16 +222,13 @@ public class AzureAIConfigurationValidatorTests
         result.Failures.Should().Contain(expectedError);
     }
 
-    private static AzureAIOptions CreateValidConfiguration()
-    {
-        return new AzureAIOptions
-        {
+    private static AzureAIOptions CreateValidConfiguration() {
+        return new AzureAIOptions {
             FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
             OpenAIEndpoint = "https://test-openai.openai.azure.com/",
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
             DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Models = new ModelOptions
-            {
+            Models = new ModelOptions {
                 ChatModel = "gpt-4o-mini",
                 EmbeddingModel = "text-embedding-3-large",
                 QueryPlannerModel = "gpt-4o",
@@ -258,8 +237,7 @@ public class AzureAIConfigurationValidatorTests
                 Temperature = 0.1f,
                 TopP = 1.0f
             },
-            Retry = new RetryOptions
-            {
+            Retry = new RetryOptions {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,
                 MaxDelaySeconds = 60,
@@ -269,18 +247,15 @@ public class AzureAIConfigurationValidatorTests
     }
 }
 
-public class SearchConfigurationValidatorTests
-{
+public class SearchConfigurationValidatorTests {
     private readonly SearchConfigurationValidator _validator;
 
-    public SearchConfigurationValidatorTests()
-    {
+    public SearchConfigurationValidatorTests() {
         _validator = new SearchConfigurationValidator();
     }
 
     [Fact]
-    public void Validate_WithValidConfiguration_ShouldReturnSuccess()
-    {
+    public void Validate_WithValidConfiguration_ShouldReturnSuccess() {
         // Arrange
         var config = new SearchOptions {
             IndexName = "test-index",
@@ -300,8 +275,7 @@ public class SearchConfigurationValidatorTests
     [Theory]
     [InlineData("", "Search:IndexName is required")]
     [InlineData(null, "Search:IndexName is required")]
-    public void Validate_WithInvalidIndexName_ShouldReturnFailure(string? indexName, string expectedError)
-    {
+    public void Validate_WithInvalidIndexName_ShouldReturnFailure(string? indexName, string expectedError) {
         // Arrange
         var config = new SearchOptions {
             IndexName = indexName!,
@@ -320,8 +294,7 @@ public class SearchConfigurationValidatorTests
     [Theory]
     [InlineData(0, "Search:BatchSize must be greater than 0")]
     [InlineData(-1, "Search:BatchSize must be greater than 0")]
-    public void Validate_WithInvalidBatchSize_ShouldReturnFailure(int batchSize, string expectedError)
-    {
+    public void Validate_WithInvalidBatchSize_ShouldReturnFailure(int batchSize, string expectedError) {
         // Arrange
         var config = new SearchOptions {
             IndexName = "test-index",
@@ -340,8 +313,7 @@ public class SearchConfigurationValidatorTests
     [Theory]
     [InlineData(0, "Search:MaxSearchResults must be greater than 0")]
     [InlineData(-1, "Search:MaxSearchResults must be greater than 0")]
-    public void Validate_WithInvalidMaxSearchResults_ShouldReturnFailure(int maxResults, string expectedError)
-    {
+    public void Validate_WithInvalidMaxSearchResults_ShouldReturnFailure(int maxResults, string expectedError) {
         // Arrange
         var config = new SearchOptions {
             IndexName = "test-index",

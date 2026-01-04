@@ -23,7 +23,7 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
     {
         _factory = factory;
         _client = _factory.CreateClient();
-        
+
         _configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.EndToEnd.json")
             .AddEnvironmentVariables()
@@ -50,16 +50,16 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         response.Should().BeSuccessful();
-        
+
         var result = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
         result.Should().NotBeNull();
         result!.Response.Should().NotBeNullOrEmpty();
         result.Sources.Should().NotBeEmpty();
         result.QueryId.Should().NotBeNullOrEmpty();
-        
+
         // Verify response contains Honda CBR600RR information
         result.Response.Should().ContainAny("Honda", "CBR600RR", "599", "118");
-        
+
         // Verify metrics are captured
         result.Metrics.Should().NotBeNull();
         result.Metrics!.ProcessingTimeMs.Should().BeGreaterThan(0);
@@ -87,15 +87,15 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         response.Should().BeSuccessful();
-        
+
         var result = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
         result.Should().NotBeNull();
         result!.Response.Should().NotBeNullOrEmpty();
-        
+
         // Verify comparative analysis includes both motorcycles
         result.Response.Should().ContainAll("Honda", "CBR1000RR", "Yamaha", "R1");
         result.Response.Should().ContainAny("compare", "comparison", "versus", "vs");
-        
+
         // Verify multiple sources were used
         result.Sources.Should().HaveCountGreaterThan(1);
         result.Sources.Should().Contain(s => s.Source == SearchSource.VectorDatabase);
@@ -121,15 +121,15 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         response.Should().BeSuccessful();
-        
+
         var result = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
         result.Should().NotBeNull();
         result!.Response.Should().NotBeNullOrEmpty();
-        
+
         // Verify maintenance procedure information
         result.Response.Should().ContainAny("oil", "change", "procedure", "steps");
         result.Response.Should().Contain("Kawasaki");
-        
+
         // Verify PDF sources were consulted
         result.Sources.Should().Contain(s => s.Source == SearchSource.PDFManual);
     }
@@ -153,11 +153,11 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         response.Should().BeSuccessful();
-        
+
         var result = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
         result.Should().NotBeNull();
         result!.Response.Should().NotBeNullOrEmpty();
-        
+
         // Verify multimodal processing occurred
         result.Response.Should().ContainAny("diagram", "engine", "BMW", "S1000RR");
         result.Metrics!.MultiModalProcessed.Should().BeTrue();
@@ -178,14 +178,14 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         response.Should().BeSuccessful();
-        
+
         var result = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
         result.Should().NotBeNull();
-        
+
         // Verify sequential search pattern was executed
         result!.Metrics!.SearchPattern.Should().NotBeNull();
         result.Metrics.SearchPattern!.VectorSearchExecuted.Should().BeTrue();
-        
+
         // For rare information, web augmentation should have been attempted
         if (result.Metrics.SearchPattern.WebSearchExecuted)
         {
@@ -208,7 +208,7 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
-        
+
         var errorResponse = await response.Content.ReadAsStringAsync();
         errorResponse.Should().NotBeNullOrEmpty();
         errorResponse.Should().ContainAny("query", "required", "invalid");
@@ -222,12 +222,12 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         response.Should().BeSuccessful();
-        
+
         var result = await response.Content.ReadFromJsonAsync<HealthCheckResult>();
         result.Should().NotBeNull();
         result!.Status.Should().Be(HealthStatus.Healthy);
         result.Components.Should().NotBeEmpty();
-        
+
         // Verify all critical components are healthy
         result.Components.Should().ContainKey("AzureOpenAI");
         result.Components.Should().ContainKey("AzureAISearch");
@@ -283,13 +283,13 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
     {
         // This test would require file upload endpoints
         // For now, we'll test the health of the indexing service
-        
+
         // Act
         var response = await _client.GetAsync("/api/motorcycle/indexing/status");
 
         // Assert
         response.Should().BeSuccessful();
-        
+
         var status = await response.Content.ReadFromJsonAsync<IndexingStatus>();
         status.Should().NotBeNull();
         status!.IsHealthy.Should().BeTrue();
@@ -314,12 +314,12 @@ public class UserJourneyTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         response.Should().BeSuccessful();
-        
+
         var result = await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>();
         result.Should().NotBeNull();
         result!.Response.Should().NotBeNullOrEmpty();
         result.Sources.Should().NotBeEmpty();
-        
+
         // Verify response time is within acceptable limits
         result.Metrics!.ProcessingTimeMs.Should().BeLessThan(5000); // 5 seconds max
     }

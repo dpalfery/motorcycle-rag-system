@@ -15,8 +15,7 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// <summary>
 /// Azure Document Intelligence client wrapper with resilience patterns
 /// </summary>
-public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, IDisposable
-{
+public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, IDisposable {
     private readonly DocumentIntelligenceClient _client;
     private readonly AzureAIOptions _config;
     private readonly ILogger<DocumentIntelligenceClientWrapper> _logger;
@@ -25,8 +24,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
 
     public DocumentIntelligenceClientWrapper(
         IOptions<AzureAIOptions> config,
-        ILogger<DocumentIntelligenceClientWrapper> logger)
-    {
+        ILogger<DocumentIntelligenceClientWrapper> logger) {
         if (config == null) throw new ArgumentNullException(nameof(config));
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -45,18 +43,15 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
 
     public async Task<DocumentAnalysisResult> AnalyzeDocumentFromUriAsync(
         Uri documentUri,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
+        CancellationToken cancellationToken = default) {
+        try {
             _logger.LogDebug("Analyzing document from URI: {DocumentUri}", documentUri);
 
             // Simplified implementation - in a real scenario, you would use the actual Document Intelligence SDK
             // For now, return placeholder analysis to demonstrate the pattern
             await Task.Delay(500, cancellationToken); // Simulate document analysis
 
-            var result = new DocumentAnalysisResult
-            {
+            var result = new DocumentAnalysisResult {
                 Content = $"Extracted text content from document at {documentUri}",
                 Pages = new[]
                 {
@@ -69,8 +64,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                     }
                 },
                 Tables = Array.Empty<MotorcycleRAG.Contracts.Models.DTOs.DocumentTable>(),
-                Metadata = new Dictionary<string, object>
-                {
+                Metadata = new Dictionary<string, object> {
                     ["ModelId"] = "prebuilt-layout",
                     ["DocumentUri"] = documentUri.ToString()
                 }
@@ -79,40 +73,33 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
             _logger.LogDebug("Document analysis from URI completed successfully");
             return result;
         }
-        catch (RequestFailedException ex)
-        {
+        catch (RequestFailedException ex) {
             _logger.LogError(ex, "Document Intelligence URI request failed: {ErrorCode} - {Message}",
                 ex.ErrorCode, ex.Message);
             throw;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Unexpected error in AnalyzeDocumentFromUriAsync");
             throw;
         }
     }
 
-    public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(string documentUrl)
-    {
-        try
-        {
+    public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(string documentUrl) {
+        try {
             _logger.LogDebug("Analyzing document from URL: {DocumentUrl}", documentUrl);
 
             // Convert URL to URI and delegate to URI method
             var uri = new Uri(documentUrl);
             return await AnalyzeDocumentFromUriAsync(uri, CancellationToken.None);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error analyzing document from URL: {DocumentUrl}", documentUrl);
             throw;
         }
     }
 
-    public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(Stream documentStream, string contentType)
-    {
-        try
-        {
+    public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(Stream documentStream, string contentType) {
+        try {
             _logger.LogDebug("Analyzing document from stream with content type: {ContentType}", contentType);
 
             // Convert stream to byte array and create placeholder result
@@ -123,8 +110,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
             // Simplified implementation - return placeholder analysis
             await Task.Delay(500); // Simulate document analysis
 
-            var result = new DocumentAnalysisResult
-            {
+            var result = new DocumentAnalysisResult {
                 Content = "Extracted text content from the document stream",
                 Pages = new[]
                 {
@@ -151,8 +137,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                         }
                     }
                 },
-                Metadata = new Dictionary<string, object>
-                {
+                Metadata = new Dictionary<string, object> {
                     ["ModelId"] = "prebuilt-layout",
                     ["DocumentSize"] = documentBytes.Length,
                     ["ContentType"] = contentType
@@ -162,30 +147,25 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
             _logger.LogDebug("Document analysis from stream completed successfully");
             return result;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error analyzing document from stream");
             throw;
         }
     }
 
-    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)
-    {
-        try
-        {
+    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default) {
+        try {
             // Simple health check - in a real scenario, you would make an actual API call
             await Task.Delay(50, cancellationToken); // Simulate health check
             return true;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Document Intelligence health check failed");
             return false;
         }
     }
 
-    private IAsyncPolicy CreateRetryPolicy()
-    {
+    private IAsyncPolicy CreateRetryPolicy() {
         var retryConfig = _config.Retry;
 
         return Policy
@@ -199,15 +179,13 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                         retryConfig.BaseDelaySeconds * Math.Pow(2, retryAttempt - 1),
                         retryConfig.MaxDelaySeconds))
                     : TimeSpan.FromSeconds(retryConfig.BaseDelaySeconds),
-                onRetry: (outcome, timespan, retryCount, context) =>
-                {
+                onRetry: (outcome, timespan, retryCount, context) => {
                     _logger.LogWarning("Retry attempt {RetryCount} for Document Intelligence after {Delay}ms",
                         retryCount, timespan.TotalMilliseconds);
                 });
     }
 
-    private static bool IsRetryableError(RequestFailedException ex)
-    {
+    private static bool IsRetryableError(RequestFailedException ex) {
         // Retry on rate limiting, server errors, and timeout
         return ex.Status == 429 || // Too Many Requests
                ex.Status == 500 || // Internal Server Error
@@ -216,10 +194,8 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
                ex.Status == 504;   // Gateway Timeout
     }
 
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
+    public void Dispose() {
+        if (!_disposed) {
             // DocumentIntelligenceClient doesn't implement IDisposable in the current SDK version
             _disposed = true;
         }

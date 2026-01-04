@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Interface for scheduled background processing of data pipelines
 /// </summary>
-public interface IScheduledPipelineService
-{
+public interface IScheduledPipelineService {
     /// <summary>
     /// Start the scheduled processing service
     /// </summary>

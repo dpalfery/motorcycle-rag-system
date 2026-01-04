@@ -8,8 +8,7 @@ namespace MotorcycleRAG.Domain.Entities;
 /// <summary>
 /// Represents a motorcycle document with vector embedding support
 /// </summary>
-public class MotorcycleDocument
-{
+public class MotorcycleDocument {
     [Required]
     public string Id { get; set; } = string.Empty;
 

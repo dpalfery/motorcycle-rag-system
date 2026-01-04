@@ -5,7 +5,7 @@ using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using Xunit;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Agents;
 
@@ -13,20 +13,18 @@ namespace MotorcycleRAG.UnitTests.Agents;
 /// Unit tests for VectorSearchAgent
 /// Tests hybrid search functionality, result ranking, and filtering logic
 /// </summary>
-public class VectorSearchAgentTests : IDisposable
-{
+public class VectorSearchAgentTests : IDisposable {
     private readonly Mock<IAzureSearchClient> _mockSearchClient;
     private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
     private readonly Mock<ILogger<VectorSearchAgent>> _mockLogger;
     private readonly IOptions<SearchOptions> _searchConfig;
     private readonly VectorSearchAgent _vectorSearchAgent;
 
-    public VectorSearchAgentTests()
-    {
+    public VectorSearchAgentTests() {
         _mockSearchClient = new Mock<IAzureSearchClient>();
         _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         _mockLogger = new Mock<ILogger<VectorSearchAgent>>();
-        
+
         _searchConfig = Options.Create(new SearchOptions {
             IndexName = "test-motorcycle-index",
             BatchSize = 100,
@@ -43,8 +41,7 @@ public class VectorSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public void AgentType_ShouldReturnVectorSearch()
-    {
+    public void AgentType_ShouldReturnVectorSearch() {
         // Act
         var agentType = _vectorSearchAgent.AgentType;
 
@@ -53,8 +50,7 @@ public class VectorSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public void Constructor_ShouldThrowArgumentNullException_WhenRequiredParametersAreNull()
-    {
+    public void Constructor_ShouldThrowArgumentNullException_WhenRequiredParametersAreNull() {
         // Arrange & Act & Assert
         Assert.Throws<ArgumentNullException>(() => new VectorSearchAgent(
             null!, _mockOpenAIClient.Object, _searchConfig, _mockLogger.Object));
@@ -70,8 +66,7 @@ public class VectorSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldReturnEmptyArray_WhenQueryIsEmpty()
-    {
+    public async Task SearchAsync_ShouldReturnEmptyArray_WhenQueryIsEmpty() {
         // Arrange
         var searchOptions = CreateDefaultSearchOptions();
 
@@ -83,8 +78,7 @@ public class VectorSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldReturnEmptyArray_WhenQueryIsNull()
-    {
+    public async Task SearchAsync_ShouldReturnEmptyArray_WhenQueryIsNull() {
         // Arrange
         var searchOptions = CreateDefaultSearchOptions();
 
@@ -96,12 +90,11 @@ public class VectorSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldExecuteSearch_WhenValidQueryProvided()
-    {
+    public async Task SearchAsync_ShouldExecuteSearch_WhenValidQueryProvided() {
         // Arrange
         var query = "Honda CBR1000RR specifications";
         var searchOptions = CreateDefaultSearchOptions();
-        
+
         SetupMockSearchClient();
         SetupMockOpenAIClient();
 
@@ -110,8 +103,7 @@ public class VectorSearchAgentTests : IDisposable
 
         // Assert
         Assert.NotEmpty(results);
-        Assert.All(results, result => 
-        {
+        Assert.All(results, result => {
             Assert.NotEmpty(result.Id);
             Assert.NotEmpty(result.Content);
             Assert.True(result.RelevanceScore > 0);
@@ -126,8 +118,7 @@ public class VectorSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldApplyMinRelevanceScoreFilter_WhenFilterSet()
-    {
+    public async Task SearchAsync_ShouldApplyMinRelevanceScoreFilter_WhenFilterSet() {
         // Arrange
         var query = "Yamaha R1 engine specs";
         var searchParameters = new SearchParameters {
@@ -135,7 +126,7 @@ public class VectorSearchAgentTests : IDisposable
             MinRelevanceScore = 0.8f,
             IncludeMetadata = true
         };
-        
+
         SetupMockSearchClient();
         SetupMockOpenAIClient();
 
@@ -143,13 +134,12 @@ public class VectorSearchAgentTests : IDisposable
         var results = await _vectorSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
-        Assert.All(results, result => 
+        Assert.All(results, result =>
             Assert.True(result.RelevanceScore >= searchParameters.MinRelevanceScore));
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldRespectMaxResultsLimit_WhenLimitSet()
-    {
+    public async Task SearchAsync_ShouldRespectMaxResultsLimit_WhenLimitSet() {
         // Arrange
         var query = "Kawasaki Ninja performance";
         var searchParameters = new SearchParameters {
@@ -157,7 +147,7 @@ public class VectorSearchAgentTests : IDisposable
             MinRelevanceScore = 0.0f,
             IncludeMetadata = true
         };
-        
+
         SetupMockSearchClient();
         SetupMockOpenAIClient();
 
@@ -169,8 +159,7 @@ public class VectorSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldIncludeMetadata_WhenIncludeMetadataIsTrue()
-    {
+    public async Task SearchAsync_ShouldIncludeMetadata_WhenIncludeMetadataIsTrue() {
         // Arrange
         var query = "Ducati Panigale features";
         var searchParameters = new SearchParameters {
@@ -178,7 +167,7 @@ public class VectorSearchAgentTests : IDisposable
             MinRelevanceScore = 0.0f,
             IncludeMetadata = true
         };
-        
+
         SetupMockSearchClient();
         SetupMockOpenAIClient();
 
@@ -186,8 +175,7 @@ public class VectorSearchAgentTests : IDisposable
         var results = await _vectorSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
-        Assert.All(results, result => 
-        {
+        Assert.All(results, result => {
             Assert.Contains("searchQuery", result.Metadata.Keys);
             Assert.Contains("searchTimestamp", result.Metadata.Keys);
             Assert.Contains("agentType", result.Metadata.Keys);
@@ -196,12 +184,11 @@ public class VectorSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldHandleOpenAIFailure_WhenEmbeddingGenerationFails()
-    {
+    public async Task SearchAsync_ShouldHandleOpenAIFailure_WhenEmbeddingGenerationFails() {
         // Arrange
         var query = "BMW S1000RR specifications";
         var searchOptions = CreateDefaultSearchOptions();
-        
+
         SetupMockSearchClient();
         SetupMockOpenAIClientFailure();
 
@@ -211,7 +198,7 @@ public class VectorSearchAgentTests : IDisposable
         // Assert
         // Should still return keyword search results
         Assert.NotEmpty(results);
-        
+
         // Verify keyword search was still executed (provide all parameters explicitly)
         _mockSearchClient.Verify(x => x.SearchAsync(
             It.Is<string>(s => s == query),
@@ -224,11 +211,10 @@ public class VectorSearchAgentTests : IDisposable
     [InlineData("Yamaha YZF-R1")]
     [InlineData("Kawasaki Ninja ZX-10R")]
     [InlineData("Ducati Panigale V4")]
-    public async Task SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(string query)
-    {
+    public async Task SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(string query) {
         // Arrange
         var searchOptions = CreateDefaultSearchOptions();
-        
+
         SetupMockSearchClient();
         SetupMockOpenAIClient();
 
@@ -237,8 +223,7 @@ public class VectorSearchAgentTests : IDisposable
 
         // Assert
         Assert.NotEmpty(results);
-        Assert.All(results, result => 
-        {
+        Assert.All(results, result => {
             Assert.NotEmpty(result.Content);
             Assert.True(result.RelevanceScore > 0);
             Assert.Equal(SearchAgentType.VectorSearch, result.Source.AgentType);
@@ -247,8 +232,7 @@ public class VectorSearchAgentTests : IDisposable
 
     #region Helper Methods
 
-    private SearchParameters CreateDefaultSearchOptions()
-    {
+    private SearchParameters CreateDefaultSearchOptions() {
         return new SearchParameters {
             MaxResults = 10,
             MinRelevanceScore = 0.5f,
@@ -257,8 +241,7 @@ public class VectorSearchAgentTests : IDisposable
         };
     }
 
-    private void SetupMockSearchClient()
-    {
+    private void SetupMockSearchClient() {
         var mockResults = new[]
         {
             new SearchResult
@@ -304,36 +287,32 @@ public class VectorSearchAgentTests : IDisposable
         )).ReturnsAsync(mockResults);
     }
 
-    private void SetupMockOpenAIClient()
-    {
+    private void SetupMockOpenAIClient() {
         var mockEmbedding = new float[1536];
-        for (int i = 0; i < mockEmbedding.Length; i++)
-        {
+        for (int i = 0; i < mockEmbedding.Length; i++) {
             mockEmbedding[i] = (float)(i * 0.001);
         }
 
         // Setup with specific overload to avoid expression tree issues
         _mockOpenAIClient.Setup(x => x.GetEmbeddingAsync(
-            It.Is<string>(s => s == "text-embedding-3-large"), 
-            It.IsAny<string>(), 
+            It.Is<string>(s => s == "text-embedding-3-large"),
+            It.IsAny<string>(),
             It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
             .ReturnsAsync(mockEmbedding);
     }
 
-    private void SetupMockOpenAIClientFailure()
-    {
+    private void SetupMockOpenAIClientFailure() {
         // Setup failure for any embedding call
         _mockOpenAIClient.Setup(x => x.GetEmbeddingAsync(
-            It.Is<string>(s => s == "text-embedding-3-large"), 
-            It.IsAny<string>(), 
+            It.Is<string>(s => s == "text-embedding-3-large"),
+            It.IsAny<string>(),
             It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
             .ThrowsAsync(new InvalidOperationException("OpenAI service unavailable"));
     }
 
     #endregion
 
-    public void Dispose()
-    {
+    public void Dispose() {
         // No explicit cleanup needed for this test class
     }
-} 
+}

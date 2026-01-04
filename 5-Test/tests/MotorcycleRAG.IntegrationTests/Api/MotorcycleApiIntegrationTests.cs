@@ -15,12 +15,9 @@ namespace MotorcycleRAG.IntegrationTests.Api;
 /// <summary>
 /// Integration tests for MotorcycleController REST API.
 /// </summary>
-public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFactory>
-{
-    private static JsonSerializerOptions GetJsonOptions()
-    {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        {
+public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFactory> {
+    private static JsonSerializerOptions GetJsonOptions() {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) {
             PropertyNameCaseInsensitive = true
         };
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
@@ -28,22 +25,17 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     }
     private readonly TestWebApplicationFactory _factory;
 
-    public MotorcycleApiIntegrationTests(TestWebApplicationFactory factory)
-    {
+    public MotorcycleApiIntegrationTests(TestWebApplicationFactory factory) {
         _factory = factory;
     }
 
-    private WebApplicationFactory<Program> CreateFactoryWithMockedService()
-    {
+    private WebApplicationFactory<Program> CreateFactoryWithMockedService() {
         // Override IMotorcycleRAGService with a mocked implementation so that tests do not call external services.
-        return _factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
+        return _factory.WithWebHostBuilder(builder => {
+            builder.ConfigureServices(services => {
                 // Remove existing registration (if any).
                 var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IMotorcycleRAGService));
-                if (descriptor is not null)
-                {
+                if (descriptor is not null) {
                     services.Remove(descriptor);
                 }
 
@@ -51,8 +43,7 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
                 var mockService = new Mock<IMotorcycleRAGService>();
 
                 mockService.Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
-                            .ReturnsAsync((MotorcycleQueryRequest r) =>
-                            {
+                            .ReturnsAsync((MotorcycleQueryRequest r) => {
                                 var sources = new[]
                                 {
                                     new SearchResult
@@ -94,14 +85,12 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
                                     }
                                 };
 
-                                return new MotorcycleQueryResponse
-                                {
+                                return new MotorcycleQueryResponse {
                                     QueryId = Guid.NewGuid().ToString("N"),
                                     Response = $"Echo: {r.Query}",
                                     GeneratedAt = DateTime.UtcNow,
                                     Sources = sources,
-                                    Metrics = new QueryMetrics
-                                    {
+                                    Metrics = new QueryMetrics {
                                         TotalDuration = TimeSpan.FromMilliseconds(123),
                                         ProcessingTimeMs = 100,
                                         ResultsFound = sources.Length,
@@ -119,13 +108,11 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     }
 
     [Fact]
-    public async Task QueryEndpoint_ReturnsOkAndResponseBody()
-    {
+    public async Task QueryEndpoint_ReturnsOkAndResponseBody() {
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
 
-        var request = new MotorcycleQueryRequest
-        {
+        var request = new MotorcycleQueryRequest {
             Query = "What is top speed of Ducati Panigale V4?"
         };
 
@@ -139,8 +126,7 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     }
 
     [Fact]
-    public async Task QueryEndpoint_InvalidModel_ReturnsBadRequest()
-    {
+    public async Task QueryEndpoint_InvalidModel_ReturnsBadRequest() {
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
 
@@ -152,8 +138,7 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     }
 
     [Fact]
-    public async Task HealthEndpoint_ReturnsOk()
-    {
+    public async Task HealthEndpoint_ReturnsOk() {
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
 
@@ -167,13 +152,11 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     }
 
     [Fact]
-    public async Task QueryEndpoint_ReturnsCitationsAndSources_WhenValidRequest()
-    {
+    public async Task QueryEndpoint_ReturnsCitationsAndSources_WhenValidRequest() {
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
 
-        var request = new MotorcycleQueryRequest
-        {
+        var request = new MotorcycleQueryRequest {
             Query = "What are specifications of Honda CBR1000RR?"
         };
 
@@ -191,8 +174,7 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
 
         // Verify citations are present in sources
         Assert.NotEmpty(body.Sources);
-        foreach (var source in body.Sources)
-        {
+        foreach (var source in body.Sources) {
             Assert.NotNull(source.Source);
             // Note: Mock service doesn't populate citations, but we verify the structure supports them
             Assert.NotNull(source.Source.Citation); // Should be null but not throw exception
@@ -205,30 +187,24 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     }
 
     [Fact]
-    public async Task QueryEndpoint_HandlesNoResultsWithRefinementSuggestions()
-    {
+    public async Task QueryEndpoint_HandlesNoResultsWithRefinementSuggestions() {
         // Create a mock that returns empty results
-        var factory = new TestWebApplicationFactory().WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
+        var factory = new TestWebApplicationFactory().WithWebHostBuilder(builder => {
+            builder.ConfigureServices(services => {
                 var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IMotorcycleRAGService));
-                if (descriptor is not null)
-                {
+                if (descriptor is not null) {
                     services.Remove(descriptor);
                 }
 
                 var mockService = new Mock<IMotorcycleRAGService>();
 
                 mockService.Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
-                            .ReturnsAsync((MotorcycleQueryRequest r) => new MotorcycleQueryResponse
-                            {
+                            .ReturnsAsync((MotorcycleQueryRequest r) => new MotorcycleQueryResponse {
                                 QueryId = Guid.NewGuid().ToString("N"),
                                 Response = "No results found. Try refining your query with more specific terms about motorcycle models, specifications, or maintenance procedures.",
                                 GeneratedAt = DateTime.UtcNow,
                                 Sources = Array.Empty<SearchResult>(),
-                                Metrics = new QueryMetrics
-                                {
+                                Metrics = new QueryMetrics {
                                     ResultsFound = 0,
                                     TotalDuration = TimeSpan.FromMilliseconds(100)
                                 }
@@ -257,13 +233,11 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     }
 
     [Fact]
-    public async Task QueryEndpoint_ReturnsStableQueryIdAndCompleteMetrics()
-    {
+    public async Task QueryEndpoint_ReturnsStableQueryIdAndCompleteMetrics() {
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
 
-        var request = new MotorcycleQueryRequest
-        {
+        var request = new MotorcycleQueryRequest {
             Query = "What is top speed of Ducati Panigale V4?"
         };
 

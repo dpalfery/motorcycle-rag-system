@@ -14,16 +14,14 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for pipeline jobs management.
 /// Handles loading, polling, and canceling pipeline executions.
 /// </summary>
-public class JobsViewModel : IDisposable
-{
+public class JobsViewModel : IDisposable {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<JobsViewModel> _logger;
     private readonly System.Timers.Timer _pollTimer;
     private bool _isLoading;
 
-    public JobsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<JobsViewModel> logger)
-    {
+    public JobsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<JobsViewModel> logger) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -46,13 +44,10 @@ public class JobsViewModel : IDisposable
 
     public ObservableCollection<JobViewModel> Jobs { get; }
 
-    public bool IsLoading
-    {
+    public bool IsLoading {
         get => _isLoading;
-        set
-        {
-            if (_isLoading != value)
-            {
+        set {
+            if (_isLoading != value) {
                 _isLoading = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsLoading)));
             }
@@ -70,15 +65,13 @@ public class JobsViewModel : IDisposable
 
     #region Lifecycle
 
-    public async Task InitializeAsync()
-    {
+    public async Task InitializeAsync() {
         await EnsureAuthorizedAsync();
         await LoadJobsAsync();
         _pollTimer.Start();
     }
 
-    public void StopPolling()
-    {
+    public void StopPolling() {
         _pollTimer.Stop();
     }
 
@@ -86,50 +79,39 @@ public class JobsViewModel : IDisposable
 
     #region Methods
 
-    private async void OnPollTimerElapsed(object? sender, ElapsedEventArgs e)
-    {
+    private async void OnPollTimerElapsed(object? sender, ElapsedEventArgs e) {
         // Poll for updates on running jobs
-        await MainThread.InvokeOnMainThreadAsync(async () =>
-        {
-            try
-            {
+        await MainThread.InvokeOnMainThreadAsync(async () => {
+            try {
                 await EnsureAuthorizedAsync();
                 var runningJobs = Jobs.Where(j => j.IsRunning).ToList();
-                foreach (var job in runningJobs)
-                {
+                foreach (var job in runningJobs) {
                     var statusResponse = await _apiClient.GetPipelineStatusAsync(job.ExecutionId);
                     job.Status = statusResponse.Status;
 
                     // If job completed, reload full job list
-                    if (!IsRunningStatus(statusResponse.Status))
-                    {
+                    if (!IsRunningStatus(statusResponse.Status)) {
                         await LoadJobsAsync();
                         break;
                     }
                 }
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogWarning(ex, "Error polling job status");
                 // Silently fail polling - user can manually refresh
             }
         });
     }
 
-    private async Task LoadJobsAsync()
-    {
+    private async Task LoadJobsAsync() {
         IsLoading = true;
-        try
-        {
+        try {
             var executions = await _apiClient.GetPipelineExecutionsAsync();
 
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(() => {
                 Jobs.Clear();
-                foreach (var execution in executions.OrderByDescending(e => e.StartTime))
-                {
-                    Jobs.Add(new JobViewModel
-                    {
+                foreach (var execution in executions.OrderByDescending(e => e.StartTime)) {
+                    Jobs.Add(new JobViewModel {
                         ExecutionId = execution.ExecutionId,
                         PipelineType = execution.PipelineType,
                         Status = execution.Status,
@@ -143,121 +125,98 @@ public class JobsViewModel : IDisposable
                 }
             });
         }
-        catch (UnauthorizedAccessException)
-        {
+        catch (UnauthorizedAccessException) {
             // Don't show error for missing authentication - this is expected in demo mode
             await MainThread.InvokeOnMainThreadAsync(() => Jobs.Clear());
         }
-        catch (HttpRequestException)
-        {
+        catch (HttpRequestException) {
             // API not available - silently fail
             await MainThread.InvokeOnMainThreadAsync(() => Jobs.Clear());
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             // Only show error for unexpected exceptions
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             _logger.LogError(ex, "Error loading pipeline jobs");
 
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(async () => {
                 var window = Application.Current?.Windows?.FirstOrDefault();
-                if (window?.Page != null)
-                {
+                if (window?.Page != null) {
                     await window.Page.DisplayAlertAsync("Error", $"Failed to load jobs: {sanitizedMessage}", "OK");
                 }
             });
         }
-        finally
-        {
+        finally {
             IsLoading = false;
         }
     }
 
-    private async Task CancelJobAsync(string executionId)
-    {
-        try
-        {
+    private async Task CancelJobAsync(string executionId) {
+        try {
             var window = Application.Current?.Windows?.FirstOrDefault();
-            if (window?.Page != null)
-            {
+            if (window?.Page != null) {
                 var confirm = await window.Page.DisplayAlertAsync(
                     "Cancel Job",
                     $"Are you sure you want to cancel execution {executionId}?",
                     "Yes",
                     "No");
 
-                if (confirm)
-                {
+                if (confirm) {
                     var result = await _apiClient.CancelPipelineAsync(executionId);
-                    if (result.Cancelled)
-                    {
+                    if (result.Cancelled) {
                         await window.Page.DisplayAlertAsync("Success", "Job cancelled successfully", "OK");
                         await LoadJobsAsync();
                     }
-                    else
-                    {
+                    else {
                         await window.Page.DisplayAlertAsync("Error", "Failed to cancel job", "OK");
                     }
                 }
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Error cancelling job {ExecutionId}", executionId);
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
 
             var window = Application.Current?.Windows?.FirstOrDefault();
-            if (window?.Page != null)
-            {
+            if (window?.Page != null) {
                 await window.Page.DisplayAlertAsync("Error", $"Error cancelling job: {sanitizedMessage}", "OK");
             }
         }
     }
 
-    private async Task EnsureAuthorizedAsync()
-    {
-        if (!_authService.IsSignedIn())
-        {
+    private async Task EnsureAuthorizedAsync() {
+        if (!_authService.IsSignedIn()) {
             throw new UnauthorizedAccessException("User is not signed in");
         }
 
         var roles = await _authService.GetUserRolesAsync();
         var isAdmin = AdminRoles.GetValidAdminRoles(roles).Any();
-        if (!isAdmin)
-        {
+        if (!isAdmin) {
             throw new UnauthorizedAccessException("User does not have admin permissions");
         }
     }
 
-    private static bool IsRunningStatus(PipelineStatus status)
-    {
+    private static bool IsRunningStatus(PipelineStatus status) {
         return status == PipelineStatus.Processing ||
                status == PipelineStatus.Queued ||
                status == PipelineStatus.Indexing;
     }
 
-    public void Dispose()
-    {
+    public void Dispose() {
         Dispose(true);
         GC.SuppressFinalize(this);
     }
 
-    protected virtual void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
+    protected virtual void Dispose(bool disposing) {
+        if (disposing) {
             // Stop the timer before disposing to prevent race conditions
-            if (_pollTimer != null)
-            {
+            if (_pollTimer != null) {
                 _pollTimer.Stop();
                 _pollTimer.Dispose();
             }
         }
     }
 
-    ~JobsViewModel()
-    {
+    ~JobsViewModel() {
         Dispose(false);
     }
 
@@ -267,20 +226,16 @@ public class JobsViewModel : IDisposable
 /// <summary>
 /// ViewModel for a pipeline job in the list
 /// </summary>
-public class JobViewModel : INotifyPropertyChanged
-{
+public class JobViewModel : INotifyPropertyChanged {
     private PipelineStatus _status;
 
     public string ExecutionId { get; set; } = string.Empty;
     public string PipelineType { get; set; } = string.Empty;
 
-    public PipelineStatus Status
-    {
+    public PipelineStatus Status {
         get => _status;
-        set
-        {
-            if (_status != value)
-            {
+        set {
+            if (_status != value) {
                 _status = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
             }

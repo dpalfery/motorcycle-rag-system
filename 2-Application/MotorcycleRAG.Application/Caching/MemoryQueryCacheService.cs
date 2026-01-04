@@ -12,8 +12,7 @@ namespace MotorcycleRAG.Application.Caching;
 /// <summary>
 /// In-memory implementation of query caching service with LRU eviction and compression.
 /// </summary>
-public class MemoryQueryCacheService : IQueryCacheService, IDisposable
-{
+public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<MemoryQueryCacheService> _logger;
     private readonly CacheConfiguration _config;
@@ -25,14 +24,12 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
     public MemoryQueryCacheService(
         IMemoryCache memoryCache,
         ILogger<MemoryQueryCacheService> logger,
-        IOptions<CacheConfiguration> config)
-    {
+        IOptions<CacheConfiguration> config) {
         _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
 
-        _jsonOptions = new JsonSerializerOptions
-        {
+        _jsonOptions = new JsonSerializerOptions {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = false
         };
@@ -41,72 +38,58 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
             _config.MaxMemorySizeMB);
     }
 
-    public async Task<MotorcycleQueryResponse?> GetAsync(string queryKey, CancellationToken cancellationToken = default)
-    {
+    public async Task<MotorcycleQueryResponse?> GetAsync(string queryKey, CancellationToken cancellationToken = default) {
         if (string.IsNullOrWhiteSpace(queryKey))
             return null;
 
-        try
-        {
-            lock (_statsLock)
-            {
+        try {
+            lock (_statsLock) {
                 _statistics.TotalRequests++;
             }
 
-            if (_memoryCache.TryGetValue(queryKey, out var cachedData))
-            {
-                lock (_statsLock)
-                {
+            if (_memoryCache.TryGetValue(queryKey, out var cachedData)) {
+                lock (_statsLock) {
                     _statistics.CacheHits++;
                 }
 
-                if (cachedData is byte[] data)
-                {
+                if (cachedData is byte[] data) {
                     var response = DeserializeResponse(data);
                     _logger.LogDebug("Cache hit for query key: {QueryKey}", queryKey);
                     return response;
                 }
             }
 
-            lock (_statsLock)
-            {
+            lock (_statsLock) {
                 _statistics.CacheMisses++;
             }
 
             _logger.LogDebug("Cache miss for query key: {QueryKey}", queryKey);
             return null;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Error retrieving from cache for key: {QueryKey}", queryKey);
             return null;
         }
     }
 
-    public async Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration, CancellationToken cancellationToken = default)
-    {
+    public async Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration, CancellationToken cancellationToken = default) {
         if (string.IsNullOrWhiteSpace(queryKey) || response == null)
             return;
 
-        try
-        {
+        try {
             var serializedData = SerializeResponse(response);
 
-            var cacheEntryOptions = new MemoryCacheEntryOptions
-            {
+            var cacheEntryOptions = new MemoryCacheEntryOptions {
                 AbsoluteExpirationRelativeToNow = expiration,
                 Size = serializedData.Length,
                 Priority = DetermineCachePriority(response)
             };
 
             // Add eviction callback for statistics
-            cacheEntryOptions.RegisterPostEvictionCallback((key, value, reason, state) =>
-            {
-                lock (_statsLock)
-                {
+            cacheEntryOptions.RegisterPostEvictionCallback((key, value, reason, state) => {
+                lock (_statsLock) {
                     _statistics.TotalEntries = Math.Max(0, _statistics.TotalEntries - 1);
-                    if (value is byte[] data)
-                    {
+                    if (value is byte[] data) {
                         _statistics.TotalMemoryUsage = Math.Max(0, _statistics.TotalMemoryUsage - data.Length);
                     }
                 }
@@ -116,8 +99,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
 
             _memoryCache.Set(queryKey, serializedData, cacheEntryOptions);
 
-            lock (_statsLock)
-            {
+            lock (_statsLock) {
                 _statistics.TotalEntries++;
                 _statistics.TotalMemoryUsage += serializedData.Length;
                 _statistics.LastUpdated = DateTime.UtcNow;
@@ -126,39 +108,32 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
             _logger.LogDebug("Cached response for query key: {QueryKey}, Size: {Size} bytes, Expiration: {Expiration}",
                 queryKey, serializedData.Length, expiration);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Error caching response for key: {QueryKey}", queryKey);
         }
     }
 
-    public async Task RemoveAsync(string queryKey, CancellationToken cancellationToken = default)
-    {
+    public async Task RemoveAsync(string queryKey, CancellationToken cancellationToken = default) {
         if (string.IsNullOrWhiteSpace(queryKey))
             return;
 
-        try
-        {
+        try {
             _memoryCache.Remove(queryKey);
             _logger.LogDebug("Removed cache entry for key: {QueryKey}", queryKey);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Error removing cache entry for key: {QueryKey}", queryKey);
         }
     }
 
-    public string GenerateCacheKey(MotorcycleQueryRequest request)
-    {
+    public string GenerateCacheKey(MotorcycleQueryRequest request) {
         if (request == null)
             throw new ArgumentNullException(nameof(request));
 
         // Create a normalized representation of the request for consistent caching
-        var keyData = new
-        {
+        var keyData = new {
             Query = request.Query?.Trim().ToLowerInvariant(),
-            Preferences = new
-            {
+            Preferences = new {
                 MaxResults = request.Preferences?.MaxResults ?? 10,
                 IncludeWebSources = request.Preferences?.IncludeWebSources ?? false,
                 IncludePDFSources = request.Preferences?.IncludePDFSources ?? false,
@@ -174,34 +149,26 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 
-    public async Task ClearAsync(CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (_memoryCache is MemoryCache mc)
-            {
+    public async Task ClearAsync(CancellationToken cancellationToken = default) {
+        try {
+            if (_memoryCache is MemoryCache mc) {
                 mc.Clear();
             }
 
-            lock (_statsLock)
-            {
+            lock (_statsLock) {
                 _statistics = new CacheStatistics();
             }
 
             _logger.LogInformation("Cache cleared successfully");
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Error clearing cache");
         }
     }
 
-    public async Task<CacheStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default)
-    {
-        lock (_statsLock)
-        {
-            return new CacheStatistics
-            {
+    public async Task<CacheStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default) {
+        lock (_statsLock) {
+            return new CacheStatistics {
                 TotalRequests = _statistics.TotalRequests,
                 CacheHits = _statistics.CacheHits,
                 CacheMisses = _statistics.CacheMisses,
@@ -212,22 +179,19 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
         }
     }
 
-    private byte[] SerializeResponse(MotorcycleQueryResponse response)
-    {
+    private byte[] SerializeResponse(MotorcycleQueryResponse response) {
         var json = JsonSerializer.Serialize(response, _jsonOptions);
         var jsonBytes = Encoding.UTF8.GetBytes(json);
 
         // Apply compression if enabled and data is large enough
-        if (_config.EnableCompression && jsonBytes.Length > _config.CompressionThreshold)
-        {
+        if (_config.EnableCompression && jsonBytes.Length > _config.CompressionThreshold) {
             return CompressData(jsonBytes);
         }
 
         return jsonBytes;
     }
 
-    private MotorcycleQueryResponse DeserializeResponse(byte[] data)
-    {
+    private MotorcycleQueryResponse DeserializeResponse(byte[] data) {
         // Check if data is compressed (simple magic number check)
         var isCompressed = data.Length > 2 && data[0] == 0x1f && data[1] == 0x8b;
 
@@ -238,18 +202,15 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
             ?? throw new InvalidOperationException("Failed to deserialize cached response");
     }
 
-    private byte[] CompressData(byte[] data)
-    {
+    private byte[] CompressData(byte[] data) {
         using var output = new MemoryStream();
-        using (var gzip = new System.IO.Compression.GZipStream(output, System.IO.Compression.CompressionMode.Compress))
-        {
+        using (var gzip = new System.IO.Compression.GZipStream(output, System.IO.Compression.CompressionMode.Compress)) {
             gzip.Write(data, 0, data.Length);
         }
         return output.ToArray();
     }
 
-    private byte[] DecompressData(byte[] compressedData)
-    {
+    private byte[] DecompressData(byte[] compressedData) {
         using var input = new MemoryStream(compressedData);
         using var gzip = new System.IO.Compression.GZipStream(input, System.IO.Compression.CompressionMode.Decompress);
         using var output = new MemoryStream();
@@ -257,8 +218,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
         return output.ToArray();
     }
 
-    private CacheItemPriority DetermineCachePriority(MotorcycleQueryResponse response)
-    {
+    private CacheItemPriority DetermineCachePriority(MotorcycleQueryResponse response) {
         // Prioritize responses with more sources and better metrics
         if (response.Sources?.Length > 5 && response.Metrics?.ProcessingTimeMs < 1000)
             return CacheItemPriority.High;
@@ -269,10 +229,8 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
         return CacheItemPriority.Low;
     }
 
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
+    public void Dispose() {
+        if (!_disposed) {
             _disposed = true;
         }
     }
@@ -281,8 +239,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable
 /// <summary>
 /// Configuration for caching behavior.
 /// </summary>
-public class CacheConfiguration
-{
+public class CacheConfiguration {
     public bool EnableCaching { get; set; } = true;
     public TimeSpan DefaultExpiration { get; set; } = TimeSpan.FromMinutes(30);
     public TimeSpan LongTermExpiration { get; set; } = TimeSpan.FromHours(24);

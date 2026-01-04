@@ -14,15 +14,13 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/admin/web-sources")]
 [Authorize(Policy = "DataAdmin")]
-public sealed class WebSourcesAdminController : ControllerBase
-{
+public sealed class WebSourcesAdminController : ControllerBase {
     private readonly WebSourceRegistryService _webSourceRegistryService;
     private readonly ILogger<WebSourcesAdminController> _logger;
 
     public WebSourcesAdminController(
         WebSourceRegistryService webSourceRegistryService,
-        ILogger<WebSourcesAdminController> logger)
-    {
+        ILogger<WebSourcesAdminController> logger) {
         _webSourceRegistryService = webSourceRegistryService ?? throw new ArgumentNullException(nameof(webSourceRegistryService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -36,16 +34,13 @@ public sealed class WebSourcesAdminController : ControllerBase
     [ProducesResponseType(typeof(WebSource[]), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAllWebSourcesAsync()
-    {
-        try
-        {
+    public async Task<IActionResult> GetAllWebSourcesAsync() {
+        try {
             var sources = await _webSourceRegistryService.GetAllSourcesAsync();
             _logger.LogInformation("Admin retrieved {Count} web sources", sources.Length);
             return Ok(sources);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving web sources");
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
@@ -63,18 +58,14 @@ public sealed class WebSourcesAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetWebSourceByIdAsync(int webSourceId)
-    {
-        if (webSourceId <= 0)
-        {
+    public async Task<IActionResult> GetWebSourceByIdAsync(int webSourceId) {
+        if (webSourceId <= 0) {
             return BadRequest(new { error = "Web source ID must be greater than 0" });
         }
 
-        try
-        {
+        try {
             var source = await _webSourceRegistryService.GetSourceByIdAsync(webSourceId);
-            if (source == null)
-            {
+            if (source == null) {
                 _logger.LogWarning("Web source {WebSourceId} not found", webSourceId);
                 return NotFound(new { error = "Web source not found" });
             }
@@ -82,8 +73,7 @@ public sealed class WebSourcesAdminController : ControllerBase
             _logger.LogInformation("Admin retrieved web source {WebSourceId}", webSourceId);
             return Ok(source);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving web source {WebSourceId}", webSourceId);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
@@ -102,23 +92,18 @@ public sealed class WebSourcesAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> CreateWebSourceAsync([FromBody] CreateWebSourceRequest request)
-    {
-        if (request == null)
-        {
+    public async Task<IActionResult> CreateWebSourceAsync([FromBody] CreateWebSourceRequest request) {
+        if (request == null) {
             return BadRequest(new { error = "Request body is required" });
         }
 
         var errors = ValidateCreateRequest(request);
-        if (errors.Count > 0)
-        {
+        if (errors.Count > 0) {
             return BadRequest(new { errors });
         }
 
-        try
-        {
-            var webSource = new WebSource
-            {
+        try {
+            var webSource = new WebSource {
                 Url = request.Url,
                 Name = request.Name,
                 Description = request.Description ?? string.Empty,
@@ -135,13 +120,11 @@ public sealed class WebSourcesAdminController : ControllerBase
 
             return Created($"/api/admin/web-sources/{createdSource.Id}", createdSource);
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", SanitizeLogValue(request.Url));
             return Conflict(new { error = "A resource with this URL already exists" });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error creating web source with URL {Url}", SanitizeLogValue(request.Url));
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
@@ -162,71 +145,57 @@ public sealed class WebSourcesAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> UpdateWebSourceAsync(int webSourceId, [FromBody] UpdateWebSourceRequest request)
-    {
-        if (webSourceId <= 0)
-        {
+    public async Task<IActionResult> UpdateWebSourceAsync(int webSourceId, [FromBody] UpdateWebSourceRequest request) {
+        if (webSourceId <= 0) {
             return BadRequest(new { error = "Web source ID must be greater than 0" });
         }
 
-        if (request == null)
-        {
+        if (request == null) {
             return BadRequest(new { error = "Request body is required" });
         }
 
         var errors = ValidateUpdateRequest(request);
-        if (errors.Count > 0)
-        {
+        if (errors.Count > 0) {
             return BadRequest(new { errors });
         }
 
-        try
-        {
+        try {
             var existingSource = await _webSourceRegistryService.GetSourceByIdAsync(webSourceId);
-            if (existingSource == null)
-            {
+            if (existingSource == null) {
                 _logger.LogWarning("Web source {WebSourceId} not found for update", webSourceId);
                 return NotFound(new { error = "Web source not found" });
             }
 
             // Update only provided fields
-            if (!string.IsNullOrWhiteSpace(request.Url))
-            {
+            if (!string.IsNullOrWhiteSpace(request.Url)) {
                 existingSource.Url = request.Url;
             }
 
-            if (!string.IsNullOrWhiteSpace(request.Name))
-            {
+            if (!string.IsNullOrWhiteSpace(request.Name)) {
                 existingSource.Name = request.Name;
             }
 
-            if (!string.IsNullOrWhiteSpace(request.Description))
-            {
+            if (!string.IsNullOrWhiteSpace(request.Description)) {
                 existingSource.Description = request.Description;
             }
 
-            if (request.IsEnabled.HasValue)
-            {
+            if (request.IsEnabled.HasValue) {
                 existingSource.IsEnabled = request.IsEnabled.Value;
             }
 
-            if (request.TrustTier.HasValue)
-            {
+            if (request.TrustTier.HasValue) {
                 existingSource.TrustTier = request.TrustTier.Value;
             }
 
-            if (request.CrawlFrequencyHours.HasValue)
-            {
+            if (request.CrawlFrequencyHours.HasValue) {
                 existingSource.CrawlFrequencyHours = request.CrawlFrequencyHours.Value;
             }
 
-            if (request.IncludeInSearch.HasValue)
-            {
+            if (request.IncludeInSearch.HasValue) {
                 existingSource.IncludeInSearch = request.IncludeInSearch.Value;
             }
 
-            if (request.MaxCrawlDepth.HasValue)
-            {
+            if (request.MaxCrawlDepth.HasValue) {
                 existingSource.MaxCrawlDepth = request.MaxCrawlDepth.Value;
             }
 
@@ -235,18 +204,15 @@ public sealed class WebSourcesAdminController : ControllerBase
 
             return Ok(updatedSource);
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             _logger.LogWarning(ex, "Conflict updating web source {WebSourceId}", webSourceId);
             return Conflict(new { error = "Unable to update this resource" });
         }
-        catch (ArgumentException ex)
-        {
+        catch (ArgumentException ex) {
             _logger.LogWarning(ex, "Invalid argument updating web source {WebSourceId}", webSourceId);
             return BadRequest(new { error = "Invalid request parameters" });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error updating web source {WebSourceId}", webSourceId);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
@@ -263,18 +229,14 @@ public sealed class WebSourcesAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteWebSourceAsync(int webSourceId)
-    {
-        if (webSourceId <= 0)
-        {
+    public async Task<IActionResult> DeleteWebSourceAsync(int webSourceId) {
+        if (webSourceId <= 0) {
             return BadRequest(new { error = "Web source ID must be greater than 0" });
         }
 
-        try
-        {
+        try {
             var existingSource = await _webSourceRegistryService.GetSourceByIdAsync(webSourceId);
-            if (existingSource == null)
-            {
+            if (existingSource == null) {
                 _logger.LogWarning("Web source {WebSourceId} not found for deletion", webSourceId);
                 return NotFound(new { error = "Web source not found" });
             }
@@ -284,13 +246,11 @@ public sealed class WebSourcesAdminController : ControllerBase
 
             return NoContent();
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             _logger.LogWarning(ex, "Error deleting web source {WebSourceId}", webSourceId);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "Unable to delete this resource" });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error deleting web source {WebSourceId}", webSourceId);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
@@ -299,45 +259,36 @@ public sealed class WebSourcesAdminController : ControllerBase
     /// <summary>
     /// Validates create web source request.
     /// </summary>
-    private List<string> ValidateCreateRequest(CreateWebSourceRequest request)
-    {
+    private List<string> ValidateCreateRequest(CreateWebSourceRequest request) {
         var errors = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(request.Url))
-        {
+        if (string.IsNullOrWhiteSpace(request.Url)) {
             errors.Add("URL is required");
         }
-        else if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
-        {
+        else if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _)) {
             errors.Add("URL must be a valid absolute URI");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
+        if (string.IsNullOrWhiteSpace(request.Name)) {
             errors.Add("Name is required");
         }
-        else if (request.Name.Length > 255)
-        {
+        else if (request.Name.Length > 255) {
             errors.Add("Name cannot exceed 255 characters");
         }
 
-        if (request.Description != null && request.Description.Length > 1000)
-        {
+        if (request.Description != null && request.Description.Length > 1000) {
             errors.Add("Description cannot exceed 1000 characters");
         }
 
-        if (request.TrustTier.HasValue && (request.TrustTier < 1 || request.TrustTier > 5))
-        {
+        if (request.TrustTier.HasValue && (request.TrustTier < 1 || request.TrustTier > 5)) {
             errors.Add("Trust tier must be between 1 and 5");
         }
 
-        if (request.CrawlFrequencyHours.HasValue && request.CrawlFrequencyHours < 1)
-        {
+        if (request.CrawlFrequencyHours.HasValue && request.CrawlFrequencyHours < 1) {
             errors.Add("Crawl frequency must be at least 1 hour");
         }
 
-        if (request.MaxCrawlDepth.HasValue && (request.MaxCrawlDepth < 1 || request.MaxCrawlDepth > 10))
-        {
+        if (request.MaxCrawlDepth.HasValue && (request.MaxCrawlDepth < 1 || request.MaxCrawlDepth > 10)) {
             errors.Add("Max crawl depth must be between 1 and 10");
         }
 
@@ -347,37 +298,30 @@ public sealed class WebSourcesAdminController : ControllerBase
     /// <summary>
     /// Validates update web source request.
     /// </summary>
-    private List<string> ValidateUpdateRequest(UpdateWebSourceRequest request)
-    {
+    private List<string> ValidateUpdateRequest(UpdateWebSourceRequest request) {
         var errors = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(request.Url) && !Uri.TryCreate(request.Url, UriKind.Absolute, out _))
-        {
+        if (!string.IsNullOrWhiteSpace(request.Url) && !Uri.TryCreate(request.Url, UriKind.Absolute, out _)) {
             errors.Add("URL must be a valid absolute URI");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Name) && request.Name.Length > 255)
-        {
+        if (!string.IsNullOrWhiteSpace(request.Name) && request.Name.Length > 255) {
             errors.Add("Name cannot exceed 255 characters");
         }
 
-        if (request.Description != null && request.Description.Length > 1000)
-        {
+        if (request.Description != null && request.Description.Length > 1000) {
             errors.Add("Description cannot exceed 1000 characters");
         }
 
-        if (request.TrustTier.HasValue && (request.TrustTier < 1 || request.TrustTier > 5))
-        {
+        if (request.TrustTier.HasValue && (request.TrustTier < 1 || request.TrustTier > 5)) {
             errors.Add("Trust tier must be between 1 and 5");
         }
 
-        if (request.CrawlFrequencyHours.HasValue && request.CrawlFrequencyHours < 1)
-        {
+        if (request.CrawlFrequencyHours.HasValue && request.CrawlFrequencyHours < 1) {
             errors.Add("Crawl frequency must be at least 1 hour");
         }
 
-        if (request.MaxCrawlDepth.HasValue && (request.MaxCrawlDepth < 1 || request.MaxCrawlDepth > 10))
-        {
+        if (request.MaxCrawlDepth.HasValue && (request.MaxCrawlDepth < 1 || request.MaxCrawlDepth > 10)) {
             errors.Add("Max crawl depth must be between 1 and 10");
         }
 
@@ -387,16 +331,13 @@ public sealed class WebSourcesAdminController : ControllerBase
     /// <summary>
     /// Sanitizes a value for logging to prevent leaking sensitive data.
     /// </summary>
-    private string SanitizeLogValue(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
+    private string SanitizeLogValue(string value) {
+        if (string.IsNullOrWhiteSpace(value)) {
             return "[empty]";
         }
 
         const int maxLogLength = 48;
-        if (value.Length > maxLogLength)
-        {
+        if (value.Length > maxLogLength) {
             return value.Substring(0, maxLogLength) + "...";
         }
 
@@ -407,8 +348,7 @@ public sealed class WebSourcesAdminController : ControllerBase
 /// <summary>
 /// Create web source request model
 /// </summary>
-public class CreateWebSourceRequest
-{
+public class CreateWebSourceRequest {
     /// <summary>
     /// URL of the web source
     /// </summary>
@@ -456,8 +396,7 @@ public class CreateWebSourceRequest
 /// <summary>
 /// Update web source request model
 /// </summary>
-public class UpdateWebSourceRequest
-{
+public class UpdateWebSourceRequest {
     /// <summary>
     /// URL of the web source
     /// </summary>

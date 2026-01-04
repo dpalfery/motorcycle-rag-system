@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Interface for handling secure file uploads with validation
 /// </summary>
-public interface IFileUploadService
-{
+public interface IFileUploadService {
     /// <summary>
     /// Upload and validate a single file
     /// </summary>

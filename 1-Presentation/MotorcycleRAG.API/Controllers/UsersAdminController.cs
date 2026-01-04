@@ -14,15 +14,13 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/admin/users")]
 [Authorize(Policy = "Admin")]
-public sealed class UsersAdminController : ControllerBase
-{
+public sealed class UsersAdminController : ControllerBase {
     private readonly IUserAdminService _userAdminService;
     private readonly ILogger<UsersAdminController> _logger;
 
     public UsersAdminController(
         IUserAdminService userAdminService,
-        ILogger<UsersAdminController> logger)
-    {
+        ILogger<UsersAdminController> logger) {
         _userAdminService = userAdminService ?? throw new ArgumentNullException(nameof(userAdminService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -43,31 +41,25 @@ public sealed class UsersAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SetUserEnabledStatusAsync(
         string userId,
-        [FromBody] SetUserEnabledRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
+        [FromBody] SetUserEnabledRequest request) {
+        if (string.IsNullOrWhiteSpace(userId)) {
             return BadRequest(new { error = "User ID is required" });
         }
 
-        if (request == null)
-        {
+        if (request == null) {
             return BadRequest(new { error = "Request body is required" });
         }
 
-        try
-        {
+        try {
             var user = await _userAdminService.SetUserEnabledStatusAsync(userId, request.IsEnabled);
             _logger.LogInformation("Admin set user {UserId} enabled status to {IsEnabled}", userId, request.IsEnabled);
             return Ok(user);
         }
-        catch (ArgumentException ex)
-        {
+        catch (ArgumentException ex) {
             _logger.LogWarning(ex, "Invalid request to set user enabled status for {UserId}", userId);
             return BadRequest(new { error = ex.Message });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error setting user enabled status for {UserId}", userId);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
@@ -89,31 +81,25 @@ public sealed class UsersAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> AssignPlanToUserAsync(
         string userId,
-        [FromBody] AssignPlanRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
+        [FromBody] AssignPlanRequest request) {
+        if (string.IsNullOrWhiteSpace(userId)) {
             return BadRequest(new { error = "User ID is required" });
         }
 
-        if (request == null || string.IsNullOrWhiteSpace(request.PlanId))
-        {
+        if (request == null || string.IsNullOrWhiteSpace(request.PlanId)) {
             return BadRequest(new { error = "Plan ID is required" });
         }
 
-        try
-        {
+        try {
             var user = await _userAdminService.AssignPlanToUserAsync(userId, request.PlanId);
             _logger.LogInformation("Admin assigned plan {PlanId} to user {UserId}", request.PlanId, userId);
             return Ok(user);
         }
-        catch (ArgumentException ex)
-        {
+        catch (ArgumentException ex) {
             _logger.LogWarning(ex, "Invalid request to assign plan to user {UserId}", userId);
             return BadRequest(new { error = ex.Message });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error assigning plan to user {UserId}", userId);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
@@ -130,15 +116,12 @@ public sealed class UsersAdminController : ControllerBase
     [ProducesResponseType(typeof(UserListResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAllUsersAsync([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
-    {
-        try
-        {
+    public async Task<IActionResult> GetAllUsersAsync([FromQuery] int page = 1, [FromQuery] int pageSize = 50) {
+        try {
             var users = await _userAdminService.GetAllUsersAsync(page, pageSize);
             _logger.LogInformation("Admin retrieved {Count} users (page: {Page}, pageSize: {PageSize})", users.Length, page, pageSize);
 
-            var response = new UserListResponse
-            {
+            var response = new UserListResponse {
                 Users = users,
                 Page = page,
                 PageSize = pageSize,
@@ -147,8 +130,7 @@ public sealed class UsersAdminController : ControllerBase
 
             return Ok(response);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving users");
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
@@ -158,24 +140,21 @@ public sealed class UsersAdminController : ControllerBase
 /// <summary>
 /// Set user enabled status request model
 /// </summary>
-public class SetUserEnabledRequest
-{
+public class SetUserEnabledRequest {
     public bool IsEnabled { get; set; }
 }
 
 /// <summary>
 /// Assign plan request model
 /// </summary>
-public class AssignPlanRequest
-{
+public class AssignPlanRequest {
     public string PlanId { get; set; } = string.Empty;
 }
 
 /// <summary>
 /// User list response model
 /// </summary>
-public class UserListResponse
-{
+public class UserListResponse {
     public MotorcycleRAG.Contracts.Models.DTOs.UserDTO[] Users { get; set; } = Array.Empty<MotorcycleRAG.Contracts.Models.DTOs.UserDTO>();
     public int Page { get; set; }
     public int PageSize { get; set; }

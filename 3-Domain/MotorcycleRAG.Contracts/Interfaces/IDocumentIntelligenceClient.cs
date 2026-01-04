@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Interface for document intelligence client operations
 /// </summary>
-public interface IDocumentIntelligenceClient
-{
+public interface IDocumentIntelligenceClient {
     /// <summary>
     /// Analyzes a document
     /// </summary>

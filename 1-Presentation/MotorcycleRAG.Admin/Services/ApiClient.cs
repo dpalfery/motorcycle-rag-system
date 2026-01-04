@@ -14,8 +14,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// HTTP client wrapper for calling the Motorcycle RAG API.
 /// Handles authentication, request/response serialization, and error handling.
 /// </summary>
-public class ApiClient
-{
+public class ApiClient {
     private readonly HttpClient _httpClient;
     private readonly IAdminAuthService _authService;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -23,14 +22,12 @@ public class ApiClient
     private readonly AsyncCircuitBreakerPolicy<HttpResponseMessage> _circuitBreaker;
     private readonly ILogger<ApiClient> _logger;
 
-    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger)
-    {
+    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger) {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        
-        _jsonOptions = new JsonSerializerOptions
-        {
+
+        _jsonOptions = new JsonSerializerOptions {
             PropertyNameCaseInsensitive = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
@@ -40,8 +37,7 @@ public class ApiClient
             .OrResult<HttpResponseMessage>(r => r.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
                                                 (int)r.StatusCode == 503)
             .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
-                (outcome, timespan, retryCount, context) =>
-                {
+                (outcome, timespan, retryCount, context) => {
                     _logger.LogWarning("ApiClient retry {Retry} after {Delay}s. Reason: {Reason}",
                         retryCount, timespan.TotalSeconds, outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString());
                 });
@@ -59,11 +55,9 @@ public class ApiClient
     /// <summary>
     /// Ensures the HTTP client has a valid access token
     /// </summary>
-    private async Task EnsureAuthenticatedAsync()
-    {
+    private async Task EnsureAuthenticatedAsync() {
         var accessToken = await _authService.GetAccessTokenAsync();
-        if (string.IsNullOrEmpty(accessToken))
-        {
+        if (string.IsNullOrEmpty(accessToken)) {
             throw new UnauthorizedAccessException("No valid access token available. Please sign in.");
         }
 
@@ -75,12 +69,10 @@ public class ApiClient
     /// <summary>
     /// Uploads a single file to the pipeline
     /// </summary>
-    public async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately = false, CancellationToken cancellationToken = default)
-    {
+    public async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately = false, CancellationToken cancellationToken = default) {
         await EnsureAuthenticatedAsync();
 
-        try
-        {
+        try {
             using var fileStream = File.OpenRead(filePath);
             using var content = new MultipartFormDataContent();
             var streamContent = new StreamContent(fileStream);
@@ -99,8 +91,7 @@ public class ApiClient
             UploadResultValidator.ValidateFileUploadResult(result);
             return result!;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error uploading file: {FilePath}", Path.GetFileName(filePath));
             throw;
         }
@@ -109,18 +100,15 @@ public class ApiClient
     /// <summary>
     /// Uploads multiple files to the pipeline
     /// </summary>
-    public async Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately = false, CancellationToken cancellationToken = default)
-    {
+    public async Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately = false, CancellationToken cancellationToken = default) {
         await EnsureAuthenticatedAsync();
 
         var streams = new List<FileStream>();  // Track all opened streams
 
-        try
-        {
+        try {
             using var content = new MultipartFormDataContent();
 
-            foreach (var filePath in filePaths)
-            {
+            foreach (var filePath in filePaths) {
                 // Validate before opening
                 if (!File.Exists(filePath))
                     throw new FileNotFoundException($"File not found: {filePath}");
@@ -144,16 +132,13 @@ public class ApiClient
             UploadResultValidator.ValidateBatchFileUploadResult(batchResult);
             return batchResult!;
         }  // <-- content disposed here AFTER PostAsync completes
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error uploading batch files");
             throw;
         }
-        finally
-        {
+        finally {
             // Ensure all streams are disposed even on exception
-            foreach (var stream in streams)
-            {
+            foreach (var stream in streams) {
                 stream?.Dispose();
             }
         }
@@ -162,13 +147,12 @@ public class ApiClient
     /// <summary>
     /// Gets upload constraints (file size limits, allowed types, etc.)
     /// </summary>
-    public async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken = default) {
         await EnsureAuthenticatedAsync();
 
         var response = await _httpClient.GetAsync("api/datapipeline/upload-constraints", cancellationToken);
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<UploadConstraints>(_jsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Failed to deserialize constraints response");
     }
@@ -180,8 +164,7 @@ public class ApiClient
     /// <summary>
     /// Processes a previously uploaded file
     /// </summary>
-    public async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken = default)
-    {
+    public async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken = default) {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync();
 
@@ -199,8 +182,7 @@ public class ApiClient
     /// <summary>
     /// Gets the status of a pipeline execution
     /// </summary>
-    public async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken = default)
-    {
+    public async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken = default) {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync();
 
@@ -214,8 +196,7 @@ public class ApiClient
     /// <summary>
     /// Gets metrics for a pipeline execution
     /// </summary>
-    public async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken = default)
-    {
+    public async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken = default) {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync();
 
@@ -229,8 +210,7 @@ public class ApiClient
     /// <summary>
     /// Cancels a running pipeline execution
     /// </summary>
-    public async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken = default)
-    {
+    public async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken = default) {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync();
 
@@ -252,8 +232,7 @@ public class ApiClient
         PipelineStatus? status = null,
         DateTime? startTime = null,
         DateTime? endTime = null,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         await EnsureAuthenticatedAsync();
 
         var query = new System.Collections.Generic.List<string>();
@@ -274,8 +253,7 @@ public class ApiClient
                ?? new List<PipelineExecution>();
     }
 
-    private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action)
-    {
+    private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action) {
         return await _retryPolicy.WrapAsync(_circuitBreaker).ExecuteAsync(action);
     }
 
@@ -286,8 +264,7 @@ public class ApiClient
     /// <summary>
     /// Gets all MCP tool configurations
     /// </summary>
-    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync(CancellationToken cancellationToken = default) {
         await EnsureAuthenticatedAsync();
 
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync("api/admin/mcp-tools", cancellationToken));
@@ -300,8 +277,7 @@ public class ApiClient
     /// <summary>
     /// Updates an MCP tool configuration
     /// </summary>
-    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(string toolId, MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request, CancellationToken cancellationToken = default)
-    {
+    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(string toolId, MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request, CancellationToken cancellationToken = default) {
         if (string.IsNullOrWhiteSpace(toolId))
             throw new ArgumentException("Tool ID cannot be null or empty", nameof(toolId));
         if (request == null)
@@ -324,8 +300,7 @@ public class ApiClient
     /// <summary>
     /// Gets all web sources
     /// </summary>
-    public async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken = default) {
         await EnsureAuthenticatedAsync();
 
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync("api/admin/web-sources", cancellationToken));
@@ -338,14 +313,13 @@ public class ApiClient
     /// <summary>
     /// Adds a new web source
     /// </summary>
-    public async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken = default)
-    {
+    public async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken = default) {
         if (source == null)
             throw new ArgumentNullException(nameof(source));
 
         await EnsureAuthenticatedAsync();
 
-        var response = await ExecuteWithResilienceAsync(() => 
+        var response = await ExecuteWithResilienceAsync(() =>
             _httpClient.PostAsJsonAsync("api/admin/web-sources", source, _jsonOptions, cancellationToken));
         response.EnsureSuccessStatusCode();
 
@@ -356,8 +330,7 @@ public class ApiClient
     /// <summary>
     /// Updates an existing web source
     /// </summary>
-    public async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken = default)
-    {
+    public async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken = default) {
         if (source == null)
             throw new ArgumentNullException(nameof(source));
 
@@ -377,8 +350,7 @@ public class ApiClient
     /// <summary>
     /// Deletes a web source
     /// </summary>
-    public async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken = default)
-    {
+    public async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken = default) {
         if (sourceId <= 0)
             throw new ArgumentException("Invalid web source ID", nameof(sourceId));
 
@@ -396,15 +368,14 @@ public class ApiClient
     /// <summary>
     /// Gets all users with optional filtering
     /// </summary>
-    public async Task<List<UserDto>> GetUsersAsync(bool? isEnabled = null, CancellationToken cancellationToken = default)
-    {
+    public async Task<List<UserDto>> GetUsersAsync(bool? isEnabled = null, CancellationToken cancellationToken = default) {
         await EnsureAuthenticatedAsync();
 
         var query = isEnabled.HasValue ? $"?isEnabled={isEnabled.Value}" : string.Empty;
         var uri = $"api/users-admin{query}";
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken));
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<List<UserDto>>(_jsonOptions, cancellationToken)
                ?? new List<UserDto>();
     }
@@ -412,13 +383,12 @@ public class ApiClient
     /// <summary>
     /// Enables a user account
     /// </summary>
-    public async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken = default)
-    {
+    public async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken = default) {
         await EnsureAuthenticatedAsync();
 
         var response = await _httpClient.PostAsync($"api/users-admin/{userId}/enable", null, cancellationToken);
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Failed to deserialize user response");
     }
@@ -426,13 +396,12 @@ public class ApiClient
     /// <summary>
     /// Disables a user account
     /// </summary>
-    public async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken = default)
-    {
+    public async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken = default) {
         await EnsureAuthenticatedAsync();
 
         var response = await _httpClient.PostAsync($"api/users-admin/{userId}/disable", null, cancellationToken);
         response.EnsureSuccessStatusCode();
-        
+
         return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Failed to deserialize user response");
     }
@@ -444,8 +413,7 @@ public class ApiClient
     /// <summary>
     /// Validates that executionId is in a valid GUID format
     /// </summary>
-    private static void ValidateExecutionId(string executionId)
-    {
+    private static void ValidateExecutionId(string executionId) {
         if (string.IsNullOrWhiteSpace(executionId))
             throw new ArgumentException("Execution ID cannot be null or empty", nameof(executionId));
 
@@ -456,11 +424,9 @@ public class ApiClient
     /// <summary>
     /// Gets the MIME content type for a file based on its extension
     /// </summary>
-    private static string GetContentType(string filePath)
-    {
+    private static string GetContentType(string filePath) {
         var extension = Path.GetExtension(filePath).ToLowerInvariant();
-        return extension switch
-        {
+        return extension switch {
             ".pdf" => "application/pdf",
             ".csv" => "text/csv",
             ".json" => "application/json",
@@ -475,8 +441,7 @@ public class ApiClient
 /// <summary>
 /// Response for cancel pipeline operation
 /// </summary>
-public class CancelPipelineResponse
-{
+public class CancelPipelineResponse {
     public string ExecutionId { get; set; } = string.Empty;
     public bool Cancelled { get; set; }
 }
@@ -484,8 +449,7 @@ public class CancelPipelineResponse
 /// <summary>
 /// Response for get pipeline status operation
 /// </summary>
-public class PipelineStatusResponse
-{
+public class PipelineStatusResponse {
     public string ExecutionId { get; set; } = string.Empty;
     public PipelineStatus Status { get; set; }
 }
@@ -493,8 +457,7 @@ public class PipelineStatusResponse
 /// <summary>
 /// DTO for user information
 /// </summary>
-public class UserDto
-{
+public class UserDto {
     public string UserId { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
@@ -507,8 +470,7 @@ public class UserDto
 /// <summary>
 /// Pipeline execution information
 /// </summary>
-public class PipelineExecution
-{
+public class PipelineExecution {
     public string ExecutionId { get; set; } = string.Empty;
     public string PipelineType { get; set; } = string.Empty;
     public PipelineStatus Status { get; set; }
@@ -522,8 +484,7 @@ public class PipelineExecution
 /// <summary>
 /// Upload constraints information
 /// </summary>
-public class UploadConstraints
-{
+public class UploadConstraints {
     public long MaxFileSizeBytes { get; set; }
     public int MaxFilesPerBatch { get; set; }
     public List<string> AllowedFileTypes { get; set; } = new();

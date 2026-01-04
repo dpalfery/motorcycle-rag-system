@@ -16,15 +16,13 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// <summary>
 /// Extension methods for registering Azure services in DI container
 /// </summary>
-public static class ServiceCollectionExtensions
-{
+public static class ServiceCollectionExtensions {
     /// <summary>
     /// Register all Azure service clients with authentication and resilience patterns
     /// </summary>
     public static IServiceCollection AddAzureServices(
         this IServiceCollection services,
-        IConfiguration configuration)
-    {
+        IConfiguration configuration) {
         // Configure options from appsettings
         services.Configure<AzureAIOptions>(
             configuration.GetSection("AzureAI"));
@@ -50,8 +48,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
 
         // Register SearchIndexClient for direct Azure Search operations
-        services.AddSingleton<SearchIndexClient>(serviceProvider =>
-        {
+        services.AddSingleton<SearchIndexClient>(serviceProvider => {
             var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIOptions>>().Value;
             var credential = new DefaultAzureCredential();
             return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), credential);
@@ -73,10 +70,8 @@ public static class ServiceCollectionExtensions
 /// <summary>
 /// Validates Azure AI configuration on startup
 /// </summary>
-public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
-{
-    public ValidateOptionsResult Validate(string? name, AzureAIOptions options)
-    {
+public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
+    public ValidateOptionsResult Validate(string? name, AzureAIOptions options) {
         var failures = new List<string>();
 
         if (string.IsNullOrWhiteSpace(options.FoundryEndpoint))
@@ -121,10 +116,8 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
 /// <summary>
 /// Validates Search configuration on startup
 /// </summary>
-public class SearchConfigurationValidator : IValidateOptions<SearchOptions>
-{
-    public ValidateOptionsResult Validate(string? name, SearchOptions options)
-    {
+public class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
+    public ValidateOptionsResult Validate(string? name, SearchOptions options) {
         var failures = new List<string>();
 
         if (string.IsNullOrWhiteSpace(options.IndexName))
@@ -145,10 +138,8 @@ public class SearchConfigurationValidator : IValidateOptions<SearchOptions>
 /// <summary>
 /// Validates Resilience configuration on startup
 /// </summary>
-public class ResilienceConfigurationValidator : IValidateOptions<ResilienceOptions>
-{
-    public ValidateOptionsResult Validate(string? name, ResilienceOptions options)
-    {
+public class ResilienceConfigurationValidator : IValidateOptions<ResilienceOptions> {
+    public ValidateOptionsResult Validate(string? name, ResilienceOptions options) {
         var failures = new List<string>();
 
         // Validate circuit breaker configurations

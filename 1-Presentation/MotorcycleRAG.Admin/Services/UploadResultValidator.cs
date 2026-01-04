@@ -6,14 +6,12 @@ namespace MotorcycleRAG.Admin.Services;
 /// Validator for file upload API responses
 /// Ensures all required fields are present and in valid format
 /// </summary>
-public static class UploadResultValidator
-{
+public static class UploadResultValidator {
     /// <summary>
     /// Validates the response from a single file upload operation
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown if response is null or has invalid data</exception>
-    public static void ValidateFileUploadResult(FileUploadResult? result)
-    {
+    public static void ValidateFileUploadResult(FileUploadResult? result) {
         if (result == null)
             throw new InvalidOperationException("Upload response was null");
 
@@ -34,8 +32,7 @@ public static class UploadResultValidator
     /// Validates the response from a batch file upload operation
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown if response is null or has invalid data</exception>
-    public static void ValidateBatchFileUploadResult(BatchFileUploadResult? result)
-    {
+    public static void ValidateBatchFileUploadResult(BatchFileUploadResult? result) {
         if (result == null)
             throw new InvalidOperationException("Batch upload response was null");
 

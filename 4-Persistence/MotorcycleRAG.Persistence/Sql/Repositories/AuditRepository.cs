@@ -5,16 +5,14 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
-using MotorcycleRAG.Domain.Enums;   
+using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
-namespace MotorcycleRAG.Persistence.Sql.Repositories
-{
+namespace MotorcycleRAG.Persistence.Sql.Repositories {
     /// <summary>
     /// ADO.NET implementation of audit repository
     /// </summary>
-    public class AuditRepository : IAuditRepository
-    {
+    public class AuditRepository : IAuditRepository {
         private readonly ISqlConnectionFactory _connectionFactory;
         private readonly ILogger<AuditRepository> _logger;
 
@@ -23,8 +21,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="connectionFactory">SQL connection factory</param>
         /// <param name="logger">Logger</param>
-        public AuditRepository(ISqlConnectionFactory connectionFactory, ILogger<AuditRepository> logger)
-        {
+        public AuditRepository(ISqlConnectionFactory connectionFactory, ILogger<AuditRepository> logger) {
             _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -34,10 +31,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="auditLog">Audit log to create</param>
         /// <returns>Created audit log</returns>
-        public async Task<AuditLog> CreateAuditLogAsync(AuditLog auditLog)
-        {
-            if (auditLog == null)
-            {
+        public async Task<AuditLog> CreateAuditLogAsync(AuditLog auditLog) {
+            if (auditLog == null) {
                 throw new ArgumentNullException(nameof(auditLog));
             }
 
@@ -55,29 +50,25 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
                 SELECT CAST(SCOPE_IDENTITY() AS BIGINT) AS [Id];
             ";
 
-            try
-            {
+            try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 using var transaction = connection.BeginTransaction();
-                
-                try
-                {
+
+                try {
                     var auditLogId = await connection.QueryFirstOrDefaultAsync<long>(sql, auditLog, transaction);
                     auditLog.Id = auditLogId;
-                    
+
                     transaction.Commit();
-                    _logger.LogDebug("Created audit log with ID {AuditLogId} for action {Action} on {EntityType}", 
+                    _logger.LogDebug("Created audit log with ID {AuditLogId} for action {Action} on {EntityType}",
                         auditLogId, auditLog.Action, auditLog.EntityType);
                     return auditLog;
                 }
-                catch
-                {
+                catch {
                     transaction.Rollback();
                     throw;
                 }
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create audit log");
                 throw;
             }
@@ -89,15 +80,12 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// <param name="entityType">Entity type</param>
         /// <param name="entityId">Entity ID</param>
         /// <returns>List of audit logs for the entity</returns>
-        public async Task<AuditLog[]> GetAuditLogsByEntityAsync(string entityType, string entityId)
-        {
-            if (string.IsNullOrWhiteSpace(entityType))
-            {
+        public async Task<AuditLog[]> GetAuditLogsByEntityAsync(string entityType, string entityId) {
+            if (string.IsNullOrWhiteSpace(entityType)) {
                 throw new ArgumentException("Entity type cannot be null or empty", nameof(entityType));
             }
 
-            if (string.IsNullOrWhiteSpace(entityId))
-            {
+            if (string.IsNullOrWhiteSpace(entityId)) {
                 throw new ArgumentException("Entity ID cannot be null or empty", nameof(entityId));
             }
 
@@ -107,18 +95,15 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
                     @EntityId = @EntityId;
             ";
 
-            try
-            {
+            try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-                return (await connection.QueryAsync<AuditLog>(sql, new 
-                {
+                return (await connection.QueryAsync<AuditLog>(sql, new {
                     EntityType = entityType,
                     EntityId = entityId
                 })).ToArray();
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get audit logs for entity {EntityType} with ID {EntityId}", 
+            catch (Exception ex) {
+                _logger.LogError(ex, "Failed to get audit logs for entity {EntityType} with ID {EntityId}",
                     entityType, entityId);
                 throw;
             }
@@ -129,10 +114,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
         /// </summary>
         /// <param name="limit">Maximum number of logs to return</param>
         /// <returns>List of recent audit logs</returns>
-        public async Task<AuditLog[]> GetRecentAuditLogsAsync(int limit)
-        {
-            if (limit <= 0)
-            {
+        public async Task<AuditLog[]> GetRecentAuditLogsAsync(int limit) {
+            if (limit <= 0) {
                 throw new ArgumentException("Limit must be greater than 0", nameof(limit));
             }
 
@@ -140,13 +123,11 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories
                 EXEC [dbo].[sp_GetRecentAuditLogs] @Limit = @Limit;
             ";
 
-            try
-            {
+            try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 return (await connection.QueryAsync<AuditLog>(sql, new { Limit = limit })).ToArray();
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get recent audit logs with limit {Limit}", limit);
                 throw;
             }

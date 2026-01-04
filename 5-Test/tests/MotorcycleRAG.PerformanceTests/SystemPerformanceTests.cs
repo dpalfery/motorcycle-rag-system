@@ -22,7 +22,7 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
     {
         _factory = factory;
         _scope = _factory.Services.CreateScope();
-        
+
         _ragService = _scope.ServiceProvider.GetRequiredService<IMotorcycleRAGService>();
         _pipelineOrchestrator = _scope.ServiceProvider.GetRequiredService<IDataPipelineOrchestrator>();
         _monitoringService = _scope.ServiceProvider.GetRequiredService<IPipelineMonitoringService>();
@@ -44,13 +44,13 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
         stopwatch.Stop();
 
         // Assert - Response time should be under 3 seconds for 95th percentile
-        Assert.True(stopwatch.ElapsedMilliseconds < 3000, 
+        Assert.True(stopwatch.ElapsedMilliseconds < 3000,
             $"Query took {stopwatch.ElapsedMilliseconds}ms, expected < 3000ms");
-        
+
         Assert.NotNull(response);
         Assert.NotEmpty(response.Response);
         Assert.NotNull(response.Metrics);
-        
+
         // Verify metrics are tracked
         Assert.True(response.Metrics.ResponseTime.TotalMilliseconds > 0);
     }
@@ -84,11 +84,11 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
 
         // Performance targets
         var averageResponseTime = stopwatch.ElapsedMilliseconds / (double)concurrentUsers;
-        Assert.True(averageResponseTime < 5000, 
+        Assert.True(averageResponseTime < 5000,
             $"Average response time {averageResponseTime}ms exceeded 5000ms target");
 
         // Total time should be reasonable for concurrent processing
-        Assert.True(stopwatch.ElapsedMilliseconds < 60000, 
+        Assert.True(stopwatch.ElapsedMilliseconds < 60000,
             $"Total processing time {stopwatch.ElapsedMilliseconds}ms exceeded 60000ms");
     }
 
@@ -121,10 +121,10 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
             // Assert - Batch processing performance
             Assert.NotNull(batchResult);
             Assert.Equal(1000, batchResult.TotalFiles);
-            
+
             // Should process at least 10 documents per second
             var documentsPerSecond = 1000.0 / stopwatch.Elapsed.TotalSeconds;
-            Assert.True(documentsPerSecond >= 10, 
+            Assert.True(documentsPerSecond >= 10,
                 $"Processing rate {documentsPerSecond:F2} docs/sec is below 10 docs/sec target");
 
             // Total processing time should be reasonable
@@ -174,7 +174,7 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
         var memoryIncrease = finalMemory - initialMemory;
 
         // Assert - Memory increase should be reasonable (less than 50MB)
-        Assert.True(memoryIncrease < 50 * 1024 * 1024, 
+        Assert.True(memoryIncrease < 50 * 1024 * 1024,
             $"Memory increased by {memoryIncrease / 1024 / 1024}MB, expected < 50MB");
     }
 
@@ -200,7 +200,7 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
             Assert.NotNull(metrics);
             Assert.True(metrics.Executions.TotalExecutions >= 1);
             Assert.True(metrics.Performance.AverageExecutionTime > TimeSpan.Zero);
-            
+
             if (processingResult.Status == PipelineStatus.Completed)
             {
                 Assert.True(metrics.Executions.SuccessfulExecutions >= 1);
@@ -246,7 +246,7 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
             Assert.Equal(batchSize, result.TotalFiles);
 
             var processingTimePerDoc = stopwatch.ElapsedMilliseconds / (double)batchSize;
-            
+
             // Processing time per document should be reasonable and not increase dramatically with batch size
             Assert.True(processingTimePerDoc < 1000, // Less than 1 second per document
                 $"Processing time per document {processingTimePerDoc}ms exceeded 1000ms for batch size {batchSize}");
@@ -290,11 +290,11 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
             };
 
             var response = await _ragService.QueryAsync(query);
-            
+
             // Assert - Queries should complete successfully
             Assert.NotNull(response);
             Assert.NotEmpty(response.Response);
-            
+
             // In a real implementation, verify that:
             // - Simple queries use GPT-4o-mini (cost-optimized)
             // - Complex queries use GPT-4o only when necessary

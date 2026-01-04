@@ -28,26 +28,20 @@ using MotorcycleRAG.IntegrationTests;
 /// - Real citation mapping from search results
 /// - Real locator metadata extraction
 /// </summary>
-public class MotorcycleManualCitationControllerSerializationTests : IClassFixture<TestWebApplicationFactory>
-{
+public class MotorcycleManualCitationControllerSerializationTests : IClassFixture<TestWebApplicationFactory> {
     private readonly TestWebApplicationFactory _factory;
 
-    public MotorcycleManualCitationControllerSerializationTests(TestWebApplicationFactory factory)
-    {
+    public MotorcycleManualCitationControllerSerializationTests(TestWebApplicationFactory factory) {
         _factory = factory;
     }
 
-    private WebApplicationFactory<Program> CreateFactoryWithMockedService()
-    {
+    private WebApplicationFactory<Program> CreateFactoryWithMockedService() {
         // Override IMotorcycleRAGService with a mocked implementation for serialization testing
-        return _factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
+        return _factory.WithWebHostBuilder(builder => {
+            builder.ConfigureServices(services => {
                 // Remove existing registration (if any)
                 var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IMotorcycleRAGService));
-                if (descriptor is not null)
-                {
+                if (descriptor is not null) {
                     services.Remove(descriptor);
                 }
 
@@ -66,13 +60,11 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     }
 
     [Fact]
-    public async Task QueryEndpoint_SerializesManualCitationWithLocatorMetadata_Correctly()
-    {
+    public async Task QueryEndpoint_SerializesManualCitationWithLocatorMetadata_Correctly() {
         // Arrange
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
-        var request = new MotorcycleQueryRequest
-        {
+        var request = new MotorcycleQueryRequest {
             Query = "How do I change the oil on a Honda CBR1000RR?"
         };
 
@@ -96,11 +88,9 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
         manualCitations.Should().NotBeEmpty("because at least one ManualPdf citation is expected in response");
 
         // Verify locator metadata is present and serializes correctly
-        foreach (var citation in manualCitations)
-        {
+        foreach (var citation in manualCitations) {
             Assert.NotNull(citation.Locator);
-            var locator = citation.Locator switch
-            {
+            var locator = citation.Locator switch {
                 ManualPdfCitationLocator typed => typed,
                 JsonElement json => JsonSerializer.Deserialize<ManualPdfCitationLocator>(json.GetRawText(), GetJsonOptions())!,
                 _ => throw new InvalidOperationException($"Unexpected locator type: {citation.Locator.GetType().FullName}")
@@ -109,7 +99,7 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
             // Assert required locator fields are populated
             locator.DocumentId.Should().NotBeNullOrWhiteSpace("because DocumentId should be populated for manual citations");
             locator.Title.Should().NotBeNullOrWhiteSpace("because Title should be populated for manual citations");
-            
+
             // Assert at least PageNumber OR PageRange is present
             (locator.PageNumber > 0 || !string.IsNullOrWhiteSpace(locator.PageRange))
                 .Should().BeTrue("because at least PageNumber or PageRange should be populated");
@@ -122,13 +112,11 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     }
 
     [Fact]
-    public async Task QueryEndpoint_SerializesMultipleManualCitationsWithDifferentLocators_Correctly()
-    {
+    public async Task QueryEndpoint_SerializesMultipleManualCitationsWithDifferentLocators_Correctly() {
         // Arrange
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
-        var request = new MotorcycleQueryRequest
-        {
+        var request = new MotorcycleQueryRequest {
             Query = "What are the brake maintenance procedures for Ducati Panigale V4?"
         };
 
@@ -145,11 +133,9 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
         // Verify multiple manual citations can be present with different locators
         var manualCitations = body.Sources
             .Where(s => s.Source.Citation != null && s.Source.Citation.SourceType == CitationSourceType.ManualPdf)
-            .Select(s =>
-            {
+            .Select(s => {
                 var locatorObj = s.Source.Citation!.Locator!;
-                return locatorObj switch
-                {
+                return locatorObj switch {
                     ManualPdfCitationLocator typed => typed,
                     JsonElement json => JsonSerializer.Deserialize<ManualPdfCitationLocator>(json.GetRawText(), GetJsonOptions())!,
                     _ => throw new InvalidOperationException($"Unexpected locator type: {locatorObj.GetType().FullName}")
@@ -170,13 +156,11 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     }
 
     [Fact]
-    public async Task QueryEndpoint_SerializesSectionHierarchyInLocator_Correctly()
-    {
+    public async Task QueryEndpoint_SerializesSectionHierarchyInLocator_Correctly() {
         // Arrange
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
-        var request = new MotorcycleQueryRequest
-        {
+        var request = new MotorcycleQueryRequest {
             Query = "What are the suspension adjustment procedures?"
         };
 
@@ -196,10 +180,9 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
 
         Assert.NotNull(manualCitation);
         Assert.NotNull(manualCitation!.Source.Citation!.Locator);
-        
+
         var locatorObj = manualCitation.Source.Citation.Locator!;
-        var locator = locatorObj switch
-        {
+        var locator = locatorObj switch {
             ManualPdfCitationLocator typed => typed,
             JsonElement json => JsonSerializer.Deserialize<ManualPdfCitationLocator>(json.GetRawText(), GetJsonOptions())!,
             _ => throw new InvalidOperationException($"Unexpected locator type: {locatorObj.GetType().FullName}")
@@ -221,13 +204,11 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     }
 
     [Fact]
-    public async Task QueryEndpoint_SerializesPageRangeInLocator_Correctly()
-    {
+    public async Task QueryEndpoint_SerializesPageRangeInLocator_Correctly() {
         // Arrange
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
-        var request = new MotorcycleQueryRequest
-        {
+        var request = new MotorcycleQueryRequest {
             Query = "Show me the complete engine disassembly procedure"
         };
 
@@ -244,11 +225,9 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
         // Find a citation with page range (multi-page content)
         var multiPageCitation = body.Sources
             .Where(s => s.Source.Citation != null && s.Source.Citation.SourceType == CitationSourceType.ManualPdf)
-            .Select(s =>
-            {
+            .Select(s => {
                 var locatorObj = s.Source.Citation!.Locator!;
-                return locatorObj switch
-                {
+                return locatorObj switch {
                     ManualPdfCitationLocator typed => typed,
                     JsonElement json => JsonSerializer.Deserialize<ManualPdfCitationLocator>(json.GetRawText(), GetJsonOptions())!,
                     _ => throw new InvalidOperationException($"Unexpected locator type: {locatorObj.GetType().FullName}")
@@ -257,20 +236,18 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
             .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.PageRange));
 
         multiPageCitation.Should().NotBeNull("because at least one citation with PageRange is expected for multi-page content");
-        
+
         // Verify page range format
         multiPageCitation!.PageRange.Should().MatchRegex(@"^\d+(-\d+)?$",
             "because PageRange should be in format 'N' or 'N-M'");
     }
 
     [Fact]
-    public async Task QueryEndpoint_SerializesMixedManualAndDatasetCitations_Correctly()
-    {
+    public async Task QueryEndpoint_SerializesMixedManualAndDatasetCitations_Correctly() {
         // Arrange
         var factory = CreateFactoryWithMockedService();
         var client = factory.CreateClientWithRoles("User");
-        var request = new MotorcycleQueryRequest
-        {
+        var request = new MotorcycleQueryRequest {
             Query = "What are the specifications and maintenance procedures for Kawasaki Ninja ZX-10R?"
         };
 
@@ -287,7 +264,7 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
         // Verify both ManualPdf and Dataset citations are present
         var hasManualCitation = body.Sources
             .Any(s => s.Source.Citation != null && s.Source.Citation.SourceType == CitationSourceType.ManualPdf);
-        
+
         var hasDatasetCitation = body.Sources
             .Any(s => s.Source.Citation != null && s.Source.Citation.SourceType == CitationSourceType.Dataset);
 
@@ -305,8 +282,7 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
             .First(s => s.Source.Citation != null && s.Source.Citation.SourceType == CitationSourceType.Dataset);
 
         var datasetLocatorObj = datasetCitation.Source.Citation!.Locator!;
-        var datasetLocator = datasetLocatorObj switch
-        {
+        var datasetLocator = datasetLocatorObj switch {
             DatasetCitationLocator typed => typed,
             JsonElement json => JsonSerializer.Deserialize<DatasetCitationLocator>(json.GetRawText(), GetJsonOptions())!,
             _ => throw new InvalidOperationException($"Unexpected locator type: {datasetLocatorObj.GetType().FullName}")
@@ -318,20 +294,16 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     /// Creates a mock response with manual citation locators for serialization testing.
     /// This is NOT testing real PDF processing or citation mapping logic.
     /// </summary>
-    private static JsonSerializerOptions GetJsonOptions()
-    {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        {
+    private static JsonSerializerOptions GetJsonOptions() {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) {
             PropertyNameCaseInsensitive = true
         };
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         return options;
     }
 
-    private static MotorcycleQueryResponse CreateManualCitationResponse(string query)
-    {
-        return new MotorcycleQueryResponse
-        {
+    private static MotorcycleQueryResponse CreateManualCitationResponse(string query) {
+        return new MotorcycleQueryResponse {
             QueryId = Guid.NewGuid().ToString("N"),
             Response = $"Based on the maintenance manual, here's the procedure for: {query}",
             GeneratedAt = DateTime.UtcNow,
@@ -456,8 +428,7 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
                     }
                 }
             },
-            Metrics = new QueryMetrics
-            {
+            Metrics = new QueryMetrics {
                 TotalDuration = TimeSpan.FromMilliseconds(250),
                 ProcessingTimeMs = 200,
                 ResultsFound = 3,

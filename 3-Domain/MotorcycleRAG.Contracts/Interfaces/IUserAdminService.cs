@@ -2,13 +2,11 @@ using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
-namespace MotorcycleRAG.Contracts.Interfaces
-{
+namespace MotorcycleRAG.Contracts.Interfaces {
     /// <summary>
     /// Service interface for administrative user management operations
     /// </summary>
-    public interface IUserAdminService
-    {
+    public interface IUserAdminService {
         /// <summary>
         /// Enables or disables a user account
         /// </summary>

@@ -1,13 +1,12 @@
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Application.Agents;
 
 /// <summary>
 /// Manages the execution state and context for agents in the Microsoft Agent Framework.
 /// </summary>
-public class AgentState
-{
+public class AgentState {
     /// <summary>
     /// Unique identifier for this execution context
     /// </summary>
@@ -72,10 +71,8 @@ public class AgentState
     /// <summary>
     /// Add a message to the conversation
     /// </summary>
-    public void AddMessage(string sender, string content, AgentMessageType type = AgentMessageType.Status)
-    {
-        Messages.Add(new AgentMessage
-        {
+    public void AddMessage(string sender, string content, AgentMessageType type = AgentMessageType.Status) {
+        Messages.Add(new AgentMessage {
             SenderId = sender,
             Content = content,
             Type = type,
@@ -86,10 +83,8 @@ public class AgentState
     /// <summary>
     /// Record an error during execution
     /// </summary>
-    public void RecordError(string agentId, string errorMessage, Exception? exception = null)
-    {
-        Errors.Add(new AgentError
-        {
+    public void RecordError(string agentId, string errorMessage, Exception? exception = null) {
+        Errors.Add(new AgentError {
             AgentId = agentId,
             Message = errorMessage,
             Exception = exception,
@@ -100,8 +95,7 @@ public class AgentState
     /// <summary>
     /// Mark execution as complete
     /// </summary>
-    public void MarkComplete()
-    {
+    public void MarkComplete() {
         Status = AgentExecutionStatus.Completed;
         EndTime = DateTime.UtcNow;
     }
@@ -109,8 +103,7 @@ public class AgentState
     /// <summary>
     /// Mark execution as failed
     /// </summary>
-    public void MarkFailed()
-    {
+    public void MarkFailed() {
         Status = AgentExecutionStatus.Failed;
         EndTime = DateTime.UtcNow;
     }
@@ -119,8 +112,7 @@ public class AgentState
 /// <summary>
 /// Represents a message exchanged between agents
 /// </summary>
-public class AgentMessage
-{
+public class AgentMessage {
     public string SenderId { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public AgentMessageType Type { get; set; } = AgentMessageType.Status;
@@ -131,8 +123,7 @@ public class AgentMessage
 /// <summary>
 /// Represents an error during agent execution
 /// </summary>
-public class AgentError
-{
+public class AgentError {
     public string AgentId { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public Exception? Exception { get; set; }
@@ -142,8 +133,7 @@ public class AgentError
 /// <summary>
 /// Types of messages agents can send
 /// </summary>
-public enum AgentMessageType
-{
+public enum AgentMessageType {
     Status,
     SearchQuery,
     SearchResult,
@@ -155,8 +145,7 @@ public enum AgentMessageType
 /// <summary>
 /// Execution status of an agent
 /// </summary>
-public enum AgentExecutionStatus
-{
+public enum AgentExecutionStatus {
     Pending,
     Running,
     Completed,

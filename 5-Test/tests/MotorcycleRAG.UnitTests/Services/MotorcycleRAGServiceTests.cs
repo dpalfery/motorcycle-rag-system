@@ -12,8 +12,7 @@ namespace MotorcycleRAG.UnitTests.Services;
 /// <summary>
 /// Unit tests for <see cref="MotorcycleRAGService"/>
 /// </summary>
-public class MotorcycleRAGServiceTests
-{
+public class MotorcycleRAGServiceTests {
     private readonly Mock<IAgentOrchestrator> _mockOrchestrator;
     private readonly Mock<ILogger<MotorcycleRAGService>> _mockLogger;
     private readonly Mock<ITelemetryService> _mockTelemetry;
@@ -22,8 +21,7 @@ public class MotorcycleRAGServiceTests
     private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
     private readonly MotorcycleRAGService _service;
 
-    public MotorcycleRAGServiceTests()
-    {
+    public MotorcycleRAGServiceTests() {
         _mockOrchestrator = new Mock<IAgentOrchestrator>(MockBehavior.Strict);
         _mockLogger = new Mock<ILogger<MotorcycleRAGService>>();
         _mockTelemetry = new Mock<ITelemetryService>();
@@ -42,29 +40,25 @@ public class MotorcycleRAGServiceTests
     #region Constructor
 
     [Fact]
-    public void Constructor_ShouldThrow_WhenOrchestratorIsNull()
-    {
+    public void Constructor_ShouldThrow_WhenOrchestratorIsNull() {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(null!, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
     }
 
     [Fact]
-    public void Constructor_ShouldThrow_WhenLoggerIsNull()
-    {
+    public void Constructor_ShouldThrow_WhenLoggerIsNull() {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, null!, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
     }
 
     [Fact]
-    public void Constructor_ShouldThrow_WhenTelemetryIsNull()
-    {
+    public void Constructor_ShouldThrow_WhenTelemetryIsNull() {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, null!, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
     }
 
     [Fact]
-    public void Constructor_ShouldThrow_WhenOpenAIClientIsNull()
-    {
+    public void Constructor_ShouldThrow_WhenOpenAIClientIsNull() {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, null!));
     }
@@ -74,23 +68,20 @@ public class MotorcycleRAGServiceTests
     #region QueryAsync
 
     [Fact]
-    public async Task QueryAsync_ShouldThrow_WhenRequestIsNull()
-    {
+    public async Task QueryAsync_ShouldThrow_WhenRequestIsNull() {
         await Assert.ThrowsAsync<ArgumentNullException>(() => _service.QueryAsync(null!));
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task QueryAsync_ShouldThrow_WhenQueryIsEmpty(string query)
-    {
+    public async Task QueryAsync_ShouldThrow_WhenQueryIsEmpty(string query) {
         var request = new MotorcycleQueryRequest { Query = query };
         await Assert.ThrowsAsync<ArgumentException>(() => _service.QueryAsync(request));
     }
 
     [Fact]
-    public async Task QueryAsync_ShouldReturnResponse_WhenValidRequest()
-    {
+    public async Task QueryAsync_ShouldReturnResponse_WhenValidRequest() {
         // Arrange
         var results = new[]
         {
@@ -137,8 +128,7 @@ public class MotorcycleRAGServiceTests
     #region Answer Composition and Citation Tests
 
     [Fact]
-    public async Task QueryAsync_ShouldReturnResponseWithCitations_WhenValidRequest()
-    {
+    public async Task QueryAsync_ShouldReturnResponseWithCitations_WhenValidRequest() {
         // Arrange
         var results = new[]
         {
@@ -209,8 +199,7 @@ public class MotorcycleRAGServiceTests
     }
 
     [Fact]
-    public async Task QueryAsync_ShouldHandleNoResultsWithRefinementSuggestions()
-    {
+    public async Task QueryAsync_ShouldHandleNoResultsWithRefinementSuggestions() {
         // Arrange
         var emptyResults = Array.Empty<SearchResult>();
 
@@ -239,8 +228,7 @@ public class MotorcycleRAGServiceTests
     }
 
     [Fact]
-    public async Task QueryAsync_ShouldReturnStableQueryIdAndCompleteMetrics()
-    {
+    public async Task QueryAsync_ShouldReturnStableQueryIdAndCompleteMetrics() {
         // Arrange
         var results = new[]
         {
@@ -299,8 +287,7 @@ public class MotorcycleRAGServiceTests
     #region GetHealthAsync
 
     [Fact]
-    public async Task GetHealthAsync_ShouldReturnHealthyResult()
-    {
+    public async Task GetHealthAsync_ShouldReturnHealthyResult() {
         // Act
         var result = await _service.GetHealthAsync();
 

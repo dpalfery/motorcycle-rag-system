@@ -114,23 +114,23 @@ public class CachingPerformanceTests
     public async Task CacheBulkOperations(int operationCount)
     {
         var tasks = new List<Task>();
-        
+
         for (int i = 0; i < operationCount; i++)
         {
             var key = $"{_cacheKey}-{i}";
             tasks.Add(_cacheService.SetAsync(key, _testResponse, TimeSpan.FromMinutes(30)));
         }
-        
+
         await Task.WhenAll(tasks);
-        
+
         tasks.Clear();
-        
+
         for (int i = 0; i < operationCount; i++)
         {
             var key = $"{_cacheKey}-{i}";
             tasks.Add(_cacheService.GetAsync(key));
         }
-        
+
         await Task.WhenAll(tasks);
     }
 }
@@ -284,7 +284,7 @@ public class CachingPerformanceValidationTests
 
         // Act - Concurrent Sets
         var setStopwatch = System.Diagnostics.Stopwatch.StartNew();
-        
+
         for (int i = 0; i < concurrentOperations; i++)
         {
             var index = i;
@@ -301,7 +301,7 @@ public class CachingPerformanceValidationTests
         // Act - Concurrent Gets
         tasks.Clear();
         var getStopwatch = System.Diagnostics.Stopwatch.StartNew();
-        
+
         for (int i = 0; i < concurrentOperations; i++)
         {
             var index = i;
@@ -316,12 +316,12 @@ public class CachingPerformanceValidationTests
         getStopwatch.Stop();
 
         // Assert
-        setStopwatch.ElapsedMilliseconds.Should().BeLessThan(concurrentOperations * 10, 
+        setStopwatch.ElapsedMilliseconds.Should().BeLessThan(concurrentOperations * 10,
             "Concurrent cache sets should complete efficiently");
-        
-        getStopwatch.ElapsedMilliseconds.Should().BeLessThan(concurrentOperations * 5, 
+
+        getStopwatch.ElapsedMilliseconds.Should().BeLessThan(concurrentOperations * 5,
             "Concurrent cache gets should complete efficiently");
-        
+
         results.Should().AllSatisfy(result => result.Should().NotBeNull());
     }
 }

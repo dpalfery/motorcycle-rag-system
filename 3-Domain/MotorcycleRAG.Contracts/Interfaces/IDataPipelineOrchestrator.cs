@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Interface for coordinating ETL pipeline operations for motorcycle data
 /// </summary>
-public interface IDataPipelineOrchestrator
-{
+public interface IDataPipelineOrchestrator {
     /// <summary>
     /// Process a single file through the appropriate pipeline
     /// </summary>

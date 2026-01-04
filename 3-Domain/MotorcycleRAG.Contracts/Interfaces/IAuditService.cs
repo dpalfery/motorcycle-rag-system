@@ -9,8 +9,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// Tracks security-relevant events including authentication, configuration changes, and data access.
 /// Implements OWASP ASVS Level 2 logging and monitoring requirements.
 /// </summary>
-public interface IAuditService
-{
+public interface IAuditService {
     /// <summary>
     /// Logs a user authentication event (login).
     /// </summary>

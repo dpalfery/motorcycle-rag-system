@@ -4,12 +4,11 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.Azure;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
-public class AzureSearchClientWrapperTests : IDisposable
-{
+public class AzureSearchClientWrapperTests : IDisposable {
     private readonly Mock<ILogger<AzureSearchClientWrapper>> _mockLogger;
     private readonly Mock<IResilienceService> _mockResilienceService;
     private readonly Mock<ICorrelationService> _mockCorrelationService;
@@ -18,12 +17,11 @@ public class AzureSearchClientWrapperTests : IDisposable
     private readonly IOptions<AzureAIOptions> _azureOptions;
     private readonly IOptions<SearchOptions> _searchOptions;
 
-    public AzureSearchClientWrapperTests()
-    {
+    public AzureSearchClientWrapperTests() {
         _mockLogger = new Mock<ILogger<AzureSearchClientWrapper>>();
         _mockResilienceService = new Mock<IResilienceService>();
         _mockCorrelationService = new Mock<ICorrelationService>();
-        
+
         // Setup resilience service to execute operations
         _mockResilienceService
             .Setup(x => x.ExecuteAsync(
@@ -33,33 +31,28 @@ public class AzureSearchClientWrapperTests : IDisposable
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .Returns<string, Func<Task<SearchResult[]>>, Func<Task<SearchResult[]>>?, string?, CancellationToken>(
-                async (policyKey, operation, fallback, corrId, ct) =>
-                {
-                    try 
-                    {
+                async (policyKey, operation, fallback, corrId, ct) => {
+                    try {
                         return await operation();
                     }
-                    catch
-                    {
+                    catch {
                         // Return empty array if operation fails
                         return new SearchResult[0];
                     }
                 });
-                
+
         // Setup correlation service to return mock disposable
         _mockCorrelationService
             .Setup(x => x.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
             .Returns(Mock.Of<IDisposable>());
-            
+
         _mockCorrelationService
             .Setup(x => x.GetOrCreateCorrelationId())
             .Returns("test-correlation-id");
-        
-        _azureConfig = new AzureAIOptions
-        {
+
+        _azureConfig = new AzureAIOptions {
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
-            Retry = new RetryOptions
-            {
+            Retry = new RetryOptions {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,
                 MaxDelaySeconds = 60,
@@ -80,8 +73,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     }
 
     [Fact]
-    public void Constructor_WithValidConfiguration_ShouldInitializeSuccessfully()
-    {
+    public void Constructor_WithValidConfiguration_ShouldInitializeSuccessfully() {
         // Act & Assert
         var exception = Record.Exception(() => new AzureSearchClientWrapper(
             _azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
@@ -89,35 +81,31 @@ public class AzureSearchClientWrapperTests : IDisposable
     }
 
     [Fact]
-    public void Constructor_WithNullAzureConfiguration_ShouldThrowArgumentNullException()
-    {
+    public void Constructor_WithNullAzureConfiguration_ShouldThrowArgumentNullException() {
         // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => 
+        var exception = Assert.Throws<ArgumentNullException>(() =>
             new AzureSearchClientWrapper(null!, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.ParamName.Should().Be("azureConfig");
     }
 
     [Fact]
-    public void Constructor_WithNullSearchConfiguration_ShouldThrowArgumentNullException()
-    {
+    public void Constructor_WithNullSearchConfiguration_ShouldThrowArgumentNullException() {
         // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => 
+        var exception = Assert.Throws<ArgumentNullException>(() =>
             new AzureSearchClientWrapper(_azureOptions, null!, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.ParamName.Should().Be("searchConfig");
     }
 
     [Fact]
-    public void Constructor_WithNullLogger_ShouldThrowArgumentNullException()
-    {
+    public void Constructor_WithNullLogger_ShouldThrowArgumentNullException() {
         // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => 
+        var exception = Assert.Throws<ArgumentNullException>(() =>
             new AzureSearchClientWrapper(_azureOptions, _searchOptions, null!, _mockResilienceService.Object, _mockCorrelationService.Object));
         exception.ParamName.Should().Be("logger");
     }
 
     [Fact]
-    public void Constructor_ShouldLogInitializationMessage()
-    {
+    public void Constructor_ShouldLogInitializationMessage() {
         // Act
         using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
@@ -133,8 +121,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_WithValidQuery_ShouldReturnResults()
-    {
+    public async Task SearchAsync_WithValidQuery_ShouldReturnResults() {
         // Arrange
         using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
@@ -148,8 +135,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     }
 
     [Fact(Skip = "Integration test - requires actual Azure Search service")]
-    public async Task IndexDocumentsAsync_WithValidDocuments_ShouldReturnTrue()
-    {
+    public async Task IndexDocumentsAsync_WithValidDocuments_ShouldReturnTrue() {
         // Arrange
         using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
         var documents = new[] { new { id = "1", content = "test content" } };
@@ -167,8 +153,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     [InlineData(502)] // Bad Gateway
     [InlineData(503)] // Service Unavailable
     [InlineData(504)] // Gateway Timeout
-    public void IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(int statusCode)
-    {
+    public void IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -184,8 +169,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     [InlineData(401)] // Unauthorized
     [InlineData(403)] // Forbidden
     [InlineData(404)] // Not Found
-    public void IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(int statusCode)
-    {
+    public void IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -201,8 +185,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     [InlineData(502)] // Bad Gateway
     [InlineData(503)] // Service Unavailable
     [InlineData(504)] // Gateway Timeout
-    public void IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(int statusCode)
-    {
+    public void IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -219,8 +202,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     [InlineData(403)] // Forbidden
     [InlineData(404)] // Not Found
     [InlineData(429)] // Too Many Requests (client error, not server error)
-    public void IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(int statusCode)
-    {
+    public void IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -232,8 +214,7 @@ public class AzureSearchClientWrapperTests : IDisposable
     }
 
     [Fact]
-    public void Dispose_ShouldDisposeResourcesGracefully()
-    {
+    public void Dispose_ShouldDisposeResourcesGracefully() {
         // Arrange
         var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
@@ -247,18 +228,15 @@ public class AzureSearchClientWrapperTests : IDisposable
     }
 
     // Helper methods to access private static methods for testing
-    private static bool IsRetryableErrorAccessor(RequestFailedException ex)
-    {
+    private static bool IsRetryableErrorAccessor(RequestFailedException ex) {
         return ex.Status == 429 || ex.Status == 500 || ex.Status == 502 || ex.Status == 503 || ex.Status == 504;
     }
 
-    private static bool IsCircuitBreakerErrorAccessor(RequestFailedException ex)
-    {
+    private static bool IsCircuitBreakerErrorAccessor(RequestFailedException ex) {
         return ex.Status >= 500;
     }
 
-    public void Dispose()
-    {
+    public void Dispose() {
         // Cleanup if needed
     }
 }
@@ -267,27 +245,23 @@ public class AzureSearchClientWrapperTests : IDisposable
 /// Integration tests for AzureSearchClientWrapper that require actual Azure services
 /// </summary>
 [Trait("Category", "Integration")]
-public class AzureSearchClientWrapperIntegrationTests
-{
+public class AzureSearchClientWrapperIntegrationTests {
     [Fact(Skip = "Integration test - requires actual Azure Search service")]
-    public async Task SearchAsync_WithValidQuery_ShouldReturnResults()
-    {
+    public async Task SearchAsync_WithValidQuery_ShouldReturnResults() {
         // This test would require actual Azure Search credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;
     }
 
     [Fact(Skip = "Integration test - requires actual Azure Search service")]
-    public async Task IndexDocumentsAsync_WithValidDocuments_ShouldIndexSuccessfully()
-    {
+    public async Task IndexDocumentsAsync_WithValidDocuments_ShouldIndexSuccessfully() {
         // This test would require actual Azure Search credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;
     }
 
     [Fact(Skip = "Integration test - requires actual Azure Search service")]
-    public async Task IsHealthyAsync_WithValidService_ShouldReturnTrue()
-    {
+    public async Task IsHealthyAsync_WithValidService_ShouldReturnTrue() {
         // This test would require actual Azure Search credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;

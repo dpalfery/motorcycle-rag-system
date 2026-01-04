@@ -7,8 +7,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Interface for motorcycle indexing service operations
 /// </summary>
-public interface IMotorcycleIndexingService
-{
+public interface IMotorcycleIndexingService {
     /// <summary>
     /// Indexes motorcycle documents
     /// </summary>

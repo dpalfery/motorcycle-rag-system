@@ -14,8 +14,7 @@ namespace MotorcycleRAG.Persistence.Search;
 /// <summary>
 /// Service for indexing motorcycle documents to Azure AI Search
 /// </summary>
-public class MotorcycleIndexingService : IMotorcycleIndexingService
-{
+public class MotorcycleIndexingService : IMotorcycleIndexingService {
     private readonly IAzureSearchClient _searchClient;
     private readonly SearchIndexClient _indexClient;
     private readonly ILogger<MotorcycleIndexingService> _logger;
@@ -25,8 +24,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
         IAzureSearchClient searchClient,
         SearchIndexClient indexClient,
         IOptions<SearchOptions> searchOptions,
-        ILogger<MotorcycleIndexingService> logger)
-    {
+        ILogger<MotorcycleIndexingService> logger) {
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
         _indexClient = indexClient ?? throw new ArgumentNullException(nameof(indexClient));
         _searchOptions = searchOptions?.Value ?? throw new ArgumentNullException(nameof(searchOptions));
@@ -34,16 +32,13 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     }
 
     /// <inheritdoc />
-    public async Task<BatchIndexingResult> IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents)
-    {
+    public async Task<BatchIndexingResult> IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents) {
         var stopwatch = Stopwatch.StartNew();
-        var result = new BatchIndexingResult
-        {
+        var result = new BatchIndexingResult {
             IndexName = _searchOptions.IndexName
         };
 
-        try
-        {
+        try {
             var documentList = documents.ToList();
             result.DocumentsProcessed = documentList.Count;
 
@@ -57,15 +52,12 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
                 .GroupBy(x => x.index / _searchOptions.BatchSize)
                 .Select(g => g.Select(x => x.doc).ToList());
 
-            foreach (var batch in batches)
-            {
-                try
-                {
+            foreach (var batch in batches) {
+                try {
                     await _searchClient.IndexDocumentsAsync(batch);
                     result.DocumentsIndexed += batch.Count;
                 }
-                catch (Exception ex)
-                {
+                catch (Exception ex) {
                     _logger.LogError(ex, "Error indexing batch of {BatchSize} documents", batch.Count);
                     result.Errors.Add($"Batch indexing error: {ex.Message}");
                 }
@@ -83,8 +75,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
 
             return result;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             stopwatch.Stop();
             _logger.LogError(ex, "Failed to index documents to {IndexName}", _searchOptions.IndexName);
 
@@ -98,34 +89,27 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     }
 
     /// <inheritdoc />
-    public async Task<IndexingStatistics> GetIndexingStatisticsAsync()
-    {
+    public async Task<IndexingStatistics> GetIndexingStatisticsAsync() {
         var statistics = new IndexingStatistics();
 
-        try
-        {
+        try {
             _logger.LogDebug("Retrieving indexing statistics");
 
             var indexNames = _indexClient.GetIndexNamesAsync();
-            
-            await foreach (var indexName in indexNames)
-            {
-                try
-                {
+
+            await foreach (var indexName in indexNames) {
+                try {
                     var index = await _indexClient.GetIndexAsync(indexName);
-                    var indexInfo = new IndexInfo
-                    {
+                    var indexInfo = new IndexInfo {
                         Name = indexName,
                         IsHealthy = true
                     };
                     statistics.Indexes.Add(indexInfo);
                     statistics.HealthyIndexes++;
                 }
-                catch (Exception ex)
-                {
+                catch (Exception ex) {
                     _logger.LogWarning(ex, "Failed to get info for index {IndexName}", indexName);
-                    statistics.Indexes.Add(new IndexInfo
-                    {
+                    statistics.Indexes.Add(new IndexInfo {
                         Name = indexName,
                         IsHealthy = false
                     });
@@ -140,8 +124,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
 
             return statistics;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to retrieve indexing statistics");
             statistics.ErrorMessage = ex.Message;
             return statistics;
@@ -149,29 +132,25 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     }
 
     /// <inheritdoc />
-    public async Task<IndexCreationResult> RebuildIndexAsync()
-    {
+    public async Task<IndexCreationResult> RebuildIndexAsync() {
         var result = new IndexCreationResult();
 
-        try
-        {
+        try {
             _logger.LogInformation("Starting index rebuild for {IndexName}", _searchOptions.IndexName);
 
             // Delete existing index if it exists
-            try
-            {
+            try {
                 await _indexClient.DeleteIndexAsync(_searchOptions.IndexName);
                 _logger.LogInformation("Deleted existing index {IndexName}", _searchOptions.IndexName);
             }
-            catch (global::Azure.RequestFailedException ex) when (ex.Status == 404)
-            {
+            catch (global::Azure.RequestFailedException ex) when (ex.Status == 404) {
                 _logger.LogDebug("Index {IndexName} does not exist, will create new", _searchOptions.IndexName);
             }
 
             // Create new index with schema including locator fields
             var indexDefinition = CreateMotorcycleDocumentIndexDefinition();
             await _indexClient.CreateIndexAsync(indexDefinition);
-            
+
             result.CreatedIndexes.Add(_searchOptions.IndexName);
             result.Success = true;
             result.Message = $"Successfully rebuilt index {_searchOptions.IndexName} with locator fields";
@@ -180,8 +159,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
 
             return result;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to rebuild index {IndexName}", _searchOptions.IndexName);
 
             result.Success = false;
@@ -195,12 +173,10 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
     /// <summary>
     /// Creates the Azure AI Search index schema for MotorcycleDocument including locator fields
     /// </summary>
-    private SearchIndex CreateMotorcycleDocumentIndexDefinition()
-    {
+    private SearchIndex CreateMotorcycleDocumentIndexDefinition() {
         var indexName = _searchOptions.IndexName;
-        
-        var index = new SearchIndex(indexName)
-        {
+
+        var index = new SearchIndex(indexName) {
             Fields = new List<SearchField>
             {
                 // Key field
@@ -250,8 +226,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService
                     VectorSearchProfileName = "vector-config"
                 }
             },
-            VectorSearch = new VectorSearch
-            {
+            VectorSearch = new VectorSearch {
                 Algorithms =
                 {
                     new HnswAlgorithmConfiguration("vector-algo")

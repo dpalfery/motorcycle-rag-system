@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Interface for monitoring pipeline executions and sending notifications
 /// </summary>
-public interface IPipelineMonitoringService
-{
+public interface IPipelineMonitoringService {
     /// <summary>
     /// Track pipeline execution start
     /// </summary>

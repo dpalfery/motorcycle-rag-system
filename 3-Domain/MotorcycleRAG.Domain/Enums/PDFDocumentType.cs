@@ -1,10 +1,8 @@
-namespace MotorcycleRAG.Domain.Enums
-{
+namespace MotorcycleRAG.Domain.Enums {
     /// <summary>
     /// Types of PDF documents in the motorcycle domain
     /// </summary>
-    public enum PdfDocumentType
-    {
+    public enum PdfDocumentType {
         Manual,
         ServiceGuide,
         PartsManual,

@@ -15,13 +15,11 @@ namespace MotorcycleRAG.API.Configuration;
 /// <summary>
 /// Extension methods for configuring services in the DI container
 /// </summary>
-public static class ServiceConfiguration
-{
+public static class ServiceConfiguration {
     /// <summary>
     /// Configure Azure AI services
     /// </summary>
-    public static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration)
-    {
+    public static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration) {
         // Configure Azure AI settings with validation
         services.Configure<AzureAIOptions>(configuration.GetSection("AzureAI"));
         services.Configure<SearchOptions>(configuration.GetSection("Search"));
@@ -34,19 +32,18 @@ public static class ServiceConfiguration
 
         // Register Azure service clients (now implemented in Infrastructure layer)
         services.AddAzureServices(configuration);
-        
+
         return services;
     }
 
     /// <summary>
     /// Configure core application services
     /// </summary>
-    public static IServiceCollection AddCoreServices(this IServiceCollection services)
-    {
+    public static IServiceCollection AddCoreServices(this IServiceCollection services) {
         // Register core service interfaces to concrete implementations in Application layer
         services.AddScoped<IMotorcycleRAGService, MotorcycleRAG.Application.Services.MotorcycleRAGService>();
         services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Application.Services.AgentOrchestrator>();
-        
+
         // Add Application Insights TelemetryClient
         services.AddApplicationInsightsTelemetry();
         services.AddSingleton<ITelemetryService, MotorcycleRAG.Persistence.Telemetry.TelemetryService>();
@@ -57,24 +54,22 @@ public static class ServiceConfiguration
     /// <summary>
     /// Configure search agents
     /// </summary>
-    public static IServiceCollection AddSearchAgents(this IServiceCollection services)
-    {
+    public static IServiceCollection AddSearchAgents(this IServiceCollection services) {
         // Register search agent implementations from Application layer
         // Note: QueryPlannerAgent is registered separately to avoid circular dependency
         services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.VectorSearchAgent>();
-        
+
         // Register WebSearchAgent with optional IWebTrustPolicyStore for trust tier filtering
-        services.AddScoped<ISearchAgent>(provider =>
-        {
+        services.AddScoped<ISearchAgent>(provider => {
             var httpClient = provider.GetRequiredService<HttpClient>();
             var openAIClient = provider.GetRequiredService<MotorcycleRAG.Contracts.Interfaces.IAzureOpenAIClient>();
             var config = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MotorcycleRAG.Core.Options.WebSearchOptions>>();
             var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<MotorcycleRAG.Application.Agents.WebSearchAgent>>();
             var trustPolicyStore = provider.GetService<MotorcycleRAG.Contracts.Interfaces.IWebTrustPolicyStore>();
-            
+
             return new MotorcycleRAG.Application.Agents.WebSearchAgent(httpClient, openAIClient, config, logger, trustPolicyStore);
         });
-        
+
         services.AddScoped<IQueryPlannerAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();
 
         return services;
@@ -83,8 +78,7 @@ public static class ServiceConfiguration
     /// <summary>
     /// Configure data processors
     /// </summary>
-    public static IServiceCollection AddDataProcessors(this IServiceCollection services)
-    {
+    public static IServiceCollection AddDataProcessors(this IServiceCollection services) {
         // Register data processor implementations from Persistence layer
         services.AddScoped<IDataProcessor<CSVFile>, MotorcycleCSVProcessor>();
         services.AddScoped<IDataProcessor<PDFDocument>, MotorcyclePDFProcessor>();
@@ -95,8 +89,7 @@ public static class ServiceConfiguration
     /// <summary>
     /// Configure data pipeline services
     /// </summary>
-    public static IServiceCollection AddDataPipelineServices(this IServiceCollection services, IConfiguration configuration)
-    {
+    public static IServiceCollection AddDataPipelineServices(this IServiceCollection services, IConfiguration configuration) {
         // Configure pipeline settings
         services.Configure<MotorcycleRAG.Application.Pipeline.PipelineConfiguration>(configuration.GetSection("Pipeline"));
         services.Configure<MotorcycleRAG.Application.Pipeline.FileUploadConfiguration>(configuration.GetSection("FileUpload"));
@@ -118,8 +111,7 @@ public static class ServiceConfiguration
     /// <summary>
     /// Configure health checks for all critical dependencies
     /// </summary>
-    public static IServiceCollection AddHealthChecks(this IServiceCollection services, IConfiguration configuration)
-    {
+    public static IServiceCollection AddHealthChecks(this IServiceCollection services, IConfiguration configuration) {
         var healthChecksBuilder = services.AddHealthChecks()
             .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("API is running"))
             .AddCheck("configuration", () => ValidateConfiguration(configuration));
@@ -162,8 +154,7 @@ public static class ServiceConfiguration
 
         // Configure health check response caching to prevent health check storms
         // Cache successful responses for 30 seconds
-        services.Configure<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherOptions>(options =>
-        {
+        services.Configure<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherOptions>(options => {
             options.Delay = TimeSpan.FromSeconds(30);
             options.Period = TimeSpan.FromSeconds(30);
         });
@@ -174,8 +165,7 @@ public static class ServiceConfiguration
     /// <summary>
     /// Configure SQL persistence services
     /// </summary>
-    public static IServiceCollection AddSqlPersistence(this IServiceCollection services, IConfiguration configuration)
-    {
+    public static IServiceCollection AddSqlPersistence(this IServiceCollection services, IConfiguration configuration) {
         // Configure SQL options
         services.Configure<MotorcycleRAG.Core.Options.SqlOptions>(configuration.GetSection("Sql"));
         services.AddSingleton<IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions>, SqlOptionsValidator>();
@@ -206,8 +196,7 @@ public static class ServiceConfiguration
     /// <summary>
     /// Configure web trust policy services
     /// </summary>
-    public static IServiceCollection AddWebTrustPolicyServices(this IServiceCollection services, IConfiguration configuration)
-    {
+    public static IServiceCollection AddWebTrustPolicyServices(this IServiceCollection services, IConfiguration configuration) {
         // Register web trust policy store as singleton
         services.AddSingleton<IWebTrustPolicyStore, MotorcycleRAG.Persistence.Configuration.WebTrustPolicyStore>();
 
@@ -217,10 +206,8 @@ public static class ServiceConfiguration
     /// <summary>
     /// Validate overall configuration health
     /// </summary>
-    private static Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult ValidateConfiguration(IConfiguration configuration)
-    {
-        try
-        {
+    private static Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult ValidateConfiguration(IConfiguration configuration) {
+        try {
             var issues = new List<string>();
 
             // Check required configuration sections
@@ -233,30 +220,27 @@ public static class ServiceConfiguration
                 issues.Add("Search configuration section is missing");
 
             // Check Application Insights configuration
-            var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights") 
+            var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights")
                 ?? configuration["ApplicationInsights:ConnectionString"];
-            
+
             if (string.IsNullOrWhiteSpace(appInsightsConnectionString))
                 issues.Add("Application Insights connection string is not configured");
 
-            return issues.Count == 0 
+            return issues.Count == 0
                 ? Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("All configuration sections are present")
                 : Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Degraded($"Configuration issues: {string.Join(", ", issues)}");
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy("Configuration validation failed", ex);
         }
     }
-    
+
     /// <summary>
     /// Validator for SQL configuration options
     /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
     /// </summary>
-    public class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions>
-    {
-        public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Core.Options.SqlOptions options)
-        {
+    public class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions> {
+        public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Core.Options.SqlOptions options) {
             var failures = new List<string>();
 
             if (options.CommandTimeout <= 0)
@@ -277,10 +261,8 @@ public static class ServiceConfiguration
     /// <summary>
     /// Validate Azure service endpoint configuration
     /// </summary>
-    private static Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult ValidateEndpointConfiguration(string serviceName, string endpoint)
-    {
-        try
-        {
+    private static Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult ValidateEndpointConfiguration(string serviceName, string endpoint) {
+        try {
             if (string.IsNullOrWhiteSpace(endpoint))
                 return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy($"{serviceName} endpoint is not configured");
 
@@ -296,8 +278,7 @@ public static class ServiceConfiguration
 
             return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy($"{serviceName} endpoint is properly configured");
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy($"{serviceName} endpoint validation failed", ex);
         }
     }
@@ -306,10 +287,8 @@ public static class ServiceConfiguration
 /// <summary>
 /// Validator for Azure AI configuration
 /// </summary>
-public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
-{
-    public ValidateOptionsResult Validate(string? name, AzureAIOptions options)
-    {
+public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
+    public ValidateOptionsResult Validate(string? name, AzureAIOptions options) {
         var failures = new List<string>();
 
         if (string.IsNullOrWhiteSpace(options.FoundryEndpoint))
@@ -334,8 +313,7 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
 
         if (options.Models == null)
             failures.Add("AzureAI:Models configuration is required");
-        else
-        {
+        else {
             if (string.IsNullOrWhiteSpace(options.Models.ChatModel))
                 failures.Add("AzureAI:Models:ChatModel is required");
             if (string.IsNullOrWhiteSpace(options.Models.EmbeddingModel))
@@ -346,7 +324,7 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
                 failures.Add("AzureAI:Models:Temperature must be between 0 and 2");
         }
 
-        return failures.Count > 0 
+        return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;
     }
@@ -355,10 +333,8 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
 /// <summary>
 /// Validator for Search configuration
 /// </summary>
-public class SearchConfigurationValidator : IValidateOptions<SearchOptions>
-{
-    public ValidateOptionsResult Validate(string? name, SearchOptions options)
-    {
+public class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
+    public ValidateOptionsResult Validate(string? name, SearchOptions options) {
         var failures = new List<string>();
 
         if (string.IsNullOrWhiteSpace(options.IndexName))
@@ -370,7 +346,7 @@ public class SearchConfigurationValidator : IValidateOptions<SearchOptions>
         if (options.MaxSearchResults <= 0 || options.MaxSearchResults > 100)
             failures.Add("Search:MaxSearchResults must be between 1 and 100");
 
-        return failures.Count > 0 
+        return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;
     }
@@ -379,10 +355,8 @@ public class SearchConfigurationValidator : IValidateOptions<SearchOptions>
 /// <summary>
 /// Validator for Telemetry configuration
 /// </summary>
-public class TelemetryConfigurationValidator : IValidateOptions<TelemetryOptions>
-{
-    public ValidateOptionsResult Validate(string? name, TelemetryOptions options)
-    {
+public class TelemetryConfigurationValidator : IValidateOptions<TelemetryOptions> {
+    public ValidateOptionsResult Validate(string? name, TelemetryOptions options) {
         var failures = new List<string>();
 
         if (options.EnableTelemetry && string.IsNullOrWhiteSpace(options.ConnectionString))
@@ -391,7 +365,7 @@ public class TelemetryConfigurationValidator : IValidateOptions<TelemetryOptions
         if (string.IsNullOrWhiteSpace(options.ApplicationName))
             failures.Add("ApplicationInsights:ApplicationName is required");
 
-        return failures.Count > 0 
+        return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;
     }

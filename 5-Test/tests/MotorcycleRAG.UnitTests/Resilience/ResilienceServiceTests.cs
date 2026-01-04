@@ -10,28 +10,22 @@ using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.UnitTests.Resilience;
 
-public class ResilienceServiceTests
-{
+public class ResilienceServiceTests {
     private readonly Mock<ILogger<ResilienceService>> _mockLogger;
     private readonly ResilienceService _resilienceService;
 
-    public ResilienceServiceTests()
-    {
+    public ResilienceServiceTests() {
         _mockLogger = new Mock<ILogger<ResilienceService>>();
-        
-        var config = new ResilienceOptions
-        {
-            CircuitBreaker = new CircuitBreakerOptions
-            {
-                OpenAI = new ServiceCircuitBreakerOptions
-                {
+
+        var config = new ResilienceOptions {
+            CircuitBreaker = new CircuitBreakerOptions {
+                OpenAI = new ServiceCircuitBreakerOptions {
                     FailureThreshold = 2,
                     SamplingDuration = TimeSpan.FromSeconds(30),
                     MinimumThroughput = 1
                 }
             },
-            Retry = new RetryOptions
-            {
+            Retry = new RetryOptions {
                 MaxRetries = 2,
                 BaseDelaySeconds = 1,
                 MaxDelaySeconds = 5,
@@ -46,8 +40,7 @@ public class ResilienceServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_SuccessfulOperation_ReturnsResult()
-    {
+    public async Task ExecuteAsync_SuccessfulOperation_ReturnsResult() {
         // Arrange
         const string expectedResult = "Success";
         var operation = () => Task.FromResult(expectedResult);
@@ -60,12 +53,10 @@ public class ResilienceServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_OperationThrowsException_RetriesAndThenFails()
-    {
+    public async Task ExecuteAsync_OperationThrowsException_RetriesAndThenFails() {
         // Arrange
         var callCount = 0;
-        Func<Task<string>> operation = async () =>
-        {
+        Func<Task<string>> operation = async () => {
             callCount++;
             await Task.Yield();
             throw new HttpRequestException("Service unavailable");
@@ -74,32 +65,27 @@ public class ResilienceServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<HttpRequestException>(
             () => _resilienceService.ExecuteAsync("AzureOpenAI", operation));
-        
+
         Assert.Equal("Service unavailable", exception.Message);
         Assert.True(callCount > 1, "Should have retried the operation");
     }
 
     [Fact]
-    public async Task ExecuteAsync_OperationFailsWithCircuitBreakerOpen_UsesFallback()
-    {
+    public async Task ExecuteAsync_OperationFailsWithCircuitBreakerOpen_UsesFallback() {
         // Arrange
         const string fallbackResult = "Fallback";
-        Func<Task<string>> operation = async () => 
-        {
+        Func<Task<string>> operation = async () => {
             await Task.Yield();
             throw new HttpRequestException("Service down");
         };
         var fallback = () => Task.FromResult(fallbackResult);
 
         // Trigger circuit breaker by failing multiple times
-        for (int i = 0; i < 3; i++)
-        {
-            try
-            {
+        for (int i = 0; i < 3; i++) {
+            try {
                 await _resilienceService.ExecuteAsync("AzureOpenAI", operation);
             }
-            catch
-            {
+            catch {
                 // Expected failures to trigger circuit breaker
             }
         }
@@ -112,8 +98,7 @@ public class ResilienceServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithCorrelationId_LogsWithCorrelation()
-    {
+    public async Task ExecuteAsync_WithCorrelationId_LogsWithCorrelation() {
         // Arrange
         const string correlationId = "test-correlation-123";
         const string expectedResult = "Success";
@@ -136,8 +121,7 @@ public class ResilienceServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_UnknownPolicyKey_ExecutesWithoutResilience()
-    {
+    public async Task ExecuteAsync_UnknownPolicyKey_ExecutesWithoutResilience() {
         // Arrange
         const string expectedResult = "Success";
         var operation = () => Task.FromResult(expectedResult);
@@ -158,8 +142,7 @@ public class ResilienceServiceTests
     }
 
     [Fact]
-    public void GetCircuitBreakerState_ValidPolicyKey_ReturnsState()
-    {
+    public void GetCircuitBreakerState_ValidPolicyKey_ReturnsState() {
         // Act
         var state = _resilienceService.GetCircuitBreakerState("AzureOpenAI");
 
@@ -168,8 +151,7 @@ public class ResilienceServiceTests
     }
 
     [Fact]
-    public void GetCircuitBreakerState_InvalidPolicyKey_ReturnsClosedState()
-    {
+    public void GetCircuitBreakerState_InvalidPolicyKey_ReturnsClosedState() {
         // Act
         var state = _resilienceService.GetCircuitBreakerState("InvalidKey");
 
@@ -178,8 +160,7 @@ public class ResilienceServiceTests
     }
 
     [Fact]
-    public void GetHealthStatus_ReturnsAllCircuitBreakerStates()
-    {
+    public void GetHealthStatus_ReturnsAllCircuitBreakerStates() {
         // Act
         var healthStatus = _resilienceService.GetHealthStatus();
 
@@ -191,12 +172,11 @@ public class ResilienceServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_CancellationRequested_ThrowsOperationCanceledException()
-    {
+    public async Task ExecuteAsync_CancellationRequested_ThrowsOperationCanceledException() {
         // Arrange
         using var cts = new CancellationTokenSource();
         cts.Cancel();
-        
+
         var operation = () => Task.FromResult("Success");
 
         // Act & Assert
@@ -205,29 +185,23 @@ public class ResilienceServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_FallbackThrowsException_PropagatesOriginalException()
-    {
+    public async Task ExecuteAsync_FallbackThrowsException_PropagatesOriginalException() {
         // Arrange
-        Func<Task<string>> operation = async () => 
-        {
+        Func<Task<string>> operation = async () => {
             await Task.Yield();
             throw new HttpRequestException("Original error");
         };
-        Func<Task<string>> fallback = async () => 
-        {
+        Func<Task<string>> fallback = async () => {
             await Task.Yield();
             throw new InvalidOperationException("Fallback error");
         };
 
         // Trigger circuit breaker
-        for (int i = 0; i < 3; i++)
-        {
-            try
-            {
+        for (int i = 0; i < 3; i++) {
+            try {
                 await _resilienceService.ExecuteAsync("AzureOpenAI", operation);
             }
-            catch
-            {
+            catch {
                 // Expected failures
             }
         }
@@ -235,7 +209,7 @@ public class ResilienceServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback));
-        
+
         Assert.Equal("Fallback error", exception.Message);
     }
 }

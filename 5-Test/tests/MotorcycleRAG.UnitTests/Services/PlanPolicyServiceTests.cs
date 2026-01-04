@@ -9,21 +9,18 @@ using Xunit;
 using User = MotorcycleRAG.Contracts.Models.DTOs.UserDTO;
 
 
-namespace MotorcycleRAG.UnitTests.Services
-{
+namespace MotorcycleRAG.UnitTests.Services {
     /// <summary>
     /// Unit tests for PlanPolicyService
     /// </summary>
-    public class PlanPolicyServiceTests
-    {
+    public class PlanPolicyServiceTests {
         private readonly Mock<IPlanRepository> _mockPlanRepository;
         private readonly Mock<IUsageRepository> _mockUsageRepository;
         private readonly Mock<IUserRepository> _mockUserRepository;
         private readonly Mock<ILogger<PlanPolicyService>> _mockLogger;
         private readonly PlanPolicyService _service;
 
-        public PlanPolicyServiceTests()
-        {
+        public PlanPolicyServiceTests() {
             _mockPlanRepository = new Mock<IPlanRepository>();
             _mockUsageRepository = new Mock<IUsageRepository>();
             _mockUserRepository = new Mock<IUserRepository>();
@@ -37,18 +34,15 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task GetDailyRequestLimitAsync_UserWithPlan_ReturnsPlanLimit()
-        {
+        public async Task GetDailyRequestLimitAsync_UserWithPlan_ReturnsPlanLimit() {
             // Arrange
-            var plan = new UserPlan
-            {
+            var plan = new UserPlan {
                 Id = "plan-1",
                 Name = "Premium",
                 DailyRequestLimit = 500,
                 IsPaid = true
             };
-            var user = new User
-            {
+            var user = new User {
                 Id = "user-1",
                 Email = "test@example.com",
                 PlanId = "plan-1"
@@ -67,11 +61,9 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task GetDailyRequestLimitAsync_UserWithoutPlan_ReturnsDefaultLimit()
-        {
+        public async Task GetDailyRequestLimitAsync_UserWithoutPlan_ReturnsDefaultLimit() {
             // Arrange
-            var user = new User
-            {
+            var user = new User {
                 Id = "user-1",
                 Email = "test@example.com",
                 PlanId = string.Empty
@@ -86,11 +78,9 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task GetDailyRequestLimitAsync_PlanNotFound_ReturnsDefaultLimit()
-        {
+        public async Task GetDailyRequestLimitAsync_PlanNotFound_ReturnsDefaultLimit() {
             // Arrange
-            var user = new User
-            {
+            var user = new User {
                 Id = "user-1",
                 Email = "test@example.com",
                 PlanId = "unknown-plan"
@@ -108,8 +98,7 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task GetDailyUsageCountAsync_ValidUserId_ReturnsCount()
-        {
+        public async Task GetDailyUsageCountAsync_ValidUserId_ReturnsCount() {
             // Arrange
             var userId = "user-1";
             var date = DateTime.UtcNow;
@@ -127,41 +116,36 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task GetDailyUsageCountAsync_ThrowsOnNullUserId()
-        {
+        public async Task GetDailyUsageCountAsync_ThrowsOnNullUserId() {
             // Arrange
             var date = DateTime.UtcNow;
 
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.GetDailyUsageCountAsync(null!, date));
         }
 
         [Fact]
-        public async Task GetDailyUsageCountAsync_ThrowsOnEmptyUserId()
-        {
+        public async Task GetDailyUsageCountAsync_ThrowsOnEmptyUserId() {
             // Arrange
             var date = DateTime.UtcNow;
 
             // Act & Assert
-            await Assert.ThrowsAsync<ArgumentException>(() => 
+            await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.GetDailyUsageCountAsync(string.Empty, date));
         }
 
         [Fact]
-        public async Task HasExceededDailyLimitAsync_UsageBelowLimit_ReturnsFalse()
-        {
+        public async Task HasExceededDailyLimitAsync_UsageBelowLimit_ReturnsFalse() {
             // Arrange
             var userId = "user-1";
             var date = DateTime.UtcNow;
-            var user = new User
-            {
+            var user = new User {
                 Id = userId,
                 Email = "test@example.com",
                 PlanId = "plan-1"
             };
-            var plan = new UserPlan
-            {
+            var plan = new UserPlan {
                 Id = "plan-1",
                 Name = "Premium",
                 DailyRequestLimit = 100,
@@ -186,19 +170,16 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task HasExceededDailyLimitAsync_UsageAtLimit_ReturnsTrue()
-        {
+        public async Task HasExceededDailyLimitAsync_UsageAtLimit_ReturnsTrue() {
             // Arrange
             var userId = "user-1";
             var date = DateTime.UtcNow;
-            var user = new User
-            {
+            var user = new User {
                 Id = userId,
                 Email = "test@example.com",
                 PlanId = "plan-1"
             };
-            var plan = new UserPlan
-            {
+            var plan = new UserPlan {
                 Id = "plan-1",
                 Name = "Premium",
                 DailyRequestLimit = 100,
@@ -223,19 +204,16 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task HasExceededDailyLimitAsync_UsageAboveLimit_ReturnsTrue()
-        {
+        public async Task HasExceededDailyLimitAsync_UsageAboveLimit_ReturnsTrue() {
             // Arrange
             var userId = "user-1";
             var date = DateTime.UtcNow;
-            var user = new User
-            {
+            var user = new User {
                 Id = userId,
                 Email = "test@example.com",
                 PlanId = "plan-1"
             };
-            var plan = new UserPlan
-            {
+            var plan = new UserPlan {
                 Id = "plan-1",
                 Name = "Premium",
                 DailyRequestLimit = 100,
@@ -260,19 +238,16 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task GetRemainingDailyRequestsAsync_ReturnsCorrectValue()
-        {
+        public async Task GetRemainingDailyRequestsAsync_ReturnsCorrectValue() {
             // Arrange
             var userId = "user-1";
             var date = DateTime.UtcNow;
-            var user = new User
-            {
+            var user = new User {
                 Id = userId,
                 Email = "test@example.com",
                 PlanId = "plan-1"
             };
-            var plan = new UserPlan
-            {
+            var plan = new UserPlan {
                 Id = "plan-1",
                 Name = "Premium",
                 DailyRequestLimit = 100,
@@ -297,19 +272,16 @@ namespace MotorcycleRAG.UnitTests.Services
         }
 
         [Fact]
-        public async Task GetRemainingDailyRequestsAsync_NegativeResult_ReturnsZero()
-        {
+        public async Task GetRemainingDailyRequestsAsync_NegativeResult_ReturnsZero() {
             // Arrange
             var userId = "user-1";
             var date = DateTime.UtcNow;
-            var user = new User
-            {
+            var user = new User {
                 Id = userId,
                 Email = "test@example.com",
                 PlanId = "plan-1"
             };
-            var plan = new UserPlan
-            {
+            var plan = new UserPlan {
                 Id = "plan-1",
                 Name = "Premium",
                 DailyRequestLimit = 100,

@@ -4,24 +4,20 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.Azure;
 
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
-public class DocumentIntelligenceClientWrapperTests : IDisposable
-{
+public class DocumentIntelligenceClientWrapperTests : IDisposable {
     private readonly Mock<ILogger<DocumentIntelligenceClientWrapper>> _mockLogger;
     private readonly AzureAIOptions _config;
     private readonly IOptions<AzureAIOptions> _options;
 
-    public DocumentIntelligenceClientWrapperTests()
-    {
+    public DocumentIntelligenceClientWrapperTests() {
         _mockLogger = new Mock<ILogger<DocumentIntelligenceClientWrapper>>();
-        _config = new AzureAIOptions
-        {
+        _config = new AzureAIOptions {
             DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Retry = new RetryOptions
-            {
+            Retry = new RetryOptions {
                 MaxRetries = 3,
                 BaseDelaySeconds = 2,
                 MaxDelaySeconds = 60,
@@ -32,34 +28,30 @@ public class DocumentIntelligenceClientWrapperTests : IDisposable
     }
 
     [Fact]
-    public void Constructor_WithValidConfiguration_ShouldInitializeSuccessfully()
-    {
+    public void Constructor_WithValidConfiguration_ShouldInitializeSuccessfully() {
         // Act & Assert
         var exception = Record.Exception(() => new DocumentIntelligenceClientWrapper(_options, _mockLogger.Object));
         exception.Should().BeNull();
     }
 
     [Fact]
-    public void Constructor_WithNullConfiguration_ShouldThrowArgumentNullException()
-    {
+    public void Constructor_WithNullConfiguration_ShouldThrowArgumentNullException() {
         // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => 
+        var exception = Assert.Throws<ArgumentNullException>(() =>
             new DocumentIntelligenceClientWrapper(null!, _mockLogger.Object));
         exception.ParamName.Should().Be("config");
     }
 
     [Fact]
-    public void Constructor_WithNullLogger_ShouldThrowArgumentNullException()
-    {
+    public void Constructor_WithNullLogger_ShouldThrowArgumentNullException() {
         // Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => 
+        var exception = Assert.Throws<ArgumentNullException>(() =>
             new DocumentIntelligenceClientWrapper(_options, null!));
         exception.ParamName.Should().Be("logger");
     }
 
     [Fact]
-    public void Constructor_ShouldLogInitializationMessage()
-    {
+    public void Constructor_ShouldLogInitializationMessage() {
         // Act
         using var client = new DocumentIntelligenceClientWrapper(_options, _mockLogger.Object);
 
@@ -80,8 +72,7 @@ public class DocumentIntelligenceClientWrapperTests : IDisposable
     [InlineData(502)] // Bad Gateway
     [InlineData(503)] // Service Unavailable
     [InlineData(504)] // Gateway Timeout
-    public void IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(int statusCode)
-    {
+    public void IsRetryableError_WithRetryableStatusCodes_ShouldReturnTrue(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -97,8 +88,7 @@ public class DocumentIntelligenceClientWrapperTests : IDisposable
     [InlineData(401)] // Unauthorized
     [InlineData(403)] // Forbidden
     [InlineData(404)] // Not Found
-    public void IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(int statusCode)
-    {
+    public void IsRetryableError_WithNonRetryableStatusCodes_ShouldReturnFalse(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -114,8 +104,7 @@ public class DocumentIntelligenceClientWrapperTests : IDisposable
     [InlineData(502)] // Bad Gateway
     [InlineData(503)] // Service Unavailable
     [InlineData(504)] // Gateway Timeout
-    public void IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(int statusCode)
-    {
+    public void IsCircuitBreakerError_WithServerErrors_ShouldReturnTrue(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -132,8 +121,7 @@ public class DocumentIntelligenceClientWrapperTests : IDisposable
     [InlineData(403)] // Forbidden
     [InlineData(404)] // Not Found
     [InlineData(429)] // Too Many Requests (client error, not server error)
-    public void IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(int statusCode)
-    {
+    public void IsCircuitBreakerError_WithClientErrors_ShouldReturnFalse(int statusCode) {
         // Arrange
         var exception = new RequestFailedException(statusCode, "Test error");
 
@@ -145,8 +133,7 @@ public class DocumentIntelligenceClientWrapperTests : IDisposable
     }
 
     [Fact]
-    public void Dispose_ShouldDisposeResourcesGracefully()
-    {
+    public void Dispose_ShouldDisposeResourcesGracefully() {
         // Arrange
         var client = new DocumentIntelligenceClientWrapper(_options, _mockLogger.Object);
 
@@ -160,18 +147,15 @@ public class DocumentIntelligenceClientWrapperTests : IDisposable
     }
 
     // Helper methods to access private static methods for testing
-    private static bool IsRetryableErrorAccessor(RequestFailedException ex)
-    {
+    private static bool IsRetryableErrorAccessor(RequestFailedException ex) {
         return ex.Status == 429 || ex.Status == 500 || ex.Status == 502 || ex.Status == 503 || ex.Status == 504;
     }
 
-    private static bool IsCircuitBreakerErrorAccessor(RequestFailedException ex)
-    {
+    private static bool IsCircuitBreakerErrorAccessor(RequestFailedException ex) {
         return ex.Status >= 500;
     }
 
-    public void Dispose()
-    {
+    public void Dispose() {
         // Cleanup if needed
     }
 }
@@ -180,27 +164,23 @@ public class DocumentIntelligenceClientWrapperTests : IDisposable
 /// Integration tests for DocumentIntelligenceClientWrapper that require actual Azure services
 /// </summary>
 [Trait("Category", "Integration")]
-public class DocumentIntelligenceClientWrapperIntegrationTests
-{
+public class DocumentIntelligenceClientWrapperIntegrationTests {
     [Fact(Skip = "Integration test - requires actual Document Intelligence service")]
-    public async Task AnalyzeDocumentAsync_WithValidPDF_ShouldReturnAnalysis()
-    {
+    public async Task AnalyzeDocumentAsync_WithValidPDF_ShouldReturnAnalysis() {
         // This test would require actual Document Intelligence credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;
     }
 
     [Fact(Skip = "Integration test - requires actual Document Intelligence service")]
-    public async Task AnalyzeDocumentFromUriAsync_WithValidUri_ShouldReturnAnalysis()
-    {
+    public async Task AnalyzeDocumentFromUriAsync_WithValidUri_ShouldReturnAnalysis() {
         // This test would require actual Document Intelligence credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;
     }
 
     [Fact(Skip = "Integration test - requires actual Document Intelligence service")]
-    public async Task IsHealthyAsync_WithValidService_ShouldReturnTrue()
-    {
+    public async Task IsHealthyAsync_WithValidService_ShouldReturnTrue() {
         // This test would require actual Document Intelligence credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;

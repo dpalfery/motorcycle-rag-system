@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.Sql.Repositories;
 using MotorcycleRAG.Persistence.Configuration;
@@ -14,16 +14,14 @@ namespace MotorcycleRAG.Persistence.Sql;
 /// <summary>
 /// Extension methods for registering SQL persistence services in DI container
 /// </summary>
-public static class ServiceCollectionExtensions
-{
+public static class ServiceCollectionExtensions {
     /// <summary>
     /// Register SQL persistence services with connection management
     /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
     /// </summary>
     public static IServiceCollection AddSqlPersistenceServices(
         this IServiceCollection services,
-        IConfiguration configuration)
-    {
+        IConfiguration configuration) {
         // Configure SQL options from appsettings (non-secret settings only)
         services.Configure<SqlOptions>(
             configuration.GetSection("Sql"));
@@ -53,10 +51,8 @@ public static class ServiceCollectionExtensions
 /// <summary>
 /// Validates SQL configuration on startup
 /// </summary>
-public class SqlOptionsValidator : IValidateOptions<SqlOptions>
-{
-    public ValidateOptionsResult Validate(string? name, SqlOptions options)
-    {
+public class SqlOptionsValidator : IValidateOptions<SqlOptions> {
+    public ValidateOptionsResult Validate(string? name, SqlOptions options) {
         var failures = new List<string>();
 
         if (options.CommandTimeout <= 0)

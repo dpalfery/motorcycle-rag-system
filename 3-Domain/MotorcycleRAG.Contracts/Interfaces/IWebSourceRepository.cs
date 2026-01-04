@@ -2,13 +2,11 @@ using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
-namespace MotorcycleRAG.Contracts.Interfaces
-{
+namespace MotorcycleRAG.Contracts.Interfaces {
     /// <summary>
     /// Repository interface for web source management operations
     /// </summary>
-    public interface IWebSourceRepository
-    {
+    public interface IWebSourceRepository {
         /// <summary>
         /// Creates a new web source
         /// </summary>

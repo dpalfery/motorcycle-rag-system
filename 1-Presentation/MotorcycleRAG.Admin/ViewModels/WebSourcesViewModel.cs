@@ -14,8 +14,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for managing web sources in the admin panel.
 /// Handles loading, creating, and deleting web sources with proper error handling and state management.
 /// </summary>
-public partial class WebSourcesViewModel : ObservableObject
-{
+public partial class WebSourcesViewModel : ObservableObject {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<WebSourcesViewModel> _logger;
@@ -50,8 +49,7 @@ public partial class WebSourcesViewModel : ObservableObject
     [ObservableProperty]
     private bool newSourceIncludeInSearch = true;
 
-    public WebSourcesViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<WebSourcesViewModel> logger)
-    {
+    public WebSourcesViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<WebSourcesViewModel> logger) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -63,56 +61,46 @@ public partial class WebSourcesViewModel : ObservableObject
     /// Command to load web sources from the API
     /// </summary>
     [RelayCommand]
-    public async Task LoadSourcesAsync()
-    {
+    public async Task LoadSourcesAsync() {
         IsLoading = true;
         ErrorMessage = null;
 
-        try
-        {
+        try {
             await EnsureAuthorizedAsync();
             var sources = await _apiClient.GetWebSourcesAsync();
 
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(() => {
                 WebSources.Clear();
-                foreach (var source in sources)
-                {
+                foreach (var source in sources) {
                     WebSources.Add(new WebSourceViewModel(source));
                 }
             });
 
             _logger.LogInformation("Loaded {Count} web sources", sources.Count);
         }
-        catch (UnauthorizedAccessException)
-        {
+        catch (UnauthorizedAccessException) {
             // User not authorized - expected in demo mode
             _logger.LogWarning("User not authorized to view web sources");
             await MainThread.InvokeOnMainThreadAsync(() => WebSources.Clear());
         }
-        catch (HttpRequestException)
-        {
+        catch (HttpRequestException) {
             // API not available - silently fail
             _logger.LogWarning("API not available for loading web sources");
             await MainThread.InvokeOnMainThreadAsync(() => WebSources.Clear());
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             _logger.LogError(ex, "Error loading web sources");
 
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(async () => {
                 ErrorMessage = $"Failed to load web sources: {sanitizedMessage}";
                 var window = Application.Current?.Windows?.FirstOrDefault();
-                if (window?.Page != null)
-                {
+                if (window?.Page != null) {
                     await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
                 }
             });
         }
-        finally
-        {
+        finally {
             IsLoading = false;
         }
     }
@@ -121,8 +109,7 @@ public partial class WebSourcesViewModel : ObservableObject
     /// Command to show the add source form
     /// </summary>
     [RelayCommand]
-    public void OpenAddSourceForm()
-    {
+    public void OpenAddSourceForm() {
         ResetForm();
         ShowAddSourceForm = true;
     }
@@ -131,8 +118,7 @@ public partial class WebSourcesViewModel : ObservableObject
     /// Command to hide the add source form
     /// </summary>
     [RelayCommand]
-    public void CloseAddSourceForm()
-    {
+    public void CloseAddSourceForm() {
         ShowAddSourceForm = false;
         ResetForm();
     }
@@ -141,36 +127,30 @@ public partial class WebSourcesViewModel : ObservableObject
     /// Command to add a new web source
     /// </summary>
     [RelayCommand]
-    public async Task AddSourceAsync()
-    {
+    public async Task AddSourceAsync() {
         IsLoading = true;
         ErrorMessage = null;
 
-        try
-        {
+        try {
             // Validate form
-            if (string.IsNullOrWhiteSpace(NewSourceName))
-            {
+            if (string.IsNullOrWhiteSpace(NewSourceName)) {
                 ErrorMessage = "Source name is required";
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(NewSourceUrl))
-            {
+            if (string.IsNullOrWhiteSpace(NewSourceUrl)) {
                 ErrorMessage = "Source URL is required";
                 return;
             }
 
-            if (!Uri.TryCreate(NewSourceUrl, UriKind.Absolute, out var uri))
-            {
+            if (!Uri.TryCreate(NewSourceUrl, UriKind.Absolute, out var uri)) {
                 ErrorMessage = "Invalid URL format";
                 return;
             }
 
             await EnsureAuthorizedAsync();
 
-            var newSource = new WebSource
-            {
+            var newSource = new WebSource {
                 Name = NewSourceName,
                 Url = NewSourceUrl,
                 Description = NewSourceDescription,
@@ -183,8 +163,7 @@ public partial class WebSourcesViewModel : ObservableObject
 
             var createdSource = await _apiClient.AddWebSourceAsync(newSource);
 
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(() => {
                 WebSources.Add(new WebSourceViewModel(createdSource));
                 ShowAddSourceForm = false;
                 ResetForm();
@@ -193,38 +172,31 @@ public partial class WebSourcesViewModel : ObservableObject
             _logger.LogInformation("Added web source: {SourceName}", createdSource.Name);
 
             var window = Application.Current?.Windows?.FirstOrDefault();
-            if (window?.Page != null)
-            {
+            if (window?.Page != null) {
                 await window.Page.DisplayAlertAsync("Success", "Web source added successfully", "OK");
             }
         }
-        catch (UnauthorizedAccessException)
-        {
+        catch (UnauthorizedAccessException) {
             ErrorMessage = "You do not have permission to add web sources";
             _logger.LogWarning("User not authorized to add web sources");
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             ErrorMessage = ex.Message;
             _logger.LogWarning(ex, "Invalid operation while adding web source");
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             ErrorMessage = $"Failed to add web source: {sanitizedMessage}";
             _logger.LogError(ex, "Error adding web source");
 
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(async () => {
                 var window = Application.Current?.Windows?.FirstOrDefault();
-                if (window?.Page != null)
-                {
+                if (window?.Page != null) {
                     await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
                 }
             });
         }
-        finally
-        {
+        finally {
             IsLoading = false;
         }
     }
@@ -233,10 +205,8 @@ public partial class WebSourcesViewModel : ObservableObject
     /// Command to delete a web source
     /// </summary>
     [RelayCommand]
-    public async Task DeleteSourceAsync(int sourceId)
-    {
-        try
-        {
+    public async Task DeleteSourceAsync(int sourceId) {
+        try {
             var window = Application.Current?.Windows?.FirstOrDefault();
             if (window?.Page == null)
                 return;
@@ -260,8 +230,7 @@ public partial class WebSourcesViewModel : ObservableObject
             await EnsureAuthorizedAsync();
             await _apiClient.DeleteWebSourceAsync(sourceId);
 
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(() => {
                 WebSources.Remove(sourceToDelete);
             });
 
@@ -269,42 +238,35 @@ public partial class WebSourcesViewModel : ObservableObject
 
             await window.Page.DisplayAlertAsync("Success", "Web source deleted successfully", "OK");
         }
-        catch (UnauthorizedAccessException)
-        {
+        catch (UnauthorizedAccessException) {
             ErrorMessage = "You do not have permission to delete web sources";
             _logger.LogWarning("User not authorized to delete web sources");
 
             var window = Application.Current?.Windows?.FirstOrDefault();
-            if (window?.Page != null)
-            {
+            if (window?.Page != null) {
                 await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
             }
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             ErrorMessage = ex.Message;
             _logger.LogWarning(ex, "Invalid operation while deleting web source");
 
             var window = Application.Current?.Windows?.FirstOrDefault();
-            if (window?.Page != null)
-            {
+            if (window?.Page != null) {
                 await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             ErrorMessage = $"Failed to delete web source: {sanitizedMessage}";
             _logger.LogError(ex, "Error deleting web source {SourceId}", sourceId);
 
             var window = Application.Current?.Windows?.FirstOrDefault();
-            if (window?.Page != null)
-            {
+            if (window?.Page != null) {
                 await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
             }
         }
-        finally
-        {
+        finally {
             IsLoading = false;
         }
     }
@@ -313,8 +275,7 @@ public partial class WebSourcesViewModel : ObservableObject
     /// Command to refresh the web sources list
     /// </summary>
     [RelayCommand]
-    public async Task RefreshAsync()
-    {
+    public async Task RefreshAsync() {
         await LoadSourcesAsync();
     }
 
@@ -325,15 +286,12 @@ public partial class WebSourcesViewModel : ObservableObject
     /// <summary>
     /// Initialize the view model
     /// </summary>
-    public async Task InitializeAsync()
-    {
-        try
-        {
+    public async Task InitializeAsync() {
+        try {
             await EnsureAuthorizedAsync();
             await LoadSourcesAsync();
         }
-        catch (UnauthorizedAccessException)
-        {
+        catch (UnauthorizedAccessException) {
             // User not authorized - this is expected in demo mode
             _logger.LogDebug("User not authorized to view web sources");
         }
@@ -346,17 +304,14 @@ public partial class WebSourcesViewModel : ObservableObject
     /// <summary>
     /// Ensure the user is authorized to manage web sources
     /// </summary>
-    private async Task EnsureAuthorizedAsync()
-    {
-        if (!_authService.IsSignedIn())
-        {
+    private async Task EnsureAuthorizedAsync() {
+        if (!_authService.IsSignedIn()) {
             throw new UnauthorizedAccessException("User is not signed in");
         }
 
         var roles = await _authService.GetUserRolesAsync();
         var isAdmin = AdminRoles.GetValidAdminRoles(roles).Any();
-        if (!isAdmin)
-        {
+        if (!isAdmin) {
             throw new UnauthorizedAccessException("User does not have admin permissions");
         }
     }
@@ -364,8 +319,7 @@ public partial class WebSourcesViewModel : ObservableObject
     /// <summary>
     /// Reset the add source form to default values
     /// </summary>
-    private void ResetForm()
-    {
+    private void ResetForm() {
         NewSourceName = string.Empty;
         NewSourceUrl = string.Empty;
         NewSourceDescription = string.Empty;
@@ -380,12 +334,10 @@ public partial class WebSourcesViewModel : ObservableObject
 /// <summary>
 /// ViewModel for a single web source in the list
 /// </summary>
-public class WebSourceViewModel : ObservableObject
-{
+public class WebSourceViewModel : ObservableObject {
     private readonly WebSource _source;
 
-    public WebSourceViewModel(WebSource source)
-    {
+    public WebSourceViewModel(WebSource source) {
         _source = source ?? throw new ArgumentNullException(nameof(source));
     }
 
@@ -405,8 +357,7 @@ public class WebSourceViewModel : ObservableObject
     /// <summary>
     /// Get the display label for the trust tier
     /// </summary>
-    public string TrustTierLabel => TrustTier switch
-    {
+    public string TrustTierLabel => TrustTier switch {
         (int)WebTrustTier.TierA => "Tier A - OEM",
         (int)WebTrustTier.TierB => "Tier B - Media",
         (int)WebTrustTier.TierC => "Tier C - Community",
@@ -416,8 +367,7 @@ public class WebSourceViewModel : ObservableObject
     /// <summary>
     /// Get the color for the trust tier badge
     /// </summary>
-    public Color TrustTierColor => TrustTier switch
-    {
+    public Color TrustTierColor => TrustTier switch {
         (int)WebTrustTier.TierA => Colors.Green,
         (int)WebTrustTier.TierB => Colors.Blue,
         (int)WebTrustTier.TierC => Colors.Orange,

@@ -5,13 +5,11 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
-namespace MotorcycleRAG.Application.Services
-{
+namespace MotorcycleRAG.Application.Services {
     /// <summary>
     /// Service for administrative user management operations
     /// </summary>
-    public class UserAdminService : IUserAdminService
-    {
+    public class UserAdminService : IUserAdminService {
         private readonly IUserRepository _userRepository;
         private readonly IPlanRepository _planRepository;
         private readonly ILogger<UserAdminService> _logger;
@@ -25,8 +23,7 @@ namespace MotorcycleRAG.Application.Services
         public UserAdminService(
             IUserRepository userRepository,
             IPlanRepository planRepository,
-            ILogger<UserAdminService> logger)
-        {
+            ILogger<UserAdminService> logger) {
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
             _planRepository = planRepository ?? throw new ArgumentNullException(nameof(planRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -35,30 +32,25 @@ namespace MotorcycleRAG.Application.Services
         /// <summary>
         /// Enables or disables a user account
         /// </summary>
-        public async Task<UserDTO> SetUserEnabledStatusAsync(string userId, bool isEnabled)
-        {
-            if (string.IsNullOrWhiteSpace(userId))
-            {
+        public async Task<UserDTO> SetUserEnabledStatusAsync(string userId, bool isEnabled) {
+            if (string.IsNullOrWhiteSpace(userId)) {
                 throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
             }
 
             var user = await _userRepository.GetUserByIdAsync(userId);
-            if (user == null)
-            {
+            if (user == null) {
                 _logger.LogWarning("User {UserId} not found when setting enabled status", userId);
                 throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
             }
 
             // Check if status is actually changing
-            if (user.IsEnabled == isEnabled)
-            {
+            if (user.IsEnabled == isEnabled) {
                 _logger.LogDebug("User {UserId} already has enabled status {IsEnabled}", userId, isEnabled);
                 return user;
             }
 
             var success = await _userRepository.SetUserEnabledStatusAsync(userId, isEnabled);
-            if (!success)
-            {
+            if (!success) {
                 _logger.LogError("Failed to set enabled status for user {UserId}", userId);
                 throw new InvalidOperationException($"Failed to update user {userId}");
             }
@@ -73,35 +65,29 @@ namespace MotorcycleRAG.Application.Services
         /// <summary>
         /// Assigns a plan to a user
         /// </summary>
-        public async Task<UserDTO> AssignPlanToUserAsync(string userId, string planId)
-        {
-            if (string.IsNullOrWhiteSpace(userId))
-            {
+        public async Task<UserDTO> AssignPlanToUserAsync(string userId, string planId) {
+            if (string.IsNullOrWhiteSpace(userId)) {
                 throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
             }
 
-            if (string.IsNullOrWhiteSpace(planId))
-            {
+            if (string.IsNullOrWhiteSpace(planId)) {
                 throw new ArgumentException("Plan ID cannot be null or empty", nameof(planId));
             }
 
             var user = await _userRepository.GetUserByIdAsync(userId);
-            if (user == null)
-            {
+            if (user == null) {
                 _logger.LogWarning("User {UserId} not found when assigning plan", userId);
                 throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
             }
 
             var plan = await _planRepository.GetPlanByIdAsync(planId);
-            if (plan == null)
-            {
+            if (plan == null) {
                 _logger.LogWarning("Plan {PlanId} not found when assigning to user", planId);
                 throw new ArgumentException($"Plan with ID {planId} not found", nameof(planId));
             }
 
             // Check if plan is already assigned
-            if (user.PlanId == planId)
-            {
+            if (user.PlanId == planId) {
                 _logger.LogDebug("User {UserId} already has plan {PlanId}", userId, planId);
                 return user;
             }
@@ -110,8 +96,7 @@ namespace MotorcycleRAG.Application.Services
             user.LastUpdatedDate = DateTime.UtcNow;
 
             var success = await _userRepository.UpdateUserAsync(user);
-            if (!success)
-            {
+            if (!success) {
                 _logger.LogError("Failed to assign plan {PlanId} to user {UserId}", planId, userId);
                 throw new InvalidOperationException($"Failed to assign plan {planId} to user {userId}");
             }
@@ -123,15 +108,12 @@ namespace MotorcycleRAG.Application.Services
         /// <summary>
         /// Gets all users (admin view)
         /// </summary>
-        public async Task<UserDTO[]> GetAllUsersAsync(int page = 1, int pageSize = 50)
-        {
-            if (page < 1)
-            {
+        public async Task<UserDTO[]> GetAllUsersAsync(int page = 1, int pageSize = 50) {
+            if (page < 1) {
                 throw new ArgumentException("Page number must be at least 1", nameof(page));
             }
 
-            if (pageSize < 1 || pageSize > 100)
-            {
+            if (pageSize < 1 || pageSize > 100) {
                 throw new ArgumentException("Page size must be between 1 and 100", nameof(pageSize));
             }
 

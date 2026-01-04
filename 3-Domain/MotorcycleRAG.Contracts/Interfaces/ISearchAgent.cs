@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Defines the contract for search agents
 /// </summary>
-public interface ISearchAgent
-{
+public interface ISearchAgent {
     /// <summary>
     /// The type of search agent
     /// </summary>

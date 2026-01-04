@@ -8,8 +8,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// Provides orchestration between the Presentation layer and data persistence layer.
 /// This is the boundary that the API layer should depend on, following Clean Architecture.
 /// </summary>
-public interface IToolConfigurationService
-{
+public interface IToolConfigurationService {
     /// <summary>
     /// Get all tool configurations.
     /// </summary>

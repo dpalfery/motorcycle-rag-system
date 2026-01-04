@@ -2,13 +2,11 @@ using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
-namespace MotorcycleRAG.Contracts.Interfaces
-{
+namespace MotorcycleRAG.Contracts.Interfaces {
     /// <summary>
     /// Service interface for user provisioning and update-on-login operations
     /// </summary>
-    public interface IUserProvisioningService
-    {
+    public interface IUserProvisioningService {
         /// <summary>
         /// Provisions or updates a user on login
         /// </summary>

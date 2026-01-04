@@ -14,26 +14,22 @@ using Xunit;
 using MotorcycleRAG.IntegrationTests;
 
 
-namespace MotorcycleRAG.IntegrationTests.Api
-{
+namespace MotorcycleRAG.IntegrationTests.Api {
     /// <summary>
     /// Integration tests for admin user management and plan assignment
     /// </summary>
-    public class AdminUserManagementIntegrationTests : IClassFixture<TestWebApplicationFactory>
-    {
+    public class AdminUserManagementIntegrationTests : IClassFixture<TestWebApplicationFactory> {
         private readonly TestWebApplicationFactory _factory;
 
-        public AdminUserManagementIntegrationTests(TestWebApplicationFactory factory)
-        {
+        public AdminUserManagementIntegrationTests(TestWebApplicationFactory factory) {
             _factory = factory;
         }
 
         [Fact]
-        public async Task SetUserEnabledStatus_Unauthenticated_ReturnsUnauthorized()
-        {
+        public async Task SetUserEnabledStatus_Unauthenticated_ReturnsUnauthorized() {
             // Act
             var client = _factory.CreateClient();
-            var response = await client.PutAsync("/api/admin/users/user-1/enabled", 
+            var response = await client.PutAsync("/api/admin/users/user-1/enabled",
                 new StringContent(
                     """{"isEnabled": true}""",
                     Encoding.UTF8,
@@ -44,24 +40,21 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task SetUserEnabledStatus_WithoutAdminRole_ReturnsForbidden()
-        {
+        public async Task SetUserEnabledStatus_WithoutAdminRole_ReturnsForbidden() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
             mockUserService.Setup(s => s.IsInRole("Admin")).Returns(false);
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                 });
             }).CreateClientWithRoles("User");
 
             // Act
-            var response = await client.PutAsync("/api/admin/users/user-1/enabled", 
+            var response = await client.PutAsync("/api/admin/users/user-1/enabled",
                 new StringContent(
                     """{"isEnabled": true}""",
                     Encoding.UTF8,
@@ -72,8 +65,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task SetUserEnabledStatus_WithAdminRole_Succeeds()
-        {
+        public async Task SetUserEnabledStatus_WithAdminRole_Succeeds() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
@@ -83,24 +75,21 @@ namespace MotorcycleRAG.IntegrationTests.Api
             var mockUserAdminService = new Mock<IUserAdminService>();
             mockUserAdminService
                 .Setup(s => s.SetUserEnabledStatusAsync("test-user-1", true))
-                .ReturnsAsync(new UserDTO 
-                { 
+                .ReturnsAsync(new UserDTO {
                     Id = "test-user-1",
                     Email = "test@example.com",
                     IsEnabled = true
                 });
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockUserAdminService.Object);
                 });
             }).CreateClientWithRoles("Admin");
 
             // Act
-            var response = await client.PutAsync("/api/admin/users/test-user-1/enabled", 
+            var response = await client.PutAsync("/api/admin/users/test-user-1/enabled",
                 new StringContent(
                     """{"isEnabled": true}""",
                     Encoding.UTF8,
@@ -116,8 +105,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task AssignPlanToUser_WithAdminRole_Succeeds()
-        {
+        public async Task AssignPlanToUser_WithAdminRole_Succeeds() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
@@ -127,24 +115,21 @@ namespace MotorcycleRAG.IntegrationTests.Api
             var mockUserAdminService = new Mock<IUserAdminService>();
             mockUserAdminService
                 .Setup(s => s.AssignPlanToUserAsync("test-user-1", "premium-plan"))
-                .ReturnsAsync(new UserDTO 
-                { 
+                .ReturnsAsync(new UserDTO {
                     Id = "test-user-1",
                     Email = "test@example.com",
                     PlanId = "premium-plan"
                 });
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockUserAdminService.Object);
                 });
             }).CreateClientWithRoles("Admin");
 
             // Act
-            var response = await client.PutAsync("/api/admin/users/test-user-1/plan", 
+            var response = await client.PutAsync("/api/admin/users/test-user-1/plan",
                 new StringContent(
                     """{"planId": "premium-plan"}""",
                     Encoding.UTF8,
@@ -160,8 +145,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task GetAllPlans_Unauthenticated_ReturnsUnauthorized()
-        {
+        public async Task GetAllPlans_Unauthenticated_ReturnsUnauthorized() {
             // Act
             var client = _factory.CreateClient();
             var response = await client.GetAsync("/api/admin/plans");
@@ -171,8 +155,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task GetAllPlans_WithAdminRole_ReturnsPlans()
-        {
+        public async Task GetAllPlans_WithAdminRole_ReturnsPlans() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
@@ -183,15 +166,15 @@ namespace MotorcycleRAG.IntegrationTests.Api
                 .Setup(r => r.GetAllPlansAsync())
                 .ReturnsAsync(new[]
                 {
-                    new UserPlan 
-                    { 
+                    new UserPlan
+                    {
                         Id = "free-plan",
                         Name = "Free",
                         DailyRequestLimit = 100,
                         IsPaid = false
                     },
-                    new UserPlan 
-                    { 
+                    new UserPlan
+                    {
                         Id = "premium-plan",
                         Name = "Premium",
                         DailyRequestLimit = 500,
@@ -199,10 +182,8 @@ namespace MotorcycleRAG.IntegrationTests.Api
                     }
                 });
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
@@ -221,8 +202,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task CreatePlan_WithAdminRole_Succeeds()
-        {
+        public async Task CreatePlan_WithAdminRole_Succeeds() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
@@ -233,17 +213,15 @@ namespace MotorcycleRAG.IntegrationTests.Api
                 .Setup(r => r.CreatePlanAsync(It.IsAny<UserPlan>()))
                 .ReturnsAsync((UserPlan plan) => plan);
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
             }).CreateClientWithRoles("Admin");
 
             // Act
-            var response = await client.PostAsync("/api/admin/plans", 
+            var response = await client.PostAsync("/api/admin/plans",
                 new StringContent(
                     """{"name": "Enterprise", "dailyRequestLimit": 1000, "isPaid": true}""",
                     Encoding.UTF8,
@@ -254,16 +232,14 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task UpdatePlan_WithAdminRole_Succeeds()
-        {
+        public async Task UpdatePlan_WithAdminRole_Succeeds() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
             mockUserService.Setup(s => s.IsInRole("Admin")).Returns(true);
 
             var mockPlanRepository = new Mock<IPlanRepository>();
-            var existingPlan = new UserPlan
-            {
+            var existingPlan = new UserPlan {
                 Id = "premium-plan",
                 Name = "Premium",
                 DailyRequestLimit = 500,
@@ -276,17 +252,15 @@ namespace MotorcycleRAG.IntegrationTests.Api
                 .Setup(r => r.UpdatePlanAsync(It.IsAny<UserPlan>()))
                 .ReturnsAsync(true);
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
             }).CreateClientWithRoles("Admin");
 
             // Act
-            var response = await client.PutAsync("/api/admin/plans/premium-plan", 
+            var response = await client.PutAsync("/api/admin/plans/premium-plan",
                 new StringContent(
                     """{"name": "Premium Updated", "dailyRequestLimit": 600}""",
                     Encoding.UTF8,
@@ -297,8 +271,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         }
 
         [Fact]
-        public async Task DeletePlan_WithAdminRole_Succeeds()
-        {
+        public async Task DeletePlan_WithAdminRole_Succeeds() {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
@@ -307,8 +280,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
             var mockPlanRepository = new Mock<IPlanRepository>();
             mockPlanRepository
                 .Setup(r => r.GetPlanByIdAsync("premium-plan"))
-                .ReturnsAsync(new UserPlan 
-                { 
+                .ReturnsAsync(new UserPlan {
                     Id = "premium-plan",
                     Name = "Premium",
                     DailyRequestLimit = 500,
@@ -318,10 +290,8 @@ namespace MotorcycleRAG.IntegrationTests.Api
                 .Setup(r => r.DeletePlanAsync("premium-plan"))
                 .ReturnsAsync(true);
 
-            var client = _factory.WithWebHostBuilder(builder =>
-            {
-                builder.ConfigureServices(services =>
-                {
+            var client = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });

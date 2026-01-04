@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using MotorcycleRAG.API;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using Xunit;
 using MotorcycleRAG.IntegrationTests;
 

@@ -12,7 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MotorcycleRAG.Contracts.Models\MotorcycleRAG.Contracts.Models.csproj" />
   </ItemGroup>
 
 </Project>

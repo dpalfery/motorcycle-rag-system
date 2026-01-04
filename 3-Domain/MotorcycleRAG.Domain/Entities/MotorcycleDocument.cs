@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Domain.ValueObjects;
 
 namespace MotorcycleRAG.Domain.Entities;
 

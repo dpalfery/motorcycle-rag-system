@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Pipeline execution status
@@ -16,3 +16,4 @@ public enum PipelineStatus
     Cancelled,
     PartiallyCompleted
 }
+

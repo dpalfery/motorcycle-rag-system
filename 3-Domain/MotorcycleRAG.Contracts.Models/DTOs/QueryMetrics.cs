@@ -1,6 +1,6 @@
 using System;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Query performance metrics with caching and optimization data

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Batch pipeline processing result
@@ -30,3 +30,4 @@ public class BatchPipelineResult {
 
     public bool HasErrors => Failed > 0 || ProcessedWithErrors > 0;
 }
+

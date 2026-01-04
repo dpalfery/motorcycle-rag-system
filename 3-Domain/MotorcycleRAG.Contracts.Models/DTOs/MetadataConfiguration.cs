@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Metadata management configuration
@@ -13,3 +13,4 @@ public class MetadataConfiguration
     public List<string> RequiredMetadataFields { get; set; } = new();
     public Dictionary<string, object> DefaultMetadataValues { get; set; } = new();
 }
+

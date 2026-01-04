@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Utilities;
 using MotorcycleRAG.Admin.Constants;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Enums;
 using Microsoft.Extensions.Logging;
 

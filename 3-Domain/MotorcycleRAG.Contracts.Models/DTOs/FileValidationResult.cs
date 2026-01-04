@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// File validation result
@@ -31,3 +31,4 @@ public class FileValidationResult {
         Warnings.Add(warning);
     }
 }
+

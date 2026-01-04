@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Result of file upload operation
@@ -29,3 +29,4 @@ public class FileUploadResult {
 
     public Dictionary<string, object> Metadata { get; } = new();
 }
+

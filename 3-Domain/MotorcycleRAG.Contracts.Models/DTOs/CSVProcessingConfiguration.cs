@@ -1,7 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 
-namespace MotorcycleRAG.Domain.DTOs {
+namespace MotorcycleRAG.Contracts.Models.DTOs {
     public class CSVProcessingConfiguration {
         public char Delimiter { get; set; } = ',';
         public bool HasHeader { get; set; } = true;

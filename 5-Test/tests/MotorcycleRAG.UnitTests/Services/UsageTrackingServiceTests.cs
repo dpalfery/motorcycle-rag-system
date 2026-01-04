@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using Xunit;
 
 

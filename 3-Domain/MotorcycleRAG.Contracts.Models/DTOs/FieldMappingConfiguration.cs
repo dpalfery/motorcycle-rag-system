@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Field mapping configuration for index creation
@@ -14,3 +14,4 @@ public class FieldMappingConfiguration {
     public Collection<string> FacetableFields { get; } = new();
     public Collection<string> SortableFields { get; } = new();
 }
+

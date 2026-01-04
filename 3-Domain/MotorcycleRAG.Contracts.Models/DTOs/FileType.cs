@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// File types supported by the pipeline
@@ -12,3 +12,4 @@ public enum FileType
     PDF,
     Unknown
 }
+

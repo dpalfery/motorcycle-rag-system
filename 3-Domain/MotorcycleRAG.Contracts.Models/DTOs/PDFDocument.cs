@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using MotorcycleRAG.Domain.Enums;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Represents a PDF document for processing motorcycle manuals and documentation
@@ -139,3 +139,4 @@ public enum ChunkType
     List,
     Header
 }
+

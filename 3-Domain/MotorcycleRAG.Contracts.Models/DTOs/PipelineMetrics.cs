@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Pipeline execution metrics
@@ -30,3 +30,4 @@ public class PipelineMetrics {
 
     public Collection<PipelineExecutionSummary> RecentExecutions { get; } = new();
 }
+

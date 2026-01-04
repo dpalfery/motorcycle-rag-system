@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Pipeline processing options
@@ -21,3 +21,4 @@ public class PipelineOptions {
 
     public Dictionary<string, object> CustomOptions { get; set; } = new();
 }
+

@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 using MotorcycleRAG.API;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.IntegrationTests;
 
 namespace MotorcycleRAG.IntegrationTests.Api {

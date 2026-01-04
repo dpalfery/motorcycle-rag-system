@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.DTOs {
+namespace MotorcycleRAG.Contracts.Models.DTOs {
     /// <summary>
     /// Usage tracking model for API calls
     /// </summary>

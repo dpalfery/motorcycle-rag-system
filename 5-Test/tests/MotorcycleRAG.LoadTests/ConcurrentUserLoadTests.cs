@@ -3,7 +3,7 @@ using NBomber.Http.CSharp;
 using Microsoft.Extensions.Configuration;
 using MotorcycleRAG.Contracts.Requests;
 using System.Text.Json;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.LoadTests;
 

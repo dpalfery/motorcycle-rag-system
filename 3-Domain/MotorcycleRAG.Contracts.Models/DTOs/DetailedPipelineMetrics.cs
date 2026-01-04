@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Detailed pipeline metrics
@@ -122,3 +122,4 @@ public class ErrorSummary {
 
     public Collection<string> AffectedExecutions { get; } = new();
 }
+

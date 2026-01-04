@@ -1,4 +1,4 @@
-namespace MotorcycleRAG.Domain.DTOs.Optimization;
+namespace MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
 /// <summary>
 /// Options for batch processing configuration.

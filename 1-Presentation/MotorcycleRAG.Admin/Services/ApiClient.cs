@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using MotorcycleRAG.Admin.Services.Dtos;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using Polly;
 using Polly.Retry;
 using Polly.CircuitBreaker;

@@ -12,7 +12,7 @@ using Moq;
 using MotorcycleRAG.API;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 using Xunit;
 using MotorcycleRAG.IntegrationTests;

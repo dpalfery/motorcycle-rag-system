@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Scheduled processing statistics
@@ -58,3 +58,4 @@ public class ScheduledProcessingStats
     /// </summary>
     public int DocumentsIndexedLast24Hours { get; set; }
 }
+

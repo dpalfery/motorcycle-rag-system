@@ -4,7 +4,7 @@ using System.ComponentModel;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Utilities;
 using MotorcycleRAG.Admin.Constants;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using Microsoft.Extensions.Logging;
 using System.Timers;
 

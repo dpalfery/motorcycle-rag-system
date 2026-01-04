@@ -1,4 +1,4 @@
-namespace MotorcycleRAG.Domain.DTOs.Optimization;
+namespace MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
 /// <summary>
 /// Settings for connection pool configuration.

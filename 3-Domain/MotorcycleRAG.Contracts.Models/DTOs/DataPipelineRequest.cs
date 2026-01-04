@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Request model for data pipeline processing
@@ -28,3 +28,4 @@ public class DataPipelineRequest
 
     public string CreatedBy { get; set; } = string.Empty;
 }
+

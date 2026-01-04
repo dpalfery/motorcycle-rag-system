@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Search parameters for configuring search behavior at runtime

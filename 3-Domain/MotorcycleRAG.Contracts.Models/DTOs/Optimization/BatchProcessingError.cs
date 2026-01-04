@@ -1,4 +1,4 @@
-namespace MotorcycleRAG.Domain.DTOs.Optimization;
+namespace MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
 /// <summary>
 /// Error information for failed batch processing items.

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Result of data processing operations
@@ -15,3 +15,4 @@ public class ProcessingResult
     public TimeSpan ProcessingTime { get; set; }
     public int ItemsProcessed { get; set; }
 }
+

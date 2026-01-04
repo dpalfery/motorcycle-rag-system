@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 
 namespace MotorcycleRAG.Domain.Entities;
@@ -11,7 +12,7 @@ public class QueryPlan
     public string OriginalQuery { get; set; } = string.Empty;
 
     [Required]
-    public List<string> SubQueries { get; set; } = new();
+    public Collection<string> SubQueries { get; } = new();
 
     public bool UseWebSearch { get; set; } = true;
 

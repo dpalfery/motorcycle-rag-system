@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Batch file upload result
@@ -24,4 +24,5 @@ public class BatchFileUploadResult {
 
     public bool AllFilesUploaded => FailedUploads == 0;
 }
+
 

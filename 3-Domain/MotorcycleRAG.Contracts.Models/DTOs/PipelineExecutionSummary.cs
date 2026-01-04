@@ -1,6 +1,6 @@
 using System;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Pipeline execution summary
@@ -25,3 +25,4 @@ public class PipelineExecutionSummary
 
     public string ErrorMessage { get; set; } = string.Empty;
 }
+

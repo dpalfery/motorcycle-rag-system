@@ -11,7 +11,7 @@ using Microsoft.Identity.Web;
 using Moq;
 using MotorcycleRAG.API.Services;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.IntegrationTests;
 

@@ -1,6 +1,6 @@
 using System;
 
-namespace MotorcycleRAG.Domain.DTOs {
+namespace MotorcycleRAG.Contracts.Models.DTOs {
     /// <summary>
     /// Web source crawl result model
     /// </summary>

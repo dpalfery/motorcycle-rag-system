@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Result of pipeline execution
@@ -30,3 +30,4 @@ public class PipelineExecutionResult {
 
     public string Message { get; set; } = string.Empty;
 }
+

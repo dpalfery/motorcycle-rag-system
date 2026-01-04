@@ -39,7 +39,7 @@ public class McpToolConfiguration {
     /// The MCP server URL or connection string
     /// </summary>
     [Required]
-    public string ServerUrl { get; set; } = string.Empty;
+    public Uri ServerUrl { get; set; } = new Uri("about:blank");
 
     /// <summary>
     /// Whether this tool is enabled for use in orchestration

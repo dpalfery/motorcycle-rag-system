@@ -34,7 +34,7 @@ public sealed class PlansAdminController : ControllerBase
     /// <returns>List of all plans</returns>
     [HttpGet]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Domain.DTOs.UserPlan[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserPlan[]), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetAllPlansAsync()
@@ -59,7 +59,7 @@ public sealed class PlansAdminController : ControllerBase
     /// <returns>Plan details</returns>
     [HttpGet("{planId}")]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Domain.DTOs.UserPlan), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserPlan), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -98,7 +98,7 @@ public sealed class PlansAdminController : ControllerBase
     [HttpPost]
     [Consumes(MediaTypeNames.Application.Json)]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Domain.DTOs.UserPlan), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserPlan), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -136,7 +136,7 @@ public sealed class PlansAdminController : ControllerBase
 
         try
         {
-            var plan = new MotorcycleRAG.Domain.DTOs.UserPlan
+            var plan = new MotorcycleRAG.Contracts.Models.DTOs.UserPlan
             {
                 Id = Guid.NewGuid().ToString(),
                 Name = request.Name,
@@ -168,7 +168,7 @@ public sealed class PlansAdminController : ControllerBase
     [HttpPut("{planId}")]
     [Consumes(MediaTypeNames.Application.Json)]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Domain.DTOs.UserPlan), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserPlan), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 
-namespace MotorcycleRAG.Domain.DTOs {
+namespace MotorcycleRAG.Contracts.Models.DTOs {
     public class CSVFile {
         public string FileName { get; set; } = string.Empty;
         public Stream? Content { get; set; }

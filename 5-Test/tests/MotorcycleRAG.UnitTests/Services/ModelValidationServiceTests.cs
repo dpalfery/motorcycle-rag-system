@@ -2,7 +2,7 @@ using System;
 using Microsoft.Extensions.Logging;
 using Moq;
 using MotorcycleRAG.Application.Services;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Services;

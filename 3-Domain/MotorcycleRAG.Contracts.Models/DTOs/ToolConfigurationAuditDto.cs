@@ -1,4 +1,4 @@
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Represents a single audit entry for tool configuration changes.

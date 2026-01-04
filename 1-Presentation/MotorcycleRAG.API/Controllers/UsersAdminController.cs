@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.DTOs; // Add this using directive at the top
+using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 
 using System.Net.Mime;
@@ -36,7 +36,7 @@ public sealed class UsersAdminController : ControllerBase
     [HttpPut("{userId}/enabled")]
     [Consumes(MediaTypeNames.Application.Json)]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Domain.DTOs.UserDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -82,7 +82,7 @@ public sealed class UsersAdminController : ControllerBase
     [HttpPut("{userId}/plan")]
     [Consumes(MediaTypeNames.Application.Json)]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Domain.DTOs.UserDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserDTO), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -176,7 +176,7 @@ public class AssignPlanRequest
 /// </summary>
 public class UserListResponse
 {
-    public MotorcycleRAG.Domain.DTOs.UserDTO[] Users { get; set; } = Array.Empty<MotorcycleRAG.Domain.DTOs.UserDTO>();
+    public MotorcycleRAG.Contracts.Models.DTOs.UserDTO[] Users { get; set; } = Array.Empty<MotorcycleRAG.Contracts.Models.DTOs.UserDTO>();
     public int Page { get; set; }
     public int PageSize { get; set; }
     public int TotalCount { get; set; }

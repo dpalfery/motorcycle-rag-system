@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Result of indexing operations
@@ -15,3 +15,4 @@ public class IndexingResult {
     public TimeSpan IndexingTime { get; set; }
     public string IndexName { get; set; } = string.Empty;
 }
+

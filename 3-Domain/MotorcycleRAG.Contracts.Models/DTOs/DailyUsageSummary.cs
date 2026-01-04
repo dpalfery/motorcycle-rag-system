@@ -1,6 +1,6 @@
 using System;
 
-namespace MotorcycleRAG.Domain.DTOs {
+namespace MotorcycleRAG.Contracts.Models.DTOs {
     /// <summary>
     /// Daily usage summary model
     /// </summary>

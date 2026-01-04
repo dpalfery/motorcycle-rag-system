@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using System.Diagnostics;
 using Xunit;
 

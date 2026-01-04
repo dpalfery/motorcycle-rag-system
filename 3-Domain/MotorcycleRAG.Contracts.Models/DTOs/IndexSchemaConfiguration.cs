@@ -1,7 +1,7 @@
 using System;
 using MotorcycleRAG.Domain.Enums;
 
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
 /// Index schema configuration for different document types
@@ -16,3 +16,4 @@ public class IndexSchemaConfiguration
     public bool EnableSemanticSearch { get; set; } = true;
     public int VectorDimensions { get; set; } = 1536;
 }
+

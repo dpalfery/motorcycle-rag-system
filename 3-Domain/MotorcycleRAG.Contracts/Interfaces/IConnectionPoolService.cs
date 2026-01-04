@@ -1,12 +1,11 @@
-using MotorcycleRAG.Domain.DTOs.Optimization;
+using MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
 /// Interface for managing connection pools and HTTP client optimization.
 /// </summary>
-public interface IConnectionPoolService
-{
+public interface IConnectionPoolService {
     /// <summary>
     /// Gets an optimized HTTP client for the specified service.
     /// </summary>

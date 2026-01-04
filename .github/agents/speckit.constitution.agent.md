@@ -58,7 +58,7 @@ Follow this execution flow:
 6. Validation before final output:
    - No remaining unexplained bracket tokens.
    - Version line matches report.
-   - Dates ISO format YYYY-MM-DD.
+   REMOVED: This agent definition was removed from active CI   - Dates ISO format YYYY-MM-DD.
    - Principles are declarative, testable, and free of vague language ("should" → replace with MUST/SHOULD rationale where appropriate).
 
 7. Write the completed constitution back to `.specify/memory/constitution.md` (overwrite).

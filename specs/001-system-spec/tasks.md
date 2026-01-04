@@ -8,6 +8,8 @@
 
 **MAUI Architecture**: All MAUI work MUST follow the golden path in `6-Docs/MAUI_ARCHITECT.md` (MVVM via `CommunityToolkit.Mvvm`, Shell-first navigation via `INavigationService`, DI registration in `MauiProgram.cs`, resilience via `Microsoft.Extensions.Http.Resilience`, and settings via `ISettingsService`).
 
+**Transport DTOs**: Canonical request/response models live in `3-Domain/MotorcycleRAG.Contracts.Models` and MUST remain domain-independent. Some older task descriptions reference `3-Domain/MotorcycleRAG.Domain/DTOs` as a historical location.
+
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
@@ -197,6 +199,7 @@
 - [x] T110 Run dotnet test for MotorcycleRAG.sln in MotorcycleRAG.sln
 - [x] T111 Run npm build for WebUI in 1-Presentation/MotorcycleRag.WebUI/package.json
 - [x] T112 Document deployment config keys in 6-Docs/deployment.md
+- [ ] T113 Audit remaining references to `MotorcycleRAG.Domain.DTOs` in Presentation/Application and migrate them to `MotorcycleRAG.Contracts.Models`
 
 ---
 

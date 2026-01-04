@@ -1,12 +1,11 @@
-using MotorcycleRAG.Domain.DTOs.Optimization;
+using MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
 /// Interface for vector compression to reduce storage requirements and improve performance.
 /// </summary>
-public interface IVectorCompressionService
-{
+public interface IVectorCompressionService {
     /// <summary>
     /// Compresses a vector using quantization techniques.
     /// </summary>

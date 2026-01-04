@@ -2,9 +2,6 @@
 # top-most EditorConfig file
 root = true
 
-# Sonar S1451: Suppress file header requirement (style preference, not a quality issue)
-dotnet_diagnostic.S1451.severity = silent
-
 # CA2227: Change collection properties to read-only (will be addressed in code fixes)
 # S4004: Make collection properties read-only (will be addressed in code fixes)
 # S3956: Use generic collections (will be addressed in code fixes)
@@ -20,6 +17,22 @@ trim_trailing_whitespace = true
 [*.{cs,csx,vb,vbx}]
 indent_style = space
 indent_size = 4
+ 
+# Generated code: scope analyzers away from auto-generated sources
+[**/*.g.cs]
+generated_code = true
+
+[**/*.g.i.cs]
+generated_code = true
+
+[**/*.designer.cs]
+generated_code = true
+
+[**/*.generated.cs]
+generated_code = true
+
+[**/*AssemblyInfo.cs]
+generated_code = true
 
 # XML files
 [*.{props,targets,ruleset,vsixmanifest,vsct}]
@@ -103,7 +116,6 @@ dotnet_style_naming_rule.interface_should_be_begins_with_i.required_prefix = I
 # ==============================================================================
 
 # Security Rules (CA3000-3999) - TREAT AS ERROR
-dotnet_diagnostic.CA2100.severity = error
 dotnet_diagnostic.CA2109.severity = error
 dotnet_diagnostic.CA2119.severity = error
 dotnet_diagnostic.CA2122.severity = error
@@ -573,7 +585,7 @@ dotnet_diagnostic.S1450.severity = error
 dotnet_diagnostic.S1451.severity = error
 dotnet_diagnostic.S1481.severity = error
 dotnet_diagnostic.S1541.severity = error
-dotsonar_diagnostic.S1643.severity = error
+dotnet_diagnostic.S1643.severity = error
 dotnet_diagnostic.S1659.severity = error
 dotnet_diagnostic.S1696.severity = error
 dotnet_diagnostic.S1697.severity = error

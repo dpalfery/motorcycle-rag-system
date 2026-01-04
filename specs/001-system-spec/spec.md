@@ -406,6 +406,8 @@ All routes are under `api/DataPipeline/*`.
 - Daily request limits are evaluated and reset using a consistent system-defined day boundary (assumed UTC) to avoid ambiguity.
 - User profile and chat history are explicitly out of scope for this baseline spec, but may be added later.
 
+- Transport request/response models (DTOs) are defined in `3-Domain/MotorcycleRAG.Contracts.Models` and MUST remain domain-independent (no references to `MotorcycleRAG.Domain` entities/value objects).
+
 - User authentication is provided by Microsoft Entra External ID / B2C (OIDC), including social identity providers.
 - Administrative access is provided by Microsoft Entra ID (workforce) and is separate from customer identity.
 - Administrative authorization is enforced using Entra application roles conveyed via token claims.

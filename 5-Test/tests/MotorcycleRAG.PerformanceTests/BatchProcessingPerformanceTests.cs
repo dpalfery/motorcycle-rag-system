@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Application.Optimization;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.DTOs.Optimization;
+using MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
 
 namespace MotorcycleRAG.PerformanceTests;
@@ -31,7 +31,7 @@ public class BatchProcessingPerformanceTests
 
         // Create test documents
         _testDocuments = GenerateTestDocuments(1000);
-        
+
         _defaultOptions = new BatchProcessingOptions
         {
             BatchSize = 100,
@@ -46,7 +46,7 @@ public class BatchProcessingPerformanceTests
     {
         var documents = new List<TestDocument>();
         var random = new Random(42);
-        
+
         for (int i = 0; i < count; i++)
         {
             documents.Add(new TestDocument
@@ -56,7 +56,7 @@ public class BatchProcessingPerformanceTests
                 ProcessingComplexity = random.Next(1, 6) // 1-5 complexity level
             });
         }
-        
+
         return documents;
     }
 
@@ -74,7 +74,7 @@ public class BatchProcessingPerformanceTests
     public async Task<BatchProcessingResult<ProcessedDocument>> BatchProcessing_Sequential(int documentCount, int batchSize)
     {
         var documents = _testDocuments.Take(documentCount);
-        
+
         return await _batchService.ProcessBatchAsync(
             documents,
             ProcessDocumentsBatch,
@@ -93,7 +93,7 @@ public class BatchProcessingPerformanceTests
             BatchSize = 100,
             MaxDegreeOfParallelism = Environment.ProcessorCount
         };
-        
+
         return await _batchService.ProcessParallelBatchAsync(
             documents,
             ProcessSingleDocument,
@@ -113,7 +113,7 @@ public class BatchProcessingPerformanceTests
             BatchSize = 50,
             MaxDegreeOfParallelism = parallelism
         };
-        
+
         return await _batchService.ProcessParallelBatchAsync(
             documents,
             ProcessSingleDocument,
@@ -121,16 +121,16 @@ public class BatchProcessingPerformanceTests
     }
 
     private async Task<IEnumerable<ProcessedDocument>> ProcessDocumentsBatch(
-        IEnumerable<TestDocument> documents, 
+        IEnumerable<TestDocument> documents,
         CancellationToken cancellationToken)
     {
         var results = new List<ProcessedDocument>();
-        
+
         foreach (var doc in documents)
         {
             // Simulate processing time based on complexity
             await Task.Delay(doc.ProcessingComplexity * 10, cancellationToken);
-            
+
             results.Add(new ProcessedDocument
             {
                 Id = doc.Id,
@@ -140,17 +140,17 @@ public class BatchProcessingPerformanceTests
                 WordCount = doc.Content.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length
             });
         }
-        
+
         return results;
     }
 
     private async Task<ProcessedDocument> ProcessSingleDocument(
-        TestDocument document, 
+        TestDocument document,
         CancellationToken cancellationToken)
     {
         // Simulate processing time based on complexity
         await Task.Delay(document.ProcessingComplexity * 10, cancellationToken);
-        
+
         return new ProcessedDocument
         {
             Id = document.Id,
@@ -197,10 +197,10 @@ public class BatchProcessingPerformanceValidationTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.TotalProcessed.Should().Be(100);
-        result.ThroughputPerSecond.Should().BeGreaterThan(targetThroughput, 
+        result.ThroughputPerSecond.Should().BeGreaterThan(targetThroughput,
             $"Throughput should exceed {targetThroughput} documents/second");
-        
-        stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(10), 
+
+        stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(10),
             "Processing 100 documents should complete within 10 seconds");
     }
 
@@ -234,12 +234,12 @@ public class BatchProcessingPerformanceValidationTests
         // Assert
         sequentialResult.IsSuccess.Should().BeTrue();
         parallelResult.IsSuccess.Should().BeTrue();
-        
+
         // Parallel should be faster for CPU-bound work with multiple cores
         if (Environment.ProcessorCount > 2)
         {
             parallelResult.ThroughputPerSecond.Should().BeGreaterThan(
-                sequentialResult.ThroughputPerSecond * 1.2, 
+                sequentialResult.ThroughputPerSecond * 1.2,
                 "Parallel processing should be at least 20% faster");
         }
     }
@@ -254,8 +254,8 @@ public class BatchProcessingPerformanceValidationTests
 
         // Act
         var optimalBatchSize = _batchService.OptimizeBatchSize(
-            documents.Count, 
-            (long)documentSize, 
+            documents.Count,
+            (long)documentSize,
             availableMemory);
 
         var result = await _batchService.ProcessBatchAsync(
@@ -266,7 +266,7 @@ public class BatchProcessingPerformanceValidationTests
         // Assert
         optimalBatchSize.Should().BeGreaterThan(0).And.BeLessThanOrEqualTo(documents.Count);
         result.IsSuccess.Should().BeTrue();
-        result.ThroughputPerSecond.Should().BeGreaterThan(10, 
+        result.ThroughputPerSecond.Should().BeGreaterThan(10,
             "Optimized batch size should achieve reasonable throughput");
     }
 
@@ -310,7 +310,7 @@ public class BatchProcessingPerformanceValidationTests
         // Assert
         result.IsSuccess.Should().BeTrue();
         result.TotalProcessed.Should().Be(200);
-        result.ThroughputPerSecond.Should().BeGreaterThan(5, 
+        result.ThroughputPerSecond.Should().BeGreaterThan(5,
             $"Batch size {batchSize} should achieve minimum throughput");
     }
 
@@ -319,7 +319,7 @@ public class BatchProcessingPerformanceValidationTests
     {
         // Arrange
         var documents = GenerateTestDocuments(50);
-        
+
         // Act
         var result = await _batchService.ProcessBatchAsync(
             documents,
@@ -331,7 +331,7 @@ public class BatchProcessingPerformanceValidationTests
         result.Failed.Should().BeGreaterThan(0); // Some should fail
         result.SuccessfullyProcessed.Should().BeGreaterThan(0); // Some should succeed
         result.Errors.Should().NotBeEmpty();
-        result.Errors.Should().AllSatisfy(error => 
+        result.Errors.Should().AllSatisfy(error =>
         {
             error.Exception.Should().NotBeNull();
             error.ErrorMessage.Should().NotBeNullOrEmpty();
@@ -342,7 +342,7 @@ public class BatchProcessingPerformanceValidationTests
     {
         var documents = new List<TestDocument>();
         var random = new Random(42);
-        
+
         for (int i = 0; i < count; i++)
         {
             documents.Add(new TestDocument
@@ -352,17 +352,17 @@ public class BatchProcessingPerformanceValidationTests
                 ProcessingComplexity = random.Next(1, 4)
             });
         }
-        
+
         return documents;
     }
 
     private async Task<IEnumerable<ProcessedDocument>> ProcessDocumentsBatchFast(
-        IEnumerable<TestDocument> documents, 
+        IEnumerable<TestDocument> documents,
         CancellationToken cancellationToken)
     {
         // Fast processing for performance tests
         await Task.Delay(10, cancellationToken); // Minimal delay
-        
+
         return documents.Select(doc => new ProcessedDocument
         {
             Id = doc.Id,
@@ -374,12 +374,12 @@ public class BatchProcessingPerformanceValidationTests
     }
 
     private async Task<ProcessedDocument> ProcessSingleDocumentFast(
-        TestDocument document, 
+        TestDocument document,
         CancellationToken cancellationToken)
     {
         // Fast processing for performance tests
         await Task.Delay(5, cancellationToken); // Minimal delay
-        
+
         return new ProcessedDocument
         {
             Id = document.Id,
@@ -391,12 +391,12 @@ public class BatchProcessingPerformanceValidationTests
     }
 
     private async Task<IEnumerable<ProcessedDocument>> ProcessDocumentsBatchWithErrors(
-        IEnumerable<TestDocument> documents, 
+        IEnumerable<TestDocument> documents,
         CancellationToken cancellationToken)
     {
         var results = new List<ProcessedDocument>();
         var random = new Random();
-        
+
         foreach (var doc in documents)
         {
             // Randomly fail some documents (20% failure rate)
@@ -404,9 +404,9 @@ public class BatchProcessingPerformanceValidationTests
             {
                 throw new InvalidOperationException($"Simulated processing error for document {doc.Id}");
             }
-            
+
             await Task.Delay(5, cancellationToken);
-            
+
             results.Add(new ProcessedDocument
             {
                 Id = doc.Id,
@@ -416,7 +416,7 @@ public class BatchProcessingPerformanceValidationTests
                 WordCount = doc.Content.Split(' ').Length
             });
         }
-        
+
         return results;
     }
 }

@@ -10,19 +10,16 @@ using MotorcycleRAG.API;
 using MotorcycleRAG.Domain.DTOs;
 using MotorcycleRAG.IntegrationTests;
 
-namespace MotorcycleRAG.IntegrationTests.Api
-{
+namespace MotorcycleRAG.IntegrationTests.Api {
     /// <summary>
     /// Integration tests for MCP Admin Controller endpoints.
     /// Tests authorization, validation, and error handling.
     /// </summary>
-    public class McpAdminControllerIntegrationTests : IClassFixture<TestWebApplicationFactory>
-    {
+    public class McpAdminControllerIntegrationTests : IClassFixture<TestWebApplicationFactory> {
         private readonly TestWebApplicationFactory _factory;
         private const string BaseUrl = "/api/admin/mcp-tools";
 
-        public McpAdminControllerIntegrationTests(TestWebApplicationFactory factory)
-        {
+        public McpAdminControllerIntegrationTests(TestWebApplicationFactory factory) {
             _factory = factory ?? throw new ArgumentNullException(nameof(factory));
         }
 
@@ -31,8 +28,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         /// Validates that unauthenticated requests are rejected
         /// </summary>
         [Fact]
-        public async Task GET_GetTool_Unauthorized_Returns401()
-        {
+        public async Task GET_GetTool_Unauthorized_Returns401() {
             // Arrange
             var client = _factory.CreateClient();
 
@@ -48,15 +44,13 @@ namespace MotorcycleRAG.IntegrationTests.Api
         /// Tests SC-003: Validates required fields
         /// </summary>
         [Fact]
-        public async Task POST_CreateTool_MissingRequiredField_ReturnsBadRequest()
-        {
+        public async Task POST_CreateTool_MissingRequiredField_ReturnsBadRequest() {
             // Arrange
             var client = _factory.CreateClientWithRoles("DataAdmin");
-            var request = new CreateMcpToolRequest
-            {
+            var request = new CreateMcpToolRequest {
                 ToolId = "", // Empty required field
                 Name = "Test Tool",
-                ServerUrl = "http://localhost:8080",
+                ServerUrl = new Uri("http://localhost:8080"),
                 ToolType = "search"
             };
 
@@ -77,15 +71,13 @@ namespace MotorcycleRAG.IntegrationTests.Api
         /// Tests validation of ConfigurationJson parameter
         /// </summary>
         [Fact]
-        public async Task POST_CreateTool_InvalidJSON_ReturnsBadRequest()
-        {
+        public async Task POST_CreateTool_InvalidJSON_ReturnsBadRequest() {
             // Arrange
             var client = _factory.CreateClientWithRoles("DataAdmin");
-            var request = new CreateMcpToolRequest
-            {
+            var request = new CreateMcpToolRequest {
                 ToolId = "test-tool",
                 Name = "Test Tool",
-                ServerUrl = "http://localhost:8080",
+                ServerUrl = new Uri("http://localhost:8080"),
                 ToolType = "search",
                 ConfigurationJson = "{ invalid json }" // Invalid JSON
             };
@@ -110,12 +102,10 @@ namespace MotorcycleRAG.IntegrationTests.Api
         /// The routing layer handles this before reaching the controller.
         /// </summary>
         [Fact]
-        public async Task PUT_UpdateTool_MissingToolId_ReturnsMethodNotAllowed()
-        {
+        public async Task PUT_UpdateTool_MissingToolId_ReturnsMethodNotAllowed() {
             // Arrange
             var client = _factory.CreateClientWithRoles("DataAdmin");
-            var request = new UpdateMcpToolRequest
-            {
+            var request = new UpdateMcpToolRequest {
                 Name = "Updated Name"
             };
 
@@ -137,8 +127,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         /// Validates that unauthenticated DELETE requests are rejected
         /// </summary>
         [Fact]
-        public async Task DELETE_DeleteTool_Unauthorized_Returns401()
-        {
+        public async Task DELETE_DeleteTool_Unauthorized_Returns401() {
             // Arrange
             var client = _factory.CreateClient();
 
@@ -154,8 +143,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         /// Tests DELETE with non-existent tool
         /// </summary>
         [Fact]
-        public async Task DELETE_DeleteTool_NotFound_Returns404()
-        {
+        public async Task DELETE_DeleteTool_NotFound_Returns404() {
             // Arrange
             var client = _factory.CreateClientWithRoles("DataAdmin");
 
@@ -174,17 +162,15 @@ namespace MotorcycleRAG.IntegrationTests.Api
         /// Tests SC-003: Manual input validation for field lengths
         /// </summary>
         [Fact]
-        public async Task POST_CreateTool_ExceedsMaxLength_ReturnsBadRequest()
-        {
+        public async Task POST_CreateTool_ExceedsMaxLength_ReturnsBadRequest() {
             // Arrange
             var client = _factory.CreateClientWithRoles("DataAdmin");
             var veryLongString = new string('x', 300); // Exceeds 255 limit
-            
-            var request = new CreateMcpToolRequest
-            {
+
+            var request = new CreateMcpToolRequest {
                 ToolId = veryLongString,
                 Name = "Test Tool",
-                ServerUrl = "http://localhost:8080",
+                ServerUrl = new Uri("http://localhost:8080"),
                 ToolType = "search"
             };
 
@@ -205,8 +191,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         /// Validates authentication on audit endpoints
         /// </summary>
         [Fact]
-        public async Task GET_GetAuditHistory_Unauthorized_Returns401()
-        {
+        public async Task GET_GetAuditHistory_Unauthorized_Returns401() {
             // Arrange
             var client = _factory.CreateClient();
 
@@ -222,8 +207,7 @@ namespace MotorcycleRAG.IntegrationTests.Api
         /// Validates authentication on audit summary endpoint
         /// </summary>
         [Fact]
-        public async Task GET_GetAuditSummary_Unauthorized_Returns401()
-        {
+        public async Task GET_GetAuditSummary_Unauthorized_Returns401() {
             // Arrange
             var client = _factory.CreateClient();
 

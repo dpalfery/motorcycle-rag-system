@@ -49,8 +49,8 @@ Strict separation of concerns across numbered layers. Dependencies flow DOWNWARD
   - `0-Base/`: Cross-cutting concerns (if needed)
   - `1-Presentation/`: API entry points, controllers, minimal APIs, UI
   - `2-Application/`: Business logic, agents, services, use cases
-  - `3-Domain/`: Core models, entities, interfaces/contracts
-  - `4-Persistence/`: Azure service wrappers, data processors, infrastructure
+  - `3-Domain/`: Core models, entities, interfaces/  - `3-Domain/`: Core models, entities, interfaces/contracts
+rocessors, infrastructure
   - `5-Test/`: All test projects (unit, integration, E2E, performance)
   - `6-Docs/`: Documentation, specifications, architecture decisions
   - `7-Deployment/`: Infrastructure as Code, Docker, CI/CD scripts

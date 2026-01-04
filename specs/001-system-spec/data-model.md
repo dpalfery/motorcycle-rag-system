@@ -1296,12 +1296,14 @@ public class UserProfile
 
 ## 4. API Contracts (DTOs)
 
+API request/response DTOs are defined in the domain-independent models library (`3-Domain/MotorcycleRAG.Contracts.Models`).
+
 ### 4.1 Request DTOs
 
 #### MotorcycleQueryRequest
 
 ```csharp
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 public class MotorcycleQueryRequest
 {
@@ -1342,7 +1344,7 @@ public class QueryContext
 #### MotorcycleQueryResponse
 
 ```csharp
-namespace MotorcycleRAG.Domain.DTOs;
+namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 public class MotorcycleQueryResponse
 {

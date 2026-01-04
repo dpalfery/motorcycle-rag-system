@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.DTOs.Optimization;
+using MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
 
 namespace MotorcycleRAG.Application.Optimization;
@@ -10,14 +10,12 @@ namespace MotorcycleRAG.Application.Optimization;
 /// <summary>
 /// Implementation of optimized batch processing for data ingestion operations.
 /// </summary>
-public class BatchProcessingService : IBatchProcessingService
-{
+public class BatchProcessingService : IBatchProcessingService {
     private readonly ILogger<BatchProcessingService> _logger;
     private readonly object _statsLock = new();
     private BatchProcessingStatistics _statistics = new();
 
-    public BatchProcessingService(ILogger<BatchProcessingService> logger)
-    {
+    public BatchProcessingService(ILogger<BatchProcessingService> logger) {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -25,8 +23,7 @@ public class BatchProcessingService : IBatchProcessingService
         IEnumerable<T> documents,
         Func<IEnumerable<T>, CancellationToken, Task<IEnumerable<TResult>>> processor,
         int batchSize = 100,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         if (documents == null)
             throw new ArgumentNullException(nameof(documents));
         if (processor == null)
@@ -34,18 +31,16 @@ public class BatchProcessingService : IBatchProcessingService
 
         var documentList = documents.ToList();
         var totalCount = documentList.Count;
-        
-        if (totalCount == 0)
-        {
-            return new BatchProcessingResult<TResult>
-            {
+
+        if (totalCount == 0) {
+            return new BatchProcessingResult<TResult> {
                 Results = Array.Empty<TResult>(),
                 TotalProcessed = 0,
                 SuccessfullyProcessed = 0
             };
         }
 
-        _logger.LogInformation("Starting batch processing of {TotalCount} documents with batch size {BatchSize}", 
+        _logger.LogInformation("Starting batch processing of {TotalCount} documents with batch size {BatchSize}",
             totalCount, batchSize);
 
         var stopwatch = Stopwatch.StartNew();
@@ -53,10 +48,8 @@ public class BatchProcessingService : IBatchProcessingService
         var allErrors = new List<BatchProcessingError>();
         var processedCount = 0;
 
-        try
-        {
-            for (int i = 0; i < totalCount; i += batchSize)
-            {
+        try {
+            for (int i = 0; i < totalCount; i += batchSize) {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var batch = documentList.Skip(i).Take(batchSize);
@@ -65,28 +58,25 @@ public class BatchProcessingService : IBatchProcessingService
 
                 _logger.LogDebug("Processing batch {BatchNumber}/{TotalBatches}", batchNumber, totalBatches);
 
-                try
-                {
+                try {
                     var batchResults = await processor(batch, cancellationToken);
                     allResults.AddRange(batchResults);
                     processedCount += batch.Count();
 
-                    _logger.LogDebug("Batch {BatchNumber} completed successfully with {ResultCount} results", 
+                    _logger.LogDebug("Batch {BatchNumber} completed successfully with {ResultCount} results",
                         batchNumber, batchResults.Count());
                 }
-                catch (Exception ex)
-                {
+                catch (Exception ex) {
                     _logger.LogError(ex, "Error processing batch {BatchNumber}", batchNumber);
-                    
+
                     // Add error for each item in the failed batch
                     var batchList = batch.ToList();
-                    for (int j = 0; j < batchList.Count; j++)
-                    {
-                        allErrors.Add(new BatchProcessingError
-                        {
+                    for (int j = 0; j < batchList.Count; j++) {
+                        allErrors.Add(new BatchProcessingError {
                             ItemIndex = i + j,
                             ItemId = $"batch-{batchNumber}-item-{j}",
-                            Exception = ex,
+                            ExceptionType = ex.GetType().FullName,
+                            ExceptionMessage = ex.Message,
                             ErrorMessage = ex.Message
                         });
                     }
@@ -95,8 +85,7 @@ public class BatchProcessingService : IBatchProcessingService
 
             stopwatch.Stop();
 
-            var result = new BatchProcessingResult<TResult>
-            {
+            var result = new BatchProcessingResult<TResult> {
                 Results = allResults,
                 Errors = allErrors,
                 TotalProcessed = totalCount,
@@ -109,13 +98,12 @@ public class BatchProcessingService : IBatchProcessingService
             UpdateStatistics(result, batchSize);
 
             _logger.LogInformation("Batch processing completed: {Processed}/{Total} successful, {Failed} failed, Duration: {Duration}ms, Throughput: {Throughput:F2}/sec",
-                result.SuccessfullyProcessed, result.TotalProcessed, result.Failed, 
+                result.SuccessfullyProcessed, result.TotalProcessed, result.Failed,
                 result.TotalDuration.TotalMilliseconds, result.ThroughputPerSecond);
 
             return result;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             stopwatch.Stop();
             _logger.LogError(ex, "Fatal error during batch processing");
             throw;
@@ -126,8 +114,7 @@ public class BatchProcessingService : IBatchProcessingService
         IEnumerable<T> documents,
         Func<T, CancellationToken, Task<TResult>> processor,
         BatchProcessingOptions options,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         if (documents == null)
             throw new ArgumentNullException(nameof(documents));
         if (processor == null)
@@ -138,17 +125,15 @@ public class BatchProcessingService : IBatchProcessingService
         var documentList = documents.ToList();
         var totalCount = documentList.Count;
 
-        if (totalCount == 0)
-        {
-            return new BatchProcessingResult<TResult>
-            {
+        if (totalCount == 0) {
+            return new BatchProcessingResult<TResult> {
                 Results = Array.Empty<TResult>(),
                 TotalProcessed = 0,
                 SuccessfullyProcessed = 0
             };
         }
 
-        _logger.LogInformation("Starting parallel batch processing of {TotalCount} documents with {Parallelism} degree of parallelism", 
+        _logger.LogInformation("Starting parallel batch processing of {TotalCount} documents with {Parallelism} degree of parallelism",
             totalCount, options.MaxDegreeOfParallelism);
 
         var stopwatch = Stopwatch.StartNew();
@@ -156,20 +141,18 @@ public class BatchProcessingService : IBatchProcessingService
         var errors = new ConcurrentBag<BatchProcessingError>();
         var processedCount = 0;
 
-        try
-        {
+        try {
             var semaphore = new SemaphoreSlim(options.MaxDegreeOfParallelism, options.MaxDegreeOfParallelism);
             var tasks = new List<Task>();
 
-            for (int i = 0; i < totalCount; i++)
-            {
+            for (int i = 0; i < totalCount; i++) {
                 var index = i;
                 var document = documentList[i];
 
                 var task = ProcessItemWithSemaphoreAsync(
-                    document, processor, semaphore, options, 
+                    document, processor, semaphore, options,
                     index, results, errors, cancellationToken);
-                
+
                 tasks.Add(task);
             }
 
@@ -178,8 +161,7 @@ public class BatchProcessingService : IBatchProcessingService
 
             stopwatch.Stop();
 
-            var result = new BatchProcessingResult<TResult>
-            {
+            var result = new BatchProcessingResult<TResult> {
                 Results = results.ToList(),
                 Errors = errors.ToList(),
                 TotalProcessed = totalCount,
@@ -192,21 +174,19 @@ public class BatchProcessingService : IBatchProcessingService
             UpdateStatistics(result, options.BatchSize);
 
             _logger.LogInformation("Parallel batch processing completed: {Processed}/{Total} successful, {Failed} failed, Duration: {Duration}ms, Throughput: {Throughput:F2}/sec",
-                result.SuccessfullyProcessed, result.TotalProcessed, result.Failed, 
+                result.SuccessfullyProcessed, result.TotalProcessed, result.Failed,
                 result.TotalDuration.TotalMilliseconds, result.ThroughputPerSecond);
 
             return result;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             stopwatch.Stop();
             _logger.LogError(ex, "Fatal error during parallel batch processing");
             throw;
         }
     }
 
-    public int OptimizeBatchSize(int documentCount, long averageDocumentSize, long availableMemory)
-    {
+    public int OptimizeBatchSize(int documentCount, long averageDocumentSize, long availableMemory) {
         if (documentCount <= 0 || averageDocumentSize <= 0 || availableMemory <= 0)
             return 100; // Default batch size
 
@@ -215,8 +195,7 @@ public class BatchProcessingService : IBatchProcessingService
         var maxBatchSizeByMemory = (int)(availableMemory * 0.8 / memoryPerDocument); // Use 80% of available memory
 
         // Consider processing efficiency
-        var optimalBatchSize = documentCount switch
-        {
+        var optimalBatchSize = documentCount switch {
             < 100 => Math.Min(documentCount, 10),
             < 1000 => Math.Min(documentCount / 10, 100),
             < 10000 => Math.Min(documentCount / 50, 500),
@@ -225,7 +204,7 @@ public class BatchProcessingService : IBatchProcessingService
 
         // Take the minimum of memory-constrained and efficiency-optimized batch sizes
         var finalBatchSize = Math.Min(maxBatchSizeByMemory, optimalBatchSize);
-        
+
         // Ensure minimum batch size of 1
         finalBatchSize = Math.Max(1, finalBatchSize);
 
@@ -235,12 +214,9 @@ public class BatchProcessingService : IBatchProcessingService
         return finalBatchSize;
     }
 
-    public BatchProcessingStatistics GetStatistics()
-    {
-        lock (_statsLock)
-        {
-            return new BatchProcessingStatistics
-            {
+    public BatchProcessingStatistics GetStatistics() {
+        lock (_statsLock) {
+            return new BatchProcessingStatistics {
                 TotalBatchesProcessed = _statistics.TotalBatchesProcessed,
                 TotalItemsProcessed = _statistics.TotalItemsProcessed,
                 TotalItemsFailed = _statistics.TotalItemsFailed,
@@ -251,13 +227,11 @@ public class BatchProcessingService : IBatchProcessingService
         }
     }
 
-    public void ResetStatistics()
-    {
-        lock (_statsLock)
-        {
+    public void ResetStatistics() {
+        lock (_statsLock) {
             _statistics = new BatchProcessingStatistics();
         }
-        
+
         _logger.LogInformation("Batch processing statistics reset");
     }
 
@@ -269,27 +243,23 @@ public class BatchProcessingService : IBatchProcessingService
         int index,
         ConcurrentBag<TResult> results,
         ConcurrentBag<BatchProcessingError> errors,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         await semaphore.WaitAsync(cancellationToken);
-        
-        try
-        {
+
+        try {
             var result = await ProcessItemWithRetryAsync(document, processor, options, index, cancellationToken);
             results.Add(result);
         }
-        catch (Exception ex)
-        {
-            errors.Add(new BatchProcessingError
-            {
+        catch (Exception ex) {
+            errors.Add(new BatchProcessingError {
                 ItemIndex = index,
                 ItemId = $"item-{index}",
-                Exception = ex,
+                ExceptionType = ex.GetType().FullName,
+                ExceptionMessage = ex.Message,
                 ErrorMessage = ex.Message
             });
         }
-        finally
-        {
+        finally {
             semaphore.Release();
         }
     }
@@ -299,28 +269,24 @@ public class BatchProcessingService : IBatchProcessingService
         Func<T, CancellationToken, Task<TResult>> processor,
         BatchProcessingOptions options,
         int index,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var attempts = 0;
         Exception? lastException = null;
 
-        while (attempts <= options.MaxRetryAttempts)
-        {
-            try
-            {
+        while (attempts <= options.MaxRetryAttempts) {
+            try {
                 using var timeoutCts = new CancellationTokenSource(options.ProcessingTimeout);
                 using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
-                
+
                 return await processor(document, combinedCts.Token);
             }
-            catch (Exception ex) when (options.EnableRetry && attempts < options.MaxRetryAttempts)
-            {
+            catch (Exception ex) when (options.EnableRetry && attempts < options.MaxRetryAttempts) {
                 lastException = ex;
                 attempts++;
-                
-                _logger.LogWarning(ex, "Processing item {Index} failed on attempt {Attempt}, retrying in {Delay}ms", 
+
+                _logger.LogWarning(ex, "Processing item {Index} failed on attempt {Attempt}, retrying in {Delay}ms",
                     index, attempts, options.RetryDelay.TotalMilliseconds);
-                
+
                 await Task.Delay(options.RetryDelay, cancellationToken);
             }
         }
@@ -328,10 +294,8 @@ public class BatchProcessingService : IBatchProcessingService
         throw lastException ?? new InvalidOperationException($"Processing failed for item {index}");
     }
 
-    private void UpdateStatistics<TResult>(BatchProcessingResult<TResult> result, int batchSize)
-    {
-        lock (_statsLock)
-        {
+    private void UpdateStatistics<TResult>(BatchProcessingResult<TResult> result, int batchSize) {
+        lock (_statsLock) {
             _statistics.TotalBatchesProcessed++;
             _statistics.TotalItemsProcessed += result.TotalProcessed;
             _statistics.TotalItemsFailed += result.Failed;

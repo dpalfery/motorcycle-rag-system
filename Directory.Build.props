@@ -29,15 +29,6 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-
-    <!-- Microsoft.CodeAnalysis.NetAnalyzers - Built-in .NET code quality rules -->
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.100">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-
-    <!-- Additional analyzer configuration files -->
-    <AdditionalFiles Include="$(SolutionDir).editorconfig" Link=".editorconfig" />
   </ItemGroup>
 
   <PropertyGroup>

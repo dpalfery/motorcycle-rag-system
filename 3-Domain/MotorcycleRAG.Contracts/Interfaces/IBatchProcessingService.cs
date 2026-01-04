@@ -1,12 +1,11 @@
-using MotorcycleRAG.Domain.DTOs.Optimization;
+using MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
 /// Interface for optimized batch processing of data ingestion operations.
 /// </summary>
-public interface IBatchProcessingService
-{
+public interface IBatchProcessingService {
     /// <summary>
     /// Processes documents in optimized batches.
     /// </summary>

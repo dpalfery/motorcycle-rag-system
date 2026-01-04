@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Application.Optimization;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.DTOs.Optimization;
+using MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
 
 namespace MotorcycleRAG.PerformanceTests;
@@ -34,7 +34,7 @@ public class VectorCompressionPerformanceTests
         // Create test vectors with realistic data
         _testVector1536 = GenerateRealisticVector(1536);
         _testVector3072 = GenerateRealisticVector(3072);
-        
+
         // Create batch of vectors
         _testVectorBatch = new float[100][];
         for (int i = 0; i < 100; i++)
@@ -50,13 +50,13 @@ public class VectorCompressionPerformanceTests
     {
         var random = new Random(42); // Fixed seed for consistent benchmarks
         var vector = new float[dimensions];
-        
+
         // Generate realistic embedding-like values (mostly small values with some larger ones)
         for (int i = 0; i < dimensions; i++)
         {
             vector[i] = (float)(random.NextGaussian() * 0.1); // Normal distribution around 0
         }
-        
+
         return vector;
     }
 
@@ -131,7 +131,7 @@ public class VectorCompressionPerformanceValidationTests
         var compressed = _compressionService.CompressVector(vector, 5);
         compressionStopwatch.Stop();
 
-        compressionStopwatch.ElapsedMilliseconds.Should().BeLessThan(100, 
+        compressionStopwatch.ElapsedMilliseconds.Should().BeLessThan(100,
             "Vector compression should complete within 100ms");
 
         // Act & Assert - Decompression Performance
@@ -139,7 +139,7 @@ public class VectorCompressionPerformanceValidationTests
         var decompressed = _compressionService.DecompressVector(compressed);
         decompressionStopwatch.Stop();
 
-        decompressionStopwatch.ElapsedMilliseconds.Should().BeLessThan(50, 
+        decompressionStopwatch.ElapsedMilliseconds.Should().BeLessThan(50,
             "Vector decompression should complete within 50ms");
 
         // Validate compression ratio
@@ -169,7 +169,7 @@ public class VectorCompressionPerformanceValidationTests
         // Assert
         compressed.CompressionLevel.Should().Be(compressionLevel);
         decompressed.Should().HaveCount(vector.Length);
-        
+
         // Higher compression levels should produce smaller results
         var originalSize = vector.Length * sizeof(float);
         var compressionRatio = _compressionService.CalculateCompressionRatio(originalSize, compressed.Data.Length);
@@ -202,7 +202,7 @@ public class VectorCompressionPerformanceValidationTests
 
         // Assert
         compressedBatch.Should().HaveCount(100);
-        
+
         // Batch processing should be more efficient for large batches
         if (vectors.Length >= 100)
         {
@@ -254,7 +254,7 @@ public class VectorCompressionPerformanceValidationTests
 
         // MSE should be reasonable for the compression level
         mse.Should().BeLessThan(0.01, "Mean squared error should be acceptable for compression level 5");
-        
+
         // Cosine similarity should be high
         var cosineSimilarity = CalculateCosineSimilarity(vector, decompressed);
         cosineSimilarity.Should().BeGreaterThan(0.95, "Cosine similarity should remain high after compression");
@@ -264,12 +264,12 @@ public class VectorCompressionPerformanceValidationTests
     {
         var random = new Random(42); // Fixed seed for consistent tests
         var vector = new float[dimensions];
-        
+
         for (int i = 0; i < dimensions; i++)
         {
             vector[i] = (float)(random.NextGaussian() * 0.1);
         }
-        
+
         return vector;
     }
 

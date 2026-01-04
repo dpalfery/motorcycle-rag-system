@@ -6,7 +6,9 @@ description: Execute the implementation plan by processing and executing all tas
 
 ```text
 $ARGUMENTS
-```
+
+
+## Out```
 
 You **MUST** consider the user input before proceeding (if not empty).
 
@@ -16,7 +18,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 2. **Check checklists status** (if FEATURE_DIR/checklists/ exists):
    - Scan all checklist files in the checklists/ directory
-   - For each checklist, count:
+klist, count:
      - Total items: All lines matching `- [ ]` or `- [X]` or `- [x]`
      - Completed items: Lines matching `- [X]` or `- [x]`
      - Incomplete items: Lines matching `- [ ]`

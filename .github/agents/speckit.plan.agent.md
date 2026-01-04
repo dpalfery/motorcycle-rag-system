@@ -66,7 +66,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Extract entities from feature spec** → `data-model.md`:
    - Entity name, fields, relationships
-   - Validation rules from requirements
+   REMOVED: This agent definition was removed from active CI locatio   - Validation rules from requirements
    - State transitions if applicable
 
 2. **Generate API contracts** from functional requirements:

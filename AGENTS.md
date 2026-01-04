@@ -17,6 +17,9 @@
     - Rule: Do not create agent-generated status/plan/summary/change-log files in the repository root (or other top-level folders) unless a tool strictly requires it. 
       - The docs/agent-notes/ folder is ignored by git.
       - Examples include (but are not limited to): *status*, *plan*, *summary*, detailed_changes*, build_output*, verification*.
+  5. git commands require approval
+  - Never run git commands without explicit approval except git status and other non-destructive commands.
+  - never do a git restore without asking the user first.
       
 ## Development Environment Constraints
 

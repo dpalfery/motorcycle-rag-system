@@ -41,6 +41,7 @@ The Motorcycle RAG System is a multi-agent RAG (Retrieval-Augmented Generation) 
 - Zero build warnings
 - No secrets in source control
 - Clean Architecture layer separation
+- Domain-independent transport DTOs live in `3-Domain/MotorcycleRAG.Contracts.Models` (Presentation/Application should not use `MotorcycleRAG.Domain.DTOs` for request/response contracts)
 **Scale/Scope**:
 - 10k+ users (Free/Plus/Pro plans)
 - 1M+ documents indexed

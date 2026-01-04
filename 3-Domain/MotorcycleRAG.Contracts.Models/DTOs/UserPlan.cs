@@ -1,13 +1,11 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.DTOs
-{
+namespace MotorcycleRAG.Domain.DTOs {
     /// <summary>
     /// User plan model
     /// </summary>
-    public class UserPlan
-    {
+    public class UserPlan {
         /// <summary>
         /// Unique identifier for the plan
         /// </summary>

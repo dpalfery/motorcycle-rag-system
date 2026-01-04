@@ -3,8 +3,7 @@ namespace MotorcycleRAG.Domain.DTOs.Optimization;
 /// <summary>
 /// Options for batch processing configuration.
 /// </summary>
-public class BatchProcessingOptions
-{
+public class BatchProcessingOptions {
     public int BatchSize { get; set; } = 100;
     public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
     public TimeSpan ProcessingTimeout { get; set; } = TimeSpan.FromMinutes(30);

@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Request model for motorcycle queries
 /// </summary>
-public class MotorcycleQueryRequest
-{
+public class MotorcycleQueryRequest {
     [Required]
     [StringLength(1000)]
     public string Query { get; set; } = string.Empty;

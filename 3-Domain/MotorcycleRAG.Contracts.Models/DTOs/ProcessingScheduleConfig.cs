@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Configuration for processing schedules
 /// </summary>
-public class ProcessingScheduleConfig
-{
+public class ProcessingScheduleConfig {
     public bool IsEnabled { get; set; } = true;
 
     public string CronExpression { get; set; } = "0 2 * * *"; // Daily at 2 AM (minute, hour, day, month, day-of-week)

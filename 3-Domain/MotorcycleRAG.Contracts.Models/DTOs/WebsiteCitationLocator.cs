@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Website citation locator for web-based sources
 /// </summary>
-public class WebsiteCitationLocator
-{
+public class WebsiteCitationLocator {
     /// <summary>
     /// Complete URL of the web page
     /// </summary>

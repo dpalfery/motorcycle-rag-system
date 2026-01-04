@@ -7,12 +7,12 @@
              Title="MCP Tools Configuration">
 
     <Grid RowDefinitions="Auto,*,Auto"
-            Padding="0">
+          Padding="0">
 
         <!-- Header with Refresh Button -->
         <Grid ColumnDefinitions="*,Auto"
-                Padding="20,15"
-                ColumnSpacing="10">
+              Padding="20,15"
+              ColumnSpacing="10">
             <Label Grid.Column="0"
                    Text="Model Context Protocol (MCP) Tools"
                    FontSize="20"
@@ -47,10 +47,10 @@
                                HasShadow="False">
 
                             <Grid ColumnDefinitions="*,Auto"
-                                    ColumnSpacing="10">
+                                  ColumnSpacing="10">
                                 <!-- Tool Details -->
                                 <VerticalStackLayout Grid.Column="0"
-                                        Spacing="5">
+                                                     Spacing="5">
                                     <Label Text="{Binding Name}"
                                            FontSize="16"
                                            FontAttributes="Bold"/>
@@ -61,7 +61,7 @@
                                            LineBreakMode="TailTruncation"/>
 
                                     <HorizontalStackLayout Spacing="10"
-                                            Margin="0,5,0,0">
+                                                           Margin="0,5,0,0">
                                         <Label Text="{Binding ToolType, StringFormat='Type: {0}'}"
                                                FontSize="11"
                                                TextColor="DarkGray"/>
@@ -114,10 +114,10 @@
 
         <!-- Footer Info -->
         <Frame Grid.Row="2"
-                BorderColor="LightGray"
-                CornerRadius="8"
-                Padding="15"
-                Margin="20,10">
+               BorderColor="LightGray"
+               CornerRadius="8"
+               Padding="15"
+               Margin="20,10">
             <VerticalStackLayout Spacing="5">
                 <Label Text="MCP Configuration"
                        FontSize="12"

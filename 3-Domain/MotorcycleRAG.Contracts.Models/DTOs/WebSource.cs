@@ -1,13 +1,11 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.DTOs
-{
+namespace MotorcycleRAG.Domain.DTOs {
     /// <summary>
     /// Web source model for registered websites
     /// </summary>
-    public class WebSource
-    {
+    public class WebSource {
         /// <summary>
         /// Unique identifier for the web source
         /// </summary>

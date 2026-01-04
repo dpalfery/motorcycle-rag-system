@@ -3,8 +3,7 @@ namespace MotorcycleRAG.Domain.DTOs.Optimization;
 /// <summary>
 /// Result of batch processing operation.
 /// </summary>
-public class BatchProcessingResult<T>
-{
+public class BatchProcessingResult<T> {
     public IReadOnlyList<T> Results { get; set; } = Array.Empty<T>();
     public IReadOnlyList<BatchProcessingError> Errors { get; set; } = Array.Empty<BatchProcessingError>();
     public int TotalProcessed { get; set; }

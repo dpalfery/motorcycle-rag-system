@@ -4,8 +4,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// Represents a single audit entry for tool configuration changes.
 /// Data contract for transferring audit information across layers.
 /// </summary>
-public class ToolConfigurationAuditEntry
-{
+public class ToolConfigurationAuditEntry {
     /// <summary>
     /// Unique identifier for the audit entry.
     /// </summary>
@@ -62,8 +61,7 @@ public class ToolConfigurationAuditEntry
 /// Summary statistics for audit trail.
 /// Data contract for audit reporting.
 /// </summary>
-public class ToolConfigurationAuditSummary
-{
+public class ToolConfigurationAuditSummary {
     /// <summary>
     /// Total number of audit entries recorded.
     /// </summary>

@@ -3,8 +3,7 @@ namespace MotorcycleRAG.Domain.DTOs.Optimization;
 /// <summary>
 /// Statistics for batch processing operations.
 /// </summary>
-public class BatchProcessingStatistics
-{
+public class BatchProcessingStatistics {
     public long TotalBatchesProcessed { get; set; }
     public long TotalItemsProcessed { get; set; }
     public long TotalItemsFailed { get; set; }

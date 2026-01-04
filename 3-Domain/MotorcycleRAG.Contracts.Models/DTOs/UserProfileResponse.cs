@@ -3,8 +3,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// User profile response model
 /// </summary>
-public class UserProfileResponse
-{
+public class UserProfileResponse {
     public string Id { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;

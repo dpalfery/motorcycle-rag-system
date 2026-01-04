@@ -1,12 +1,10 @@
 using System;
 
-namespace MotorcycleRAG.Domain.DTOs
-{
+namespace MotorcycleRAG.Domain.DTOs {
     /// <summary>
     /// Audit log query filter model
     /// </summary>
-    public class AuditLogFilter
-    {
+    public class AuditLogFilter {
         /// <summary>
         /// User ID to filter by
         /// </summary>

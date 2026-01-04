@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// Request DTO for creating a new MCP tool configuration.
 /// Used in POST requests to create tool configurations.
 /// </summary>
-public class CreateMcpToolRequest
-{
+public class CreateMcpToolRequest {
     /// <summary>
     /// Unique identifier for the tool (e.g., 'web-search', 'pdf-analyzer').
     /// </summary>
@@ -92,8 +91,7 @@ public class CreateMcpToolRequest
 /// Used in PUT requests to update tool configurations.
 /// All fields are optional - only provided fields are updated.
 /// </summary>
-public class UpdateMcpToolRequest
-{
+public class UpdateMcpToolRequest {
     /// <summary>
     /// Updated display name (optional).
     /// </summary>
@@ -158,8 +156,7 @@ public class UpdateMcpToolRequest
 /// <summary>
 /// Request DTO for disabling an MCP tool.
 /// </summary>
-public class DisableMcpToolRequest
-{
+public class DisableMcpToolRequest {
     /// <summary>
     /// Reason for disabling the tool.
     /// </summary>
@@ -171,8 +168,7 @@ public class DisableMcpToolRequest
 /// Contains the complete configuration details for API responses.
 /// SECURITY: Does NOT include internal auditing details.
 /// </summary>
-public class McpToolConfigurationDto
-{
+public class McpToolConfigurationDto {
     /// <summary>
     /// Unique internal identifier.
     /// </summary>

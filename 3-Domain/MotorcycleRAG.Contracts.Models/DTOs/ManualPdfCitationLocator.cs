@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Manual/PDF citation locator for document-based sources
 /// </summary>
-public class ManualPdfCitationLocator
-{
+public class ManualPdfCitationLocator {
     /// <summary>
     /// Document identifier
     /// </summary>
@@ -94,8 +93,7 @@ public class ManualPdfCitationLocator
 /// <summary>
 /// Trust tiers for website sources
 /// </summary>
-public enum WebsiteTrustTier
-{
+public enum WebsiteTrustTier {
     /// <summary>
     /// High trust - official manufacturer or industry sites
     /// </summary>

@@ -1,12 +1,10 @@
 using System;
 
-namespace MotorcycleRAG.Domain.DTOs
-{
+namespace MotorcycleRAG.Domain.DTOs {
     /// <summary>
     /// Web source crawl result model
     /// </summary>
-    public class WebSourceCrawlResult
-    {
+    public class WebSourceCrawlResult {
         /// <summary>
         /// Unique identifier for the crawl result
         /// </summary>

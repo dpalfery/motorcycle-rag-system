@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Response model for motorcycle queries
 /// </summary>
-public class MotorcycleQueryResponse
-{
+public class MotorcycleQueryResponse {
     [Required]
     public string Response { get; set; } = string.Empty;
 

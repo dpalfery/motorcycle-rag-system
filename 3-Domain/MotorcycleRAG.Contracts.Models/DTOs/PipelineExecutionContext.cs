@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Pipeline execution context
 /// </summary>
-public class PipelineExecutionContext
-{
+public class PipelineExecutionContext {
     public string UserId { get; set; } = string.Empty;
 
     public string SessionId { get; set; } = string.Empty;

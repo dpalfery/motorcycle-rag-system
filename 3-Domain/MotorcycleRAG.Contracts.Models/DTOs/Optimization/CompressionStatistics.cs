@@ -3,8 +3,7 @@ namespace MotorcycleRAG.Domain.DTOs.Optimization;
 /// <summary>
 /// Statistics for vector compression operations.
 /// </summary>
-public class CompressionStatistics
-{
+public class CompressionStatistics {
     public long TotalVectorsCompressed { get; set; }
     public long TotalVectorsDecompressed { get; set; }
     public long TotalBytesOriginal { get; set; }

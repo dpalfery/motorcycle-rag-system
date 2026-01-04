@@ -3,8 +3,7 @@ namespace MotorcycleRAG.Domain.DTOs.Optimization;
 /// <summary>
 /// Statistics for connection pool monitoring.
 /// </summary>
-public class ConnectionPoolStatistics
-{
+public class ConnectionPoolStatistics {
     public string ServiceName { get; set; } = string.Empty;
     public int ActiveConnections { get; set; }
     public int IdleConnections { get; set; }

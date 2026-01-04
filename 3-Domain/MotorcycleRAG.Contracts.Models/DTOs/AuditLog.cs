@@ -1,13 +1,11 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.DTOs
-{
+namespace MotorcycleRAG.Domain.DTOs {
     /// <summary>
     /// Audit log model for tracking system changes
     /// </summary>
-    public class AuditLog
-    {
+    public class AuditLog {
         /// <summary>
         /// Unique identifier for the audit log
         /// </summary>

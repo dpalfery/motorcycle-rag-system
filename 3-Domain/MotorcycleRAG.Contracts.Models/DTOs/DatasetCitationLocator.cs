@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Dataset citation locator for structured data sources
 /// </summary>
-public class DatasetCitationLocator
-{
+public class DatasetCitationLocator {
     /// <summary>
     /// Dataset identifier or name
     /// </summary>

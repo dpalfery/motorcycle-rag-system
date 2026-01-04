@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Query performance metrics with caching and optimization data
 /// </summary>
-public class QueryMetrics
-{
+public class QueryMetrics {
     public TimeSpan TotalDuration { get; set; }
     public TimeSpan VectorSearchDuration { get; set; }
     public TimeSpan WebSearchDuration { get; set; }
@@ -26,8 +25,7 @@ public class QueryMetrics
 /// <summary>
 /// Metrics for the sequential search pattern execution
 /// </summary>
-public class SearchPatternMetrics
-{
+public class SearchPatternMetrics {
     public bool VectorSearchExecuted { get; set; }
     public bool WebSearchExecuted { get; set; }
     public bool PDFSearchExecuted { get; set; }

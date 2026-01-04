@@ -3,8 +3,7 @@ namespace MotorcycleRAG.Domain.DTOs.Optimization;
 /// <summary>
 /// Settings for connection pool configuration.
 /// </summary>
-public class ConnectionPoolSettings
-{
+public class ConnectionPoolSettings {
     public int MaxConnectionsPerEndpoint { get; set; } = 10;
     public TimeSpan ConnectionTimeout { get; set; } = TimeSpan.FromSeconds(30);
     public TimeSpan ConnectionIdleTimeout { get; set; } = TimeSpan.FromMinutes(2);

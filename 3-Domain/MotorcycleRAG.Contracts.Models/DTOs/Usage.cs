@@ -1,13 +1,11 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace MotorcycleRAG.Domain.DTOs
-{
+namespace MotorcycleRAG.Domain.DTOs {
     /// <summary>
     /// Usage tracking model for API calls
     /// </summary>
-    public class Usage
-    {
+    public class Usage {
         /// <summary>
         /// Unique identifier for the usage record
         /// </summary>

@@ -1,12 +1,10 @@
 using System;
 
-namespace MotorcycleRAG.Domain.DTOs
-{
+namespace MotorcycleRAG.Domain.DTOs {
     /// <summary>
     /// Daily usage summary model
     /// </summary>
-    public class DailyUsageSummary
-    {
+    public class DailyUsageSummary {
         /// <summary>
         /// User ID
         /// </summary>

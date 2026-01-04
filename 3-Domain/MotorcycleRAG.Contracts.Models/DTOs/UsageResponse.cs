@@ -3,8 +3,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Usage response model
 /// </summary>
-public class UsageResponse
-{
+public class UsageResponse {
     public string UserId { get; set; } = string.Empty;
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
@@ -20,8 +19,7 @@ public class UsageResponse
 /// <summary>
 /// Usage record model
 /// </summary>
-public class UsageRecord
-{
+public class UsageRecord {
     public long Id { get; set; }
     public string Endpoint { get; set; } = string.Empty;
     public string HttpMethod { get; set; } = string.Empty;

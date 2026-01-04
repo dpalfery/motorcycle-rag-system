@@ -7,8 +7,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// Search parameters for configuring search behavior at runtime
 /// (Different from SearchOptions in Contracts/Options which is for configuration binding)
 /// </summary>
-public class SearchParameters
-{
+public class SearchParameters {
     public int MaxResults { get; set; } = 10;
     public float MinRelevanceScore { get; set; } = 0.5f;
     public bool IncludeMetadata { get; set; } = true;

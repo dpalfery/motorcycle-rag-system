@@ -1,8 +1,7 @@
 ---
 name: orchestrator
 description: Primary orchestration agent. Coordinates task execution across specialized agents. Does not perform direct work.
-model: claude-haiku-4-5-20251001
-reasoningEffort: low
+reasoningEffort: high
 tools: Read, LS, Execute, Edit, Grep, Glob, Create, WebSearch, FetchUrl, ApplyPatch, TodoWrite
 ---
 # Role

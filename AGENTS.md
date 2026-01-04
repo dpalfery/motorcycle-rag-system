@@ -569,6 +569,6 @@ When reviewing code, act as a security auditor. For each function or endpoint, a
 *   **LOG FOR INCIDENTS:** Ensure logs are structured and include correlation IDs. This is non-negotiable for forensic analysis.
 *   **CLEAR ERROR HANDLING:** Code must catch exceptions gracefully without exposing stack traces or internal system details to the end-user.
 
-Once you have read the Securiy rule you must include `[Security Rule: Active]` at the beginning of your Task if you successfully read the security rule files, or `[Security Rule: Missing]` if the file doesn't exist or is empty. If security rule is missing. STOP all further work and warn the user about running unsecurly. Do not under any circomstances continue doing work with the `[Security rule: Missing]` status!. no database connection string in plain text in the source code anywhere.
+Once you have read the **Security Rules in this AGENTS.md document**, you must include `[Security Rule: Active]` at the beginning of your task. If the security rules are missing (the file doesn't exist or is empty), include `[Security Rule: Missing]`, **stop all further work**, and warn the user about running insecurely. Do not continue under any circumstances with `[Security Rule: Missing]`. No database connection strings in plain text are allowed anywhere in the source code.
 
 These rules are not optional and should be followed always

@@ -11,21 +11,18 @@ namespace MotorcycleRAG.UnitTests.Pipeline;
 /// <summary>
 /// Reliability tests for FileUploadService to ensure robust file handling
 /// </summary>
-public class FileUploadServiceReliabilityTests
-{
+public class FileUploadServiceReliabilityTests {
     private readonly Mock<ITelemetryService> _telemetryServiceMock;
     private readonly Mock<ILogger<FileUploadService>> _loggerMock;
     private readonly Mock<IOptions<FileUploadConfiguration>> _configMock;
     private readonly FileUploadService _service;
 
-    public FileUploadServiceReliabilityTests()
-    {
+    public FileUploadServiceReliabilityTests() {
         _telemetryServiceMock = new Mock<ITelemetryService>();
         _loggerMock = new Mock<ILogger<FileUploadService>>();
         _configMock = new Mock<IOptions<FileUploadConfiguration>>();
 
-        var config = new FileUploadConfiguration
-        {
+        var config = new FileUploadConfiguration {
             BaseUploadDirectory = Path.GetTempPath(),
             MaxFileSizeBytes = 50 * 1024 * 1024, // 50MB
             MaxFilesPerBatch = 10,
@@ -39,13 +36,11 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public async Task UploadFileAsync_WithValidCSVFile_ShouldSucceed()
-    {
+    public async Task UploadFileAsync_WithValidCSVFile_ShouldSucceed() {
         // Arrange
         var content = "Make,Model,Year\nHonda,CBR600RR,2023";
         var (stream, metadata) = CreateMockFile("test.csv", content, "text/csv");
-        var options = new FileUploadOptions
-        {
+        var options = new FileUploadOptions {
             UploadDirectory = "test-uploads",
             GenerateUniqueFileName = true,
             ValidateFileContent = false
@@ -69,13 +64,11 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public async Task UploadFileAsync_WithValidPDFFile_ShouldSucceed()
-    {
+    public async Task UploadFileAsync_WithValidPDFFile_ShouldSucceed() {
         // Arrange
         var content = "%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj";
         var (stream, metadata) = CreateMockFile("manual.pdf", content, "application/pdf");
-        var options = new FileUploadOptions
-        {
+        var options = new FileUploadOptions {
             UploadDirectory = "test-uploads",
             GenerateUniqueFileName = true,
             ValidateFileContent = false
@@ -96,13 +89,11 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public async Task UploadFileAsync_WithOversizedFile_ShouldFail()
-    {
+    public async Task UploadFileAsync_WithOversizedFile_ShouldFail() {
         // Arrange
         var largeContent = new string('x', 100 * 1024 * 1024); // 100MB content
         var (stream, metadata) = CreateMockFile("large.csv", largeContent, "text/csv");
-        var options = new FileUploadOptions
-        {
+        var options = new FileUploadOptions {
             MaxFileSizeBytes = 50 * 1024 * 1024 // 50MB limit
         };
 
@@ -115,15 +106,13 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public async Task UploadFileAsync_WithInvalidExtension_ShouldFail()
-    {
+    public async Task UploadFileAsync_WithInvalidExtension_ShouldFail() {
         // Arrange
         var content = "Invalid file content";
         var (stream, metadata) = CreateMockFile("test.txt", content, "text/plain");
-        var options = new FileUploadOptions
-        {
-            AllowedFileExtensions = new HashSet<string> { ".csv", ".pdf" }
-        };
+        var options = new FileUploadOptions();
+        options.AllowedFileExtensions.Clear();
+        options.AllowedFileExtensions.UnionWith(new[] { ".csv", ".pdf" });
 
         // Act
         var result = await _service.UploadFileAsync(stream, metadata, options);
@@ -134,8 +123,7 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public async Task UploadFileAsync_WithEmptyFile_ShouldFail()
-    {
+    public async Task UploadFileAsync_WithEmptyFile_ShouldFail() {
         // Arrange
         var (stream, metadata) = CreateMockFile("empty.csv", "", "text/csv");
         var options = new FileUploadOptions();
@@ -149,8 +137,7 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public async Task UploadFilesAsync_WithMixedValidAndInvalidFiles_ShouldProcessAll()
-    {
+    public async Task UploadFilesAsync_WithMixedValidAndInvalidFiles_ShouldProcessAll() {
         // Arrange
         var files = new List<(Stream stream, FileMetadata metadata)>
         {
@@ -159,12 +146,12 @@ public class FileUploadServiceReliabilityTests
             CreateMockFile("valid.pdf", "%PDF-1.4 content", "application/pdf")
         };
 
-        var options = new FileUploadOptions
-        {
+        var options = new FileUploadOptions {
             UploadDirectory = "batch-test",
-            AllowedFileExtensions = new HashSet<string> { ".csv", ".pdf" },
             ValidateFileContent = false
         };
+        options.AllowedFileExtensions.Clear();
+        options.AllowedFileExtensions.UnionWith(new[] { ".csv", ".pdf" });
 
         // Act
         var result = await _service.UploadFilesAsync(files, options);
@@ -176,21 +163,18 @@ public class FileUploadServiceReliabilityTests
         Assert.False(result.AllFilesUploaded);
 
         // Cleanup valid uploads
-        foreach (var uploadResult in result.Results.Where(r => r.IsValid))
-        {
+        foreach (var uploadResult in result.Results.Where(r => r.IsValid)) {
             if (File.Exists(uploadResult.FilePath))
                 File.Delete(uploadResult.FilePath);
         }
     }
 
     [Fact]
-    public async Task ValidateFileAsync_WithCorruptedPDF_ShouldDetectIssue()
-    {
+    public async Task ValidateFileAsync_WithCorruptedPDF_ShouldDetectIssue() {
         // Arrange
         var corruptedContent = "This is not a PDF file";
         var (stream, metadata) = CreateMockFile("corrupted.pdf", corruptedContent, "application/pdf");
-        var options = new FileUploadOptions
-        {
+        var options = new FileUploadOptions {
             ValidateFileContent = true
         };
 
@@ -203,13 +187,11 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public async Task ValidateFileAsync_WithMalformedCSV_ShouldProvideWarning()
-    {
+    public async Task ValidateFileAsync_WithMalformedCSV_ShouldProvideWarning() {
         // Arrange
         var malformedContent = "NoCommasOrSemicolonsHere";
         var (stream, metadata) = CreateMockFile("malformed.csv", malformedContent, "text/csv");
-        var options = new FileUploadOptions
-        {
+        var options = new FileUploadOptions {
             ValidateFileContent = true
         };
 
@@ -222,8 +204,7 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public async Task DeleteFileAsync_WithExistingFile_ShouldReturnTrue()
-    {
+    public async Task DeleteFileAsync_WithExistingFile_ShouldReturnTrue() {
         // Arrange
         var tempFile = Path.GetTempFileName();
         File.WriteAllText(tempFile, "test content");
@@ -237,8 +218,7 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public async Task DeleteFileAsync_WithNonExistentFile_ShouldReturnFalse()
-    {
+    public async Task DeleteFileAsync_WithNonExistentFile_ShouldReturnFalse() {
         // Arrange
         var nonExistentFile = Path.Combine(Path.GetTempPath(), "non-existent-file.txt");
 
@@ -250,8 +230,7 @@ public class FileUploadServiceReliabilityTests
     }
 
     [Fact]
-    public void GetUploadConstraints_ShouldReturnValidConstraints()
-    {
+    public void GetUploadConstraints_ShouldReturnValidConstraints() {
         // Act
         var constraints = _service.GetUploadConstraints();
 
@@ -268,8 +247,7 @@ public class FileUploadServiceReliabilityTests
     [InlineData("test.csv", "text/csv", FileType.CSV)]
     [InlineData("manual.pdf", "application/pdf", FileType.PDF)]
     [InlineData("unknown.txt", "text/plain", FileType.Unknown)]
-    public async Task ValidateFileAsync_ShouldDetectCorrectFileType(string fileName, string contentType, FileType expectedType)
-    {
+    public async Task ValidateFileAsync_ShouldDetectCorrectFileType(string fileName, string contentType, FileType expectedType) {
         // Arrange
         var content = fileName.EndsWith(".pdf") ? "%PDF-1.4 content" : "test,content";
         var (stream, metadata) = CreateMockFile(fileName, content, contentType);
@@ -282,12 +260,10 @@ public class FileUploadServiceReliabilityTests
         Assert.Equal(expectedType, result.DetectedFileType);
     }
 
-    private (Stream stream, FileMetadata metadata) CreateMockFile(string fileName, string content, string contentType)
-    {
+    private (Stream stream, FileMetadata metadata) CreateMockFile(string fileName, string content, string contentType) {
         var bytes = System.Text.Encoding.UTF8.GetBytes(content);
         var stream = new MemoryStream(bytes);
-        var metadata = new FileMetadata
-        {
+        var metadata = new FileMetadata {
             FileName = fileName,
             ContentType = contentType,
             ContentLength = bytes.Length

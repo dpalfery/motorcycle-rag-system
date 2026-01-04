@@ -2,17 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Text.Json.Serialization;
-using MotorcycleRAG.Domain.DTOs;
 
-namespace MotorcycleRAG.Domain.InternalDTOs;
+namespace MotorcycleRAG.Domain.DTOs;
 
 /// <summary>
-/// Internal pipeline notification model (Domain-local copy)
+/// Pipeline notification model
 /// </summary>
-public class DomainPipelineNotification {
+public class PipelineNotification {
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
-    public DomainPipelineNotificationType Type { get; set; }
+    public PipelineNotificationType Type { get; set; }
 
     public string Title { get; set; } = string.Empty;
 
@@ -24,7 +23,7 @@ public class DomainPipelineNotification {
 
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
-    public DomainNotificationSeverity Severity { get; set; }
+    public NotificationSeverity Severity { get; set; }
 
     public Dictionary<string, object> Properties { get; } = new();
 
@@ -32,10 +31,10 @@ public class DomainPipelineNotification {
 }
 
 /// <summary>
-/// Internal pipeline notification types
+/// Pipeline notification types
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum DomainPipelineNotificationType {
+public enum PipelineNotificationType {
     ExecutionStarted,
     ExecutionCompleted,
     ExecutionFailed,
@@ -46,12 +45,13 @@ public enum DomainPipelineNotificationType {
 }
 
 /// <summary>
-/// Internal notification severity levels
+/// Notification severity levels
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum DomainNotificationSeverity {
+public enum NotificationSeverity {
     Info,
     Warning,
     Error,
     Critical
 }
+

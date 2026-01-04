@@ -13,8 +13,7 @@ namespace MotorcycleRAG.Persistence.DataProcessing;
 /// <summary>
 /// PDF processor for motorcycle manuals and documentation with semantic chunking and multimodal support
 /// </summary>
-public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
-{
+public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument> {
     private readonly IDocumentIntelligenceClient _documentClient;
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly IAzureSearchClient _searchClient;
@@ -28,8 +27,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
         IAzureSearchClient searchClient,
         IOptions<PDFProcessingConfiguration> config,
         IOptions<AzureAIOptions> azureConfig,
-        ILogger<MotorcyclePDFProcessor> logger)
-    {
+        ILogger<MotorcyclePDFProcessor> logger) {
         _documentClient = documentClient ?? throw new ArgumentNullException(nameof(documentClient));
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
@@ -38,13 +36,11 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<ProcessedData> ProcessAsync(PDFDocument input)
-    {
+    public async Task<ProcessedData> ProcessAsync(PDFDocument input) {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var documents = new List<MotorcycleDocument>();
 
-        try
-        {
+        try {
             _logger.LogInformation("Starting PDF processing for document: {FileName}", input.FileName);
 
             // Step 1: Extract text and structure using Document Intelligence
@@ -52,8 +48,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
 
             // Step 2: Process multimodal content if images are present
             var multimodalContent = new List<string>();
-            if (input.ContainsImages && _config.ProcessImages)
-            {
+            if (input.ContainsImages && _config.ProcessImages) {
                 multimodalContent = await ProcessMultimodalContentAsync(input, analysisResult);
             }
 
@@ -66,31 +61,30 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
             // Step 5: Create MotorcycleDocument objects
             var processedDocuments = await CreateMotorcycleDocumentsAsync(chunks, input, analysisResult);
 
-            return new ProcessedData
-            {
-                Id = Guid.NewGuid().ToString(),
-                Documents = processedDocuments,
-                Metadata = CreateProcessingMetadata(input, analysisResult, chunks.Count)
-            };
+            var processed = new ProcessedData();
+            processed.Id = Guid.NewGuid().ToString();
+            foreach (var d in processedDocuments)
+                processed.Documents.Add(d);
+            var meta = CreateProcessingMetadata(input, analysisResult, chunks.Count);
+            foreach (var kv in meta)
+                processed.Metadata[kv.Key] = kv.Value;
+
+            return processed;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error processing PDF document: {FileName}", input.FileName);
             throw new InvalidOperationException($"Failed to process PDF: {ex.Message}", ex);
         }
-        finally
-        {
+        finally {
             stopwatch.Stop();
         }
     }
 
-    public async Task<IndexingResult> IndexAsync(ProcessedData data)
-    {
+    public async Task<IndexingResult> IndexAsync(ProcessedData data) {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var result = new IndexingResult();
 
-        try
-        {
+        try {
             _logger.LogInformation("Starting indexing for {DocumentCount} PDF documents", data.Documents.Count);
 
             // Index documents in batches for efficiency
@@ -98,8 +92,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
             var batches = data.Documents.Chunk(batchSize);
             var totalIndexed = 0;
 
-            foreach (var batch in batches)
-            {
+            foreach (var batch in batches) {
                 var batchArray = batch.ToArray();
                 await _searchClient.IndexDocumentsAsync(batchArray);
                 totalIndexed += batchArray.Length;
@@ -115,15 +108,13 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
             _logger.LogInformation("PDF indexing completed. Indexed {IndexedCount}/{TotalCount} documents in {ElapsedMs}ms",
                 totalIndexed, data.Documents.Count, stopwatch.ElapsedMilliseconds);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error indexing PDF documents");
             result.Success = false;
             result.Message = $"Failed to index PDF documents: {ex.Message}";
             result.Errors.Add(ex.Message);
         }
-        finally
-        {
+        finally {
             stopwatch.Stop();
             result.IndexingTime = stopwatch.Elapsed;
         }
@@ -131,8 +122,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
         return result;
     }
 
-    private async Task<DocumentAnalysisResult> ExtractDocumentContentAsync(PDFDocument input)
-    {
+    private async Task<DocumentAnalysisResult> ExtractDocumentContentAsync(PDFDocument input) {
         _logger.LogDebug("Extracting content from PDF using Document Intelligence");
 
         // Convert stream to byte array
@@ -160,19 +150,16 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
     /// T053/T054: Enriches DocumentAnalysisResult with page/section/table locator metadata
     /// Populates fields that IDocumentIntelligenceClient doesn't provide using regex/heuristics
     /// </summary>
-    private void EnrichDocumentAnalysisResult(DocumentAnalysisResult analysisResult)
-    {
+    private void EnrichDocumentAnalysisResult(DocumentAnalysisResult analysisResult) {
         _logger.LogDebug("Enriching document analysis result with locator metadata");
 
         // Enrich page-level section metadata
-        foreach (var page in analysisResult.Pages)
-        {
+        foreach (var page in analysisResult.Pages) {
             EnrichPageMetadata(page);
         }
 
         // Enrich table locator metadata
-        foreach (var table in analysisResult.Tables)
-        {
+        foreach (var table in analysisResult.Tables) {
             EnrichTableMetadata(table, analysisResult.Pages);
         }
 
@@ -183,13 +170,11 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
     /// T053/T054: Enriches a single page with section metadata (PrimarySection, SectionHeadings, SectionLevel)
     /// Uses regex pattern matching to detect document structure
     /// </summary>
-    private void EnrichPageMetadata(DocumentPage page)
-    {
+    private void EnrichPageMetadata(DocumentPage page) {
         _logger.LogDebug("EnrichPageMetadata: Before enrichment - PrimarySection={PrimarySection}, SectionLevel={SectionLevel}",
             page.PrimarySection, page.SectionLevel);
 
-        if (string.IsNullOrWhiteSpace(page.Content))
-        {
+        if (string.IsNullOrWhiteSpace(page.Content)) {
             page.PrimarySection = "Empty Page";
             page.SectionHeadings = Array.Empty<string>();
             page.SectionLevel = 0;
@@ -198,14 +183,12 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
         }
 
         // Only enrich if metadata is not already set (for test data with pre-enriched metadata)
-        if (page.SectionLevel > 0)
-        {
+        if (page.SectionLevel > 0) {
             // Use pre-set values if SectionLevel is > 0
             _logger.LogDebug("EnrichPageMetadata: Skipped enrichment, using pre-set values - PrimarySection={PrimarySection}, SectionLevel={SectionLevel}",
                 page.PrimarySection, page.SectionLevel);
         }
-        else if (string.IsNullOrEmpty(page.PrimarySection))
-        {
+        else if (string.IsNullOrEmpty(page.PrimarySection)) {
             // Extract section metadata using regex/heuristics
             var (primarySection, headings, level) = ExtractSectionMetadata(page.Content);
 
@@ -216,8 +199,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
             _logger.LogDebug("EnrichPageMetadata: Enriched - PrimarySection={PrimarySection}, SectionLevel={SectionLevel}",
                 page.PrimarySection, page.SectionLevel);
         }
-        else
-        {
+        else {
             _logger.LogDebug("EnrichPageMetadata: Skipped enrichment, using pre-set PrimarySection - PrimarySection={PrimarySection}, SectionLevel={SectionLevel}",
                 page.PrimarySection, page.SectionLevel);
         }
@@ -227,20 +209,17 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
     /// T053/T054: Enriches table with locator metadata (StartPageNumber, EndPageNumber, Caption, Section)
     /// Uses heuristics from table cells and surrounding context
     /// </summary>
-    private void EnrichTableMetadata(DocumentTable table, DocumentPage[] pages)
-    {
+    private void EnrichTableMetadata(DocumentTable table, DocumentPage[] pages) {
         // Determine page range from cells
-        if (table.Cells.Length > 0)
-        {
+        if (table.Cells.Length > 0) {
             var minPage = table.Cells.Min(c => c.PageNumber);
             var maxPage = table.Cells.Max(c => c.PageNumber);
-            
+
             // If cells have page numbers, use them; otherwise default to 1
             table.StartPageNumber = minPage > 0 ? minPage : 1;
             table.EndPageNumber = maxPage > 0 ? maxPage : table.StartPageNumber;
         }
-        else
-        {
+        else {
             // Fallback for tables with no cells
             table.StartPageNumber = 1;
             table.EndPageNumber = 1;
@@ -257,13 +236,11 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
     /// T053/T054: Extracts table caption from header row cells using heuristics
     /// Looks for patterns like "Table 1.1:", "Table:", "Table of", etc.
     /// </summary>
-    private string ExtractTableCaption(DocumentTable table)
-    {
+    private string ExtractTableCaption(DocumentTable table) {
         // Check header cells for caption-like content
         var headerCells = table.Cells.Where(c => c.IsHeader).OrderBy(c => c.RowIndex).ThenBy(c => c.ColumnIndex).ToArray();
-        
-        if (headerCells.Length > 0)
-        {
+
+        if (headerCells.Length > 0) {
             // Look for caption patterns in first few header cells
             var captionPatterns = new[]
             {
@@ -273,27 +250,22 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
                 @"^Table\s+of\s+(.+)$"                // "Table of Contents"
             };
 
-            foreach (var cell in headerCells.Take(3))
-            {
+            foreach (var cell in headerCells.Take(3)) {
                 var content = cell.Content.Trim();
-                foreach (var pattern in captionPatterns)
-                {
+                foreach (var pattern in captionPatterns) {
                     var match = Regex.Match(content, pattern, RegexOptions.IgnoreCase);
-                    if (match.Success)
-                    {
+                    if (match.Success) {
                         return match.Groups[1].Value.Trim();
                     }
                 }
             }
 
             // If no caption pattern found, use first header cell content as fallback
-            if (!string.IsNullOrWhiteSpace(headerCells[0].Content))
-            {
+            if (!string.IsNullOrWhiteSpace(headerCells[0].Content)) {
                 var content = headerCells[0].Content.Trim();
                 // Only use as caption if it's not a standard column name
                 var standardColumns = new[] { "Item", "Description", "Value", "Unit", "Note", "Remark" };
-                if (!standardColumns.Any(sc => content.Equals(sc, StringComparison.OrdinalIgnoreCase)))
-                {
+                if (!standardColumns.Any(sc => content.Equals(sc, StringComparison.OrdinalIgnoreCase))) {
                     return content;
                 }
             }
@@ -301,8 +273,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
 
         // Fallback: look for caption in first row of all cells
         var firstRowCells = table.Cells.Where(c => c.RowIndex == 0).OrderBy(c => c.ColumnIndex).ToArray();
-        if (firstRowCells.Length > 0)
-        {
+        if (firstRowCells.Length > 0) {
             var combinedFirstRow = string.Join(" ", firstRowCells.Select(c => c.Content.Trim()));
             if (combinedFirstRow.Length < 100) // Only if reasonable length
             {
@@ -317,18 +288,16 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
     /// T053/T054: Determines the section where a table is located
     /// Uses page context and table content heuristics
     /// </summary>
-    private string DetermineTableSection(DocumentTable table, DocumentPage[] pages)
-    {
+    private string DetermineTableSection(DocumentTable table, DocumentPage[] pages) {
         // Try to get section from the page where the table starts
         var startPage = pages.FirstOrDefault(p => p.PageNumber == table.StartPageNumber);
-        if (startPage != null && !string.IsNullOrWhiteSpace(startPage.PrimarySection))
-        {
+        if (startPage != null && !string.IsNullOrWhiteSpace(startPage.PrimarySection)) {
             return startPage.PrimarySection;
         }
 
         // Fallback: analyze table content to infer section
         var allCellText = string.Join(" ", table.Cells.Select(c => c.Content.ToLowerInvariant()));
-        
+
         if (allCellText.Contains("specification") || allCellText.Contains("spec"))
             return "Specifications";
         if (allCellText.Contains("maintenance") || allCellText.Contains("service"))
@@ -343,18 +312,16 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument>
             return "Electrical";
         if (allCellText.Contains("part") || allCellText.Contains("component"))
             return "Parts List";
-        
+
         return "Table Data";
     }
 
-    private async Task<List<string>> ProcessMultimodalContentAsync(PDFDocument input, DocumentAnalysisResult analysisResult)
-    {
+    private async Task<List<string>> ProcessMultimodalContentAsync(PDFDocument input, DocumentAnalysisResult analysisResult) {
         _logger.LogDebug("Processing multimodal content using GPT-4 Vision");
 
         var multimodalContent = new List<string>();
 
-        try
-        {
+        try {
             using var memoryStream = new MemoryStream();
             await input.Content.CopyToAsync(memoryStream);
             var documentBytes = memoryStream.ToArray();
@@ -379,8 +346,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
             _logger.LogDebug("GPT-4 Vision processing completed");
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Failed to process multimodal content, continuing with text-only processing");
         }
 
@@ -390,40 +356,34 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     private async Task<List<PDFChunk>> CreateSemanticChunksAsync(
         DocumentAnalysisResult analysisResult,
         List<string> multimodalContent,
-        PDFDocument input)
-    {
+        PDFDocument input) {
         _logger.LogDebug("Creating semantic chunks with embedding-based boundary detection");
 
         var chunks = new List<PDFChunk>();
         var chunkId = 0;
 
         // Process each page
-        foreach (var page in analysisResult.Pages)
-        {
+        foreach (var page in analysisResult.Pages) {
             var pageChunks = await CreatePageChunksAsync(page, input, chunkId);
             chunks.AddRange(pageChunks);
             chunkId += pageChunks.Count;
         }
 
         // Process tables separately
-        foreach (var table in analysisResult.Tables)
-        {
+        foreach (var table in analysisResult.Tables) {
             var tableChunk = CreateTableChunk(table, analysisResult.Pages, input, chunkId++);
             chunks.Add(tableChunk);
         }
 
         // Add multimodal content as separate chunks
-        foreach (var content in multimodalContent)
-        {
-            var multimodalChunk = new PDFChunk
-            {
+        foreach (var content in multimodalContent) {
+            var multimodalChunk = new PDFChunk {
                 Id = $"{input.FileName}_multimodal_{chunkId++}",
                 Content = content,
                 PageNumber = 0, // Multimodal content spans multiple pages
                 Section = "Visual Analysis",
                 Type = ChunkType.Image,
-                Metadata = new Dictionary<string, object>
-                {
+                Metadata = new Dictionary<string, object> {
                     ["Source"] = "GPT-4 Vision",
                     ["ContentType"] = "Multimodal Analysis"
                 }
@@ -432,8 +392,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
 
         // Apply semantic boundary detection
-        if (_config.PreserveStructure)
-        {
+        if (_config.PreserveStructure) {
             chunks = await RefineChunkBoundariesAsync(chunks);
         }
 
@@ -441,8 +400,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         return chunks;
     }
 
-    private async Task<List<PDFChunk>> CreatePageChunksAsync(DocumentPage page, PDFDocument input, int startingChunkId)
-    {
+    private async Task<List<PDFChunk>> CreatePageChunksAsync(DocumentPage page, PDFDocument input, int startingChunkId) {
         var chunks = new List<PDFChunk>();
         var content = page.Content;
 
@@ -453,25 +411,21 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         var sections = DetectSections(content);
         var chunkId = startingChunkId;
 
-        foreach (var section in sections)
-        {
+        foreach (var section in sections) {
             // Split section into chunks based on size limits
             var sectionChunks = SplitTextIntoChunks(section.Content, _config.MaxChunkSize, _config.MinChunkSize, _config.ChunkOverlap);
 
-            foreach (var chunkContent in sectionChunks)
-            {
+            foreach (var chunkContent in sectionChunks) {
                 // Determine the section title to use - prioritize detected section, fallback to page metadata
                 var sectionTitle = !string.IsNullOrEmpty(section.Title) ? section.Title : page.PrimarySection;
-                
-                var chunk = new PDFChunk
-                {
+
+                var chunk = new PDFChunk {
                     Id = $"{input.FileName}_page_{page.PageNumber}_chunk_{chunkId++}",
                     Content = chunkContent,
                     PageNumber = page.PageNumber,
                     Section = sectionTitle,
                     Type = ChunkType.Text,
-                    Metadata = new Dictionary<string, object>
-                    {
+                    Metadata = new Dictionary<string, object> {
                         ["PageWidth"] = page.Width,
                         ["PageHeight"] = page.Height,
                         ["SectionType"] = section.Type,
@@ -495,30 +449,26 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         return chunks;
     }
 
-    private PDFChunk CreateTableChunk(DocumentTable table, DocumentPage[] pages, PDFDocument input, int chunkId)
-    {
+    private PDFChunk CreateTableChunk(DocumentTable table, DocumentPage[] pages, PDFDocument input, int chunkId) {
         var tableContent = new StringBuilder();
-        
+
         // T054: Preserve table structure - include caption and structured format
-        if (!string.IsNullOrEmpty(table.Caption))
-        {
+        if (!string.IsNullOrEmpty(table.Caption)) {
             tableContent.AppendLine($"Table: {table.Caption}");
             tableContent.AppendLine();
         }
-        
+
         tableContent.AppendLine($"Table with {table.RowCount} rows and {table.ColumnCount} columns:");
         tableContent.AppendLine();
 
         // T054: Convert table to structured text format preserving rows/columns
         var rows = table.Cells.GroupBy(c => c.RowIndex).OrderBy(g => g.Key);
-        foreach (var row in rows)
-        {
+        foreach (var row in rows) {
             var cells = row.OrderBy(c => c.ColumnIndex).Select(c => c.Content);
             tableContent.AppendLine(string.Join(" | ", cells));
-            
+
             // Add separator line after header row for readability
-            if (row.Any(c => c.IsHeader))
-            {
+            if (row.Any(c => c.IsHeader)) {
                 var separator = string.Join("-+-", cells.Select(_ => new string('-', 20)));
                 tableContent.AppendLine(separator);
             }
@@ -528,7 +478,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         var pageRange = table.StartPageNumber == table.EndPageNumber
             ? $"{table.StartPageNumber}"
             : $"{table.StartPageNumber}-{table.EndPageNumber}";
-        
+
         // T053: Use table section or fallback to "Table Data"
         var section = !string.IsNullOrEmpty(table.Section) ? table.Section : "Table Data";
 
@@ -537,15 +487,13 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         var sectionLevel = startPage?.SectionLevel ?? 0;
         var sectionHeadings = startPage?.SectionHeadings ?? Array.Empty<string>();
 
-        return new PDFChunk
-        {
+        return new PDFChunk {
             Id = $"{input.FileName}_table_{chunkId}",
             Content = tableContent.ToString(),
             PageNumber = table.StartPageNumber, // Use start page as primary page
             Section = section,
             Type = ChunkType.Table,
-            Metadata = new Dictionary<string, object>
-            {
+            Metadata = new Dictionary<string, object> {
                 ["RowCount"] = table.RowCount,
                 ["ColumnCount"] = table.ColumnCount,
                 ["CellCount"] = table.Cells.Length,
@@ -565,8 +513,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     /// <summary>
     /// T053: Detects sections with hierarchy level tracking for locator metadata
     /// </summary>
-    private List<DocumentSection> DetectSections(string content)
-    {
+    private List<DocumentSection> DetectSections(string content) {
         var sections = new List<DocumentSection>();
 
         // T053: Enhanced section detection with hierarchy levels for motorcycle manuals
@@ -582,23 +529,18 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         DocumentSection? currentSection = null;
 
-        foreach (var line in lines)
-        {
+        foreach (var line in lines) {
             var isHeader = false;
-            foreach (var headerDef in headerPatterns)
-            {
+            foreach (var headerDef in headerPatterns) {
                 var match = Regex.Match(line.Trim(), headerDef.Pattern, RegexOptions.Multiline);
-                if (match.Success)
-                {
+                if (match.Success) {
                     // Save current section
-                    if (currentSection != null && currentSection.Content.Length > 0)
-                    {
+                    if (currentSection != null && currentSection.Content.Length > 0) {
                         sections.Add(currentSection);
                     }
 
                     // Start new section with hierarchy level
-                    currentSection = new DocumentSection
-                    {
+                    currentSection = new DocumentSection {
                         Title = match.Groups[1].Value.Trim(),
                         Content = new StringBuilder(),
                         Type = DetermineContentType(match.Groups[1].Value),
@@ -609,13 +551,10 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 }
             }
 
-            if (!isHeader)
-            {
+            if (!isHeader) {
                 // If no section has been started yet, create a default "General Content" section
-                if (currentSection == null)
-                {
-                    currentSection = new DocumentSection
-                    {
+                if (currentSection == null) {
+                    currentSection = new DocumentSection {
                         Title = "General Content",
                         Content = new StringBuilder(),
                         Type = "General",
@@ -627,8 +566,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
 
         // Add the last section
-        if (currentSection != null && currentSection.Content.Length > 0)
-        {
+        if (currentSection != null && currentSection.Content.Length > 0) {
             sections.Add(currentSection);
         }
 
@@ -639,12 +577,11 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     /// T053: Extracts section headings and hierarchy from page content
     /// Returns primary section, all headings, and hierarchy level
     /// </summary>
-    private (string primarySection, string[] headings, int level) ExtractSectionMetadata(string content)
-    {
+    private (string primarySection, string[] headings, int level) ExtractSectionMetadata(string content) {
         var headings = new List<string>();
         var primarySection = string.Empty;
         var maxLevel = int.MaxValue;
-        
+
         // Header patterns with hierarchy levels
         var headerPatterns = new[]
         {
@@ -654,42 +591,36 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             new { Pattern = @"^([A-Z][a-z\s]+):$", Level = 3 },
             new { Pattern = @"^(SECTION\s+\d+.*)$", Level = 2 }
         };
-        
+
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        
-        foreach (var line in lines)
-        {
-            foreach (var headerDef in headerPatterns)
-            {
+
+        foreach (var line in lines) {
+            foreach (var headerDef in headerPatterns) {
                 var match = Regex.Match(line.Trim(), headerDef.Pattern, RegexOptions.Multiline);
-                if (match.Success)
-                {
+                if (match.Success) {
                     var heading = match.Groups[1].Value.Trim();
                     headings.Add(heading);
-                    
+
                     // Track primary section (highest level heading)
-                    if (primarySection == string.Empty || headerDef.Level < maxLevel)
-                    {
+                    if (primarySection == string.Empty || headerDef.Level < maxLevel) {
                         primarySection = heading;
                         maxLevel = headerDef.Level;
                     }
-                    
+
                     break;
                 }
             }
         }
-        
+
         // Fallback if no headings found
-        if (primarySection == string.Empty)
-        {
+        if (primarySection == string.Empty) {
             primarySection = "General Content";
         }
-        
+
         return (primarySection, headings.ToArray(), maxLevel == int.MaxValue ? 0 : maxLevel);
     }
 
-    private string DetermineContentType(string sectionTitle)
-    {
+    private string DetermineContentType(string sectionTitle) {
         var title = sectionTitle.ToLowerInvariant();
 
         if (title.Contains("maintenance") || title.Contains("service"))
@@ -706,13 +637,11 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         return "General";
     }
 
-    private List<string> SplitTextIntoChunks(StringBuilder content, int maxChunkSize, int minChunkSize, int overlap)
-    {
+    private List<string> SplitTextIntoChunks(StringBuilder content, int maxChunkSize, int minChunkSize, int overlap) {
         var text = content.ToString();
         var chunks = new List<string>();
 
-        if (text.Length <= maxChunkSize)
-        {
+        if (text.Length <= maxChunkSize) {
             chunks.Add(text);
             return chunks;
         }
@@ -720,14 +649,12 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         var sentences = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
         var currentChunk = new StringBuilder();
 
-        foreach (var sentence in sentences)
-        {
+        foreach (var sentence in sentences) {
             var trimmedSentence = sentence.Trim();
             if (string.IsNullOrEmpty(trimmedSentence)) continue;
 
             // Check if adding this sentence would exceed the max chunk size
-            if (currentChunk.Length + trimmedSentence.Length + 1 > maxChunkSize && currentChunk.Length >= minChunkSize)
-            {
+            if (currentChunk.Length + trimmedSentence.Length + 1 > maxChunkSize && currentChunk.Length >= minChunkSize) {
                 chunks.Add(currentChunk.ToString().Trim());
 
                 // Start new chunk with overlap
@@ -739,16 +666,14 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
 
         // Add the last chunk
-        if (currentChunk.Length >= minChunkSize)
-        {
+        if (currentChunk.Length >= minChunkSize) {
             chunks.Add(currentChunk.ToString().Trim());
         }
 
         return chunks;
     }
 
-    private string GetOverlapText(string text, int overlapSize)
-    {
+    private string GetOverlapText(string text, int overlapSize) {
         if (text.Length <= overlapSize) return text;
 
         var startIndex = text.Length - overlapSize;
@@ -756,77 +681,14 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
         // Try to start at a sentence boundary
         var sentenceStart = overlapText.IndexOf(". ");
-        if (sentenceStart > 0 && sentenceStart < overlapSize / 2)
-        {
+        if (sentenceStart > 0 && sentenceStart < overlapSize / 2) {
             overlapText = overlapText.Substring(sentenceStart + 2);
         }
 
         return overlapText;
     }
 
-    private async Task<List<PDFChunk>> RefineChunkBoundariesAsync(List<PDFChunk> chunks)
-    {
-        _logger.LogDebug("Refining chunk boundaries using embedding-based similarity");
-
-        // For chunks that are too similar, merge them
-        // For chunks that are too different, consider splitting them further
-        var refinedChunks = new List<PDFChunk>();
-
-        for (int i = 0; i < chunks.Count; i++)
-        {
-            var currentChunk = chunks[i];
-
-            // Check similarity with next chunk if it exists
-            if (i < chunks.Count - 1)
-            {
-                var nextChunk = chunks[i + 1];
-
-                // Generate embeddings for similarity comparison
-                var embeddings = await _openAIClient.GetEmbeddingsAsync(
-                    _azureConfig.Models.EmbeddingModel,
-                    new[] { currentChunk.Content, nextChunk.Content },
-                    CancellationToken.None);
-
-                if (embeddings.Length < 2)
-                {
-                    _logger.LogWarning("Failed to generate embeddings for similarity comparison between chunks {CurrentId} and {NextId}", currentChunk.Id, nextChunk.Id);
-                    refinedChunks.Add(currentChunk);
-                    continue;
-                }
-
-                var similarity = CalculateCosineSimilarity(embeddings[0], embeddings[1]);
-
-                // If chunks are very similar and from the same section, consider merging
-                if (similarity > _config.SimilarityThreshold &&
-                    currentChunk.Section == nextChunk.Section &&
-                    currentChunk.Content.Length + nextChunk.Content.Length <= _config.MaxChunkSize)
-                {
-                    // Merge chunks
-                    var mergedChunk = new PDFChunk
-                    {
-                        Id = $"{currentChunk.Id}_merged",
-                        Content = $"{currentChunk.Content}\n\n{nextChunk.Content}",
-                        PageNumber = currentChunk.PageNumber,
-                        Section = currentChunk.Section,
-                        Type = currentChunk.Type,
-                        Metadata = currentChunk.Metadata
-                    };
-
-                    refinedChunks.Add(mergedChunk);
-                    i++; // Skip the next chunk as it's been merged
-                    continue;
-                }
-            }
-
-            refinedChunks.Add(currentChunk);
-        }
-
-        _logger.LogDebug("Refined {OriginalCount} chunks to {RefinedCount} chunks", chunks.Count, refinedChunks.Count);
-        return refinedChunks;
-    }
-
-    private float CalculateCosineSimilarity(float[] vectorA, float[] vectorB)
-    {
+    private float CalculateCosineSimilarity(float[] vectorA, float[] vectorB) {
         if (vectorA.Length != vectorB.Length)
             throw new ArgumentException("Vectors must have the same length");
 
@@ -840,27 +702,80 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         return (float)(dotProduct / (magnitudeA * magnitudeB));
     }
 
-    private async Task GenerateEmbeddingsAsync(List<PDFChunk> chunks)
-    {
+    private async Task GenerateEmbeddingsAsync(List<PDFChunk> chunks) {
         _logger.LogDebug("Generating embeddings for {ChunkCount} chunks", chunks.Count);
 
         // Process chunks in batches for efficiency
         const int batchSize = 10;
         var batches = chunks.Chunk(batchSize);
 
-        foreach (var batch in batches)
-        {
+        foreach (var batch in batches) {
             var batchArray = batch.ToArray();
             var texts = batchArray.Select(c => c.Content).ToArray();
             var embeddings = await _openAIClient.GetEmbeddingsAsync(_azureConfig.Models.EmbeddingModel, texts, CancellationToken.None);
 
-            for (int i = 0; i < batchArray.Length && i < embeddings.Length; i++)
-            {
+            for (int i = 0; i < batchArray.Length && i < embeddings.Length; i++) {
                 batchArray[i].Embedding = embeddings[i];
             }
         }
 
         _logger.LogDebug("Embedding generation completed");
+    }
+
+    private async Task<List<PDFChunk>> RefineChunkBoundariesAsync(List<PDFChunk> chunks) {
+        _logger.LogDebug("Refining chunk boundaries using embedding-based similarity");
+
+        // For chunks that are too similar, merge them
+        // For chunks that are too different, consider splitting them further
+        var refinedChunks = new List<PDFChunk>();
+
+        for (int i = 0; i < chunks.Count; i++) {
+            var currentChunk = chunks[i];
+
+            // Check similarity with next chunk if it exists
+            if (i < chunks.Count - 1) {
+                var nextChunk = chunks[i + 1];
+
+                // Generate embeddings for similarity comparison
+                var embeddings = await _openAIClient.GetEmbeddingsAsync(
+                    _azureConfig.Models.EmbeddingModel,
+                    new[] { currentChunk.Content, nextChunk.Content },
+                    CancellationToken.None);
+
+                if (embeddings.Length < 2) {
+                    _logger.LogWarning("Failed to generate embeddings for similarity comparison between chunks {CurrentId} and {NextId}", currentChunk.Id, nextChunk.Id);
+                    refinedChunks.Add(currentChunk);
+                    continue;
+                }
+
+                var similarity = CalculateCosineSimilarity(embeddings[0], embeddings[1]);
+
+                // If chunks are very similar and from the same section, consider merging
+                if (similarity > _config.SimilarityThreshold &&
+                    currentChunk.Section == nextChunk.Section &&
+                    currentChunk.Content.Length + nextChunk.Content.Length <= _config.MaxChunkSize) {
+                    // Merge chunks
+                    var mergedChunk = new PDFChunk {
+                        Id = $"{currentChunk.Id}_merged",
+                        Content = $"{currentChunk.Content}\n\n{nextChunk.Content}",
+                        PageNumber = currentChunk.PageNumber,
+                        Section = currentChunk.Section,
+                        Type = currentChunk.Type,
+                        Metadata = currentChunk.Metadata
+                    };
+
+                    refinedChunks.Add(mergedChunk);
+                    i++; // Skip the next chunk because it's merged
+                    continue;
+                }
+
+                // Not merged - keep current chunk
+                refinedChunks.Add(currentChunk);
+            }
+        }
+
+        _logger.LogDebug("Refined {OriginalCount} chunks to {RefinedCount} chunks", chunks.Count, refinedChunks.Count);
+        return refinedChunks;
     }
 
     /// <summary>
@@ -870,77 +785,102 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     private async Task<List<MotorcycleDocument>> CreateMotorcycleDocumentsAsync(
         List<PDFChunk> chunks,
         PDFDocument input,
-        DocumentAnalysisResult analysisResult)
-    {
+        DocumentAnalysisResult analysisResult) {
         _logger.LogDebug("Creating MotorcycleDocument objects from chunks with locator metadata");
 
         var documents = new List<MotorcycleDocument>();
 
-        foreach (var chunk in chunks)
-        {
+        foreach (var chunk in chunks) {
             // T053/T055: Extract locator metadata from chunk metadata for citation support with defensive type checking
             int pageNumber;
-            try
-            {
+            try {
                 pageNumber = chunk.Metadata.ContainsKey("PageNumber") ? Convert.ToInt32(chunk.Metadata["PageNumber"]) : chunk.PageNumber;
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse PageNumber from metadata for chunk {ChunkId}, using fallback", chunk.Id);
                 pageNumber = chunk.PageNumber;
             }
-            
+
             var pageRange = chunk.Metadata.ContainsKey("PageRange") ? chunk.Metadata["PageRange"]?.ToString() : $"{pageNumber}";
             var primarySection = chunk.Metadata.ContainsKey("PrimarySection") ? chunk.Metadata["PrimarySection"]?.ToString() : chunk.Section;
-            
+
             int sectionLevel;
-            try
-            {
+            try {
                 sectionLevel = chunk.Metadata.ContainsKey("SectionLevel") ? Convert.ToInt32(chunk.Metadata["SectionLevel"]) : 0;
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse SectionLevel from metadata for chunk {ChunkId}, using default 0", chunk.Id);
                 sectionLevel = 0;
             }
-            
+
             string[] sectionHeadings;
-            try
-            {
+            try {
                 sectionHeadings = chunk.Metadata.ContainsKey("AllSectionHeadings") ? (string[])chunk.Metadata["AllSectionHeadings"] : Array.Empty<string>();
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse AllSectionHeadings from metadata for chunk {ChunkId}, using empty array", chunk.Id);
                 sectionHeadings = Array.Empty<string>();
             }
-            
+
             var tableCaption = chunk.Metadata.ContainsKey("TableCaption") ? chunk.Metadata["TableCaption"]?.ToString() : null;
-            
+
             int chunkIndex;
-            try
-            {
+            try {
                 chunkIndex = chunk.Metadata.ContainsKey("ChunkIndex") ? Convert.ToInt32(chunk.Metadata["ChunkIndex"]) : 0;
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse ChunkIndex from metadata for chunk {ChunkId}, using default 0", chunk.Id);
                 chunkIndex = 0;
             }
-            
+
             bool isMultiPageTable;
-            try
-            {
+            try {
                 isMultiPageTable = chunk.Metadata.ContainsKey("IsMultiPageTable") && (bool)chunk.Metadata["IsMultiPageTable"];
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse IsMultiPageTable from metadata for chunk {ChunkId}, using default false", chunk.Id);
                 isMultiPageTable = false;
             }
-             
-            var document = new MotorcycleDocument
-            {
+
+            // build DocumentMetadata by mutating getter-only collections
+            var dm = new DocumentMetadata();
+            dm.SourceFile = input.FileName;
+            // convert source string to Uri safely
+            if (!string.IsNullOrWhiteSpace(input.Source)) {
+                try { dm.SourceUrl = new Uri(input.Source); } catch { dm.SourceUrl = null; }
+            }
+            dm.PageNumber = pageNumber;
+            dm.Section = chunk.Section;
+            dm.Author = $"{input.Make} {input.Model}";
+            dm.PublishedDate = input.UploadedAt;
+            // add tags
+            dm.Tags.Add(input.Make);
+            dm.Tags.Add(input.Model);
+            dm.Tags.Add(input.Year);
+            dm.Tags.Add(input.DocumentType.ToString());
+            // additional properties
+            dm.AdditionalProperties["SourceType"] = "PDF";
+            dm.AdditionalProperties["Make"] = input.Make;
+            dm.AdditionalProperties["Model"] = input.Model;
+            dm.AdditionalProperties["Year"] = input.Year;
+            dm.AdditionalProperties["DocumentType"] = input.DocumentType.ToString();
+            dm.AdditionalProperties["ChunkType"] = chunk.Type.ToString();
+            dm.AdditionalProperties["ProcessedAt"] = DateTime.UtcNow;
+            dm.AdditionalProperties["Language"] = input.Language;
+            dm.AdditionalProperties["ChunkMetadata"] = chunk.Metadata;
+            dm.AdditionalProperties["IsMultiPageTable"] = isMultiPageTable;
+            dm.AdditionalProperties["Locator"] = new {
+                PageNumber = pageNumber,
+                PageRange = pageRange,
+                Section = chunk.Section,
+                PrimarySection = primarySection,
+                SectionLevel = sectionLevel,
+                SectionHeadings = sectionHeadings,
+                TableCaption = tableCaption,
+                ChunkIndex = chunkIndex
+            };
+
+            var document = new MotorcycleDocument {
                 Id = chunk.Id,
                 Title = $"{input.Make} {input.Model} {input.Year} - {chunk.Section}",
                 Content = chunk.Content,
@@ -954,41 +894,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 SectionHeadings = sectionHeadings,
                 TableCaption = tableCaption,
                 ChunkIndex = chunkIndex,
-                Metadata = new DocumentMetadata
-                {
-                    SourceFile = input.FileName,
-                    SourceUrl = input.Source,
-                    PageNumber = pageNumber,
-                    Section = chunk.Section,
-                    Author = $"{input.Make} {input.Model}",
-                    PublishedDate = input.UploadedAt,
-                    Tags = new List<string> { input.Make, input.Model, input.Year, input.DocumentType.ToString() },
-                    AdditionalProperties = new Dictionary<string, object>
-                    {
-                        ["SourceType"] = "PDF",
-                        ["Make"] = input.Make,
-                        ["Model"] = input.Model,
-                        ["Year"] = input.Year,
-                        ["DocumentType"] = input.DocumentType.ToString(),
-                        ["ChunkType"] = chunk.Type.ToString(),
-                        ["ProcessedAt"] = DateTime.UtcNow,
-                        ["Language"] = input.Language,
-                        ["ChunkMetadata"] = chunk.Metadata,
-                        ["IsMultiPageTable"] = isMultiPageTable, // T054: Table metadata for multi-page tables
-                        // T053: Locator metadata preserved for reference (T055 indexes top-level fields)
-                        ["Locator"] = new
-                        {
-                            PageNumber = pageNumber,
-                            PageRange = pageRange,
-                            Section = chunk.Section,
-                            PrimarySection = primarySection,
-                            SectionLevel = sectionLevel,
-                            SectionHeadings = sectionHeadings,
-                            TableCaption = tableCaption,
-                            ChunkIndex = chunkIndex
-                        }
-                    }
-                }
+                Metadata = dm
             };
 
             documents.Add(document);
@@ -1001,10 +907,8 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     private Dictionary<string, object> CreateProcessingMetadata(
         PDFDocument input,
         DocumentAnalysisResult analysisResult,
-        int chunkCount)
-    {
-        return new Dictionary<string, object>
-        {
+        int chunkCount) {
+        return new Dictionary<string, object> {
             ["OriginalFileName"] = input.FileName,
             ["FileSizeBytes"] = input.FileSizeBytes,
             ["DocumentType"] = input.DocumentType.ToString(),
@@ -1015,8 +919,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             ["PageCount"] = analysisResult.Pages.Length,
             ["TableCount"] = analysisResult.Tables.Length,
             ["ChunkCount"] = chunkCount,
-            ["ProcessingConfiguration"] = new
-            {
+            ["ProcessingConfiguration"] = new {
                 MaxChunkSize = _config.MaxChunkSize,
                 MinChunkSize = _config.MinChunkSize,
                 ChunkOverlap = _config.ChunkOverlap,
@@ -1031,8 +934,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     /// <summary>
     /// T053: Internal class for tracking detected sections with hierarchy level
     /// </summary>
-    private class DocumentSection
-    {
+    private class DocumentSection {
         public string Title { get; set; } = string.Empty;
         public StringBuilder Content { get; set; } = new();
         public string Type { get; set; } = string.Empty;

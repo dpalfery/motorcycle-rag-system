@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Pipeline processing options
 /// </summary>
-public class PipelineOptions
-{
+public class PipelineOptions {
     public bool ProcessImages { get; set; } = true;
 
     public bool GenerateEmbeddings { get; set; } = true;

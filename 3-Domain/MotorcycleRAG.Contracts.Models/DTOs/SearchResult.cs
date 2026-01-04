@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
-using MotorcycleRAG.Domain.DTOs;
 
-namespace MotorcycleRAG.Domain.InternalDTOs;
+namespace MotorcycleRAG.Domain.DTOs;
 
 /// <summary>
-/// Internal representation of a search result used only inside the Domain project
+/// Represents a search result from any search agent
 /// </summary>
-public class DomainSearchResult {
+public class SearchResult {
     [Required]
     public string Id { get; set; } = string.Empty;
 
@@ -20,7 +19,7 @@ public class DomainSearchResult {
     public float RelevanceScore { get; set; }
 
     [Required]
-    public DomainSearchSource Source { get; set; } = new();
+    public SearchSource Source { get; set; } = new();
 
     public Dictionary<string, object> Metadata { get; set; } = new();
 
@@ -36,11 +35,11 @@ public class DomainSearchResult {
 }
 
 /// <summary>
-/// Internal search source information
+/// Search source information
 /// </summary>
-public class DomainSearchSource {
+public class SearchSource {
     [Required]
-    public DomainSearchAgentType AgentType { get; set; }
+    public SearchAgentType AgentType { get; set; }
 
     [Required]
     public string SourceName { get; set; } = string.Empty;
@@ -56,9 +55,9 @@ public class DomainSearchSource {
 }
 
 /// <summary>
-/// Internal types of search agents
+/// Types of search agents
 /// </summary>
-public enum DomainSearchAgentType {
+public enum SearchAgentType {
     VectorSearch,
     WebSearch,
     PDFSearch,

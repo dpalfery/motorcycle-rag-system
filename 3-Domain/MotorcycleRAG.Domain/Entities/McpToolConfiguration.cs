@@ -11,8 +11,7 @@ namespace MotorcycleRAG.Domain.Entities;
 /// MCP (Model Context Protocol) Tool Configuration
 /// Defines which MCP tools are enabled/disabled and their settings
 /// </summary>
-public class McpToolConfiguration
-{
+public class McpToolConfiguration {
     [Required]
     public Guid Id { get; set; }
 
@@ -40,7 +39,7 @@ public class McpToolConfiguration
     /// The MCP server URL or connection string
     /// </summary>
     [Required]
-    public Uri ServerUrl { get; set; } = new("about:blank");
+    public string ServerUrl { get; set; } = string.Empty;
 
     /// <summary>
     /// Whether this tool is enabled for use in orchestration
@@ -113,28 +112,24 @@ public class McpToolConfiguration
     public DateTime? UpdatedAt { get; set; }
 
     // Domain behavior
-    public void Enable()
-    {
+    public void Enable() {
         IsEnabled = true;
         DisabledReason = null;
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void Disable(string reason)
-    {
+    public void Disable(string reason) {
         IsEnabled = false;
         DisabledReason = reason;
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void UpdateConfiguration(string? configurationJson)
-    {
+    public void UpdateConfiguration(string? configurationJson) {
         ConfigurationJson = configurationJson;
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void UpdateConnectionStatus(string status)
-    {
+    public void UpdateConnectionStatus(string status) {
         LastConnectionStatus = status;
         LastTestedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;

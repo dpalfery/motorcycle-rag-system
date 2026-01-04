@@ -6,8 +6,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// Pipeline type enumeration
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum PipelineType
-{
+public enum PipelineType {
     CSV,
     PDF,
     Batch,

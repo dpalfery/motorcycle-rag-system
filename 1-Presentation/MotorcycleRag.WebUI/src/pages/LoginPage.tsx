@@ -1,5 +1,5 @@
 
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { Bike } from 'lucide-react';
 
 export default function LoginPage() {

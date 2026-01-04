@@ -18,8 +18,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/admin/mcp-tools")]
 [Authorize(Policy = "DataAdmin")]
-public sealed class McpAdminController : ControllerBase
-{
+public sealed class McpAdminController : ControllerBase {
     private readonly IToolConfigurationService _configService;
     private readonly ILogger<McpAdminController> _logger;
     private readonly ICurrentUserService _currentUserService;
@@ -27,8 +26,7 @@ public sealed class McpAdminController : ControllerBase
     public McpAdminController(
         IToolConfigurationService configService,
         ILogger<McpAdminController> logger,
-        ICurrentUserService currentUserService)
-    {
+        ICurrentUserService currentUserService) {
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
@@ -43,18 +41,15 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(typeof(McpToolConfigurationDto[]), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAllToolsAsync()
-    {
-        try
-        {
+    public async Task<IActionResult> GetAllToolsAsync() {
+        try {
             var configs = await _configService.GetAllToolsAsync();
             var dtos = configs.Select(MapToDto).ToArray();
 
             _logger.LogInformation("Admin retrieved {Count} MCP tool configurations", dtos.Length);
             return Ok(dtos);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving MCP tool configurations");
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred retrieving tool configurations" });
@@ -73,16 +68,13 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetToolAsync(string toolId)
-    {
+    public async Task<IActionResult> GetToolAsync(string toolId) {
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });
 
-        try
-        {
+        try {
             var config = await _configService.GetToolAsync(toolId);
-            if (config == null)
-            {
+            if (config == null) {
                 _logger.LogWarning("MCP tool {ToolId} not found", toolId);
                 return NotFound(new { error = "Tool not found" });
             }
@@ -91,8 +83,7 @@ public sealed class McpAdminController : ControllerBase
             _logger.LogInformation("Admin retrieved MCP tool {ToolId}", toolId);
             return Ok(dto);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving MCP tool {ToolId}", toolId);
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred" });
@@ -108,17 +99,14 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(typeof(McpToolConfigurationDto[]), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetEnabledToolsAsync()
-    {
-        try
-        {
+    public async Task<IActionResult> GetEnabledToolsAsync() {
+        try {
             var enabledTools = await _configService.GetEnabledToolsAsync();
             var dtos = enabledTools.Select(MapToDto).ToArray();
 
             return Ok(dtos);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving enabled MCP tools");
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred" });
@@ -138,8 +126,7 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> CreateToolAsync([FromBody] CreateMcpToolRequest request)
-    {
+    public async Task<IActionResult> CreateToolAsync([FromBody] CreateMcpToolRequest request) {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
@@ -148,25 +135,20 @@ public sealed class McpAdminController : ControllerBase
         if (validationErrors.Any())
             return BadRequest(new { errors = validationErrors });
 
-        try
-        {
+        try {
             // Validate ConfigurationJson if provided
-            if (!string.IsNullOrWhiteSpace(request.ConfigurationJson))
-            {
-                try
-                {
+            if (!string.IsNullOrWhiteSpace(request.ConfigurationJson)) {
+                try {
                     System.Text.Json.JsonDocument.Parse(request.ConfigurationJson);
                     if (request.ConfigurationJson.Length > 10240) // 10KB limit
                         return BadRequest(new { error = "Configuration JSON exceeds 10KB limit" });
                 }
-                catch (System.Text.Json.JsonException)
-                {
+                catch (System.Text.Json.JsonException) {
                     return BadRequest(new { error = "Invalid JSON in ConfigurationJson" });
                 }
             }
 
-            var config = new McpToolConfiguration
-            {
+            var config = new McpToolConfiguration {
                 Id = Guid.NewGuid(),
                 ToolId = request.ToolId,
                 Name = request.Name,
@@ -194,14 +176,12 @@ public sealed class McpAdminController : ControllerBase
             var dto = MapToDto(savedConfig);
             return CreatedAtAction(nameof(GetToolAsync), new { toolId = savedConfig.ToolId }, dto);
         }
-        catch (InvalidOperationException)
-        {
+        catch (InvalidOperationException) {
             // Duplicate tool or validation failed - SC-001: Generic error message
             // Note: We don't expose the exception message to prevent information disclosure
             return Conflict(new { error = "Tool already exists" });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             // SC-001: Don't expose exception details in API response
             _logger.LogError(ex, "Error creating MCP tool {ToolId}", request.ToolId);
             return StatusCode(StatusCodes.Status500InternalServerError,
@@ -223,8 +203,7 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateToolAsync(string toolId, [FromBody] UpdateMcpToolRequest request)
-    {
+    public async Task<IActionResult> UpdateToolAsync(string toolId, [FromBody] UpdateMcpToolRequest request) {
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });
 
@@ -235,47 +214,39 @@ public sealed class McpAdminController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        try
-        {
+        try {
             // Validate ConfigurationJson if provided
-            if (!string.IsNullOrWhiteSpace(request.ConfigurationJson))
-            {
-                try
-                {
+            if (!string.IsNullOrWhiteSpace(request.ConfigurationJson)) {
+                try {
                     System.Text.Json.JsonDocument.Parse(request.ConfigurationJson);
                     if (request.ConfigurationJson.Length > 10240) // 10KB limit
                         return BadRequest(new { error = "Configuration JSON exceeds 10KB limit" });
                 }
-                catch (System.Text.Json.JsonException)
-                {
+                catch (System.Text.Json.JsonException) {
                     return BadRequest(new { error = "Invalid JSON in ConfigurationJson" });
                 }
             }
 
             var existingConfig = await _configService.GetToolAsync(toolId);
-            if (existingConfig == null)
-            {
+            if (existingConfig == null) {
                 _logger.LogWarning("MCP tool {ToolId} not found for update", toolId);
                 return NotFound(new { error = "Tool not found" });
             }
 
             // Update properties (only if provided)
-            if (!string.IsNullOrWhiteSpace(request.Name))
-            {
+            if (!string.IsNullOrWhiteSpace(request.Name)) {
                 if (request.Name.Length > 255)
                     return BadRequest(new { error = "Name exceeds maximum length of 255 characters" });
                 existingConfig.Name = request.Name;
             }
 
-            if (!string.IsNullOrWhiteSpace(request.Description))
-            {
+            if (!string.IsNullOrWhiteSpace(request.Description)) {
                 if (request.Description.Length > 1000)
                     return BadRequest(new { error = "Description exceeds maximum length of 1000 characters" });
                 existingConfig.Description = request.Description;
             }
 
-            if (!string.IsNullOrWhiteSpace(request.ServerUrl))
-            {
+            if (!string.IsNullOrWhiteSpace(request.ServerUrl)) {
                 if (request.ServerUrl.Length > 500)
                     return BadRequest(new { error = "Server URL exceeds maximum length of 500 characters" });
                 existingConfig.ServerUrl = request.ServerUrl;
@@ -316,13 +287,11 @@ public sealed class McpAdminController : ControllerBase
             var dto = MapToDto(updatedConfig);
             return Ok(dto);
         }
-        catch (InvalidOperationException)
-        {
+        catch (InvalidOperationException) {
             // SC-001: Generic error message
             return BadRequest(new { error = "Tool configuration is invalid" });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             // SC-001: Don't expose exception details
             _logger.LogError(ex, "Error updating MCP tool {ToolId}", toolId);
             return StatusCode(StatusCodes.Status500InternalServerError,
@@ -341,13 +310,11 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> EnableToolAsync(string toolId)
-    {
+    public async Task<IActionResult> EnableToolAsync(string toolId) {
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });
 
-        try
-        {
+        try {
             var config = await _configService.EnableToolAsync(toolId, _currentUserService.UserId);
 
             _logger.LogInformation("Enabled MCP tool {ToolId}", toolId);
@@ -355,12 +322,10 @@ public sealed class McpAdminController : ControllerBase
             var dto = MapToDto(config);
             return Ok(dto);
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             return NotFound(new { error = ex.Message });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error enabling MCP tool {ToolId}", toolId);
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred" });
@@ -381,13 +346,11 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> DisableToolAsync(string toolId, [FromBody] DisableMcpToolRequest request)
-    {
+    public async Task<IActionResult> DisableToolAsync(string toolId, [FromBody] DisableMcpToolRequest request) {
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });
 
-        try
-        {
+        try {
             var reason = request?.Reason ?? "Disabled by admin";
             var config = await _configService.DisableToolAsync(toolId, reason, _currentUserService.UserId);
 
@@ -396,16 +359,13 @@ public sealed class McpAdminController : ControllerBase
             var dto = MapToDto(config);
             return Ok(dto);
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             return NotFound(new { error = ex.Message });
         }
-        catch (ArgumentException ex)
-        {
+        catch (ArgumentException ex) {
             return BadRequest(new { error = ex.Message });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error disabling MCP tool {ToolId}", toolId);
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred" });
@@ -423,17 +383,14 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> DeleteToolAsync(string toolId)
-    {
+    public async Task<IActionResult> DeleteToolAsync(string toolId) {
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });
 
-        try
-        {
+        try {
             var deleted = await _configService.DeleteToolAsync(toolId, _currentUserService.UserId);
 
-            if (!deleted)
-            {
+            if (!deleted) {
                 _logger.LogWarning("MCP tool {ToolId} not found for deletion", toolId);
                 return NotFound(new { error = "Tool not found" });
             }
@@ -443,8 +400,7 @@ public sealed class McpAdminController : ControllerBase
 
             return NoContent();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             // SC-001: Don't expose exception details
             _logger.LogError(ex, "Error deleting MCP tool {ToolId}", toolId);
             return StatusCode(StatusCodes.Status500InternalServerError,
@@ -464,16 +420,14 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAuditHistoryAsync(string toolId, [FromQuery] int limit = 100)
-    {
+    public async Task<IActionResult> GetAuditHistoryAsync(string toolId, [FromQuery] int limit = 100) {
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });
 
         if (limit <= 0 || limit > 1000)
             return BadRequest(new { error = "Limit must be between 1 and 1000" });
 
-        try
-        {
+        try {
             var config = await _configService.GetToolAsync(toolId);
             if (config == null)
                 return NotFound(new { error = "Tool not found" });
@@ -481,8 +435,7 @@ public sealed class McpAdminController : ControllerBase
             var auditEntries = await _configService.GetAuditHistoryAsync(config.Id, limit);
             return Ok(auditEntries);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit history for tool {ToolId}", toolId);
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred" });
@@ -498,15 +451,12 @@ public sealed class McpAdminController : ControllerBase
     [ProducesResponseType(typeof(ToolConfigurationAuditSummary), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAuditSummaryAsync()
-    {
-        try
-        {
+    public async Task<IActionResult> GetAuditSummaryAsync() {
+        try {
             var summary = await _configService.GetAuditSummaryAsync();
             return Ok(summary);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit summary");
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred" });
@@ -516,10 +466,8 @@ public sealed class McpAdminController : ControllerBase
     /// <summary>
     /// Maps McpToolConfiguration to DTO.
     /// </summary>
-    private McpToolConfigurationDto MapToDto(McpToolConfiguration config)
-    {
-        return new McpToolConfigurationDto
-        {
+    private McpToolConfigurationDto MapToDto(McpToolConfiguration config) {
+        return new McpToolConfigurationDto {
             Id = config.Id,
             ToolId = config.ToolId,
             Name = config.Name,
@@ -545,8 +493,7 @@ public sealed class McpAdminController : ControllerBase
     /// Validates tool input parameters.
     /// SC-003: Manual input validation beyond DataAnnotations.
     /// </summary>
-    private List<string> ValidateToolInput(string toolId, string name, string serverUrl)
-    {
+    private List<string> ValidateToolInput(string toolId, string name, string serverUrl) {
         var errors = new List<string>();
 
         if (string.IsNullOrWhiteSpace(toolId))
@@ -571,14 +518,12 @@ public sealed class McpAdminController : ControllerBase
     /// Sanitizes user ID for secure logging.
     /// SC-004: Prevents logging of raw user identifiers (OWASP ASVS V7.1).
     /// </summary>
-    private string SanitizeUserId(string? userId)
-    {
+    private string SanitizeUserId(string? userId) {
         if (string.IsNullOrWhiteSpace(userId))
             return "[system]";
 
         // Hash the user ID using SHA-256 and take first 8 characters for brevity
-        using (var sha256 = SHA256.Create())
-        {
+        using (var sha256 = SHA256.Create()) {
             var hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(userId));
             var hashString = System.Convert.ToBase64String(hash);
             return $"[user:{hashString.Substring(0, 8)}]";

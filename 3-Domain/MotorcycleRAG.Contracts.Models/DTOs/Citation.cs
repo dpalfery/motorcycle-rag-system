@@ -11,8 +11,7 @@ namespace MotorcycleRAG.Domain.DTOs;
 /// <summary>
 /// Types of citation sources for evidence-based responses
 /// </summary>
-public enum CitationSourceType
-{
+public enum CitationSourceType {
     /// <summary>
     /// Structured dataset (CSV, database, etc.)
     /// </summary>
@@ -47,8 +46,7 @@ public enum CitationSourceType
 /// <summary>
 /// Citation information for evidence-based claims
 /// </summary>
-public class Citation
-{
+public class Citation {
     /// <summary>
     /// Type of source being cited
     /// </summary>
@@ -65,7 +63,7 @@ public class Citation
     /// <summary>
     /// URL to the original source
     /// </summary>
-    public Uri? SourceUrl { get; set; }
+    public string? SourceUrl { get; set; }
 
     /// <summary>
     /// Page number in the source document
@@ -103,7 +101,7 @@ public class Citation
     /// <summary>
     /// Additional metadata about the citation
     /// </summary>
-    public IReadOnlyDictionary<string, object> Metadata { get; init; } = new Dictionary<string, object>();
+    public Dictionary<string, object> Metadata { get; set; } = new Dictionary<string, object>();
 
     /// <summary>
     /// Source-specific locator information

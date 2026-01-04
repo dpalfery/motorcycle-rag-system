@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace MotorcycleRAG.Domain.DTOs;
 
 /// <summary>
 /// Field mapping configuration for index creation
 /// </summary>
-public class FieldMappingConfiguration
-{
-    public Dictionary<string, string> FieldMappings { get; set; } = new();
-    public List<string> SearchableFields { get; set; } = new();
-    public List<string> FilterableFields { get; set; } = new();
-    public List<string> FacetableFields { get; set; } = new();
-    public List<string> SortableFields { get; set; } = new();
+public class FieldMappingConfiguration {
+    public Dictionary<string, string> FieldMappings { get; } = new();
+    public Collection<string> SearchableFields { get; } = new();
+    public Collection<string> FilterableFields { get; } = new();
+    public Collection<string> FacetableFields { get; } = new();
+    public Collection<string> SortableFields { get; } = new();
 }

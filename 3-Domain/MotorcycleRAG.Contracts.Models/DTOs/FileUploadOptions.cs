@@ -1,22 +1,22 @@
 using System;
 using System.Collections.Generic;
 
-namespace MotorcycleRAG.Domain.InternalDTOs;
+namespace MotorcycleRAG.Domain.DTOs;
 
 /// <summary>
-/// Internal domain-local file upload options used only inside the Domain project
+/// File upload options and constraints
 /// </summary>
-public class DomainFileUploadOptions {
+public class FileUploadOptions {
     public long MaxFileSizeBytes { get; set; } = 50 * 1024 * 1024; // 50MB default
 
-    public HashSet<string> AllowedContentTypes { get; set; } = new()
+    public HashSet<string> AllowedContentTypes { get; } = new()
     {
         "application/pdf",
         "text/csv",
         "application/csv"
     };
 
-    public HashSet<string> AllowedFileExtensions { get; set; } = new()
+    public HashSet<string> AllowedFileExtensions { get; } = new()
     {
         ".pdf",
         ".csv"
@@ -32,5 +32,5 @@ public class DomainFileUploadOptions {
 
     public bool PreserveOriginalFileName { get; set; }
 
-    public Dictionary<string, object> CustomValidationRules { get; set; } = new();
+    public Dictionary<string, object> CustomValidationRules { get; } = new();
 }

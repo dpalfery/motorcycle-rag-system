@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace MotorcycleRAG.Domain.DTOs;
 
 /// <summary>
 /// Result of pipeline execution
 /// </summary>
-public class PipelineExecutionResult
-{
+public class PipelineExecutionResult {
     public string ExecutionId { get; set; } = string.Empty;
 
     public PipelineStatus Status { get; set; }
@@ -22,11 +22,11 @@ public class PipelineExecutionResult
 
     public IndexingResult? IndexingResult { get; set; }
 
-    public List<string> Errors { get; set; } = new();
+    public Collection<string> Errors { get; } = new();
 
-    public List<string> Warnings { get; set; } = new();
+    public Collection<string> Warnings { get; } = new();
 
-    public Dictionary<string, object> Metrics { get; set; } = new();
+    public Dictionary<string, object> Metrics { get; } = new();
 
     public string Message { get; set; } = string.Empty;
 }

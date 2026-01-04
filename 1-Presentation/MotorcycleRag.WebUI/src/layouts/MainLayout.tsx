@@ -1,7 +1,7 @@
 
 import { Outlet, NavLink } from 'react-router-dom';
 import { MessageSquare, Settings, Bike, Activity, LogOut } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { cn } from '../lib/utils';
 
 export default function MainLayout() {

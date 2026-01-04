@@ -14,8 +14,7 @@ namespace MotorcycleRAG.Application.Services;
 /// Integrates MCP (Model Context Protocol) tool configuration for extensible tool management.
 /// Implements partial-results aggregation for graceful degradation when sources become unavailable.
 /// </summary>
-public sealed class AgentOrchestrator : IAgentOrchestrator
-{
+public sealed class AgentOrchestrator : IAgentOrchestrator {
     private readonly IReadOnlyList<ISearchAgent> _agents;
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly SearchOptions _searchConfig;
@@ -32,8 +31,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     /// <summary>
     /// Tracks which sources have succeeded or failed during orchestration
     /// </summary>
-    private class SourceExecutionStatus
-    {
+    private class SourceExecutionStatus {
         public SearchAgentType AgentType { get; set; }
         public bool Succeeded { get; set; }
         public int ResultsCount { get; set; }
@@ -48,8 +46,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         ILogger<AgentOrchestrator> logger,
         IMcpConfigurationProvider mcpConfigProvider,
         ICorrelationService correlationService,
-        ITelemetryService telemetryService)
-    {
+        ITelemetryService telemetryService) {
         _agents = agents?.ToList() ?? throw new ArgumentNullException(nameof(agents));
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _searchConfig = searchConfig?.Value ?? throw new ArgumentNullException(nameof(searchConfig));
@@ -68,12 +65,9 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     /// <summary>
     /// Initialize the Agent Framework adapter with registered agents
     /// </summary>
-    private void InitializeFrameworkAdapter()
-    {
-        foreach (var agent in _agents)
-        {
-            var toolName = agent.AgentType switch
-            {
+    private void InitializeFrameworkAdapter() {
+        foreach (var agent in _agents) {
+            var toolName = agent.AgentType switch {
                 SearchAgentType.VectorSearch => "vector_search",
                 SearchAgentType.WebSearch => "web_search",
                 SearchAgentType.PDFSearch => "pdf_search",
@@ -91,16 +85,13 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     /// <summary>
     /// Initialize MCP tool configurations
     /// </summary>
-    private void InitializeMcpTools()
-    {
-        try
-        {
+    private void InitializeMcpTools() {
+        try {
             // Load enabled tools on startup
             _cacheMcpToolsAsync().GetAwaiter().GetResult();
             _logger.LogInformation("MCP tools initialized successfully");
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Failed to initialize MCP tools on startup - will retry later");
         }
     }
@@ -108,24 +99,20 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     /// <summary>
     /// Cache enabled MCP tools with refresh interval
     /// </summary>
-    private async Task _cacheMcpToolsAsync()
-    {
+    private async Task _cacheMcpToolsAsync() {
         var now = DateTime.UtcNow;
         if (_lastToolRefresh != DateTime.MinValue &&
-            (now - _lastToolRefresh) < _toolRefreshInterval)
-        {
+            (now - _lastToolRefresh) < _toolRefreshInterval) {
             // Use cached tools if refresh interval hasn't elapsed
             return;
         }
 
-        try
-        {
+        try {
             _cachedEnabledTools = await _mcpConfigProvider.GetEnabledToolsAsync();
             _lastToolRefresh = now;
             _logger.LogDebug("Cached {ToolCount} enabled MCP tools", _cachedEnabledTools.Length);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Failed to load MCP tools - orchestration will continue with builtin agents only");
             _cachedEnabledTools ??= Array.Empty<McpToolConfiguration>();
         }
@@ -134,8 +121,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     /// <summary>
     /// Get enabled MCP tools for current execution
     /// </summary>
-    private async Task<McpToolConfiguration[]> GetEnabledMcpToolsAsync()
-    {
+    private async Task<McpToolConfiguration[]> GetEnabledMcpToolsAsync() {
         await _cacheMcpToolsAsync();
         return _cachedEnabledTools ?? Array.Empty<McpToolConfiguration>();
     }
@@ -143,10 +129,8 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     #region IAgentOrchestrator Implementation
 
     /// <inheritdoc />
-    public async Task<SearchResult[]> ExecuteSequentialSearchAsync(string query, SearchContext context)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-        {
+    public async Task<SearchResult[]> ExecuteSequentialSearchAsync(string query, SearchContext context) {
+        if (string.IsNullOrWhiteSpace(query)) {
             _logger.LogWarning("ExecuteSequentialSearchAsync was invoked with an empty query");
             return Array.Empty<SearchResult>();
         }
@@ -157,12 +141,10 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         _executionState.SearchContext = context;
         _executionState.Status = AgentExecutionStatus.Running;
 
-        try
-        {
+        try {
             // Load enabled MCP tools for this execution
             var enabledMcpTools = await GetEnabledMcpToolsAsync();
-            if (enabledMcpTools.Length > 0)
-            {
+            if (enabledMcpTools.Length > 0) {
                 _logger.LogInformation("Executing search with {McpToolCount} enabled MCP tools: {Tools}",
                     enabledMcpTools.Length,
                     string.Join(", ", enabledMcpTools.Select(t => t.ToolId)));
@@ -174,8 +156,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
             _executionState.MarkComplete();
             return results;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _executionState.MarkFailed();
             _logger.LogError(ex, "Sequential search execution failed");
             throw;
@@ -183,16 +164,13 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     }
 
     /// <inheritdoc />
-    public async Task<string> GenerateResponseAsync(SearchResult[] results, string originalQuery)
-    {
-        if (results == null || results.Length == 0)
-        {
+    public async Task<string> GenerateResponseAsync(SearchResult[] results, string originalQuery) {
+        if (results == null || results.Length == 0) {
             _logger.LogWarning("GenerateResponseAsync called with no results – returning empty response.");
             return string.Empty;
         }
 
-        try
-        {
+        try {
             _logger.LogInformation("Generating response for query: {Query}", originalQuery);
 
             var snippets = results.Take(10)
@@ -214,7 +192,7 @@ Answer in markdown:
 """;
 
             var answer = await _openAIClient.GetChatCompletionAsync("gpt-4o-mini", prompt, CancellationToken.None);
-            
+
             _executionState.AddMessage(
                 "ResponseGenerator",
                 $"Generated response of {answer.Length} characters",
@@ -223,8 +201,7 @@ Answer in markdown:
             _logger.LogInformation("Response generated successfully");
             return answer;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to generate response via OpenAI");
             _executionState.RecordError("ResponseGenerator", ex.Message, ex);
             throw;
@@ -232,18 +209,14 @@ Answer in markdown:
     }
 
     /// <inheritdoc />
-    public async Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchParameters options)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-        {
+    public async Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchParameters options) {
+        if (string.IsNullOrWhiteSpace(query)) {
             _logger.LogWarning("OrchestrateSearchAsync was invoked with an empty query");
             return Array.Empty<SearchResult>();
         }
 
-        var context = new SearchContext
-        {
-            Preferences = new SearchPreferences
-            {
+        var context = new SearchContext {
+            Preferences = new SearchPreferences {
                 MaxResults = options.MaxResults,
                 MinRelevanceScore = options.MinRelevanceScore
             }
@@ -253,8 +226,7 @@ Answer in markdown:
     }
 
     /// <inheritdoc />
-    public IEnumerable<ISearchAgent> GetAvailableAgents()
-    {
+    public IEnumerable<ISearchAgent> GetAvailableAgents() {
         return _agents;
     }
 
@@ -267,21 +239,17 @@ Answer in markdown:
     /// This is not part of the public interface yet but can be exposed later.
     /// Implements partial-results aggregation for resilient parallel execution.
     /// </summary>
-    private async Task<SearchResult[]> ExecuteParallelSearchInternalAsync(string query, SearchContext context)
-    {
+    private async Task<SearchResult[]> ExecuteParallelSearchInternalAsync(string query, SearchContext context) {
         var searchParameters = BuildSearchOptions(context);
         var degradedMode = false;
         var failureCount = 0;
 
-        var searchTasks = _agents.Select(async agent =>
-        {
-            try
-            {
+        var searchTasks = _agents.Select(async agent => {
+            try {
                 _logger.LogInformation("Running {AgentType} agent in parallel…", agent.AgentType);
                 return await agent.SearchAsync(query, searchParameters);
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 Interlocked.Increment(ref failureCount);
                 _logger.LogWarning(ex, "Parallel execution – agent {AgentType} failed, continuing with other sources", agent.AgentType);
                 return Array.Empty<SearchResult>();
@@ -289,11 +257,10 @@ Answer in markdown:
         }).ToArray();
 
         var results = await Task.WhenAll(searchTasks);
-        
+
         // Determine if we're operating in degraded mode (at least one agent failed)
         degradedMode = failureCount > 0;
-        if (degradedMode)
-        {
+        if (degradedMode) {
             _logger.LogWarning("Parallel search executed in degraded mode: {FailureCount}/{TotalAgents} agents failed",
                 failureCount, _agents.Count);
         }
@@ -307,8 +274,7 @@ Answer in markdown:
     /// Implements partial-results aggregation with degraded-mode tracking.
     /// When sources fail, continues with remaining available sources and tracks the degradation.
     /// </summary>
-    private async Task<SearchResult[]> ExecuteSequentialRetrievalPolicyAsync(string query, SearchContext context)
-    {
+    private async Task<SearchResult[]> ExecuteSequentialRetrievalPolicyAsync(string query, SearchContext context) {
         var searchParameters = BuildSearchOptions(context);
         var aggregatedResults = new List<SearchResult>();
         var sourceStatuses = new List<SourceExecutionStatus>();
@@ -324,14 +290,11 @@ Answer in markdown:
 
         var stopwatch = Stopwatch.StartNew();
 
-        foreach (var agentType in executionOrder)
-        {
+        foreach (var agentType in executionOrder) {
             var agent = _agents.FirstOrDefault(a => a.AgentType == agentType);
-            if (agent == null)
-            {
+            if (agent == null) {
                 _logger.LogDebug("No agent found for {AgentType}, skipping", agentType);
-                sourceStatuses.Add(new SourceExecutionStatus
-                {
+                sourceStatuses.Add(new SourceExecutionStatus {
                     AgentType = agentType,
                     Succeeded = false,
                     ResultsCount = 0,
@@ -343,8 +306,7 @@ Answer in markdown:
 
             var agentStopwatch = Stopwatch.StartNew();
 
-            try
-            {
+            try {
                 _logger.LogInformation("Executing {AgentType} in sequential retrieval policy…", agentType);
 
                 var results = await agent.SearchAsync(query, searchParameters);
@@ -354,8 +316,7 @@ Answer in markdown:
                 executionMetrics[agentType] = (agentStopwatch.Elapsed, resultsCount);
                 aggregatedResults.AddRange(results);
 
-                sourceStatuses.Add(new SourceExecutionStatus
-                {
+                sourceStatuses.Add(new SourceExecutionStatus {
                     AgentType = agentType,
                     Succeeded = true,
                     ResultsCount = resultsCount,
@@ -367,19 +328,16 @@ Answer in markdown:
                     agentType, resultsCount, agentStopwatch.ElapsedMilliseconds);
 
                 // Early exit if we have enough results and this is a high-confidence source
-                if (aggregatedResults.Count >= searchParameters.MaxResults && agentType == SearchAgentType.VectorSearch)
-                {
+                if (aggregatedResults.Count >= searchParameters.MaxResults && agentType == SearchAgentType.VectorSearch) {
                     _logger.LogInformation("Sufficient results from primary index search, skipping fallback sources");
                     break;
                 }
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 agentStopwatch.Stop();
                 var errorMessage = ex.Message ?? ex.GetType().Name;
-                
-                sourceStatuses.Add(new SourceExecutionStatus
-                {
+
+                sourceStatuses.Add(new SourceExecutionStatus {
                     AgentType = agentType,
                     Succeeded = false,
                     ResultsCount = 0,
@@ -387,7 +345,7 @@ Answer in markdown:
                     ErrorMessage = errorMessage
                 });
 
-                _logger.LogWarning(ex, 
+                _logger.LogWarning(ex,
                     "Agent {AgentType} failed after {Duration}ms in sequential policy – continuing with remaining sources. Error: {ErrorMessage}",
                     agentType, agentStopwatch.ElapsedMilliseconds, errorMessage);
 
@@ -405,8 +363,7 @@ Answer in markdown:
         // Get correlation ID for telemetry tracing
         var correlationId = _correlationService.GetOrCreateCorrelationId();
 
-        if (degradedMode)
-        {
+        if (degradedMode) {
             var failedSourceNames = string.Join(", ", failedSources.Select(s => s.AgentType.ToString()));
             var failedSourceList = failedSources.Select(s => s.AgentType.ToString()).ToList();
             var availableSourceList = successfulSources.Select(s => s.AgentType.ToString()).ToList();
@@ -425,8 +382,7 @@ Answer in markdown:
                 aggregatedResults.Count);
 
             // Track individual source failures
-            foreach (var failedSource in failedSources)
-            {
+            foreach (var failedSource in failedSources) {
                 _telemetryService.TrackSourceFailure(
                     correlationId,
                     failedSource.AgentType.ToString(),
@@ -434,8 +390,7 @@ Answer in markdown:
                     failedSource.Duration);
             }
         }
-        else
-        {
+        else {
             _logger.LogInformation(
                 "Sequential retrieval policy completed successfully in {Duration}ms with {TotalResults} total results from {SourceCount} sources",
                 stopwatch.ElapsedMilliseconds, aggregatedResults.Count, successfulSources.Count);
@@ -453,10 +408,8 @@ Answer in markdown:
             degradedMode);
 
         // Update search pattern metrics with source execution status tracking
-        if (context?.QueryContext != null)
-        {
-            context.QueryContext.AdditionalProperties["SearchPatternMetrics"] = new SearchPatternMetrics
-            {
+        if (context?.QueryContext != null) {
+            context.QueryContext.AdditionalProperties["SearchPatternMetrics"] = new SearchPatternMetrics {
                 VectorSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.VectorSearch),
                 WebSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.WebSearch),
                 PDFSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.PDFSearch),
@@ -470,8 +423,7 @@ Answer in markdown:
 
             // Add degraded mode tracking for telemetry (T098)
             context.QueryContext.AdditionalProperties["DegradedMode"] = degradedMode;
-            if (degradedMode)
-            {
+            if (degradedMode) {
                 context.QueryContext.AdditionalProperties["FailedSources"] = failedSources
                     .Select(s => new { s.AgentType, s.ErrorMessage })
                     .ToList();
@@ -492,13 +444,10 @@ Answer in markdown:
     /// Fuses and ranks search results from multiple agents.
     /// When degraded mode is active, adds metadata indicating which sources were unavailable.
     /// </summary>
-    private async Task<SearchResult[]> FuseAndRankResultsAsync(List<SearchResult> results, string query, SearchParameters options, bool degradedMode)
-    {
-        if (results.Count == 0)
-        {
+    private async Task<SearchResult[]> FuseAndRankResultsAsync(List<SearchResult> results, string query, SearchParameters options, bool degradedMode) {
+        if (results.Count == 0) {
             // Log when no results are available even in degraded mode
-            if (degradedMode)
-            {
+            if (degradedMode) {
                 _logger.LogWarning("No results available from any source despite degraded mode retry logic");
             }
             return Array.Empty<SearchResult>();
@@ -510,35 +459,24 @@ Answer in markdown:
                               .ToList();
 
         // Optionally apply semantic ranking.
-        if (_searchConfig.EnableSemanticRanking)
-        {
-            try
-            {
+        if (_searchConfig.EnableSemanticRanking) {
+            try {
                 deduped = await ApplySemanticRankingAsync(query, deduped);
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogWarning(ex, "Semantic ranking failed – falling back to relevance score only");
                 deduped = deduped.OrderByDescending(r => r.RelevanceScore).ToList();
             }
         }
-        else
-        {
+        else {
             deduped = deduped.OrderByDescending(r => r.RelevanceScore).ToList();
         }
 
         var finalResults = deduped.Take(options.MaxResults).ToArray();
 
         // Add degraded mode metadata to results for UI/client awareness
-        if (degradedMode && finalResults.Length > 0)
-        {
-            foreach (var result in finalResults)
-            {
-                if (result.Metadata == null)
-                {
-                    result.Metadata = new Dictionary<string, object>();
-                }
-                
+        if (degradedMode && finalResults.Length > 0) {
+            foreach (var result in finalResults) {
                 result.Metadata["DegradedMode"] = true;
                 result.Metadata["Note"] = "Results from partial sources due to unavailable service(s). Results may be incomplete.";
             }
@@ -547,8 +485,7 @@ Answer in markdown:
         return finalResults;
     }
 
-    private async Task<List<SearchResult>> ApplySemanticRankingAsync(string query, List<SearchResult> results)
-    {
+    private async Task<List<SearchResult>> ApplySemanticRankingAsync(string query, List<SearchResult> results) {
         // Generate embedding for the query.
         var queryEmbedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", query, CancellationToken.None);
 
@@ -557,8 +494,7 @@ Answer in markdown:
         var resultEmbeddings = await _openAIClient.GetEmbeddingsAsync("text-embedding-3-large", contents, CancellationToken.None);
 
         var scored = new List<(SearchResult Result, double Score)>();
-        for (var i = 0; i < results.Count; i++)
-        {
+        for (var i = 0; i < results.Count; i++) {
             var semanticScore = CosineSimilarity(queryEmbedding, resultEmbeddings[i]);
             // Blend the agent-provided relevance score with the semantic similarity.
             var blendedScore = results[i].RelevanceScore * 0.7 + (float)semanticScore * 0.3f;
@@ -568,14 +504,12 @@ Answer in markdown:
         return scored.OrderByDescending(s => s.Score).Select(s => s.Result).ToList();
     }
 
-    private static double CosineSimilarity(float[] v1, float[] v2)
-    {
+    private static double CosineSimilarity(float[] v1, float[] v2) {
         if (v1.Length != v2.Length)
             return 0;
 
         double dot = 0, mag1 = 0, mag2 = 0;
-        for (int i = 0; i < v1.Length; i++)
-        {
+        for (int i = 0; i < v1.Length; i++) {
             dot += v1[i] * v2[i];
             mag1 += Math.Pow(v1[i], 2);
             mag2 += Math.Pow(v2[i], 2);
@@ -588,8 +522,7 @@ Answer in markdown:
 
     #region Helpers
 
-    private static SearchParameters BuildSearchOptions(SearchContext context)
-    {
+    private static SearchParameters BuildSearchOptions(SearchContext context) {
         var prefs = context.Preferences ?? new SearchPreferences();
         return new SearchParameters {
             MaxResults = prefs.MaxResults,
@@ -599,8 +532,7 @@ Answer in markdown:
         };
     }
 
-    private static string Truncate(string text, int maxLength)
-    {
+    private static string Truncate(string text, int maxLength) {
         if (string.IsNullOrWhiteSpace(text) || text.Length <= maxLength)
             return text;
         return text[..maxLength] + "…";

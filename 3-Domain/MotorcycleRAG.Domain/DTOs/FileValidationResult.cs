@@ -1,18 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace MotorcycleRAG.Domain.DTOs;
 
 /// <summary>
 /// File validation result
 /// </summary>
-public class FileValidationResult
-{
+public class FileValidationResult {
     public bool IsValid { get; set; } = true;
 
-    public List<string> Errors { get; set; } = new();
+    public Collection<string> Errors { get; } = new();
 
-    public List<string> Warnings { get; set; } = new();
+    public Collection<string> Warnings { get; } = new();
 
     public FileType DetectedFileType { get; set; }
 
@@ -20,16 +20,14 @@ public class FileValidationResult
 
     public long FileSize { get; set; }
 
-    public Dictionary<string, object> Properties { get; set; } = new();
+    public Dictionary<string, object> Properties { get; } = new();
 
-    public void AddError(string error)
-    {
+    public void AddError(string error) {
         Errors.Add(error);
         IsValid = false;
     }
 
-    public void AddWarning(string warning)
-    {
+    public void AddWarning(string warning) {
         Warnings.Add(warning);
     }
 }

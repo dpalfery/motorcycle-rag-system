@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace MotorcycleRAG.Domain.DTOs;
 
 /// <summary>
 /// Batch pipeline processing result
 /// </summary>
-public class BatchPipelineResult
-{
+public class BatchPipelineResult {
     public string BatchId { get; set; } = Guid.NewGuid().ToString();
 
     public DateTime StartTime { get; set; } = DateTime.UtcNow;
@@ -22,9 +22,9 @@ public class BatchPipelineResult
 
     public int Failed { get; set; }
 
-    public List<PipelineExecutionResult> Results { get; set; } = new();
+    public Collection<PipelineExecutionResult> Results { get; } = new();
 
-    public Dictionary<string, object> BatchMetrics { get; set; } = new();
+    public Dictionary<string, object> BatchMetrics { get; } = new();
 
     public bool IsCompleted => EndTime.HasValue;
 

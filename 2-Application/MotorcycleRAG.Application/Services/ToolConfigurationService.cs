@@ -12,8 +12,7 @@ namespace MotorcycleRAG.Application.Services;
 /// Orchestrates between the Presentation layer and Persistence layer.
 /// Implements validation, security checks, and audit logging.
 /// </summary>
-public class ToolConfigurationService : IToolConfigurationService
-{
+public class ToolConfigurationService : IToolConfigurationService {
     /// <summary>
     /// CQ-001: Constants for allowed ports (extracted from magic numbers).
     /// Standard ports for production use.
@@ -35,8 +34,7 @@ public class ToolConfigurationService : IToolConfigurationService
         IToolConfigurationRepository configRepository,
         IToolConfigurationAuditRepository auditRepository,
         IMcpConfigurationProvider configProvider,
-        ILogger<ToolConfigurationService> logger)
-    {
+        ILogger<ToolConfigurationService> logger) {
         _configRepository = configRepository ?? throw new ArgumentNullException(nameof(configRepository));
         _auditRepository = auditRepository ?? throw new ArgumentNullException(nameof(auditRepository));
         _configProvider = configProvider ?? throw new ArgumentNullException(nameof(configProvider));
@@ -46,15 +44,12 @@ public class ToolConfigurationService : IToolConfigurationService
     /// <summary>
     /// Get all tool configurations.
     /// </summary>
-    public async Task<McpToolConfiguration[]> GetAllToolsAsync()
-    {
-        try
-        {
+    public async Task<McpToolConfiguration[]> GetAllToolsAsync() {
+        try {
             var configs = await _configRepository.GetAllAsync();
             return configs.OrderBy(c => c.CreatedAt).ToArray();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving all tool configurations");
             throw;
         }
@@ -63,17 +58,14 @@ public class ToolConfigurationService : IToolConfigurationService
     /// <summary>
     /// Get a specific tool configuration by tool ID.
     /// </summary>
-    public async Task<McpToolConfiguration?> GetToolAsync(string toolId)
-    {
+    public async Task<McpToolConfiguration?> GetToolAsync(string toolId) {
         if (string.IsNullOrWhiteSpace(toolId))
             return null;
 
-        try
-        {
+        try {
             return await _configRepository.GetByToolIdAsync(toolId);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving tool configuration for {ToolId}", toolId);
             throw;
         }
@@ -82,14 +74,11 @@ public class ToolConfigurationService : IToolConfigurationService
     /// <summary>
     /// Get all enabled tools for orchestration.
     /// </summary>
-    public async Task<McpToolConfiguration[]> GetEnabledToolsAsync()
-    {
-        try
-        {
+    public async Task<McpToolConfiguration[]> GetEnabledToolsAsync() {
+        try {
             return await _configRepository.GetEnabledAsync();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving enabled tool configurations");
             throw;
         }
@@ -100,16 +89,14 @@ public class ToolConfigurationService : IToolConfigurationService
     /// </summary>
     public async Task<McpToolConfiguration> CreateToolAsync(
         McpToolConfiguration configuration,
-        string? userId = null)
-    {
+        string? userId = null) {
         if (configuration == null)
             throw new ArgumentNullException(nameof(configuration));
 
         if (string.IsNullOrWhiteSpace(configuration.ToolId))
             throw new ArgumentException("Tool ID must not be empty", nameof(configuration));
 
-        try
-        {
+        try {
             // Validate the configuration
             if (!await ValidateToolAsync(configuration))
                 throw new InvalidOperationException("Tool configuration validation failed");
@@ -144,8 +131,7 @@ public class ToolConfigurationService : IToolConfigurationService
 
             return savedConfig;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error creating MCP tool {ToolId}", configuration.ToolId);
             throw;
         }
@@ -158,16 +144,14 @@ public class ToolConfigurationService : IToolConfigurationService
         string toolId,
         McpToolConfiguration configuration,
         string? changeReason = null,
-        string? userId = null)
-    {
+        string? userId = null) {
         if (string.IsNullOrWhiteSpace(toolId))
             throw new ArgumentException("Tool ID must not be empty", nameof(toolId));
 
         if (configuration == null)
             throw new ArgumentNullException(nameof(configuration));
 
-        try
-        {
+        try {
             // Get existing configuration
             var existingConfig = await _configRepository.GetByToolIdAsync(toolId);
             if (existingConfig == null)
@@ -213,8 +197,7 @@ public class ToolConfigurationService : IToolConfigurationService
 
             return updatedConfig;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error updating MCP tool {ToolId}", toolId);
             throw;
         }
@@ -223,13 +206,11 @@ public class ToolConfigurationService : IToolConfigurationService
     /// <summary>
     /// Enable a tool configuration.
     /// </summary>
-    public async Task<McpToolConfiguration> EnableToolAsync(string toolId, string? userId = null)
-    {
+    public async Task<McpToolConfiguration> EnableToolAsync(string toolId, string? userId = null) {
         if (string.IsNullOrWhiteSpace(toolId))
             throw new ArgumentException("Tool ID must not be empty", nameof(toolId));
 
-        try
-        {
+        try {
             var config = await _configRepository.GetByToolIdAsync(toolId);
             if (config == null)
                 throw new InvalidOperationException($"Tool with ID '{toolId}' not found");
@@ -260,8 +241,7 @@ public class ToolConfigurationService : IToolConfigurationService
 
             return updatedConfig;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error enabling MCP tool {ToolId}", toolId);
             throw;
         }
@@ -273,16 +253,14 @@ public class ToolConfigurationService : IToolConfigurationService
     public async Task<McpToolConfiguration> DisableToolAsync(
         string toolId,
         string reason,
-        string? userId = null)
-    {
+        string? userId = null) {
         if (string.IsNullOrWhiteSpace(toolId))
             throw new ArgumentException("Tool ID must not be empty", nameof(toolId));
 
         if (string.IsNullOrWhiteSpace(reason))
             throw new ArgumentException("Disable reason must not be empty", nameof(reason));
 
-        try
-        {
+        try {
             var config = await _configRepository.GetByToolIdAsync(toolId);
             if (config == null)
                 throw new InvalidOperationException($"Tool with ID '{toolId}' not found");
@@ -313,8 +291,7 @@ public class ToolConfigurationService : IToolConfigurationService
 
             return updatedConfig;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error disabling MCP tool {ToolId}", toolId);
             throw;
         }
@@ -324,55 +301,47 @@ public class ToolConfigurationService : IToolConfigurationService
     /// Validate a tool configuration is accessible and correctly configured.
     /// Performs comprehensive SSRF protection and security checks.
     /// </summary>
-    public async Task<bool> ValidateToolAsync(McpToolConfiguration tool)
-    {
+    public async Task<bool> ValidateToolAsync(McpToolConfiguration tool) {
         if (tool == null)
             return false;
 
         // CQ-002: Standardized null check using IsNullOrWhiteSpace
-        if (!tool.IsEnabled && string.IsNullOrWhiteSpace(tool.DisabledReason))
-        {
+        if (!tool.IsEnabled && string.IsNullOrWhiteSpace(tool.DisabledReason)) {
             _logger.LogWarning("Tool {ToolId} is disabled without reason", tool.ToolId);
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(tool.ServerUrl))
-        {
+        if (tool.ServerUrl == null) {
             _logger.LogWarning("Tool {ToolId} has no server URL configured", tool.ToolId);
             return false;
         }
 
         // Validate URL with SSRF protection
-        if (!IsValidMcpServerUrl(tool.ServerUrl))
-        {
+        if (!IsValidMcpServerUrl(tool.ServerUrl?.ToString() ?? string.Empty)) {
             _logger.LogWarning("Tool {ToolId} has invalid or disallowed server URL: {ServerUrl}",
                 tool.ToolId, tool.ServerUrl);
             return false;
         }
 
         // Check timeout configuration
-        if (tool.TimeoutMs.HasValue && tool.TimeoutMs <= 0)
-        {
+        if (tool.TimeoutMs.HasValue && tool.TimeoutMs <= 0) {
             _logger.LogWarning("Tool {ToolId} has invalid timeout configuration: {Timeout}ms",
                 tool.ToolId, tool.TimeoutMs);
             return false;
         }
 
         // Validate configuration JSON if provided
-        if (!string.IsNullOrWhiteSpace(tool.ConfigurationJson))
-        {
+        if (!string.IsNullOrWhiteSpace(tool.ConfigurationJson)) {
             if (tool.ConfigurationJson.Length > 10240) // 10KB limit
             {
                 _logger.LogWarning("Tool {ToolId} configuration JSON exceeds 10KB limit", tool.ToolId);
                 return false;
             }
 
-            try
-            {
+            try {
                 JsonDocument.Parse(tool.ConfigurationJson);
             }
-            catch (JsonException ex)
-            {
+            catch (JsonException ex) {
                 _logger.LogWarning(ex, "Tool {ToolId} has invalid configuration JSON", tool.ToolId);
                 return false;
             }
@@ -385,16 +354,13 @@ public class ToolConfigurationService : IToolConfigurationService
     /// <summary>
     /// Delete a tool configuration.
     /// </summary>
-    public async Task<bool> DeleteToolAsync(string toolId, string? userId = null)
-    {
+    public async Task<bool> DeleteToolAsync(string toolId, string? userId = null) {
         if (string.IsNullOrWhiteSpace(toolId))
             throw new ArgumentException("Tool ID must not be empty", nameof(toolId));
 
-        try
-        {
+        try {
             var config = await _configRepository.GetByToolIdAsync(toolId);
-            if (config == null)
-            {
+            if (config == null) {
                 _logger.LogWarning("Tool {ToolId} not found for deletion", toolId);
                 return false;
             }
@@ -405,8 +371,7 @@ public class ToolConfigurationService : IToolConfigurationService
             // Delete from database
             var deleted = await _configRepository.DeleteAsync(config.Id);
 
-            if (deleted)
-            {
+            if (deleted) {
                 // Record audit entry
                 await _auditRepository.RecordChangeAsync(
                     config.Id,
@@ -424,8 +389,7 @@ public class ToolConfigurationService : IToolConfigurationService
 
             return deleted;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error deleting MCP tool {ToolId}", toolId);
             throw;
         }
@@ -436,8 +400,7 @@ public class ToolConfigurationService : IToolConfigurationService
     /// OWASP A01:2021 - Injection / SSRF Protection.
     /// SC-002: Development ports (8000-8009) restricted to localhost only.
     /// </summary>
-    private bool IsValidMcpServerUrl(string serverUrl)
-    {
+    private bool IsValidMcpServerUrl(string serverUrl) {
         if (string.IsNullOrWhiteSpace(serverUrl))
             return false;
 
@@ -462,21 +425,17 @@ public class ToolConfigurationService : IToolConfigurationService
 
         // CQ-001 + SC-002: Port validation using constants
         // Development ports allowed only on localhost, standard ports allowed everywhere
-        if (uri.Port > 0)
-        {
-            if (DevelopmentPorts.Contains(uri.Port))
-            {
+        if (uri.Port > 0) {
+            if (DevelopmentPorts.Contains(uri.Port)) {
                 // SC-002: Development ports MUST be on localhost only
-                if (!IsLocalhostAddress(uri.Host))
-                {
+                if (!IsLocalhostAddress(uri.Host)) {
                     _logger.LogWarning(
                         "Development port {Port} attempted on non-localhost address: {Host}",
                         uri.Port, uri.Host);
                     return false;
                 }
             }
-            else if (!StandardPorts.Contains(uri.Port))
-            {
+            else if (!StandardPorts.Contains(uri.Port)) {
                 // CQ-001: Port not in allowed lists
                 return false;
             }
@@ -489,8 +448,7 @@ public class ToolConfigurationService : IToolConfigurationService
     /// Check if host is localhost (allowing it for local testing).
     /// SC-002: Used to restrict development ports to localhost only.
     /// </summary>
-    private bool IsLocalhostAddress(string host)
-    {
+    private bool IsLocalhostAddress(string host) {
         return host == "localhost" || host == "127.0.0.1" || host == "::1";
     }
 
@@ -498,16 +456,14 @@ public class ToolConfigurationService : IToolConfigurationService
     /// Check if host is loopback (localhost, 127.0.0.1, ::1, etc.).
     /// SSRF Protection: Blocks all loopback addresses for external communication.
     /// </summary>
-    private bool IsLoopbackAddress(string host)
-    {
+    private bool IsLoopbackAddress(string host) {
         return IsLocalhostAddress(host);
     }
 
     /// <summary>
     /// Check if IP is in private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
     /// </summary>
-    private bool IsPrivateIpAddress(string host)
-    {
+    private bool IsPrivateIpAddress(string host) {
         if (!IPAddress.TryParse(host, out var ipAddress))
             return false;
 
@@ -518,8 +474,7 @@ public class ToolConfigurationService : IToolConfigurationService
             return true;
 
         // Check for 172.16.x.x to 172.31.x.x
-        if (octets.Length == 4 && octets[0] == "172")
-        {
+        if (octets.Length == 4 && octets[0] == "172") {
             if (int.TryParse(octets[1], out var secondOctet) && secondOctet >= 16 && secondOctet <= 31)
                 return true;
         }
@@ -534,8 +489,7 @@ public class ToolConfigurationService : IToolConfigurationService
     /// <summary>
     /// Check if address is reserved or special (link-local, multicast, etc.)
     /// </summary>
-    private bool IsReservedAddress(string host)
-    {
+    private bool IsReservedAddress(string host) {
         if (!IPAddress.TryParse(host, out var ipAddress))
             return false;
 
@@ -550,8 +504,7 @@ public class ToolConfigurationService : IToolConfigurationService
             return true;
 
         // Check for multicast (224.x.x.x to 239.x.x.x)
-        if (octets.Length == 4 && int.TryParse(octets[0], out var firstOctet))
-        {
+        if (octets.Length == 4 && int.TryParse(octets[0], out var firstOctet)) {
             if (firstOctet >= 224 && firstOctet <= 239)
                 return true;
         }
@@ -566,20 +519,17 @@ public class ToolConfigurationService : IToolConfigurationService
     /// <summary>
     /// Get audit history for a specific tool configuration.
     /// </summary>
-    public async Task<ToolConfigurationAuditEntry[]> GetAuditHistoryAsync(Guid configId, int limit = 100)
-    {
+    public async Task<ToolConfigurationAuditEntry[]> GetAuditHistoryAsync(Guid configId, int limit = 100) {
         if (configId == Guid.Empty)
             throw new ArgumentException("Configuration ID must not be empty", nameof(configId));
 
         if (limit <= 0 || limit > 1000)
             throw new ArgumentException("Limit must be between 1 and 1000", nameof(limit));
 
-        try
-        {
+        try {
             return await _auditRepository.GetAuditHistoryAsync(configId, limit);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit history for configuration {ConfigId}", configId);
             throw;
         }
@@ -588,14 +538,11 @@ public class ToolConfigurationService : IToolConfigurationService
     /// <summary>
     /// Get audit summary statistics.
     /// </summary>
-    public async Task<ToolConfigurationAuditSummary> GetAuditSummaryAsync()
-    {
-        try
-        {
+    public async Task<ToolConfigurationAuditSummary> GetAuditSummaryAsync() {
+        try {
             return await _auditRepository.GetAuditSummaryAsync();
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit summary");
             throw;
         }
@@ -604,17 +551,14 @@ public class ToolConfigurationService : IToolConfigurationService
     /// <summary>
     /// Get audit entries filtered by action type.
     /// </summary>
-    public async Task<ToolConfigurationAuditEntry[]> GetAuditEntriesByActionAsync(string action)
-    {
+    public async Task<ToolConfigurationAuditEntry[]> GetAuditEntriesByActionAsync(string action) {
         if (string.IsNullOrWhiteSpace(action))
             throw new ArgumentException("Action must not be empty", nameof(action));
 
-        try
-        {
+        try {
             return await _auditRepository.GetAuditEntriesByActionAsync(action);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit entries for action {Action}", action);
             throw;
         }

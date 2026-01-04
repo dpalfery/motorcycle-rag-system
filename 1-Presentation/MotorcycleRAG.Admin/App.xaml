@@ -7,8 +7,8 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
-                <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
+                <ResourceDictionary Source="Resources/Styles/Colors.xaml"/>
+                <ResourceDictionary Source="Resources/Styles/Styles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <!-- ========== Material Design 3 Color System ========== -->
@@ -50,29 +50,29 @@
 
             <!-- ========== Typography Tokens ========== -->
             <!-- Display Styles (Largest) -->
-            <FontSize x:Key="FontSizeDisplayLarge">57</FontSize>
-            <FontSize x:Key="FontSizeDisplayMedium">45</FontSize>
-            <FontSize x:Key="FontSizeDisplaySmall">36</FontSize>
+            <x:Double x:Key="FontSizeDisplayLarge">57</x:Double>
+            <x:Double x:Key="FontSizeDisplayMedium">45</x:Double>
+            <x:Double x:Key="FontSizeDisplaySmall">36</x:Double>
 
             <!-- Headline Styles -->
-            <FontSize x:Key="FontSizeHeadlineLarge">32</FontSize>
-            <FontSize x:Key="FontSizeHeadlineMedium">28</FontSize>
-            <FontSize x:Key="FontSizeHeadlineSmall">24</FontSize>
+            <x:Double x:Key="FontSizeHeadlineLarge">32</x:Double>
+            <x:Double x:Key="FontSizeHeadlineMedium">28</x:Double>
+            <x:Double x:Key="FontSizeHeadlineSmall">24</x:Double>
 
             <!-- Title Styles -->
-            <FontSize x:Key="FontSizeTitleLarge">22</FontSize>
-            <FontSize x:Key="FontSizeTitleMedium">16</FontSize>
-            <FontSize x:Key="FontSizeTitleSmall">14</FontSize>
+            <x:Double x:Key="FontSizeTitleLarge">22</x:Double>
+            <x:Double x:Key="FontSizeTitleMedium">16</x:Double>
+            <x:Double x:Key="FontSizeTitleSmall">14</x:Double>
 
             <!-- Body Styles -->
-            <FontSize x:Key="FontSizeBodyLarge">16</FontSize>
-            <FontSize x:Key="FontSizeBodyMedium">14</FontSize>
-            <FontSize x:Key="FontSizeBodySmall">12</FontSize>
+            <x:Double x:Key="FontSizeBodyLarge">16</x:Double>
+            <x:Double x:Key="FontSizeBodyMedium">14</x:Double>
+            <x:Double x:Key="FontSizeBodySmall">12</x:Double>
 
             <!-- Label Styles (Smallest) -->
-            <FontSize x:Key="FontSizeLabelLarge">14</FontSize>
-            <FontSize x:Key="FontSizeLabelMedium">12</FontSize>
-            <FontSize x:Key="FontSizeLabelSmall">11</FontSize>
+            <x:Double x:Key="FontSizeLabelLarge">14</x:Double>
+            <x:Double x:Key="FontSizeLabelMedium">12</x:Double>
+            <x:Double x:Key="FontSizeLabelSmall">11</x:Double>
 
             <!-- ========== Shape Tokens (Rounded Corners) ========== -->
             <!-- Border radius for different component sizes -->
@@ -103,12 +103,12 @@
             <x:Double x:Key="ElevationLevel5">12</x:Double>
 
             <!-- ========== Value Converters ========== -->
-            <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
-            <converters:StringNotEmptyConverter x:Key="StringNotEmptyConverter" />
-            <converters:PercentageConverter x:Key="PercentageConverter" />
-            <converters:HasValueConverter x:Key="HasValueConverter" />
-            <converters:StringToVisibleConverter x:Key="StringToVisibleConverter" />
-            <converters:EnabledToColorConverter x:Key="EnabledToColorConverter" />
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+            <converters:StringNotEmptyConverter x:Key="StringNotEmptyConverter"/>
+            <converters:PercentageConverter x:Key="PercentageConverter"/>
+            <converters:HasValueConverter x:Key="HasValueConverter"/>
+            <converters:StringToVisibleConverter x:Key="StringToVisibleConverter"/>
+            <converters:EnabledToColorConverter x:Key="EnabledToColorConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

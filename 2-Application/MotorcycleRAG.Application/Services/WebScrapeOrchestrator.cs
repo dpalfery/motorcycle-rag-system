@@ -18,14 +18,13 @@ namespace MotorcycleRAG.Application.Services;
 /// Orchestrates web scraping, content extraction, and indexing operations for web sources.
 /// Coordinates between WebSearchAgent for content extraction and IMotorcycleIndexingService for indexing.
 /// </summary>
-public class WebScrapeOrchestrator : IWebScrapeOrchestrator
-{
+public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     private readonly IWebScrapeRunRepository _webScrapeRunRepository;
     private readonly ISearchAgent _webSearchAgent;
     private readonly IMotorcycleIndexingService _indexingService;
     private readonly IWebSourceRepository _webSourceRepository;
     private readonly ILogger<WebScrapeOrchestrator> _logger;
-    
+
     // Cancellation token management for active scrapes
     private readonly ConcurrentDictionary<long, CancellationTokenSource> _activeScrapes =
         new ConcurrentDictionary<long, CancellationTokenSource>();
@@ -35,8 +34,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
         ISearchAgent webSearchAgent,
         IMotorcycleIndexingService indexingService,
         IWebSourceRepository webSourceRepository,
-        ILogger<WebScrapeOrchestrator> logger)
-    {
+        ILogger<WebScrapeOrchestrator> logger) {
         _webScrapeRunRepository = webScrapeRunRepository ?? throw new ArgumentNullException(nameof(webScrapeRunRepository));
         _webSearchAgent = webSearchAgent ?? throw new ArgumentNullException(nameof(webSearchAgent));
         _indexingService = indexingService ?? throw new ArgumentNullException(nameof(indexingService));
@@ -47,26 +45,21 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Initiates a web scrape run for a specific web source and orchestrates the complete pipeline
     /// </summary>
-    public async Task<long> StartScrapeRunAsync(int webSourceId, CancellationToken cancellationToken = default)
-    {
-        if (webSourceId <= 0)
-        {
+    public async Task<long> StartScrapeRunAsync(int webSourceId, CancellationToken cancellationToken = default) {
+        if (webSourceId <= 0) {
             throw new ArgumentException("Invalid web source ID", nameof(webSourceId));
         }
 
-        try
-        {
+        try {
             _logger.LogInformation("Starting scrape run for web source {WebSourceId}", webSourceId);
 
             // Verify web source exists and is enabled
             var webSource = await _webSourceRepository.GetWebSourceByIdAsync(webSourceId);
-            if (webSource == null)
-            {
+            if (webSource == null) {
                 throw new InvalidOperationException($"Web source with ID {webSourceId} not found");
             }
 
-            if (!webSource.IsEnabled)
-            {
+            if (!webSource.IsEnabled) {
                 throw new InvalidOperationException($"Web source {webSourceId} is not enabled");
             }
 
@@ -78,13 +71,11 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
             var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _activeScrapes.TryAdd(runId, cts);
 
-            try
-            {
+            try {
                 // Execute the scrape pipeline (fire and forget with error handling)
                 _ = ExecuteScrapeAndIndexPipelineAsync(runId, webSource, cts.Token);
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogError(ex, "Error initiating scrape pipeline for run {RunId}", runId);
                 // Mark run as failed immediately
                 await _webScrapeRunRepository.UpdateWebScrapeRunAsync(
@@ -100,8 +91,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
 
             return runId;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to start scrape run for web source {WebSourceId}", webSourceId);
             throw;
         }
@@ -110,31 +100,25 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Cancels a running scrape operation
     /// </summary>
-    public async Task<bool> CancelScrapeRunAsync(long runId)
-    {
-        if (runId <= 0)
-        {
+    public async Task<bool> CancelScrapeRunAsync(long runId) {
+        if (runId <= 0) {
             throw new ArgumentException("Invalid run ID", nameof(runId));
         }
 
-        try
-        {
+        try {
             // Get the current scrape run to verify it's running
             var scrapeRun = await _webScrapeRunRepository.GetWebScrapeRunAsync(runId);
-            if (scrapeRun == null)
-            {
+            if (scrapeRun == null) {
                 throw new InvalidOperationException($"Scrape run {runId} not found");
             }
 
-            if (!scrapeRun.IsRunning)
-            {
+            if (!scrapeRun.IsRunning) {
                 _logger.LogWarning("Scrape run {RunId} is not running (status: {Status})", runId, scrapeRun.Status);
                 return false;
             }
 
             // Signal cancellation
-            if (_activeScrapes.TryGetValue(runId, out var cts))
-            {
+            if (_activeScrapes.TryGetValue(runId, out var cts)) {
                 cts.Cancel();
                 _logger.LogInformation("Cancellation signal sent for scrape run {RunId}", runId);
                 return true;
@@ -143,8 +127,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
             _logger.LogWarning("No active cancellation token found for run {RunId}", runId);
             return false;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to cancel scrape run {RunId}", runId);
             throw;
         }
@@ -153,20 +136,16 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Gets the current status of a scrape run
     /// </summary>
-    public async Task<WebScrapeRun?> GetScrapeRunStatusAsync(long runId)
-    {
-        if (runId <= 0)
-        {
+    public async Task<WebScrapeRun?> GetScrapeRunStatusAsync(long runId) {
+        if (runId <= 0) {
             throw new ArgumentException("Invalid run ID", nameof(runId));
         }
 
-        try
-        {
+        try {
             var scrapeRun = await _webScrapeRunRepository.GetWebScrapeRunAsync(runId);
             return scrapeRun;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to get scrape run status for run {RunId}", runId);
             throw;
         }
@@ -175,25 +154,20 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Gets recent scrape runs for a web source
     /// </summary>
-    public async Task<WebScrapeRun[]> GetRecentScrapeRunsAsync(int webSourceId, int limit = 10)
-    {
-        if (webSourceId <= 0)
-        {
+    public async Task<WebScrapeRun[]> GetRecentScrapeRunsAsync(int webSourceId, int limit = 10) {
+        if (webSourceId <= 0) {
             throw new ArgumentException("Invalid web source ID", nameof(webSourceId));
         }
 
-        if (limit <= 0)
-        {
+        if (limit <= 0) {
             limit = 10;
         }
 
-        try
-        {
+        try {
             var scrapeRuns = await _webScrapeRunRepository.GetRecentScrapeRunsAsync(webSourceId, limit);
             return scrapeRuns;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to get recent scrape runs for web source {WebSourceId}", webSourceId);
             throw;
         }
@@ -202,15 +176,12 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Gets all active/running scrape operations
     /// </summary>
-    public async Task<WebScrapeRun[]> GetActiveScrapeRunsAsync()
-    {
-        try
-        {
+    public async Task<WebScrapeRun[]> GetActiveScrapeRunsAsync() {
+        try {
             var activeScrapes = await _webScrapeRunRepository.GetActiveScrapeRunsAsync();
             return activeScrapes;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to get active scrape runs");
             throw;
         }
@@ -224,16 +195,14 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     private async Task ExecuteScrapeAndIndexPipelineAsync(
         long runId,
         WebSource webSource,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         var stopwatch = Stopwatch.StartNew();
         var pagesCrawled = 0;
         var pagesIndexed = 0;
         var errorsEncountered = 0;
         string? errorMessage = null;
 
-        try
-        {
+        try {
             _logger.LogInformation("Executing scrape and index pipeline for run {RunId}, source URL: {SourceUrl}",
                 runId, webSource.Url);
 
@@ -245,8 +214,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
                 pagesIndexed: 0,
                 errors: 0);
 
-            if (!updateSuccessful)
-            {
+            if (!updateSuccessful) {
                 throw new InvalidOperationException($"Failed to update scrape run {runId} status");
             }
 
@@ -255,8 +223,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
             pagesCrawled = crawlResult.PagesCrawled;
             errorsEncountered = crawlResult.ErrorCount;
 
-            if (pagesCrawled == 0)
-            {
+            if (pagesCrawled == 0) {
                 throw new InvalidOperationException(
                     $"No pages were successfully crawled from {webSource.Url}. Errors: {string.Join("; ", crawlResult.Errors)}");
             }
@@ -267,8 +234,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
             // Step 2: Convert crawled content to motorcycle documents
             var documents = ConvertCrawledContentToDocuments(crawlResult, webSource);
 
-            if (documents.Length == 0)
-            {
+            if (documents.Length == 0) {
                 throw new InvalidOperationException(
                     "No documents could be extracted from crawled content");
             }
@@ -280,8 +246,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
             var indexResult = await IndexDocumentsAsync(documents, cancellationToken);
             pagesIndexed = indexResult.DocumentsIndexed;
 
-            if (indexResult.Errors.Count > 0)
-            {
+            if (indexResult.Errors.Count > 0) {
                 errorsEncountered += indexResult.Errors.Count;
                 _logger.LogWarning("Encountered {ErrorCount} errors during indexing for run {RunId}",
                     indexResult.Errors.Count, runId);
@@ -297,8 +262,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
                 pagesIndexed: pagesIndexed,
                 errors: errorsEncountered);
 
-            if (!finalUpdateSuccessful)
-            {
+            if (!finalUpdateSuccessful) {
                 _logger.LogError("Failed to mark scrape run {RunId} as completed", runId);
             }
 
@@ -309,8 +273,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
             // Update crawl date on the web source
             await UpdateWebSourceCrawlDateAsync(webSource.Id);
         }
-        catch (OperationCanceledException ex)
-        {
+        catch (OperationCanceledException ex) {
             stopwatch.Stop();
             _logger.LogWarning(ex, "Scrape run {RunId} was cancelled. Pages crawled: {PagesCrawled}, indexed: {PagesIndexed}",
                 runId, pagesCrawled, pagesIndexed);
@@ -324,8 +287,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
                 errors: errorsEncountered,
                 errorMessage: errorMessage);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             stopwatch.Stop();
             _logger.LogError(ex,
                 "Scrape and index pipeline failed for run {RunId}. Pages crawled: {PagesCrawled}, indexed: {PagesIndexed}",
@@ -343,22 +305,17 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
                 errors: errorsEncountered,
                 errorMessage: errorMessage);
 
-            if (!failureUpdateSuccessful)
-            {
+            if (!failureUpdateSuccessful) {
                 _logger.LogError("Failed to mark scrape run {RunId} as failed", runId);
             }
         }
-        finally
-        {
+        finally {
             // Clean up cancellation token source with safe disposal
-            if (_activeScrapes.TryRemove(runId, out var cts))
-            {
-                try
-                {
+            if (_activeScrapes.TryRemove(runId, out var cts)) {
+                try {
                     cts?.Dispose();
                 }
-                catch (Exception ex)
-                {
+                catch (Exception ex) {
                     _logger.LogWarning(ex, "Error disposing CancellationTokenSource for run {RunId}", runId);
                 }
             }
@@ -368,12 +325,10 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Crawls content from a web source
     /// </summary>
-    private async Task<CrawlResult> CrawlWebSourceAsync(WebSource webSource, CancellationToken cancellationToken)
-    {
+    private async Task<CrawlResult> CrawlWebSourceAsync(WebSource webSource, CancellationToken cancellationToken) {
         var result = new CrawlResult();
 
-        try
-        {
+        try {
             _logger.LogDebug("Starting web crawl for source: {SourceUrl}", webSource.Url);
 
             // Generate search terms to extract content from the web source
@@ -381,24 +336,21 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
 
             // Execute web search for each term to extract content
             var searchResults = new List<SearchResult>();
-            var searchParams = new SearchParameters
-            {
+            var searchParams = new SearchParameters {
                 MaxResults = 10,
                 MinRelevanceScore = 0.5f,
                 EnableCaching = false
             };
 
-            foreach (var searchTerm in searchTerms)
-            {
+            foreach (var searchTerm in searchTerms) {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                try
-                {
+                try {
                     _logger.LogDebug("Executing web search for term: {SearchTerm} from source {SourceUrl}",
                         searchTerm, webSource.Url);
 
                     var termResults = await _webSearchAgent.SearchAsync(searchTerm, searchParams);
-                    
+
                     // Filter results to only include content from the target web source
                     var sourceSpecificResults = termResults
                         .Where(r => IsResultFromWebSource(r, webSource))
@@ -410,8 +362,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
                     _logger.LogDebug("Retrieved {ResultCount} results for search term: {SearchTerm}",
                         sourceSpecificResults.Count, searchTerm);
                 }
-                catch (Exception ex)
-                {
+                catch (Exception ex) {
                     result.ErrorCount++;
                     result.Errors.Add($"Error searching for term '{searchTerm}': {ex.Message}");
                     _logger.LogWarning(ex, "Failed to crawl content for search term: {SearchTerm}", searchTerm);
@@ -420,8 +371,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
 
             result.CrawledContent = searchResults;
 
-            if (result.PagesCrawled == 0)
-            {
+            if (result.PagesCrawled == 0) {
                 result.Errors.Add($"No content could be crawled from web source: {webSource.Url}");
             }
 
@@ -430,12 +380,10 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
 
             return result;
         }
-        catch (OperationCanceledException)
-        {
+        catch (OperationCanceledException) {
             throw;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Web crawl failed for source: {SourceUrl}", webSource.Url);
             result.Errors.Add($"Web crawl failed: {ex.Message}");
             result.ErrorCount++;
@@ -446,14 +394,12 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Generates search terms appropriate for extracting content from a web source
     /// </summary>
-    private List<string> GenerateSearchTermsForSource(WebSource webSource)
-    {
+    private List<string> GenerateSearchTermsForSource(WebSource webSource) {
         var searchTerms = new List<string>();
 
         // Note: Custom search terms not yet implemented - use default motorcycle terms
         // Add default motorcycle-related search terms
-        if (searchTerms.Count == 0)
-        {
+        if (searchTerms.Count == 0) {
             searchTerms.AddRange(new[]
             {
                 "motorcycle specifications",
@@ -473,43 +419,37 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Determines if a search result is from the target web source
     /// </summary>
-    private bool IsResultFromWebSource(SearchResult result, WebSource webSource)
-    {
-        if (result?.Source?.SourceUrl == null || webSource?.Url == null)
-        {
+    private bool IsResultFromWebSource(SearchResult result, WebSource webSource) {
+        if (result?.Source?.SourceUrl == null || webSource?.Url == null) {
             return false;
         }
 
         // Check if the result's source URL contains the web source domain
-        var resultUrl = result.Source.SourceUrl.ToLowerInvariant();
-        var sourceUrl = webSource.Url.ToLowerInvariant();
+        var resultUrl = result.Source.SourceUrl?.ToString()?.ToLowerInvariant() ?? string.Empty;
+        var sourceUrl = webSource.Url?.ToLowerInvariant() ?? string.Empty;
 
         // Extract domain from URLs for comparison
         var resultDomain = ExtractDomainFromUrl(resultUrl);
         var sourceDomain = ExtractDomainFromUrl(sourceUrl);
 
-        return !string.IsNullOrEmpty(resultDomain) && 
-               !string.IsNullOrEmpty(sourceDomain) && 
+        return !string.IsNullOrEmpty(resultDomain) &&
+               !string.IsNullOrEmpty(sourceDomain) &&
                resultDomain == sourceDomain;
     }
 
     /// <summary>
     /// Extracts the domain from a URL
     /// </summary>
-    private string ExtractDomainFromUrl(string url)
-    {
-        try
-        {
-            if (!url.StartsWith("http"))
-            {
+    private string ExtractDomainFromUrl(string url) {
+        try {
+            if (!url.StartsWith("http")) {
                 url = "http://" + url;
             }
 
             var uri = new Uri(url);
             return uri.Host.ToLowerInvariant();
         }
-        catch
-        {
+        catch {
             return string.Empty;
         }
     }
@@ -519,31 +459,28 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// </summary>
     private MotorcycleDocument[] ConvertCrawledContentToDocuments(
         CrawlResult crawlResult,
-        WebSource webSource)
-    {
+        WebSource webSource) {
         var documents = new List<MotorcycleDocument>();
 
-        foreach (var searchResult in crawlResult.CrawledContent)
-        {
-            try
-            {
-                var document = new MotorcycleDocument
-                {
+        foreach (var searchResult in crawlResult.CrawledContent) {
+            try {
+                var document = new MotorcycleDocument {
                     Id = $"web_{searchResult.Id}_{DateTime.UtcNow.Ticks}",
                     Title = searchResult.Source.SourceName ?? webSource.Name,
                     Content = searchResult.Content,
                     Type = Domain.Enums.DocumentType.WebContent,
-                    Metadata = new DocumentMetadata
-                    {
-                        SourceUrl = webSource.Url
-                    },
+                    Metadata = new DocumentMetadata(),
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
 
+                // Map SourceUrl safely
+                if (Uri.TryCreate(webSource.Url, UriKind.Absolute, out var parsed)) {
+                    document.Metadata.SourceUrl = parsed;
+                }
+
                 // Add additional metadata from search result and web source
-                var additionalMetadata = new Dictionary<string, object>
-                {
+                var additionalMetadata = new Dictionary<string, object> {
                     ["webSourceId"] = webSource.Id,
                     ["webSourceName"] = webSource.Name,
                     ["relevanceScore"] = searchResult.RelevanceScore,
@@ -552,20 +489,19 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
                 };
 
                 // Preserve metadata from search result
-                if (searchResult.Metadata != null && searchResult.Metadata.Count > 0)
-                {
-                    foreach (var kvp in searchResult.Metadata)
-                    {
+                if (searchResult.Metadata != null && searchResult.Metadata.Count > 0) {
+                    foreach (var kvp in searchResult.Metadata) {
                         additionalMetadata[kvp.Key] = kvp.Value;
                     }
                 }
 
-                document.Metadata.AdditionalProperties = additionalMetadata;
+                foreach (var kvp in additionalMetadata) {
+                    document.Metadata.AdditionalProperties[kvp.Key] = kvp.Value;
+                }
 
                 documents.Add(document);
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to convert search result to document: {ResultId}",
                     searchResult.Id);
             }
@@ -582,10 +518,8 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// </summary>
     private async Task<BatchIndexingResult> IndexDocumentsAsync(
         MotorcycleDocument[] documents,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
+        CancellationToken cancellationToken) {
+        try {
             _logger.LogInformation("Starting indexing of {DocumentCount} documents", documents.Length);
 
             var indexResult = await _indexingService.IndexDocumentsAsync(documents);
@@ -595,13 +529,11 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
 
             return indexResult;
         }
-        catch (OperationCanceledException)
-        {
+        catch (OperationCanceledException) {
             _logger.LogWarning("Indexing was cancelled");
             throw;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Indexing failed");
             throw;
         }
@@ -610,20 +542,16 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Updates the crawl date on a web source
     /// </summary>
-    private async Task UpdateWebSourceCrawlDateAsync(int webSourceId)
-    {
-        try
-        {
+    private async Task UpdateWebSourceCrawlDateAsync(int webSourceId) {
+        try {
             var webSource = await _webSourceRepository.GetWebSourceByIdAsync(webSourceId);
-            if (webSource != null)
-            {
+            if (webSource != null) {
                 webSource.LastCrawledDate = DateTime.UtcNow;
                 await _webSourceRepository.UpdateWebSourceAsync(webSource);
                 _logger.LogDebug("Updated crawl date for web source {WebSourceId}", webSourceId);
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogWarning(ex, "Failed to update crawl date for web source {WebSourceId}", webSourceId);
         }
     }
@@ -631,15 +559,12 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Truncates error message to a maximum length
     /// </summary>
-    private string TruncateErrorMessage(string message, int maxLength)
-    {
-        if (string.IsNullOrEmpty(message))
-        {
+    private string TruncateErrorMessage(string message, int maxLength) {
+        if (string.IsNullOrEmpty(message)) {
             return string.Empty;
         }
 
-        if (message.Length <= maxLength)
-        {
+        if (message.Length <= maxLength) {
             return message;
         }
 
@@ -653,8 +578,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator
     /// <summary>
     /// Result of crawling a web source
     /// </summary>
-    private class CrawlResult
-    {
+    private class CrawlResult {
         public int PagesCrawled { get; set; }
         public int ErrorCount { get; set; }
         public List<string> Errors { get; set; } = new();

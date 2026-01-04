@@ -1,5 +1,5 @@
 ---
-name: dotnet-dev
+name: frontend-dev
 description: PROACTIVELY use for Frontend development, React coding, client side implementation, and code generation. Expert in feature slice design, MUI with Pigment CSS.
 tools: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch
 model: haiku

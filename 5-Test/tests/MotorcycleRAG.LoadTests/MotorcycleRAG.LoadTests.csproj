@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts.Models\MotorcycleRAG.Contracts.Models.csproj" />
   </ItemGroup>
 
   <ItemGroup>

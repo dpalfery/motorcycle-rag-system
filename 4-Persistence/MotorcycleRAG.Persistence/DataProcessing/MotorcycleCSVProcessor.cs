@@ -14,8 +14,7 @@ namespace MotorcycleRAG.Persistence.DataProcessing;
 /// Processes CSV files containing motorcycle specifications with row-based chunking
 /// and embedding generation using text-embedding-3-large model
 /// </summary>
-public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
-{
+public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly IAzureSearchClient _searchClient;
     private readonly ILogger<MotorcycleCSVProcessor> _logger;
@@ -25,8 +24,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
         IAzureOpenAIClient openAIClient,
         IAzureSearchClient searchClient,
         ILogger<MotorcycleCSVProcessor> logger,
-        CSVProcessingConfiguration? configuration = null)
-    {
+        CSVProcessingConfiguration? configuration = null) {
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -36,19 +34,16 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     /// <summary>
     /// Process CSV file with row-based chunking preserving relational integrity
     /// </summary>
-    public async Task<ProcessedData> ProcessAsync(CSVFile input)
-    {
+    public async Task<ProcessedData> ProcessAsync(CSVFile input) {
         var startTime = DateTime.UtcNow;
         var documents = new List<MotorcycleDocument>();
         var errors = new List<string>();
 
-        try
-        {
+        try {
             _logger.LogInformation("Starting CSV processing for file: {FileName}", input.FileName);
 
             // Validate input
-            if (!ValidateInput(input, errors))
-            {
+            if (!ValidateInput(input, errors)) {
                 throw new InvalidOperationException("Input validation failed: " + string.Join(", ", errors));
             }
 
@@ -58,42 +53,36 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
 
             // Process each chunk
             var processedCount = 0;
-            foreach (var chunk in chunks)
-            {
-                try
-                {
+            foreach (var chunk in chunks) {
+                try {
                     var document = await ProcessChunkAsync(chunk, input.FileName, processedCount);
                     documents.Add(document);
                     processedCount++;
                 }
-                catch (Exception ex)
-                {
+                catch (Exception ex) {
                     _logger.LogError(ex, "Error processing chunk {ChunkIndex}", processedCount);
                     errors.Add($"Error processing chunk {processedCount}: {ex.Message}");
                 }
             }
 
-            if (documents.Count == 0 && errors.Count > 0)
-            {
+            if (documents.Count == 0 && errors.Count > 0) {
                 throw new InvalidOperationException("No documents processed: " + string.Join(", ", errors));
             }
 
-            return new ProcessedData
-            {
-                Id = Guid.NewGuid().ToString(),
-                Documents = documents,
-                Metadata = new Dictionary<string, object>
-                {
-                    ["SourceFile"] = input.FileName,
-                    ["ChunksCreated"] = chunks.Count,
-                    ["ProcessingConfiguration"] = _configuration,
-                    ["Errors"] = errors,
-                    ["ProcessingTime"] = DateTime.UtcNow - startTime
-                }
-            };
+            var processed = new ProcessedData();
+            processed.Id = Guid.NewGuid().ToString();
+            foreach (var d in documents)
+                processed.Documents.Add(d);
+            // populate metadata into the getter-only dictionary
+            processed.Metadata["SourceFile"] = input.FileName;
+            processed.Metadata["ChunksCreated"] = chunks.Count;
+            processed.Metadata["ProcessingConfiguration"] = _configuration;
+            processed.Metadata["Errors"] = errors;
+            processed.Metadata["ProcessingTime"] = DateTime.UtcNow - startTime;
+
+            return processed;
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Fatal error processing CSV file: {FileName}", input.FileName);
             throw new InvalidOperationException($"Fatal error processing CSV: {ex.Message}", ex);
         }
@@ -102,13 +91,11 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     /// <summary>
     /// Index processed data into Azure AI Search using the dedicated indexing service
     /// </summary>
-    public async Task<IndexingResult> IndexAsync(ProcessedData data)
-    {
+    public async Task<IndexingResult> IndexAsync(ProcessedData data) {
         var startTime = DateTime.UtcNow;
         var result = new IndexingResult();
 
-        try
-        {
+        try {
             _logger.LogInformation("Starting CSV indexing of {DocumentCount} documents", data.Documents.Count);
 
             // Use the search client for basic indexing (backward compatibility)
@@ -118,15 +105,12 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
             var totalIndexed = 0;
             var errors = new List<string>();
 
-            foreach (var batch in batches)
-            {
-                try
-                {
+            foreach (var batch in batches) {
+                try {
                     await _searchClient.IndexDocumentsAsync(batch.Cast<MotorcycleDocument>().ToArray());
                     totalIndexed += batch.Count();
                 }
-                catch (Exception ex)
-                {
+                catch (Exception ex) {
                     _logger.LogError(ex, "Error indexing batch");
                     errors.Add($"Batch indexing error: {ex.Message}");
                 }
@@ -134,19 +118,18 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
 
             result.Success = totalIndexed > 0;
             result.DocumentsIndexed = totalIndexed;
-            result.Errors = errors;
+            foreach (var e in errors)
+                result.Errors.Add(e);
             result.Message = $"Indexed {totalIndexed} CSV documents successfully";
             result.IndexName = "motorcycle-csv-index";
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Fatal error during CSV indexing");
             result.Success = false;
             result.Message = $"CSV indexing failed: {ex.Message}";
             result.Errors.Add(ex.Message);
         }
-        finally
-        {
+        finally {
             result.IndexingTime = DateTime.UtcNow - startTime;
         }
 
@@ -156,15 +139,13 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     /// <summary>
     /// Parse CSV file into chunks preserving relational integrity
     /// </summary>
-    private async Task<List<CSVChunk>> ParseCSVIntoChunksAsync(CSVFile csvFile)
-    {
+    private async Task<List<CSVChunk>> ParseCSVIntoChunksAsync(CSVFile csvFile) {
         var chunks = new List<CSVChunk>();
         var currentChunk = new List<Dictionary<string, object>>();
         var headers = new List<string>();
 
         using var reader = new StreamReader(csvFile.Content, Encoding.GetEncoding(csvFile.Encoding));
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
-        {
+        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture) {
             HasHeaderRecord = csvFile.HasHeaders,
             Delimiter = csvFile.Delimiter,
             BadDataFound = null, // Ignore bad data
@@ -172,24 +153,20 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
         });
 
         // Read headers if present
-        if (csvFile.HasHeaders)
-        {
+        if (csvFile.HasHeaders) {
             await csv.ReadAsync();
             csv.ReadHeader();
             headers = csv.HeaderRecord?.ToList() ?? new List<string>();
 
             // Validate column count
-            if (headers.Count > csvFile.MaxColumns)
-            {
+            if (headers.Count > csvFile.MaxColumns) {
                 throw new InvalidOperationException($"CSV has {headers.Count} columns, maximum allowed is {csvFile.MaxColumns}");
             }
         }
-        else
-        {
+        else {
             // Generate column names for headerless CSV
             var firstRow = await csv.ReadAsync();
-            if (firstRow)
-            {
+            if (firstRow) {
                 var record = csv.GetRecord<dynamic>();
                 var fieldCount = ((IDictionary<string, object>)record).Count;
                 headers = Enumerable.Range(1, fieldCount).Select(i => $"Column{i}").ToList();
@@ -200,26 +177,20 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
         var chunkIndex = 0;
 
         // Process rows
-        while (await csv.ReadAsync() && rowCount < _configuration.MaxRows)
-        {
-            try
-            {
+        while (await csv.ReadAsync() && rowCount < _configuration.MaxRows) {
+            try {
                 var record = new Dictionary<string, object>();
 
                 // Read all fields for this row
-                for (int i = 0; i < headers.Count; i++)
-                {
+                for (int i = 0; i < headers.Count; i++) {
                     var fieldValue = csv.GetField(i) ?? string.Empty;
                     record[headers[i]] = fieldValue;
                 }
 
                 // Check if we should create a new chunk BEFORE adding the current record
-                if (ShouldCreateNewChunk(currentChunk, record))
-                {
-                    if (currentChunk.Count > 0)
-                    {
-                        chunks.Add(new CSVChunk
-                        {
+                if (ShouldCreateNewChunk(currentChunk, record)) {
+                    if (currentChunk.Count > 0) {
+                        chunks.Add(new CSVChunk {
                             Index = chunkIndex++,
                             Headers = headers,
                             Rows = new List<Dictionary<string, object>>(currentChunk)
@@ -231,17 +202,14 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
                 currentChunk.Add(record);
                 rowCount++;
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 _logger.LogWarning(ex, "Error reading row {RowNumber}, skipping", rowCount + 1);
             }
         }
 
         // Add remaining rows as final chunk
-        if (currentChunk.Count > 0)
-        {
-            chunks.Add(new CSVChunk
-            {
+        if (currentChunk.Count > 0) {
+            chunks.Add(new CSVChunk {
                 Index = chunkIndex,
                 Headers = headers,
                 Rows = currentChunk
@@ -254,27 +222,22 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     /// <summary>
     /// Determine if a new chunk should be created based on relational integrity
     /// </summary>
-    private bool ShouldCreateNewChunk(List<Dictionary<string, object>> currentChunk, Dictionary<string, object> newRow)
-    {
+    private bool ShouldCreateNewChunk(List<Dictionary<string, object>> currentChunk, Dictionary<string, object> newRow) {
         // If chunk is empty, don't create a new chunk
-        if (currentChunk.Count == 0)
-        {
+        if (currentChunk.Count == 0) {
             return false;
         }
 
         // If preserving relational integrity, check if this row belongs to a different motorcycle
-        if (_configuration.PreserveRelationalIntegrity)
-        {
+        if (_configuration.PreserveRelationalIntegrity) {
             var lastRow = currentChunk.LastOrDefault();
-            if (lastRow != null && !IsSameMotorcycle(lastRow, newRow))
-            {
+            if (lastRow != null && !IsSameMotorcycle(lastRow, newRow)) {
                 return true; // Different motorcycle, create new chunk
             }
         }
 
         // Create new chunk when size limit is reached (and not preserving integrity or same motorcycle)
-        if (currentChunk.Count >= _configuration.ChunkSize)
-        {
+        if (currentChunk.Count >= _configuration.ChunkSize) {
             return true;
         }
 
@@ -284,14 +247,10 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     /// <summary>
     /// Check if two rows represent the same motorcycle based on identifier fields
     /// </summary>
-    private bool IsSameMotorcycle(Dictionary<string, object> row1, Dictionary<string, object> row2)
-    {
-        foreach (var field in _configuration.IdentifierFields)
-        {
-            if (row1.TryGetValue(field, out var value1) && row2.TryGetValue(field, out var value2))
-            {
-                if (!string.Equals(value1?.ToString(), value2?.ToString(), StringComparison.OrdinalIgnoreCase))
-                {
+    private bool IsSameMotorcycle(Dictionary<string, object> row1, Dictionary<string, object> row2) {
+        foreach (var field in _configuration.IdentifierFields) {
+            if (row1.TryGetValue(field, out var value1) && row2.TryGetValue(field, out var value2)) {
+                if (!string.Equals(value1?.ToString(), value2?.ToString(), StringComparison.OrdinalIgnoreCase)) {
                     return false;
                 }
             }
@@ -302,13 +261,11 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     /// <summary>
     /// Process a single chunk into a MotorcycleDocument with embeddings
     /// </summary>
-    private async Task<MotorcycleDocument> ProcessChunkAsync(CSVChunk chunk, string sourceFile, int chunkIndex)
-    {
+    private async Task<MotorcycleDocument> ProcessChunkAsync(CSVChunk chunk, string sourceFile, int chunkIndex) {
         // Create content for embedding
         var contentBuilder = new StringBuilder();
 
-        foreach (var row in chunk.Rows)
-        {
+        foreach (var row in chunk.Rows) {
             var rowContent = string.Join(" | ", row.Select(kvp => $"{kvp.Key}: {kvp.Value}"));
             contentBuilder.AppendLine(rowContent);
         }
@@ -321,44 +278,36 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
         // Generate embedding using text-embedding-3-large
         var embedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", content, CancellationToken.None);
 
-        return new MotorcycleDocument
-        {
+        var dm = new DocumentMetadata();
+        dm.SourceFile = sourceFile;
+        dm.Section = $"Chunk {chunkIndex}";
+        dm.AdditionalProperties["ChunkIndex"] = chunkIndex;
+        dm.AdditionalProperties["RowCount"] = chunk.Rows.Count;
+        dm.AdditionalProperties["Headers"] = chunk.Headers;
+        dm.AdditionalProperties["ProcessingMethod"] = "RowBasedChunking";
+
+        return new MotorcycleDocument {
             Id = $"csv-chunk-{Guid.NewGuid()}",
             Title = title,
             Content = content,
             Type = DocumentType.Specification,
             ContentVector = embedding,
-            Metadata = new DocumentMetadata
-            {
-                SourceFile = sourceFile,
-                Section = $"Chunk {chunkIndex}",
-                AdditionalProperties = new Dictionary<string, object>
-                {
-                    ["ChunkIndex"] = chunkIndex,
-                    ["RowCount"] = chunk.Rows.Count,
-                    ["Headers"] = chunk.Headers,
-                    ["ProcessingMethod"] = "RowBasedChunking"
-                }
-            }
+            Metadata = dm
         };
     }
 
     /// <summary>
     /// Generate a descriptive title for a chunk based on motorcycle identifiers
     /// </summary>
-    private string GenerateChunkTitle(Dictionary<string, object>? firstRow, int chunkIndex)
-    {
-        if (firstRow == null)
-        {
+    private string GenerateChunkTitle(Dictionary<string, object>? firstRow, int chunkIndex) {
+        if (firstRow == null) {
             return $"Motorcycle Specifications - Chunk {chunkIndex}";
         }
 
         var titleParts = new List<string>();
 
-        foreach (var field in _configuration.IdentifierFields)
-        {
-            if (firstRow.TryGetValue(field, out var value) && !string.IsNullOrWhiteSpace(value?.ToString()))
-            {
+        foreach (var field in _configuration.IdentifierFields) {
+            if (firstRow.TryGetValue(field, out var value) && !string.IsNullOrWhiteSpace(value?.ToString())) {
                 titleParts.Add(value.ToString()!);
             }
         }
@@ -371,20 +320,16 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
     /// <summary>
     /// Validate CSV input
     /// </summary>
-    private bool ValidateInput(CSVFile input, List<string> errors)
-    {
-        if (string.IsNullOrWhiteSpace(input.FileName))
-        {
+    private bool ValidateInput(CSVFile input, List<string> errors) {
+        if (string.IsNullOrWhiteSpace(input.FileName)) {
             errors.Add("File name is required");
         }
 
-        if (input.Content == null || input.Content == Stream.Null)
-        {
+        if (input.Content == null || input.Content == Stream.Null) {
             errors.Add("File content is required");
         }
 
-        if (input.Content?.Length == 0)
-        {
+        if (input.Content?.Length == 0) {
             errors.Add("File content cannot be empty");
         }
 
@@ -395,8 +340,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile>
 /// <summary>
 /// Represents a chunk of CSV data
 /// </summary>
-internal class CSVChunk
-{
+internal class CSVChunk {
     public int Index { get; set; }
     public List<string> Headers { get; set; } = new();
     public List<Dictionary<string, object>> Rows { get; set; } = new();

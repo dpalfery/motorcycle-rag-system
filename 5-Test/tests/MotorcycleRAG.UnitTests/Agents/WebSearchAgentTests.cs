@@ -10,7 +10,7 @@ using System.Text;
 using Xunit;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Agents;
 
@@ -18,8 +18,7 @@ namespace MotorcycleRAG.UnitTests.Agents;
 /// Unit tests for WebSearchAgent
 /// Tests web scraping functionality, rate limiting, and credibility validation
 /// </summary>
-public class WebSearchAgentTests : IDisposable
-{
+public class WebSearchAgentTests : IDisposable {
     private readonly Mock<HttpMessageHandler> _mockHttpHandler;
     private readonly HttpClient _httpClient;
     private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
@@ -27,15 +26,13 @@ public class WebSearchAgentTests : IDisposable
     private readonly IOptions<WebSearchOptions> _webSearchConfig;
     private readonly WebSearchAgent _webSearchAgent;
 
-    public WebSearchAgentTests()
-    {
+    public WebSearchAgentTests() {
         _mockHttpHandler = new Mock<HttpMessageHandler>();
         _httpClient = new HttpClient(_mockHttpHandler.Object);
         _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         _mockLogger = new Mock<ILogger<WebSearchAgent>>();
-        
-        _webSearchConfig = Options.Create(new WebSearchOptions
-        {
+
+        _webSearchConfig = Options.Create(new WebSearchOptions {
             MaxConcurrentRequests = 3,
             MinRequestIntervalMs = 100, // Reduced for testing
             RequestTimeoutSeconds = 30,
@@ -47,8 +44,8 @@ public class WebSearchAgentTests : IDisposable
                 new TrustedSourceOptions
                 {
                     Name = "Test Motorcycle Site",
-                    BaseUrl = "https://test-motorcycle.com",
-                    SearchUrlTemplate = "https://test-motorcycle.com/search?q={query}",
+                    BaseUrl = new Uri("https://test-motorcycle.com"),
+                    SearchUrlTemplate = new Uri("https://test-motorcycle.com/search?q={query}"),
                     ContentSelector = "//article//p",
                     CredibilityScore = 0.9f
                 }
@@ -63,8 +60,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public void AgentType_ShouldReturnWebSearch()
-    {
+    public void AgentType_ShouldReturnWebSearch() {
         // Act
         var agentType = _webSearchAgent.AgentType;
 
@@ -73,8 +69,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public void Constructor_ShouldThrowArgumentNullException_WhenRequiredParametersAreNull()
-    {
+    public void Constructor_ShouldThrowArgumentNullException_WhenRequiredParametersAreNull() {
         // Arrange & Act & Assert
         Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
             null!, _mockOpenAIClient.Object, _webSearchConfig, _mockLogger.Object));
@@ -90,8 +85,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldReturnEmptyArray_WhenQueryIsEmpty()
-    {
+    public async Task SearchAsync_ShouldReturnEmptyArray_WhenQueryIsEmpty() {
         // Arrange
         var searchOptions = CreateDefaultSearchOptions();
 
@@ -103,8 +97,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldReturnEmptyArray_WhenQueryIsNull()
-    {
+    public async Task SearchAsync_ShouldReturnEmptyArray_WhenQueryIsNull() {
         // Arrange
         var searchOptions = CreateDefaultSearchOptions();
 
@@ -116,12 +109,11 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldExecuteWebSearch_WhenValidQueryProvided()
-    {
+    public async Task SearchAsync_ShouldExecuteWebSearch_WhenValidQueryProvided() {
         // Arrange
         var query = "Honda CBR1000RR specifications";
         var searchOptions = CreateDefaultSearchOptions();
-        
+
         SetupMockHttpClient();
         SetupMockOpenAIClient();
 
@@ -130,8 +122,7 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert
         Assert.NotEmpty(results);
-        Assert.All(results, result => 
-        {
+        Assert.All(results, result => {
             Assert.NotEmpty(result.Id);
             Assert.NotEmpty(result.Content);
             Assert.True(result.RelevanceScore > 0);
@@ -141,12 +132,11 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldApplyRateLimiting_WhenMultipleRequestsMade()
-    {
+    public async Task SearchAsync_ShouldApplyRateLimiting_WhenMultipleRequestsMade() {
         // Arrange
         var query = "Yamaha R1 engine specs";
         var searchOptions = CreateDefaultSearchOptions();
-        
+
         SetupMockHttpClient();
         SetupMockOpenAIClient();
 
@@ -155,7 +145,7 @@ public class WebSearchAgentTests : IDisposable
         // Act - Make multiple requests
         var task1 = _webSearchAgent.SearchAsync(query, searchOptions);
         var task2 = _webSearchAgent.SearchAsync(query + " performance", searchOptions);
-        
+
         await Task.WhenAll(task1, task2);
 
         var endTime = DateTime.UtcNow;
@@ -166,8 +156,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldReturnCachedResults_WhenCachingEnabledAndResultsExist()
-    {
+    public async Task SearchAsync_ShouldReturnCachedResults_WhenCachingEnabledAndResultsExist() {
         // Arrange
         var query = "Kawasaki Ninja performance";
         var searchParameters = new SearchParameters {
@@ -175,13 +164,13 @@ public class WebSearchAgentTests : IDisposable
             MinRelevanceScore = 0.0f,
             EnableCaching = true
         };
-        
+
         SetupMockHttpClient();
         SetupMockOpenAIClient();
 
         // Act - First search to populate cache
         var firstResults = await _webSearchAgent.SearchAsync(query, searchParameters);
-        
+
         // Act - Second search should use cache
         var secondResults = await _webSearchAgent.SearchAsync(query, searchParameters);
 
@@ -192,8 +181,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldApplyMinRelevanceScoreFilter_WhenFilterSet()
-    {
+    public async Task SearchAsync_ShouldApplyMinRelevanceScoreFilter_WhenFilterSet() {
         // Arrange
         var query = "Ducati Panigale features";
         var searchParameters = new SearchParameters {
@@ -201,7 +189,7 @@ public class WebSearchAgentTests : IDisposable
             MinRelevanceScore = 0.8f,
             IncludeMetadata = true
         };
-        
+
         SetupMockHttpClient();
         SetupMockOpenAIClient();
 
@@ -209,13 +197,12 @@ public class WebSearchAgentTests : IDisposable
         var results = await _webSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
-        Assert.All(results, result => 
+        Assert.All(results, result =>
             Assert.True(result.RelevanceScore >= searchParameters.MinRelevanceScore));
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldRespectMaxResultsLimit_WhenLimitSet()
-    {
+    public async Task SearchAsync_ShouldRespectMaxResultsLimit_WhenLimitSet() {
         // Arrange
         var query = "BMW S1000RR specifications";
         var searchParameters = new SearchParameters {
@@ -223,7 +210,7 @@ public class WebSearchAgentTests : IDisposable
             MinRelevanceScore = 0.0f,
             IncludeMetadata = true
         };
-        
+
         SetupMockHttpClient();
         SetupMockOpenAIClient();
 
@@ -235,8 +222,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldIncludeWebSourceMetadata_WhenIncludeMetadataIsTrue()
-    {
+    public async Task SearchAsync_ShouldIncludeWebSourceMetadata_WhenIncludeMetadataIsTrue() {
         // Arrange
         var query = "Suzuki GSX-R1000 features";
         var searchParameters = new SearchParameters {
@@ -244,7 +230,7 @@ public class WebSearchAgentTests : IDisposable
             MinRelevanceScore = 0.0f,
             IncludeMetadata = true
         };
-        
+
         SetupMockHttpClient();
         SetupMockOpenAIClient();
 
@@ -252,8 +238,7 @@ public class WebSearchAgentTests : IDisposable
         var results = await _webSearchAgent.SearchAsync(query, searchParameters);
 
         // Assert
-        Assert.All(results, result => 
-        {
+        Assert.All(results, result => {
             Assert.Contains("searchTerm", result.Metadata.Keys);
             Assert.Contains("sourceType", result.Metadata.Keys);
             Assert.Contains("credibilityScore", result.Metadata.Keys);
@@ -264,12 +249,11 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldHandleHttpErrors_WhenWebRequestFails()
-    {
+    public async Task SearchAsync_ShouldHandleHttpErrors_WhenWebRequestFails() {
         // Arrange
         var query = "KTM Duke specifications";
         var searchOptions = CreateDefaultSearchOptions();
-        
+
         SetupMockHttpClientFailure();
         SetupMockOpenAIClient();
 
@@ -282,22 +266,20 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldHandleOpenAIFailure_WhenSearchTermGenerationFails()
-    {
+    public async Task SearchAsync_ShouldHandleOpenAIFailure_WhenSearchTermGenerationFails() {
         // Arrange
         var query = "Aprilia RSV4 specifications";
         var searchOptions = CreateDefaultSearchOptions();
-        
+
         SetupMockHttpClient();
         SetupMockOpenAIClientFailure();
 
         // Act & Assert
         // Should not throw an exception even when OpenAI fails
-        var exception = await Record.ExceptionAsync(async () =>
-        {
+        var exception = await Record.ExceptionAsync(async () => {
             var results = await _webSearchAgent.SearchAsync(query, searchOptions);
         });
-        
+
         Assert.Null(exception);
     }
 
@@ -306,11 +288,10 @@ public class WebSearchAgentTests : IDisposable
     [InlineData("Yamaha YZF-R1")]
     [InlineData("Kawasaki Ninja ZX-10R")]
     [InlineData("Ducati Panigale V4")]
-    public async Task SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(string query)
-    {
+    public async Task SearchAsync_ShouldHandleMotorcycleSpecificQueries_WhenDifferentBrandsQueried(string query) {
         // Arrange
         var searchOptions = CreateDefaultSearchOptions();
-        
+
         SetupMockHttpClient();
         SetupMockOpenAIClient();
 
@@ -319,8 +300,7 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert
         Assert.NotEmpty(results);
-        Assert.All(results, result => 
-        {
+        Assert.All(results, result => {
             Assert.NotEmpty(result.Content);
             Assert.True(result.RelevanceScore > 0);
             Assert.Equal(SearchAgentType.WebSearch, result.Source.AgentType);
@@ -329,12 +309,11 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldValidateSourceCredibility_WhenCredibilityCheckEnabled()
-    {
+    public async Task SearchAsync_ShouldValidateSourceCredibility_WhenCredibilityCheckEnabled() {
         // Arrange
         var query = "Triumph Street Triple specifications";
         var searchOptions = CreateDefaultSearchOptions();
-        
+
         SetupMockHttpClient();
         SetupMockOpenAIClientWithValidation();
 
@@ -342,8 +321,7 @@ public class WebSearchAgentTests : IDisposable
         var results = await _webSearchAgent.SearchAsync(query, searchOptions);
 
         // Assert
-        Assert.All(results, result => 
-        {
+        Assert.All(results, result => {
             Assert.Contains("contentQuality", result.Metadata.Keys);
             Assert.Contains("validationPassed", result.Metadata.Keys);
             Assert.True((bool)result.Metadata["validationPassed"]);
@@ -359,10 +337,8 @@ public class WebSearchAgentTests : IDisposable
         string domainPattern = "test-motorcycle.com",
         WebTrustTier tier = WebTrustTier.TierA,
         bool isBlocked = false,
-        string? reason = null)
-    {
-        return new WebTrustPolicy
-        {
+        string? reason = null) {
+        return new WebTrustPolicy {
             Id = Guid.NewGuid(),
             DomainPattern = domainPattern,
             Tier = tier,
@@ -375,8 +351,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldRejectBlockedDomains_WhenTrustPolicyStoreConfigured()
-    {
+    public async Task SearchAsync_ShouldRejectBlockedDomains_WhenTrustPolicyStoreConfigured() {
         // Arrange
         var query = "Honda CBR1000RR specifications";
         var searchOptions = CreateDefaultSearchOptions();
@@ -416,8 +391,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldAcceptAllowlistedDomains_WhenDomainInTrustPolicy()
-    {
+    public async Task SearchAsync_ShouldAcceptAllowlistedDomains_WhenDomainInTrustPolicy() {
         // Arrange
         var query = "Honda CBR1000RR specifications";
         var searchOptions = CreateDefaultSearchOptions();
@@ -447,16 +421,14 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert
         Assert.NotEmpty(results);
-        Assert.All(results, result =>
-        {
+        Assert.All(results, result => {
             Assert.Contains("domainTrustTier", result.Metadata.Keys);
             Assert.Equal("TierA", result.Metadata["domainTrustTier"]);
         });
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldRejectNonAllowlistedDomains_WhenDomainNotInTrustPolicy()
-    {
+    public async Task SearchAsync_ShouldRejectNonAllowlistedDomains_WhenDomainNotInTrustPolicy() {
         // Arrange
         var query = "Honda CBR1000RR specifications";
         var searchOptions = CreateDefaultSearchOptions();
@@ -481,8 +453,7 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert - Results should be empty or not contain rejections if policy enforcement works
         // The agent should reject results from non-allowlisted domains
-        if (results.Length > 0)
-        {
+        if (results.Length > 0) {
             // If there are results, they should have rejection metadata
             Assert.True(results.All(r =>
                 !r.Metadata.ContainsKey("trustPolicyRejection") ||
@@ -491,8 +462,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldApplyTierARelevanceBoost_WhenDomainHasTierA()
-    {
+    public async Task SearchAsync_ShouldApplyTierARelevanceBoost_WhenDomainHasTierA() {
         // Arrange
         var query = "Honda CBR1000RR specifications";
         var searchOptions = CreateDefaultSearchOptions();
@@ -522,16 +492,14 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert - Tier A should have multiplier of 1.5x
         Assert.NotEmpty(results);
-        Assert.All(results, result =>
-        {
+        Assert.All(results, result => {
             Assert.Contains("trustTierMultiplier", result.Metadata.Keys);
             Assert.Equal(1.5f, (float)result.Metadata["trustTierMultiplier"]);
         });
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldApplyTierBRelevanceBoost_WhenDomainHasTierB()
-    {
+    public async Task SearchAsync_ShouldApplyTierBRelevanceBoost_WhenDomainHasTierB() {
         // Arrange
         var query = "Yamaha R1 engine specs";
         var searchOptions = CreateDefaultSearchOptions();
@@ -561,16 +529,14 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert - Tier B should have multiplier of 1.1x
         Assert.NotEmpty(results);
-        Assert.All(results, result =>
-        {
+        Assert.All(results, result => {
             Assert.Contains("trustTierMultiplier", result.Metadata.Keys);
             Assert.Equal(1.1f, (float)result.Metadata["trustTierMultiplier"]);
         });
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldApplyTierCRelevancePenalty_WhenDomainHasTierC()
-    {
+    public async Task SearchAsync_ShouldApplyTierCRelevancePenalty_WhenDomainHasTierC() {
         // Arrange
         var query = "Kawasaki Ninja performance";
         var searchOptions = CreateDefaultSearchOptions();
@@ -600,16 +566,14 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert - Tier C should have penalty multiplier of 0.9x
         Assert.NotEmpty(results);
-        Assert.All(results, result =>
-        {
+        Assert.All(results, result => {
             Assert.Contains("trustTierMultiplier", result.Metadata.Keys);
             Assert.Equal(0.9f, (float)result.Metadata["trustTierMultiplier"]);
         });
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldSupportBackwardCompatibility_WhenTrustPolicyStoreNotProvided()
-    {
+    public async Task SearchAsync_ShouldSupportBackwardCompatibility_WhenTrustPolicyStoreNotProvided() {
         // Arrange
         var query = "Ducati Panigale features";
         var searchOptions = CreateDefaultSearchOptions();
@@ -630,8 +594,7 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert - Should work without trust policy enforcement
         Assert.NotEmpty(results);
-        Assert.All(results, result =>
-        {
+        Assert.All(results, result => {
             // In backward compatibility mode, there should be no trust tier information
             Assert.DoesNotContain("trustPolicyRejection", result.Metadata.Keys);
             Assert.True(result.RelevanceScore > 0);
@@ -649,8 +612,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldRespectBlockedDomain_EvenWithHighCredibilityScore()
-    {
+    public async Task SearchAsync_ShouldRespectBlockedDomain_EvenWithHighCredibilityScore() {
         // Arrange
         var query = "BMW S1000RR specifications";
         var searchOptions = CreateDefaultSearchOptions();
@@ -681,8 +643,7 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert - Blocked domains should be rejected regardless of tier or credibility
         // The test-motorcycle.com source should be blocked even if it would normally be TierA
-        if (results.Length > 0)
-        {
+        if (results.Length > 0) {
             // All results should either come from non-blocked sources or have rejection metadata
             Assert.True(results.All(r =>
                 !r.Metadata.TryGetValue("trustPolicyRejection", out var rejection) ||
@@ -691,8 +652,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldTrackDomainTierInMetadata_WhenTrustPolicyEnforced()
-    {
+    public async Task SearchAsync_ShouldTrackDomainTierInMetadata_WhenTrustPolicyEnforced() {
         // Arrange
         var query = "Suzuki GSX-R1000 features";
         var searchOptions = CreateDefaultSearchOptions();
@@ -722,8 +682,7 @@ public class WebSearchAgentTests : IDisposable
 
         // Assert
         Assert.NotEmpty(results);
-        Assert.All(results, result =>
-        {
+        Assert.All(results, result => {
             // Should have domain trust tier information
             Assert.Contains("domainTrustTier", result.Metadata.Keys);
             Assert.Equal("TierB", result.Metadata["domainTrustTier"]);
@@ -731,8 +690,7 @@ public class WebSearchAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task SearchAsync_ShouldApplyMultipleTierPolicies_WhenMultipleSourcesWithDifferentTiers()
-    {
+    public async Task SearchAsync_ShouldApplyMultipleTierPolicies_WhenMultipleSourcesWithDifferentTiers() {
         // Arrange
         var query = "KTM Duke specifications";
         var searchOptions = CreateDefaultSearchOptions();
@@ -772,8 +730,7 @@ public class WebSearchAgentTests : IDisposable
         var resultsList = results.OrderByDescending(r => r.RelevanceScore).ToList();
 
         // First result should have higher relevance due to Tier A multiplier
-        if (resultsList.Any(r => r.Metadata.TryGetValue("domainTrustTier", out var tier) && tier?.ToString() == "TierA"))
-        {
+        if (resultsList.Any(r => r.Metadata.TryGetValue("domainTrustTier", out var tier) && tier?.ToString() == "TierA")) {
             var tierAResults = resultsList.Where(r => r.Metadata.TryGetValue("domainTrustTier", out var tier) && tier?.ToString() == "TierA").ToList();
             Assert.NotEmpty(tierAResults);
         }
@@ -783,8 +740,7 @@ public class WebSearchAgentTests : IDisposable
 
     #region Helper Methods
 
-    private SearchParameters CreateDefaultSearchOptions()
-    {
+    private SearchParameters CreateDefaultSearchOptions() {
         return new SearchParameters {
             MaxResults = 10,
             MinRelevanceScore = 0.5f,
@@ -794,8 +750,7 @@ public class WebSearchAgentTests : IDisposable
         };
     }
 
-    private void SetupMockHttpClient()
-    {
+    private void SetupMockHttpClient() {
         var mockHtmlContent = @"
             <html>
                 <body>
@@ -810,67 +765,62 @@ public class WebSearchAgentTests : IDisposable
             .ReturnsResponse(HttpStatusCode.OK, mockHtmlContent, "text/html");
     }
 
-    private void SetupMockHttpClientFailure()
-    {
+    private void SetupMockHttpClientFailure() {
         _mockHttpHandler.SetupAnyRequest()
             .ReturnsResponse(HttpStatusCode.NotFound);
     }
 
-    private void SetupMockOpenAIClient()
-    {
+    private void SetupMockOpenAIClient() {
         // Setup search term generation
         _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"), 
-            It.IsAny<string>(), 
+            It.Is<string>(s => s == "gpt-4o-mini"),
+            It.IsAny<string>(),
             It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
             .ReturnsAsync("Honda CBR1000RR specifications\nHonda CBR performance\nCBR1000RR engine specs");
 
         // Setup content validation with simple response
         _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"), 
-            It.Is<string>(prompt => prompt.Contains("Analyze this motorcycle-related content")), 
+            It.Is<string>(s => s == "gpt-4o-mini"),
+            It.Is<string>(prompt => prompt.Contains("Analyze this motorcycle-related content")),
             It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
             .ReturnsAsync("{\"qualityScore\": 0.8, \"isValid\": true, \"reasoning\": \"Good technical content\"}");
     }
 
-    private void SetupMockOpenAIClientWithValidation()
-    {
+    private void SetupMockOpenAIClientWithValidation() {
         // Setup search term generation
         _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"), 
-            It.IsAny<string>(), 
+            It.Is<string>(s => s == "gpt-4o-mini"),
+            It.IsAny<string>(),
             It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
             .ReturnsAsync("Triumph Street Triple specifications\nTriumph performance data\nStreet Triple engine specs");
 
         // Setup content validation with high quality response
         _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"), 
-            It.Is<string>(prompt => prompt.Contains("Analyze this motorcycle-related content")), 
+            It.Is<string>(s => s == "gpt-4o-mini"),
+            It.Is<string>(prompt => prompt.Contains("Analyze this motorcycle-related content")),
             It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
             .ReturnsAsync("{\"qualityScore\": 0.9, \"isValid\": true, \"reasoning\": \"Excellent technical specifications\"}");
     }
 
-    private void SetupMockOpenAIClientFailure()
-    {
+    private void SetupMockOpenAIClientFailure() {
         // Setup failure for search term generation only
         _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"), 
-            It.Is<string>(prompt => prompt.Contains("Generate 3-5 specific search terms")), 
+            It.Is<string>(s => s == "gpt-4o-mini"),
+            It.Is<string>(prompt => prompt.Contains("Generate 3-5 specific search terms")),
             It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
             .ThrowsAsync(new InvalidOperationException("OpenAI service unavailable"));
 
         // Setup success for content validation
         _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"), 
-            It.Is<string>(prompt => prompt.Contains("Analyze this motorcycle-related content")), 
+            It.Is<string>(s => s == "gpt-4o-mini"),
+            It.Is<string>(prompt => prompt.Contains("Analyze this motorcycle-related content")),
             It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
             .ReturnsAsync("{\"qualityScore\": 0.8, \"isValid\": true, \"reasoning\": \"Good technical content\"}");
     }
 
     #endregion
 
-    public void Dispose()
-    {
+    public void Dispose() {
         _httpClient?.Dispose();
     }
 }

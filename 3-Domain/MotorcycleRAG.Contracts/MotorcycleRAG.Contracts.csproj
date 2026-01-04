@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\0-Base\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
+    <ProjectReference Include="..\MotorcycleRAG.Contracts.Models\MotorcycleRAG.Contracts.Models.csproj" />
     <ProjectReference Include="..\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
   </ItemGroup>
 

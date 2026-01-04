@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj" />
     <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts.Models\MotorcycleRAG.Contracts.Models.csproj" />
     <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
   </ItemGroup>
 

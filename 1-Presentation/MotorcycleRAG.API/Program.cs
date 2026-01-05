@@ -182,7 +182,7 @@ public static class Program
             // Supports tokens from BOTH Entra ID (workforce/admin users) and Entra External ID/B2C (customer users)
             // Hard invariant: The API MUST NOT accept cross-issuer tokens (token.iss must match one of the configured issuers)
             var authenticationBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
-            var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
+            var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Program");
             authenticationBuilder.AddDualIssuerJwtBearer(builder.Configuration, startupLogger);
 
             // Add authorization policies for admin roles

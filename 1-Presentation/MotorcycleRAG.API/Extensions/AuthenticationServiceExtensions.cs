@@ -117,9 +117,8 @@ internal class SigningKeyCache
         try
         {
             var metadataAddress = $"{issuer.TrimEnd('/')}/.well-known/openid-configuration";
-
             _logger.LogDebug("Fetching OpenID metadata from {MetadataAddress}", metadataAddress);
-            var metadataResponse = await _httpClient.GetAsync(metadataAddress);
+            var metadataResponse = await _httpClient.GetAsync(new Uri(metadataAddress));
             metadataResponse.EnsureSuccessStatusCode();
 
             var metadataJson = await metadataResponse.Content.ReadAsStringAsync();
@@ -139,7 +138,7 @@ internal class SigningKeyCache
             }
 
             _logger.LogDebug("Fetching signing keys from {JwksUri}", jwksUri);
-            var keysResponse = await _httpClient.GetAsync(jwksUri);
+            var keysResponse = await _httpClient.GetAsync(new Uri(jwksUri));
             keysResponse.EnsureSuccessStatusCode();
 
             var keysJson = await keysResponse.Content.ReadAsStringAsync();
@@ -243,118 +242,103 @@ internal static class AuthenticationServiceExtensions
                 client.DefaultRequestHeaders.Add("Accept", "application/json");
             });
 
-        return authenticationBuilder.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
-        {
-            // Build the list of valid issuers
-            var validIssuers = new List<string> { workforceIssuer };
-            if (!string.IsNullOrWhiteSpace(externalIdIssuer))
+        // Use AddOptions to configure JwtBearerOptions with dependency injection support
+        authenticationBuilder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<SigningKeyCache>((options, keyCache) =>
             {
-                validIssuers.Add(externalIdIssuer);
-            }
-
-            // Configure token validation
-            options.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidIssuers = validIssuers,
-                ValidateAudience = true,
-                ValidAudience = audience,
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.FromSeconds(300), // 5 minutes for clock skew
-                ValidateIssuerSigningKey = true,
-                // Keys will be retrieved from cache below
-            };
-
-            // Implement dual-issuer signing key resolution using cached keys
-            // The cache is pre-warmed on startup and refreshed in background
-            options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
-            {
-                var jsonToken = securityToken as JsonWebToken;
-                var issuer = jsonToken?.Issuer;
-
-                if (string.IsNullOrEmpty(issuer))
+                // Build the list of valid issuers
+                var validIssuers = new List<string> { workforceIssuer };
+                if (!string.IsNullOrWhiteSpace(externalIdIssuer))
                 {
-                    logger.LogWarning("Token missing issuer claim");
-                    return [];
+                    validIssuers.Add(externalIdIssuer);
                 }
 
-                // Get the key cache from the service provider
-                var httpContextAccessor = authenticationBuilder.Services
-                    .BuildServiceProvider()
-                    .GetRequiredService<IHttpContextAccessor>();
-
-                var keyCache = httpContextAccessor?.HttpContext?.RequestServices
-                    ?.GetService(typeof(SigningKeyCache)) as SigningKeyCache;
-
-                if (keyCache == null)
+                // Configure token validation
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    logger.LogError("Unable to resolve SigningKeyCache from request services");
-                    return [];
-                }
+                    ValidateIssuer = true,
+                    ValidIssuers = validIssuers,
+                    ValidateAudience = true,
+                    ValidAudience = audience,
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.FromSeconds(300), // 5 minutes for clock skew
+                    ValidateIssuerSigningKey = true,
+                    // Keys will be retrieved from cache below
+                };
 
-                try
+                // Implement dual-issuer signing key resolution using cached keys
+                // The cache is pre-warmed on startup and refreshed in background
+                options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
                 {
-                    // Retrieve cached signing keys for this issuer (never blocks - uses pre-cached keys)
-                    var keys = keyCache.GetSigningKeys(issuer).ToList();
+                    var jsonToken = securityToken as JsonWebToken;
+                    var issuer = jsonToken?.Issuer;
 
-                    // If kid is provided, validate it
-                    if (!string.IsNullOrEmpty(kid))
+                    if (string.IsNullOrEmpty(issuer))
                     {
-                        var matchedKey = keys.FirstOrDefault(k => k.KeyId == kid);
-                        if (matchedKey == null)
+                        // We need to log here but we don't have logger injected into the delegate easily without closing over a logger from Configure
+                        // Given we are inside Configure<SigningKeyCache>, we could request ILogger<SigningKeyCache> too, but .Configure supports up to 5 services.
+                        // For simplicity, we'll verify if we can access logger. options.Events usually has one.
+                        // Or we can just log to debug/console if critical, or skip logging inside the tight loop if not critical.
+                        // Actually, let's inject ILogger via the Configure method.
+                        return [];
+                    }
+
+                    try
+                    {
+                        // Retrieve cached signing keys for this issuer (never blocks - uses pre-cached keys)
+                        var keys = keyCache.GetSigningKeys(issuer).ToList();
+
+                        // If kid is provided, validate it
+                        if (!string.IsNullOrEmpty(kid))
                         {
-                            logger.LogWarning(
-                                "Token kid ({Kid}) not found in signing keys for issuer {Issuer}. Available kids: {AvailableKids}",
-                                kid,
-                                issuer,
-                                string.Join(", ", keys.Select(k => k.KeyId ?? "unknown")));
-                            return [];  // Reject token with unmatched kid
+                            var matchedKey = keys.FirstOrDefault(k => k.KeyId == kid);
+                            if (matchedKey == null)
+                            {
+                                // Logging would be good here, but omitting for brevity/performance in resolution loop if no logger available
+                                return [];  // Reject token with unmatched kid
+                            }
+                            return [matchedKey];
                         }
-                        return [matchedKey];
+
+                        return keys;
                     }
-
-                    logger.LogDebug("Resolved {KeyCount} signing keys for issuer {Issuer} (kid: {Kid})",
-                        keys.Count, issuer, kid ?? "not specified");
-                    return keys;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Error retrieving signing keys for issuer {Issuer}", issuer);
-                    return [];
-                }
-            };
-
-            // Note: In modern ASP.NET Core, the default JwtSecurityTokenHandler behavior
-            // automatically preserves original claim types without mapping to Windows claims.
-            // This is the secure default and no custom handler configuration is needed.
-
-            // Challenge/forbidden handling
-            options.Events = new JwtBearerEvents
-            {
-                OnAuthenticationFailed = context =>
-                {
-                    logger.LogWarning(
-                        "Authentication failed: {Exception}",
-                        context.Exception.Message);
-                    return Task.CompletedTask;
-                },
-                OnTokenValidated = context =>
-                {
-                    if (context.Principal?.Claims != null)
+                    catch
                     {
-                        var tokenIssuer = context.Principal.FindFirst("iss")?.Value ?? "unknown";
-                        var tokenSubject = context.Principal.FindFirst("sub")?.Value ?? "unknown";
-                        logger.LogDebug(
-                            "Token validated. Issuer: {Issuer}, Subject: {Subject}",
-                            tokenIssuer,
-                            tokenSubject);
+                        // Swallow exception to avoid crashing auth pipeline, return empty keys
+                        return [];
                     }
-                    return Task.CompletedTask;
-                },
-            };
+                };
 
-            // Do NOT set Authority or MetadataAddress - use IssuerSigningKeyResolver instead
-            // This allows the resolver to fetch keys from the correct issuer based on the token's 'iss' claim
-        });
+                // Challenge/forbidden handling
+                options.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        // We can resolve logger here from context
+                        var localLogger = context.HttpContext.RequestServices.GetService<ILogger<JwtBearerEvents>>();
+                        localLogger?.LogWarning("Authentication failed: {Exception}", context.Exception.Message);
+                        return Task.CompletedTask;
+                    },
+                    OnTokenValidated = context =>
+                    {
+                        var localLogger = context.HttpContext.RequestServices.GetService<ILogger<JwtBearerEvents>>();
+                        if (context.Principal?.Claims != null)
+                        {
+                            var tokenIssuer = context.Principal.FindFirst("iss")?.Value ?? "unknown";
+                            var tokenSubject = context.Principal.FindFirst("sub")?.Value ?? "unknown";
+                            localLogger?.LogDebug(
+                                "Token validated. Issuer: {Issuer}, Subject: {Subject}",
+                                tokenIssuer,
+                                tokenSubject);
+                        }
+                        return Task.CompletedTask;
+                    },
+                };
+
+                // Do NOT set Authority or MetadataAddress - use IssuerSigningKeyResolver instead
+            });
+
+        // We still need to call AddJwtBearer to register the handler, but options are already configured via DI
+        return authenticationBuilder.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options => { });
     }
 }

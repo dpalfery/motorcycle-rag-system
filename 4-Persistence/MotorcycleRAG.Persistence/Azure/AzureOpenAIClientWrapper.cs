@@ -152,6 +152,8 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
         string imageContentType,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(imageData);
+
         try
         {
             _logger.LogDebug("Processing multimodal content for deployment: {DeploymentName}", deploymentName);

@@ -13,6 +13,12 @@ namespace MotorcycleRAG.API.Middleware
     /// </summary>
     internal class ExceptionHandlingMiddleware
     {
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = true
+        };
+
         private readonly RequestDelegate _next;
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
@@ -121,13 +127,7 @@ namespace MotorcycleRAG.API.Middleware
             context.Response.StatusCode = problemDetails.Status ?? (int)HttpStatusCode.InternalServerError;
 
             // Serialize and write the ProblemDetails response
-            var jsonOptions = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = true
-            };
-
-            var jsonResponse = JsonSerializer.Serialize(problemDetails, jsonOptions);
+            var jsonResponse = JsonSerializer.Serialize(problemDetails, _jsonOptions);
             await context.Response.WriteAsync(jsonResponse);
         }
     }

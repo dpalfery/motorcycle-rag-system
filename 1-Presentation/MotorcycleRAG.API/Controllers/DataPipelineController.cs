@@ -159,7 +159,7 @@ public class DataPipelineController : ControllerBase {
     [ProducesResponseType(typeof(ProblemDetails), 400)]
     [ProducesResponseType(typeof(ProblemDetails), 500)]
     public async Task<IActionResult> UploadFilesAsync(
-        List<IFormFile> files,
+        IReadOnlyList<IFormFile> files,
         [FromQuery] bool processImmediately = false) {
         if (files == null || files.Count == 0) {
             return BadRequest("No files provided");

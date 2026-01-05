@@ -10,6 +10,14 @@ namespace MotorcycleRAG.API.Services;
 /// </summary>
 internal static class HealthCheckResponseWriter
 {
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = false,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     /// <summary>
     /// Writes a structured JSON health check response in the format expected by tests
     /// </summary>
@@ -36,15 +44,7 @@ internal static class HealthCheckResponseWriter
                 })
         };
 
-        var options = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = false,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = false,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-        };
-
-        var json = JsonSerializer.Serialize(response, options);
+        var json = JsonSerializer.Serialize(response, _jsonOptions);
         return context.Response.WriteAsync(json);
     }
 

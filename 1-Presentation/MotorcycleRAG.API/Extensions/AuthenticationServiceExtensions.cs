@@ -184,7 +184,7 @@ internal class SigningKeyCache
 /// Extension methods for configuring authentication services.
 /// Implements dual-issuer JWT validation to support both Entra ID (workforce) and Entra External ID/B2C (customers).
 /// </summary>
-public static class AuthenticationServiceExtensions
+internal static class AuthenticationServiceExtensions
 {
     /// <summary>
     /// Adds dual-issuer JWT bearer authentication supporting both Entra ID and Entra External ID/B2C.

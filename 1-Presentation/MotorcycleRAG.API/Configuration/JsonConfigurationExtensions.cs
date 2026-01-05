@@ -9,7 +9,7 @@ namespace MotorcycleRAG.API.Configuration;
 /// <summary>
 /// Extension methods for configuring JSON serialization in ASP.NET Core
 /// </summary>
-public static class JsonConfigurationExtensions
+internal static class JsonConfigurationExtensions
 {
     /// <summary>
     /// Configures JSON serialization for ASP.NET Core controllers

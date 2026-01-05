@@ -10,20 +10,20 @@ using Xunit;
 namespace MotorcycleRAG.UnitTests.Services;
 
 /// <summary>
-/// Unit tests for <see cref="MotorcycleRAGService"/>
+/// Unit tests for <see cref="MotorcycleRagService"/>
 /// </summary>
-public class MotorcycleRAGServiceTests {
+public class MotorcycleRagServiceTests {
     private readonly Mock<IAgentOrchestrator> _mockOrchestrator;
-    private readonly Mock<ILogger<MotorcycleRAGService>> _mockLogger;
+    private readonly Mock<ILogger<MotorcycleRagService>> _mockLogger;
     private readonly Mock<ITelemetryService> _mockTelemetry;
     private readonly Mock<IQueryCacheService> _mockCacheService;
     private readonly Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>> _mockCacheConfig;
     private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
-    private readonly MotorcycleRAGService _service;
+    private readonly MotorcycleRagService _service;
 
-    public MotorcycleRAGServiceTests() {
+    public MotorcycleRagServiceTests() {
         _mockOrchestrator = new Mock<IAgentOrchestrator>(MockBehavior.Strict);
-        _mockLogger = new Mock<ILogger<MotorcycleRAGService>>();
+        _mockLogger = new Mock<ILogger<MotorcycleRagService>>();
         _mockTelemetry = new Mock<ITelemetryService>();
         _mockCacheService = new Mock<IQueryCacheService>();
         _mockCacheConfig = new Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>>();
@@ -34,7 +34,7 @@ public class MotorcycleRAGServiceTests {
         _mockOpenAIClient.Setup(o => o.GetChatCompletionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                         .ReturnsAsync("[]");
 
-        _service = new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object);
+        _service = new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object);
     }
 
     #region Constructor
@@ -42,25 +42,25 @@ public class MotorcycleRAGServiceTests {
     [Fact]
     public void Constructor_ShouldThrow_WhenOrchestratorIsNull() {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(null!, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRagService(null!, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull() {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, null!, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRagService(_mockOrchestrator.Object, null!, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenTelemetryIsNull() {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, null!, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, null!, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenOpenAIClientIsNull() {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRAGService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, null!));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, null!));
     }
 
     #endregion

@@ -7,13 +7,13 @@ namespace MotorcycleRAG.Application.Pipeline;
 
 public class PipelineMonitoringService : IPipelineMonitoringService {
     private readonly ILogger<PipelineMonitoringService> _logger;
-    private readonly PipelineMonitoringConfiguration _config;
 
     public PipelineMonitoringService(
         IOptions<PipelineMonitoringConfiguration> config,
         ILogger<PipelineMonitoringService> logger) {
-        _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task TrackPipelineStartAsync(string executionId, PipelineType pipelineType, PipelineExecutionContext context) {
@@ -22,6 +22,7 @@ public class PipelineMonitoringService : IPipelineMonitoringService {
     }
 
     public async Task TrackPipelineCompletionAsync(string executionId, PipelineExecutionResult result) {
+        ArgumentNullException.ThrowIfNull(result);
         _logger.LogInformation("Pipeline completed: {ExecutionId}, Status: {Status}", executionId, result.Status);
         await Task.CompletedTask;
     }
@@ -32,6 +33,7 @@ public class PipelineMonitoringService : IPipelineMonitoringService {
     }
 
     public async Task SendNotificationAsync(PipelineNotification notification) {
+        ArgumentNullException.ThrowIfNull(notification);
         _logger.LogInformation("Sending notification: {Title}", notification.Title);
         await Task.CompletedTask;
     }

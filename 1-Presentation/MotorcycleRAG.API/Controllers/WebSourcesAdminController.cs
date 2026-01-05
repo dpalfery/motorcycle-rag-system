@@ -354,6 +354,7 @@ public class CreateWebSourceRequest {
     /// </summary>
     [Required]
     [Url]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056:URI parameters should not be strings", Justification = "API DTO requires string for JSON serialization")]
     public string Url { get; set; } = string.Empty;
 
     /// <summary>
@@ -400,6 +401,7 @@ public class UpdateWebSourceRequest {
     /// <summary>
     /// URL of the web source
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056:URI parameters should not be strings", Justification = "API DTO requires string for JSON serialization")]
     public string? Url { get; set; }
 
     /// <summary>

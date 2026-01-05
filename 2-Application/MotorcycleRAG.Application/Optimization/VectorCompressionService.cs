@@ -65,7 +65,7 @@ public class VectorCompressionService : IVectorCompressionService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error compressing vector with {Dimensions} dimensions", vector.Length);
-            throw new InvalidOperationException($"Error compressing vector with {vector.Length} dimensions", ex);
+            throw new InvalidOperationException($"Error compressing {nameof(vector)} with {vector.Length} dimensions", ex);
         }
     }
 

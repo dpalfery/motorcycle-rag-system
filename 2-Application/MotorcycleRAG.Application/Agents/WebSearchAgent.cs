@@ -23,7 +23,10 @@ public class WebSearchAgent : ISearchAgent, IDisposable {
     private readonly ConcurrentDictionary<string, DateTime> _lastRequestTimes;
     private readonly ConcurrentDictionary<string, List<SearchResult>> _cache;
     private readonly IWebTrustPolicyStore? _trustPolicyStore;
-    private readonly WebContentExtractor _contentExtractor;
+    private static readonly string[] DefaultSelectors = { "//p", "//article", "//div[@class*='content']", "//body" };
+    private static readonly string[] MotorcycleKeywords = { "motorcycle", "bike", "engine", "horsepower", "cc", "specifications", "honda", "yamaha", "kawasaki", "ducati", "bmw", "suzuki" };
+    private static readonly string[] DetailKeywords = { "specifications", "performance", "engine", "horsepower", "torque" };
+    private static readonly char[] SpaceSeparator = { ' ' };
 
 
     public SearchAgentType AgentType => SearchAgentType.WebSearch;
@@ -32,19 +35,29 @@ public class WebSearchAgent : ISearchAgent, IDisposable {
         HttpClient httpClient,
         IAzureOpenAIClient openAIClient,
         IOptions<WebSearchOptions> config,
+        ILogger<WebSearchAgent> logger) : this(httpClient, openAIClient, config, logger, null) {
+    }
+
+    public WebSearchAgent(
+        HttpClient httpClient,
+        IAzureOpenAIClient openAIClient,
+        IOptions<WebSearchOptions> config,
         ILogger<WebSearchAgent> logger,
-        IWebTrustPolicyStore? trustPolicyStore = null) {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
-        _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        IWebTrustPolicyStore? trustPolicyStore) {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        ArgumentNullException.ThrowIfNull(openAIClient);
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _httpClient = httpClient;
+        _openAIClient = openAIClient;
+        _config = config.Value;
+        _logger = logger;
         _trustPolicyStore = trustPolicyStore;
 
         _rateLimitSemaphore = new SemaphoreSlim(_config.MaxConcurrentRequests, _config.MaxConcurrentRequests);
         _lastRequestTimes = new ConcurrentDictionary<string, DateTime>();
         _cache = new ConcurrentDictionary<string, List<SearchResult>>();
-
-        _contentExtractor = new WebContentExtractor(logger);
 
         ConfigureHttpClient();
 
@@ -57,6 +70,7 @@ public class WebSearchAgent : ISearchAgent, IDisposable {
     /// Execute web search with rate limiting and credibility validation
     /// </summary>
     public async Task<SearchResult[]> SearchAsync(string query, SearchParameters options) {
+        ArgumentNullException.ThrowIfNull(options);
         if (string.IsNullOrWhiteSpace(query)) {
             _logger.LogWarning("Empty query provided to WebSearchAgent");
             return Array.Empty<SearchResult>();
@@ -224,34 +238,34 @@ Return only the search terms, one per line, without explanations.
     /// <summary>
     /// Build search URL for a specific source
     /// </summary>
-    private string BuildSearchUrl(TrustedSourceOptions source, string searchTerm) {
+    private Uri BuildSearchUrl(TrustedSourceOptions source, string searchTerm) {
         var encodedTerm = Uri.EscapeDataString(searchTerm);
         // SearchUrlTemplate is a Uri - convert to string before replacing placeholder
-        return source.SearchUrlTemplate?.ToString()?.Replace("{query}", encodedTerm) ?? string.Empty;
+        var url = source.SearchUrlTemplate?.ToString()?.Replace("{query}", encodedTerm) ?? string.Empty;
+        return new Uri(url);
     }
 
     /// <summary>
     /// Fetch web content with error handling and timeout
     /// </summary>
-    private async Task<string> FetchWebContentAsync(string url) {
+    private async Task<string> FetchWebContentAsync(Uri uri) {
         try {
-            _logger.LogDebug("Fetching content from: {Url}", url);
+            _logger.LogDebug("Fetching content from: {Url}", uri);
 
-            var uri = new Uri(url);
             using var response = await _httpClient.GetAsync(uri);
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            _logger.LogDebug("Successfully fetched {ContentLength} characters from {Url}", content.Length, url);
+            _logger.LogDebug("Successfully fetched {ContentLength} characters from {Url}", content.Length, uri);
 
             return content;
         }
         catch (HttpRequestException ex) {
-            _logger.LogWarning(ex, "HTTP error fetching content from {Url}: {StatusCode}", url, ex.Message);
+            _logger.LogWarning(ex, "HTTP error fetching content from {Url}: {StatusCode}", uri, ex.Message);
             return string.Empty;
         }
         catch (TaskCanceledException ex) {
-            _logger.LogWarning(ex, "Timeout fetching content from {Url}", url);
+            _logger.LogWarning(ex, "Timeout fetching content from {Url}", uri);
             return string.Empty;
         }
     }
@@ -267,14 +281,11 @@ Return only the search terms, one per line, without explanations.
             doc.LoadHtml(htmlContent);
 
             // Try multiple selectors to find content
-            var selectors = new[] { source.ContentSelector, "//p", "//article", "//div[@class*='content']", "//body" };
-            HtmlNodeCollection? contentNodes = null;
-
-            foreach (var selector in selectors) {
-                contentNodes = doc.DocumentNode.SelectNodes(selector);
-                if (contentNodes != null && contentNodes.Count > 0)
-                    break;
-            }
+            var contentNodes = DefaultSelectors
+                .Prepend(source.ContentSelector)
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(selector => doc.DocumentNode.SelectNodes(selector))
+                .FirstOrDefault(nodes => nodes != null && nodes.Count > 0);
 
             if (contentNodes != null) {
                 foreach (var node in contentNodes.Take(5)) // Limit to 5 results per source
@@ -313,7 +324,7 @@ Return only the search terms, one per line, without explanations.
                 if (!string.IsNullOrWhiteSpace(fullContent) && fullContent.Length > 50) {
                     var sr2 = new SearchResult {
                         Id = $"web_{Guid.NewGuid()}",
-                        Content = fullContent.Substring(0, Math.Min(500, fullContent.Length)),
+                        Content = fullContent.AsSpan(0, Math.Min(500, fullContent.Length)).ToString(),
                         RelevanceScore = 0.6f, // Default relevance for fallback content
                         Source = new SearchSource {
                             AgentType = SearchAgentType.WebSearch,
@@ -357,7 +368,7 @@ Return only the search terms, one per line, without explanations.
 
         // Limit content length
         if (text.Length > 500) {
-            text = text.Substring(0, 500) + "...";
+            text = string.Concat(text.AsSpan(0, 500), "...");
         }
 
         return text;
@@ -370,13 +381,12 @@ Return only the search terms, one per line, without explanations.
         if (string.IsNullOrWhiteSpace(content) || content.Length < 20)
             return false;
 
-        var motorcycleKeywords = new[] { "motorcycle", "bike", "engine", "horsepower", "cc", "specifications", "honda", "yamaha", "kawasaki", "ducati", "bmw", "suzuki" };
-        var searchWords = searchTerm.ToLower().Split(' ');
+        var searchWords = searchTerm.ToLower().Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         var contentLower = content.ToLower();
 
         // Must contain at least one motorcycle keyword OR one search term word (more lenient for testing)
-        var hasMotorcycleKeyword = motorcycleKeywords.Any(keyword => contentLower.Contains(keyword));
+        var hasMotorcycleKeyword = MotorcycleKeywords.Any(keyword => contentLower.Contains(keyword));
         var hasSearchTerm = searchWords.Any(word => word.Length > 2 && contentLower.Contains(word));
 
         return hasMotorcycleKeyword || hasSearchTerm;
@@ -387,12 +397,12 @@ Return only the search terms, one per line, without explanations.
     /// </summary>
     private float CalculateRelevanceScore(string content, string searchTerm) {
         var contentLower = content.ToLower();
-        var searchWords = searchTerm.ToLower().Split(' ');
+        var searchWords = searchTerm.ToLower().Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         var score = 0.3f; // Base score for web content
 
         // Boost for exact search term matches
-        if (contentLower.Contains(searchTerm.ToLower())) {
+        if (contentLower.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) {
             score += 0.3f;
         }
 
@@ -401,9 +411,8 @@ Return only the search terms, one per line, without explanations.
         score += (wordMatches / (float)searchWords.Length) * 0.2f;
 
         // Boost for motorcycle-specific terms
-        var motorcycleTerms = new[] { "specifications", "performance", "engine", "horsepower", "torque" };
-        var motorcycleMatches = motorcycleTerms.Count(term => contentLower.Contains(term));
-        score += (motorcycleMatches / (float)motorcycleTerms.Length) * 0.2f;
+        var motorcycleMatches = DetailKeywords.Count(term => contentLower.Contains(term));
+        score += (motorcycleMatches / (float)DetailKeywords.Length) * 0.2f;
 
         return Math.Min(1.0f, score);
     }
@@ -411,18 +420,15 @@ Return only the search terms, one per line, without explanations.
     /// <summary>
     /// Extract domain from URL
     /// </summary>
-    private string ExtractDomainFromUrl(string? sourceUrl) {
-        if (string.IsNullOrWhiteSpace(sourceUrl))
+    private string ExtractDomainFromUrl(Uri? uri) {
+        if (uri == null)
             return string.Empty;
 
         try {
-            if (Uri.TryCreate(sourceUrl, UriKind.Absolute, out var uri))
-                return uri.Host.ToLowerInvariant();
-
-            return string.Empty;
+            return uri.Host.ToUpperInvariant();
         }
         catch (Exception ex) {
-            _logger.LogWarning(ex, "Failed to extract domain from URL: {Url}", sourceUrl);
+            _logger.LogWarning(ex, "Failed to extract domain from URL: {Url}", uri);
             return string.Empty;
         }
     }
@@ -461,11 +467,16 @@ Return only the search terms, one per line, without explanations.
     /// </summary>
     private async Task<List<SearchResult>> ValidateSourceCredibilityAsync(List<SearchResult> results, CancellationToken cancellationToken) {
         var validatedResults = new List<SearchResult>();
+        var seen = new HashSet<string>(); // To deduplicate results based on content/source
 
         foreach (var result in results) {
             try {
                 // Extract domain from source URL
-                var domain = ExtractDomainFromUrl(result.Source.SourceUrl);
+                Uri? sourceUri = null;
+                if (Uri.TryCreate(result.Source.SourceUrl, UriKind.Absolute, out var parsedUri)) {
+                    sourceUri = parsedUri;
+                }
+                var domain = ExtractDomainFromUrl(sourceUri);
 
                 // Check trust policy first (blocks take precedence over credibility scores)
                 var (isAllowed, tier, blockReason) = CheckDomainTrustPolicy(domain);
@@ -503,7 +514,11 @@ Return only the search terms, one per line, without explanations.
                     result.Metadata["validationPassed"] = contentValidation.IsValid;
                     result.Metadata["trustTierMultiplier"] = tierMultiplier;
 
-                    validatedResults.Add(result);
+                    // Deduplicate results based on a combination of content and source URL
+                    var key = $"{result.Content.GetHashCode()}_{result.Source.SourceUrl?.GetHashCode()}";
+                    if (seen.Add(key)) {
+                        validatedResults.Add(result);
+                    }
                 }
                 else {
                     _logger.LogDebug("Source credibility too low: {Score} < {Threshold}", credibilityScore, _config.MinCredibilityScore);
@@ -541,7 +556,7 @@ Return only the search terms, one per line, without explanations.
             var prompt = $@"
 Analyze this motorcycle-related content for quality and accuracy:
 
-Content: {content.Substring(0, Math.Min(content.Length, 300))}
+Content: {content.AsSpan(0, Math.Min(content.Length, 300)).ToString()}
 
 Rate content on a scale of 0.0 to 1.0 based on:
 - Technical accuracy
@@ -564,9 +579,9 @@ Respond with only a JSON object:
                 var validation = JsonSerializer.Deserialize<ContentValidation>(response);
                 return validation ?? new ContentValidation { IsValid = true, QualityScore = 0.7f };
             }
-            catch (JsonException) {
+            catch (JsonException ex) {
                 // If JSON parsing fails, assume content is valid
-                _logger.LogDebug("Failed to parse validation JSON, assuming valid content");
+                _logger.LogDebug(ex, "Failed to parse validation JSON, assuming valid content");
                 return new ContentValidation { IsValid = true, QualityScore = 0.7f };
             }
         }
@@ -617,7 +632,7 @@ Respond with only a JSON object:
     /// </summary>
     private List<string> ExtractHighlights(string content, string query) {
         var highlights = new List<string>();
-        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var words = query.Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         foreach (var word in words.Take(3)) // Limit to 3 words
         {
@@ -625,9 +640,9 @@ Respond with only a JSON object:
             if (index >= 0) {
                 var start = Math.Max(0, index - 30);
                 var length = Math.Min(80, content.Length - start);
-                var highlight = content.Substring(start, length);
+                var highlight = string.Concat("...", content.AsSpan(start, length), "...");
 
-                highlights.Add($"...{highlight}...");
+                highlights.Add(highlight);
             }
         }
 
@@ -640,15 +655,17 @@ Respond with only a JSON object:
     private bool TryGetCachedResults(string query, out List<SearchResult> results) {
         results = new List<SearchResult>();
 
-        if (_cache.TryGetValue(query.ToLower(), out var cachedResults) && cachedResults.Count > 0) {
+        // Check cache first
+        string queryUpper = query.ToUpperInvariant();
+        if (_cache.TryGetValue(queryUpper, out var cachedResults) && cachedResults.Count > 0) {
             // Check if cache is still valid (within 1 hour)
-            var cacheAge = DateTime.UtcNow - cachedResults.First().GeneratedAt;
+            var cacheAge = DateTime.UtcNow - cachedResults[0].GeneratedAt;
             if (cacheAge < TimeSpan.FromHours(1)) {
                 results = cachedResults;
                 return true;
             }
             else {
-                _cache.TryRemove(query.ToLower(), out _);
+                _cache.TryRemove(queryUpper, out _);
             }
         }
 
@@ -659,11 +676,11 @@ Respond with only a JSON object:
     /// Cache search results
     /// </summary>
     private void CacheResults(string query, List<SearchResult> results) {
-        var cacheKey = query.ToLower();
+        var cacheKey = query.ToUpperInvariant();
 
         // Limit cache size
         if (_cache.Count >= 100) {
-            var oldestKey = _cache.Keys.First();
+            var oldestKey = _cache.Keys.ElementAt(0);
             _cache.TryRemove(oldestKey, out _);
         }
 

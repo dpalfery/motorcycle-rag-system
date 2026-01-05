@@ -68,9 +68,9 @@ public class AzureFoundryHealthCheck : IHealthCheck
             return HealthCheckResult.Healthy("Azure Foundry is healthy",
                 new Dictionary<string, object> { { "response_time_ms", duration } });
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            _logger.LogWarning("Azure Foundry health check timed out");
+            _logger.LogWarning(ex, "Azure Foundry health check timed out");
             return HealthCheckResult.Unhealthy("Azure Foundry health check timed out");
         }
         catch (Exception ex)

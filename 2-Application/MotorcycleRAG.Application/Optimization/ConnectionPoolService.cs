@@ -13,7 +13,7 @@ namespace MotorcycleRAG.Application.Optimization;
 /// </summary>
 public class ConnectionPoolService : IConnectionPoolService, IDisposable {
     private readonly ILogger<ConnectionPoolService> _logger;
-    private readonly ConcurrentDictionary<string, HttpClient> _httpClients = new();
+    private readonly ConcurrentDictionary<string, Lazy<HttpClient>> _httpClients = new();
     private readonly ConcurrentDictionary<string, ConnectionPoolSettings> _settings = new();
     private readonly ConcurrentDictionary<string, ConnectionPoolStatistics> _statistics = new();
     private readonly Timer? _cleanupTimer;
@@ -33,7 +33,10 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
         if (string.IsNullOrWhiteSpace(serviceName))
             throw new ArgumentException("Service name cannot be null or empty", nameof(serviceName));
 
-        return _httpClients.GetOrAdd(serviceName, CreateHttpClient);
+        var lazyClient = _httpClients.GetOrAdd(serviceName, 
+            name => new Lazy<HttpClient>(() => CreateHttpClient(name)));
+            
+        return lazyClient.Value;
     }
 
     public ConnectionPoolStatistics GetStatistics(string serviceName) {
@@ -55,8 +58,10 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
         _settings.AddOrUpdate(serviceName, settings, (_, _) => settings);
 
         // If client already exists, recreate it with new settings
-        if (_httpClients.TryRemove(serviceName, out var existingClient)) {
-            existingClient.Dispose();
+        if (_httpClients.TryRemove(serviceName, out var existingLazy)) {
+            if (existingLazy.IsValueCreated) {
+                existingLazy.Value.Dispose();
+            }
             _logger.LogInformation("Recreated HTTP client for service {ServiceName} with new settings", serviceName);
         }
     }
@@ -188,8 +193,10 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
             }
 
             foreach (var serviceName in clientsToRemove) {
-                if (_httpClients.TryRemove(serviceName, out var client)) {
-                    client.Dispose();
+                if (_httpClients.TryRemove(serviceName, out var lazyClient)) {
+                    if (lazyClient.IsValueCreated) {
+                        lazyClient.Value.Dispose();
+                    }
                     _statistics.TryRemove(serviceName, out _);
                     _logger.LogDebug("Cleaned up unused HTTP client for service {ServiceName}", serviceName);
                 }
@@ -214,8 +221,10 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
             if (disposing) {
                 _cleanupTimer?.Dispose();
 
-                foreach (var client in _httpClients.Values) {
-                    client.Dispose();
+                foreach (var lazyClient in _httpClients.Values) {
+                    if (lazyClient.IsValueCreated) {
+                        lazyClient.Value.Dispose();
+                    }
                 }
 
                 _httpClients.Clear();

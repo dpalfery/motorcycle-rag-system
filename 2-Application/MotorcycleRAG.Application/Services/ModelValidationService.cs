@@ -47,13 +47,15 @@ public class ModelValidationService {
             : ValidationResult.Failure(errors);
     }
 
+    public IReadOnlyList<string> ValidateCitation(Citation? citation) => ValidateCitation(citation, -1);
+
     /// <summary>
-    /// Validates a single citation object.
+    /// Validates a single citation object with source index.
     /// </summary>
     /// <param name="citation">The citation to validate</param>
     /// <param name="sourceIndex">Index of the source for error reporting</param>
     /// <returns>List of validation errors (empty if valid)</returns>
-    public IReadOnlyList<string> ValidateCitation(Citation citation, int sourceIndex = -1) {
+    public IReadOnlyList<string> ValidateCitation(Citation? citation, int sourceIndex) {
         var errors = new List<string>();
 
         if (citation == null) {

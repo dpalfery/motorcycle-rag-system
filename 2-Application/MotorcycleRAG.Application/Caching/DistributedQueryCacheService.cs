@@ -40,7 +40,9 @@ public class DistributedQueryCacheService : IQueryCacheService {
         _logger.LogInformation("Distributed query cache service initialized with prefix: {KeyPrefix}", _keyPrefix);
     }
 
-    public async Task<MotorcycleQueryResponse?> GetAsync(string queryKey, CancellationToken cancellationToken = default) {
+    public Task<MotorcycleQueryResponse?> GetAsync(string queryKey) => GetAsync(queryKey, default);
+
+    public async Task<MotorcycleQueryResponse?> GetAsync(string queryKey, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(queryKey))
             return null;
 
@@ -63,7 +65,9 @@ public class DistributedQueryCacheService : IQueryCacheService {
         }
     }
 
-    public async Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration, CancellationToken cancellationToken = default) {
+    public Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration) => SetAsync(queryKey, response, expiration, default);
+
+    public async Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(queryKey) || response == null)
             return;
 
@@ -86,7 +90,9 @@ public class DistributedQueryCacheService : IQueryCacheService {
         }
     }
 
-    public async Task RemoveAsync(string queryKey, CancellationToken cancellationToken = default) {
+    public Task RemoveAsync(string queryKey) => RemoveAsync(queryKey, default);
+
+    public async Task RemoveAsync(string queryKey, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(queryKey))
             return;
 
@@ -122,14 +128,18 @@ public class DistributedQueryCacheService : IQueryCacheService {
         return Convert.ToHexString(hashBytes).ToUpperInvariant();
     }
 
-    public async Task ClearAsync(CancellationToken cancellationToken = default) {
+    public Task ClearAsync() => ClearAsync(default);
+
+    public async Task ClearAsync(CancellationToken cancellationToken) {
         // Note: IDistributedCache doesn't provide a clear method
         // This would need to be implemented using Redis-specific commands
         _logger.LogWarning("Clear operation not supported by IDistributedCache interface");
         await Task.CompletedTask;
     }
 
-    public async Task<CacheStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default) {
+    public Task<CacheStatistics> GetStatisticsAsync() => GetStatisticsAsync(default);
+
+    public async Task<CacheStatistics> GetStatisticsAsync(CancellationToken cancellationToken) {
         // Note: IDistributedCache doesn't provide statistics
         // This would need to be implemented using Redis-specific commands or external monitoring
         _logger.LogDebug("Statistics not available through IDistributedCache interface");

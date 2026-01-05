@@ -11,7 +11,7 @@ namespace MotorcycleRAG.API.Middleware
     /// <summary>
     /// Middleware for handling exceptions and returning ProblemDetails responses
     /// </summary>
-    public class ExceptionHandlingMiddleware
+    internal class ExceptionHandlingMiddleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
@@ -135,7 +135,7 @@ namespace MotorcycleRAG.API.Middleware
     /// <summary>
     /// Extension method for adding the exception handling middleware
     /// </summary>
-    public static class ExceptionHandlingMiddlewareExtensions
+    internal static class ExceptionHandlingMiddlewareExtensions
     {
         /// <summary>
         /// Adds the exception handling middleware to the pipeline

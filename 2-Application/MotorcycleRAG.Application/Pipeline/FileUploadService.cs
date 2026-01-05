@@ -258,13 +258,11 @@ public class FileUploadService : IFileUploadService {
             if (bytesRead > 0) {
                 var fileExtension = Path.GetExtension(metadata.FileName)?.ToUpperInvariant();
 
-                switch (fileExtension) {
-                    case ".PDF":
-                        ValidatePdfContent(buffer, bytesRead, result);
-                        break;
-                    case ".CSV":
-                        ValidateCsvContent(buffer, bytesRead, result);
-                        break;
+                if (fileExtension == ".PDF") {
+                    ValidatePdfContent(buffer, bytesRead, result);
+                }
+                else if (fileExtension == ".CSV") {
+                    ValidateCsvContent(buffer, bytesRead, result);
                 }
             }
         }

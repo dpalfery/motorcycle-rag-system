@@ -34,11 +34,15 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
         ICorrelationService correlationService) {
         ArgumentNullException.ThrowIfNull(azureConfig);
         ArgumentNullException.ThrowIfNull(searchConfig);
-        var config = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
-        _searchConfig = searchConfig.Value ?? throw new ArgumentNullException(nameof(searchConfig));
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(resilienceService);
         ArgumentNullException.ThrowIfNull(correlationService);
+
+        var config = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
+        _searchConfig = searchConfig.Value ?? throw new ArgumentNullException(nameof(searchConfig));
+        _logger = logger;
+        _resilienceService = resilienceService;
+        _correlationService = correlationService;
 
         // Initialize Azure Search clients with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
@@ -51,10 +55,20 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
             config.SearchServiceEndpoint, _searchConfig.IndexName);
     }
 
+    public Task<DomainSearchResult[]> SearchAsync(string searchText)
+    {
+        return SearchAsync(searchText, 50, CancellationToken.None);
+    }
+
+    public Task<DomainSearchResult[]> SearchAsync(string searchText, int maxResults)
+    {
+        return SearchAsync(searchText, maxResults, CancellationToken.None);
+    }
+
     public async Task<DomainSearchResult[]> SearchAsync(
         string searchText,
-        int maxResults = 50,
-        CancellationToken cancellationToken = default) {
+        int maxResults,
+        CancellationToken cancellationToken) {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
 
         return await _resilienceService.ExecuteAsync<DomainSearchResult[]>(
@@ -114,9 +128,16 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
             cancellationToken);
     }
 
+    public Task<bool> IndexDocumentsAsync<T>(T[] documents)
+    {
+        return IndexDocumentsAsync(documents, CancellationToken.None);
+    }
+
     public async Task<bool> IndexDocumentsAsync<T>(
         T[] documents,
-        CancellationToken cancellationToken = default) {
+        CancellationToken cancellationToken) {
+        ArgumentNullException.ThrowIfNull(documents);
+
         try {
             _logger.LogDebug("Indexing {DocumentCount} documents", documents.Length);
 
@@ -151,9 +172,14 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
         }
     }
 
+    public Task<bool> CreateOrUpdateIndexAsync(string indexName)
+    {
+        return CreateOrUpdateIndexAsync(indexName, CancellationToken.None);
+    }
+
     public async Task<bool> CreateOrUpdateIndexAsync(
         string indexName,
-        CancellationToken cancellationToken = default) {
+        CancellationToken cancellationToken) {
         try {
             _logger.LogDebug("Creating or updating index: {IndexName}", indexName);
 
@@ -170,7 +196,12 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
         }
     }
 
-    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default) {
+    public Task<bool> IsHealthyAsync()
+    {
+        return IsHealthyAsync(CancellationToken.None);
+    }
+
+    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken) {
         try {
             // Simple health check - in a real scenario, you would make an actual API call
             await Task.Delay(50, cancellationToken); // Simulate health check
@@ -338,7 +369,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error indexing documents");
-            throw new InvalidOperationException("Error indexing documents", ex);
+            throw new InvalidOperationException($"Error indexing {nameof(documents)}", ex);
         }
     }
 

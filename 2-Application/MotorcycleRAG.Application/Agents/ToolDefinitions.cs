@@ -206,25 +206,31 @@ public class ToolCall {
         return (T?)Convert.ChangeType(value, typeof(T));
     }
 
+    public string GetStringArgument(string name) => GetStringArgument(name, string.Empty);
+
     /// <summary>
-    /// Get a string argument
+    /// Get a string argument with default value
     /// </summary>
-    public string GetStringArgument(string name, string defaultValue = "") {
+    public string GetStringArgument(string name, string defaultValue) {
         return GetArgument<string>(name) ?? defaultValue;
     }
 
+    public int GetIntArgument(string name) => GetIntArgument(name, 0);
+
     /// <summary>
-    /// Get an integer argument
+    /// Get an integer argument with default value
     /// </summary>
-    public int GetIntArgument(string name, int defaultValue = 0) {
+    public int GetIntArgument(string name, int defaultValue) {
         var value = GetArgument<int?>(name);
         return value ?? defaultValue;
     }
 
+    public bool GetBoolArgument(string name) => GetBoolArgument(name, false);
+
     /// <summary>
-    /// Get a boolean argument
+    /// Get a boolean argument with default value
     /// </summary>
-    public bool GetBoolArgument(string name, bool defaultValue = false) {
+    public bool GetBoolArgument(string name, bool defaultValue) {
         var value = GetArgument<bool?>(name);
         return value ?? defaultValue;
     }

@@ -30,17 +30,17 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     }
 
     private WebApplicationFactory<Program> CreateFactoryWithMockedService() {
-        // Override IMotorcycleRAGService with a mocked implementation so that tests do not call external services.
+        // Override IMotorcycleRagService with a mocked implementation so that tests do not call external services.
         return _factory.WithWebHostBuilder(builder => {
             builder.ConfigureServices(services => {
                 // Remove existing registration (if any).
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IMotorcycleRAGService));
+                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IMotorcycleRagService));
                 if (descriptor is not null) {
                     services.Remove(descriptor);
                 }
 
                 // Register mock service.
-                var mockService = new Mock<IMotorcycleRAGService>();
+                var mockService = new Mock<IMotorcycleRagService>();
 
                 mockService.Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
                             .ReturnsAsync((MotorcycleQueryRequest r) => {
@@ -191,12 +191,7 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
         // Create a mock that returns empty results
         var factory = new TestWebApplicationFactory().WithWebHostBuilder(builder => {
             builder.ConfigureServices(services => {
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IMotorcycleRAGService));
-                if (descriptor is not null) {
-                    services.Remove(descriptor);
-                }
-
-                var mockService = new Mock<IMotorcycleRAGService>();
+                var mockService = new Mock<IMotorcycleRagService>();
 
                 mockService.Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
                             .ReturnsAsync((MotorcycleQueryRequest r) => new MotorcycleQueryResponse {

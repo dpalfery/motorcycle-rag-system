@@ -34,13 +34,20 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument> {
         ArgumentNullException.ThrowIfNull(searchClient);
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(azureConfig);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _documentClient = documentClient;
+        _openAIClient = openAIClient;
+        _searchClient = searchClient;
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
         _azureConfig = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
-        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task<ProcessedData> ProcessAsync(PDFDocument input) {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        ArgumentNullException.ThrowIfNull(input);
+
         var documents = new List<MotorcycleDocument>();
 
         try {
@@ -85,6 +92,8 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument> {
 
     public async Task<IndexingResult> IndexAsync(ProcessedData data) {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        ArgumentNullException.ThrowIfNull(data);
+
         var result = new IndexingResult();
 
         try {
@@ -447,7 +456,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                     Id = $"{input.FileName}_page_{page.PageNumber}_chunk_{chunkId++}",
                     Content = chunkContent,
                     PageNumber = page.PageNumber,
-                    Section = sectionTitle,
+                    Section = sectionTitle ?? string.Empty,
                     Type = ChunkType.Text,
                     Metadata = new Dictionary<string, object> {
                         ["PageWidth"] = page.Width,
@@ -457,7 +466,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                         // Use pre-enriched metadata if available, otherwise use detected section
                         ["PageNumber"] = page.PageNumber,
                         ["PageRange"] = $"{page.PageNumber}-{page.PageNumber}",
-                        ["PrimarySection"] = !string.IsNullOrEmpty(page.PrimarySection) ? page.PrimarySection : sectionTitle,
+                        ["PrimarySection"] = !string.IsNullOrEmpty(page.PrimarySection) ? page.PrimarySection : (sectionTitle ?? string.Empty),
                         ["SectionLevel"] = sectionLevel,
                         ["AllSectionHeadings"] = allSectionHeadings,
                         ["SectionTitle"] = sectionTitle ?? string.Empty,
@@ -816,7 +825,14 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             // T053/T055: Extract locator metadata from chunk metadata for citation support with defensive type checking
             int pageNumber;
             try {
-                pageNumber = chunk.Metadata.ContainsKey("PageNumber") ? Convert.ToInt32(chunk.Metadata["PageNumber"]) : chunk.PageNumber;
+                if (chunk.Metadata.TryGetValue("PageNumber", out var pageNumberObj))
+                {
+                    pageNumber = Convert.ToInt32(pageNumberObj);
+                }
+                else
+                {
+                    pageNumber = chunk.PageNumber;
+                }
             }
             catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse PageNumber from metadata for chunk {ChunkId}, using fallback", chunk.Id);

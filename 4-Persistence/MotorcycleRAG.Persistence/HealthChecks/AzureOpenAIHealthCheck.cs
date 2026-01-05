@@ -61,9 +61,9 @@ public class AzureOpenAIHealthCheck : IHealthCheck
             return HealthCheckResult.Healthy("Azure OpenAI is healthy", 
                 new Dictionary<string, object> { { "response_time_ms", duration } });
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            _logger.LogWarning("Azure OpenAI health check timed out");
+            _logger.LogWarning(ex, "Azure OpenAI health check timed out");
             return HealthCheckResult.Unhealthy("Azure OpenAI health check timed out");
         }
         catch (Exception ex)

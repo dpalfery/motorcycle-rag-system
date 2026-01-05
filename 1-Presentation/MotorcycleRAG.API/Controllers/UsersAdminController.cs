@@ -155,7 +155,7 @@ public class AssignPlanRequest {
 /// User list response model
 /// </summary>
 public class UserListResponse {
-    public MotorcycleRAG.Contracts.Models.DTOs.UserDTO[] Users { get; set; } = Array.Empty<MotorcycleRAG.Contracts.Models.DTOs.UserDTO>();
+    public IReadOnlyList<MotorcycleRAG.Contracts.Models.DTOs.UserDTO> Users { get; set; } = Array.Empty<MotorcycleRAG.Contracts.Models.DTOs.UserDTO>();
     public int Page { get; set; }
     public int PageSize { get; set; }
     public int TotalCount { get; set; }

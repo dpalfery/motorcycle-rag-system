@@ -27,18 +27,19 @@ public class ToolConfigurationService : IToolConfigurationService {
 
     private readonly IToolConfigurationRepository _configRepository;
     private readonly IToolConfigurationAuditRepository _auditRepository;
-    private readonly IMcpConfigurationProvider _configProvider;
     private readonly ILogger<ToolConfigurationService> _logger;
 
     public ToolConfigurationService(
         IToolConfigurationRepository configRepository,
         IToolConfigurationAuditRepository auditRepository,
-        IMcpConfigurationProvider configProvider,
         ILogger<ToolConfigurationService> logger) {
-        _configRepository = configRepository ?? throw new ArgumentNullException(nameof(configRepository));
-        _auditRepository = auditRepository ?? throw new ArgumentNullException(nameof(auditRepository));
-        _configProvider = configProvider ?? throw new ArgumentNullException(nameof(configProvider));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(configRepository);
+        ArgumentNullException.ThrowIfNull(auditRepository);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _configRepository = configRepository;
+        _auditRepository = auditRepository;
+        _logger = logger;
     }
 
     /// <summary>
@@ -90,11 +91,10 @@ public class ToolConfigurationService : IToolConfigurationService {
     public async Task<McpToolConfiguration> CreateToolAsync(
         McpToolConfiguration configuration,
         string? userId = null) {
-        if (configuration == null)
-            throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(configuration);
 
         if (string.IsNullOrWhiteSpace(configuration.ToolId))
-            throw new ArgumentException("Tool ID must not be empty", nameof(configuration));
+            throw new ArgumentException("Tool ID must not be empty", nameof(configuration.ToolId));
 
         try {
             // Validate the configuration
@@ -148,8 +148,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         if (string.IsNullOrWhiteSpace(toolId))
             throw new ArgumentException("Tool ID must not be empty", nameof(toolId));
 
-        if (configuration == null)
-            throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(configuration);
 
         try {
             // Get existing configuration
@@ -425,20 +424,18 @@ public class ToolConfigurationService : IToolConfigurationService {
 
         // CQ-001 + SC-002: Port validation using constants
         // Development ports allowed only on localhost, standard ports allowed everywhere
-        if (uri.Port > 0) {
-            if (DevelopmentPorts.Contains(uri.Port)) {
-                // SC-002: Development ports MUST be on localhost only
-                if (!IsLocalhostAddress(uri.Host)) {
-                    _logger.LogWarning(
-                        "Development port {Port} attempted on non-localhost address: {Host}",
-                        uri.Port, uri.Host);
-                    return false;
-                }
-            }
-            else if (!StandardPorts.Contains(uri.Port)) {
-                // CQ-001: Port not in allowed lists
+        if (uri.Port > 0 && DevelopmentPorts.Contains(uri.Port)) {
+            // SC-002: Development ports MUST be on localhost only
+            if (!IsLocalhostAddress(uri.Host)) {
+                _logger.LogWarning(
+                    "Development port {Port} attempted on non-localhost address: {Host}",
+                    uri.Port, uri.Host);
                 return false;
             }
+        }
+        else if (uri.Port > 0 && !StandardPorts.Contains(uri.Port)) {
+            // CQ-001: Port not in allowed lists
+            return false;
         }
 
         return true;
@@ -504,9 +501,8 @@ public class ToolConfigurationService : IToolConfigurationService {
             return true;
 
         // Check for multicast (224.x.x.x to 239.x.x.x)
-        if (octets.Length == 4 && int.TryParse(octets[0], out var firstOctet)) {
-            if (firstOctet >= 224 && firstOctet <= 239)
-                return true;
+        if (octets.Length == 4 && int.TryParse(octets[0], out var firstOctet) && firstOctet >= 224 && firstOctet <= 239) {
+            return true;
         }
 
         // Check for broadcast (255.255.255.255)
@@ -560,7 +556,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit entries for action {Action}", action);
-            throw new InvalidOperationException($"Error retrieving audit entries for action {action}", ex);
+            throw new InvalidOperationException($"Error retrieving audit entries for {nameof(action)} {action}", ex);
         }
     }
 }

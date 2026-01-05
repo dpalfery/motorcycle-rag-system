@@ -23,6 +23,8 @@ public static class ServiceCollectionExtensions {
     public static IServiceCollection AddAzureServices(
         this IServiceCollection services,
         IConfiguration configuration) {
+        ArgumentNullException.ThrowIfNull(configuration);
+
         // Configure options from appsettings
         services.Configure<AzureAIOptions>(
             configuration.GetSection("AzureAI"));

@@ -68,8 +68,8 @@ namespace MotorcycleRAG.Application.Services {
                 return recordedUsage;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to record usage for user {UserId} on endpoint {Endpoint}", userId, endpoint);
-                throw new InvalidOperationException($"Failed to record usage for user {userId} on endpoint {endpoint}", ex);
+                _logger.LogError(ex, "Failed to record usage for user {UserId} on {Endpoint}", userId, endpoint);
+                throw new InvalidOperationException($"Failed to record usage for user {userId} on {nameof(endpoint)} {endpoint}", ex);
             }
         }
 
@@ -90,7 +90,6 @@ namespace MotorcycleRAG.Application.Services {
                 httpMethod: httpMethod,
                 queryId: queryId,
                 durationMs: durationMs,
-                statusCode: 200,
                 callerIp: callerIp,
                 userAgent: userAgent);
         }

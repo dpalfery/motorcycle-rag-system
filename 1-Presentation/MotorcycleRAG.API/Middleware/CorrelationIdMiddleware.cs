@@ -8,7 +8,7 @@ namespace MotorcycleRAG.API.Middleware
     /// <summary>
     /// Middleware for adding correlation IDs to requests and response headers
     /// </summary>
-    public class CorrelationIdMiddleware
+    internal class CorrelationIdMiddleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<CorrelationIdMiddleware> _logger;
@@ -71,7 +71,7 @@ namespace MotorcycleRAG.API.Middleware
     /// <summary>
     /// Extension method for adding the correlation ID middleware to the pipeline
     /// </summary>
-    public static class CorrelationIdMiddlewareExtensions
+    internal static class CorrelationIdMiddlewareExtensions
     {
         /// <summary>
         /// Adds the correlation ID middleware to the pipeline

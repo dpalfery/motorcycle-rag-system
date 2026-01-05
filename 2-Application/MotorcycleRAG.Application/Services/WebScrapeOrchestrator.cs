@@ -30,6 +30,14 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     private readonly ConcurrentDictionary<long, CancellationTokenSource> _activeScrapes =
         new ConcurrentDictionary<long, CancellationTokenSource>();
 
+    private static readonly string[] DefaultMotorcycleSearchTerms = {
+        "motorcycle specifications",
+        "motorcycle performance",
+        "motorcycle maintenance",
+        "motorcycle reviews",
+        "motorcycle technical data"
+    };
+
     public WebScrapeOrchestrator(
         IWebScrapeRunRepository webScrapeRunRepository,
         ISearchAgent webSearchAgent,
@@ -120,7 +128,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
 
             // Signal cancellation
             if (_activeScrapes.TryGetValue(runId, out var cts)) {
-                cts.Cancel();
+                await cts.CancelAsync();
                 _logger.LogInformation("Cancellation signal sent for scrape run {RunId}", runId);
                 return true;
             }
@@ -244,7 +252,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
                 documents.Length, runId);
 
             // Step 3: Index the documents
-            var indexResult = await IndexDocumentsAsync(documents, cancellationToken);
+            var indexResult = await IndexDocumentsAsync(documents);
             pagesIndexed = indexResult.DocumentsIndexed;
 
             if (indexResult.Errors.Count > 0) {
@@ -401,14 +409,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         // Note: Custom search terms not yet implemented - use default motorcycle terms
         // Add default motorcycle-related search terms
         if (searchTerms.Count == 0) {
-            searchTerms.AddRange(new[]
-            {
-                "motorcycle specifications",
-                "motorcycle performance",
-                "motorcycle maintenance",
-                "motorcycle reviews",
-                "motorcycle technical data"
-            });
+            searchTerms.AddRange(DefaultMotorcycleSearchTerms);
         }
 
         _logger.LogDebug("Generated {TermCount} search terms for web source: {SourceUrl}",
@@ -425,17 +426,12 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             return false;
         }
 
-        // Check if the result's source URL contains the web source domain
-        var resultUrl = result.Source.SourceUrl?.ToString()?.ToLowerInvariant() ?? string.Empty;
-        var sourceUrl = webSource.Url?.ToLowerInvariant() ?? string.Empty;
-
         // Extract domain from URLs for comparison
-        var resultDomain = ExtractDomainFromUrl(resultUrl);
-        var sourceDomain = ExtractDomainFromUrl(sourceUrl);
+        var resultDomain = ExtractDomainFromUrl(result.Source.SourceUrl);
+        var sourceDomain = ExtractDomainFromUrl(webSource.Url);
 
         return !string.IsNullOrEmpty(resultDomain) &&
-               !string.IsNullOrEmpty(sourceDomain) &&
-               resultDomain == sourceDomain;
+               resultDomain.Equals(sourceDomain, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -448,7 +444,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             }
 
             var uri = new Uri(url);
-            return uri.Host.ToLowerInvariant();
+            return uri.Host.ToUpperInvariant();
         }
         catch {
             return string.Empty;
@@ -518,8 +514,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     /// Indexes motorcycle documents
     /// </summary>
     private async Task<BatchIndexingResult> IndexDocumentsAsync(
-        MotorcycleDocument[] documents,
-        CancellationToken cancellationToken) {
+        MotorcycleDocument[] documents) {
         try {
             _logger.LogInformation("Starting indexing of {DocumentCount} documents", documents.Length);
 
@@ -530,8 +525,8 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
 
             return indexResult;
         }
-        catch (OperationCanceledException) {
-            _logger.LogWarning("Indexing was cancelled");
+        catch (OperationCanceledException ex) {
+            _logger.LogWarning(ex, "Indexing was cancelled");
             throw;
         }
         catch (Exception ex) {
@@ -569,7 +564,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             return message;
         }
 
-        return message.Substring(0, maxLength - 3) + "...";
+        return string.Concat(message.AsSpan(0, maxLength - 3), "...");
     }
 
     #endregion

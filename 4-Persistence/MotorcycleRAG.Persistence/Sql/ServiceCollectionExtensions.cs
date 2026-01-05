@@ -22,6 +22,8 @@ public static class ServiceCollectionExtensions {
     public static IServiceCollection AddSqlPersistenceServices(
         this IServiceCollection services,
         IConfiguration configuration) {
+        ArgumentNullException.ThrowIfNull(configuration);
+
         // Configure SQL options from appsettings (non-secret settings only)
         services.Configure<SqlOptions>(
             configuration.GetSection("Sql"));
@@ -53,6 +55,8 @@ public static class ServiceCollectionExtensions {
 /// </summary>
 public class SqlOptionsValidator : IValidateOptions<SqlOptions> {
     public ValidateOptionsResult Validate(string? name, SqlOptions options) {
+        ArgumentNullException.ThrowIfNull(options);
+
         var failures = new List<string>();
 
         if (options.CommandTimeout <= 0)

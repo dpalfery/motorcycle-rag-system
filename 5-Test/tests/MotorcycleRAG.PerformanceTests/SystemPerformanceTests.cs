@@ -14,7 +14,7 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
 {
     private readonly TestWebApplicationFactory _factory;
     private readonly IServiceScope _scope;
-    private readonly IMotorcycleRAGService _ragService;
+    private readonly IMotorcycleRagService _ragService;
     private readonly IDataPipelineOrchestrator _pipelineOrchestrator;
     private readonly IPipelineMonitoringService _monitoringService;
 
@@ -23,7 +23,7 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
         _factory = factory;
         _scope = _factory.Services.CreateScope();
 
-        _ragService = _scope.ServiceProvider.GetRequiredService<IMotorcycleRAGService>();
+        _ragService = _scope.ServiceProvider.GetRequiredService<IMotorcycleRagService>();
         _pipelineOrchestrator = _scope.ServiceProvider.GetRequiredService<IDataPipelineOrchestrator>();
         _monitoringService = _scope.ServiceProvider.GetRequiredService<IPipelineMonitoringService>();
     }

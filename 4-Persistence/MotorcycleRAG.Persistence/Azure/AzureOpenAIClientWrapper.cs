@@ -28,10 +28,14 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
         ICorrelationService correlationService)
     {
         ArgumentNullException.ThrowIfNull(config);
-        _config = config.Value ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(resilienceService);
         ArgumentNullException.ThrowIfNull(correlationService);
+
+        _config = config.Value ?? throw new ArgumentNullException(nameof(config));
+        _logger = logger;
+        _resilienceService = resilienceService;
+        _correlationService = correlationService;
 
         // Initialize Azure OpenAI client with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
@@ -168,7 +172,12 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
         }
     }
 
-    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default)
+    public Task<bool> IsHealthyAsync()
+    {
+        return IsHealthyAsync(CancellationToken.None);
+    }
+
+    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken)
     {
         try
         {

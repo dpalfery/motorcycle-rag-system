@@ -24,8 +24,10 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
         IOptions<AzureAIOptions> config,
         ILogger<DocumentIntelligenceClientWrapper> logger) {
         ArgumentNullException.ThrowIfNull(config);
-        _config = config.Value ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(logger);
+
+        _config = config.Value ?? throw new ArgumentNullException(nameof(config));
+        _logger = logger;
 
         // Initialize Document Intelligence client with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
@@ -36,9 +38,16 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
     }
 
 
+    public Task<DocumentAnalysisResult> AnalyzeDocumentFromUriAsync(Uri documentUri)
+    {
+        return AnalyzeDocumentFromUriAsync(documentUri, CancellationToken.None);
+    }
+
     public async Task<DocumentAnalysisResult> AnalyzeDocumentFromUriAsync(
         Uri documentUri,
-        CancellationToken cancellationToken = default) {
+        CancellationToken cancellationToken) {
+        ArgumentNullException.ThrowIfNull(documentUri);
+
         try {
             _logger.LogDebug("Analyzing document from URI: {DocumentUri}", documentUri);
 
@@ -69,9 +78,9 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
             return result;
         }
         catch (RequestFailedException ex) {
-            _logger.LogError(ex, "Document Intelligence URI request failed: {ErrorCode} - {Message}",
-                ex.ErrorCode, ex.Message);
-            throw;
+            _logger.LogError(ex, "Document Intelligence URI request failed: {ErrorCode}",
+                ex.ErrorCode);
+            throw new InvalidOperationException($"Document Intelligence failed to analyze document: {ex.ErrorCode}", ex);
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Unexpected error in AnalyzeDocumentFromUriAsync");
@@ -94,6 +103,8 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
     }
 
     public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(Stream documentStream, string contentType) {
+        ArgumentNullException.ThrowIfNull(documentStream);
+
         try {
             _logger.LogDebug("Analyzing document from stream with content type: {ContentType}", contentType);
 
@@ -148,7 +159,12 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
         }
     }
 
-    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken = default) {
+    public Task<bool> IsHealthyAsync()
+    {
+        return IsHealthyAsync(CancellationToken.None);
+    }
+
+    public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken) {
         try {
             // Simple health check - in a real scenario, you would make an actual API call
             await Task.Delay(50, cancellationToken); // Simulate health check

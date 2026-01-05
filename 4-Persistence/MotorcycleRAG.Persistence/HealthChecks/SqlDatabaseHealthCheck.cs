@@ -17,6 +17,9 @@ public class SqlDatabaseHealthCheck : IHealthCheck
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         ArgumentNullException.ThrowIfNull(logger);
+
+        _connectionFactory = connectionFactory;
+        _logger = logger;
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)

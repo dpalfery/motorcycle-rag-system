@@ -106,6 +106,8 @@ public class CorrelationService : ICorrelationService
         string correlationId,
         Func<Task<T>> operation)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+
         var previousId = _correlationId.Value;
         SetCorrelationId(correlationId);
 
@@ -176,12 +178,17 @@ public static class LoggerExtensions
         string correlationId,
         params object[] args)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(args);
+
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
             ["CorrelationId"] = correlationId
         });
 
-        logger.LogError(exception, message, args);
+        var formattedArgs = new object[args.Length];
+        args.CopyTo(formattedArgs, 0);
+        logger.LogError(exception, message, formattedArgs);
     }
 
     /// <summary>
@@ -193,12 +200,17 @@ public static class LoggerExtensions
         string correlationId,
         params object[] args)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(args);
+
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
             ["CorrelationId"] = correlationId
         });
 
-        logger.LogWarning(message, args);
+        var formattedArgs = new object[args.Length];
+        args.CopyTo(formattedArgs, 0);
+        logger.LogWarning(message, formattedArgs);
     }
 
     /// <summary>
@@ -210,11 +222,16 @@ public static class LoggerExtensions
         string correlationId,
         params object[] args)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(args);
+
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
             ["CorrelationId"] = correlationId
         });
 
-        logger.LogInformation(message, args);
+        var formattedArgs = new object[args.Length];
+        args.CopyTo(formattedArgs, 0);
+        logger.LogInformation(message, formattedArgs);
     }
 }

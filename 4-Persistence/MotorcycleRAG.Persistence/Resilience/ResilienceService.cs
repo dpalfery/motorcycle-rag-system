@@ -38,6 +38,8 @@ public class ResilienceService : IResilienceService
         using var scope = _logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId, ["PolicyKey"] = policyKey });
         try
         {
+            ArgumentNullException.ThrowIfNull(operation);
+
             if (!_policies.TryGetValue(policyKey, out var policy))
             {
                 _logger.LogWarning("No resilience policy found for key: {PolicyKey}. Executing without resilience.", policyKey);

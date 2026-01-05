@@ -27,8 +27,11 @@ namespace MotorcycleRAG.Persistence.Sql
         /// <param name="logger">Logger</param>
         public SqlConnectionFactory(IOptions<SqlOptions> sqlOptions, ILogger<SqlConnectionFactory> logger)
         {
+            ArgumentNullException.ThrowIfNull(sqlOptions);
+            ArgumentNullException.ThrowIfNull(logger);
+
             _sqlOptions = sqlOptions.Value ?? throw new ArgumentNullException(nameof(sqlOptions));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _logger = logger;
 
             var connectionString = Environment.GetEnvironmentVariable("MCR_API_SQL_CONNECTION_STRING");
             if (string.IsNullOrWhiteSpace(connectionString))
@@ -69,8 +72,8 @@ namespace MotorcycleRAG.Persistence.Sql
             }
             catch (Exception ex)
             {
-                _logger.LogError("Failed to create SQL connection. Error type: {ErrorType}", ex.GetType().Name);
-                throw;
+                _logger.LogError(ex, "Failed to create SQL connection");
+                throw new InvalidOperationException("An error occurred while creating a SQL connection.", ex);
             }
         }
 
@@ -88,8 +91,8 @@ namespace MotorcycleRAG.Persistence.Sql
             }
             catch (Exception ex)
             {
-                _logger.LogError("Failed to create SQL connection. Error type: {ErrorType}", ex.GetType().Name);
-                throw;
+                _logger.LogError(ex, "Failed to create SQL connection");
+                throw new InvalidOperationException("An error occurred while creating a SQL connection asynchronously.", ex);
             }
         }
 
@@ -108,14 +111,46 @@ namespace MotorcycleRAG.Persistence.Sql
             }
             catch (Exception ex)
             {
-                _logger.LogError("Failed to open SQL connection. Error type: {ErrorType}", ex.GetType().Name);
+                _logger.LogError(ex, "Failed to open SQL connection");
                 connection.Dispose();
                 throw;
             }
         }
 
         /// <summary>
+        /// Creates a new SQL command with the specified connection
+        /// </summary>
+        /// <param name="connection">SQL connection</param>
+        /// <returns>SQL command</returns>
+        public IDbCommand CreateCommand(IDbConnection connection)
+        {
+            return CreateCommand(connection, null, null, CommandType.Text, null);
+        }
+
+        /// <summary>
         /// Creates a new SQL command with the specified connection and transaction
+        /// </summary>
+        /// <param name="connection">SQL connection</param>
+        /// <param name="transaction">SQL transaction</param>
+        /// <returns>SQL command</returns>
+        public IDbCommand CreateCommand(IDbConnection connection, IDbTransaction? transaction)
+        {
+            return CreateCommand(connection, transaction, null, CommandType.Text, null);
+        }
+
+        /// <summary>
+        /// Creates a new SQL command with the specified connection and command text
+        /// </summary>
+        /// <param name="connection">SQL connection</param>
+        /// <param name="commandText">Command text</param>
+        /// <returns>SQL command</returns>
+        public IDbCommand CreateCommand(IDbConnection connection, string commandText)
+        {
+            return CreateCommand(connection, null, commandText, CommandType.Text, null);
+        }
+
+        /// <summary>
+        /// Creates a new SQL command with full options
         /// </summary>
         /// <param name="connection">SQL connection</param>
         /// <param name="transaction">SQL transaction</param>
@@ -125,15 +160,12 @@ namespace MotorcycleRAG.Persistence.Sql
         /// <returns>SQL command</returns>
         public IDbCommand CreateCommand(
             IDbConnection connection,
-            IDbTransaction? transaction = null,
-            string? commandText = null,
-            CommandType commandType = CommandType.Text,
-            int? commandTimeout = null)
+            IDbTransaction? transaction,
+            string? commandText,
+            CommandType commandType,
+            int? commandTimeout)
         {
-            if (connection == null)
-            {
-                throw new ArgumentNullException(nameof(connection));
-            }
+            ArgumentNullException.ThrowIfNull(connection);
 
             var command = connection.CreateCommand();
             if (command == null)
@@ -170,14 +202,37 @@ namespace MotorcycleRAG.Persistence.Sql
         /// </summary>
         /// <param name="parameterName">Parameter name</param>
         /// <param name="value">Parameter value</param>
+        /// <returns>SQL parameter</returns>
+        public IDataParameter CreateParameter(string parameterName, object? value)
+        {
+            return CreateParameter(parameterName, value, DbType.String, ParameterDirection.Input);
+        }
+
+        /// <summary>
+        /// Creates a new SQL parameter with specified type
+        /// </summary>
+        /// <param name="parameterName">Parameter name</param>
+        /// <param name="value">Parameter value</param>
+        /// <param name="dbType">Parameter data type</param>
+        /// <returns>SQL parameter</returns>
+        public IDataParameter CreateParameter(string parameterName, object? value, DbType dbType)
+        {
+            return CreateParameter(parameterName, value, dbType, ParameterDirection.Input);
+        }
+
+        /// <summary>
+        /// Creates a new SQL parameter with full options
+        /// </summary>
+        /// <param name="parameterName">Parameter name</param>
+        /// <param name="value">Parameter value</param>
         /// <param name="dbType">Parameter data type</param>
         /// <param name="direction">Parameter direction</param>
         /// <returns>SQL parameter</returns>
         public IDataParameter CreateParameter(
             string parameterName,
             object? value,
-            DbType dbType = DbType.String,
-            ParameterDirection direction = ParameterDirection.Input)
+            DbType dbType,
+            ParameterDirection direction)
         {
             var parameter = new SqlParameter
             {
@@ -199,16 +254,23 @@ namespace MotorcycleRAG.Persistence.Sql
         IDbConnection CreateConnection();
         Task<IDbConnection> CreateConnectionAsync();
         Task<IDbConnection> CreateOpenConnectionAsync();
+
+        IDbCommand CreateCommand(IDbConnection connection);
+        IDbCommand CreateCommand(IDbConnection connection, IDbTransaction? transaction);
+        IDbCommand CreateCommand(IDbConnection connection, string commandText);
         IDbCommand CreateCommand(
             IDbConnection connection,
-            IDbTransaction? transaction = null,
-            string? commandText = null,
-            CommandType commandType = CommandType.Text,
-            int? commandTimeout = null);
+            IDbTransaction? transaction,
+            string? commandText,
+            CommandType commandType,
+            int? commandTimeout);
+
+        IDataParameter CreateParameter(string parameterName, object? value);
+        IDataParameter CreateParameter(string parameterName, object? value, DbType dbType);
         IDataParameter CreateParameter(
             string parameterName,
             object? value,
-            DbType dbType = DbType.String,
-            ParameterDirection direction = ParameterDirection.Input);
+            DbType dbType,
+            ParameterDirection direction);
     }
 }

@@ -39,17 +39,34 @@ public class QueryRefinementAnalysis {
 /// Main service coordinating the complete retrieval-augmented generation (RAG) pipeline for motorcycle queries.
 /// Enhanced with caching and performance optimizations.
 /// </summary>
-public sealed class MotorcycleRAGService : IMotorcycleRAGService {
+public sealed class MotorcycleRagService : IMotorcycleRagService {
+    private static readonly string[] JsonArraySeparators = { "\",\"" };
+    private static readonly char[] SentenceSeparators = { '.', '!', '?' };
+    private static readonly string[] FactIndicators = { " is ", " has ", " are ", " was ", " were " };
+    private static readonly char[] TrimChars = { '[', ']', ' ', '\\', '"' };
+    private static readonly string[] CommonKnowledgePatterns = {
+        "MOTORCYCLE", "VEHICLE", "ENGINE", "WHEELS", "TWO-WHEELED", "TRANSPORTATION",
+        "RIDE", "DRIVER", "PASSENGER", "ROAD", "STREET", "SPEED", "POWER"
+    };
+    private static readonly char[] WordSplitSeparators = { ' ' };
+    private static readonly char[] KeyTermSeparators = { ' ', '.', ',', ';', ':', '(', ')', '[', ']', '{', '}', '\\', '/', '-', '_' };
+    private static readonly string[] CommonBrands = { "Honda", "Yamaha", "Kawasaki", "Suzuki", "Ducati", "BMW", "Harley", "Triumph" };
+    private static readonly string[] ModelIndicators = { "CBR", "R1", "ZX", "GSX", "Panigale", "S1000", "Street", "Ninja" };
+    private static readonly string[] MotorcycleTerms = { "motorcycle", "bike", "specs", "specifications", "manual", "guide", "review", "comparison" };
+    private static readonly string[] TechnicalTerms = { "engine", "horsepower", "torque", "displacement", "suspension", "brakes", "ABS", "traction control" };
+    private static readonly char[] CleanTrimChars = { '.', ',', ';', ':', '!', '?' };
     private readonly IAgentOrchestrator _orchestrator;
-    private readonly ILogger<MotorcycleRAGService> _logger;
+    private readonly ILogger<MotorcycleRagService> _logger;
     private readonly ITelemetryService _telemetryService;
     private readonly IQueryCacheService _cacheService;
     private readonly CacheConfiguration _cacheConfig;
     private readonly IAzureOpenAIClient _openAIClient;
+    private const decimal InputCostPer1K = 0.0015m; 
+    private const decimal OutputCostPer1K = 0.002m;
 
-    public MotorcycleRAGService(
+    public MotorcycleRagService(
         IAgentOrchestrator orchestrator,
-        ILogger<MotorcycleRAGService> logger,
+        ILogger<MotorcycleRagService> logger,
         ITelemetryService telemetryService,
         IQueryCacheService cacheService,
         IOptions<CacheConfiguration> cacheConfig,
@@ -79,86 +96,77 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService {
 
         var stopwatch = Stopwatch.StartNew();
 
-        // 1. Check cache first if enabled
-        MotorcycleQueryResponse? cachedResponse = null;
-        string? cacheKey = null;
-
-        if (_cacheConfig.EnableCaching) {
-            cacheKey = _cacheService.GenerateCacheKey(request);
-            cachedResponse = await _cacheService.GetAsync(cacheKey);
-
-            if (cachedResponse != null) {
-                stopwatch.Stop();
-
-                // Update cached response with new query ID and timestamp
-                cachedResponse.QueryId = queryId;
-                cachedResponse.GeneratedAt = DateTime.UtcNow;
-
-                if (cachedResponse.Metrics != null) {
-                    var cachedMetrics = cachedResponse!.Metrics;
-                    cachedMetrics.ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds;
-                    cachedMetrics.CacheHit = true;
-                }
-
-                _logger.LogInformation("[{QueryId}] Cache hit for query. Duration: {Duration}ms", queryId, stopwatch.ElapsedMilliseconds);
-
-                // Track telemetry for cached response
-                _telemetryService.TrackQuery(queryId, request.Query, stopwatch.Elapsed,
-                    cachedResponse.Sources?.Length ?? 0, cachedResponse.Metrics?.EstimatedCost ?? 0);
-
-                return cachedResponse;
-            }
+        // 1. Check cache first
+        var cachedResponse = await TryGetCachedResponseAsync(request, queryId);
+        if (cachedResponse != null) {
+            stopwatch.Stop();
+            _logger.LogInformation("[{QueryId}] Cache hit for query. Duration: {Duration}ms", queryId, stopwatch.ElapsedMilliseconds);
+            return cachedResponse;
         }
 
-        // 2. Build a lightweight search context from the incoming request.
+        // 2. Execute orchestrated search
+        var results = await ExecuteSearchAsync(request);
+
+        // 3. Generate initial response
+        var answer = await _orchestrator.GenerateResponseAsync(results, request.Query);
+
+        // 4. Handle no-results
+        if (results.Length == 0 || string.IsNullOrWhiteSpace(answer)) {
+            answer = GenerateNoResultsResponseWithRefinementSuggestions(request.Query);
+        }
+
+        stopwatch.Stop();
+        return await FinalizeResponseAsync(request, queryId, results, answer ?? string.Empty, stopwatch.Elapsed);
+    }
+
+    private async Task<MotorcycleQueryResponse?> TryGetCachedResponseAsync(MotorcycleQueryRequest request, string queryId) {
+        if (!_cacheConfig.EnableCaching) return null;
+
+        var cacheKey = _cacheService.GenerateCacheKey(request);
+        var cachedResponse = await _cacheService.GetAsync(cacheKey);
+
+        if (cachedResponse == null) return null;
+
+        // Update cached response with new query ID and timestamp
+        cachedResponse.QueryId = queryId;
+        cachedResponse.GeneratedAt = DateTime.UtcNow;
+
+        if (cachedResponse.Metrics != null) {
+            cachedResponse.Metrics.CacheHit = true;
+        }
+
+        _telemetryService.TrackQuery(queryId, request.Query, TimeSpan.Zero,
+            cachedResponse.Sources?.Length ?? 0, cachedResponse.Metrics?.EstimatedCost ?? 0);
+
+        return cachedResponse;
+    }
+
+    private async Task<SearchResult[]> ExecuteSearchAsync(MotorcycleQueryRequest request) {
         var context = new SearchContext {
             SessionId = request.Context?.SessionId ?? Guid.NewGuid().ToString(),
             Preferences = request.Preferences,
             QueryContext = request.Context ?? new QueryContext()
         };
 
-        // 3. Execute orchestrated search across all agents.
-        var results = await _orchestrator.ExecuteSequentialSearchAsync(request.Query, context);
+        return await _orchestrator.ExecuteSequentialSearchAsync(request.Query, context) ?? Array.Empty<SearchResult>();
+    }
 
-        // 4. Generate final natural-language response using large language model.
-        var answer = await _orchestrator.GenerateResponseAsync(results, request.Query);
+    private async Task<MotorcycleQueryResponse> FinalizeResponseAsync(MotorcycleQueryRequest request, string queryId, SearchResult[] results, string answer, TimeSpan duration) {
+        var estimatedCost = CalculateEstimatedCost(results, answer);
 
-        // 4.5. Handle no-results case with refinement suggestions
-        if (results == null || results.Length == 0 || string.IsNullOrWhiteSpace(answer)) {
-            answer = GenerateNoResultsResponseWithRefinementSuggestions(request.Query);
-        }
-
-        stopwatch.Stop();
-
-        var estimatedCost = CalculateEstimatedCost(results ?? Array.Empty<SearchResult>(), answer ?? string.Empty);
-
-        // 5. Populate metrics with performance data
         var metrics = new QueryMetrics {
-            ProcessingTimeMs = (int)stopwatch.ElapsedMilliseconds,
-            TotalDuration = stopwatch.Elapsed,
-            ResultsFound = results?.Length ?? 0,
+            ProcessingTimeMs = (int)duration.TotalMilliseconds,
+            TotalDuration = duration,
+            ResultsFound = results.Length,
             CacheHit = false,
             EstimatedCost = estimatedCost
         };
 
-        // Handle no-results case metrics
-        if (results == null || results.Length == 0 || string.IsNullOrWhiteSpace(answer)) {
-            metrics.ResultsFound = 0;
-            metrics.SearchPattern = new SearchPatternMetrics {
-                VectorSearchExecuted = true,
-                WebSearchExecuted = true,
-                PDFSearchExecuted = true,
-                VectorResultsFound = 0,
-                WebResultsFound = 0,
-                PDFResultsFound = 0
-            };
-        }
+        // Extract claims and ensure citations
+        var (finalAnswer, finalResults) = await ExtractClaimsAndEnsureCitationsAsync(answer, results, request.Query);
 
-        // Extract claims and ensure citations before finalizing response
-        var (finalAnswer, finalResults) = await ExtractClaimsAndEnsureCitationsAsync(answer ?? string.Empty, results ?? Array.Empty<SearchResult>(), request.Query);
-
-        // Analyze sources and inject limitation messaging when appropriate
-        var limitationMessages = AnalyzeLimitationsAndCreateMessages(results ?? Array.Empty<SearchResult>(), metrics, queryId);
+        // Analyze sources and inject limitations
+        var limitationMessages = AnalyzeLimitationsAndCreateMessages(results, metrics, queryId);
         var responseWithLimitations = InjectLimitationMessages(finalAnswer, limitationMessages);
 
         var response = new MotorcycleQueryResponse {
@@ -169,20 +177,14 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService {
             GeneratedAt = DateTime.UtcNow
         };
 
-        // 6. Cache the response if enabled and meets caching criteria
-        if (_cacheConfig.EnableCaching && cacheKey != null && ShouldCacheResponse(response)) {
+        // Cache if appropriate
+        if (_cacheConfig.EnableCaching && ShouldCacheResponse(response)) {
+            var cacheKey = _cacheService.GenerateCacheKey(request);
             var expiration = DetermineCacheExpiration(response);
             await _cacheService.SetAsync(cacheKey, response, expiration);
-
-            _logger.LogDebug("[{QueryId}] Cached response with expiration: {Expiration}", queryId, expiration);
         }
 
-        _logger.LogInformation("[{QueryId}] Query processed. {Results} results, duration {Duration}ms, cost: ${Cost:F4}, limitations: {LimitationCount}",
-            queryId, results?.Length ?? 0, stopwatch.ElapsedMilliseconds, metrics.EstimatedCost, limitationMessages.Count);
-
-        // Track telemetry
-        _telemetryService.TrackQuery(queryId, request.Query, stopwatch.Elapsed, results?.Length ?? 0, metrics.EstimatedCost);
-
+        _telemetryService.TrackQuery(queryId, request.Query, duration, results.Length, estimatedCost);
         return response;
     }
 
@@ -247,30 +249,30 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService {
 
             // 2. Match claims to evidence sources and create citations
             var resultsWithCitations = new List<SearchResult>();
-            var citationMap = new Dictionary<string, List<Citation>>(); // claim -> citations
+            var claimEvidences = new Dictionary<string, ClaimEvidence>(); // claim -> evidence
 
             foreach (var claim in claims) {
                 var matchingSources = FindMatchingSourcesForClaim(claim, originalResults);
+                var evidence = new ClaimEvidence();
 
                 if (matchingSources.Any()) {
-                    var citations = CreateCitationsFromSources(matchingSources, claim);
-                    citationMap[claim] = citations;
-
+                    evidence.Citations.AddRange(CreateCitationsFromSources(matchingSources, claim));
+                    
                     // Add to results with enhanced citations
                     foreach (var source in matchingSources) {
-                        if (!resultsWithCitations.Any(r => r.Id == source.Id)) {
+                        if (resultsWithCitations.All(r => r.Id != source.Id)) {
                             resultsWithCitations.Add(source);
                         }
                     }
                 }
                 else {
                     _logger.LogWarning("No evidence found for claim: {Claim}", claim);
-                    citationMap[claim] = new List<Citation>();
                 }
+                claimEvidences[claim] = evidence;
             }
 
             // 3. Generate final answer with proper citations
-            var finalAnswer = await GenerateCitedAnswerAsync(originalAnswer, claims, citationMap);
+            var finalAnswer = await GenerateCitedAnswerAsync(originalAnswer, claims, claimEvidences);
 
             // 4. Ensure all results have proper citations
             var finalResults = EnsureAllResultsHaveCitations(resultsWithCitations.ToArray());
@@ -279,12 +281,12 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService {
                 finalAnswer.Length, finalResults.Count(r => r.Source.Citation != null));
 
             // Enforce: every factual claim has citation or is qualified/omitted
-            var enforcementResult = EnforceClaimCitationPolicy(finalAnswer, claims, citationMap);
-            if (!enforcementResult.IsPolicyCompliant) {
-                _logger.LogWarning("Claim-citation policy enforcement: {Issues} issues found", enforcementResult.Issues.Count);
+            var (isCompliant, issues) = EnforceClaimCitationPolicy(claims, claimEvidences);
+            if (!isCompliant) {
+                _logger.LogWarning("Claim-citation policy enforcement: {Issues} issues found", issues.Count);
 
                 // Apply corrections to make the response policy-compliant
-                finalAnswer = ApplyClaimCitationPolicyCorrections(finalAnswer, enforcementResult.Issues);
+                finalAnswer = ApplyClaimCitationPolicyCorrections(finalAnswer, issues);
 
                 _logger.LogInformation("Applied claim-citation policy corrections to ensure compliance");
             }
@@ -319,10 +321,10 @@ Factual claims (JSON array):
                 return Array.Empty<string>();
 
             // Simple JSON parsing (in production, use proper JSON parser)
-            if (claimsJson.StartsWith("[") && claimsJson.EndsWith("]")) {
+            if (claimsJson.StartsWith('[') && claimsJson.EndsWith(']')) {
                 var claims = claimsJson
-                    .Trim('[', ']', ' ', '\\', '"')
-                    .Split(new[] { "\",\"" }, StringSplitOptions.RemoveEmptyEntries)
+                    .Trim(TrimChars)
+                    .Split(JsonArraySeparators, StringSplitOptions.RemoveEmptyEntries)
                     .Select(c => c.Trim('"', ' ', '\\'))
                     .Where(c => !string.IsNullOrWhiteSpace(c))
                     .ToArray();
@@ -341,47 +343,25 @@ Factual claims (JSON array):
 
     private string[] ExtractFactLikeSentences(string answer) {
         // Simple fallback: extract sentences that contain numbers, specific terms, etc.
-        var sentences = answer.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
-                              .Select(s => s.Trim())
-                              .Where(s => !string.IsNullOrWhiteSpace(s))
-                              .ToArray();
-
-        // Filter for sentences that likely contain facts
-        string[] factIndicators = [" is ", " has ", " are ", " was ", " were "];
-        return sentences.Where(s =>
-            factIndicators.Any(indicator => s.Contains(indicator, StringComparison.OrdinalIgnoreCase)) ||
-            s.Any(char.IsDigit) ||
-            s.Contains("cc") || s.Contains("hp") || s.Contains("kW") ||
-            s.Contains("mph") || s.Contains("km/h") || s.Contains("Nm")
-        ).ToArray();
+        return answer.Split(SentenceSeparators, StringSplitOptions.RemoveEmptyEntries)
+                       .Select(s => s.Trim())
+                       .Where(s => !string.IsNullOrWhiteSpace(s))
+                       .Where(s => FactIndicators.Any(indicator => s.Contains(indicator, StringComparison.OrdinalIgnoreCase)) || s.Any(char.IsDigit))
+                       .ToArray();
     }
 
     private List<SearchResult> FindMatchingSourcesForClaim(string claim, SearchResult[] results) {
-        var matchingSources = new List<SearchResult>();
-
         // Simple text matching for now (could be enhanced with semantic search)
-        foreach (var result in results) {
-            if (result.Content.Contains(claim, StringComparison.OrdinalIgnoreCase)) {
-                matchingSources.Add(result);
-            }
-            else {
-                // Check if the claim contains key terms from the result
-                var resultKeyTerms = ExtractKeyTerms(result.Content);
-                var claimKeyTerms = ExtractKeyTerms(claim);
-
-                if (resultKeyTerms.Intersect(claimKeyTerms, StringComparer.OrdinalIgnoreCase).Any()) {
-                    matchingSources.Add(result);
-                }
-            }
-        }
-
-        return matchingSources;
+        return results.Where(result => 
+            result.Content.Contains(claim, StringComparison.OrdinalIgnoreCase) ||
+            ExtractKeyTerms(result.Content).Intersect(ExtractKeyTerms(claim), StringComparer.OrdinalIgnoreCase).Any()
+        ).ToList();
     }
+
 
     private string[] ExtractKeyTerms(string text) {
         // Simple key term extraction
-        var terms = text.Split(new[] { ' ', '.', ',', ';', ':', '(', ')', '[', ']', '{', '}', '\\', '/', '-', '_' },
-                              StringSplitOptions.RemoveEmptyEntries)
+        var terms = text.Split(KeyTermSeparators, StringSplitOptions.RemoveEmptyEntries)
                        .Select(t => t.Trim())
                        .Where(t => t.Length > 3 && !string.IsNullOrWhiteSpace(t))
                        .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -464,91 +444,63 @@ Factual claims (JSON array):
         var locator = new ManualPdfCitationLocator {
             DocumentId = source.Source.DocumentId,
             Title = source.Source.SourceName,
-            PageNumber = 1, // Default value
+            PageNumber = 1,
             SourceUrl = source.Source.SourceUrl?.ToString() ?? string.Empty,
             PublicationDate = source.Source.LastUpdated
         };
 
-        // Try to extract locator from metadata (T055 fields)
-        if (source.Metadata != null && source.Metadata.Count > 0) {
-            // Map PageNumber from metadata
-            if (source.Metadata.TryGetValue("PageNumber", out var pageNumberObj) &&
-                pageNumberObj is int pageNumber) {
-                locator.PageNumber = pageNumber > 0 ? pageNumber : 1;
-            }
+        if (source.Metadata == null || source.Metadata.Count == 0) return locator;
 
-            // Map PageRange from metadata
-            if (source.Metadata.TryGetValue("PageRange", out var pageRangeObj) &&
-                pageRangeObj is string pageRange) {
-                locator.PageRange = pageRange;
-            }
-
-            // Map PrimarySection from metadata
-            if (source.Metadata.TryGetValue("PrimarySection", out var primarySectionObj) &&
-                primarySectionObj is string primarySection) {
-                locator.PrimarySection = primarySection;
-            }
-
-            // Map SectionLevel from metadata
-            if (source.Metadata.TryGetValue("SectionLevel", out var sectionLevelObj) &&
-                sectionLevelObj is int sectionLevel) {
-                locator.SectionLevel = sectionLevel;
-            }
-
-            // Map SectionHeadings from metadata
-            if (source.Metadata.TryGetValue("SectionHeadings", out var sectionHeadingsObj) &&
-                sectionHeadingsObj is string[] sectionHeadings) {
-                locator.SectionHeadings = sectionHeadings;
-            }
-
-            // Enforce convention: PrimarySection matches the first entry in SectionHeadings when available
-            if (locator.SectionHeadings.Length > 0) {
-                locator.PrimarySection = locator.SectionHeadings[0];
-            }
-
-            // Map TableCaption from metadata
-            if (source.Metadata.TryGetValue("TableCaption", out var tableCaptionObj) &&
-                tableCaptionObj is string tableCaption) {
-                locator.TableCaption = tableCaption;
-            }
-
-            // Map ChunkIndex from metadata
-            if (source.Metadata.TryGetValue("ChunkIndex", out var chunkIndexObj) &&
-                chunkIndexObj is int chunkIndex) {
-                locator.ChunkIndex = chunkIndex;
-            }
-        }
-
-        // Fallback: try to get locator from AdditionalProperties["Locator"] if metadata is empty
-        if (source.Metadata != null && source.Metadata.TryGetValue("AdditionalProperties", out var additionalPropsObj) &&
-            additionalPropsObj is Dictionary<string, object> additionalProps &&
-            additionalProps.TryGetValue("Locator", out var legacyLocatorObj)) {
-            // If we have a legacy locator string, use it for Section
-            if (legacyLocatorObj is string legacyLocator && !string.IsNullOrWhiteSpace(legacyLocator)) {
-                locator.Section = legacyLocator;
-            }
-        }
+        MapMetadataToLocator(source.Metadata, locator);
+        MapLegacyLocator(source.Metadata, locator);
 
         return locator;
     }
 
-    private async Task<string> GenerateCitedAnswerAsync(string originalAnswer, string[] claims, Dictionary<string, List<Citation>> citationMap) {
+    private static void MapMetadataToLocator(IReadOnlyDictionary<string, object> metadata, ManualPdfCitationLocator locator) {
+        if (metadata.TryGetValue("PageNumber", out var pn) && pn is int pageNum && pageNum > 0)
+            locator.PageNumber = pageNum;
+        
+        if (metadata.TryGetValue("PageRange", out var pr) && pr is string pageRange)
+            locator.PageRange = pageRange;
+        
+        if (metadata.TryGetValue("PrimarySection", out var ps) && ps is string primarySection)
+            locator.PrimarySection = primarySection;
+        
+        if (metadata.TryGetValue("SectionLevel", out var sl) && sl is int sectionLevel)
+            locator.SectionLevel = sectionLevel;
+        
+        if (metadata.TryGetValue("SectionHeadings", out var sh) && sh is string[] sectionHeadings && sectionHeadings.Length > 0) {
+            locator.SectionHeadings = sectionHeadings;
+            locator.PrimarySection = sectionHeadings[0];
+        }
+        
+        if (metadata.TryGetValue("TableCaption", out var tc) && tc is string tableCaption)
+            locator.TableCaption = tableCaption;
+        
+        if (metadata.TryGetValue("ChunkIndex", out var ci) && ci is int chunkIndex)
+            locator.ChunkIndex = chunkIndex;
+    }
+
+    private static void MapLegacyLocator(IReadOnlyDictionary<string, object> metadata, ManualPdfCitationLocator locator) {
+        if (metadata.TryGetValue("AdditionalProperties", out var ap) && ap is Dictionary<string, object> props &&
+            props.TryGetValue("Locator", out var legacy) && legacy is string legacyLoc && !string.IsNullOrWhiteSpace(legacyLoc)) {
+            locator.Section = legacyLoc;
+        }
+    }
+
+    private async Task<string> GenerateCitedAnswerAsync(string originalAnswer, string[] claims, Dictionary<string, ClaimEvidence> claimEvidences) {
         try {
             // Build citation markers for each claim
             var citationMarkers = new Dictionary<string, string>();
 
             for (int i = 0; i < claims.Length; i++) {
                 var claim = claims[i];
-                var citations = citationMap[claim];
+                var citations = claimEvidences[claim].Citations;
 
-                if (citations.Any()) {
-                    var citationIds = string.Join(",", citations.Select((c, idx) => $"[{i + 1}-{idx + 1}]"));
-                    citationMarkers[claim] = citationIds;
-                }
-                else {
-                    // No citation available - qualify the statement
-                    citationMarkers[claim] = "[Note: Could not verify this information]";
-                }
+                citationMarkers[claim] = citations.Count != 0
+                    ? string.Join(",", citations.Select((_, idx) => $"[{i + 1}-{idx + 1}]"))
+                    : "[Note: Could not verify this information]";
             }
 
             // Generate final answer with citations
@@ -566,28 +518,21 @@ Factual claims (JSON array):
 
             for (int i = 0; i < claims.Length; i++) {
                 var claim = claims[i];
-                var citations = citationMap[claim];
+                var citations = claimEvidences[claim].Citations;
 
-                if (citations.Any()) {
-                    finalAnswer += $"\n**Claim {i + 1}**: {claim}\n";
+                if (citations.Count == 0) continue;
 
-                    for (int j = 0; j < citations.Count; j++) {
-                        var citation = citations[j];
-                        finalAnswer += $"  - [{i + 1}-{j + 1}] {citation.SourceName}";
+                finalAnswer = string.Concat(finalAnswer, "\n**Claim ", (i + 1), "**: ", claim, "\n");
 
-                        if (citation.SourceUrl != null) {
-                            finalAnswer += $" ([URL]({citation.SourceUrl.ToString()}))";
-                        }
+                for (int j = 0; j < citations.Count; j++) {
+                    var citation = citations[j];
+                    finalAnswer = string.Concat(finalAnswer, "  - [", (i + 1), "-", (j + 1), "] ", citation.SourceName);
 
-                        if (citation.Verified) {
-                            finalAnswer += " ✓ Verified";
-                        }
-                        else {
-                            finalAnswer += " ⚠ Requires verification";
-                        }
-
-                        finalAnswer += "\n";
+                    if (citation.SourceUrl != null) {
+                        finalAnswer = string.Concat(finalAnswer, " ([URL](", citation.SourceUrl, "))");
                     }
+
+                    finalAnswer = string.Concat(finalAnswer, (citation.Verified ? " ✓ Verified" : " ⚠ Requires verification"), "\n");
                 }
             }
 
@@ -600,11 +545,11 @@ Factual claims (JSON array):
     }
 
     private (bool IsPolicyCompliant, List<ClaimCitationIssue> Issues) EnforceClaimCitationPolicy(
-        string answer, string[] claims, Dictionary<string, List<Citation>> citationMap) {
+        string[] claims, Dictionary<string, ClaimEvidence> claimEvidences) {
         var issues = new List<ClaimCitationIssue>();
 
         foreach (var claim in claims) {
-            var citations = citationMap[claim];
+            var citations = claimEvidences[claim].Citations;
 
             if (citations.Count == 0) {
                 // No citations found for this claim
@@ -637,22 +582,15 @@ Factual claims (JSON array):
         var correctedAnswer = originalAnswer;
 
         foreach (var issue in issues) {
-            switch (issue.IssueType) {
-                case ClaimCitationIssueType.MissingCitation:
-                    // Qualify the claim
-                    if (correctedAnswer.Contains(issue.Claim)) {
-                        var qualifiedClaim = "[Note: Could not verify] " + issue.Claim;
-                        correctedAnswer = correctedAnswer.Replace(issue.Claim, qualifiedClaim);
-                    }
-                    break;
-
-                case ClaimCitationIssueType.LowQualityCitation:
-                    // Add qualification to low-quality citations
-                    if (correctedAnswer.Contains(issue.Claim)) {
-                        var qualifiedClaim = issue.Claim + " [Note: Requires verification]";
-                        correctedAnswer = correctedAnswer.Replace(issue.Claim, qualifiedClaim);
-                    }
-                    break;
+            if (issue.IssueType == ClaimCitationIssueType.MissingCitation && correctedAnswer.Contains(issue.Claim)) {
+                // Qualify the claim
+                var qualifiedClaim = string.Concat("[Note: Could not verify] ", issue.Claim);
+                correctedAnswer = correctedAnswer.Replace(issue.Claim, qualifiedClaim);
+            }
+            else if (issue.IssueType == ClaimCitationIssueType.LowQualityCitation && correctedAnswer.Contains(issue.Claim)) {
+                // Add qualification to low-quality citations
+                var qualifiedClaim = string.Concat(issue.Claim, " [Note: Requires verification]");
+                correctedAnswer = correctedAnswer.Replace(issue.Claim, qualifiedClaim);
             }
         }
 
@@ -660,31 +598,24 @@ Factual claims (JSON array):
     }
 
     private bool IsQualifiedClaim(string claim) {
-        string[] qualifyingTerms =
-        [
-            "may", "might", "could", "possibly", "potentially", "likely", "probably",
-            "often", "sometimes", "typically", "generally", "usually", "can", "tend to"
-        ];
-
-        return qualifyingTerms.Any(term => claim.Contains(term, StringComparison.OrdinalIgnoreCase));
+        return QualifyingTerms.Any(term => claim.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
+
+    private static readonly string[] QualifyingTerms = {
+        "may", "might", "could", "possibly", "potentially", "likely", "probably",
+        "often", "sometimes", "typically", "generally", "usually", "can", "tend to"
+    };
 
     private bool IsCommonKnowledge(string claim) {
         // Simple common knowledge detection
-        var commonKnowledgePatterns = new[]
-        {
-            "motorcycle", "vehicle", "engine", "wheels", "two-wheeled", "transportation",
-            "ride", "driver", "passenger", "road", "street", "speed", "power"
-        };
-
-        var words = claim.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
-                         .Select(w => w.ToLower().Trim('.', ',', ';', ':', '!', '?'))
+        var words = claim.Split(WordSplitSeparators, StringSplitOptions.RemoveEmptyEntries)
+                         .Select(w => w.ToUpperInvariant().Trim(CleanTrimChars))
                          .Where(w => w.Length > 2)
                          .ToArray();
 
         if (words.Length == 0) return false;
 
-        var commonWordCount = words.Count(w => commonKnowledgePatterns.Contains(w));
+        var commonWordCount = words.Count(w => CommonKnowledgePatterns.Contains(w));
         return commonWordCount >= words.Length * 0.7; // 70% common words
     }
 
@@ -734,26 +665,22 @@ If you believe this information should be available, please try rephrasing your 
         }
 
         // Check for specific motorcycle terms
-        string[] motorcycleTerms = ["motorcycle", "bike", "specs", "specifications", "manual", "guide", "review", "comparison"];
-        if (!motorcycleTerms.Any(term => query.Contains(term, StringComparison.OrdinalIgnoreCase))) {
+        if (!MotorcycleTerms.Any(term => query.Contains(term, StringComparison.OrdinalIgnoreCase))) {
             suggestions.Add("✅ **Add context**: Include terms like 'motorcycle', 'specs', 'manual', or 'review' to help focus the search.");
         }
 
         // Check for brand/model names
-        string[] commonBrands = ["Honda", "Yamaha", "Kawasaki", "Suzuki", "Ducati", "BMW", "Harley", "Triumph"];
-        var hasBrand = commonBrands.Any(brand => query.Contains(brand, StringComparison.OrdinalIgnoreCase));
+        var hasBrand = CommonBrands.Any(brand => query.Contains(brand, StringComparison.OrdinalIgnoreCase));
 
         // Check for model indicators
-        string[] modelIndicators = ["CBR", "R1", "ZX", "GSX", "Panigale", "S1000", "Street", "Ninja"];
-        var hasModelIndicator = modelIndicators.Any(model => query.Contains(model, StringComparison.OrdinalIgnoreCase));
+        var hasModelIndicator = ModelIndicators.Any(model => query.Contains(model, StringComparison.OrdinalIgnoreCase));
 
         if (!hasBrand && !hasModelIndicator) {
             suggestions.Add("✅ **Specify brands/models**: Include specific motorcycle brands (Honda, Yamaha) or model names (CBR1000RR, YZF-R1) for better results.");
         }
 
         // Check for technical terms
-        string[] technicalTerms = ["engine", "horsepower", "torque", "displacement", "suspension", "brakes", "ABS", "traction control"];
-        if (!technicalTerms.Any(term => query.Contains(term, StringComparison.OrdinalIgnoreCase))) {
+        if (!TechnicalTerms.Any(term => query.Contains(term, StringComparison.OrdinalIgnoreCase))) {
             suggestions.Add("✅ **Use technical terms**: Include specific aspects you're interested in (engine, horsepower, suspension, ABS, etc.).");
         }
 
@@ -789,39 +716,29 @@ If you believe this information should be available, please try rephrasing your 
 
     private string ExtractMainSubject(string query) {
         // Simple extraction of main subject (brand/model)
-        var commonBrands = new[] { "Honda", "Yamaha", "Kawasaki", "Suzuki", "Ducati", "BMW", "Harley", "Triumph" };
-        var modelIndicators = new[] { "CBR", "R1", "ZX", "GSX", "Panigale", "S1000", "Street", "Ninja" };
+        var brand = CommonBrands.FirstOrDefault(b => query.Contains(b, StringComparison.OrdinalIgnoreCase));
+        if (brand != null) return brand;
 
-        foreach (var brand in commonBrands) {
-            if (query.Contains(brand))
-                return brand;
-        }
-
-        foreach (var model in modelIndicators) {
-            if (query.Contains(model))
-                return model;
-        }
+        var model = ModelIndicators.FirstOrDefault(m => query.Contains(m, StringComparison.OrdinalIgnoreCase));
+        if (model != null) return model;
 
         // Return first significant word
-        var words = query.Split(new[] { " " }, StringSplitOptions.RemoveEmptyEntries);
+        var words = query.Split(WordSplitSeparators, StringSplitOptions.RemoveEmptyEntries);
         return words.Length > 0 ? words[0] : "motorcycle";
     }
 
     private SearchResult[] EnsureAllResultsHaveCitations(SearchResult[] results) {
         foreach (var result in results) {
-            if (result.Source.Citation == null) {
-                // Create a basic citation if none exists
-                result.Source.Citation = new Citation {
-                    SourceType = MapAgentTypeToCitationSourceType(result.Source.AgentType),
-                    SourceName = result.Source.SourceName,
-                    SourceUrl = result.Source.SourceUrl?.ToString(),
-                    ConfidenceScore = result.RelevanceScore,
-                    Verified = result.RelevanceScore >= 0.8f,
-                    VerificationMethod = "Automated citation generation",
-                    VerifiedAt = DateTime.UtcNow,
-                    Locator = CreateLocatorForSource(result)
-                };
-            }
+            result.Source.Citation ??= new Citation {
+                SourceType = MapAgentTypeToCitationSourceType(result.Source.AgentType),
+                SourceName = result.Source.SourceName,
+                SourceUrl = result.Source.SourceUrl?.ToString(),
+                ConfidenceScore = result.RelevanceScore,
+                Verified = result.RelevanceScore >= 0.8f,
+                VerificationMethod = "Automated citation generation",
+                VerifiedAt = DateTime.UtcNow,
+                Locator = CreateLocatorForSource(result)
+            };
         }
 
         return results;
@@ -832,12 +749,8 @@ If you believe this information should be available, please try rephrasing your 
         var inputTokens = results.Sum(r => r.Content?.Length ?? 0) / 4; // Rough token estimation
         var outputTokens = response.Length / 4;
 
-        // Estimated costs (these would be configured based on actual Azure pricing)
-        var inputCostPer1K = 0.0015m; // $0.0015 per 1K input tokens
-        var outputCostPer1K = 0.002m;  // $0.002 per 1K output tokens
-
-        var inputCost = (inputTokens / 1000m) * inputCostPer1K;
-        var outputCost = (outputTokens / 1000m) * outputCostPer1K;
+        var inputCost = (inputTokens / 1000m) * InputCostPer1K;
+        var outputCost = (outputTokens / 1000m) * OutputCostPer1K;
 
         return inputCost + outputCost;
     }
@@ -873,38 +786,7 @@ If you believe this information should be available, please try rephrasing your 
                 var sourcesExecuted = 0;
                 var failedSources = new List<string>();
 
-                // Count vector search
-                if (pattern.VectorSearchExecuted) {
-                    sourcesExecuted++;
-                    if (pattern.VectorResultsFound > 0) {
-                        sourcesWithResults++;
-                    }
-                    else {
-                        failedSources.Add("vector search (indexed specifications)");
-                    }
-                }
-
-                // Count web search
-                if (pattern.WebSearchExecuted) {
-                    sourcesExecuted++;
-                    if (pattern.WebResultsFound > 0) {
-                        sourcesWithResults++;
-                    }
-                    else {
-                        failedSources.Add("web search (trusted sources)");
-                    }
-                }
-
-                // Count PDF search
-                if (pattern.PDFSearchExecuted) {
-                    sourcesExecuted++;
-                    if (pattern.PDFResultsFound > 0) {
-                        sourcesWithResults++;
-                    }
-                    else {
-                        failedSources.Add("PDF manual search");
-                    }
-                }
+                AnalyzePatternResults(pattern, ref sourcesExecuted, ref sourcesWithResults, failedSources);
 
                 // Generate limitation messages based on results
                 if (sourcesExecuted > 0 && sourcesWithResults < sourcesExecuted && sourcesWithResults > 0) {
@@ -914,7 +796,10 @@ If you believe this information should be available, please try rephrasing your 
                 }
                 else if (sourcesWithResults == 0 && sourcesExecuted > 0) {
                     // All sources failed
-                    messages.Add($"❌ **Service Degradation**: We were unable to retrieve results from {(sourcesExecuted == 1 ? "the" : "any of the")} available source{(sourcesExecuted == 1 ? "" : "s")}. Try rephrasing your query or check back later.");
+                    messages.Add($"❌ **Service Degradation**: We were unable to retrieve results from " +
+                        $"{(sourcesExecuted == 1 ? "the" : "any of the")} " +
+                        $"available source{(sourcesExecuted == 1 ? "" : "s")}. " +
+                        "Try rephrasing your query or check back later.");
                     _logger.LogWarning("[{QueryId}] All sources failed: {FailedCount} sources attempted", queryId, sourcesExecuted);
                 }
             }
@@ -955,14 +840,34 @@ If you believe this information should be available, please try rephrasing your 
 
         var messageText = string.Join("\n\n", limitationMessages);
 
-        var response = $"""
+        return $"""
 {messageText}
 
 ---
 
 {originalResponse}
 """;
+    }
 
-        return response;
+    private static void AnalyzePatternResults(SearchPatternMetrics pattern, ref int executed, ref int withResults, List<string> failed) {
+        if (pattern.VectorSearchExecuted) {
+            executed++;
+            if (pattern.VectorResultsFound > 0) withResults++;
+            else failed.Add("vector search (indexed specifications)");
+        }
+        if (pattern.WebSearchExecuted) {
+            executed++;
+            if (pattern.WebResultsFound > 0) withResults++;
+            else failed.Add("web search (trusted sources)");
+        }
+        if (pattern.PDFSearchExecuted) {
+            executed++;
+            if (pattern.PDFResultsFound > 0) withResults++;
+            else failed.Add("PDF manual search");
+        }
+    }
+
+    private class ClaimEvidence {
+        public List<Citation> Citations { get; } = new();
     }
 }

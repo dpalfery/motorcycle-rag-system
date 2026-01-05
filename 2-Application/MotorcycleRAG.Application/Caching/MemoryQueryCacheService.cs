@@ -41,7 +41,9 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
             _config.MaxMemorySizeMB);
     }
 
-    public async Task<MotorcycleQueryResponse?> GetAsync(string queryKey, CancellationToken cancellationToken = default) {
+    public Task<MotorcycleQueryResponse?> GetAsync(string queryKey) => GetAsync(queryKey, default);
+
+    public async Task<MotorcycleQueryResponse?> GetAsync(string queryKey, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(queryKey))
             return null;
 
@@ -75,7 +77,9 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
         }
     }
 
-    public async Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration, CancellationToken cancellationToken = default) {
+    public Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration) => SetAsync(queryKey, response, expiration, default);
+
+    public async Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(queryKey) || response == null)
             return;
 
@@ -89,7 +93,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
             };
 
             // Add eviction callback for statistics
-            cacheEntryOptions.RegisterPostEvictionCallback((key, value, reason, state) => {
+            cacheEntryOptions.RegisterPostEvictionCallback((key, value, reason, _) => {
                 lock (_statsLock) {
                     _statistics.TotalEntries = Math.Max(0, _statistics.TotalEntries - 1);
                     if (value is byte[] data) {
@@ -116,7 +120,9 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
         }
     }
 
-    public async Task RemoveAsync(string queryKey, CancellationToken cancellationToken = default) {
+    public Task RemoveAsync(string queryKey) => RemoveAsync(queryKey, default);
+
+    public async Task RemoveAsync(string queryKey, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(queryKey))
             return;
 
@@ -151,7 +157,9 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
         return Convert.ToHexString(hashBytes).ToUpperInvariant();
     }
 
-    public async Task ClearAsync(CancellationToken cancellationToken = default) {
+    public Task ClearAsync() => ClearAsync(default);
+
+    public async Task ClearAsync(CancellationToken cancellationToken) {
         try {
             if (_memoryCache is MemoryCache mc) {
                 mc.Clear();
@@ -168,7 +176,9 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
         }
     }
 
-    public async Task<CacheStatistics> GetStatisticsAsync(CancellationToken cancellationToken = default) {
+    public Task<CacheStatistics> GetStatisticsAsync() => GetStatisticsAsync(default);
+
+    public async Task<CacheStatistics> GetStatisticsAsync(CancellationToken cancellationToken) {
         lock (_statsLock) {
             return new CacheStatistics {
                 TotalRequests = _statistics.TotalRequests,

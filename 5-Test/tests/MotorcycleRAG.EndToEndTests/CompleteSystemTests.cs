@@ -13,7 +13,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
 {
     private readonly TestWebApplicationFactory _factory;
     private readonly IServiceScope _scope;
-    private readonly IMotorcycleRAGService _ragService;
+    private readonly IMotorcycleRagService _ragService;
     private readonly IDataPipelineOrchestrator _pipelineOrchestrator;
     private readonly IFileUploadService _fileUploadService;
     private readonly string _testDataDirectory;
@@ -23,7 +23,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         _factory = factory;
         _scope = _factory.Services.CreateScope();
 
-        _ragService = _scope.ServiceProvider.GetRequiredService<IMotorcycleRAGService>();
+        _ragService = _scope.ServiceProvider.GetRequiredService<IMotorcycleRagService>();
         _pipelineOrchestrator = _scope.ServiceProvider.GetRequiredService<IDataPipelineOrchestrator>();
         _fileUploadService = _scope.ServiceProvider.GetRequiredService<IFileUploadService>();
 

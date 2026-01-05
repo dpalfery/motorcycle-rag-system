@@ -33,9 +33,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         /// <param name="plan">Plan to create</param>
         /// <returns>Created plan with ID</returns>
         public async Task<UserPlan> CreatePlanAsync(UserPlan plan) {
-            if (plan == null) {
-                throw new ArgumentNullException(nameof(plan));
-            }
+            ArgumentNullException.ThrowIfNull(plan);
 
             const string sql = @"
                 INSERT INTO [dbo].[UserPlans] (
@@ -134,9 +132,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         /// <param name="plan">Plan to update</param>
         /// <returns>True if successful, false otherwise</returns>
         public async Task<bool> UpdatePlanAsync(UserPlan plan) {
-            if (plan == null) {
-                throw new ArgumentNullException(nameof(plan));
-            }
+            ArgumentNullException.ThrowIfNull(plan);
 
             const string sql = @"
                 UPDATE [dbo].[UserPlans] SET

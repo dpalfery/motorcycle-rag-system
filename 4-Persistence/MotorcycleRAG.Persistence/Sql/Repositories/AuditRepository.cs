@@ -32,9 +32,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         /// <param name="auditLog">Audit log to create</param>
         /// <returns>Created audit log</returns>
         public async Task<AuditLog> CreateAuditLogAsync(AuditLog auditLog) {
-            if (auditLog == null) {
-                throw new ArgumentNullException(nameof(auditLog));
-            }
+            ArgumentNullException.ThrowIfNull(auditLog);
 
             const string sql = @"
                 INSERT INTO [dbo].[AuditLogs] (

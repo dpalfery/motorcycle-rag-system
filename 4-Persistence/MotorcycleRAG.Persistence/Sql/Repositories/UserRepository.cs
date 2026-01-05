@@ -33,9 +33,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         /// <param name="user">User to create</param>
         /// <returns>Created user with ID</returns>
         public async Task<UserDTO> CreateUserAsync(UserDTO user) {
-            if (user == null) {
-                throw new ArgumentNullException(nameof(user));
-            }
+            ArgumentNullException.ThrowIfNull(user);
 
             const string sql = @"
                 INSERT INTO [dbo].[Users] (
@@ -116,9 +114,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         /// <param name="user">User to update</param>
         /// <returns>True if successful, false otherwise</returns>
         public async Task<bool> UpdateUserAsync(UserDTO user) {
-            if (user == null) {
-                throw new ArgumentNullException(nameof(user));
-            }
+            ArgumentNullException.ThrowIfNull(user);
 
             const string sql = @"
                 UPDATE [dbo].[Users] SET

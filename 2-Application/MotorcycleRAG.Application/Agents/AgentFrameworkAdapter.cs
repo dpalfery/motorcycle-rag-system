@@ -26,8 +26,7 @@ public class AgentFrameworkAdapter {
         if (string.IsNullOrWhiteSpace(toolName))
             throw new ArgumentException("Tool name cannot be empty", nameof(toolName));
 
-        if (handler == null)
-            throw new ArgumentNullException(nameof(handler));
+        ArgumentNullException.ThrowIfNull(handler);
 
         _toolHandlers[toolName] = handler;
         _logger.LogInformation("Registered tool handler for: {ToolName}", toolName);
@@ -37,8 +36,7 @@ public class AgentFrameworkAdapter {
     /// Execute a tool call
     /// </summary>
     public async Task<ToolExecutionResult> ExecuteToolAsync(ToolCall toolCall) {
-        if (toolCall == null)
-            throw new ArgumentNullException(nameof(toolCall));
+        ArgumentNullException.ThrowIfNull(toolCall);
 
         if (string.IsNullOrWhiteSpace(toolCall.ToolName)) {
             return new ToolExecutionResult {
@@ -224,6 +222,7 @@ public class AgentFrameworkAdapterFactory {
         IEnumerable<ISearchAgent> searchAgents,
         IAgentOrchestrator? orchestrator,
         ILogger logger) {
+        ArgumentNullException.ThrowIfNull(searchAgents);
         var adapter = new AgentFrameworkAdapter(_logger);
 
         foreach (var agent in searchAgents) {

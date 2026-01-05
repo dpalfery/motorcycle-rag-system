@@ -140,13 +140,19 @@ public class BatchProcessingService : IBatchProcessingService {
             using var semaphore = new SemaphoreSlim(options.MaxDegreeOfParallelism, options.MaxDegreeOfParallelism);
             var tasks = new List<Task>();
 
+            var context = new ParallelProcessingContext<TResult> {
+                Semaphore = semaphore,
+                Options = options,
+                Results = results,
+                Errors = errors,
+                CancellationToken = cancellationToken
+            };
+
             for (int i = 0; i < totalCount; i++) {
                 var index = i;
                 var document = documentList[i];
 
-                var task = ProcessItemWithSemaphoreAsync(
-                    document, processor, semaphore, options,
-                    index, results, errors, cancellationToken);
+                var task = ProcessItemWithSemaphoreAsync(document, processor, context, index);
 
                 tasks.Add(task);
             }
@@ -233,20 +239,16 @@ public class BatchProcessingService : IBatchProcessingService {
     private async Task ProcessItemWithSemaphoreAsync<T, TResult>(
         T document,
         Func<T, CancellationToken, Task<TResult>> processor,
-        SemaphoreSlim semaphore,
-        BatchProcessingOptions options,
-        int index,
-        ConcurrentBag<TResult> results,
-        ConcurrentBag<BatchProcessingError> errors,
-        CancellationToken cancellationToken) {
-        await semaphore.WaitAsync(cancellationToken);
+        ParallelProcessingContext<TResult> context,
+        int index) {
+        await context.Semaphore.WaitAsync(context.CancellationToken);
 
         try {
-            var result = await ProcessItemWithRetryAsync(document, processor, options, index, cancellationToken);
-            results.Add(result);
+            var result = await ProcessItemWithRetryAsync(document, processor, context.Options, index, context.CancellationToken);
+            context.Results.Add(result);
         }
         catch (Exception ex) {
-            errors.Add(new BatchProcessingError {
+            context.Errors.Add(new BatchProcessingError {
                 ItemIndex = index,
                 ItemId = $"item-{index}",
                 ExceptionType = ex.GetType().FullName,
@@ -255,8 +257,16 @@ public class BatchProcessingService : IBatchProcessingService {
             });
         }
         finally {
-            semaphore.Release();
+            context.Semaphore.Release();
         }
+    }
+
+    private class ParallelProcessingContext<TResult> {
+        public SemaphoreSlim Semaphore { get; set; } = null!;
+        public BatchProcessingOptions Options { get; set; } = null!;
+        public ConcurrentBag<TResult> Results { get; set; } = null!;
+        public ConcurrentBag<BatchProcessingError> Errors { get; set; } = null!;
+        public CancellationToken CancellationToken { get; set; }
     }
 
     private async Task<TResult> ProcessItemWithRetryAsync<T, TResult>(

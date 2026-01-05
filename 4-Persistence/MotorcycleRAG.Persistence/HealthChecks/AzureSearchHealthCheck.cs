@@ -61,9 +61,9 @@ public class AzureSearchHealthCheck : IHealthCheck
             return HealthCheckResult.Healthy("Azure Search is healthy",
                 new Dictionary<string, object> { { "response_time_ms", duration } });
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            _logger.LogWarning("Azure Search health check timed out");
+            _logger.LogWarning(ex, "Azure Search health check timed out");
             return HealthCheckResult.Unhealthy("Azure Search health check timed out");
         }
         catch (Exception ex)

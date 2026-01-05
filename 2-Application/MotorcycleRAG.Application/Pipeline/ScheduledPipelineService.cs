@@ -20,16 +20,20 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     private ProcessingScheduleConfig _scheduleConfig;
     private CrontabSchedule? _schedule;
     private DateTime? _nextExecutionTime;
-    private ScheduledProcessingStats _stats;
+    private readonly ScheduledProcessingStats _stats;
     private CancellationTokenSource? _cancellationTokenSource;
 
     public ScheduledPipelineService(
         IServiceScopeFactory serviceScopeFactory,
         IOptions<ScheduledProcessingConfiguration> config,
         ILogger<ScheduledPipelineService> logger) {
-        _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
-        _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(serviceScopeFactory);
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _serviceScopeFactory = serviceScopeFactory;
+        _config = config.Value;
+        _logger = logger;
 
         _executionSemaphore = new SemaphoreSlim(1, 1);
         _stats = new ScheduledProcessingStats();
@@ -45,7 +49,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         UpdateScheduleInternal();
     }
 
-    public override async Task StartAsync(CancellationToken cancellationToken = default) {
+    public override async Task StartAsync(CancellationToken cancellationToken) {
         _logger.LogInformation("Starting scheduled pipeline service with cron expression: {CronExpression}", _scheduleConfig.CronExpression);
 
         if (_scheduleConfig.IsEnabled) {
@@ -58,10 +62,12 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         }
     }
 
-    public override async Task StopAsync(CancellationToken cancellationToken = default) {
+    public override async Task StopAsync(CancellationToken cancellationToken) {
         _logger.LogInformation("Stopping scheduled pipeline service");
 
-        _cancellationTokenSource?.Cancel();
+        if (_cancellationTokenSource != null) {
+            await _cancellationTokenSource.CancelAsync();
+        }
         await base.StopAsync(cancellationToken);
 
         _logger.LogInformation("Scheduled pipeline service stopped");
@@ -90,7 +96,8 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     }
 
     public async Task UpdateScheduleAsync(ProcessingScheduleConfig config) {
-        _scheduleConfig = config ?? throw new ArgumentNullException(nameof(config));
+        ArgumentNullException.ThrowIfNull(config);
+        _scheduleConfig = config;
         UpdateScheduleInternal();
 
         _logger.LogInformation("Schedule updated. New cron expression: {CronExpression}, Enabled: {Enabled}",
@@ -99,10 +106,6 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         await Task.CompletedTask;
     }
 
-    public async Task CancelCurrentRunAsync() {
-        _cancellationTokenSource?.Cancel();
-        await Task.CompletedTask;
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
         if (!_scheduleConfig.IsEnabled) {
@@ -143,7 +146,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             }
             catch (OperationCanceledException) {
                 // Expected when cancellation is requested
-                break;
+                return;
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Error in scheduled pipeline service execution loop");
@@ -253,11 +256,11 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
 
             foreach (var filePath in files) {
                 var fileName = Path.GetFileName(filePath);
-                var extension = Path.GetExtension(fileName).ToLowerInvariant();
+                var extension = Path.GetExtension(fileName).ToUpperInvariant();
 
                 var fileType = extension switch {
-                    ".csv" => FileType.CSV,
-                    ".pdf" => FileType.PDF,
+                    ".CSV" => FileType.CSV,
+                    ".PDF" => FileType.PDF,
                     _ => FileType.Unknown
                 };
 
@@ -321,14 +324,21 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     }
 
     public override void Dispose() {
-        _cancellationTokenSource?.Cancel();
-        _cancellationTokenSource?.Dispose();
+        if (_cancellationTokenSource != null) {
+            _cancellationTokenSource.Cancel();
+            _cancellationTokenSource.Dispose();
+        }
         _executionSemaphore?.Dispose();
         base.Dispose();
+        GC.SuppressFinalize(this);
     }
 
-    Task<bool> IScheduledPipelineService.CancelCurrentRunAsync() {
-        throw new NotImplementedException();
+    public async Task<bool> CancelCurrentRunAsync() {
+        if (_cancellationTokenSource != null) {
+            await _cancellationTokenSource.CancelAsync();
+            return true;
+        }
+        return false;
     }
 }
 

@@ -38,8 +38,7 @@ public class McpConfigurationStore
     /// </summary>
     public void AddOrUpdateConfiguration(McpToolConfiguration configuration)
     {
-        if (configuration == null)
-            throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(configuration);
 
         if (string.IsNullOrWhiteSpace(configuration.ToolId))
             throw new ArgumentException("ToolId must not be empty", nameof(configuration));

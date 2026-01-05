@@ -256,7 +256,7 @@ public class CreatePlanRequest {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public int DailyRequestLimit { get; set; } = 100;
-    public bool IsPaid { get; set; } = false;
+    public bool IsPaid { get; set; }
 }
 
 /// <summary>

@@ -224,7 +224,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     It.IsAny<string>()))
                 .ReturnsAsync(new Usage { Id = 1 });
 
-            var mockRagService = new Mock<IMotorcycleRAGService>();
+            var mockRagService = new Mock<IMotorcycleRagService>();
             mockRagService
                 .Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
                 .ReturnsAsync(new MotorcycleQueryResponse {

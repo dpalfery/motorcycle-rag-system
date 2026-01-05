@@ -32,6 +32,7 @@ public class VectorSearchAgent : ISearchAgent {
     /// Execute hybrid search combining keyword and semantic search
     /// </summary>
     public async Task<SearchResult[]> SearchAsync(string query, SearchParameters options) {
+        ArgumentNullException.ThrowIfNull(options);
         if (string.IsNullOrWhiteSpace(query)) {
             _logger.LogWarning("Empty query provided to VectorSearchAgent");
             return Array.Empty<SearchResult>();
@@ -41,11 +42,8 @@ public class VectorSearchAgent : ISearchAgent {
             _logger.LogInformation("Executing vector search for query: {Query}", query);
             var startTime = DateTime.UtcNow;
 
-            // Step 1: Generate query embedding for semantic search
-            var queryEmbedding = await GenerateQueryEmbeddingAsync(query, CancellationToken.None);
-
-            // Step 2: Execute hybrid search (keyword + semantic)
-            var rawResults = await ExecuteHybridSearchAsync(query, queryEmbedding, options);
+            // Step 1: Execute hybrid search (keyword + semantic)
+            var rawResults = await ExecuteHybridSearchAsync(query, options);
 
             // Step 3: Apply result ranking and filtering
             var rankedResults = ApplyRankingAndFiltering(rawResults, options);
@@ -70,29 +68,12 @@ public class VectorSearchAgent : ISearchAgent {
     /// <summary>
     /// Generate embedding for the search query
     /// </summary>
-    private async Task<float[]> GenerateQueryEmbeddingAsync(string query, CancellationToken cancellationToken) {
-        try {
-            _logger.LogDebug("Generating embedding for query: {Query}", query);
-
-            // Enhanced query for better embeddings
-            var enhancedQuery = EnhanceQueryForEmbedding(query);
-            var embedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", enhancedQuery, cancellationToken);
-
-            _logger.LogDebug("Successfully generated embedding of {Dimensions} dimensions", embedding.Length);
-            return embedding;
-        }
-        catch (Exception ex) {
-            _logger.LogWarning(ex, "Failed to generate embedding for query, falling back to keyword search only");
-            return Array.Empty<float>();
-        }
-    }
 
     /// <summary>
     /// Execute hybrid search combining keyword and vector search
     /// </summary>
     private async Task<SearchResult[]> ExecuteHybridSearchAsync(
         string query,
-        float[] queryEmbedding,
         SearchParameters options) {
         var results = new List<SearchResult>();
 
@@ -100,9 +81,9 @@ public class VectorSearchAgent : ISearchAgent {
         var keywordResults = await ExecuteKeywordSearchAsync(query, options);
         results.AddRange(keywordResults);
 
-        // Execute semantic search if embedding is available
-        if (queryEmbedding.Length > 0 && _searchConfig.EnableHybridSearch) {
-            var semanticResults = await ExecuteSemanticSearchAsync(query, queryEmbedding, options);
+        // Execute semantic search if enabled
+        if (_searchConfig.EnableHybridSearch) {
+            var semanticResults = await ExecuteSemanticSearchAsync(query, options);
             results.AddRange(semanticResults);
         }
 
@@ -111,7 +92,7 @@ public class VectorSearchAgent : ISearchAgent {
 
         _logger.LogDebug("Hybrid search returned {KeywordCount} keyword + {SemanticCount} semantic = {TotalCount} total results",
             keywordResults.Length,
-            queryEmbedding.Length > 0 ? results.Count - keywordResults.Length : 0,
+            results.Count - keywordResults.Length,
             deduplicatedResults.Count);
 
         return deduplicatedResults.ToArray();
@@ -180,16 +161,24 @@ public class VectorSearchAgent : ISearchAgent {
     /// <summary>
     /// Execute semantic vector search
     /// </summary>
+    /// <summary>
+    /// Execute semantic vector search
+    /// </summary>
     private async Task<SearchResult[]> ExecuteSemanticSearchAsync(
         string query,
-        float[] queryEmbedding,
         SearchParameters options) {
         try {
             _logger.LogDebug("Executing semantic search for: {Query}", query);
 
-            // For now, use a simplified semantic search simulation
-            // In a real implementation, this would use Azure AI Search vector search capabilities
-            var results = await SimulateSemanticSearchAsync(query, queryEmbedding, options);
+            var searchOptions = new SearchOptions {
+                IndexName = _searchConfig.IndexName,
+                MaxSearchResults = Math.Min(options.MaxResults, _searchConfig.MaxSearchResults),
+                EnableHybridSearch = _searchConfig.EnableHybridSearch,
+                EnableSemanticRanking = _searchConfig.EnableSemanticRanking,
+                BatchSize = _searchConfig.BatchSize
+            };
+
+            var results = await _searchClient.VectorSearchAsync(query, searchOptions);
 
             _logger.LogDebug("Semantic search returned {ResultCount} results", results.Length);
             return results;
@@ -203,48 +192,6 @@ public class VectorSearchAgent : ISearchAgent {
     /// <summary>
     /// Simulate semantic search (placeholder for real vector search implementation)
     /// </summary>
-    private async Task<SearchResult[]> SimulateSemanticSearchAsync(
-        string query,
-        float[] queryEmbedding,
-        SearchParameters options) {
-        // This is a placeholder implementation
-        // In production, this would use Azure AI Search vector search capabilities
-        await Task.Delay(100); // Simulate search time
-
-        var semanticResults = new List<SearchResult>();
-
-        // Generate some semantic search results with motorcycle-specific content
-        var motorcycleTerms = ExtractMotorcycleTerms(query);
-
-        for (int i = 0; i < Math.Min(3, options.MaxResults); i++) {
-            var relevanceScore = 0.9f - (i * 0.1f);
-
-            var sr = new SearchResult {
-                Id = $"semantic_{Guid.NewGuid()}",
-                Content = GenerateSemanticContent(query, motorcycleTerms, i),
-                RelevanceScore = relevanceScore * 1.1f, // Weight semantic search higher
-                Source = new SearchSource {
-                    AgentType = SearchAgentType.VectorSearch,
-                    SourceName = "Azure AI Search - Semantic",
-                    DocumentId = $"semantic_doc_{i}",
-                    LastUpdated = DateTime.UtcNow
-                },
-                GeneratedAt = DateTime.UtcNow
-            };
-
-            sr.Metadata["searchType"] = "semantic";
-            sr.Metadata["embeddingDimensions"] = queryEmbedding.Length;
-            sr.Metadata["motorcycleTerms"] = motorcycleTerms;
-
-            var semContent = GenerateSemanticContent(query, motorcycleTerms, i);
-            foreach (var h in ExtractHighlights(semContent, query))
-                sr.Highlights.Add(h);
-
-            semanticResults.Add(sr);
-        }
-
-        return semanticResults.ToArray();
-    }
 
     /// <summary>
     /// Apply ranking and filtering logic to search results
@@ -304,8 +251,7 @@ public class VectorSearchAgent : ISearchAgent {
         foreach (var result in results.OrderByDescending(r => r.RelevanceScore)) {
             var key = result.Source.DocumentId ?? result.Id;
 
-            if (!seen.Contains(key)) {
-                seen.Add(key);
+            if (seen.Add(key)) {
                 deduplicatedResults.Add(result);
             }
             else {
@@ -326,47 +272,14 @@ public class VectorSearchAgent : ISearchAgent {
     /// <summary>
     /// Enhance query text for better embedding generation
     /// </summary>
-    private string EnhanceQueryForEmbedding(string query) {
-        // Add motorcycle context to improve embedding quality
-        var motorcycleTerms = ExtractMotorcycleTerms(query);
-
-        if (motorcycleTerms.Any()) {
-            return $"Motorcycle {query} specifications features performance";
-        }
-
-        return $"Motorcycle {query}";
-    }
 
     /// <summary>
     /// Extract motorcycle-related terms from query
     /// </summary>
-    private List<string> ExtractMotorcycleTerms(string query) {
-        var motorcycleKeywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Honda", "Yamaha", "Kawasaki", "Suzuki", "Ducati", "BMW", "KTM", "Aprilia",
-            "CBR", "YZF", "ZX", "GSX", "Panigale", "R1", "R6", "Ninja", "Fireblade",
-            "engine", "horsepower", "torque", "displacement", "cc", "motorcycle", "bike",
-            "sport", "touring", "cruiser", "naked", "adventure", "superbike"
-        };
-
-        return query.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(term => motorcycleKeywords.Contains(term))
-            .ToList();
-    }
 
     /// <summary>
     /// Generate content for semantic search results
     /// </summary>
-    private string GenerateSemanticContent(string query, List<string> motorcycleTerms, int index) {
-        var templates = new[]
-        {
-            $"Detailed specifications for {string.Join(" ", motorcycleTerms)} including performance metrics, engine details, and technical features related to {query}.",
-            $"Comprehensive information about {string.Join(" ", motorcycleTerms)} covering {query} specifications, maintenance procedures, and operational characteristics.",
-            $"Technical documentation for {string.Join(" ", motorcycleTerms)} featuring {query} details, performance data, and engineering specifications."
-        };
-
-        return templates[index % templates.Length];
-    }
 
     /// <summary>
     /// Extract text highlights from content based on query
@@ -396,10 +309,8 @@ public class VectorSearchAgent : ISearchAgent {
         if (filters.Count == 0) return true;
 
         foreach (var filter in filters) {
-            if (result.Metadata.TryGetValue(filter.Key, out var value)) {
-                if (!value.Equals(filter.Value)) {
-                    return false;
-                }
+            if (result.Metadata.TryGetValue(filter.Key, out var value) && !value.Equals(filter.Value)) {
+                return false;
             }
         }
 

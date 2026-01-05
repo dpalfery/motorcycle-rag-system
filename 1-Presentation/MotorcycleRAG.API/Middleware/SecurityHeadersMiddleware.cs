@@ -7,7 +7,7 @@ namespace MotorcycleRAG.API.Middleware
     /// <summary>
     /// Middleware for adding security headers to responses
     /// </summary>
-    public class SecurityHeadersMiddleware
+    internal class SecurityHeadersMiddleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<SecurityHeadersMiddleware> _logger;
@@ -34,8 +34,17 @@ namespace MotorcycleRAG.API.Middleware
             context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
             context.Response.Headers.Append("X-Frame-Options", "DENY");
             context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
-            context.Response.Headers.Append("Content-Security-Policy", 
-                "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'");
+            var cspPolicy = "default-src 'self'; " +
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+                "style-src 'self' 'unsafe-inline'; " +
+                "img-src 'self' data:; " +
+                "font-src 'self'; " +
+                "connect-src 'self'; " +
+                "frame-src 'none'; " +
+                "object-src 'none'; " +
+                "base-uri 'self'; " +
+                "form-action 'self'";
+            context.Response.Headers.Append("Content-Security-Policy", cspPolicy);
             context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
             context.Response.Headers.Append("Permissions-Policy", 
                 "geolocation=(), microphone=(), camera=(), payment=(), usb=()");
@@ -50,7 +59,7 @@ namespace MotorcycleRAG.API.Middleware
     /// <summary>
     /// Extension method for adding the security headers middleware to the pipeline
     /// </summary>
-    public static class SecurityHeadersMiddlewareExtensions
+    internal static class SecurityHeadersMiddlewareExtensions
     {
         /// <summary>
         /// Adds the security headers middleware to the pipeline

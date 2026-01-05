@@ -33,9 +33,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         /// <param name="webSource">Web source to create</param>
         /// <returns>Created web source</returns>
         public async Task<WebSource> CreateWebSourceAsync(WebSource webSource) {
-            if (webSource == null) {
-                throw new ArgumentNullException(nameof(webSource));
-            }
+            ArgumentNullException.ThrowIfNull(webSource);
 
             const string sql = @"
                 INSERT INTO [dbo].[WebSources] (
@@ -119,9 +117,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         /// <param name="webSource">Web source to update</param>
         /// <returns>True if successful, false otherwise</returns>
         public async Task<bool> UpdateWebSourceAsync(WebSource webSource) {
-            if (webSource == null) {
-                throw new ArgumentNullException(nameof(webSource));
-            }
+            ArgumentNullException.ThrowIfNull(webSource);
 
             const string sql = @"
                 UPDATE [dbo].[WebSources] SET

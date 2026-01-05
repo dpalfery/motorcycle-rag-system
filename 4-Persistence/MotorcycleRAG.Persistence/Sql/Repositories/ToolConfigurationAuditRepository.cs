@@ -180,7 +180,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
             _logger.LogError(ex,
                 "Error retrieving audit entries for action {Action}",
                 action);
-            throw new InvalidOperationException($"Error retrieving audit entries for action {action}", ex);
+            throw new InvalidOperationException($"Error retrieving audit entries for {nameof(action)} {action}", ex);
         }
     }
 

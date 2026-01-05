@@ -6,7 +6,7 @@ namespace MotorcycleRAG.API.Configuration;
 /// <summary>
 /// Custom telemetry initializer for Application Insights
 /// </summary>
-public class CustomTelemetryInitializer : ITelemetryInitializer
+internal class CustomTelemetryInitializer : ITelemetryInitializer
 {
     private readonly IConfiguration _configuration;
 

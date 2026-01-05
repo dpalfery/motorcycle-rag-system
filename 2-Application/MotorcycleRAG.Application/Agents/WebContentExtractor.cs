@@ -9,25 +9,31 @@ namespace MotorcycleRAG.Application.Agents;
 public class WebContentExtractor {
     private readonly ILogger _logger;
 
+    private static readonly string[] DefaultSelectors = { "//p", "//article", "//div[@class*='content']", "//body" };
+    private static readonly string[] MotorcycleKeywords = { "motorcycle", "bike", "engine", "horsepower", "cc", "specifications", "honda", "yamaha", "kawasaki", "ducati", "bmw", "suzuki" };
+    private static readonly string[] DetailKeywords = { "specifications", "performance", "engine", "horsepower", "torque" };
+    private static readonly char[] SpaceSeparator = { ' ' };
+
     public WebContentExtractor(ILogger logger) {
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public List<SearchResult> ExtractSearchResults(string htmlContent, string searchTerm, TrustedSourceOptions source) {
+    public SearchResult[] ExtractSearchResults(string htmlContent, string searchTerm, TrustedSourceOptions source) {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(searchTerm);
+        if (string.IsNullOrEmpty(htmlContent)) return Array.Empty<SearchResult>();
+
         var results = new List<SearchResult>();
 
         try {
             var doc = new HtmlDocument();
             doc.LoadHtml(htmlContent);
 
-            var selectors = new[] { source.ContentSelector, "//p", "//article", "//div[@class*='content']", "//body" };
-            HtmlNodeCollection? contentNodes = null;
-
-            foreach (var selector in selectors) {
-                contentNodes = doc.DocumentNode.SelectNodes(selector);
-                if (contentNodes != null && contentNodes.Count > 0)
-                    break;
-            }
+            var contentNodes = DefaultSelectors
+                .Prepend(source.ContentSelector)
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(selector => doc.DocumentNode.SelectNodes(selector))
+                .FirstOrDefault(nodes => nodes != null && nodes.Count > 0);
 
             if (contentNodes != null) {
                 foreach (var node in contentNodes.Take(5)) {
@@ -60,31 +66,9 @@ public class WebContentExtractor {
             }
 
             if (results.Count == 0) {
-                var fullContent = ExtractCleanText(doc.DocumentNode);
-                if (!string.IsNullOrWhiteSpace(fullContent) && fullContent.Length > 50) {
-                    var sr2 = new SearchResult {
-                        Id = $"web_{Guid.NewGuid()}",
-                        Content = fullContent.Substring(0, Math.Min(500, fullContent.Length)),
-                        RelevanceScore = 0.6f,
-                        Source = new SearchSource {
-                            AgentType = SearchAgentType.WebSearch,
-                            SourceName = source.Name,
-                            SourceUrl = source.BaseUrl?.ToString(),
-                            LastUpdated = DateTime.UtcNow
-                        },
-                        GeneratedAt = DateTime.UtcNow
-                    };
-
-                    sr2.Metadata["searchTerm"] = searchTerm;
-                    sr2.Metadata["sourceType"] = "web";
-                    sr2.Metadata["credibilityScore"] = source.CredibilityScore;
-                    sr2.Metadata["extractedAt"] = DateTime.UtcNow;
-                    sr2.Metadata["fallbackContent"] = true;
-
-                    foreach (var h in ExtractHighlights(fullContent, searchTerm))
-                        sr2.Highlights.Add(h);
-
-                    results.Add(sr2);
+                var fallbackResult = ExtractFallbackResult(doc, searchTerm, source);
+                if (fallbackResult != null) {
+                    results.Add(fallbackResult);
                 }
             }
         }
@@ -92,7 +76,7 @@ public class WebContentExtractor {
             _logger.LogWarning(ex, "Failed to extract results from {Source}", source.Name);
         }
 
-        return results;
+        return results.ToArray();
     }
 
     private string ExtractCleanText(HtmlNode node) {
@@ -101,7 +85,7 @@ public class WebContentExtractor {
         text = Regex.Replace(text, @"\s+", " ");
         text = text.Trim();
         if (text.Length > 500) {
-            text = text.Substring(0, 500) + "...";
+            text = string.Concat(text.AsSpan(0, 500), "...");
         }
         return text;
     }
@@ -110,52 +94,79 @@ public class WebContentExtractor {
         if (string.IsNullOrWhiteSpace(content) || content.Length < 20)
             return false;
 
-        var motorcycleKeywords = new[] { "motorcycle", "bike", "engine", "horsepower", "cc", "specifications", "honda", "yamaha", "kawasaki", "ducati", "bmw", "suzuki" };
-        var searchWords = searchTerm.ToLower().Split(' ');
+        var searchWords = searchTerm.ToUpperInvariant().Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var contentUpper = content.ToUpperInvariant();
 
-        var contentLower = content.ToLower();
-
-        var hasMotorcycleKeyword = motorcycleKeywords.Any(keyword => contentLower.Contains(keyword));
-        var hasSearchTerm = searchWords.Any(word => word.Length > 2 && contentLower.Contains(word));
+        var hasMotorcycleKeyword = MotorcycleKeywords.Any(keyword => contentUpper.Contains(keyword.ToUpperInvariant()));
+        var hasSearchTerm = searchWords.Any(word => word.Length > 2 && contentUpper.Contains(word));
 
         return hasMotorcycleKeyword || hasSearchTerm;
     }
 
     private float CalculateRelevanceScore(string content, string searchTerm) {
-        var contentLower = content.ToLower();
-        var searchWords = searchTerm.ToLower().Split(' ');
+        var contentUpper = content.ToUpperInvariant();
+        var searchWords = searchTerm.ToUpperInvariant().Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         var score = 0.3f;
 
-        if (contentLower.Contains(searchTerm.ToLower())) {
+        if (contentUpper.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) {
             score += 0.3f;
         }
 
-        var wordMatches = searchWords.Count(word => contentLower.Contains(word));
+        var wordMatches = searchWords.Count(word => contentUpper.Contains(word));
         score += (wordMatches / (float)searchWords.Length) * 0.2f;
 
-        var motorcycleTerms = new[] { "specifications", "performance", "engine", "horsepower", "torque" };
-        var motorcycleMatches = motorcycleTerms.Count(term => contentLower.Contains(term));
-        score += (motorcycleMatches / (float)motorcycleTerms.Length) * 0.2f;
+        var motorcycleMatches = DetailKeywords.Select(k => k.ToUpperInvariant()).Count(term => contentUpper.Contains(term));
+        score += (motorcycleMatches / (float)DetailKeywords.Length) * 0.2f;
 
         return Math.Min(1.0f, score);
     }
 
-    private List<string> ExtractHighlights(string content, string query) {
+    private IEnumerable<string> ExtractHighlights(string content, string query) {
         var highlights = new List<string>();
-        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var words = query.Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         foreach (var word in words.Take(3)) {
             var index = content.IndexOf(word, StringComparison.OrdinalIgnoreCase);
             if (index >= 0) {
                 var start = Math.Max(0, index - 30);
                 var length = Math.Min(80, content.Length - start);
-                var highlight = content.Substring(start, length);
+                var highlight = string.Concat("...", content.AsSpan(start, length), "...");
 
-                highlights.Add($"...{highlight}...");
+                highlights.Add(highlight);
             }
         }
 
-        return highlights.Take(2).ToList();
+        return highlights.Take(2);
+    }
+
+    private SearchResult? ExtractFallbackResult(HtmlDocument doc, string searchTerm, TrustedSourceOptions source) {
+        var fullContent = ExtractCleanText(doc.DocumentNode);
+        if (string.IsNullOrWhiteSpace(fullContent) || fullContent.Length <= 50)
+            return null;
+
+        var sr = new SearchResult {
+            Id = string.Concat("web_", Guid.NewGuid().ToString()),
+            Content = fullContent.AsSpan(0, Math.Min(500, fullContent.Length)).ToString(),
+            RelevanceScore = 0.6f,
+            Source = new SearchSource {
+                AgentType = SearchAgentType.WebSearch,
+                SourceName = source.Name,
+                SourceUrl = source.BaseUrl?.ToString(),
+                LastUpdated = DateTime.UtcNow
+            },
+            GeneratedAt = DateTime.UtcNow
+        };
+
+        sr.Metadata["searchTerm"] = searchTerm;
+        sr.Metadata["sourceType"] = "web";
+        sr.Metadata["credibilityScore"] = source.CredibilityScore;
+        sr.Metadata["extractedAt"] = DateTime.UtcNow;
+        sr.Metadata["fallbackContent"] = true;
+
+        foreach (var h in ExtractHighlights(fullContent, searchTerm))
+            sr.Highlights.Add(h);
+
+        return sr;
     }
 }

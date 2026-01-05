@@ -14,7 +14,9 @@ using Swashbuckle.AspNetCore.SwaggerGen;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 
-public class Program
+namespace MotorcycleRAG.API;
+
+public static class Program
 {
     public static async Task Main(string[] args)
     {
@@ -260,9 +262,6 @@ public class Program
 
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             });
-
-            // Validate configuration early
-            // ValidateConfiguration(configuration, builder.Environment);
         }
         catch (Exception ex)
         {
@@ -441,7 +440,10 @@ public class Program
 
         // Log secret sources for audit trail
         var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
-        startupLogger.LogInformation("Azure AI configuration loaded from environment variables (MCR_API_AZURE_OPENAI_ENDPOINT, MCR_API_AZURE_SEARCH_ENDPOINT, MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, MCR_API_AZURE_FOUNDRY_ENDPOINT)");
+        var envVarsMessage = "Azure AI configuration loaded from environment variables " +
+            "(MCR_API_AZURE_OPENAI_ENDPOINT, MCR_API_AZURE_SEARCH_ENDPOINT, " +
+            "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, MCR_API_AZURE_FOUNDRY_ENDPOINT)";
+        startupLogger.LogInformation(envVarsMessage);
 
         // Update configuration with environment values (environment variables ONLY)
         var azureAIConfig = new Dictionary<string, string?>

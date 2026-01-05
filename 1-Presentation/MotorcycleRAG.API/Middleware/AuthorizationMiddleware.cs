@@ -2,27 +2,23 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
-using System.Threading.Tasks;
 
 namespace MotorcycleRAG.API.Middleware;
 
 /// <summary>
 /// Middleware for comprehensive authorization logging and auditing
 /// </summary>
-public class AuthorizationMiddleware
+internal class AuthorizationMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<AuthorizationMiddleware> _logger;
-    private readonly IAuthorizationService _authorizationService;
 
     public AuthorizationMiddleware(
         RequestDelegate next,
-        ILogger<AuthorizationMiddleware> logger,
-        IAuthorizationService authorizationService)
+        ILogger<AuthorizationMiddleware> logger)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -82,7 +78,7 @@ public class AuthorizationMiddleware
 /// <summary>
 /// Extension methods for AuthorizationMiddleware
 /// </summary>
-public static class AuthorizationMiddlewareExtensions
+internal static class AuthorizationMiddlewareExtensions
 {
     public static IApplicationBuilder UseAuthorizationLogging(this IApplicationBuilder builder)
     {

@@ -80,7 +80,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
                 SearchAgentType.WebSearch => "web_search",
                 SearchAgentType.PDFSearch => "pdf_search",
                 SearchAgentType.QueryPlanner => "plan_search_strategy",
-                _ => $"agent_{agent.AgentType.ToString().ToLowerInvariant()}"
+                _ => $"agent_{agent.AgentType.ToString().ToUpperInvariant()}"
             };
 
             var handler = AgentFrameworkAdapter.CreateSearchAgentHandler(agent, _logger);
@@ -259,56 +259,35 @@ Answer in markdown:
         var stopwatch = Stopwatch.StartNew();
 
         foreach (var agentType in executionOrder) {
-            var agent = _agents.FirstOrDefault(a => a.AgentType == agentType);
-            if (agent == null) {
-                sourceStatuses.Add(new SourceExecutionStatus {
-                    AgentType = agentType,
-                    Succeeded = false,
-                    ResultsCount = 0,
-                    Duration = TimeSpan.Zero,
-                    ErrorMessage = "Agent not registered"
-                });
-                continue;
-            }
-
-            var agentStopwatch = Stopwatch.StartNew();
-
-            try {
-                var results = await agent.SearchAsync(query, searchParameters);
-                agentStopwatch.Stop();
-
-                var resultsCount = results.Length;
-                executionMetrics[agentType] = (agentStopwatch.Elapsed, resultsCount);
+            var (results, elapsed) = await ExecuteAgentSearchWithMetricsAsync(agentType, query, searchParameters);
+            
+            if (results != null) {
+                executionMetrics[agentType] = (elapsed, results.Length);
                 aggregatedResults.AddRange(results);
 
                 sourceStatuses.Add(new SourceExecutionStatus {
                     AgentType = agentType,
                     Succeeded = true,
-                    ResultsCount = resultsCount,
-                    Duration = agentStopwatch.Elapsed,
+                    ResultsCount = results.Length,
+                    Duration = elapsed,
                     ErrorMessage = null
                 });
 
                 // Early exit if we have enough results and this is a high-confidence source
                 if (aggregatedResults.Count >= searchParameters.MaxResults && agentType == SearchAgentType.VectorSearch) {
                     _logger.LogInformation("Sufficient results from primary index search, skipping fallback sources");
-                    break;
+                    return aggregatedResults.ToArray();
                 }
             }
-            catch (Exception ex) {
-                agentStopwatch.Stop();
-                var errorMessage = ex.Message ?? ex.GetType().Name;
-
+            else {
+                executionMetrics[agentType] = (TimeSpan.Zero, 0);
                 sourceStatuses.Add(new SourceExecutionStatus {
                     AgentType = agentType,
                     Succeeded = false,
                     ResultsCount = 0,
-                    Duration = agentStopwatch.Elapsed,
-                    ErrorMessage = errorMessage
+                    Duration = elapsed,
+                    ErrorMessage = "Search failed or agent not found"
                 });
-
-                _logger.LogWarning(ex, "Agent {AgentType} failed – continuing with remaining sources", agentType);
-                executionMetrics[agentType] = (TimeSpan.Zero, 0);
             }
         }
 
@@ -339,23 +318,38 @@ Answer in markdown:
         _telemetryService.TrackDegradedMode(correlationId, failedSourceList, availableSourceList, totalDuration, totalResults);
 
         foreach (var failedSource in failedSources) {
-            _telemetryService.TrackSourceFailure(correlationId, failedSource.AgentType.ToString(), failedSource.ErrorMessage ?? "Unknown error", failedSource.Duration);
+            _telemetryService.TrackSourceFailure(
+                correlationId,
+                failedSource.AgentType.ToString(),
+                failedSource.ErrorMessage ?? "Unknown error",
+                failedSource.Duration);
         }
     }
 
-    private static void UpdateQueryContextMetrics(SearchContext context, Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)> executionMetrics, bool degradedMode, List<SourceExecutionStatus> failedSources, List<SourceExecutionStatus> successfulSources) {
+    private static void UpdateQueryContextMetrics(
+        SearchContext context,
+        Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)> executionMetrics,
+        bool degradedMode,
+        List<SourceExecutionStatus> failedSources,
+        List<SourceExecutionStatus> successfulSources) {
         if (context.QueryContext == null) return;
 
         context.QueryContext.AdditionalProperties["SearchPatternMetrics"] = new SearchPatternMetrics {
             VectorSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.VectorSearch),
             WebSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.WebSearch),
             PDFSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.PDFSearch),
-            VectorSearchTime = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var v) ? v.Duration : TimeSpan.Zero,
-            WebSearchTime = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var w) ? w.Duration : TimeSpan.Zero,
-            PDFSearchTime = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var p) ? p.Duration : TimeSpan.Zero,
-            VectorResultsFound = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var vr) ? vr.ResultsFound : 0,
-            WebResultsFound = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var wr) ? wr.ResultsFound : 0,
-            PDFResultsFound = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var pr) ? pr.ResultsFound : 0
+            VectorSearchTime = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var v)
+                ? v.Duration : TimeSpan.Zero,
+            WebSearchTime = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var w)
+                ? w.Duration : TimeSpan.Zero,
+            PDFSearchTime = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var p)
+                ? p.Duration : TimeSpan.Zero,
+            VectorResultsFound = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var vr)
+                ? vr.ResultsFound : 0,
+            WebResultsFound = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var wr)
+                ? wr.ResultsFound : 0,
+            PDFResultsFound = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var pr)
+                ? pr.ResultsFound : 0
         };
 
         context.QueryContext.AdditionalProperties["DegradedMode"] = degradedMode;
@@ -401,9 +395,9 @@ Answer in markdown:
 
         // Add degraded mode metadata to results
         if (degradedMode && finalResults.Length > 0) {
-            foreach (var result in finalResults) {
-                result.Metadata["DegradedMode"] = true;
-                result.Metadata["Note"] = "Results from partial sources due to unavailable service(s).";
+            foreach (var metadata in finalResults.Select(r => r.Metadata)) {
+                metadata["DegradedMode"] = true;
+                metadata["Note"] = "Results from partial sources due to unavailable service(s).";
             }
         }
 
@@ -447,6 +441,25 @@ Answer in markdown:
     #endregion
 
     #region Helpers
+
+    private async Task<(SearchResult[]? Results, TimeSpan Elapsed)> ExecuteAgentSearchWithMetricsAsync(SearchAgentType agentType, string query, SearchParameters searchParameters) {
+        var agent = _agents.FirstOrDefault(a => a.AgentType == agentType);
+        if (agent == null) {
+            return (null, TimeSpan.Zero);
+        }
+
+        var agentStopwatch = Stopwatch.StartNew();
+        try {
+            var results = await agent.SearchAsync(query, searchParameters);
+            agentStopwatch.Stop();
+            return (results, agentStopwatch.Elapsed);
+        }
+        catch (Exception ex) {
+            agentStopwatch.Stop();
+            _logger.LogWarning(ex, "Agent {AgentType} failed – continuing with remaining sources", agentType);
+            return (null, agentStopwatch.Elapsed);
+        }
+    }
 
     private static SearchParameters BuildSearchOptions(SearchContext context) {
         var prefs = context.Preferences ?? new SearchPreferences();

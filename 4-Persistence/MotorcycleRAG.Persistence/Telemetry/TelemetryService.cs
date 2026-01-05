@@ -19,9 +19,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
     {
         private readonly TelemetryClient _telemetryClient;
         private readonly ILogger<TelemetryService> _logger;
-        private readonly MotorcycleRAG.Core.Options.TelemetryOptions _telemetryConfig;
-        private readonly SqlOptions _sqlOptions;
-        
+
         // Regex patterns for sensitive data detection
         private readonly Regex _queryTextPattern = new Regex(@"(SELECT|INSERT|UPDATE|DELETE).*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private readonly Regex _connectionStringPattern = new Regex(@"(Server|Database|User ID|Password|Pwd)=[^;]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -33,20 +31,15 @@ namespace MotorcycleRAG.Persistence.Telemetry
         /// </summary>
         /// <param name="telemetryClient">Telemetry client</param>
         /// <param name="logger">Logger</param>
-        /// <param name="telemetryConfig">Telemetry configuration</param>
-        /// <param name="sqlOptions">SQL options</param>
         public TelemetryService(
             TelemetryClient telemetryClient,
-            ILogger<TelemetryService> logger,
-            IOptions<MotorcycleRAG.Core.Options.TelemetryOptions> telemetryConfig,
-            IOptions<SqlOptions> sqlOptions)
+            ILogger<TelemetryService> logger)
         {
             ArgumentNullException.ThrowIfNull(telemetryClient);
             ArgumentNullException.ThrowIfNull(logger);
-            ArgumentNullException.ThrowIfNull(telemetryConfig);
-            ArgumentNullException.ThrowIfNull(sqlOptions);
-            _telemetryConfig = telemetryConfig.Value ?? throw new ArgumentNullException(nameof(telemetryConfig));
-            _sqlOptions = sqlOptions.Value ?? throw new ArgumentNullException(nameof(sqlOptions));
+
+            _telemetryClient = telemetryClient;
+            _logger = logger;
         }
 
         /// <summary>
@@ -95,7 +88,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to track {ExceptionType}", ex.GetType().Name);
-                throw new InvalidOperationException("Failed to track exception", ex);
+                throw new InvalidOperationException($"Failed to track {nameof(exception)}", ex);
             }
         }
 
@@ -315,7 +308,12 @@ namespace MotorcycleRAG.Persistence.Telemetry
         }
 
         /// <inheritdoc />
-        public void TrackDegradedMode(string correlationId, List<string> failedSources, List<string> availableSources, TimeSpan duration, int resultsFound)
+        public void TrackDegradedMode(
+            string correlationId,
+            List<string> failedSources,
+            List<string> availableSources,
+            TimeSpan duration,
+            int resultsFound)
         {
             if (string.IsNullOrWhiteSpace(correlationId))
             {
@@ -350,10 +348,10 @@ namespace MotorcycleRAG.Persistence.Telemetry
                 };
 
                 _telemetryClient.TrackEvent("SearchDegradedMode", properties, metrics);
-                
+
                 _logger.LogWarning("Tracked degraded mode operation: CorrelationId={CorrelationId}, FailedSources={FailedSources}, " +
                     "AvailableSources={AvailableSources}, Duration={Duration}ms, Results={Results}",
-                    correlationId, string.Join(",", failedSources), string.Join(",", availableSources), 
+                    correlationId, string.Join(",", failedSources), string.Join(",", availableSources),
                     duration.TotalMilliseconds, resultsFound);
             }
             catch (Exception ex)

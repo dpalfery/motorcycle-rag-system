@@ -36,17 +36,17 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     }
 
     private WebApplicationFactory<Program> CreateFactoryWithMockedService() {
-        // Override IMotorcycleRAGService with a mocked implementation for serialization testing
+        // Override IMotorcycleRagService with a mocked implementation for serialization testing
         return _factory.WithWebHostBuilder(builder => {
             builder.ConfigureServices(services => {
                 // Remove existing registration (if any)
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IMotorcycleRAGService));
+                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IMotorcycleRagService));
                 if (descriptor is not null) {
                     services.Remove(descriptor);
                 }
 
                 // Register mock service with manual citation responses for serialization testing
-                var mockService = new Mock<IMotorcycleRAGService>();
+                var mockService = new Mock<IMotorcycleRagService>();
 
                 mockService.Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
                             .ReturnsAsync((MotorcycleQueryRequest r) => CreateManualCitationResponse(r.Query));

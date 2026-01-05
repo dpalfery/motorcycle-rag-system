@@ -71,7 +71,9 @@ public class AgentState {
     /// <summary>
     /// Add a message to the conversation
     /// </summary>
-    public void AddMessage(string sender, string content, AgentMessageType type = AgentMessageType.Status) {
+    public void AddMessage(string sender, string content) => AddMessage(sender, content, AgentMessageType.Status);
+
+    public void AddMessage(string sender, string content, AgentMessageType type) {
         Messages.Add(new AgentMessage {
             SenderId = sender,
             Content = content,
@@ -83,7 +85,9 @@ public class AgentState {
     /// <summary>
     /// Record an error during execution
     /// </summary>
-    public void RecordError(string agentId, string errorMessage, Exception? exception = null) {
+    public void RecordError(string agentId, string errorMessage) => RecordError(agentId, errorMessage, null);
+
+    public void RecordError(string agentId, string errorMessage, Exception? exception) {
         Errors.Add(new AgentError {
             AgentId = agentId,
             Message = errorMessage,

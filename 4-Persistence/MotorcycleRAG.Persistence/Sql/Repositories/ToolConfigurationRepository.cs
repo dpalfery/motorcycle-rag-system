@@ -27,8 +27,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
     /// </summary>
     public async Task<McpToolConfiguration> AddOrUpdateAsync(McpToolConfiguration configuration)
     {
-        if (configuration == null)
-            throw new ArgumentNullException(nameof(configuration));
+        ArgumentNullException.ThrowIfNull(configuration);
 
         if (string.IsNullOrWhiteSpace(configuration.ToolId))
             throw new ArgumentException("Tool ID must not be empty", nameof(configuration));
@@ -103,7 +102,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving tool configuration {ToolId}", configuration.ToolId);
-            throw new InvalidOperationException($"Error saving tool configuration {configuration.ToolId}", ex);
+            throw new InvalidOperationException($"Error saving tool {nameof(configuration)} {configuration.ToolId}", ex);
         }
     }
 

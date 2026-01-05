@@ -8,7 +8,7 @@ namespace MotorcycleRAG.API.Services;
 /// <summary>
 /// Custom health check response writer that formats health check results as structured JSON
 /// </summary>
-public static class HealthCheckResponseWriter
+internal static class HealthCheckResponseWriter
 {
     /// <summary>
     /// Writes a structured JSON health check response in the format expected by tests

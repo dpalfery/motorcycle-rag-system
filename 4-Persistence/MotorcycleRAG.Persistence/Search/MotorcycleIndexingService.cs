@@ -84,7 +84,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
             result.Errors.Add(ex.Message);
             result.ProcessingTime = stopwatch.Elapsed;
 
-            throw new InvalidOperationException($"Failed to index documents to {_searchOptions.IndexName}", ex);
+            throw new InvalidOperationException($"Failed to index {nameof(documents)} to {_searchOptions.IndexName}", ex);
         }
     }
 
@@ -144,7 +144,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
                 _logger.LogInformation("Deleted existing index {IndexName}", _searchOptions.IndexName);
             }
             catch (global::Azure.RequestFailedException ex) when (ex.Status == 404) {
-                _logger.LogDebug("Index {IndexName} does not exist, will create new", _searchOptions.IndexName);
+                _logger.LogDebug(ex, "Index {IndexName} does not exist, will create new", _searchOptions.IndexName);
             }
 
             // Create new index with schema including locator fields

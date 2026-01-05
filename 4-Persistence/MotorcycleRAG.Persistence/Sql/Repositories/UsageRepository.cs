@@ -31,9 +31,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         /// <param name="usage">Usage record to create</param>
         /// <returns>Created usage record</returns>
         public async Task<Usage> RecordUsageAsync(Usage usage) {
-            if (usage == null) {
-                throw new ArgumentNullException(nameof(usage));
-            }
+            ArgumentNullException.ThrowIfNull(usage);
 
             const string sql = @"
                 INSERT INTO [dbo].[Usage] (

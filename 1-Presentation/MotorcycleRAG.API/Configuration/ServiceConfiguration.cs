@@ -41,7 +41,7 @@ public static class ServiceConfiguration {
     /// </summary>
     public static IServiceCollection AddCoreServices(this IServiceCollection services) {
         // Register core service interfaces to concrete implementations in Application layer
-        services.AddScoped<IMotorcycleRAGService, MotorcycleRAG.Application.Services.MotorcycleRAGService>();
+        services.AddScoped<IMotorcycleRagService, MotorcycleRAG.Application.Services.MotorcycleRagService>();
         services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Application.Services.AgentOrchestrator>();
 
         // Add Application Insights TelemetryClient
@@ -234,60 +234,35 @@ public static class ServiceConfiguration {
             return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy("Configuration validation failed", ex);
         }
     }
+}
 
-    /// <summary>
-    /// Validator for SQL configuration options
-    /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
-    /// </summary>
-    public class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions> {
-        public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Core.Options.SqlOptions options) {
-            var failures = new List<string>();
+/// <summary>
+/// Validator for SQL configuration options
+/// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
+/// </summary>
+internal class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions> {
+    public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Core.Options.SqlOptions options) {
+        var failures = new List<string>();
 
-            if (options.CommandTimeout <= 0)
-                failures.Add("Sql:CommandTimeout must be greater than 0");
+        if (options.CommandTimeout <= 0)
+            failures.Add("Sql:CommandTimeout must be greater than 0");
 
-            if (options.ConnectionTimeout <= 0)
-                failures.Add("Sql:ConnectionTimeout must be greater than 0");
+        if (options.ConnectionTimeout <= 0)
+            failures.Add("Sql:ConnectionTimeout must be greater than 0");
 
-            if (options.MaxPoolSize <= 0)
-                failures.Add("Sql:MaxPoolSize must be greater than 0");
+        if (options.MaxPoolSize <= 0)
+            failures.Add("Sql:MaxPoolSize must be greater than 0");
 
-            return failures.Count > 0
-                ? ValidateOptionsResult.Fail(failures)
-                : ValidateOptionsResult.Success;
-        }
-    }
-
-    /// <summary>
-    /// Validate Azure service endpoint configuration
-    /// </summary>
-    private static Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult ValidateEndpointConfiguration(string serviceName, string endpoint) {
-        try {
-            if (string.IsNullOrWhiteSpace(endpoint))
-                return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy($"{serviceName} endpoint is not configured");
-
-            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
-                return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy($"{serviceName} endpoint is not a valid URL: {endpoint}");
-
-            if (uri.Scheme != "https")
-                return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Degraded($"{serviceName} endpoint should use HTTPS: {endpoint}");
-
-            // Check if endpoint looks like a placeholder
-            if (endpoint.Contains("your-") || endpoint.Contains("example") || endpoint.Contains("placeholder"))
-                return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Degraded($"{serviceName} endpoint appears to be a placeholder: {endpoint}");
-
-            return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy($"{serviceName} endpoint is properly configured");
-        }
-        catch (Exception ex) {
-            return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy($"{serviceName} endpoint validation failed", ex);
-        }
+        return failures.Count > 0
+            ? ValidateOptionsResult.Fail(failures)
+            : ValidateOptionsResult.Success;
     }
 }
 
 /// <summary>
 /// Validator for Azure AI configuration
 /// </summary>
-public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
+internal class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
     public ValidateOptionsResult Validate(string? name, AzureAIOptions options) {
         var failures = new List<string>();
 
@@ -333,7 +308,7 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
 /// <summary>
 /// Validator for Search configuration
 /// </summary>
-public class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
+internal class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
     public ValidateOptionsResult Validate(string? name, SearchOptions options) {
         var failures = new List<string>();
 
@@ -355,7 +330,7 @@ public class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
 /// <summary>
 /// Validator for Telemetry configuration
 /// </summary>
-public class TelemetryConfigurationValidator : IValidateOptions<TelemetryOptions> {
+internal class TelemetryConfigurationValidator : IValidateOptions<TelemetryOptions> {
     public ValidateOptionsResult Validate(string? name, TelemetryOptions options) {
         var failures = new List<string>();
 

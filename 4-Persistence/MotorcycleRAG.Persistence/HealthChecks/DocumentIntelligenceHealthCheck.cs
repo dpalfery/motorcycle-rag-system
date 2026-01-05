@@ -61,9 +61,9 @@ public class DocumentIntelligenceHealthCheck : IHealthCheck
             return HealthCheckResult.Healthy("Document Intelligence is healthy",
                 new Dictionary<string, object> { { "response_time_ms", duration } });
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            _logger.LogWarning("Document Intelligence health check timed out");
+            _logger.LogWarning(ex, "Document Intelligence health check timed out");
             return HealthCheckResult.Unhealthy("Document Intelligence health check timed out");
         }
         catch (Exception ex)

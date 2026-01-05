@@ -140,10 +140,7 @@ public class WebTrustPolicyStore : IWebTrustPolicyStore
     /// </summary>
     public void AddOrUpdatePolicy(WebTrustPolicy policy)
     {
-        if (policy == null)
-        {
-            throw new ArgumentNullException(nameof(policy));
-        }
+        ArgumentNullException.ThrowIfNull(policy);
 
         policy.UpdatedAt = DateTime.UtcNow;
         _policies.AddOrUpdate(policy.DomainPattern, policy, (_, existing) => policy);

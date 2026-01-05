@@ -5,7 +5,7 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// <summary>
 /// Main service interface for motorcycle RAG operations
 /// </summary>
-public interface IMotorcycleRAGService {
+public interface IMotorcycleRagService {
     /// <summary>
     /// Processes a motorcycle-related natural language query and returns an AI-generated answer.
     /// </summary>

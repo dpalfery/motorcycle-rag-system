@@ -14,14 +14,14 @@ namespace MotorcycleRAG.API.Controllers;
 [Route("api/motorcycles")]
 [Authorize] // Default authorization for all endpoints
 public sealed class MotorcycleController : ControllerBase {
-    private readonly IMotorcycleRAGService _ragService;
+    private readonly IMotorcycleRagService _ragService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IPlanPolicyService _planPolicyService;
     private readonly IUsageTrackingService _usageTrackingService;
     private readonly ILogger<MotorcycleController> _logger;
 
     public MotorcycleController(
-        IMotorcycleRAGService ragService,
+        IMotorcycleRagService ragService,
         ICurrentUserService currentUserService,
         IPlanPolicyService planPolicyService,
         IUsageTrackingService usageTrackingService,

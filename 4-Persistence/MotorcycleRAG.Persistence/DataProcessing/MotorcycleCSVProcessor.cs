@@ -25,8 +25,16 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
     public MotorcycleCSVProcessor(
         IAzureOpenAIClient openAIClient,
         IAzureSearchClient searchClient,
+        ILogger<MotorcycleCSVProcessor> logger)
+        : this(openAIClient, searchClient, logger, null)
+    {
+    }
+
+    public MotorcycleCSVProcessor(
+        IAzureOpenAIClient openAIClient,
+        IAzureSearchClient searchClient,
         ILogger<MotorcycleCSVProcessor> logger,
-        CSVProcessingConfiguration? configuration = null) {
+        CSVProcessingConfiguration? configuration) {
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -37,6 +45,8 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
     /// Process CSV file with row-based chunking preserving relational integrity
     /// </summary>
     public async Task<ProcessedData> ProcessAsync(CSVFile input) {
+        ArgumentNullException.ThrowIfNull(input);
+
         var startTime = DateTime.UtcNow;
         var documents = new List<MotorcycleDocument>();
         var errors = new List<string>();
@@ -94,6 +104,8 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
     /// Index processed data into Azure AI Search using the dedicated indexing service
     /// </summary>
     public async Task<IndexingResult> IndexAsync(ProcessedData data) {
+        ArgumentNullException.ThrowIfNull(data);
+
         var startTime = DateTime.UtcNow;
         var result = new IndexingResult();
 

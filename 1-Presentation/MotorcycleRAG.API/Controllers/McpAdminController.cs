@@ -420,14 +420,34 @@ public sealed class McpAdminController : ControllerBase {
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAuditHistoryAsync(string toolId, [FromQuery] int limit = 100) {
+    public Task<IActionResult> GetAuditHistoryAsync(string toolId)
+    {
+        // Call the overload with the default value
+        return GetAuditHistoryAsync(toolId, 100);
+    }
+
+    /// <summary>
+    /// Gets audit history for a tool configuration.
+    /// </summary>
+    /// <param name="toolId">Tool ID</param>
+    /// <param name="limit">Number of entries to return</param>
+    /// <returns>Audit entries</returns>
+    [HttpGet("{toolId}/audit")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(typeof(ToolConfigurationAuditEntry[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetAuditHistoryAsync(string toolId, [FromQuery] int limit)
+    {
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });
 
         if (limit <= 0 || limit > 1000)
             return BadRequest(new { error = "Limit must be between 1 and 1000" });
 
-        try {
+        try
+        {
             var config = await _configService.GetToolAsync(toolId);
             if (config == null)
                 return NotFound(new { error = "Tool not found" });
@@ -435,7 +455,8 @@ public sealed class McpAdminController : ControllerBase {
             var auditEntries = await _configService.GetAuditHistoryAsync(config.Id, limit);
             return Ok(auditEntries);
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             _logger.LogError(ex, "Error retrieving audit history for tool {ToolId}", toolId);
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred" });
@@ -523,10 +544,8 @@ public sealed class McpAdminController : ControllerBase {
             return "[system]";
 
         // Hash the user ID using SHA-256 and take first 8 characters for brevity
-        using (var sha256 = SHA256.Create()) {
-            var hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(userId));
-            var hashString = System.Convert.ToBase64String(hash);
-            return $"[user:{hashString.Substring(0, 8)}]";
-        }
+        var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(userId));
+        var hashString = System.Convert.ToBase64String(hash);
+        return $"[user:{hashString.Substring(0, 8)}]";
     }
 }

@@ -22,7 +22,7 @@ namespace MotorcycleRAG.IntegrationTests.PdfProcessing;
 /// 
 /// What's REAL (not mocked):
 /// - MotorcyclePDFProcessor chunking + locator enrichment logic
-/// - MotorcycleRAGService citation mapping into Citation.Locator
+/// - MotorcycleRagService citation mapping into Citation.Locator
 /// 
 /// What's MOCKED (external dependencies):
 /// - IDocumentIntelligenceClient - returns deterministic DocumentAnalysisResult
@@ -38,7 +38,7 @@ public class MotorcycleManualCitationComponentTests {
         var mockSearchClient = new Mock<IAzureSearchClient>();
         var mockLogger = new Mock<ILogger<MotorcyclePDFProcessor>>();
         var mockIndexingLogger = new Mock<ILogger<MotorcycleIndexingService>>();
-        var mockRagLogger = new Mock<ILogger<MotorcycleRAGService>>();
+        var mockRagLogger = new Mock<ILogger<MotorcycleRagService>>();
         var mockOrchestrator = new Mock<IAgentOrchestrator>();
         var mockTelemetryService = new Mock<ITelemetryService>();
         var mockCacheService = new Mock<IQueryCacheService>();
@@ -132,9 +132,9 @@ public class MotorcycleManualCitationComponentTests {
         // (using the same MotorcycleDocument objects that were created)
         var searchResults = CreateSimulatedSearchResultsFromDocuments(processedData.Documents);
 
-        // Act - Step 4: Map search results to citations through real MotorcycleRAGService logic
+        // Act - Step 4: Map search results to citations through real MotorcycleRagService logic
         // We'll use reflection to invoke the private CreateManualPdfLocator method
-        var ragService = new MotorcycleRAGService(
+        var ragService = new MotorcycleRagService(
             mockOrchestrator.Object,
             mockRagLogger.Object,
             mockTelemetryService.Object,
@@ -143,7 +143,7 @@ public class MotorcycleManualCitationComponentTests {
             mockOpenAIClient.Object);
 
         // Use reflection to access private method for testing
-        var createLocatorMethod = typeof(MotorcycleRAGService)
+        var createLocatorMethod = typeof(MotorcycleRagService)
             .GetMethod("CreateLocatorForSource", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
         // Assert - Step 1: Verify PDF processor created documents with locator metadata

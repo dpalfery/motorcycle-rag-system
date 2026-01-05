@@ -13,7 +13,7 @@ namespace MotorcycleRAG.API.Middleware;
 /// Middleware for validating Host headers against a configured allowlist.
 /// Prevents Host Header Injection attacks (OWASP A07:2021 - Cross-Site Request Forgery).
 /// </summary>
-public class HostHeaderValidationMiddleware
+internal class HostHeaderValidationMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<HostHeaderValidationMiddleware> _logger;
@@ -223,7 +223,7 @@ public class HostHeaderValidationMiddleware
 /// <summary>
 /// Extension method for adding the Host Header Validation middleware to the pipeline
 /// </summary>
-public static class HostHeaderValidationMiddlewareExtensions
+internal static class HostHeaderValidationMiddlewareExtensions
 {
     /// <summary>
     /// Adds the Host Header Validation middleware to the pipeline.

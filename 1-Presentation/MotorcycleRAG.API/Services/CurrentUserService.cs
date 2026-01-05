@@ -9,7 +9,7 @@ namespace MotorcycleRAG.API.Services;
 /// <summary>
 /// Implementation of current user service that resolves user information from HTTP context claims
 /// </summary>
-public class CurrentUserService : ICurrentUserService
+internal class CurrentUserService : ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<CurrentUserService> _logger;

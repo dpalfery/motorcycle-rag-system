@@ -353,16 +353,17 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
 
     public async Task IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents) {
         try {
-            _logger.LogDebug("Indexing {DocumentCount} documents", documents.Count());
-
             var documentsArray = documents.ToArray();
-            if (documentsArray.Length == 0) {
+            var documentCount = documentsArray.Length;
+            _logger.LogDebug("Indexing {DocumentCount} documents", documentCount);
+
+            if (documentCount == 0) {
                 _logger.LogDebug("No documents to index");
                 return;
             }
 
             await IndexDocumentsAsync(documentsArray, CancellationToken.None);
-            _logger.LogDebug("Successfully indexed {DocumentCount} documents", documentsArray.Length);
+            _logger.LogDebug("Successfully indexed {DocumentCount} documents", documentCount);
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error indexing documents");
@@ -372,10 +373,11 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
 
     public async Task DeleteDocumentsAsync(IEnumerable<string> documentIds) {
         try {
-            _logger.LogDebug("Deleting {DocumentCount} documents", documentIds.Count());
-
             var documentIdsArray = documentIds.ToArray();
-            if (documentIdsArray.Length == 0) {
+            var documentCount = documentIdsArray.Length;
+            _logger.LogDebug("Deleting {DocumentCount} documents", documentCount);
+
+            if (documentCount == 0) {
                 _logger.LogDebug("No documents to delete");
                 return;
             }
@@ -385,7 +387,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
             var failedCount = response.Value.Results.Count(r => !r.Succeeded);
             if (failedCount > 0) {
                 _logger.LogWarning("Failed to delete {FailedCount} out of {TotalCount} documents",
-                    failedCount, documentIdsArray.Length);
+                    failedCount, documentCount);
 
                 foreach (var result in response.Value.Results.Where(r => !r.Succeeded)) {
                     _logger.LogWarning("Document deletion failed - Key: {Key}, Status: {Status}, Error: {Error}",
@@ -393,7 +395,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
                 }
             }
 
-            _logger.LogDebug("Successfully processed deletion of {DocumentCount} documents", documentIdsArray.Length);
+            _logger.LogDebug("Successfully processed deletion of {DocumentCount} documents", documentCount);
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error deleting documents");

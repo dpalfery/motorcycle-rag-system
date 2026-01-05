@@ -45,19 +45,19 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
     }
 
     // Convenience overloads (tests call these)
-    public Task<string> GetChatCompletionAsync(string deploymentName, string prompt) =>
-        GetChatCompletionAsync(deploymentName, prompt, CancellationToken.None);
-    public Task<float[]> GetEmbeddingAsync(string deploymentName, string text) =>
-        GetEmbeddingAsync(deploymentName, text, CancellationToken.None);
-    public Task<float[]> GetEmbeddingsAsync(string deploymentName, string text) =>
-        GetEmbeddingsAsync(deploymentName, text, CancellationToken.None);
-    public Task<float[][]> GetEmbeddingsAsync(string deploymentName, string[] texts) =>
-        GetEmbeddingsAsync(deploymentName, texts, CancellationToken.None);
-    public Task<string> ProcessMultimodalContentAsync(string deploymentName, string textPrompt, byte[] imageData, string imageContentType) =>
-        ProcessMultimodalContentAsync(deploymentName, textPrompt, imageData, imageContentType, CancellationToken.None);
+    public Task<string> GetChatCompletionAsync(string model, string prompt) =>
+        GetChatCompletionAsync(model, prompt, CancellationToken.None);
+    public Task<float[]> GetEmbeddingAsync(string model, string text) =>
+        GetEmbeddingAsync(model, text, CancellationToken.None);
+    public Task<float[]> GetEmbeddingsAsync(string model, string text) =>
+        GetEmbeddingsAsync(model, text, CancellationToken.None);
+    public Task<float[][]> GetEmbeddingsAsync(string model, string[] texts) =>
+        GetEmbeddingsAsync(model, texts, CancellationToken.None);
+    public Task<string> ProcessMultimodalContentAsync(string model, string textPrompt, byte[] imageData, string imageContentType) =>
+        ProcessMultimodalContentAsync(model, textPrompt, imageData, imageContentType, CancellationToken.None);
 
     public async Task<string> GetChatCompletionAsync(
-        string deploymentName,
+        string model,
         string prompt,
         CancellationToken cancellationToken)
     {
@@ -70,10 +70,10 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
                 using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
                 {
                     ["Operation"] = "GetChatCompletion",
-                    ["DeploymentName"] = deploymentName
+                    ["DeploymentName"] = model
                 });
 
-                _logger.LogDebug("Getting chat completion for deployment: {DeploymentName}", deploymentName);
+                _logger.LogDebug("Getting chat completion for model: {Model}", model);
                 await Task.Delay(100, cancellationToken);
                 _logger.LogDebug("Successfully retrieved chat completion");
                 return $"Chat completion response for: {prompt}";
@@ -88,25 +88,25 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
     }
 
     public async Task<float[]> GetEmbeddingAsync(
-        string deploymentName,
+        string model,
         string text,
         CancellationToken cancellationToken)
     {
-        var embeddings = await GetEmbeddingsAsync(deploymentName, new[] { text }, cancellationToken);
+        var embeddings = await GetEmbeddingsAsync(model, new[] { text }, cancellationToken);
         return embeddings[0];
     }
 
     public async Task<float[]> GetEmbeddingsAsync(
-        string deploymentName,
+        string model,
         string text,
         CancellationToken cancellationToken)
     {
-        var result = await GetEmbeddingsAsync(deploymentName, new[] { text }, cancellationToken);
+        var result = await GetEmbeddingsAsync(model, new[] { text }, cancellationToken);
         return result[0];
     }
 
     public async Task<float[][]> GetEmbeddingsAsync(
-        string deploymentName,
+        string model,
         string[] texts,
         CancellationToken cancellationToken)
     {
@@ -119,12 +119,12 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
                 using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
                 {
                     ["Operation"] = "GetEmbeddings",
-                    ["DeploymentName"] = deploymentName,
+                    ["DeploymentName"] = model,
                     ["TextCount"] = texts.Length
                 });
 
                 _logger.LogDebug("Getting embeddings for deployment: {DeploymentName}, Text count: {TextCount}", 
-                    deploymentName, texts.Length);
+                    model, texts.Length);
 
                 await Task.Delay(100, cancellationToken);
 

@@ -11,7 +11,7 @@ public interface IAzureOpenAIClient {
     /// <summary>
     /// Gets chat completion from Azure OpenAI
     /// </summary>
-    Task<string> GetChatCompletionAsync(string model, string prompt, CancellationToken cancellationToken);
+    Task<string> GetChatCompletionAsync(string deploymentName, string prompt, CancellationToken cancellationToken);
 
     /// <summary>
     /// Gets embeddings (single text convenience) from Azure OpenAI

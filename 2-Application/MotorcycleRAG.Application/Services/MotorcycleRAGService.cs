@@ -61,7 +61,7 @@ public sealed class MotorcycleRagService : IMotorcycleRagService {
     private readonly IQueryCacheService _cacheService;
     private readonly CacheConfiguration _cacheConfig;
     private readonly IAzureOpenAIClient _openAIClient;
-    private const decimal InputCostPer1K = 0.0015m; 
+    private const decimal InputCostPer1K = 0.0015m;
     private const decimal OutputCostPer1K = 0.002m;
 
     public MotorcycleRagService(

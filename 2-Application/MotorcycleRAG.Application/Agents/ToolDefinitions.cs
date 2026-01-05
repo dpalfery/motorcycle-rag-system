@@ -195,6 +195,7 @@ public class ToolCall {
     /// <summary>
     /// Get a typed argument value
     /// </summary>
+#pragma warning disable S4018 // Generic methods should provide type parameters
     public T? GetArgument<T>(string name) {
         if (!Arguments.TryGetValue(name, out var value))
             return default;
@@ -205,6 +206,7 @@ public class ToolCall {
 
         return (T?)Convert.ChangeType(value, typeof(T));
     }
+#pragma warning restore S4018 // Generic methods should provide type parameters
 
     public string GetStringArgument(string name) => GetStringArgument(name, string.Empty);
 

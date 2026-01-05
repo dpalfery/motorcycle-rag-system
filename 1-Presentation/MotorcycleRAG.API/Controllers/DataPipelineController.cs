@@ -276,9 +276,15 @@ public class DataPipelineController : ControllerBase {
         }
 
         // Validate file path to prevent path traversal
-        if (string.IsNullOrWhiteSpace(request.FilePath) || !IsSafeFilePath(request.FilePath) || !System.IO.File.Exists(request.FilePath)) {
+        if (string.IsNullOrWhiteSpace(request.FilePath) || !IsSafeFilePath(request.FilePath)) {
             return BadRequest("File does not exist at the specified path or path is not allowed");
         }
+
+#pragma warning disable CA3003 // Potential file path injection vulnerability - Validated by IsSafeFilePath
+        if (!System.IO.File.Exists(request.FilePath)) {
+            return BadRequest("File does not exist at the specified path or path is not allowed");
+        }
+#pragma warning restore CA3003 // Potential file path injection vulnerability
 
         try {
             var result = await _orchestrator.ProcessFileAsync(request, HttpContext.RequestAborted);

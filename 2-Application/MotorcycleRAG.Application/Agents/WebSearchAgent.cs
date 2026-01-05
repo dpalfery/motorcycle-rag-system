@@ -322,19 +322,18 @@ Return only the search terms, one per line, without explanations.
             if (results.Count == 0) {
                 var fullContent = ExtractCleanText(doc.DocumentNode);
                 if (!string.IsNullOrWhiteSpace(fullContent) && fullContent.Length > 50) {
-                    var sr2 = new SearchResult {
-                        Id = $"web_{Guid.NewGuid()}",
-                        Content = fullContent.AsSpan(0, Math.Min(500, fullContent.Length)).ToString(),
-                        RelevanceScore = 0.6f, // Default relevance for fallback content
-                        Source = new SearchSource {
-                            AgentType = SearchAgentType.WebSearch,
-                            SourceName = source.Name,
-                            SourceUrl = source.BaseUrl?.ToString(),
-                            LastUpdated = DateTime.UtcNow
-                        },
-                        GeneratedAt = DateTime.UtcNow
-                    };
-
+                                            var sr2 = new SearchResult {
+                                            Id = $"web_{Guid.NewGuid()}",
+                                            Content = fullContent.AsSpan(0, Math.Min(500, fullContent.Length)).ToString(),
+                                            RelevanceScore = 0.6f, // Default relevance for fallback content
+                                            Source = new SearchSource {
+                                                AgentType = SearchAgentType.WebSearch,
+                                                SourceName = source.Name,
+                                                SourceUrl = source.BaseUrl?.ToString(),
+                                                LastUpdated = DateTime.UtcNow
+                                            },
+                                            GeneratedAt = DateTime.UtcNow
+                                        };
                     sr2.Metadata["searchTerm"] = searchTerm;
                     sr2.Metadata["sourceType"] = "web";
                     sr2.Metadata["credibilityScore"] = source.CredibilityScore;

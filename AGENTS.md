@@ -46,6 +46,7 @@ Examples include (but are not limited to): `status*`, `plan*`, `summary*`, `deta
 
 **Rule:** Do not create agent-generated status/plan/summary/change-log files or build or test output files in the repository root (or other top-level folders) unless a tool strictly requires it. place it in the  `6-Docs/agent-notes/` folder.
 
+**Rule** only one object , class or interface per file, in C# !
 
 # 6. Technology Stack
 

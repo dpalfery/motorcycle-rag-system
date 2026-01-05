@@ -196,6 +196,7 @@ public class AgentCommunicationContext {
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     public string ConversationId { get; set; } = Guid.NewGuid().ToString();
 
+#pragma warning disable S4018 // Generic methods should provide type parameters
     public T? GetPayloadValue<T>(string key)
     {
         return GetPayloadValue<T>(key, default);
@@ -208,6 +209,7 @@ public class AgentCommunicationContext {
 
         return (T?)Convert.ChangeType(value, typeof(T));
     }
+#pragma warning restore S4018 // Generic methods should provide type parameters
 }
 
 /// <summary>

@@ -60,7 +60,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
             }
 
             // Parse CSV and create chunks
-            var chunks = await ParseCSVIntoChunksAsync(input);
+            var chunks = await ParseCsvIntoChunksAsync(input);
             _logger.LogInformation("Created {ChunkCount} chunks from CSV file", chunks.Count);
 
             // Process each chunk

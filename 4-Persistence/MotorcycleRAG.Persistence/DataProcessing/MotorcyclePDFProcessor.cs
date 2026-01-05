@@ -21,6 +21,7 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
     private readonly PDFProcessingConfiguration _config;
     private readonly AzureAIOptions _azureConfig;
     private readonly ILogger<MotorcyclePdfProcessor> _logger;
+    private static readonly char[] SentenceEndCharacters = { '.', '!', '?' };
 
     public MotorcyclePdfProcessor(
         IDocumentIntelligenceClient documentClient,
@@ -631,7 +632,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                     headings.Add(heading);
 
                     // Track primary section (highest level heading)
-                    if (primarySection == string.Empty || headerDef.Level < maxLevel) {
+                    if (string.IsNullOrEmpty(primarySection) || headerDef.Level < maxLevel) {
                         primarySection = heading;
                         maxLevel = headerDef.Level;
                     }
@@ -642,7 +643,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
 
         // Fallback if no headings found
-        if (primarySection == string.Empty) {
+        if (string.IsNullOrEmpty(primarySection)) {
             primarySection = "General Content";
         }
 
@@ -675,7 +676,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             return chunks;
         }
 
-        var sentences = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+        var sentences = text.Split(SentenceEndCharacters, StringSplitOptions.RemoveEmptyEntries);
         var currentChunk = new StringBuilder();
 
         foreach (var sentence in sentences) {
@@ -725,7 +726,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         var magnitudeA = Math.Sqrt(vectorA.Sum(a => a * a));
         var magnitudeB = Math.Sqrt(vectorB.Sum(b => b * b));
 
-        if (magnitudeA == 0 || magnitudeB == 0)
+        if (magnitudeA < float.Epsilon || magnitudeB < float.Epsilon)
             return 0;
 
         return (float)(dotProduct / (magnitudeA * magnitudeB));
@@ -836,12 +837,12 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 pageNumber = chunk.PageNumber;
             }
 
-            var pageRange = chunk.Metadata.ContainsKey("PageRange") ? chunk.Metadata["PageRange"]?.ToString() : $"{pageNumber}";
-            var primarySection = chunk.Metadata.ContainsKey("PrimarySection") ? chunk.Metadata["PrimarySection"]?.ToString() : chunk.Section;
+            var pageRange = chunk.Metadata.TryGetValue("PageRange", out var pageRangeObj) ? pageRangeObj?.ToString() : $"{pageNumber}";
+            var primarySection = chunk.Metadata.TryGetValue("PrimarySection", out var primarySectionObj) ? primarySectionObj?.ToString() : chunk.Section;
 
             int sectionLevel;
             try {
-                sectionLevel = chunk.Metadata.ContainsKey("SectionLevel") ? Convert.ToInt32(chunk.Metadata["SectionLevel"]) : 0;
+                sectionLevel = chunk.Metadata.TryGetValue("SectionLevel", out var sectionLevelObj) ? Convert.ToInt32(sectionLevelObj) : 0;
             }
             catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse SectionLevel from metadata for chunk {ChunkId}, using default 0", chunk.Id);
@@ -850,18 +851,18 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
             string[] sectionHeadings;
             try {
-                sectionHeadings = chunk.Metadata.ContainsKey("AllSectionHeadings") ? (string[])chunk.Metadata["AllSectionHeadings"] : Array.Empty<string>();
+                sectionHeadings = chunk.Metadata.TryGetValue("AllSectionHeadings", out var headingsObj) ? (string[])headingsObj : Array.Empty<string>();
             }
             catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse AllSectionHeadings from metadata for chunk {ChunkId}, using empty array", chunk.Id);
                 sectionHeadings = Array.Empty<string>();
             }
 
-            var tableCaption = chunk.Metadata.ContainsKey("TableCaption") ? chunk.Metadata["TableCaption"]?.ToString() : null;
+            var tableCaption = chunk.Metadata.TryGetValue("TableCaption", out var tableCaptionObj) ? tableCaptionObj?.ToString() : null;
 
             int chunkIndex;
             try {
-                chunkIndex = chunk.Metadata.ContainsKey("ChunkIndex") ? Convert.ToInt32(chunk.Metadata["ChunkIndex"]) : 0;
+                chunkIndex = chunk.Metadata.TryGetValue("ChunkIndex", out var chunkIndexObj) ? Convert.ToInt32(chunkIndexObj) : 0;
             }
             catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse ChunkIndex from metadata for chunk {ChunkId}, using default 0", chunk.Id);
@@ -870,7 +871,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
             bool isMultiPageTable;
             try {
-                isMultiPageTable = chunk.Metadata.ContainsKey("IsMultiPageTable") && (bool)chunk.Metadata["IsMultiPageTable"];
+                isMultiPageTable = chunk.Metadata.TryGetValue("IsMultiPageTable", out var isMultiPageObj) && (bool)isMultiPageObj;
             }
             catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse IsMultiPageTable from metadata for chunk {ChunkId}, using default false", chunk.Id);

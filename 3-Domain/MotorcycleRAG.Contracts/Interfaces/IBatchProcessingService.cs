@@ -3,6 +3,11 @@ using MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
+/// Delegate for batch processing functions to avoid complex nested generic types.
+/// </summary>
+public delegate Task<IEnumerable<TResult>> BatchProcessor<T, TResult>(IEnumerable<T> documents, CancellationToken ct);
+
+/// <summary>
 /// Interface for optimized batch processing of data ingestion operations.
 /// </summary>
 public interface IBatchProcessingService {
@@ -17,7 +22,7 @@ public interface IBatchProcessingService {
     /// <returns>Processing results</returns>
     Task<BatchProcessingResult<TResult>> ProcessBatchAsync<T, TResult>(
         IEnumerable<T> documents,
-        Func<IEnumerable<T>, CancellationToken, Task<IEnumerable<TResult>>> processor,
+        BatchProcessor<T, TResult> processor,
         int batchSize = 100,
         CancellationToken cancellationToken = default);
 

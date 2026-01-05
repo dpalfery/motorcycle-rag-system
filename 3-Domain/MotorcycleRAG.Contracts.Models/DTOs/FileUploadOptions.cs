@@ -9,14 +9,14 @@ namespace MotorcycleRAG.Contracts.Models.DTOs;
 public class FileUploadOptions {
     public long MaxFileSizeBytes { get; set; } = 50 * 1024 * 1024; // 50MB default
 
-    public HashSet<string> AllowedContentTypes { get; } = new()
+    public HashSet<string> AllowedContentTypes { get; } = new(StringComparer.OrdinalIgnoreCase)
     {
         "application/pdf",
         "text/csv",
         "application/csv"
     };
 
-    public HashSet<string> AllowedFileExtensions { get; } = new()
+    public HashSet<string> AllowedFileExtensions { get; } = new(StringComparer.OrdinalIgnoreCase)
     {
         ".pdf",
         ".csv"

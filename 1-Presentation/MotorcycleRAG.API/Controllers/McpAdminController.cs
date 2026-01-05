@@ -153,7 +153,7 @@ public sealed class McpAdminController : ControllerBase {
                 ToolId = request.ToolId,
                 Name = request.Name,
                 Description = request.Description,
-                ServerUrl = request.ServerUrl,
+                ServerUrl = new Uri(request.ServerUrl), // FIX: Convert string to Uri
                 ToolType = request.ToolType,
                 Version = request.Version,
                 IsEnabled = request.IsEnabled ?? true,
@@ -249,7 +249,7 @@ public sealed class McpAdminController : ControllerBase {
             if (!string.IsNullOrWhiteSpace(request.ServerUrl)) {
                 if (request.ServerUrl.Length > 500)
                     return BadRequest(new { error = "Server URL exceeds maximum length of 500 characters" });
-                existingConfig.ServerUrl = request.ServerUrl;
+                existingConfig.ServerUrl = new Uri(request.ServerUrl);
             }
 
             if (!string.IsNullOrWhiteSpace(request.ToolType))
@@ -472,7 +472,7 @@ public sealed class McpAdminController : ControllerBase {
             ToolId = config.ToolId,
             Name = config.Name,
             Description = config.Description,
-            ServerUrl = config.ServerUrl,
+            ServerUrl = config.ServerUrl.ToString(), // FIX: Convert Uri to string
             IsEnabled = config.IsEnabled,
             ToolType = config.ToolType,
             Version = config.Version,

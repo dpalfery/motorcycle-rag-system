@@ -1,6 +1,6 @@
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using MotorcycleRAG.Contracts.Models.DTOs;
-
 
 namespace MotorcycleRAG.Application.Agents;
 
@@ -12,14 +12,13 @@ public static class ToolDefinitions {
     /// <summary>
     /// Tool definition for vector search (hybrid keyword + semantic search)
     /// </summary>
-    public static ToolDefinition GetVectorSearchTool() {
-        return new ToolDefinition {
+    public static ToolDefinition VectorSearchTool => new ToolDefinition {
             Name = "vector_search",
             DisplayName = "Vector Search",
             Description = "Search the motorcycle database using hybrid vector/keyword search. Returns relevant motorcycle specifications and documents.",
             Parameters = new ToolParameter {
                 Type = "object",
-                Properties = new Dictionary<string, ToolPropertyDefinition> {
+                Properties = {
                     ["query"] = new ToolPropertyDefinition {
                         Type = "string",
                         Description = "The search query for motorcycle information (e.g., 'CBR 1000 specifications', 'Honda engine performance')",
@@ -40,19 +39,17 @@ public static class ToolDefinitions {
                 }
             }
         };
-    }
 
     /// <summary>
     /// Tool definition for web search
     /// </summary>
-    public static ToolDefinition GetWebSearchTool() {
-        return new ToolDefinition {
+    public static ToolDefinition WebSearchTool => new ToolDefinition {
             Name = "web_search",
             DisplayName = "Web Search",
             Description = "Search the web for external motorcycle information from trusted sources. Useful for current information, reviews, and supplementary data.",
             Parameters = new ToolParameter {
                 Type = "object",
-                Properties = new Dictionary<string, ToolPropertyDefinition> {
+                Properties = {
                     ["query"] = new ToolPropertyDefinition {
                         Type = "string",
                         Description = "The web search query for motorcycle information",
@@ -73,19 +70,17 @@ public static class ToolDefinitions {
                 }
             }
         };
-    }
 
     /// <summary>
     /// Tool definition for PDF/manual search
     /// </summary>
-    public static ToolDefinition GetPdfSearchTool() {
-        return new ToolDefinition {
+    public static ToolDefinition PdfSearchTool => new ToolDefinition {
             Name = "pdf_search",
             DisplayName = "PDF Manual Search",
             Description = "Search technical documentation and motorcycle manuals stored as PDFs. Best for detailed technical specifications and maintenance procedures.",
             Parameters = new ToolParameter {
                 Type = "object",
-                Properties = new Dictionary<string, ToolPropertyDefinition> {
+                Properties = {
                     ["query"] = new ToolPropertyDefinition {
                         Type = "string",
                         Description = "Search query for technical documentation",
@@ -106,19 +101,17 @@ public static class ToolDefinitions {
                 }
             }
         };
-    }
 
     /// <summary>
     /// Tool definition for query planning
     /// </summary>
-    public static ToolDefinition GetQueryPlanningTool() {
-        return new ToolDefinition {
+    public static ToolDefinition QueryPlanningTool => new ToolDefinition {
             Name = "plan_search_strategy",
             DisplayName = "Plan Search Strategy",
             Description = "Plan the search strategy for a query by breaking it into sub-queries and determining which search tools to use.",
             Parameters = new ToolParameter {
                 Type = "object",
-                Properties = new Dictionary<string, ToolPropertyDefinition> {
+                Properties = {
                     ["query"] = new ToolPropertyDefinition {
                         Type = "string",
                         Description = "The original user query to analyze and plan",
@@ -145,20 +138,17 @@ public static class ToolDefinitions {
                 }
             }
         };
-    }
 
     /// <summary>
     /// Get all available tool definitions
     /// </summary>
-    public static IReadOnlyList<ToolDefinition> GetAllTools() {
-        return new[]
+    public static IReadOnlyList<ToolDefinition> AllTools => new[]
         {
-            GetVectorSearchTool(),
-            GetWebSearchTool(),
-            GetPdfSearchTool(),
-            GetQueryPlanningTool()
+            VectorSearchTool,
+            WebSearchTool,
+            PdfSearchTool,
+            QueryPlanningTool
         };
-    }
 }
 
 /// <summary>
@@ -176,8 +166,8 @@ public class ToolDefinition {
 /// </summary>
 public class ToolParameter {
     public string Type { get; set; } = "object";
-    public Dictionary<string, ToolPropertyDefinition> Properties { get; set; } = new();
-    public List<string> Required { get; set; } = new();
+    public Dictionary<string, ToolPropertyDefinition> Properties { get; } = new();
+    public Collection<string> Required { get; } = new();
 }
 
 /// <summary>
@@ -188,7 +178,7 @@ public class ToolPropertyDefinition {
     public string Description { get; set; } = string.Empty;
     public bool IsRequired { get; set; }
     public object? Default { get; set; }
-    public List<string>? Enum { get; set; }
+    public Collection<string>? Enum { get; } = new();
     public object? Minimum { get; set; }
     public object? Maximum { get; set; }
 }
@@ -198,7 +188,7 @@ public class ToolPropertyDefinition {
 /// </summary>
 public class ToolCall {
     public string ToolName { get; set; } = string.Empty;
-    public Dictionary<string, object> Arguments { get; set; } = new();
+    public Dictionary<string, object> Arguments { get; } = new();
     public string CallId { get; set; } = Guid.NewGuid().ToString();
     public DateTime InvokedAt { get; set; } = DateTime.UtcNow;
 

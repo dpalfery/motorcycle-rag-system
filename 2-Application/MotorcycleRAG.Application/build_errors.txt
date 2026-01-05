@@ -1,0 +1,21 @@
+  Determining projects to restore...
+  Restored C:\git\motorcycle-rag-system\0-Base\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj (in 193 ms).
+  Restored C:\git\motorcycle-rag-system\3-Domain\MotorcycleRAG.Contracts.Models\MotorcycleRAG.Contracts.Models.csproj (in 194 ms).
+  Restored c:\git\motorcycle-rag-system\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj (in 193 ms).
+  Restored c:\git\motorcycle-rag-system\3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj (in 194 ms).
+  1 of 5 projects are up-to-date for restore.
+  MotorcycleRAG.Domain -> c:\git\motorcycle-rag-system\3-Domain\MotorcycleRAG.Domain\bin\Debug\net10.0\MotorcycleRAG.Domain.dll
+  MotorcycleRAG.Core -> c:\git\motorcycle-rag-system\0-Base\MotorcycleRAG.Core\bin\Debug\net10.0\MotorcycleRAG.Core.dll
+  MotorcycleRAG.Contracts.Models -> C:\git\motorcycle-rag-system\3-Domain\MotorcycleRAG.Contracts.Models\bin\Debug\net10.0\MotorcycleRAG.Contracts.Models.dll
+  MotorcycleRAG.Contracts -> C:\git\motorcycle-rag-system\3-Domain\MotorcycleRAG.Contracts\bin\Debug\net10.0\MotorcycleRAG.Contracts.dll
+c:\git\motorcycle-rag-system\2-Application\MotorcycleRAG.Application\Agents\WebContentExtractor.cs(96,37): error CS0246: The type or namespace name 'HtmlNode' could not be found (are you missing a using directive or an assembly reference?) [c:\git\motorcycle-rag-system\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj]
+c:\git\motorcycle-rag-system\2-Application\MotorcycleRAG.Application\Agents\WebSearchAgent.cs(350,37): error CS0246: The type or namespace name 'HtmlNode' could not be found (are you missing a using directive or an assembly reference?) [c:\git\motorcycle-rag-system\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj]
+
+Build FAILED.
+
+c:\git\motorcycle-rag-system\2-Application\MotorcycleRAG.Application\Agents\WebContentExtractor.cs(96,37): error CS0246: The type or namespace name 'HtmlNode' could not be found (are you missing a using directive or an assembly reference?) [c:\git\motorcycle-rag-system\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj]
+c:\git\motorcycle-rag-system\2-Application\MotorcycleRAG.Application\Agents\WebSearchAgent.cs(350,37): error CS0246: The type or namespace name 'HtmlNode' could not be found (are you missing a using directive or an assembly reference?) [c:\git\motorcycle-rag-system\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj]
+    0 Warning(s)
+    2 Error(s)
+
+Time Elapsed 00:00:01.82

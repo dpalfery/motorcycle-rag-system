@@ -23,9 +23,13 @@ public class DistributedQueryCacheService : IQueryCacheService {
         IDistributedCache distributedCache,
         ILogger<DistributedQueryCacheService> logger,
         IOptions<CacheConfiguration> config) {
-        _distributedCache = distributedCache ?? throw new ArgumentNullException(nameof(distributedCache));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
+        ArgumentNullException.ThrowIfNull(distributedCache);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(config);
+
+        _distributedCache = distributedCache;
+        _logger = logger;
+        _config = config.Value;
 
         _keyPrefix = "motorcycle-rag:query:";
         _jsonOptions = new JsonSerializerOptions {
@@ -97,12 +101,11 @@ public class DistributedQueryCacheService : IQueryCacheService {
     }
 
     public string GenerateCacheKey(MotorcycleQueryRequest request) {
-        if (request == null)
-            throw new ArgumentNullException(nameof(request));
+        ArgumentNullException.ThrowIfNull(request);
 
         // Create a normalized representation of the request for consistent caching
         var keyData = new {
-            Query = request.Query?.Trim().ToLowerInvariant(),
+            Query = request.Query?.Trim().ToUpperInvariant(),
             Preferences = new {
                 MaxResults = request.Preferences?.MaxResults ?? 10,
                 IncludeWebSources = request.Preferences?.IncludeWebSources ?? false,
@@ -116,7 +119,7 @@ public class DistributedQueryCacheService : IQueryCacheService {
         var keyBytes = Encoding.UTF8.GetBytes(keyJson);
         var hashBytes = SHA256.HashData(keyBytes);
 
-        return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        return Convert.ToHexString(hashBytes).ToUpperInvariant();
     }
 
     public async Task ClearAsync(CancellationToken cancellationToken = default) {

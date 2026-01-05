@@ -3,7 +3,6 @@ using System.Diagnostics;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
-
 namespace MotorcycleRAG.Application.Optimization;
 
 /// <summary>
@@ -12,15 +11,18 @@ namespace MotorcycleRAG.Application.Optimization;
 public class VectorCompressionService : IVectorCompressionService {
     private readonly ILogger<VectorCompressionService> _logger;
     private readonly object _statsLock = new();
-    private CompressionStatistics _statistics = new();
+    private readonly CompressionStatistics _statistics = new();
+    private const float RangeThreshold = 1e-9f;
 
     public VectorCompressionService(ILogger<VectorCompressionService> logger) {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public CompressedVector CompressVector(float[] vector, int compressionLevel = 5) {
-        if (vector == null || vector.Length == 0)
-            throw new ArgumentException("Vector cannot be null or empty", nameof(vector));
+        ArgumentNullException.ThrowIfNull(vector);
+        if (vector.Length == 0)
+            throw new ArgumentException("Vector cannot be empty", nameof(vector));
 
         if (compressionLevel < 1 || compressionLevel > 10)
             throw new ArgumentOutOfRangeException(nameof(compressionLevel), "Compression level must be between 1 and 10");
@@ -29,7 +31,7 @@ public class VectorCompressionService : IVectorCompressionService {
 
         try {
             var method = DetermineCompressionMethod(compressionLevel);
-            var compressedData = method switch {
+            var (Data, MinValue, MaxValue) = method switch {
                 CompressionMethod.Quantization8Bit => Compress8Bit(vector),
                 CompressionMethod.Quantization4Bit => Compress4Bit(vector),
                 CompressionMethod.ScalarQuantization => CompressScalarQuantization(vector, compressionLevel),
@@ -37,12 +39,12 @@ public class VectorCompressionService : IVectorCompressionService {
             };
 
             var result = new CompressedVector {
-                Data = compressedData.Data,
+                Data = Data,
                 OriginalDimensions = vector.Length,
                 Method = method,
                 CompressionLevel = compressionLevel,
-                MinValue = compressedData.MinValue,
-                MaxValue = compressedData.MaxValue
+                MinValue = MinValue,
+                MaxValue = MaxValue
             };
 
             stopwatch.Stop();
@@ -68,8 +70,7 @@ public class VectorCompressionService : IVectorCompressionService {
     }
 
     public float[] DecompressVector(CompressedVector compressedVector) {
-        if (compressedVector == null)
-            throw new ArgumentNullException(nameof(compressedVector));
+        ArgumentNullException.ThrowIfNull(compressedVector);
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -180,7 +181,7 @@ public class VectorCompressionService : IVectorCompressionService {
         var maxValue = vector.Max();
         var range = maxValue - minValue;
 
-        if (range == 0) {
+        if (Math.Abs(range) < RangeThreshold) {
             // All values are the same
             return (new byte[vector.Length], minValue, maxValue);
         }
@@ -198,7 +199,7 @@ public class VectorCompressionService : IVectorCompressionService {
         var range = compressed.MaxValue - compressed.MinValue;
         var result = new float[compressed.OriginalDimensions];
 
-        if (range == 0) {
+        if (Math.Abs(range) < RangeThreshold) {
             // All values were the same
             Array.Fill(result, compressed.MinValue);
             return result;
@@ -207,7 +208,7 @@ public class VectorCompressionService : IVectorCompressionService {
         var data = compressed.Data.AsSpan();
         for (int i = 0; i < data.Length; i++) {
             var normalized = data[i] / 255.0f;
-            result[i] = compressed.MinValue + normalized * range;
+            result[i] = compressed.MinValue + (normalized * range);
         }
 
         return result;
@@ -218,7 +219,7 @@ public class VectorCompressionService : IVectorCompressionService {
         var maxValue = vector.Max();
         var range = maxValue - minValue;
 
-        if (range == 0) {
+        if (Math.Abs(range) < RangeThreshold) {
             // All values are the same
             var sameValueData = new byte[(vector.Length + 1) / 2];
             return (sameValueData, minValue, maxValue);
@@ -245,7 +246,7 @@ public class VectorCompressionService : IVectorCompressionService {
         var range = compressed.MaxValue - compressed.MinValue;
         var result = new float[compressed.OriginalDimensions];
 
-        if (range == 0) {
+        if (Math.Abs(range) < RangeThreshold) {
             // All values were the same
             Array.Fill(result, compressed.MinValue);
             return result;
@@ -258,11 +259,11 @@ public class VectorCompressionService : IVectorCompressionService {
             var quantized2 = packedByte & 0x0F;
 
             var normalized1 = quantized1 / 15.0f;
-            result[i * 2] = compressed.MinValue + normalized1 * range;
+            result[i * 2] = compressed.MinValue + (normalized1 * range);
 
-            if (i * 2 + 1 < compressed.OriginalDimensions) {
+            if ((i * 2) + 1 < compressed.OriginalDimensions) {
                 var normalized2 = quantized2 / 15.0f;
-                result[i * 2 + 1] = compressed.MinValue + normalized2 * range;
+                result[(i * 2) + 1] = compressed.MinValue + (normalized2 * range);
             }
         }
 
@@ -278,8 +279,8 @@ public class VectorCompressionService : IVectorCompressionService {
         var maxValue = vector.Max();
         var range = maxValue - minValue;
 
-        if (range == 0) {
-            var sameValueData = new byte[(vector.Length * bitsPerValue + 7) / 8];
+        if (Math.Abs(range) < RangeThreshold) {
+            var sameValueData = new byte[((vector.Length * bitsPerValue) + 7) / 8];
             return (sameValueData, minValue, maxValue);
         }
 
@@ -302,7 +303,7 @@ public class VectorCompressionService : IVectorCompressionService {
 
         var range = compressed.MaxValue - compressed.MinValue;
 
-        if (range == 0) {
+        if (Math.Abs(range) < RangeThreshold) {
             var result = new float[compressed.OriginalDimensions];
             Array.Fill(result, compressed.MinValue);
             return result;
@@ -314,7 +315,7 @@ public class VectorCompressionService : IVectorCompressionService {
         var decompressed = new float[compressed.OriginalDimensions];
         for (int i = 0; i < decompressed.Length; i++) {
             var normalized = quantizedValues[i] / (float)maxQuantizedValue;
-            decompressed[i] = compressed.MinValue + normalized * range;
+            decompressed[i] = compressed.MinValue + (normalized * range);
         }
 
         return decompressed;
@@ -330,7 +331,7 @@ public class VectorCompressionService : IVectorCompressionService {
         return Decompress8Bit(compressed);
     }
 
-    private byte[] PackQuantizedValues(int[] values, int bitsPerValue) {
+    private static byte[] PackQuantizedValues(int[] values, int bitsPerValue) {
         var totalBits = values.Length * bitsPerValue;
         var totalBytes = (totalBits + 7) / 8;
         var packed = new byte[totalBytes];
@@ -352,7 +353,7 @@ public class VectorCompressionService : IVectorCompressionService {
         return packed;
     }
 
-    private int[] UnpackQuantizedValues(ReadOnlySpan<byte> packed, int valueCount, int bitsPerValue) {
+    private static int[] UnpackQuantizedValues(ReadOnlySpan<byte> packed, int valueCount, int bitsPerValue) {
         var values = new int[valueCount];
 
         int bitOffset = 0;
@@ -363,7 +364,7 @@ public class VectorCompressionService : IVectorCompressionService {
                 var bitIndex = bitOffset % 8;
 
                 if (byteIndex < packed.Length && (packed[byteIndex] & (1 << bitIndex)) != 0) {
-                    value |= (1 << bit);
+                    value |= 1 << bit;
                 }
 
                 bitOffset++;

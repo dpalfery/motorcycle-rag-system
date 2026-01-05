@@ -15,7 +15,8 @@ public class ModelValidationService {
     private readonly ILogger<ModelValidationService> _logger;
 
     public ModelValidationService(ILogger<ModelValidationService> logger) {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     /// <summary>
@@ -52,7 +53,7 @@ public class ModelValidationService {
     /// <param name="citation">The citation to validate</param>
     /// <param name="sourceIndex">Index of the source for error reporting</param>
     /// <returns>List of validation errors (empty if valid)</returns>
-    public List<string> ValidateCitation(Citation citation, int sourceIndex = -1) {
+    public IReadOnlyList<string> ValidateCitation(Citation citation, int sourceIndex = -1) {
         var errors = new List<string>();
 
         if (citation == null) {
@@ -75,53 +76,59 @@ public class ModelValidationService {
     /// <param name="locator">The locator object (expected to be ManualPdfCitationLocator)</param>
     /// <param name="sourceIndex">Index of the source for error reporting</param>
     /// <returns>List of validation errors (empty if valid)</returns>
-    private List<string> ValidateManualPdfLocator(object locator, int sourceIndex) {
-        var errors = new List<string>();
-
+    private IReadOnlyList<string> ValidateManualPdfLocator(object locator, int sourceIndex) {
         if (locator is not ManualPdfCitationLocator manualLocator) {
             // If locator is not the expected type, log but don't fail (best-effort)
             _logger.LogWarning(
                 "Citation locator is not ManualPdfCitationLocator for source {SourceIndex}. Type: {LocatorType}",
                 sourceIndex,
                 locator?.GetType().Name ?? "null");
-            return errors;
+            return Array.Empty<string>();
         }
 
+        var errors = new List<string>();
         var sourcePrefix = sourceIndex >= 0 ? $"Source[{sourceIndex}]: " : string.Empty;
 
-        // Rule 1: PageNumber OR PageRange must exist (at least one meaningful value)
-        bool hasValidPageNumber = manualLocator.PageNumber > 0;
-        bool hasValidPageRange = !string.IsNullOrWhiteSpace(manualLocator.PageRange);
+        ValidatePageInfo(manualLocator, sourcePrefix, errors);
+        ValidateHeadings(manualLocator, sourcePrefix, errors);
+        ValidateSectionLevel(manualLocator, sourcePrefix, errors);
+
+        return errors;
+    }
+
+    private void ValidatePageInfo(ManualPdfCitationLocator locator, string prefix, List<string> errors) {
+        bool hasValidPageNumber = locator.PageNumber > 0;
+        bool hasValidPageRange = !string.IsNullOrWhiteSpace(locator.PageRange);
 
         if (!hasValidPageNumber && !hasValidPageRange) {
-            errors.Add($"{sourcePrefix}Manual citation must have either PageNumber (> 0) or PageRange (non-empty). DocumentId: {SanitizeLogValue(manualLocator.DocumentId)}");
+            errors.Add($"{prefix}Manual citation must have either PageNumber (> 0) or PageRange (non-empty). DocumentId: {SanitizeLogValue(locator.DocumentId)}");
         }
+    }
 
-        // Rule 2: If SectionHeadings exists, it must be non-empty strings (trimmed)
-        if (manualLocator.SectionHeadings != null && manualLocator.SectionHeadings.Length > 0) {
-            var emptyHeadingIndices = new List<int>();
-            for (int i = 0; i < manualLocator.SectionHeadings.Length; i++) {
-                if (string.IsNullOrWhiteSpace(manualLocator.SectionHeadings[i])) {
-                    emptyHeadingIndices.Add(i);
-                }
-            }
+    private void ValidateHeadings(ManualPdfCitationLocator locator, string prefix, List<string> errors) {
+        if (locator.SectionHeadings != null && locator.SectionHeadings.Length > 0) {
+            var emptyHeadingIndices = locator.SectionHeadings
+                .Select((h, i) => string.IsNullOrWhiteSpace(h) ? i : -1)
+                .Where(i => i != -1)
+                .ToList();
 
             if (emptyHeadingIndices.Count > 0) {
-                errors.Add($"{sourcePrefix}SectionHeadings contains empty or whitespace-only strings at indices: {string.Join(", ", emptyHeadingIndices)}. DocumentId: {SanitizeLogValue(manualLocator.DocumentId)}");
+                errors.Add($"{prefix}SectionHeadings contains empty or whitespace-only strings at indices: {string.Join(", ", emptyHeadingIndices)}. " +
+                           $"DocumentId: {SanitizeLogValue(locator.DocumentId)}");
             }
         }
+    }
 
-        // Rule 3: If SectionLevel exists, it must be within valid range (0-3)
-        if (manualLocator.SectionLevel.HasValue) {
+    private void ValidateSectionLevel(ManualPdfCitationLocator locator, string prefix, List<string> errors) {
+        if (locator.SectionLevel.HasValue) {
             const int minSectionLevel = 0;
             const int maxSectionLevel = 3;
 
-            if (manualLocator.SectionLevel.Value < minSectionLevel || manualLocator.SectionLevel.Value > maxSectionLevel) {
-                errors.Add($"{sourcePrefix}SectionLevel must be between {minSectionLevel} and {maxSectionLevel}. Actual: {manualLocator.SectionLevel.Value}. DocumentId: {SanitizeLogValue(manualLocator.DocumentId)}");
+            if (locator.SectionLevel.Value < minSectionLevel || locator.SectionLevel.Value > maxSectionLevel) {
+                errors.Add($"{prefix}SectionLevel must be between {minSectionLevel} and {maxSectionLevel}. " +
+                           $"Actual: {locator.SectionLevel.Value}. DocumentId: {SanitizeLogValue(locator.DocumentId)}");
             }
         }
-
-        return errors;
     }
 
     /// <summary>
@@ -137,7 +144,7 @@ public class ModelValidationService {
         // Truncate long values to prevent log bloat and potential data leakage
         const int maxLogLength = 48;
         if (value.Length > maxLogLength) {
-            return value.Substring(0, maxLogLength) + "...";
+            return string.Concat(value.AsSpan(0, maxLogLength), "...");
         }
 
         return value;
@@ -153,11 +160,8 @@ public class ValidationResult {
     /// </summary>
     public bool IsValid { get; }
 
-    /// <summary>
-    /// List of validation error messages.
-    /// </summary>
-    public List<string> Errors { get; }
-
+    public IReadOnlyList<string> Errors { get; }
+ 
     private ValidationResult(bool isValid, List<string> errors) {
         IsValid = isValid;
         Errors = errors ?? new List<string>();
@@ -174,8 +178,8 @@ public class ValidationResult {
     /// Creates a failed validation result with errors.
     /// </summary>
     /// <param name="errors">List of error messages</param>
-    public static ValidationResult Failure(List<string> errors) {
-        return new ValidationResult(false, errors);
+    public static ValidationResult Failure(IEnumerable<string> errors) {
+        return new ValidationResult(false, errors?.ToList() ?? new List<string>());
     }
 
     /// <summary>
@@ -189,7 +193,5 @@ public class ValidationResult {
     /// <summary>
     /// Gets a formatted error message string.
     /// </summary>
-    public string GetErrorMessage() {
-        return IsValid ? "Validation passed" : string.Join("; ", Errors);
-    }
+    public string ErrorMessage => IsValid ? "Validation passed" : string.Join("; ", Errors);
 }

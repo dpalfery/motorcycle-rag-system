@@ -47,13 +47,21 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
         IMcpConfigurationProvider mcpConfigProvider,
         ICorrelationService correlationService,
         ITelemetryService telemetryService) {
-        _agents = agents?.ToList() ?? throw new ArgumentNullException(nameof(agents));
-        _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
-        _searchConfig = searchConfig?.Value ?? throw new ArgumentNullException(nameof(searchConfig));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _mcpConfigProvider = mcpConfigProvider ?? throw new ArgumentNullException(nameof(mcpConfigProvider));
-        _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
-        _telemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
+        ArgumentNullException.ThrowIfNull(agents);
+        ArgumentNullException.ThrowIfNull(openAIClient);
+        ArgumentNullException.ThrowIfNull(searchConfig);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(mcpConfigProvider);
+        ArgumentNullException.ThrowIfNull(correlationService);
+        ArgumentNullException.ThrowIfNull(telemetryService);
+
+        _agents = agents.ToList();
+        _openAIClient = openAIClient;
+        _searchConfig = searchConfig.Value;
+        _logger = logger;
+        _mcpConfigProvider = mcpConfigProvider;
+        _correlationService = correlationService;
+        _telemetryService = telemetryService;
 
         _frameworkAdapter = new AgentFrameworkAdapter(logger);
         _executionState = new AgentState();
@@ -72,7 +80,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
                 SearchAgentType.WebSearch => "web_search",
                 SearchAgentType.PDFSearch => "pdf_search",
                 SearchAgentType.QueryPlanner => "plan_search_strategy",
-                _ => $"agent_{agent.AgentType.ToString().ToLower()}"
+                _ => $"agent_{agent.AgentType.ToString().ToLowerInvariant()}"
             };
 
             var handler = AgentFrameworkAdapter.CreateSearchAgentHandler(agent, _logger);
@@ -88,7 +96,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
     private void InitializeMcpTools() {
         try {
             // Load enabled tools on startup
-            _cacheMcpToolsAsync().GetAwaiter().GetResult();
+            CacheMcpToolsAsync().GetAwaiter().GetResult();
             _logger.LogInformation("MCP tools initialized successfully");
         }
         catch (Exception ex) {
@@ -99,10 +107,9 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
     /// <summary>
     /// Cache enabled MCP tools with refresh interval
     /// </summary>
-    private async Task _cacheMcpToolsAsync() {
+    private async Task CacheMcpToolsAsync() {
         var now = DateTime.UtcNow;
-        if (_lastToolRefresh != DateTime.MinValue &&
-            (now - _lastToolRefresh) < _toolRefreshInterval) {
+        if (_lastToolRefresh != DateTime.MinValue && (now - _lastToolRefresh) < _toolRefreshInterval) {
             // Use cached tools if refresh interval hasn't elapsed
             return;
         }
@@ -122,7 +129,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
     /// Get enabled MCP tools for current execution
     /// </summary>
     private async Task<McpToolConfiguration[]> GetEnabledMcpToolsAsync() {
-        await _cacheMcpToolsAsync();
+        await CacheMcpToolsAsync();
         return _cachedEnabledTools ?? Array.Empty<McpToolConfiguration>();
     }
 
@@ -178,11 +185,6 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
                                   .ToArray();
 
             var prompt = $"""
-You are an expert on motorcycle maintenance and specification.  
-Using only the information provided in the snippets below, answer the user's question.  
-Cite the snippet identifier (e.g. "[1]") after every statement that comes from a snippet.  
-If the answer cannot be determined from the snippets, say you do not have sufficient information.  
-
 User question: "{originalQuery}"
 
 Snippets:
@@ -210,6 +212,7 @@ Answer in markdown:
 
     /// <inheritdoc />
     public async Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchParameters options) {
+        ArgumentNullException.ThrowIfNull(options);
         if (string.IsNullOrWhiteSpace(query)) {
             _logger.LogWarning("OrchestrateSearchAsync was invoked with an empty query");
             return Array.Empty<SearchResult>();
@@ -232,42 +235,7 @@ Answer in markdown:
 
     #endregion
 
-    #region Parallel Execution Helpers
-
-    /// <summary>
-    /// Executes all agents in parallel and returns the merged & ranked results.
-    /// This is not part of the public interface yet but can be exposed later.
-    /// Implements partial-results aggregation for resilient parallel execution.
-    /// </summary>
-    private async Task<SearchResult[]> ExecuteParallelSearchInternalAsync(string query, SearchContext context) {
-        var searchParameters = BuildSearchOptions(context);
-        var degradedMode = false;
-        var failureCount = 0;
-
-        var searchTasks = _agents.Select(async agent => {
-            try {
-                _logger.LogInformation("Running {AgentType} agent in parallel…", agent.AgentType);
-                return await agent.SearchAsync(query, searchParameters);
-            }
-            catch (Exception ex) {
-                Interlocked.Increment(ref failureCount);
-                _logger.LogWarning(ex, "Parallel execution – agent {AgentType} failed, continuing with other sources", agent.AgentType);
-                return Array.Empty<SearchResult>();
-            }
-        }).ToArray();
-
-        var results = await Task.WhenAll(searchTasks);
-
-        // Determine if we're operating in degraded mode (at least one agent failed)
-        degradedMode = failureCount > 0;
-        if (degradedMode) {
-            _logger.LogWarning("Parallel search executed in degraded mode: {FailureCount}/{TotalAgents} agents failed",
-                failureCount, _agents.Count);
-        }
-
-        var aggregated = results.SelectMany(r => r).ToList();
-        return await FuseAndRankResultsAsync(aggregated, query, searchParameters, degradedMode);
-    }
+    #region Sequential Execution Logic
 
     /// <summary>
     /// Executes sequential retrieval policy: index → web → pdf fallback.
@@ -293,7 +261,6 @@ Answer in markdown:
         foreach (var agentType in executionOrder) {
             var agent = _agents.FirstOrDefault(a => a.AgentType == agentType);
             if (agent == null) {
-                _logger.LogDebug("No agent found for {AgentType}, skipping", agentType);
                 sourceStatuses.Add(new SourceExecutionStatus {
                     AgentType = agentType,
                     Succeeded = false,
@@ -307,8 +274,6 @@ Answer in markdown:
             var agentStopwatch = Stopwatch.StartNew();
 
             try {
-                _logger.LogInformation("Executing {AgentType} in sequential retrieval policy…", agentType);
-
                 var results = await agent.SearchAsync(query, searchParameters);
                 agentStopwatch.Stop();
 
@@ -323,9 +288,6 @@ Answer in markdown:
                     Duration = agentStopwatch.Elapsed,
                     ErrorMessage = null
                 });
-
-                _logger.LogInformation("Agent {AgentType} completed successfully: {Results} results in {Duration}ms",
-                    agentType, resultsCount, agentStopwatch.ElapsedMilliseconds);
 
                 // Early exit if we have enough results and this is a high-confidence source
                 if (aggregatedResults.Count >= searchParameters.MaxResults && agentType == SearchAgentType.VectorSearch) {
@@ -345,95 +307,62 @@ Answer in markdown:
                     ErrorMessage = errorMessage
                 });
 
-                _logger.LogWarning(ex,
-                    "Agent {AgentType} failed after {Duration}ms in sequential policy – continuing with remaining sources. Error: {ErrorMessage}",
-                    agentType, agentStopwatch.ElapsedMilliseconds, errorMessage);
-
+                _logger.LogWarning(ex, "Agent {AgentType} failed – continuing with remaining sources", agentType);
                 executionMetrics[agentType] = (TimeSpan.Zero, 0);
             }
         }
 
         stopwatch.Stop();
 
-        // Determine if system is operating in degraded mode (any source failed)
+        // Determine if system is operating in degraded mode
         var degradedMode = sourceStatuses.Any(s => !s.Succeeded);
         var failedSources = sourceStatuses.Where(s => !s.Succeeded).ToList();
         var successfulSources = sourceStatuses.Where(s => s.Succeeded).ToList();
-
-        // Get correlation ID for telemetry tracing
         var correlationId = _correlationService.GetOrCreateCorrelationId();
 
         if (degradedMode) {
-            var failedSourceNames = string.Join(", ", failedSources.Select(s => s.AgentType.ToString()));
-            var failedSourceList = failedSources.Select(s => s.AgentType.ToString()).ToList();
-            var availableSourceList = successfulSources.Select(s => s.AgentType.ToString()).ToList();
-
-            _logger.LogWarning(
-                "Sequential retrieval policy completed in degraded mode. Failed sources: {FailedSources}. " +
-                "System continued with {SuccessfulSourceCount} available sources. Total results: {TotalResults}",
-                failedSourceNames, successfulSources.Count, aggregatedResults.Count);
-
-            // Track degraded mode telemetry
-            _telemetryService.TrackDegradedMode(
-                correlationId,
-                failedSourceList,
-                availableSourceList,
-                stopwatch.Elapsed,
-                aggregatedResults.Count);
-
-            // Track individual source failures
-            foreach (var failedSource in failedSources) {
-                _telemetryService.TrackSourceFailure(
-                    correlationId,
-                    failedSource.AgentType.ToString(),
-                    failedSource.ErrorMessage ?? "Unknown error",
-                    failedSource.Duration);
-            }
-        }
-        else {
-            _logger.LogInformation(
-                "Sequential retrieval policy completed successfully in {Duration}ms with {TotalResults} total results from {SourceCount} sources",
-                stopwatch.ElapsedMilliseconds, aggregatedResults.Count, successfulSources.Count);
+            TrackDegradedMode(correlationId, failedSources, successfulSources, stopwatch.Elapsed, aggregatedResults.Count);
         }
 
-        // Track overall search execution with source metrics
-        var queryId = context?.QueryContext?.CorrelationId ?? Guid.NewGuid().ToString("N");
-        _telemetryService.TrackSearchExecution(
-            correlationId,
-            queryId,
-            stopwatch.Elapsed,
-            aggregatedResults.Count,
-            successfulSources.Count,
-            failedSources.Count,
-            degradedMode);
-
-        // Update search pattern metrics with source execution status tracking
+        // Update search pattern metrics
         if (context?.QueryContext != null) {
-            context.QueryContext.AdditionalProperties["SearchPatternMetrics"] = new SearchPatternMetrics {
-                VectorSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.VectorSearch),
-                WebSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.WebSearch),
-                PDFSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.PDFSearch),
-                VectorSearchTime = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var vectorMetrics) ? vectorMetrics.Duration : TimeSpan.Zero,
-                WebSearchTime = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var webMetrics) ? webMetrics.Duration : TimeSpan.Zero,
-                PDFSearchTime = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var pdfMetrics) ? pdfMetrics.Duration : TimeSpan.Zero,
-                VectorResultsFound = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var vectorResults) ? vectorResults.ResultsFound : 0,
-                WebResultsFound = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var webResults) ? webResults.ResultsFound : 0,
-                PDFResultsFound = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var pdfResults) ? pdfResults.ResultsFound : 0
-            };
-
-            // Add degraded mode tracking for telemetry (T098)
-            context.QueryContext.AdditionalProperties["DegradedMode"] = degradedMode;
-            if (degradedMode) {
-                context.QueryContext.AdditionalProperties["FailedSources"] = failedSources
-                    .Select(s => new { s.AgentType, s.ErrorMessage })
-                    .ToList();
-                context.QueryContext.AdditionalProperties["AvailableSources"] = successfulSources
-                    .Select(s => new { s.AgentType, s.ResultsCount })
-                    .ToList();
-            }
+            UpdateQueryContextMetrics(context, executionMetrics, degradedMode, failedSources, successfulSources);
         }
 
         return await FuseAndRankResultsAsync(aggregatedResults, query, searchParameters, degradedMode);
+    }
+
+    private void TrackDegradedMode(string correlationId, List<SourceExecutionStatus> failedSources, List<SourceExecutionStatus> successfulSources, TimeSpan totalDuration, int totalResults) {
+        var failedSourceList = failedSources.Select(s => s.AgentType.ToString()).ToList();
+        var availableSourceList = successfulSources.Select(s => s.AgentType.ToString()).ToList();
+
+        _telemetryService.TrackDegradedMode(correlationId, failedSourceList, availableSourceList, totalDuration, totalResults);
+
+        foreach (var failedSource in failedSources) {
+            _telemetryService.TrackSourceFailure(correlationId, failedSource.AgentType.ToString(), failedSource.ErrorMessage ?? "Unknown error", failedSource.Duration);
+        }
+    }
+
+    private static void UpdateQueryContextMetrics(SearchContext context, Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)> executionMetrics, bool degradedMode, List<SourceExecutionStatus> failedSources, List<SourceExecutionStatus> successfulSources) {
+        if (context.QueryContext == null) return;
+
+        context.QueryContext.AdditionalProperties["SearchPatternMetrics"] = new SearchPatternMetrics {
+            VectorSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.VectorSearch),
+            WebSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.WebSearch),
+            PDFSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.PDFSearch),
+            VectorSearchTime = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var v) ? v.Duration : TimeSpan.Zero,
+            WebSearchTime = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var w) ? w.Duration : TimeSpan.Zero,
+            PDFSearchTime = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var p) ? p.Duration : TimeSpan.Zero,
+            VectorResultsFound = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var vr) ? vr.ResultsFound : 0,
+            WebResultsFound = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var wr) ? wr.ResultsFound : 0,
+            PDFResultsFound = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var pr) ? pr.ResultsFound : 0
+        };
+
+        context.QueryContext.AdditionalProperties["DegradedMode"] = degradedMode;
+        if (degradedMode) {
+            context.QueryContext.AdditionalProperties["FailedSources"] = failedSources.Select(s => new { s.AgentType, s.ErrorMessage }).ToList();
+            context.QueryContext.AdditionalProperties["AvailableSources"] = successfulSources.Select(s => new { s.AgentType, s.ResultsCount }).ToList();
+        }
     }
 
     #endregion
@@ -446,14 +375,10 @@ Answer in markdown:
     /// </summary>
     private async Task<SearchResult[]> FuseAndRankResultsAsync(List<SearchResult> results, string query, SearchParameters options, bool degradedMode) {
         if (results.Count == 0) {
-            // Log when no results are available even in degraded mode
-            if (degradedMode) {
-                _logger.LogWarning("No results available from any source despite degraded mode retry logic");
-            }
             return Array.Empty<SearchResult>();
         }
 
-        // Remove duplicates (same Source.DocumentId or Id if available).
+        // Remove duplicates.
         var deduped = results.GroupBy(r => string.IsNullOrWhiteSpace(r.Source.DocumentId) ? r.Id : r.Source.DocumentId)
                               .Select(g => g.OrderByDescending(r => r.RelevanceScore).First())
                               .ToList();
@@ -474,11 +399,11 @@ Answer in markdown:
 
         var finalResults = deduped.Take(options.MaxResults).ToArray();
 
-        // Add degraded mode metadata to results for UI/client awareness
+        // Add degraded mode metadata to results
         if (degradedMode && finalResults.Length > 0) {
             foreach (var result in finalResults) {
                 result.Metadata["DegradedMode"] = true;
-                result.Metadata["Note"] = "Results from partial sources due to unavailable service(s). Results may be incomplete.";
+                result.Metadata["Note"] = "Results from partial sources due to unavailable service(s).";
             }
         }
 
@@ -489,15 +414,14 @@ Answer in markdown:
         // Generate embedding for the query.
         var queryEmbedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", query, CancellationToken.None);
 
-        // Generate embeddings for each candidate result (truncate content to keep costs low).
+        // Generate embeddings for each candidate result.
         var contents = results.Select(r => Truncate(r.Content, 1024)).ToArray();
         var resultEmbeddings = await _openAIClient.GetEmbeddingsAsync("text-embedding-3-large", contents, CancellationToken.None);
 
         var scored = new List<(SearchResult Result, double Score)>();
         for (var i = 0; i < results.Count; i++) {
             var semanticScore = CosineSimilarity(queryEmbedding, resultEmbeddings[i]);
-            // Blend the agent-provided relevance score with the semantic similarity.
-            var blendedScore = results[i].RelevanceScore * 0.7 + (float)semanticScore * 0.3f;
+            var blendedScore = (results[i].RelevanceScore * 0.7) + (semanticScore * 0.3);
             scored.Add((results[i], blendedScore));
         }
 
@@ -508,7 +432,9 @@ Answer in markdown:
         if (v1.Length != v2.Length)
             return 0;
 
-        double dot = 0, mag1 = 0, mag2 = 0;
+        double dot = 0;
+        double mag1 = 0;
+        double mag2 = 0;
         for (int i = 0; i < v1.Length; i++) {
             dot += v1[i] * v2[i];
             mag1 += Math.Pow(v1[i], 2);

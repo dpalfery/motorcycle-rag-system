@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -30,8 +31,8 @@ public class ClaimCitationIssue {
 /// </summary>
 public class QueryRefinementAnalysis {
     public string OriginalQuery { get; set; } = string.Empty;
-    public List<string> Suggestions { get; set; } = new();
-    public List<string> ExampleQueries { get; set; } = new();
+    public IReadOnlyList<string> Suggestions { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> ExampleQueries { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>
@@ -68,8 +69,7 @@ public sealed class MotorcycleRAGService : IMotorcycleRAGService {
 
     /// <inheritdoc />
     public async Task<MotorcycleQueryResponse> QueryAsync(MotorcycleQueryRequest request) {
-        if (request == null)
-            throw new ArgumentNullException(nameof(request));
+        ArgumentNullException.ThrowIfNull(request);
 
         if (string.IsNullOrWhiteSpace(request.Query))
             throw new ArgumentException("Query cannot be null or empty", nameof(request));
@@ -722,24 +722,21 @@ If you believe this information should be available, please try rephrasing your 
     }
 
     private QueryRefinementAnalysis AnalyzeQueryForRefinementSuggestions(string query) {
-        var analysis = new QueryRefinementAnalysis {
-            OriginalQuery = query,
-            Suggestions = new List<string>(),
-            ExampleQueries = new List<string>()
-        };
+        var suggestions = new List<string>();
+        var exampleQueries = new List<string>();
 
         // Analyze query length
         if (query.Length < 10) {
-            analysis.Suggestions.Add("✅ **Be more specific**: Your query is quite short. Add more details about what you're looking for.");
+            suggestions.Add("✅ **Be more specific**: Your query is quite short. Add more details about what you're looking for.");
         }
         else if (query.Length > 100) {
-            analysis.Suggestions.Add("✅ **Be more concise**: Your query is quite long. Try to focus on the key information you need.");
+            suggestions.Add("✅ **Be more concise**: Your query is quite long. Try to focus on the key information you need.");
         }
 
         // Check for specific motorcycle terms
         string[] motorcycleTerms = ["motorcycle", "bike", "specs", "specifications", "manual", "guide", "review", "comparison"];
         if (!motorcycleTerms.Any(term => query.Contains(term, StringComparison.OrdinalIgnoreCase))) {
-            analysis.Suggestions.Add("✅ **Add context**: Include terms like 'motorcycle', 'specs', 'manual', or 'review' to help focus the search.");
+            suggestions.Add("✅ **Add context**: Include terms like 'motorcycle', 'specs', 'manual', or 'review' to help focus the search.");
         }
 
         // Check for brand/model names
@@ -751,39 +748,43 @@ If you believe this information should be available, please try rephrasing your 
         var hasModelIndicator = modelIndicators.Any(model => query.Contains(model, StringComparison.OrdinalIgnoreCase));
 
         if (!hasBrand && !hasModelIndicator) {
-            analysis.Suggestions.Add("✅ **Specify brands/models**: Include specific motorcycle brands (Honda, Yamaha) or model names (CBR1000RR, YZF-R1) for better results.");
+            suggestions.Add("✅ **Specify brands/models**: Include specific motorcycle brands (Honda, Yamaha) or model names (CBR1000RR, YZF-R1) for better results.");
         }
 
         // Check for technical terms
         string[] technicalTerms = ["engine", "horsepower", "torque", "displacement", "suspension", "brakes", "ABS", "traction control"];
         if (!technicalTerms.Any(term => query.Contains(term, StringComparison.OrdinalIgnoreCase))) {
-            analysis.Suggestions.Add("✅ **Use technical terms**: Include specific aspects you're interested in (engine, horsepower, suspension, ABS, etc.).");
+            suggestions.Add("✅ **Use technical terms**: Include specific aspects you're interested in (engine, horsepower, suspension, ABS, etc.).");
         }
 
         // Generate example queries based on analysis
         if (hasBrand || hasModelIndicator) {
-            analysis.ExampleQueries.Add($"{ExtractMainSubject(query)} specifications and performance data");
-            analysis.ExampleQueries.Add($"{ExtractMainSubject(query)} engine horsepower and torque curve");
-            analysis.ExampleQueries.Add($"{ExtractMainSubject(query)} maintenance schedule and service intervals");
+            exampleQueries.Add($"{ExtractMainSubject(query)} specifications and performance data");
+            exampleQueries.Add($"{ExtractMainSubject(query)} engine horsepower and torque curve");
+            exampleQueries.Add($"{ExtractMainSubject(query)} maintenance schedule and service intervals");
         }
         else {
-            analysis.ExampleQueries.Add("Honda CBR1000RR 2023 specifications");
-            analysis.ExampleQueries.Add("Yamaha YZF-R1 vs Kawasaki Ninja ZX-10R comparison");
-            analysis.ExampleQueries.Add("Ducati Panigale V4 maintenance guide");
+            exampleQueries.Add("Honda CBR1000RR 2023 specifications");
+            exampleQueries.Add("Yamaha YZF-R1 vs Kawasaki Ninja ZX-10R comparison");
+            exampleQueries.Add("Ducati Panigale V4 maintenance guide");
         }
 
         // Add year/version suggestion if not present
         if (!System.Text.RegularExpressions.Regex.IsMatch(query, @"\d{4}")) // No 4-digit year
         {
-            analysis.Suggestions.Add("✅ **Include year/version**: Add the model year (e.g., '2023') for more accurate specifications.");
+            suggestions.Add("✅ **Include year/version**: Add the model year (e.g., '2023') for more accurate specifications.");
         }
 
-        if (analysis.Suggestions.Count == 0) {
-            analysis.Suggestions.Add("✅ **Try different wording**: Rephrase your query using alternative terms or structure.");
-            analysis.Suggestions.Add("✅ **Check spelling**: Ensure all terms are spelled correctly, especially model names.");
+        if (suggestions.Count == 0) {
+            suggestions.Add("✅ **Try different wording**: Rephrase your query using alternative terms or structure.");
+            suggestions.Add("✅ **Check spelling**: Ensure all terms are spelled correctly, especially model names.");
         }
 
-        return analysis;
+        return new QueryRefinementAnalysis {
+            OriginalQuery = query,
+            Suggestions = suggestions,
+            ExampleQueries = exampleQueries
+        };
     }
 
     private string ExtractMainSubject(string query) {

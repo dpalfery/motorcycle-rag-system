@@ -2,7 +2,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using System.Linq;
+using System.Collections.ObjectModel;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace MotorcycleRAG.Application.Pipeline;
@@ -19,16 +20,19 @@ public class FileUploadService : IFileUploadService {
         IOptions<FileUploadConfiguration> config,
         ITelemetryService telemetryService,
         ILogger<FileUploadService> logger) {
-        _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
-        _telemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(telemetryService);
+        ArgumentNullException.ThrowIfNull(logger);
+        _config = config.Value;
+        _telemetryService = telemetryService;
+        _logger = logger;
     }
 
     /// <summary>
     /// Sanitizes user-provided values for logging to prevent log injection attacks.
     /// Replaces newlines, carriage returns, and tabs with spaces.
     /// </summary>
-    private string SanitizeForLogging(string input) {
+    private static string SanitizeForLogging(string input) {
         if (string.IsNullOrEmpty(input)) {
             return input;
         }
@@ -40,6 +44,10 @@ public class FileUploadService : IFileUploadService {
     }
 
     public async Task<FileUploadResult> UploadFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options, CancellationToken cancellationToken = default) {
+        ArgumentNullException.ThrowIfNull(metadata);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(fileStream);
+
         var result = new FileUploadResult {
             OriginalFileName = metadata.FileName,
             FileSize = metadata.ContentLength,
@@ -67,7 +75,9 @@ public class FileUploadService : IFileUploadService {
 
             // Ensure upload directory exists
             var uploadPath = Path.Combine(_config.BaseUploadDirectory, options.UploadDirectory);
-            Directory.CreateDirectory(uploadPath);
+            if (!Directory.Exists(uploadPath)) {
+                Directory.CreateDirectory(uploadPath);
+            }
 
             // Save file to disk
             result.FilePath = Path.Combine(uploadPath, result.StoredFileName);
@@ -102,6 +112,9 @@ public class FileUploadService : IFileUploadService {
     }
 
     public async Task<BatchFileUploadResult> UploadFilesAsync(IEnumerable<(Stream stream, FileMetadata metadata)> files, FileUploadOptions options, CancellationToken cancellationToken = default) {
+        ArgumentNullException.ThrowIfNull(files);
+        ArgumentNullException.ThrowIfNull(options);
+
         var result = new BatchFileUploadResult();
         var fileList = files.ToList();
         result.TotalFiles = fileList.Count;
@@ -140,6 +153,10 @@ public class FileUploadService : IFileUploadService {
     }
 
     public async Task<FileValidationResult> ValidateFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options) {
+        ArgumentNullException.ThrowIfNull(metadata);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(fileStream);
+
         var result = new FileValidationResult {
             ContentType = metadata.ContentType,
             FileSize = metadata.ContentLength
@@ -156,7 +173,7 @@ public class FileUploadService : IFileUploadService {
             }
 
             // Check file extension
-            var extension = Path.GetExtension(metadata.FileName)?.ToLowerInvariant();
+            var extension = Path.GetExtension(metadata.FileName)?.ToUpperInvariant();
             if (string.IsNullOrEmpty(extension)) {
                 result.AddError("File has no extension");
             }
@@ -203,6 +220,8 @@ public class FileUploadService : IFileUploadService {
     }
 
     public async Task<bool> DeleteFileAsync(string fileId) {
+        if (string.IsNullOrWhiteSpace(fileId)) return false;
+
         try {
             // In a real implementation, you would look up the file path by fileId
             // For now, assuming fileId is the file path
@@ -221,12 +240,12 @@ public class FileUploadService : IFileUploadService {
         }
     }
 
-    private FileType DetectFileType(string fileName, string contentType) {
-        var extension = Path.GetExtension(fileName)?.ToLowerInvariant();
+    private static FileType DetectFileType(string fileName, string? contentType) {
+        var extension = Path.GetExtension(fileName)?.ToUpperInvariant();
 
         return extension switch {
-            ".csv" when contentType?.Contains("csv") == true || contentType?.Contains("text") == true => FileType.CSV,
-            ".pdf" when contentType?.Contains("pdf") == true => FileType.PDF,
+            ".CSV" when contentType?.Contains("csv", StringComparison.OrdinalIgnoreCase) == true || contentType?.Contains("text", StringComparison.OrdinalIgnoreCase) == true => FileType.CSV,
+            ".PDF" when contentType?.Contains("pdf", StringComparison.OrdinalIgnoreCase) == true => FileType.PDF,
             _ => FileType.Unknown
         };
     }
@@ -234,16 +253,16 @@ public class FileUploadService : IFileUploadService {
     private async Task ValidateFileContentAsync(Stream fileStream, FileMetadata metadata, FileValidationResult result) {
         try {
             var buffer = new byte[1024];
-            var bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length);
+            int bytesRead = await fileStream.ReadAsync(buffer.AsMemory(0, buffer.Length));
 
             if (bytesRead > 0) {
-                var fileExtension = Path.GetExtension(metadata.FileName)?.ToLowerInvariant();
+                var fileExtension = Path.GetExtension(metadata.FileName)?.ToUpperInvariant();
 
                 switch (fileExtension) {
-                    case ".pdf":
+                    case ".PDF":
                         ValidatePdfContent(buffer, bytesRead, result);
                         break;
-                    case ".csv":
+                    case ".CSV":
                         ValidateCsvContent(buffer, bytesRead, result);
                         break;
                 }
@@ -254,15 +273,15 @@ public class FileUploadService : IFileUploadService {
         }
     }
 
-    private void ValidatePdfContent(byte[] buffer, int bytesRead, FileValidationResult result) {
+    private static void ValidatePdfContent(byte[] buffer, int bytesRead, FileValidationResult result) {
         // PDF files should start with %PDF
         var pdfHeader = Encoding.ASCII.GetString(buffer, 0, Math.Min(4, bytesRead));
-        if (!pdfHeader.StartsWith("%PDF")) {
+        if (!pdfHeader.StartsWith("%PDF", StringComparison.Ordinal)) {
             result.AddError("File does not appear to be a valid PDF (missing PDF header)");
         }
     }
 
-    private void ValidateCsvContent(byte[] buffer, int bytesRead, FileValidationResult result) {
+    private static void ValidateCsvContent(byte[] buffer, int bytesRead, FileValidationResult result) {
         try {
             var content = Encoding.UTF8.GetString(buffer, 0, bytesRead);
 
@@ -286,7 +305,7 @@ public class FileUploadService : IFileUploadService {
         }
     }
 
-    private string GenerateUniqueFileName(string originalFileName) {
+    private static string GenerateUniqueFileName(string originalFileName) {
         var extension = Path.GetExtension(originalFileName);
         var nameWithoutExtension = Path.GetFileNameWithoutExtension(originalFileName);
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
@@ -295,20 +314,13 @@ public class FileUploadService : IFileUploadService {
         return $"{nameWithoutExtension}_{timestamp}_{uniqueId}{extension}";
     }
 
-    /// <summary>
-    /// Sanitizes a filename to prevent path traversal attacks.
-    /// Removes invalid characters, path separators, drive letters, and path root indicators.
-    /// </summary>
-    private string SanitizeFileName(string fileName) {
+    private static string SanitizeFileName(string fileName) {
         if (string.IsNullOrEmpty(fileName)) {
             return "unnamed_file";
         }
 
-        // CRITICAL: Strip path separators and drive letters BEFORE Path.GetFileName()
-        // This prevents edge cases like "C:autorun.csv" or UNC paths from being preserved
+        // Strip path separators and drive letters
         var safeFileName = fileName.Replace(":", "_").Replace("/", "_").Replace("\\", "_");
-
-        // Get only the filename (no directory path) - now safe after stripping dangerous chars
         safeFileName = Path.GetFileName(safeFileName);
 
         // Remove invalid filename characters
@@ -317,24 +329,24 @@ public class FileUploadService : IFileUploadService {
             .Where(c => !invalidChars.Contains(c))
             .ToArray());
 
-        // If filename is empty after sanitization, use a default
         if (string.IsNullOrWhiteSpace(safeFileName)) {
             return "unnamed_file";
         }
 
-        // Limit filename length to avoid issues
         const int maxFileNameLength = 255;
         if (safeFileName.Length > maxFileNameLength) {
             var extension = Path.GetExtension(safeFileName);
             var nameWithoutExt = Path.GetFileNameWithoutExtension(safeFileName);
             var maxNameLength = maxFileNameLength - extension.Length;
-            safeFileName = nameWithoutExt[..maxNameLength] + extension;
+            if (maxNameLength > 0) {
+                safeFileName = nameWithoutExt[..maxNameLength] + extension;
+            }
         }
 
         return safeFileName;
     }
 
-    private string FormatFileSize(long bytes) {
+    private static string FormatFileSize(long bytes) {
         string[] sizes = { "B", "KB", "MB", "GB" };
         double len = bytes;
         int order = 0;
@@ -353,7 +365,7 @@ public class FileUploadConfiguration {
     public string BaseUploadDirectory { get; set; } = "uploads";
     public long MaxFileSizeBytes { get; set; } = 50 * 1024 * 1024; // 50MB
     public int MaxFilesPerBatch { get; set; } = 10;
-    public bool EnableVirusScanning { get; set; } = false;
-    public string[] AllowedExtensions { get; set; } = { ".csv", ".pdf" };
-    public string[] AllowedContentTypes { get; set; } = { "text/csv", "application/csv", "application/pdf" };
+    public bool EnableVirusScanning { get; set; }
+    public IReadOnlyList<string> AllowedExtensions { get; init; } = new[] { ".CSV", ".PDF" };
+    public IReadOnlyList<string> AllowedContentTypes { get; init; } = new[] { "text/csv", "application/csv", "application/pdf" };
 }

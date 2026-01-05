@@ -16,11 +16,12 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
     private readonly ConcurrentDictionary<string, HttpClient> _httpClients = new();
     private readonly ConcurrentDictionary<string, ConnectionPoolSettings> _settings = new();
     private readonly ConcurrentDictionary<string, ConnectionPoolStatistics> _statistics = new();
-    private readonly Timer _cleanupTimer;
+    private readonly Timer? _cleanupTimer;
     private bool _disposed;
 
     public ConnectionPoolService(ILogger<ConnectionPoolService> logger) {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
 
         // Initialize cleanup timer to run every 5 minutes
         _cleanupTimer = new Timer(CleanupConnections, null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
@@ -39,7 +40,7 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
         if (string.IsNullOrWhiteSpace(serviceName))
             throw new ArgumentException("Service name cannot be null or empty", nameof(serviceName));
 
-        return _statistics.GetOrAdd(serviceName, _ => new ConnectionPoolStatistics { ServiceName = serviceName });
+        return _statistics.GetOrAdd(serviceName, static name => new ConnectionPoolStatistics { ServiceName = name });
     }
 
     public Dictionary<string, ConnectionPoolStatistics> GetAllStatistics() {
@@ -49,8 +50,7 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
     public void ConfigureConnectionPool(string serviceName, ConnectionPoolSettings settings) {
         if (string.IsNullOrWhiteSpace(serviceName))
             throw new ArgumentException("Service name cannot be null or empty", nameof(serviceName));
-        if (settings == null)
-            throw new ArgumentNullException(nameof(settings));
+        ArgumentNullException.ThrowIfNull(settings);
 
         _settings.AddOrUpdate(serviceName, settings, (_, _) => settings);
 
@@ -75,7 +75,8 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
                     using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
 
                     // Simple connectivity test - this would be customized per service
-                    var response = await client.GetAsync("/health", HttpCompletionOption.ResponseHeadersRead, combinedCts.Token);
+                    var healthUri = new Uri("/health", UriKind.Relative);
+                    var response = await client.GetAsync(healthUri, HttpCompletionOption.ResponseHeadersRead, combinedCts.Token);
 
                     lock (results) {
                         results[serviceName] = response.IsSuccessStatusCode;
@@ -102,39 +103,49 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
     private HttpClient CreateHttpClient(string serviceName) {
         var settings = _settings.GetValueOrDefault(serviceName, new ConnectionPoolSettings());
 
-        var handler = new SocketsHttpHandler {
-            MaxConnectionsPerServer = settings.MaxConnectionsPerEndpoint,
-            ConnectTimeout = settings.ConnectionTimeout,
-            PooledConnectionIdleTimeout = settings.ConnectionIdleTimeout,
-            PooledConnectionLifetime = settings.ConnectionLifetime,
-            UseCookies = false, // Disable cookies for better performance
-            AutomaticDecompression = settings.EnableCompression ?
-                (DecompressionMethods.GZip | DecompressionMethods.Deflate) :
-                DecompressionMethods.None
-        };
+        SocketsHttpHandler? handler = null;
+        HttpClient? client = null;
+        try {
+            handler = new SocketsHttpHandler {
+                MaxConnectionsPerServer = settings.MaxConnectionsPerEndpoint,
+                ConnectTimeout = settings.ConnectionTimeout,
+                PooledConnectionIdleTimeout = settings.ConnectionIdleTimeout,
+                PooledConnectionLifetime = settings.ConnectionLifetime,
+                UseCookies = false, // Disable cookies for better performance
+                AutomaticDecompression = settings.EnableCompression ?
+                    (DecompressionMethods.GZip | DecompressionMethods.Deflate) :
+                    DecompressionMethods.None
+            };
 
-        var client = new HttpClient(handler) {
-            Timeout = settings.ConnectionTimeout
-        };
+            client = new HttpClient(handler, disposeHandler: true) {
+                Timeout = settings.ConnectionTimeout
+            };
+            handler = null; // Ownership transferred to HttpClient
 
-        // Add default headers
-        foreach (var header in settings.DefaultHeaders) {
-            client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+            // Add default headers
+            foreach (var header in settings.DefaultHeaders) {
+                client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+            }
+
+            // Add user agent
+            client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MotorcycleRAG/1.0");
+
+            // Initialize statistics
+            _statistics.TryAdd(serviceName, new ConnectionPoolStatistics {
+                ServiceName = serviceName,
+                LastActivity = DateTime.UtcNow
+            });
+
+            _logger.LogInformation("Created HTTP client for service {ServiceName} with settings: MaxConnections={MaxConnections}, Timeout={Timeout}",
+                serviceName, settings.MaxConnectionsPerEndpoint, settings.ConnectionTimeout);
+
+            return client;
         }
-
-        // Add user agent
-        client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MotorcycleRAG/1.0");
-
-        // Initialize statistics
-        _statistics.TryAdd(serviceName, new ConnectionPoolStatistics {
-            ServiceName = serviceName,
-            LastActivity = DateTime.UtcNow
-        });
-
-        _logger.LogInformation("Created HTTP client for service {ServiceName} with settings: MaxConnections={MaxConnections}, Timeout={Timeout}",
-            serviceName, settings.MaxConnectionsPerEndpoint, settings.ConnectionTimeout);
-
-        return client;
+        catch {
+            client?.Dispose();
+            handler?.Dispose();
+            throw;
+        }
     }
 
     private void UpdateStatistics(string serviceName, bool success, TimeSpan responseTime) {
@@ -194,19 +205,30 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
     }
 
     public void Dispose() {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing) {
         if (!_disposed) {
-            _cleanupTimer?.Dispose();
+            if (disposing) {
+                _cleanupTimer?.Dispose();
 
-            foreach (var client in _httpClients.Values) {
-                client.Dispose();
+                foreach (var client in _httpClients.Values) {
+                    client.Dispose();
+                }
+
+                _httpClients.Clear();
+                _statistics.Clear();
+                _settings.Clear();
             }
-
-            _httpClients.Clear();
-            _statistics.Clear();
-            _settings.Clear();
 
             _disposed = true;
             _logger.LogInformation("Connection pool service disposed");
         }
+    }
+
+    ~ConnectionPoolService() {
+        Dispose(false);
     }
 }

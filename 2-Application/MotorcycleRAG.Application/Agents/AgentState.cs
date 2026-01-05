@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
 
@@ -20,7 +21,7 @@ public class AgentState {
     /// <summary>
     /// Accumulated search results from all agents
     /// </summary>
-    public List<SearchResult> AccumulatedResults { get; set; } = new();
+    public Collection<SearchResult> AccumulatedResults { get; } = new();
 
     /// <summary>
     /// Current search context
@@ -40,12 +41,12 @@ public class AgentState {
     /// <summary>
     /// Messages exchanged between agents
     /// </summary>
-    public List<AgentMessage> Messages { get; set; } = new();
+    public Collection<AgentMessage> Messages { get; } = new();
 
     /// <summary>
     /// Execution metadata
     /// </summary>
-    public Dictionary<string, object> Metadata { get; set; } = new();
+    public Dictionary<string, object> Metadata { get; } = new();
 
     /// <summary>
     /// Timestamp when execution started
@@ -60,13 +61,12 @@ public class AgentState {
     /// <summary>
     /// Any errors encountered during execution
     /// </summary>
-    public List<AgentError> Errors { get; set; } = new();
+    public Collection<AgentError> Errors { get; } = new();
 
     /// <summary>
     /// Get total execution duration
     /// </summary>
-    public TimeSpan GetExecutionDuration() =>
-        (EndTime ?? DateTime.UtcNow) - StartTime;
+    public TimeSpan ExecutionDuration => (EndTime ?? DateTime.UtcNow) - StartTime;
 
     /// <summary>
     /// Add a message to the conversation
@@ -117,7 +117,7 @@ public class AgentMessage {
     public string Content { get; set; } = string.Empty;
     public AgentMessageType Type { get; set; } = AgentMessageType.Status;
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    public Dictionary<string, object> Metadata { get; set; } = new();
+    public Dictionary<string, object> Metadata { get; } = new();
 }
 
 /// <summary>

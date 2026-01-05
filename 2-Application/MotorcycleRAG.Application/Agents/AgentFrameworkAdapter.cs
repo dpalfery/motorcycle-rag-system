@@ -14,7 +14,8 @@ public class AgentFrameworkAdapter {
     private readonly Dictionary<string, Func<ToolCall, Task<ToolExecutionResult>>> _toolHandlers;
 
     public AgentFrameworkAdapter(ILogger logger) {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
         _toolHandlers = new Dictionary<string, Func<ToolCall, Task<ToolExecutionResult>>>();
     }
 
@@ -178,7 +179,7 @@ public class AgentFrameworkAdapter {
     /// <summary>
     /// Get registered tool names
     /// </summary>
-    public IReadOnlyCollection<string> GetRegisteredTools() => _toolHandlers.Keys.ToList().AsReadOnly();
+    public IReadOnlyCollection<string> RegisteredTools => _toolHandlers.Keys.ToList().AsReadOnly();
 
     /// <summary>
     /// Check if a tool is registered
@@ -193,7 +194,7 @@ public class AgentCommunicationContext {
     public string SenderId { get; set; } = string.Empty;
     public string ReceiverId { get; set; } = string.Empty;
     public string MessageType { get; set; } = string.Empty;
-    public Dictionary<string, object> Payload { get; set; } = new();
+    public Dictionary<string, object> Payload { get; } = new();
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     public string ConversationId { get; set; } = Guid.NewGuid().ToString();
 
@@ -212,7 +213,8 @@ public class AgentFrameworkAdapterFactory {
     private readonly ILogger _logger;
 
     public AgentFrameworkAdapterFactory(ILogger logger) {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     /// <summary>

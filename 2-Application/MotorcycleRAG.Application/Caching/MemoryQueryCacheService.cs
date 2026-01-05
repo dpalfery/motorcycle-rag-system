@@ -25,9 +25,12 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
         IMemoryCache memoryCache,
         ILogger<MemoryQueryCacheService> logger,
         IOptions<CacheConfiguration> config) {
-        _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
+        ArgumentNullException.ThrowIfNull(memoryCache);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(config);
+        _memoryCache = memoryCache;
+        _logger = logger;
+        _config = config.Value;
 
         _jsonOptions = new JsonSerializerOptions {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -127,12 +130,11 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
     }
 
     public string GenerateCacheKey(MotorcycleQueryRequest request) {
-        if (request == null)
-            throw new ArgumentNullException(nameof(request));
+        ArgumentNullException.ThrowIfNull(request);
 
         // Create a normalized representation of the request for consistent caching
         var keyData = new {
-            Query = request.Query?.Trim().ToLowerInvariant(),
+            Query = request.Query?.Trim().ToUpperInvariant(),
             Preferences = new {
                 MaxResults = request.Preferences?.MaxResults ?? 10,
                 IncludeWebSources = request.Preferences?.IncludeWebSources ?? false,
@@ -146,7 +148,7 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
         var keyBytes = Encoding.UTF8.GetBytes(keyJson);
         var hashBytes = SHA256.HashData(keyBytes);
 
-        return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        return Convert.ToHexString(hashBytes).ToUpperInvariant();
     }
 
     public async Task ClearAsync(CancellationToken cancellationToken = default) {
@@ -230,7 +232,16 @@ public class MemoryQueryCacheService : IQueryCacheService, IDisposable {
     }
 
     public void Dispose() {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing) {
         if (!_disposed) {
+            if (disposing) {
+                // No managed resources of our own to dispose
+                // _memoryCache is injected and should be disposed by the container
+            }
             _disposed = true;
         }
     }

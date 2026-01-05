@@ -1,8 +1,6 @@
-using System;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -23,7 +21,6 @@ namespace MotorcycleRAG.Application.Services;
 /// </summary>
 public class AuditService : IAuditService {
     private readonly IAuditRepository _auditRepository;
-    private readonly ICurrentUserService _currentUserService;
     private readonly ICorrelationService _correlationService;
     private readonly ILogger<AuditService> _logger;
 
@@ -32,13 +29,14 @@ public class AuditService : IAuditService {
     /// </summary>
     public AuditService(
         IAuditRepository auditRepository,
-        ICurrentUserService currentUserService,
         ICorrelationService correlationService,
         ILogger<AuditService> logger) {
-        _auditRepository = auditRepository ?? throw new ArgumentNullException(nameof(auditRepository));
-        _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
-        _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(auditRepository);
+        ArgumentNullException.ThrowIfNull(correlationService);
+        ArgumentNullException.ThrowIfNull(logger);
+        _auditRepository = auditRepository;
+        _correlationService = correlationService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -494,12 +492,10 @@ public class AuditService : IAuditService {
             return "unknown";
 
         try {
-            // Use SHA256 for consistent, one-way hashing
-            using (var sha256 = SHA256.Create()) {
-                var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(userId));
-                // Return first 16 characters of hex representation for readability
-                return Convert.ToHexString(hashedBytes)[..16];
-            }
+            // Use SHA256 for consistent, one-way hashing (Preferred static method CA1850)
+            var hashedBytes = SHA256.HashData(Encoding.UTF8.GetBytes(userId));
+            // Return first 16 characters of hex representation for readability
+            return Convert.ToHexString(hashedBytes)[..16];
         }
         catch {
             // Fallback if hashing fails

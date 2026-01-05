@@ -2,19 +2,19 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using HtmlAgilityPack;
-using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Collections.Concurrent;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Enums;
+using HtmlAgilityPack;
+using System.Text.RegularExpressions;
 
 namespace MotorcycleRAG.Application.Agents;
 
 /// <summary>
 /// Web search agent for external source augmentation with rate limiting, credibility validation, and trust policy enforcement
 /// </summary>
-public class WebSearchAgent : ISearchAgent {
+public class WebSearchAgent : ISearchAgent, IDisposable {
     private readonly HttpClient _httpClient;
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly WebSearchOptions _config;
@@ -23,6 +23,8 @@ public class WebSearchAgent : ISearchAgent {
     private readonly ConcurrentDictionary<string, DateTime> _lastRequestTimes;
     private readonly ConcurrentDictionary<string, List<SearchResult>> _cache;
     private readonly IWebTrustPolicyStore? _trustPolicyStore;
+    private readonly WebContentExtractor _contentExtractor;
+
 
     public SearchAgentType AgentType => SearchAgentType.WebSearch;
 
@@ -41,6 +43,8 @@ public class WebSearchAgent : ISearchAgent {
         _rateLimitSemaphore = new SemaphoreSlim(_config.MaxConcurrentRequests, _config.MaxConcurrentRequests);
         _lastRequestTimes = new ConcurrentDictionary<string, DateTime>();
         _cache = new ConcurrentDictionary<string, List<SearchResult>>();
+
+        _contentExtractor = new WebContentExtractor(logger);
 
         ConfigureHttpClient();
 
@@ -233,7 +237,8 @@ Return only the search terms, one per line, without explanations.
         try {
             _logger.LogDebug("Fetching content from: {Url}", url);
 
-            using var response = await _httpClient.GetAsync(url);
+            var uri = new Uri(url);
+            using var response = await _httpClient.GetAsync(uri);
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
@@ -663,6 +668,17 @@ Respond with only a JSON object:
         }
 
         _cache[cacheKey] = results;
+    }
+
+    public void Dispose() {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing) {
+        if (disposing) {
+            _rateLimitSemaphore.Dispose();
+        }
     }
 
     #endregion

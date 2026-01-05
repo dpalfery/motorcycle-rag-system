@@ -25,9 +25,7 @@ public class WebSourceRegistryService {
     /// Adds a new web source to the registry
     /// </summary>
     public async Task<WebSource> AddWebSourceAsync(WebSource webSource) {
-        if (webSource == null) {
-            throw new ArgumentNullException(nameof(webSource));
-        }
+        ArgumentNullException.ThrowIfNull(webSource);
 
         // Verify authorization
         if (!_currentUserService.IsAuthenticated) {
@@ -55,9 +53,7 @@ public class WebSourceRegistryService {
     /// Updates an existing web source
     /// </summary>
     public async Task<WebSource> UpdateWebSourceAsync(WebSource webSource) {
-        if (webSource == null) {
-            throw new ArgumentNullException(nameof(webSource));
-        }
+        ArgumentNullException.ThrowIfNull(webSource);
 
         if (webSource.Id <= 0) {
             throw new ArgumentException("Invalid web source ID", nameof(webSource));

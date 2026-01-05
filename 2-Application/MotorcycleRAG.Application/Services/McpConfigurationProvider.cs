@@ -13,15 +13,17 @@ public class McpConfigurationProvider : IMcpConfigurationProvider {
     private readonly ILogger<McpConfigurationProvider> _logger;
     private DateTime _lastRefreshed;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
-    private bool _disposed = false;
+    private bool _disposed;
 
     public DateTime LastRefreshed => _lastRefreshed;
 
     public McpConfigurationProvider(
         IToolConfigurationRepository configRepository,
         ILogger<McpConfigurationProvider> logger) {
-        _configRepository = configRepository ?? throw new ArgumentNullException(nameof(configRepository));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(configRepository);
+        ArgumentNullException.ThrowIfNull(logger);
+        _configRepository = configRepository;
+        _logger = logger;
         _lastRefreshed = DateTime.UtcNow;
     }
 
@@ -93,39 +95,29 @@ public class McpConfigurationProvider : IMcpConfigurationProvider {
     /// <summary>
     /// Validate that a tool configuration is accessible
     /// </summary>
-    public async Task<bool> ValidateToolAsync(McpToolConfiguration tool) {
+    public Task<bool> ValidateToolAsync(McpToolConfiguration tool) {
         if (tool == null)
-            return false;
+            return Task.FromResult(false);
 
         if (!tool.IsEnabled) {
             _logger.LogWarning("Tool {ToolId} is disabled: {Reason}", tool.ToolId, tool.DisabledReason);
-            return false;
+            return Task.FromResult(false);
         }
 
         if (tool.ServerUrl == null) {
             _logger.LogWarning("Tool {ToolId} has no server URL configured", tool.ToolId);
-            return false;
+            return Task.FromResult(false);
         }
 
-        try {
-            // Validate URL format
-            var uri = tool.ServerUrl;
-
-            // Check timeout configuration
-            if (tool.TimeoutMs.HasValue && tool.TimeoutMs <= 0) {
-                _logger.LogWarning("Tool {ToolId} has invalid timeout configuration: {Timeout}ms",
-                    tool.ToolId, tool.TimeoutMs);
-                return false;
-            }
-
-            _logger.LogDebug("Tool {ToolId} validation passed", tool.ToolId);
-            return await Task.FromResult(true);
+        // Check timeout configuration
+        if (tool.TimeoutMs.HasValue && tool.TimeoutMs <= 0) {
+            _logger.LogWarning("Tool {ToolId} has invalid timeout configuration: {Timeout}ms",
+                tool.ToolId, tool.TimeoutMs);
+            return Task.FromResult(false);
         }
-        catch (UriFormatException ex) {
-            _logger.LogError(ex, "Tool {ToolId} has invalid server URL: {ServerUrl}",
-                tool.ToolId, tool.ServerUrl?.ToString() ?? string.Empty);
-            return false;
-        }
+
+        _logger.LogDebug("Tool {ToolId} validation passed", tool.ToolId);
+        return Task.FromResult(true);
     }
 
     /// <summary>

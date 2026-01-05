@@ -4,7 +4,6 @@ using System.Diagnostics;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs.Optimization;
 
-
 namespace MotorcycleRAG.Application.Optimization;
 
 /// <summary>
@@ -16,18 +15,17 @@ public class BatchProcessingService : IBatchProcessingService {
     private BatchProcessingStatistics _statistics = new();
 
     public BatchProcessingService(ILogger<BatchProcessingService> logger) {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task<BatchProcessingResult<TResult>> ProcessBatchAsync<T, TResult>(
         IEnumerable<T> documents,
-        Func<IEnumerable<T>, CancellationToken, Task<IEnumerable<TResult>>> processor,
+        BatchProcessor<T, TResult> processor,
         int batchSize = 100,
         CancellationToken cancellationToken = default) {
-        if (documents == null)
-            throw new ArgumentNullException(nameof(documents));
-        if (processor == null)
-            throw new ArgumentNullException(nameof(processor));
+        ArgumentNullException.ThrowIfNull(documents);
+        ArgumentNullException.ThrowIfNull(processor);
 
         var documentList = documents.ToList();
         var totalCount = documentList.Count;
@@ -52,7 +50,7 @@ public class BatchProcessingService : IBatchProcessingService {
             for (int i = 0; i < totalCount; i += batchSize) {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var batch = documentList.Skip(i).Take(batchSize);
+                var batch = documentList.Skip(i).Take(batchSize).ToList();
                 var batchNumber = (i / batchSize) + 1;
                 var totalBatches = (totalCount + batchSize - 1) / batchSize;
 
@@ -61,7 +59,7 @@ public class BatchProcessingService : IBatchProcessingService {
                 try {
                     var batchResults = await processor(batch, cancellationToken);
                     allResults.AddRange(batchResults);
-                    processedCount += batch.Count();
+                    processedCount += batch.Count;
 
                     _logger.LogDebug("Batch {BatchNumber} completed successfully with {ResultCount} results",
                         batchNumber, batchResults.Count());
@@ -70,7 +68,7 @@ public class BatchProcessingService : IBatchProcessingService {
                     _logger.LogError(ex, "Error processing batch {BatchNumber}", batchNumber);
 
                     // Add error for each item in the failed batch
-                    var batchList = batch.ToList();
+                    var batchList = batch;
                     for (int j = 0; j < batchList.Count; j++) {
                         allErrors.Add(new BatchProcessingError {
                             ItemIndex = i + j,
@@ -115,12 +113,9 @@ public class BatchProcessingService : IBatchProcessingService {
         Func<T, CancellationToken, Task<TResult>> processor,
         BatchProcessingOptions options,
         CancellationToken cancellationToken = default) {
-        if (documents == null)
-            throw new ArgumentNullException(nameof(documents));
-        if (processor == null)
-            throw new ArgumentNullException(nameof(processor));
-        if (options == null)
-            throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(documents);
+        ArgumentNullException.ThrowIfNull(processor);
+        ArgumentNullException.ThrowIfNull(options);
 
         var documentList = documents.ToList();
         var totalCount = documentList.Count;
@@ -142,7 +137,7 @@ public class BatchProcessingService : IBatchProcessingService {
         var processedCount = 0;
 
         try {
-            var semaphore = new SemaphoreSlim(options.MaxDegreeOfParallelism, options.MaxDegreeOfParallelism);
+            using var semaphore = new SemaphoreSlim(options.MaxDegreeOfParallelism, options.MaxDegreeOfParallelism);
             var tasks = new List<Task>();
 
             for (int i = 0; i < totalCount; i++) {

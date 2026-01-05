@@ -7,16 +7,17 @@ namespace MotorcycleRAG.Application.Pipeline;
 
 public class DataPipelineOrchestrator : IDataPipelineOrchestrator {
     private readonly ILogger<DataPipelineOrchestrator> _logger;
-    private readonly PipelineConfiguration _config;
 
     public DataPipelineOrchestrator(
         IOptions<PipelineConfiguration> config,
         ILogger<DataPipelineOrchestrator> logger) {
-        _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
     }
 
     public async Task<PipelineExecutionResult> ProcessFileAsync(DataPipelineRequest request, CancellationToken cancellationToken = default) {
+        ArgumentNullException.ThrowIfNull(request);
         _logger.LogInformation("Processing file: {FileName}", request.FileName);
 
         // Placeholder implementation
@@ -30,7 +31,9 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator {
     }
 
     public async Task<BatchPipelineResult> ProcessBatchAsync(IEnumerable<DataPipelineRequest> requests, CancellationToken cancellationToken = default) {
-        var count = requests.Count();
+        ArgumentNullException.ThrowIfNull(requests);
+        var requestList = requests.ToList();
+        var count = requestList.Count;
         _logger.LogInformation("Processing batch of {Count} files", count);
 
         // Placeholder implementation
@@ -44,15 +47,15 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator {
         });
     }
 
-    public async Task<PipelineStatus> GetPipelineStatusAsync(string executionId) {
-        return await Task.FromResult(PipelineStatus.Completed);
+    public Task<PipelineStatus> GetPipelineStatusAsync(string executionId) {
+        return Task.FromResult(PipelineStatus.Completed);
     }
 
-    public async Task<PipelineMetrics> GetPipelineMetricsAsync(TimeSpan? timeWindow = null) {
-        return await Task.FromResult(new PipelineMetrics());
+    public Task<PipelineMetrics> GetPipelineMetricsAsync(TimeSpan? timeWindow = null) {
+        return Task.FromResult(new PipelineMetrics());
     }
 
-    public async Task<bool> CancelPipelineAsync(string executionId) {
-        return await Task.FromResult(true);
+    public Task<bool> CancelPipelineAsync(string executionId) {
+        return Task.FromResult(true);
     }
 }

@@ -196,9 +196,15 @@ public class AgentCommunicationContext {
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     public string ConversationId { get; set; } = Guid.NewGuid().ToString();
 
-    public T? GetPayloadValue<T>(string key) {
+    public T? GetPayloadValue<T>(string key)
+    {
+        return GetPayloadValue<T>(key, default);
+    }
+
+    public T? GetPayloadValue<T>(string key, T? defaultValue)
+    {
         if (!Payload.TryGetValue(key, out var value))
-            return default;
+            return defaultValue;
 
         return (T?)Convert.ChangeType(value, typeof(T));
     }

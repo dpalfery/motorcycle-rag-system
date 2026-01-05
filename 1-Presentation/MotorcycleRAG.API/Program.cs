@@ -266,7 +266,7 @@ public static class Program
         catch (Exception ex)
         {
             // Log configuration errors during startup
-            var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
+            var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Program");
             startupLogger.LogCritical(ex, "Failed to configure services during startup");
             throw;
         }
@@ -327,7 +327,7 @@ public static class Program
         }).RequireRateLimiting("public");
 
         // Log startup information
-        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+        var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Program");
         logger.LogInformation("Motorcycle RAG API starting up...");
         logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
 
@@ -392,7 +392,7 @@ public static class Program
         }
 
         // Log secret sources for audit trail
-        var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
+        var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Program");
         startupLogger.LogInformation("Azure AD configuration loaded from environment variables (MCR_API_AZURE_AD_TENANT_ID, MCR_API_AZURE_AD_CLIENT_ID)");
 
         // Update configuration with environment values
@@ -439,7 +439,7 @@ public static class Program
         ValidateEndpoint("Foundry", foundryEndpoint, "MCR_API_AZURE_FOUNDRY_ENDPOINT", environment.IsProduction());
 
         // Log secret sources for audit trail
-        var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<Program>();
+        var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Program");
         var envVarsMessage = "Azure AI configuration loaded from environment variables " +
             "(MCR_API_AZURE_OPENAI_ENDPOINT, MCR_API_AZURE_SEARCH_ENDPOINT, " +
             "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, MCR_API_AZURE_FOUNDRY_ENDPOINT)";

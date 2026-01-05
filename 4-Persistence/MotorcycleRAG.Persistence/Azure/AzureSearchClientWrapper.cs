@@ -20,8 +20,6 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// </summary>
 public class AzureSearchClientWrapper : IAzureSearchClient {
     private readonly SearchClient _searchClient;
-    private readonly SearchIndexClient _indexClient;
-    private readonly Core.Options.SearchOptions _searchConfig;
     private readonly ILogger<AzureSearchClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
@@ -38,21 +36,20 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
         ArgumentNullException.ThrowIfNull(resilienceService);
         ArgumentNullException.ThrowIfNull(correlationService);
 
-        var config = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
-        _searchConfig = searchConfig.Value ?? throw new ArgumentNullException(nameof(searchConfig));
+        var azureConfigValue = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
+        var searchOptions = searchConfig.Value ?? throw new ArgumentNullException(nameof(searchConfig));
         _logger = logger;
         _resilienceService = resilienceService;
         _correlationService = correlationService;
 
         // Initialize Azure Search clients with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
-        var searchEndpoint = new Uri(config.SearchServiceEndpoint);
+        var searchEndpoint = new Uri(azureConfigValue.SearchServiceEndpoint);
 
-        _indexClient = new SearchIndexClient(searchEndpoint, credential);
-        _searchClient = new SearchClient(searchEndpoint, _searchConfig.IndexName, credential);
+        _searchClient = new SearchClient(searchEndpoint, searchOptions.IndexName, credential);
 
         _logger.LogInformation("Azure Search client initialized with endpoint: {Endpoint}, Index: {IndexName}",
-            config.SearchServiceEndpoint, _searchConfig.IndexName);
+            azureConfigValue.SearchServiceEndpoint, searchOptions.IndexName);
     }
 
     public Task<DomainSearchResult[]> SearchAsync(string searchText)

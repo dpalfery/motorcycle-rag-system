@@ -6,11 +6,12 @@ namespace MotorcycleRAG.Admin.Pages;
 
 public partial class ToolsPage : ContentPage
 {
-    [SupportedOSPlatform("windows10.0.17763.0")]
     public ToolsPage(MotorcycleRAG.Admin.ViewModels.ToolsViewModel viewModel)
     {
         InitializeComponent();
+#if WINDOWS
         BindingContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+#endif
     }
 }
 

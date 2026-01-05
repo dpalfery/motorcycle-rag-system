@@ -131,7 +131,8 @@ public sealed class PlansAdminController : ControllerBase {
             _logger.LogInformation("Admin created plan {PlanId} with name {PlanName}", createdPlan.Id, createdPlan.Name);
 
             // Avoid route generation failures under test hosts by returning an explicit location.
-            return Created($"/api/admin/plans/{createdPlan.Id}", createdPlan);
+            var location = new Uri($"/api/admin/plans/{createdPlan.Id}", UriKind.Relative);
+            return Created(location, createdPlan);
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error creating plan");

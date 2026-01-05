@@ -17,7 +17,6 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// </summary>
 public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
     private readonly DocumentIntelligenceClient _client;
-    private readonly AzureAIOptions _config;
     private readonly ILogger<DocumentIntelligenceClientWrapper> _logger;
 
     public DocumentIntelligenceClientWrapper(
@@ -26,15 +25,15 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _config = config.Value ?? throw new ArgumentNullException(nameof(config));
+        var azureConfig = config.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger;
 
         // Initialize Document Intelligence client with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
-        _client = new DocumentIntelligenceClient(new Uri(_config.DocumentIntelligenceEndpoint), credential);
+        _client = new DocumentIntelligenceClient(new Uri(azureConfig.DocumentIntelligenceEndpoint), credential);
 
         _logger.LogInformation("Document Intelligence client initialized with endpoint: {Endpoint}",
-            _config.DocumentIntelligenceEndpoint);
+            azureConfig.DocumentIntelligenceEndpoint);
     }
 
 

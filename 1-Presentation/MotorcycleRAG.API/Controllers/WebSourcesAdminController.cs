@@ -118,7 +118,7 @@ public sealed class WebSourcesAdminController : ControllerBase {
             var createdSource = await _webSourceRegistryService.AddWebSourceAsync(webSource);
             _logger.LogInformation("Admin created web source {WebSourceId} with URL {Url}", createdSource.Id, SanitizeLogValue(createdSource.Url));
 
-            return Created($"/api/admin/web-sources/{createdSource.Id}", createdSource);
+            return Created(new Uri($"/api/admin/web-sources/{createdSource.Id}", UriKind.Relative), createdSource);
         }
         catch (InvalidOperationException ex) {
             _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", SanitizeLogValue(request.Url));

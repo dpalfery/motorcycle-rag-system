@@ -243,7 +243,26 @@ public class DataPipelineController : ControllerBase {
     }
 
     /// <summary>
-    /// Process a file that has already been uploaded
+    /// Validates that the file path is within the allowed uploads directory to prevent path traversal.
+    /// </summary>
+    private bool IsSafeFilePath(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return false;
+        }
+
+        // Define the root directory for uploaded files (should match your upload location)
+        var uploadsRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "uploads"));
+
+        var fullPath = Path.GetFullPath(filePath);
+
+        // Ensure the file is within the uploads directory
+        return fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+        /// Process a file that has already been uploaded
     /// </summary>
     /// <param name="request">Pipeline processing request</param>
     /// <returns>Pipeline execution result</returns>
@@ -256,8 +275,9 @@ public class DataPipelineController : ControllerBase {
             return BadRequest("Request cannot be null");
         }
 
-        if (string.IsNullOrWhiteSpace(request.FilePath) || !System.IO.File.Exists(request.FilePath)) {
-            return BadRequest("File does not exist at the specified path");
+        // Validate file path to prevent path traversal
+        if (string.IsNullOrWhiteSpace(request.FilePath) || !IsSafeFilePath(request.FilePath) || !System.IO.File.Exists(request.FilePath)) {
+            return BadRequest("File does not exist at the specified path or path is not allowed");
         }
 
         try {

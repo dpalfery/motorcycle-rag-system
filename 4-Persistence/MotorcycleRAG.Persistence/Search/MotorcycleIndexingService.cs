@@ -99,7 +99,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
 
             await foreach (var indexName in indexNames) {
                 try {
-                    var index = await _indexClient.GetIndexAsync(indexName);
+                    await _indexClient.GetIndexAsync(indexName);
                     var indexInfo = new IndexInfo {
                         Name = indexName,
                         IsHealthy = true

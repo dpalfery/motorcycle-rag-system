@@ -14,21 +14,21 @@ namespace MotorcycleRAG.Persistence.DataProcessing;
 /// <summary>
 /// PDF processor for motorcycle manuals and documentation with semantic chunking and multimodal support
 /// </summary>
-public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument> {
+public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
     private readonly IDocumentIntelligenceClient _documentClient;
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly IAzureSearchClient _searchClient;
     private readonly PDFProcessingConfiguration _config;
     private readonly AzureAIOptions _azureConfig;
-    private readonly ILogger<MotorcyclePDFProcessor> _logger;
+    private readonly ILogger<MotorcyclePdfProcessor> _logger;
 
-    public MotorcyclePDFProcessor(
+    public MotorcyclePdfProcessor(
         IDocumentIntelligenceClient documentClient,
         IAzureOpenAIClient openAIClient,
         IAzureSearchClient searchClient,
         IOptions<PDFProcessingConfiguration> config,
         IOptions<AzureAIOptions> azureConfig,
-        ILogger<MotorcyclePDFProcessor> logger) {
+        ILogger<MotorcyclePdfProcessor> logger) {
         ArgumentNullException.ThrowIfNull(documentClient);
         ArgumentNullException.ThrowIfNull(openAIClient);
         ArgumentNullException.ThrowIfNull(searchClient);
@@ -48,8 +48,6 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument> {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         ArgumentNullException.ThrowIfNull(input);
 
-        var documents = new List<MotorcycleDocument>();
-
         try {
             _logger.LogInformation("Starting PDF processing for document: {FileName}", input.FileName);
 
@@ -59,7 +57,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument> {
             // Step 2: Process multimodal content if images are present
             var multimodalContent = new List<string>();
             if (input.ContainsImages && _config.ProcessImages) {
-                multimodalContent = await ProcessMultimodalContentAsync(input, analysisResult);
+                multimodalContent = await ProcessMultimodalContentAsync(input);
             }
 
             // Step 3: Implement semantic chunking with embedding-based boundaries
@@ -69,7 +67,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument> {
             await GenerateEmbeddingsAsync(chunks);
 
             // Step 5: Create MotorcycleDocument objects
-            var processedDocuments = await CreateMotorcycleDocumentsAsync(chunks, input, analysisResult);
+            var processedDocuments = await CreateMotorcycleDocumentsAsync(chunks, input);
 
             var processed = new ProcessedData();
             processed.Id = Guid.NewGuid().ToString();
@@ -328,7 +326,7 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument> {
         return "Table Data";
     }
 
-    private async Task<List<string>> ProcessMultimodalContentAsync(PDFDocument input, DocumentAnalysisResult analysisResult) {
+    private async Task<List<string>> ProcessMultimodalContentAsync(PDFDocument input) {
         _logger.LogDebug("Processing multimodal content using GPT-4 Vision");
 
         var multimodalContent = new List<string>();
@@ -815,8 +813,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     /// </summary>
     private async Task<List<MotorcycleDocument>> CreateMotorcycleDocumentsAsync(
         List<PDFChunk> chunks,
-        PDFDocument input,
-        DocumentAnalysisResult analysisResult) {
+        PDFDocument input) {
         _logger.LogDebug("Creating MotorcycleDocument objects from chunks with locator metadata");
 
         var documents = new List<MotorcycleDocument>();

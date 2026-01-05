@@ -16,7 +16,6 @@ namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project &
 public class AzureOpenAIClientWrapper : IAzureOpenAIClient
 {
     private readonly AzureOpenAIClient _client;
-    private readonly AzureAIOptions _config;
     private readonly ILogger<AzureOpenAIClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
@@ -32,17 +31,17 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
         ArgumentNullException.ThrowIfNull(resilienceService);
         ArgumentNullException.ThrowIfNull(correlationService);
 
-        _config = config.Value ?? throw new ArgumentNullException(nameof(config));
+        var azureConfig = config.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger;
         _resilienceService = resilienceService;
         _correlationService = correlationService;
 
         // Initialize Azure OpenAI client with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
-        _client = new AzureOpenAIClient(new Uri(_config.OpenAIEndpoint), credential);
+        _client = new AzureOpenAIClient(new Uri(azureConfig.OpenAIEndpoint), credential);
 
         _logger.LogInformation("Azure OpenAI client initialized with endpoint: {Endpoint}",
-            _config.OpenAIEndpoint);
+            azureConfig.OpenAIEndpoint);
     }
 
     // Convenience overloads (tests call these)

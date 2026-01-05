@@ -99,7 +99,7 @@ public class ResilienceService : IResilienceService
     }
 
     public CircuitBreakerState GetCircuitBreakerState(string policyKey) => _circuitStates.TryGetValue(policyKey, out var state) ? state : CircuitBreakerState.Closed;
-    public Dictionary<string, CircuitBreakerState> GetHealthStatus() => new(_circuitStates);
+    public Dictionary<string, CircuitBreakerState> HealthStatus => new(_circuitStates);
 
     private void InitializePolicies()
     {

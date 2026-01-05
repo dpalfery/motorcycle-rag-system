@@ -320,15 +320,8 @@ namespace MotorcycleRAG.Persistence.Telemetry
                 throw new ArgumentException("Correlation ID cannot be null or empty", nameof(correlationId));
             }
 
-            if (failedSources == null)
-            {
-                throw new ArgumentNullException(nameof(failedSources));
-            }
-
-            if (availableSources == null)
-            {
-                throw new ArgumentNullException(nameof(availableSources));
-            }
+            ArgumentNullException.ThrowIfNull(failedSources);
+            ArgumentNullException.ThrowIfNull(availableSources);
 
             try
             {

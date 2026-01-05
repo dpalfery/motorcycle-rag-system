@@ -80,8 +80,8 @@ public static class ServiceConfiguration {
     /// </summary>
     public static IServiceCollection AddDataProcessors(this IServiceCollection services) {
         // Register data processor implementations from Persistence layer
-        services.AddScoped<IDataProcessor<CSVFile>, MotorcycleCSVProcessor>();
-        services.AddScoped<IDataProcessor<PDFDocument>, MotorcyclePDFProcessor>();
+        services.AddScoped<IDataProcessor<CSVFile>, MotorcycleCsvProcessor>();
+        services.AddScoped<IDataProcessor<PDFDocument>, MotorcyclePdfProcessor>();
 
         return services;
     }

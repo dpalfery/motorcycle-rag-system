@@ -143,7 +143,7 @@ public class WebTrustPolicyStore : IWebTrustPolicyStore
         ArgumentNullException.ThrowIfNull(policy);
 
         policy.UpdatedAt = DateTime.UtcNow;
-        _policies.AddOrUpdate(policy.DomainPattern, policy, (_, existing) => policy);
+        _policies.AddOrUpdate(policy.DomainPattern, policy, (_, _) => policy);
 
         // Update allowlist cache
         if (!policy.IsBlocked && policy.Tier != WebTrustTier.None)
@@ -177,17 +177,14 @@ public class WebTrustPolicyStore : IWebTrustPolicyStore
         foreach (var kvp in _policies.OrderByDescending(x => x.Key.Length))
         {
             var pattern = kvp.Key;
-            
-            if (pattern.StartsWith("*."))
+
+            if (pattern.StartsWith("*.") && (domain.EndsWith(pattern.Substring(2)) || domain == pattern.Substring(2)))
             {
                 var wildcardDomain = pattern.Substring(2);
-                if (domain.EndsWith(wildcardDomain) || domain == wildcardDomain)
+                // Check if subdomains are allowed
+                if (kvp.Value.AllowSubdomains || domain == wildcardDomain)
                 {
-                    // Check if subdomains are allowed
-                    if (kvp.Value.AllowSubdomains || domain == wildcardDomain)
-                    {
-                        return kvp.Value;
-                    }
+                    return kvp.Value;
                 }
             }
         }

@@ -16,24 +16,24 @@ namespace MotorcycleRAG.Persistence.DataProcessing;
 /// Processes CSV files containing motorcycle specifications with row-based chunking
 /// and embedding generation using text-embedding-3-large model
 /// </summary>
-public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
+public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly IAzureSearchClient _searchClient;
-    private readonly ILogger<MotorcycleCSVProcessor> _logger;
+    private readonly ILogger<MotorcycleCsvProcessor> _logger;
     private readonly CSVProcessingConfiguration _configuration;
 
-    public MotorcycleCSVProcessor(
+    public MotorcycleCsvProcessor(
         IAzureOpenAIClient openAIClient,
         IAzureSearchClient searchClient,
-        ILogger<MotorcycleCSVProcessor> logger)
+        ILogger<MotorcycleCsvProcessor> logger)
         : this(openAIClient, searchClient, logger, null)
     {
     }
 
-    public MotorcycleCSVProcessor(
+    public MotorcycleCsvProcessor(
         IAzureOpenAIClient openAIClient,
         IAzureSearchClient searchClient,
-        ILogger<MotorcycleCSVProcessor> logger,
+        ILogger<MotorcycleCsvProcessor> logger,
         CSVProcessingConfiguration? configuration) {
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
@@ -121,7 +121,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
 
             foreach (var batch in batches) {
                 try {
-                    await _searchClient.IndexDocumentsAsync(batch.Cast<MotorcycleDocument>().ToArray());
+                    await _searchClient.IndexDocumentsAsync(batch.ToArray());
                     totalIndexed += batch.Count();
                 }
                 catch (Exception ex) {
@@ -153,13 +153,13 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
     /// <summary>
     /// Parse CSV file into chunks preserving relational integrity
     /// </summary>
-    private async Task<List<CsvChunk>> ParseCSVIntoChunksAsync(CSVFile csvFile) {
+    private async Task<List<CsvChunk>> ParseCsvIntoChunksAsync(CSVFile csvFile) {
         var chunks = new List<CsvChunk>();
         var currentChunk = new List<Dictionary<string, object>>();
         var headers = new List<string>();
 
         if (csvFile.Content == null) {
-            throw new ArgumentNullException(nameof(csvFile.Content), "CSV file content cannot be null");
+            throw new ArgumentNullException(nameof(csvFile), "CSV file content cannot be null");
         }
         using var reader = new StreamReader(csvFile.Content, Encoding.GetEncoding(csvFile.Encoding ?? "UTF-8"));
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture) {

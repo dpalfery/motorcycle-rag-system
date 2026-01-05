@@ -69,23 +69,25 @@ public partial class WebSourcesViewModel : ObservableObject {
             await EnsureAuthorizedAsync();
             var sources = await _apiClient.GetWebSourcesAsync();
 
-            await MainThread.InvokeOnMainThreadAsync(() => {
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
                 WebSources.Clear();
-                foreach (var source in sources) {
+                foreach (var source in sources)
+                {
                     WebSources.Add(new WebSourceViewModel(source));
                 }
-            });
+            }).ConfigureAwait(false);
 
             _logger.LogInformation("Loaded {Count} web sources", sources.Count);
         }
-        catch (UnauthorizedAccessException) {
+        catch (UnauthorizedAccessException ex) {
             // User not authorized - expected in demo mode
-            _logger.LogWarning("User not authorized to view web sources");
+            _logger.LogWarning(ex, "User not authorized to view web sources");
             await MainThread.InvokeOnMainThreadAsync(() => WebSources.Clear());
         }
-        catch (HttpRequestException) {
+        catch (HttpRequestException ex) {
             // API not available - silently fail
-            _logger.LogWarning("API not available for loading web sources");
+            _logger.LogWarning(ex, "API not available for loading web sources");
             await MainThread.InvokeOnMainThreadAsync(() => WebSources.Clear());
         }
         catch (Exception ex) {
@@ -143,8 +145,8 @@ public partial class WebSourcesViewModel : ObservableObject {
                 return;
             }
 
-            if (!Uri.TryCreate(NewSourceUrl, UriKind.Absolute, out var uri)) {
-                ErrorMessage = "Invalid URL format";
+            if (!UrlValidator.IsValidUrl(NewSourceUrl)) {
+                ErrorMessage = "Invalid or disallowed URL format (SSRF protection)";
                 return;
             }
 
@@ -163,11 +165,12 @@ public partial class WebSourcesViewModel : ObservableObject {
 
             var createdSource = await _apiClient.AddWebSourceAsync(newSource);
 
-            await MainThread.InvokeOnMainThreadAsync(() => {
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
                 WebSources.Add(new WebSourceViewModel(createdSource));
                 ShowAddSourceForm = false;
                 ResetForm();
-            });
+            }).ConfigureAwait(false);
 
             _logger.LogInformation("Added web source: {SourceName}", createdSource.Name);
 
@@ -176,9 +179,9 @@ public partial class WebSourcesViewModel : ObservableObject {
                 await window.Page.DisplayAlertAsync("Success", "Web source added successfully", "OK");
             }
         }
-        catch (UnauthorizedAccessException) {
+        catch (UnauthorizedAccessException ex) {
             ErrorMessage = "You do not have permission to add web sources";
-            _logger.LogWarning("User not authorized to add web sources");
+            _logger.LogWarning(ex, "User not authorized to add web sources");
         }
         catch (InvalidOperationException ex) {
             ErrorMessage = ex.Message;
@@ -230,17 +233,18 @@ public partial class WebSourcesViewModel : ObservableObject {
             await EnsureAuthorizedAsync();
             await _apiClient.DeleteWebSourceAsync(sourceId);
 
-            await MainThread.InvokeOnMainThreadAsync(() => {
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
                 WebSources.Remove(sourceToDelete);
-            });
+            }).ConfigureAwait(false);
 
             _logger.LogInformation("Deleted web source with ID: {SourceId}", sourceId);
 
             await window.Page.DisplayAlertAsync("Success", "Web source deleted successfully", "OK");
         }
-        catch (UnauthorizedAccessException) {
+        catch (UnauthorizedAccessException ex) {
             ErrorMessage = "You do not have permission to delete web sources";
-            _logger.LogWarning("User not authorized to delete web sources");
+            _logger.LogWarning(ex, "User not authorized to delete web sources");
 
             var window = Application.Current?.Windows?.FirstOrDefault();
             if (window?.Page != null) {
@@ -291,9 +295,9 @@ public partial class WebSourcesViewModel : ObservableObject {
             await EnsureAuthorizedAsync();
             await LoadSourcesAsync();
         }
-        catch (UnauthorizedAccessException) {
+        catch (UnauthorizedAccessException ex) {
             // User not authorized - this is expected in demo mode
-            _logger.LogDebug("User not authorized to view web sources");
+            _logger.LogDebug(ex, "User not authorized to view web sources");
         }
     }
 
@@ -379,3 +383,5 @@ public class WebSourceViewModel : ObservableObject {
     /// </summary>
     public string StatusLabel => IsEnabled ? "Enabled" : "Disabled";
 }
+
+

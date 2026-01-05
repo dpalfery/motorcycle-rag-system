@@ -276,3 +276,4 @@ public static class OnnxEmbeddingServiceFactory
         return new OnnxEmbeddingService(modelPath);
     }
 }
+

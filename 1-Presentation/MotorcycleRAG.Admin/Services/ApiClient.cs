@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -22,7 +23,8 @@ public class ApiClient {
     private readonly AsyncCircuitBreakerPolicy<HttpResponseMessage> _circuitBreaker;
     private readonly ILogger<ApiClient> _logger;
 
-    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger) {
+    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger)
+    {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -55,9 +57,11 @@ public class ApiClient {
     /// <summary>
     /// Ensures the HTTP client has a valid access token
     /// </summary>
-    private async Task EnsureAuthenticatedAsync() {
-        var accessToken = await _authService.GetAccessTokenAsync();
-        if (string.IsNullOrEmpty(accessToken)) {
+    private async Task EnsureAuthenticatedAsync()
+    {
+        var accessToken = await _authService.GetAccessTokenAsync().ConfigureAwait(false);
+        if (string.IsNullOrEmpty(accessToken))
+        {
             throw new UnauthorizedAccessException("No valid access token available. Please sign in.");
         }
 
@@ -69,10 +73,12 @@ public class ApiClient {
     /// <summary>
     /// Uploads a single file to the pipeline
     /// </summary>
-    public async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately = false, CancellationToken cancellationToken = default) {
-        await EnsureAuthenticatedAsync();
+    public async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately = false, CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        try {
+        try
+        {
             using var fileStream = File.OpenRead(filePath);
             using var content = new MultipartFormDataContent();
             var streamContent = new StreamContent(fileStream);
@@ -83,16 +89,17 @@ public class ApiClient {
             var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
                 $"api/datapipeline/upload?processImmediately={processImmediately}",
                 content,
-                cancellationToken));
+                cancellationToken)).ConfigureAwait(false);
 
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<FileUploadResult>(_jsonOptions, cancellationToken);
+            var result = await response.Content.ReadFromJsonAsync<FileUploadResult>(_jsonOptions, cancellationToken).ConfigureAwait(false);
             UploadResultValidator.ValidateFileUploadResult(result);
             return result!;
         }
-        catch (Exception ex) {
-            _logger.LogError(ex, "Error uploading file: {FilePath}", Path.GetFileName(filePath));
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading file: {FileName}", Path.GetFileName(filePath));
             throw;
         }
     }
@@ -100,15 +107,18 @@ public class ApiClient {
     /// <summary>
     /// Uploads multiple files to the pipeline
     /// </summary>
-    public async Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately = false, CancellationToken cancellationToken = default) {
-        await EnsureAuthenticatedAsync();
+    public async Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately = false, CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var streams = new List<FileStream>();  // Track all opened streams
 
-        try {
+        try
+        {
             using var content = new MultipartFormDataContent();
 
-            foreach (var filePath in filePaths) {
+            foreach (var filePath in filePaths)
+            {
                 // Validate before opening
                 if (!File.Exists(filePath))
                     throw new FileNotFoundException($"File not found: {filePath}");
@@ -124,21 +134,24 @@ public class ApiClient {
             var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
                 $"api/datapipeline/upload-batch?processImmediately={processImmediately}",
                 content,
-                cancellationToken));
+                cancellationToken)).ConfigureAwait(false);
 
             response.EnsureSuccessStatusCode();
 
-            var batchResult = await response.Content.ReadFromJsonAsync<BatchFileUploadResult>(_jsonOptions, cancellationToken);
+            var batchResult = await response.Content.ReadFromJsonAsync<BatchFileUploadResult>(_jsonOptions, cancellationToken).ConfigureAwait(false);
             UploadResultValidator.ValidateBatchFileUploadResult(batchResult);
             return batchResult!;
         }  // <-- content disposed here AFTER PostAsync completes
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             _logger.LogError(ex, "Error uploading batch files");
             throw;
         }
-        finally {
+        finally
+        {
             // Ensure all streams are disposed even on exception
-            foreach (var stream in streams) {
+            foreach (var stream in streams)
+            {
                 stream?.Dispose();
             }
         }
@@ -147,13 +160,14 @@ public class ApiClient {
     /// <summary>
     /// Gets upload constraints (file size limits, allowed types, etc.)
     /// </summary>
-    public async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken = default) {
-        await EnsureAuthenticatedAsync();
+    public async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await _httpClient.GetAsync("api/datapipeline/upload-constraints", cancellationToken);
+        var response = await _httpClient.GetAsync("api/datapipeline/upload-constraints", cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<UploadConstraints>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<UploadConstraints>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize constraints response");
     }
 
@@ -164,64 +178,69 @@ public class ApiClient {
     /// <summary>
     /// Processes a previously uploaded file
     /// </summary>
-    public async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken = default) {
+    public async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken = default)
+    {
         ValidateExecutionId(executionId);
-        await EnsureAuthenticatedAsync();
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
             $"api/datapipeline/process/{Uri.EscapeDataString(executionId)}",
             null,
-            cancellationToken));
+            cancellationToken)).ConfigureAwait(false);
 
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<ProcessingResult>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<ProcessingResult>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize processing response");
     }
 
     /// <summary>
     /// Gets the status of a pipeline execution
     /// </summary>
-    public async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken = default) {
+    public async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken = default)
+    {
         ValidateExecutionId(executionId);
-        await EnsureAuthenticatedAsync();
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync($"api/datapipeline/status/{Uri.EscapeDataString(executionId)}", cancellationToken));
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync($"api/datapipeline/status/{Uri.EscapeDataString(executionId)}", cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<PipelineStatusResponse>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<PipelineStatusResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize status response");
     }
 
     /// <summary>
     /// Gets metrics for a pipeline execution
     /// </summary>
-    public async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken = default) {
+    public async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken = default)
+    {
         ValidateExecutionId(executionId);
-        await EnsureAuthenticatedAsync();
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync($"api/datapipeline/metrics/{Uri.EscapeDataString(executionId)}", cancellationToken));
+        var relativePath = $"api/datapipeline/metrics/{Uri.EscapeDataString(executionId)}";
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<PipelineMetrics>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<PipelineMetrics>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize metrics response");
     }
 
     /// <summary>
     /// Cancels a running pipeline execution
     /// </summary>
-    public async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken = default) {
+    public async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken = default)
+    {
         ValidateExecutionId(executionId);
-        await EnsureAuthenticatedAsync();
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
-            $"api/datapipeline/cancel/{Uri.EscapeDataString(executionId)}",
-            null,
-            cancellationToken));
+        var relativePath = $"api/datapipeline/cancel/{Uri.EscapeDataString(executionId)}";
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
 
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<CancelPipelineResponse>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<CancelPipelineResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize cancel response");
     }
 
@@ -232,29 +251,38 @@ public class ApiClient {
         PipelineStatus? status = null,
         DateTime? startTime = null,
         DateTime? endTime = null,
-        CancellationToken cancellationToken = default) {
-        await EnsureAuthenticatedAsync();
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var query = new System.Collections.Generic.List<string>();
 
         if (status.HasValue)
+        {
             query.Add($"status={Uri.EscapeDataString(status.Value.ToString())}");
+        }
         if (startTime.HasValue)
+        {
             query.Add($"startTime={Uri.EscapeDataString(startTime.Value.ToString("O"))}");
+        }
         if (endTime.HasValue)
+        {
             query.Add($"endTime={Uri.EscapeDataString(endTime.Value.ToString("O"))}");
+        }
 
         var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
 
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync($"api/datapipeline/executions{queryString}", cancellationToken));
+        var requestUri = new Uri(_httpClient.BaseAddress!, $"api/datapipeline/executions{queryString}");
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<List<PipelineExecution>>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<List<PipelineExecution>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? new List<PipelineExecution>();
     }
 
-    private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action) {
-        return await _retryPolicy.WrapAsync(_circuitBreaker).ExecuteAsync(action);
+    private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action)
+    {
+        return await _retryPolicy.WrapAsync(_circuitBreaker).ExecuteAsync(action).ConfigureAwait(false);
     }
 
     #endregion
@@ -264,32 +292,34 @@ public class ApiClient {
     /// <summary>
     /// Gets all MCP tool configurations
     /// </summary>
-    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync(CancellationToken cancellationToken = default) {
-        await EnsureAuthenticatedAsync();
+    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync("api/admin/mcp-tools", cancellationToken));
+        var uri = new Uri(_httpClient.BaseAddress!, "api/admin/mcp-tools");
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? Array.Empty<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto>();
     }
 
     /// <summary>
     /// Updates an MCP tool configuration
     /// </summary>
-    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(string toolId, MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request, CancellationToken cancellationToken = default) {
+    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(string toolId, MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(toolId))
             throw new ArgumentException("Tool ID cannot be null or empty", nameof(toolId));
-        if (request == null)
-            throw new ArgumentNullException(nameof(request));
 
-        await EnsureAuthenticatedAsync();
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var response = await ExecuteWithResilienceAsync(() =>
-            _httpClient.PutAsJsonAsync($"api/admin/mcp-tools/{Uri.EscapeDataString(toolId)}", request, _jsonOptions, cancellationToken));
+            _httpClient.PutAsJsonAsync($"api/admin/mcp-tools/{Uri.EscapeDataString(toolId)}", request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize MCP tool response");
     }
 
@@ -300,64 +330,68 @@ public class ApiClient {
     /// <summary>
     /// Gets all web sources
     /// </summary>
-    public async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken = default) {
-        await EnsureAuthenticatedAsync();
+    public async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync("api/admin/web-sources", cancellationToken));
+        var uri = new Uri(_httpClient.BaseAddress!, "api/admin/web-sources");
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<List<WebSource>>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<List<WebSource>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? new List<WebSource>();
     }
 
     /// <summary>
     /// Adds a new web source
     /// </summary>
-    public async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken = default) {
-        if (source == null)
-            throw new ArgumentNullException(nameof(source));
+    public async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
 
-        await EnsureAuthenticatedAsync();
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var response = await ExecuteWithResilienceAsync(() =>
-            _httpClient.PostAsJsonAsync("api/admin/web-sources", source, _jsonOptions, cancellationToken));
+            _httpClient.PostAsJsonAsync("api/admin/web-sources", source, _jsonOptions, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<WebSource>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<WebSource>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize web source response");
     }
 
     /// <summary>
     /// Updates an existing web source
     /// </summary>
-    public async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken = default) {
-        if (source == null)
-            throw new ArgumentNullException(nameof(source));
+    public async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
 
         if (source.Id <= 0)
             throw new ArgumentException("Invalid web source ID", nameof(source));
 
-        await EnsureAuthenticatedAsync();
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var response = await ExecuteWithResilienceAsync(() =>
-            _httpClient.PutAsJsonAsync($"api/admin/web-sources/{source.Id}", source, _jsonOptions, cancellationToken));
+            _httpClient.PutAsJsonAsync($"api/admin/web-sources/{source.Id}", source, _jsonOptions, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<WebSource>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<WebSource>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize web source response");
     }
 
     /// <summary>
     /// Deletes a web source
     /// </summary>
-    public async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken = default) {
+    public async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken = default)
+    {
         if (sourceId <= 0)
             throw new ArgumentException("Invalid web source ID", nameof(sourceId));
 
-        await EnsureAuthenticatedAsync();
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await ExecuteWithResilienceAsync(() =>
-            _httpClient.DeleteAsync($"api/admin/web-sources/{sourceId}", cancellationToken));
+        var relativePath = $"api/admin/web-sources/{sourceId}";
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.DeleteAsync(uri, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
     }
 
@@ -368,41 +402,49 @@ public class ApiClient {
     /// <summary>
     /// Gets all users with optional filtering
     /// </summary>
-    public async Task<List<UserDto>> GetUsersAsync(bool? isEnabled = null, CancellationToken cancellationToken = default) {
-        await EnsureAuthenticatedAsync();
+    public async Task<List<UserDto>> GetUsersAsync(bool? isEnabled = null, CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var query = isEnabled.HasValue ? $"?isEnabled={isEnabled.Value}" : string.Empty;
-        var uri = $"api/users-admin{query}";
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken));
+        var relativePath = $"api/users-admin{query}";
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<List<UserDto>>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<List<UserDto>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? new List<UserDto>();
     }
 
     /// <summary>
     /// Enables a user account
     /// </summary>
-    public async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken = default) {
-        await EnsureAuthenticatedAsync();
+    public async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await _httpClient.PostAsync($"api/users-admin/{userId}/enable", null, cancellationToken);
+        var relativePath = $"api/users-admin/{userId}/enable";
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize user response");
     }
 
     /// <summary>
     /// Disables a user account
     /// </summary>
-    public async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken = default) {
-        await EnsureAuthenticatedAsync();
+    public async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await _httpClient.PostAsync($"api/users-admin/{userId}/disable", null, cancellationToken);
+        var relativePath = $"api/users-admin/{userId}/disable";
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize user response");
     }
 
@@ -477,8 +519,8 @@ public class PipelineExecution {
     public DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
-    public List<string> Errors { get; set; } = new();
-    public List<string> Warnings { get; set; } = new();
+    public Collection<string> Errors { get; } = new();
+    public Collection<string> Warnings { get; } = new();
 }
 
 /// <summary>
@@ -487,5 +529,7 @@ public class PipelineExecution {
 public class UploadConstraints {
     public long MaxFileSizeBytes { get; set; }
     public int MaxFilesPerBatch { get; set; }
-    public List<string> AllowedFileTypes { get; set; } = new();
+    public Collection<string> AllowedFileTypes { get; } = new();
 }
+
+

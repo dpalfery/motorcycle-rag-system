@@ -103,7 +103,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving tool configuration {ToolId}", configuration.ToolId);
-            throw;
+            throw new InvalidOperationException($"Error saving tool configuration {configuration.ToolId}", ex);
         }
     }
 
@@ -137,7 +137,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving tool configuration by ID {Id}", id);
-            throw;
+            throw new InvalidOperationException($"Error retrieving tool configuration by ID {id}", ex);
         }
     }
 
@@ -171,7 +171,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving tool configuration by ToolId {ToolId}", toolId);
-            throw;
+            throw new InvalidOperationException($"Error retrieving tool configuration by ToolId {toolId}", ex);
         }
     }
 
@@ -200,7 +200,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving all tool configurations");
-            throw;
+            throw new InvalidOperationException("Error retrieving all tool configurations", ex);
         }
     }
 
@@ -230,7 +230,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving enabled tool configurations");
-            throw;
+            throw new InvalidOperationException("Error retrieving enabled tool configurations", ex);
         }
     }
 
@@ -265,7 +265,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving tool configurations by type {ToolType}", toolType);
-            throw;
+            throw new InvalidOperationException($"Error retrieving tool configurations by type {toolType}", ex);
         }
     }
 
@@ -296,7 +296,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting tool configuration {Id}", id);
-            throw;
+            throw new InvalidOperationException($"Error deleting tool configuration {id}", ex);
         }
     }
 
@@ -321,7 +321,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking existence of tool configuration {Id}", id);
-            throw;
+            throw new InvalidOperationException($"Error checking existence of tool configuration {id}", ex);
         }
     }
 
@@ -346,7 +346,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking existence of tool ID {ToolId}", toolId);
-            throw;
+            throw new InvalidOperationException($"Error checking existence of tool ID {toolId}", ex);
         }
     }
 
@@ -368,7 +368,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error counting tool configurations");
-            throw;
+            throw new InvalidOperationException("Error counting tool configurations", ex);
         }
     }
 }

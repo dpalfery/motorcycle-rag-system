@@ -15,26 +15,21 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// <summary>
 /// Azure Document Intelligence client wrapper with resilience patterns
 /// </summary>
-public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, IDisposable {
+public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
     private readonly DocumentIntelligenceClient _client;
     private readonly AzureAIOptions _config;
     private readonly ILogger<DocumentIntelligenceClientWrapper> _logger;
-    private readonly IAsyncPolicy _retryPolicy;
-    private bool _disposed;
 
     public DocumentIntelligenceClientWrapper(
         IOptions<AzureAIOptions> config,
         ILogger<DocumentIntelligenceClientWrapper> logger) {
-        if (config == null) throw new ArgumentNullException(nameof(config));
+        ArgumentNullException.ThrowIfNull(config);
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
 
         // Initialize Document Intelligence client with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
         _client = new DocumentIntelligenceClient(new Uri(_config.DocumentIntelligenceEndpoint), credential);
-
-        // Configure resilience policies
-        _retryPolicy = CreateRetryPolicy();
 
         _logger.LogInformation("Document Intelligence client initialized with endpoint: {Endpoint}",
             _config.DocumentIntelligenceEndpoint);
@@ -80,7 +75,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Unexpected error in AnalyzeDocumentFromUriAsync");
-            throw;
+            throw new InvalidOperationException("Failed to analyze document from URI", ex);
         }
     }
 
@@ -94,7 +89,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error analyzing document from URL: {DocumentUrl}", documentUrl);
-            throw;
+            throw new InvalidOperationException($"Failed to analyze document from URL: {documentUrl}", ex);
         }
     }
 
@@ -149,7 +144,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error analyzing document from stream");
-            throw;
+            throw new InvalidOperationException("Failed to analyze document from stream", ex);
         }
     }
 
@@ -162,42 +157,6 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
         catch (Exception ex) {
             _logger.LogWarning(ex, "Document Intelligence health check failed");
             return false;
-        }
-    }
-
-    private IAsyncPolicy CreateRetryPolicy() {
-        var retryConfig = _config.Retry;
-
-        return Policy
-            .Handle<RequestFailedException>(ex => IsRetryableError(ex))
-            .Or<TaskCanceledException>()
-            .Or<HttpRequestException>()
-            .WaitAndRetryAsync(
-                retryCount: retryConfig.MaxRetries,
-                sleepDurationProvider: retryAttempt => retryConfig.UseExponentialBackoff
-                    ? TimeSpan.FromSeconds(Math.Min(
-                        retryConfig.BaseDelaySeconds * Math.Pow(2, retryAttempt - 1),
-                        retryConfig.MaxDelaySeconds))
-                    : TimeSpan.FromSeconds(retryConfig.BaseDelaySeconds),
-                onRetry: (outcome, timespan, retryCount, context) => {
-                    _logger.LogWarning("Retry attempt {RetryCount} for Document Intelligence after {Delay}ms",
-                        retryCount, timespan.TotalMilliseconds);
-                });
-    }
-
-    private static bool IsRetryableError(RequestFailedException ex) {
-        // Retry on rate limiting, server errors, and timeout
-        return ex.Status == 429 || // Too Many Requests
-               ex.Status == 500 || // Internal Server Error
-               ex.Status == 502 || // Bad Gateway
-               ex.Status == 503 || // Service Unavailable
-               ex.Status == 504;   // Gateway Timeout
-    }
-
-    public void Dispose() {
-        if (!_disposed) {
-            // DocumentIntelligenceClient doesn't implement IDisposable in the current SDK version
-            _disposed = true;
         }
     }
 }

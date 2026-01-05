@@ -3,7 +3,7 @@ using UIKit;
 
 namespace MotorcycleRAG.Admin;
 
-public class Program
+internal class Program
 {
 	// This is the main entry point of the application.
 	static void Main(string[] args)

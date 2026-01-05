@@ -51,7 +51,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving all tool configurations");
-            throw;
+            throw new InvalidOperationException("Error retrieving all tool configurations", ex);
         }
     }
 
@@ -67,7 +67,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving tool configuration for {ToolId}", toolId);
-            throw;
+            throw new InvalidOperationException($"Error retrieving tool configuration for {toolId}", ex);
         }
     }
 
@@ -80,7 +80,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving enabled tool configurations");
-            throw;
+            throw new InvalidOperationException("Error retrieving enabled tool configurations", ex);
         }
     }
 
@@ -133,7 +133,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error creating MCP tool {ToolId}", configuration.ToolId);
-            throw;
+            throw new InvalidOperationException($"Error creating MCP tool {configuration.ToolId}", ex);
         }
     }
 
@@ -199,7 +199,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error updating MCP tool {ToolId}", toolId);
-            throw;
+            throw new InvalidOperationException($"Error updating MCP tool {toolId}", ex);
         }
     }
 
@@ -243,7 +243,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error enabling MCP tool {ToolId}", toolId);
-            throw;
+            throw new InvalidOperationException($"Error enabling MCP tool {toolId}", ex);
         }
     }
 
@@ -293,7 +293,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error disabling MCP tool {ToolId}", toolId);
-            throw;
+            throw new InvalidOperationException($"Error disabling MCP tool {toolId}", ex);
         }
     }
 
@@ -391,7 +391,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error deleting MCP tool {ToolId}", toolId);
-            throw;
+            throw new InvalidOperationException($"Error deleting MCP tool {toolId}", ex);
         }
     }
 
@@ -531,7 +531,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit history for configuration {ConfigId}", configId);
-            throw;
+            throw new InvalidOperationException($"Error retrieving audit history for configuration {configId}", ex);
         }
     }
 
@@ -544,7 +544,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit summary");
-            throw;
+            throw new InvalidOperationException("Error retrieving audit summary", ex);
         }
     }
 
@@ -560,7 +560,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit entries for action {Action}", action);
-            throw;
+            throw new InvalidOperationException($"Error retrieving audit entries for action {action}", ex);
         }
     }
 }

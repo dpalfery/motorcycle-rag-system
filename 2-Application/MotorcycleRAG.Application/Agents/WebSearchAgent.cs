@@ -222,8 +222,8 @@ Return only the search terms, one per line, without explanations.
     /// </summary>
     private string BuildSearchUrl(TrustedSourceOptions source, string searchTerm) {
         var encodedTerm = Uri.EscapeDataString(searchTerm);
-        // SearchUrlTemplate is a Uri - convert to string before replacing the placeholder
-        return source.SearchUrlTemplate.ToString().Replace("{query}", encodedTerm);
+        // SearchUrlTemplate is a Uri - convert to string before replacing placeholder
+        return source.SearchUrlTemplate?.ToString()?.Replace("{query}", encodedTerm) ?? string.Empty;
     }
 
     /// <summary>
@@ -359,7 +359,7 @@ Return only the search terms, one per line, without explanations.
     }
 
     /// <summary>
-    /// Check if content is relevant to the search term
+    /// Check if content is relevant to search term
     /// </summary>
     private bool IsRelevantContent(string content, string searchTerm) {
         if (string.IsNullOrWhiteSpace(content) || content.Length < 20)
@@ -538,7 +538,7 @@ Analyze this motorcycle-related content for quality and accuracy:
 
 Content: {content.Substring(0, Math.Min(content.Length, 300))}
 
-Rate the content on a scale of 0.0 to 1.0 based on:
+Rate content on a scale of 0.0 to 1.0 based on:
 - Technical accuracy
 - Relevance to motorcycles
 - Information completeness

@@ -22,7 +22,7 @@
             <Button Grid.Column="1"
                     Text="Refresh"
                     Command="{Binding RefreshCommand}"
-                    IsEnabled="{Binding IsLoading, Converter={StaticResource InvertedBoolConverter}}"
+                    IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}"
                     BackgroundColor="{StaticResource Primary}"
                     TextColor="White"
                     Padding="15,10"/>
@@ -75,15 +75,11 @@
                                 <VerticalStackLayout Grid.Column="1"
                                                      VerticalOptions="Center"
                                                      Spacing="8">
-                                    <Label Text="{Binding IsEnabled, StringFormat='{0:Status}'}"
+                                    <Label Text="{Binding IsEnabled, Converter={StaticResource StatusLabelConverter}}"
                                            FontSize="11"
                                            HorizontalOptions="Center"
-                                           FontAttributes="Bold">
-                                        <Label.TextColor>
-                                            <MultiBinding Converter="{StaticResource StatusColorConverter}">
-                                                <Binding Path="IsEnabled"/>
-                                            </MultiBinding>
-                                        </Label.TextColor>
+                                           FontAttributes="Bold"
+                                           TextColor="{Binding IsEnabled, Converter={StaticResource EnabledToColorConverter}}">
                                     </Label>
 
                                     <Switch IsToggled="{Binding IsEnabled}"/>

@@ -159,7 +159,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
         catch (Exception ex) {
             _executionState.MarkFailed();
             _logger.LogError(ex, "Sequential search execution failed");
-            throw;
+            throw new InvalidOperationException("Sequential search execution failed", ex);
         }
     }
 
@@ -204,7 +204,7 @@ Answer in markdown:
         catch (Exception ex) {
             _logger.LogError(ex, "Failed to generate response via OpenAI");
             _executionState.RecordError("ResponseGenerator", ex.Message, ex);
-            throw;
+            throw new InvalidOperationException("Failed to generate response via OpenAI", ex);
         }
     }
 

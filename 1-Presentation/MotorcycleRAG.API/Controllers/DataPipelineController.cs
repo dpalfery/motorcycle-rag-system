@@ -273,7 +273,7 @@ public class DataPipelineController : ControllerBase {
             });
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error processing file {FilePath}", SanitizeForLogging(request.FilePath));
+            _logger.LogError(ex, "Error processing file {FileName}", Path.GetFileName(request.FilePath));
             return StatusCode(500, new ProblemDetails {
                 Title = "Internal server error",
                 Detail = "An error occurred while processing the file",

@@ -66,7 +66,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to record usage for user {UserId}", usage.UserId);
-                throw;
+                throw new InvalidOperationException($"Failed to record usage for user {usage.UserId}", ex);
             }
         }
 
@@ -101,7 +101,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get usage for user {UserId} from {StartDate} to {EndDate}",
                     userId, startDate, endDate);
-                throw;
+                throw new InvalidOperationException($"Failed to get usage for user {userId} from {startDate} to {endDate}", ex);
             }
         }
 
@@ -134,7 +134,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get daily usage count for user {UserId} on {Date}", userId, date.Date);
-                throw;
+                throw new InvalidOperationException($"Failed to get daily usage count for user {userId} on {date.Date}", ex);
             }
         }
     }

@@ -70,7 +70,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create web source");
-                throw;
+                throw new InvalidOperationException("Failed to create web source", ex);
             }
         }
 
@@ -90,7 +90,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get web source by ID {WebSourceId}", webSourceId);
-                throw;
+                throw new InvalidOperationException($"Failed to get web source by ID {webSourceId}", ex);
             }
         }
 
@@ -109,7 +109,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get all web sources");
-                throw;
+                throw new InvalidOperationException("Failed to get all web sources", ex);
             }
         }
 
@@ -148,7 +148,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to update web source with ID {WebSourceId}", webSource.Id);
-                throw;
+                throw new InvalidOperationException($"Failed to update web source with ID {webSource.Id}", ex);
             }
         }
 
@@ -172,7 +172,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to delete web source with ID {WebSourceId}", webSourceId);
-                throw;
+                throw new InvalidOperationException($"Failed to delete web source with ID {webSourceId}", ex);
             }
         }
 
@@ -196,7 +196,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get web source by URL {Url}", url);
-                throw;
+                throw new InvalidOperationException($"Failed to get web source by URL {url}", ex);
             }
         }
     }

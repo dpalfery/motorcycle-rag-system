@@ -5,8 +5,10 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Domain.ValueObjects;
 using System.Globalization;
 using System.Text;
+using System.Collections.ObjectModel;
 
 namespace MotorcycleRAG.Persistence.DataProcessing;
 
@@ -139,12 +141,15 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
     /// <summary>
     /// Parse CSV file into chunks preserving relational integrity
     /// </summary>
-    private async Task<List<CSVChunk>> ParseCSVIntoChunksAsync(CSVFile csvFile) {
-        var chunks = new List<CSVChunk>();
+    private async Task<List<CsvChunk>> ParseCSVIntoChunksAsync(CSVFile csvFile) {
+        var chunks = new List<CsvChunk>();
         var currentChunk = new List<Dictionary<string, object>>();
         var headers = new List<string>();
 
-        using var reader = new StreamReader(csvFile.Content, Encoding.GetEncoding(csvFile.Encoding));
+        if (csvFile.Content == null) {
+            throw new ArgumentNullException(nameof(csvFile.Content), "CSV file content cannot be null");
+        }
+        using var reader = new StreamReader(csvFile.Content, Encoding.GetEncoding(csvFile.Encoding ?? "UTF-8"));
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture) {
             HasHeaderRecord = csvFile.HasHeaders,
             Delimiter = csvFile.Delimiter,
@@ -190,11 +195,14 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
                 // Check if we should create a new chunk BEFORE adding the current record
                 if (ShouldCreateNewChunk(currentChunk, record)) {
                     if (currentChunk.Count > 0) {
-                        chunks.Add(new CSVChunk {
-                            Index = chunkIndex++,
-                            Headers = headers,
-                            Rows = new List<Dictionary<string, object>>(currentChunk)
-                        });
+                        var chunk = new CsvChunk { Index = chunkIndex++ };
+                        foreach (var header in headers) {
+                            chunk.Headers.Add(header);
+                        }
+                        foreach (var row in currentChunk) {
+                            chunk.Rows.Add(row);
+                        }
+                        chunks.Add(chunk);
                         currentChunk.Clear();
                     }
                 }
@@ -209,11 +217,14 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
 
         // Add remaining rows as final chunk
         if (currentChunk.Count > 0) {
-            chunks.Add(new CSVChunk {
-                Index = chunkIndex,
-                Headers = headers,
-                Rows = currentChunk
-            });
+            var chunk = new CsvChunk { Index = chunkIndex };
+            foreach (var header in headers) {
+                chunk.Headers.Add(header);
+            }
+            foreach (var row in currentChunk) {
+                chunk.Rows.Add(row);
+            }
+            chunks.Add(chunk);
         }
 
         return chunks;
@@ -261,7 +272,7 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
     /// <summary>
     /// Process a single chunk into a MotorcycleDocument with embeddings
     /// </summary>
-    private async Task<MotorcycleDocument> ProcessChunkAsync(CSVChunk chunk, string sourceFile, int chunkIndex) {
+    private async Task<MotorcycleDocument> ProcessChunkAsync(CsvChunk chunk, string sourceFile, int chunkIndex) {
         // Create content for embedding
         var contentBuilder = new StringBuilder();
 
@@ -340,8 +351,8 @@ public class MotorcycleCSVProcessor : IDataProcessor<CSVFile> {
 /// <summary>
 /// Represents a chunk of CSV data
 /// </summary>
-internal class CSVChunk {
+public class CsvChunk {
     public int Index { get; set; }
-    public List<string> Headers { get; set; } = new();
-    public List<Dictionary<string, object>> Rows { get; set; } = new();
+    public Collection<string> Headers { get; } = new();
+    public Collection<Dictionary<string, object>> Rows { get; } = new();
 }

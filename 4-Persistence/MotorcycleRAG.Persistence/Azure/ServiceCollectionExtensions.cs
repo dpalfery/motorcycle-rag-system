@@ -72,6 +72,7 @@ public static class ServiceCollectionExtensions {
 /// </summary>
 public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
     public ValidateOptionsResult Validate(string? name, AzureAIOptions options) {
+        ArgumentNullException.ThrowIfNull(options);
         var failures = new List<string>();
 
         if (string.IsNullOrWhiteSpace(options.FoundryEndpoint))
@@ -118,6 +119,7 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
 /// </summary>
 public class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
     public ValidateOptionsResult Validate(string? name, SearchOptions options) {
+        ArgumentNullException.ThrowIfNull(options);
         var failures = new List<string>();
 
         if (string.IsNullOrWhiteSpace(options.IndexName))
@@ -140,6 +142,7 @@ public class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
 /// </summary>
 public class ResilienceConfigurationValidator : IValidateOptions<ResilienceOptions> {
     public ValidateOptionsResult Validate(string? name, ResilienceOptions options) {
+        ArgumentNullException.ThrowIfNull(options);
         var failures = new List<string>();
 
         // Validate circuit breaker configurations

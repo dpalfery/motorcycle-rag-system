@@ -4,7 +4,7 @@ using Android.Runtime;
 namespace MotorcycleRAG.Admin;
 
 [Application]
-public class MainApplication : MauiApplication
+internal class MainApplication : MauiApplication
 {
 	public MainApplication(IntPtr handle, JniHandleOwnership ownership)
 		: base(handle, ownership)

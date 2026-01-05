@@ -82,8 +82,8 @@ public class FileUploadService : IFileUploadService {
             result.Metadata["OriginalSize"] = metadata.ContentLength;
             result.Metadata["ValidationResults"] = result.ValidationResult;
 
-            _logger.LogInformation("File upload completed successfully: {StoredFileName} at {FilePath}",
-                SanitizeForLogging(result.StoredFileName), SanitizeForLogging(result.FilePath));
+            _logger.LogInformation("File upload completed successfully: {StoredFileName}",
+                SanitizeForLogging(result.StoredFileName));
 
             // Track telemetry
             _telemetryService.TrackEvent("FileUploaded", new Dictionary<string, string> {
@@ -208,15 +208,15 @@ public class FileUploadService : IFileUploadService {
             // For now, assuming fileId is the file path
             if (File.Exists(fileId)) {
                 File.Delete(fileId);
-                _logger.LogInformation("File deleted: {FileId}", fileId);
+                _logger.LogInformation("File deleted: {FileName}", Path.GetFileName(fileId));
                 return true;
             }
 
-            _logger.LogWarning("File not found for deletion: {FileId}", fileId);
+            _logger.LogWarning("File not found for deletion: {FileName}", Path.GetFileName(fileId));
             return false;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Failed to delete file: {FileId}", fileId);
+            _logger.LogError(ex, "Failed to delete file: {FileName}", Path.GetFileName(fileId));
             return false;
         }
     }

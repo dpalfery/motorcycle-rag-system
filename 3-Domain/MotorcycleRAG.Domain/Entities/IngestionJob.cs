@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Domain.Entities;
@@ -6,8 +8,7 @@ namespace MotorcycleRAG.Domain.Entities;
 /// <summary>
 /// Represents an ingestion job for tracking data ingestion operations
 /// </summary>
-public class IngestionJob
-{
+public class IngestionJob {
     [Required]
     public long Id { get; set; }
 
@@ -85,108 +86,102 @@ public class IngestionJob
 
     public DateTime? UpdatedAt { get; set; }
 
-    /// <summary>
-    /// Gets the metrics as a dictionary
-    /// </summary>
-    public Dictionary<string, object> GetMetrics()
-    {
-        if (string.IsNullOrWhiteSpace(MetricsJson))
-        {
-            return new Dictionary<string, object>();
-        }
+    // Cached deserialized collections to avoid per-access JSON deserialization
+    // These are lazy-initialized and invalidated when the underlying JSON changes
+    private Dictionary<string, object>? _cachedMetrics;
+    private Collection<string>? _cachedErrors;
+    private Dictionary<string, object>? _cachedMetadata;
+    private string? _lastMetricsJson;
+    private string? _lastErrorsJson;
+    private string? _lastMetadataJson;
 
-        try
-        {
-            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(MetricsJson)
-                ?? new Dictionary<string, object>();
-        }
-        catch
-        {
-            return new Dictionary<string, object>();
+    /// <summary>
+    /// Gets the metrics as a dictionary (read-only, cached from MetricsJson)
+    /// </summary>
+    public Dictionary<string, object> Metrics {
+        get {
+            // Return cached value if JSON hasn't changed
+            if (_cachedMetrics != null && _lastMetricsJson == MetricsJson) {
+                return _cachedMetrics;
+            }
+
+            // Deserialize and cache
+            var result = new Dictionary<string, object>();
+            if (!string.IsNullOrWhiteSpace(MetricsJson)) {
+                try {
+                    var jsonDoc = JsonDocument.Parse(MetricsJson);
+                    foreach (var prop in jsonDoc.RootElement.EnumerateObject()) {
+                        result[prop.Name] = prop.Value.ToString();
+                    }
+                }
+                catch (JsonException) {
+                    // If JSON is invalid, return empty dictionary
+                }
+                _lastMetricsJson = MetricsJson;
+            }
+
+            _cachedMetrics = result;
+            return _cachedMetrics;
         }
     }
 
     /// <summary>
-    /// Sets the metrics from a dictionary
+    /// Gets the errors as a collection (read-only, cached from ErrorsJson)
     /// </summary>
-    public void SetMetrics(Dictionary<string, object> metrics)
-    {
-        if (metrics == null || metrics.Count == 0)
-        {
-            MetricsJson = null;
-            return;
-        }
+    public Collection<string> Errors {
+        get {
+            // Return cached value if JSON hasn't changed
+            if (_cachedErrors != null && _lastErrorsJson == ErrorsJson) {
+                return _cachedErrors;
+            }
 
-        MetricsJson = System.Text.Json.JsonSerializer.Serialize(metrics);
-    }
+            // Deserialize and cache
+            var result = new Collection<string>();
+            if (!string.IsNullOrWhiteSpace(ErrorsJson)) {
+                try {
+                    var jsonDoc = JsonDocument.Parse(ErrorsJson);
+                    foreach (var element in jsonDoc.RootElement.EnumerateArray()) {
+                        result.Add(element.GetString() ?? string.Empty);
+                    }
+                }
+                catch (JsonException) {
+                    // If JSON is invalid, return empty collection
+                }
+                _lastErrorsJson = ErrorsJson;
+            }
 
-    /// <summary>
-    /// Gets the errors as a list
-    /// </summary>
-    public List<string> GetErrors()
-    {
-        if (string.IsNullOrWhiteSpace(ErrorsJson))
-        {
-            return new List<string>();
-        }
-
-        try
-        {
-            return System.Text.Json.JsonSerializer.Deserialize<List<string>>(ErrorsJson)
-                ?? new List<string>();
-        }
-        catch
-        {
-            return new List<string>();
+            _cachedErrors = result;
+            return _cachedErrors;
         }
     }
 
     /// <summary>
-    /// Sets the errors from a list
+    /// Gets the metadata as a dictionary (read-only, cached from MetadataJson)
     /// </summary>
-    public void SetErrors(List<string> errors)
-    {
-        if (errors == null || errors.Count == 0)
-        {
-            ErrorsJson = null;
-            return;
-        }
+    public Dictionary<string, object> Metadata {
+        get {
+            // Return cached value if JSON hasn't changed
+            if (_cachedMetadata != null && _lastMetadataJson == MetadataJson) {
+                return _cachedMetadata;
+            }
 
-        ErrorsJson = System.Text.Json.JsonSerializer.Serialize(errors);
-    }
+            // Deserialize and cache
+            var result = new Dictionary<string, object>();
+            if (!string.IsNullOrWhiteSpace(MetadataJson)) {
+                try {
+                    var jsonDoc = JsonDocument.Parse(MetadataJson);
+                    foreach (var prop in jsonDoc.RootElement.EnumerateObject()) {
+                        result[prop.Name] = prop.Value.ToString();
+                    }
+                }
+                catch (JsonException) {
+                    // If JSON is invalid, return empty dictionary
+                }
+                _lastMetadataJson = MetadataJson;
+            }
 
-    /// <summary>
-    /// Gets the metadata as a dictionary
-    /// </summary>
-    public Dictionary<string, object> GetMetadata()
-    {
-        if (string.IsNullOrWhiteSpace(MetadataJson))
-        {
-            return new Dictionary<string, object>();
+            _cachedMetadata = result;
+            return _cachedMetadata;
         }
-
-        try
-        {
-            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(MetadataJson)
-                ?? new Dictionary<string, object>();
-        }
-        catch
-        {
-            return new Dictionary<string, object>();
-        }
-    }
-
-    /// <summary>
-    /// Sets the metadata from a dictionary
-    /// </summary>
-    public void SetMetadata(Dictionary<string, object> metadata)
-    {
-        if (metadata == null || metadata.Count == 0)
-        {
-            MetadataJson = null;
-            return;
-        }
-
-        MetadataJson = System.Text.Json.JsonSerializer.Serialize(metadata);
     }
 }

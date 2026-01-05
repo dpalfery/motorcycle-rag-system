@@ -14,158 +14,166 @@ using Pulumi.AzureNative.App.Inputs;
 using Pulumi.AzureNative.ContainerRegistry;
 using Pulumi.AzureNative.ContainerRegistry.Inputs;
 using System.Linq;
+using MotorcycleRAG.Infrastructure;
 
 // Add this explicit using for App.Inputs to resolve ambiguity:
 using ManagedServiceIdentityArgs = Pulumi.AzureNative.App.Inputs.ManagedServiceIdentityArgs;
 
-return await Pulumi.Deployment.RunAsync<MyStack>();
+return await Pulumi.Deployment.RunAsync<MyStack>().ConfigureAwait(false);
 
-public class MyStack : Stack
+namespace MotorcycleRAG.Infrastructure
 {
-    public MyStack()
+#pragma warning disable CA1506 // Avoid excessive class coupling
+#pragma warning disable S1200 // Pulumi stacks naturally have many dependencies; splitting would require major refactor
+#pragma warning disable S3059 // Pulumi requires public class for deployment
+#pragma warning disable CA1515 // Pulumi requires public class for deployment
+    public sealed class MyStack : Stack
     {
-        var cfg = new Pulumi.Config();
-        var currentClientConfig = Output.Create(GetClientConfig.InvokeAsync());
-
-        // General
-        var location = cfg.Get("location") ?? "eastus";
-
-        // Naming convention: <org>-<workload>-<env>-<loc>-<resType>[<instance>]
-        var org = "mcr";           // motorcycle
-        var workload = "rag";      // rag system
-        var env = "dev";           // development
-        var loc = "eus";           // east us
-        var namePrefix = $"{org}-{workload}-{env}-{loc}";
-
-        // 1. Resource Group
-        var resourceGroup = new ResourceGroup($"{namePrefix}-rg", new ResourceGroupArgs
+#pragma warning disable S138 // Functions should not have too many lines of code
+        public MyStack()
         {
-            Location = location,
-        });
+            var cfg = new Pulumi.Config();
+            var currentClientConfig = Output.Create(GetClientConfig.InvokeAsync());
 
-        // 2. Storage Account for AI services
-        // Fix ambiguous reference for 'Kind' and 'MinimumTlsVersion' by fully qualifying with Pulumi.AzureNative.Storage
-        var storageAccount = new StorageAccount($"{org}{workload}{env}st01", new Pulumi.AzureNative.Storage.StorageAccountArgs
-        {
-            ResourceGroupName = resourceGroup.Name,
-            Location = location,
-            Sku = new Pulumi.AzureNative.Storage.Inputs.SkuArgs
+            // General
+            var location = cfg.Get("location") ?? "eastus";
+
+            // Naming convention: <org>-<workload>-<env>-<loc>-<resType>[<instance>]
+            const string org = "mcr";           // motorcycle
+            const string workload = "rag";      // rag system
+            const string env = "dev";           // development
+            const string loc = "eus";           // east us
+            const string namePrefix = $"{org}-{workload}-{env}-{loc}";
+
+            // 1. Resource Group
+            var resourceGroup = new ResourceGroup($"{namePrefix}-rg", new ResourceGroupArgs
             {
-                Name = Pulumi.AzureNative.Storage.SkuName.Standard_LRS
-            },
-            Kind = Pulumi.AzureNative.Storage.Kind.StorageV2,
-            AllowBlobPublicAccess = false,
-            MinimumTlsVersion = Pulumi.AzureNative.Storage.MinimumTlsVersion.TLS1_2
-        });
+                Location = location,
+            });
 
-        // 3. Key Vault
-        var keyVault = new Vault($"{namePrefix}-kv", new VaultArgs
-        {
-            ResourceGroupName = resourceGroup.Name,
-            Location = location,
-            Properties = new VaultPropertiesArgs
+            // 2. Storage Account for AI services
+            // Fix ambiguous reference for 'Kind' and 'MinimumTlsVersion' by fully qualifying with Pulumi.AzureNative.Storage
+            var storageAccount = new StorageAccount($"{org}{workload}{env}st01", new Pulumi.AzureNative.Storage.StorageAccountArgs
             {
-                TenantId = currentClientConfig.Apply(config => config.TenantId),
-                Sku = new Pulumi.AzureNative.KeyVault.Inputs.SkuArgs
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                Sku = new Pulumi.AzureNative.Storage.Inputs.SkuArgs
                 {
-                    Family = SkuFamily.A,
-                    Name = Pulumi.AzureNative.KeyVault.SkuName.Standard
+                    Name = Pulumi.AzureNative.Storage.SkuName.Standard_LRS
                 },
-                EnabledForDeployment = true,
-                EnabledForTemplateDeployment = true,
-                EnabledForDiskEncryption = true,
-                EnableRbacAuthorization = true, // Use RBAC for modern access control
-            }
-        });
+                Kind = Pulumi.AzureNative.Storage.Kind.StorageV2,
+                AllowBlobPublicAccess = false,
+                MinimumTlsVersion = Pulumi.AzureNative.Storage.MinimumTlsVersion.TLS1_2
+            });
 
-        // 4. Log Analytics Workspace
-        var logAnalytics = new Workspace($"{namePrefix}-log", new WorkspaceArgs
-        {
-            ResourceGroupName = resourceGroup.Name,
-            Location = location,
-            Sku = new WorkspaceSkuArgs
+            // 3. Key Vault
+            var keyVault = new Vault($"{namePrefix}-kv", new VaultArgs
             {
-                Name = WorkspaceSkuNameEnum.PerGB2018
-            }
-        });
-
-        // 5. Azure AI Services
-        var aiServices = new Account($"{namePrefix}-cog01", new AccountArgs
-        {
-            ResourceGroupName = resourceGroup.Name,
-            Location = location,
-            Kind = "AIServices",
-            Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs
-            {
-                Name = "S0"
-            },
-            Properties = new AccountPropertiesArgs
-            {
-                CustomSubDomainName = $"{org}-{workload}-{env}-cog01",
-                PublicNetworkAccess = Pulumi.AzureNative.CognitiveServices.PublicNetworkAccess.Enabled
-            }
-        });
-
-        // 6. Azure Container Registry
-        var registry = new Registry($"{org}{workload}{env}acr", new RegistryArgs
-        {
-            ResourceGroupName = resourceGroup.Name,
-            Location = location,
-            Sku = new Pulumi.AzureNative.ContainerRegistry.Inputs.SkuArgs
-            {
-                Name = Pulumi.AzureNative.ContainerRegistry.SkuName.Basic
-            },
-            AdminUserEnabled = true
-        });
-
-        // 7. Managed Environment (ACA Environment)
-        var managedEnvironment = new ManagedEnvironment($"{namePrefix}-env", new ManagedEnvironmentArgs
-        {
-            ResourceGroupName = resourceGroup.Name,
-            Location = location,
-            AppLogsConfiguration = new AppLogsConfigurationArgs
-            {
-                Destination = "log-analytics",
-                LogAnalyticsConfiguration = new LogAnalyticsConfigurationArgs
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                Properties = new VaultPropertiesArgs
                 {
-                    CustomerId = logAnalytics.CustomerId,
-                    SharedKey = GetSharedKeys.Invoke(new GetSharedKeysInvokeArgs
+                    TenantId = currentClientConfig.Apply(config => config.TenantId),
+                    Sku = new Pulumi.AzureNative.KeyVault.Inputs.SkuArgs
                     {
-                        ResourceGroupName = resourceGroup.Name,
-                        WorkspaceName = logAnalytics.Name
-                    }).Apply(keys => keys.PrimarySharedKey ?? "")
+                        Family = SkuFamily.A,
+                        Name = Pulumi.AzureNative.KeyVault.SkuName.Standard
+                    },
+                    EnabledForDeployment = true,
+                    EnabledForTemplateDeployment = true,
+                    EnabledForDiskEncryption = true,
+                    EnableRbacAuthorization = true, // Use RBAC for modern access control
                 }
-            }
-        });
+            });
 
-        // Get Registry Credentials
-        var registryCredentials = ListRegistryCredentials.Invoke(new ListRegistryCredentialsInvokeArgs
-        {
-            ResourceGroupName = resourceGroup.Name,
-            RegistryName = registry.Name
-        });
+            // 4. Log Analytics Workspace
+            var logAnalytics = new Workspace($"{namePrefix}-log", new WorkspaceArgs
+            {
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                Sku = new WorkspaceSkuArgs
+                {
+                    Name = WorkspaceSkuNameEnum.PerGB2018
+                }
+            });
 
-        // Define generic settings for ACA
-        var commonEnvs = new[]
-        {
+            // 5. Azure AI Services
+            var aiServices = new Account($"{namePrefix}-cog01", new AccountArgs
+            {
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                Kind = "AIServices",
+                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs
+                {
+                    Name = "S0"
+                },
+                Properties = new AccountPropertiesArgs
+                {
+                    CustomSubDomainName = $"{org}-{workload}-{env}-cog01",
+                    PublicNetworkAccess = Pulumi.AzureNative.CognitiveServices.PublicNetworkAccess.Enabled
+                }
+            });
+
+            // 6. Azure Container Registry
+            var registry = new Registry($"{org}{workload}{env}acr", new RegistryArgs
+            {
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                Sku = new Pulumi.AzureNative.ContainerRegistry.Inputs.SkuArgs
+                {
+                    Name = Pulumi.AzureNative.ContainerRegistry.SkuName.Basic
+                },
+                AdminUserEnabled = true
+            });
+
+            // 7. Managed Environment (ACA Environment)
+            var managedEnvironment = new ManagedEnvironment($"{namePrefix}-env", new ManagedEnvironmentArgs
+            {
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                AppLogsConfiguration = new AppLogsConfigurationArgs
+                {
+                    Destination = "log-analytics",
+                    LogAnalyticsConfiguration = new LogAnalyticsConfigurationArgs
+                    {
+                        CustomerId = logAnalytics.CustomerId,
+                        SharedKey = GetSharedKeys.Invoke(new GetSharedKeysInvokeArgs
+                        {
+                            ResourceGroupName = resourceGroup.Name,
+                            WorkspaceName = logAnalytics.Name
+                        }).Apply(keys => keys.PrimarySharedKey ?? "")
+                    }
+                }
+            });
+
+            // Get Registry Credentials
+            var registryCredentials = ListRegistryCredentials.Invoke(new ListRegistryCredentialsInvokeArgs
+            {
+                ResourceGroupName = resourceGroup.Name,
+                RegistryName = registry.Name
+            });
+
+            // Define generic settings for ACA
+            var commonEnvs = new[]
+            {
             new EnvironmentVarArgs { Name = "AZURE_AI_SERVICES_ENDPOINT", Value = aiServices.Properties.Apply(p => p.Endpoint) },
             new EnvironmentVarArgs { Name = "KEY_VAULT_URI", Value = Output.Format($"https://{keyVault.Name}.vault.azure.net") }
         };
 
-        // 8. API Container App
-        var apiApp = new ContainerApp($"{namePrefix}-api", new ContainerAppArgs
-        {
-            ResourceGroupName = resourceGroup.Name,
-            ManagedEnvironmentId = managedEnvironment.Id,
-            Configuration = new ConfigurationArgs
+            // 8. API Container App
+            var apiApp = new ContainerApp($"{namePrefix}-api", new ContainerAppArgs
             {
-                Ingress = new IngressArgs
+                ResourceGroupName = resourceGroup.Name,
+                ManagedEnvironmentId = managedEnvironment.Id,
+                Configuration = new ConfigurationArgs
                 {
-                    External = true,
-                    TargetPort = 8080 // Standard .NET 8/10 port
-                },
-                Registries = new[]
-                {
+                    Ingress = new IngressArgs
+                    {
+                        External = true,
+                        TargetPort = 8080 // Standard .NET 8/10 port
+                    },
+                    Registries = new[]
+                    {
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
@@ -173,15 +181,15 @@ public class MyStack : Stack
                         PasswordSecretRef = "acr-password"
                     }
                 },
-                Secrets = new[]
-                {
+                    Secrets = new[]
+                    {
                     new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
-            },
-            Template = new TemplateArgs
-            {
-                Containers = new[]
+                },
+                Template = new TemplateArgs
                 {
+                    Containers = new[]
+                    {
                     new ContainerArgs
                     {
                         Name = "api",
@@ -202,32 +210,32 @@ public class MyStack : Stack
                         }
                     }
                 },
-                Scale = new ScaleArgs
-                {
-                    MinReplicas = 0,
-                    MaxReplicas = 10
-                }
-            },
-            Identity = new ManagedServiceIdentityArgs
-            {
-                Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
-            }
-        });
-
-        // 9. UI Container App (BFF)
-        var uiApp = new ContainerApp($"{namePrefix}-ui", new ContainerAppArgs
-        {
-            ResourceGroupName = resourceGroup.Name,
-            ManagedEnvironmentId = managedEnvironment.Id,
-            Configuration = new ConfigurationArgs
-            {
-                Ingress = new IngressArgs
-                {
-                    External = true,
-                    TargetPort = 8080
+                    Scale = new ScaleArgs
+                    {
+                        MinReplicas = 0,
+                        MaxReplicas = 10
+                    }
                 },
-                Registries = new[]
+                Identity = new ManagedServiceIdentityArgs
                 {
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+                }
+            });
+
+            // 9. UI Container App (BFF)
+            var uiApp = new ContainerApp($"{namePrefix}-ui", new ContainerAppArgs
+            {
+                ResourceGroupName = resourceGroup.Name,
+                ManagedEnvironmentId = managedEnvironment.Id,
+                Configuration = new ConfigurationArgs
+                {
+                    Ingress = new IngressArgs
+                    {
+                        External = true,
+                        TargetPort = 8080
+                    },
+                    Registries = new[]
+                    {
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
@@ -235,15 +243,15 @@ public class MyStack : Stack
                         PasswordSecretRef = "acr-password"
                     }
                 },
-                Secrets = new[]
-                {
+                    Secrets = new[]
+                    {
                     new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
-            },
-            Template = new TemplateArgs
-            {
-                Containers = new[]
+                },
+                Template = new TemplateArgs
                 {
+                    Containers = new[]
+                    {
                     new ContainerArgs
                     {
                         Name = "ui",
@@ -267,58 +275,64 @@ public class MyStack : Stack
                         }
                     }
                 },
-                Scale = new ScaleArgs
+                    Scale = new ScaleArgs
+                    {
+                        MinReplicas = 0,
+                        MaxReplicas = 10
+                    }
+                },
+                Identity = new ManagedServiceIdentityArgs
                 {
-                    MinReplicas = 0,
-                    MaxReplicas = 10
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
                 }
-            },
-            Identity = new ManagedServiceIdentityArgs
-            {
-                Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
-            }
-        });
-
-        // RBAC: Key Vault Secrets User for both apps
-        foreach (var app in new[] { apiApp, uiApp })
-        {
-            var roleAssignment = new RoleAssignment($"{app.Name}-kv-role", new RoleAssignmentArgs
-            {
-                PrincipalId = app.Identity.Apply(i => i!.PrincipalId),
-                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6", // Key Vault Secrets User
-                Scope = keyVault.Id,
-                PrincipalType = PrincipalType.ServicePrincipal
             });
+
+            // RBAC: Key Vault Secrets User for both apps
+            foreach (var app in new[] { apiApp, uiApp })
+            {
+                _ = new RoleAssignment($"{app.Name}-kv-role", new RoleAssignmentArgs
+                {
+                    PrincipalId = app.Identity.Apply(i => i!.PrincipalId),
+                    RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6", // Key Vault Secrets User
+                    Scope = keyVault.Id,
+                    PrincipalType = PrincipalType.ServicePrincipal
+                });
+            }
+
+            // Outputs
+            this.AiServicesEndpoint = aiServices.Properties.Apply(p => p.Endpoint ?? "");
+            this.KeyVaultUri = Output.Format($"https://{keyVault.Name}.vault.azure.net");
+            this.StorageAccountName = storageAccount.Name;
+            this.LogAnalyticsWorkspaceName = logAnalytics.Name;
+            this.ApcUrl = uiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}");
+            this.ApiUrl = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}");
+            this.AcrLoginServer = registry.LoginServer;
         }
+#pragma warning restore S138 // Functions should not have too many lines of code
+#pragma warning restore S1200 // Pulumi stacks naturally have many dependencies; splitting would require major refactor
+#pragma warning restore S3059 // Pulumi requires public class for deployment
+#pragma warning restore CA1515 // Pulumi requires public class for deployment
 
-        // Outputs
-        this.AiServicesEndpoint = aiServices.Properties.Apply(p => p.Endpoint ?? "");
-        this.KeyVaultUri = Output.Format($"https://{keyVault.Name}.vault.azure.net");
-        this.StorageAccountName = storageAccount.Name;
-        this.LogAnalyticsWorkspaceName = logAnalytics.Name;
-        this.ApcUrl = uiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}");
-        this.ApiUrl = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}");
-        this.AcrLoginServer = registry.LoginServer;
+        [Output("aiServicesEndpoint")]
+        public Output<string> AiServicesEndpoint { get; set; }
+
+        [Output("keyVaultUri")]
+        public Output<string> KeyVaultUri { get; set; }
+
+        [Output("storageAccountName")]
+        public Output<string> StorageAccountName { get; set; }
+
+        [Output("logAnalyticsWorkspaceName")]
+        public Output<string> LogAnalyticsWorkspaceName { get; set; }
+
+        [Output("uiAppUrl")]
+        public Output<string> ApcUrl { get; set; }
+
+        [Output("apiAppUrl")]
+        public Output<string> ApiUrl { get; set; }
+
+        [Output("acrLoginServer")]
+        public Output<string> AcrLoginServer { get; set; }
     }
-
-    [Output("aiServicesEndpoint")]
-    public Output<string> AiServicesEndpoint { get; set; }
-
-    [Output("keyVaultUri")]
-    public Output<string> KeyVaultUri { get; set; }
-
-    [Output("storageAccountName")]
-    public Output<string> StorageAccountName { get; set; }
-
-    [Output("logAnalyticsWorkspaceName")]
-    public Output<string> LogAnalyticsWorkspaceName { get; set; }
-
-    [Output("uiAppUrl")]
-    public Output<string> ApcUrl { get; set; }
-
-    [Output("apiAppUrl")]
-    public Output<string> ApiUrl { get; set; }
-
-    [Output("acrLoginServer")]
-    public Output<string> AcrLoginServer { get; set; }
+#pragma warning restore CA1506 // Avoid excessive class coupling
 }

@@ -462,7 +462,7 @@ public class AuditService : IAuditService {
                 "Error retrieving audit logs for entity {EntityType}:{EntityId}",
                 entityType,
                 entityId);
-            throw;
+            throw new InvalidOperationException($"Error retrieving audit logs for entity {entityType}:{entityId}", ex);
         }
     }
 
@@ -480,7 +480,7 @@ public class AuditService : IAuditService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving recent audit logs");
-            throw;
+            throw new InvalidOperationException("Error retrieving recent audit logs", ex);
         }
     }
 

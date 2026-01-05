@@ -84,7 +84,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
             result.Errors.Add(ex.Message);
             result.ProcessingTime = stopwatch.Elapsed;
 
-            return result;
+            throw new InvalidOperationException($"Failed to index documents to {_searchOptions.IndexName}", ex);
         }
     }
 

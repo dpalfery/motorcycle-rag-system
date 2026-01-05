@@ -2,13 +2,12 @@ using MotorcycleRAG.Admin.Services;
 
 namespace MotorcycleRAG.Admin.Pages;
 
-public partial class ToolsPage : ContentPage
-{
-    private readonly INavigationService _navigationService;
-
-    public ToolsPage(INavigationService navigationService)
+public partial class ToolsPage : ContentPage {
+    public ToolsPage(ToolsViewModel viewModel)
     {
         InitializeComponent();
-        _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
+        BindingContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
     }
 }
+
+

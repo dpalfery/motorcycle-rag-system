@@ -8,7 +8,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// Admin authentication service using Microsoft Authentication Library (MSAL)
 /// Implements device code flow for desktop applications
 /// </summary>
-public class AdminAuthService : IAdminAuthService
+internal class AdminAuthService : IAdminAuthService, IDisposable
 {
     private readonly IPublicClientApplication _msalClient;
     private readonly string[] _scopes;
@@ -58,7 +58,7 @@ public class AdminAuthService : IAdminAuthService
         }
 
         // Acquire lock for safe refresh
-        await _tokenRefreshLock.WaitAsync(cancellationToken);
+        await _tokenRefreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             // Double-check after acquiring lock (another thread may have refreshed token)
@@ -68,14 +68,14 @@ public class AdminAuthService : IAdminAuthService
             }
 
             // Try to acquire token silently
-            var accounts = await _msalClient.GetAccountsAsync();
+            var accounts = await _msalClient.GetAccountsAsync().ConfigureAwait(false);
             if (accounts.Any())
             {
                 try
                 {
                     _currentAuthResult = await _msalClient
                         .AcquireTokenSilent(_scopes, accounts.FirstOrDefault())
-                        .ExecuteAsync(cancellationToken);
+                        .ExecuteAsync(cancellationToken).ConfigureAwait(false);
                     _tokenExpiresAt = _currentAuthResult.ExpiresOn.UtcDateTime;
                     _logger.LogDebug("Token refreshed successfully. Expires at: {ExpiresOn}", _currentAuthResult.ExpiresOn);
                     return _currentAuthResult;
@@ -83,7 +83,7 @@ public class AdminAuthService : IAdminAuthService
                 catch (MsalUiRequiredException ex)
                 {
                     // User needs to sign in again - expected in some scenarios
-                    _logger.LogWarning("Token refresh requires interactive signin: {Message}", ex.Message);
+                    _logger.LogWarning(ex, "Token refresh requires interactive signin");
                     return null;
                 }
             }
@@ -105,14 +105,14 @@ public class AdminAuthService : IAdminAuthService
         try
         {
             // Try silent sign-in first
-            var accounts = await _msalClient.GetAccountsAsync();
+            var accounts = await _msalClient.GetAccountsAsync().ConfigureAwait(false);
             if (accounts.Any())
             {
                 try
                 {
                     _currentAuthResult = await _msalClient
                         .AcquireTokenSilent(_scopes, accounts.FirstOrDefault())
-                        .ExecuteAsync();
+                        .ExecuteAsync().ConfigureAwait(false);
                     _tokenExpiresAt = _currentAuthResult.ExpiresOn.UtcDateTime;
                     return true;
                 }
@@ -128,9 +128,7 @@ public class AdminAuthService : IAdminAuthService
             _currentAuthResult = await _msalClient
                 .AcquireTokenWithDeviceCode(_scopes, deviceCodeResult =>
                 {
-                    // Display the device code to the user
-                    // Sanitize message before logging to prevent injection attacks
-                    var sanitizedMessage = SanitizeForLogging(deviceCodeResult.Message);
+                    // Display the device code to the user - log key information only
                     _logger.LogInformation("Device code flow initiated. ExpiresOn: {Expires}, VerificationUrl: {Url}, CodeLength: {CodeLength}",
                         deviceCodeResult.ExpiresOn, deviceCodeResult.VerificationUrl, deviceCodeResult.DeviceCode?.Length ?? 0);
                     Console.WriteLine(deviceCodeResult.Message);
@@ -147,7 +145,7 @@ public class AdminAuthService : IAdminAuthService
 
                     return Task.CompletedTask;
                 })
-                .ExecuteAsync(cts.Token);
+                .ExecuteAsync(cts.Token).ConfigureAwait(false);
 
             if (_currentAuthResult != null)
             {
@@ -167,15 +165,15 @@ public class AdminAuthService : IAdminAuthService
                     await window.Page.DisplayAlertAsync(
                         "Authentication Error",
                         $"Failed to sign in: {ex.Message}",
-                        "OK");
+                        "OK").ConfigureAwait(false);
                 }
-            });
+            }).ConfigureAwait(false);
             _logger.LogError(ex, "Authentication failed");
             return false;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            _logger.LogWarning("Device code authentication timed out after 5 minutes.");
+            _logger.LogWarning(ex, "Device code authentication timed out after 5 minutes");
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
                 var window = Application.Current?.Windows?.FirstOrDefault();
@@ -184,9 +182,9 @@ public class AdminAuthService : IAdminAuthService
                     await window.Page.DisplayAlertAsync(
                         "Authentication Timeout",
                         "Device code sign-in timed out after 5 minutes. Please try again.",
-                        "OK");
+                        "OK").ConfigureAwait(false);
                 }
-            });
+            }).ConfigureAwait(false);
             return false;
         }
     }
@@ -196,10 +194,10 @@ public class AdminAuthService : IAdminAuthService
     /// </summary>
     public async Task SignOutAsync()
     {
-        var accounts = await _msalClient.GetAccountsAsync();
+        var accounts = await _msalClient.GetAccountsAsync().ConfigureAwait(false);
         foreach (var account in accounts)
         {
-            await _msalClient.RemoveAsync(account);
+            await _msalClient.RemoveAsync(account).ConfigureAwait(false);
         }
         _currentAuthResult = null;
         _tokenExpiresAt = DateTime.MinValue;
@@ -212,7 +210,7 @@ public class AdminAuthService : IAdminAuthService
     /// </summary>
     public async Task<string?> GetAccessTokenAsync()
     {
-        var validToken = await GetValidTokenAsync();
+        var validToken = await GetValidTokenAsync().ConfigureAwait(false);
 
         if (validToken == null)
         {
@@ -284,23 +282,32 @@ public class AdminAuthService : IAdminAuthService
         }
     }
 
+
     /// <summary>
-    /// Sanitizes a message for safe logging to prevent injection attacks
+    /// Disposes the SemaphoreSlim used for token refresh synchronization
     /// </summary>
-    private static string SanitizeForLogging(string? message)
+    public void Dispose()
     {
-        if (string.IsNullOrEmpty(message))
-            return string.Empty;
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
 
-        // Remove or escape potentially problematic characters that could be used for log injection
-        // Keep only alphanumeric, whitespace, and safe punctuation
-        var sanitized = System.Text.RegularExpressions.Regex.Replace(
-            message,
-            @"[^\w\s\-\.\:\(\)\,]",
-            "",
-            System.Text.RegularExpressions.RegexOptions.Compiled);
+    /// <summary>
+    /// Protected Dispose implementation
+    /// </summary>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _tokenRefreshLock?.Dispose();
+        }
+    }
 
-        // Limit length to prevent log flooding
-        return sanitized.Length > 500 ? sanitized.Substring(0, 500) + "..." : sanitized;
+    /// <summary>
+    /// Finalizer for cleanup if Dispose was not called
+    /// </summary>
+    ~AdminAuthService()
+    {
+        Dispose(false);
     }
 }

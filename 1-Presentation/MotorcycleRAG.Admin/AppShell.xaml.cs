@@ -12,18 +12,16 @@ namespace MotorcycleRAG.Admin;
 ///
 /// Do not rely on UI visibility for security. Always validate on the server side.
 /// </summary>
-public partial class AppShell : Shell
-{
+public partial class AppShell : Shell {
     private readonly IAdminAuthService _authService;
     private readonly ISettingsService _settingsService;
-    private readonly IServiceProvider _serviceProvider;
 
     public AppShell(IAdminAuthService authService, ISettingsService settingsService, IServiceProvider serviceProvider)
     {
         InitializeComponent();
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _ = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
         // Register routes for navigation
         RegisterRoutes();
@@ -92,3 +90,5 @@ public partial class AppShell : Shell
         await Task.CompletedTask;
     }
 }
+
+

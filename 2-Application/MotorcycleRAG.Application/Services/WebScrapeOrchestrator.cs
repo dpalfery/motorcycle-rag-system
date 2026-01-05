@@ -11,6 +11,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Domain.ValueObjects;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -85,15 +86,15 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
                     pagesIndexed: 0,
                     errors: 1,
                     errorMessage: $"Failed to initiate scrape: {ex.Message}");
-
-                throw;
+    
+                throw new InvalidOperationException($"Error initiating scrape pipeline for run {runId}", ex);
             }
 
             return runId;
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Failed to start scrape run for web source {WebSourceId}", webSourceId);
-            throw;
+            throw new InvalidOperationException($"Failed to start scrape run for web source {webSourceId}", ex);
         }
     }
 
@@ -129,7 +130,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Failed to cancel scrape run {RunId}", runId);
-            throw;
+            throw new InvalidOperationException($"Failed to cancel scrape run {runId}", ex);
         }
     }
 
@@ -147,7 +148,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Failed to get scrape run status for run {RunId}", runId);
-            throw;
+            throw new InvalidOperationException($"Failed to get scrape run status for run {runId}", ex);
         }
     }
 
@@ -169,7 +170,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Failed to get recent scrape runs for web source {WebSourceId}", webSourceId);
-            throw;
+            throw new InvalidOperationException($"Failed to get recent scrape runs for web source {webSourceId}", ex);
         }
     }
 
@@ -183,7 +184,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Failed to get active scrape runs");
-            throw;
+            throw new InvalidOperationException("Failed to get active scrape runs", ex);
         }
     }
 
@@ -535,7 +536,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Indexing failed");
-            throw;
+            throw new InvalidOperationException("Indexing failed", ex);
         }
     }
 

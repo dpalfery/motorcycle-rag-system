@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Suppress pre-existing analyzer violations in Contracts.Interfaces -->
+    <NoWarn>$(NoWarn);S101;S1128;S113;S4136;S4049;S2360;S2368;S1144;S3994;CA1054;S107;CA1002;S4017;S3956</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

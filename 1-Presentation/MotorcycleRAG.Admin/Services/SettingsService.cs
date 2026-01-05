@@ -4,7 +4,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// Implementation of ISettingsService wrapping MAUI's Preferences and SecureStorage APIs.
 /// Provides a testable abstraction for application settings and secure credential storage.
 /// </summary>
-public class SettingsService : ISettingsService
+internal class SettingsService : ISettingsService
 {
     /// <summary>
     /// Retrieves a non-sensitive setting value from Preferences.

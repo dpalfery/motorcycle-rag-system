@@ -6,6 +6,7 @@
     - Ask before creating new documentation files
     - Get approval before adding new dependencies (NuGet/npm/etc.) or upgrading dependency versions
     - Confirm approach before implementing cross-cutting concerns
+    - no git checkout, git restore, git reset, git checkout, git clean, git commit, git rebase, git push. these have to be dont by the user
   3. Communication Protocol
     - Present options and ask which to pursue
     - Explain trade-offs before implementing

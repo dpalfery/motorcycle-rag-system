@@ -1,4 +1,62 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read(**/*)",
+      "Glob(**/*)",
+      "Grep(**/*)",
+      "Edit(**/*)",
+      "Write(**/*)",
+      "WebSearch",
+      "Bash(cat :*)",
+      "Bash(find :*)",
+      "Bash(grep :*)",
+      "Bash(ls :*)",
+      "Bash(head :*)",
+      "Bash(tail :*)",
+      "Bash(sed :*)",
+      "Bash(awk :*)",
+      "Bash(git add :*)",
+      "Bash(mkdir :*)",
+      "Bash(mv :*)",
+      "Bash(powershell :*)",
+      "Bash(pwsh :*)",
+      "Bash(dotnet :*)",
+      "Skill(azure-cli)",
+      "Skill(azure-naming)",
+      "Skill(browser-testing)",
+      "Skill(clean-architecture)",
+      "Skill(delegate-dotnet)",
+      "Skill(delegate-frontend)",
+      "Skill(mandatory-review)",
+      "Skill(code-review)",
+      "Bash(dotnet clean:*)",
+      "Bash(Select-String -Pattern \"Error\\\\\\(s\\\\\\)|Warning\\\\\\(s\\\\\\)|Build succeeded|Build FAILED\")",
+      "Bash(Select-Object -Last 5)",
+      "Bash(tee:*)",
+      "Bash(timeout 120 dotnet build:*)"
+    ],
+    "deny": [
+      "Bash(git commit :*)",
+      "Bash(git push :*)",
+      "Bash(git pull :*)",
+      "Bash(git reset :*)",
+      "Bash(git rebase :*)",
+      "Bash(git checkout :*)",
+      "Bash(rm :*)",
+      "Bash(del :*)",
+      "Bash(rmdir :*)",
+      "Bash(Remove-Item :*)",
+      "Skill(github-cli)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "auth0",
+    "playwright"
+  ],
+  "slashCommands": {
+    "/push": "save all files, stage all files, generate a detailed commit message. commit all changes with message, pull from origin with rebase, fix any merge issues and then push"
+  },
   "enabledPlugins": {
     "csharp-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,

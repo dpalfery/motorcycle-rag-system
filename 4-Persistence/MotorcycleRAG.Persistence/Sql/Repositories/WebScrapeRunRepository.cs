@@ -52,7 +52,7 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create web scrape run for web source {WebSourceId}", webSourceId);
-            throw;
+            throw new InvalidOperationException($"Failed to create web scrape run for web source {webSourceId}", ex);
         }
     }
 
@@ -96,7 +96,7 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update web scrape run {RunId}", runId);
-            throw;
+            throw new InvalidOperationException($"Failed to update web scrape run {runId}", ex);
         }
     }
 
@@ -114,7 +114,7 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get web scrape run {RunId}", runId);
-            throw;
+            throw new InvalidOperationException($"Failed to get web scrape run {runId}", ex);
         }
     }
 
@@ -138,7 +138,7 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get recent scrape runs for web source {WebSourceId}", webSourceId);
-            throw;
+            throw new InvalidOperationException($"Failed to get recent scrape runs for web source {webSourceId}", ex);
         }
     }
 
@@ -162,7 +162,7 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get active scrape runs");
-            throw;
+            throw new InvalidOperationException("Failed to get active scrape runs", ex);
         }
     }
 }

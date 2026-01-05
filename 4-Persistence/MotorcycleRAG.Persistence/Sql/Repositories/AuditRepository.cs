@@ -70,7 +70,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create audit log");
-                throw;
+                throw new InvalidOperationException("Failed to create audit log", ex);
             }
         }
 
@@ -105,7 +105,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get audit logs for entity {EntityType} with ID {EntityId}",
                     entityType, entityId);
-                throw;
+                throw new InvalidOperationException($"Failed to get audit logs for entity {entityType} with ID {entityId}", ex);
             }
         }
 
@@ -129,7 +129,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get recent audit logs with limit {Limit}", limit);
-                throw;
+                throw new InvalidOperationException($"Failed to get recent audit logs with limit {limit}", ex);
             }
         }
     }

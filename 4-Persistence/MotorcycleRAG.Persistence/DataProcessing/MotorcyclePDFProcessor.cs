@@ -5,6 +5,7 @@ using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Domain.ValueObjects;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -28,12 +29,14 @@ public class MotorcyclePDFProcessor : IDataProcessor<PDFDocument> {
         IOptions<PDFProcessingConfiguration> config,
         IOptions<AzureAIOptions> azureConfig,
         ILogger<MotorcyclePDFProcessor> logger) {
-        _documentClient = documentClient ?? throw new ArgumentNullException(nameof(documentClient));
-        _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
-        _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
-        _config = config?.Value ?? throw new ArgumentNullException(nameof(config));
-        _azureConfig = azureConfig?.Value ?? throw new ArgumentNullException(nameof(azureConfig));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(documentClient);
+        ArgumentNullException.ThrowIfNull(openAIClient);
+        ArgumentNullException.ThrowIfNull(searchClient);
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(azureConfig);
+        _config = config.Value ?? throw new ArgumentNullException(nameof(config));
+        _azureConfig = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
+        ArgumentNullException.ThrowIfNull(logger);
     }
 
     public async Task<ProcessedData> ProcessAsync(PDFDocument input) {
@@ -419,6 +422,27 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 // Determine the section title to use - prioritize detected section, fallback to page metadata
                 var sectionTitle = !string.IsNullOrEmpty(section.Title) ? section.Title : page.PrimarySection;
 
+                // Extract nested ternary operations into independent statements
+                int sectionLevel;
+                if (page.SectionLevel > 0)
+                {
+                    sectionLevel = page.SectionLevel;
+                }
+                else
+                {
+                    sectionLevel = section.Level > 0 ? section.Level : 0;
+                }
+
+                string[] allSectionHeadings;
+                if (page.SectionHeadings != null && page.SectionHeadings.Length > 0)
+                {
+                    allSectionHeadings = page.SectionHeadings;
+                }
+                else
+                {
+                    allSectionHeadings = section.Level > 0 && sectionTitle != null ? new[] { sectionTitle } : Array.Empty<string>();
+                }
+
                 var chunk = new PDFChunk {
                     Id = $"{input.FileName}_page_{page.PageNumber}_chunk_{chunkId++}",
                     Content = chunkContent,
@@ -434,10 +458,8 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                         ["PageNumber"] = page.PageNumber,
                         ["PageRange"] = $"{page.PageNumber}-{page.PageNumber}",
                         ["PrimarySection"] = !string.IsNullOrEmpty(page.PrimarySection) ? page.PrimarySection : sectionTitle,
-                        ["SectionLevel"] = page.SectionLevel > 0 ? page.SectionLevel : (section.Level > 0 ? section.Level : 0),
-                        ["AllSectionHeadings"] = page.SectionHeadings != null && page.SectionHeadings.Length > 0
-                            ? page.SectionHeadings
-                            : (section.Level > 0 && sectionTitle != null ? new[] { sectionTitle } : Array.Empty<string>()),
+                        ["SectionLevel"] = sectionLevel,
+                        ["AllSectionHeadings"] = allSectionHeadings,
                         ["SectionTitle"] = sectionTitle ?? string.Empty,
                         ["ChunkIndex"] = chunkId - startingChunkId - 1
                     }
@@ -891,11 +913,15 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 PageRange = pageRange,
                 PrimarySection = primarySection,
                 SectionLevel = sectionLevel,
-                SectionHeadings = sectionHeadings,
                 TableCaption = tableCaption,
                 ChunkIndex = chunkIndex,
                 Metadata = dm
             };
+
+            // Add section headings to the read-only collection
+            foreach (var heading in sectionHeadings) {
+                document.SectionHeadings.Add(heading);
+            }
 
             documents.Add(document);
         }

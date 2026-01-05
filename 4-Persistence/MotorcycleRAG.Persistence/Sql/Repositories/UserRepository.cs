@@ -58,7 +58,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create user");
-                throw;
+                throw new InvalidOperationException("Failed to create user", ex);
             }
         }
 
@@ -82,7 +82,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get user by ID {UserId}", userId);
-                throw;
+                throw new InvalidOperationException($"Failed to get user by ID {userId}", ex);
             }
         }
 
@@ -106,7 +106,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get user by email {Email}", email);
-                throw;
+                throw new InvalidOperationException($"Failed to get user by email {email}", ex);
             }
         }
 
@@ -143,7 +143,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to update user with ID {UserId}", user.Id);
-                throw;
+                throw new InvalidOperationException($"Failed to update user with ID {user.Id}", ex);
             }
         }
 
@@ -179,7 +179,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to set enabled status for user {UserId}", userId);
-                throw;
+                throw new InvalidOperationException($"Failed to set enabled status for user {userId}", ex);
             }
         }
     }

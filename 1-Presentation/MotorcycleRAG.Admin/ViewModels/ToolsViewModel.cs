@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Services.Dtos;
 using MotorcycleRAG.Admin.Utilities;
+using MotorcycleRAG.Admin.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.Admin.ViewModels;
@@ -12,8 +13,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for managing MCP tool configurations in the admin panel.
 /// Handles loading, saving, and managing MCP tool enable/disable states with validation.
 /// </summary>
-public partial class ToolsViewModel : ObservableObject
-{
+public partial class ToolsViewModel : ObservableObject {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<ToolsViewModel> _logger;
@@ -64,16 +64,16 @@ public partial class ToolsViewModel : ObservableObject
 
             _logger.LogInformation("Loaded {Count} MCP tool configurations", toolConfigs.Length);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
             // User not authorized - expected in demo mode
-            _logger.LogWarning("User not authorized to view MCP tools");
+            _logger.LogWarning(ex, "User not authorized to view MCP tools");
             await MainThread.InvokeOnMainThreadAsync(() => Tools.Clear());
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
             // API not available - silently fail
-            _logger.LogWarning("API not available for loading MCP tools");
+            _logger.LogWarning(ex, "API not available for loading MCP tools");
             await MainThread.InvokeOnMainThreadAsync(() => Tools.Clear());
         }
         catch (Exception ex)
@@ -143,9 +143,9 @@ public partial class ToolsViewModel : ObservableObject
                 }
             });
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning("User not authorized to update MCP tool '{ToolId}'", tool.ToolId);
+            _logger.LogWarning(ex, "User not authorized to update MCP tool '{ToolId}'", tool.ToolId);
             ErrorMessage = "You do not have permission to modify MCP tools.";
         }
         catch (Exception ex)
@@ -213,10 +213,10 @@ public partial class ToolsViewModel : ObservableObject
             return false;
         }
 
-        // Validate URL format
-        if (!Uri.TryCreate(tool.ServerUrl, UriKind.Absolute, out var uri))
+        // Validate URL format with SSRF protection
+        if (!UrlValidator.IsValidUrl(tool.ServerUrl))
         {
-            _logger.LogWarning("Tool server URL is not a valid URI: {ServerUrl}", tool.ServerUrl);
+            _logger.LogWarning("Tool server URL is invalid or disallowed (SSRF protection): {ServerUrl}", tool.ServerUrl);
             return false;
         }
 
@@ -232,11 +232,16 @@ public partial class ToolsViewModel : ObservableObject
     /// </summary>
     private async Task EnsureAuthorizedAsync()
     {
-        // This can be extended to verify user role/permissions
-        // For now, just ensure authentication
         if (!_authService.IsAuthenticated)
         {
             throw new UnauthorizedAccessException("User is not authenticated");
+        }
+
+        var roles = await _authService.GetUserRolesAsync();
+        var adminRoles = AdminRoles.GetValidAdminRoles(roles);
+        if (!adminRoles.Any())
+        {
+            throw new UnauthorizedAccessException("User does not have required admin roles to manage tools");
         }
     }
 
@@ -271,3 +276,5 @@ public partial class ToolConfigItem : ObservableObject
         isEnabled = config.IsEnabled;
     }
 }
+
+

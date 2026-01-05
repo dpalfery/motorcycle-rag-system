@@ -1,5 +1,5 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Domain.ValueObjects;
 
@@ -27,7 +27,9 @@ public class MotorcycleDocument {
     /// <summary>
     /// Vector embedding for semantic search
     /// </summary>
+#pragma warning disable CA1819 // Properties should not return arrays
     public float[]? ContentVector { get; set; }
+#pragma warning restore CA1819 // Properties should not return arrays
 
     /// <summary>
     /// Timestamp when the document was created
@@ -65,7 +67,7 @@ public class MotorcycleDocument {
     /// <summary>
     /// All section headings in the hierarchy path
     /// </summary>
-    public string[] SectionHeadings { get; set; } = Array.Empty<string>();
+    public Collection<string> SectionHeadings { get; } = new();
 
     /// <summary>
     /// Table caption (for table chunks)

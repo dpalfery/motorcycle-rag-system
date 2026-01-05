@@ -63,7 +63,7 @@ public class VectorCompressionService : IVectorCompressionService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error compressing vector with {Dimensions} dimensions", vector.Length);
-            throw;
+            throw new InvalidOperationException($"Error compressing vector with {vector.Length} dimensions", ex);
         }
     }
 
@@ -97,7 +97,7 @@ public class VectorCompressionService : IVectorCompressionService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error decompressing vector with method {Method}", compressedVector.Method);
-            throw;
+            throw new InvalidOperationException($"Error decompressing vector with method {compressedVector.Method}", ex);
         }
     }
 
@@ -204,7 +204,7 @@ public class VectorCompressionService : IVectorCompressionService {
             return result;
         }
 
-        var data = compressed.Data.Span;
+        var data = compressed.Data.AsSpan();
         for (int i = 0; i < data.Length; i++) {
             var normalized = data[i] / 255.0f;
             result[i] = compressed.MinValue + normalized * range;
@@ -251,7 +251,7 @@ public class VectorCompressionService : IVectorCompressionService {
             return result;
         }
 
-        var data = compressed.Data.Span;
+        var data = compressed.Data.AsSpan();
         for (int i = 0; i < data.Length; i++) {
             var packedByte = data[i];
             var quantized1 = (packedByte >> 4) & 0x0F;
@@ -309,7 +309,7 @@ public class VectorCompressionService : IVectorCompressionService {
         }
 
         // Unpack quantized values from bytes
-        var quantizedValues = UnpackQuantizedValues(compressed.Data.Span, compressed.OriginalDimensions, bitsPerValue);
+        var quantizedValues = UnpackQuantizedValues(compressed.Data.AsSpan(), compressed.OriginalDimensions, bitsPerValue);
 
         var decompressed = new float[compressed.OriginalDimensions];
         for (int i = 0; i < decompressed.Length; i++) {

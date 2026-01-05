@@ -18,15 +18,13 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// <summary>
 /// Azure AI Search client wrapper with connection management and resilience
 /// </summary>
-public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
+public class AzureSearchClientWrapper : IAzureSearchClient {
     private readonly SearchClient _searchClient;
     private readonly SearchIndexClient _indexClient;
     private readonly Core.Options.SearchOptions _searchConfig;
     private readonly ILogger<AzureSearchClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
-    private readonly IAsyncPolicy _retryPolicy;
-    private bool _disposed;
 
     public AzureSearchClientWrapper(
         IOptions<AzureAIOptions> azureConfig,
@@ -34,13 +32,13 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
         ILogger<AzureSearchClientWrapper> logger,
         IResilienceService resilienceService,
         ICorrelationService correlationService) {
-        if (azureConfig == null) throw new ArgumentNullException(nameof(azureConfig));
-        if (searchConfig == null) throw new ArgumentNullException(nameof(searchConfig));
+        ArgumentNullException.ThrowIfNull(azureConfig);
+        ArgumentNullException.ThrowIfNull(searchConfig);
         var config = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
         _searchConfig = searchConfig.Value ?? throw new ArgumentNullException(nameof(searchConfig));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
-        _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(resilienceService);
+        ArgumentNullException.ThrowIfNull(correlationService);
 
         // Initialize Azure Search clients with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
@@ -48,9 +46,6 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
 
         _indexClient = new SearchIndexClient(searchEndpoint, credential);
         _searchClient = new SearchClient(searchEndpoint, _searchConfig.IndexName, credential);
-
-        // Configure resilience policies (kept for backward compatibility)
-        _retryPolicy = CreateRetryPolicy(config.Retry);
 
         _logger.LogInformation("Azure Search client initialized with endpoint: {Endpoint}, Index: {IndexName}",
             config.SearchServiceEndpoint, _searchConfig.IndexName);
@@ -125,27 +120,25 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
         try {
             _logger.LogDebug("Indexing {DocumentCount} documents", documents.Length);
 
-            var result = await _retryPolicy.ExecuteAsync(async () => {
-                var response = await _searchClient.UploadDocumentsAsync(documents, new IndexDocumentsOptions(), cancellationToken);
+            var response = await _searchClient.UploadDocumentsAsync(documents, new IndexDocumentsOptions(), cancellationToken);
 
-                // Check if all documents were successfully indexed
-                var failedCount = response.Value.Results.Count(r => !r.Succeeded);
-                if (failedCount > 0) {
-                    _logger.LogWarning("Failed to index {FailedCount} out of {TotalCount} documents",
-                        failedCount, documents.Length);
+            // Check if all documents were successfully indexed
+            var failedCount = response.Value.Results.Count(r => !r.Succeeded);
+            if (failedCount > 0) {
+                _logger.LogWarning("Failed to index {FailedCount} out of {TotalCount} documents",
+                    failedCount, documents.Length);
 
-                    // Log specific failures
-                    foreach (var result in response.Value.Results.Where(r => !r.Succeeded)) {
-                        _logger.LogWarning("Document indexing failed - Key: {Key}, Status: {Status}, Error: {Error}",
-                            result.Key, result.Status, result.ErrorMessage);
-                    }
+                // Log specific failures
+                foreach (var failedResult in response.Value.Results.Where(r => !r.Succeeded)) {
+                    _logger.LogWarning("Document indexing failed - Key: {Key}, Status: {Status}, Error: {Error}",
+                        failedResult.Key, failedResult.Status, failedResult.ErrorMessage);
                 }
+            }
 
-                return failedCount == 0;
-            });
+            var allSucceeded = failedCount == 0;
 
             _logger.LogDebug("Successfully indexed {DocumentCount} documents", documents.Length);
-            return result;
+            return allSucceeded;
         }
         catch (RequestFailedException ex) {
             _logger.LogError(ex, "Azure Search indexing failed: {ErrorCode} - {Message}",
@@ -173,7 +166,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Failed to create or update index: {IndexName}", indexName);
-            return false;
+            throw new InvalidOperationException($"Failed to create or update index: {indexName}", ex);
         }
     }
 
@@ -345,7 +338,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error indexing documents");
-            throw;
+            throw new InvalidOperationException("Error indexing documents", ex);
         }
     }
 
@@ -376,7 +369,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error deleting documents");
-            throw;
+            throw new InvalidOperationException("Error deleting documents", ex);
         }
     }
 
@@ -400,38 +393,4 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
             SearchMode = global::Azure.Search.Documents.Models.SearchMode.All
         };
     }
-
-    private IAsyncPolicy CreateRetryPolicy(RetryOptions retryConfig) {
-        return Policy
-            .Handle<RequestFailedException>(ex => IsRetryableError(ex))
-            .Or<TaskCanceledException>()
-            .Or<HttpRequestException>()
-            .WaitAndRetryAsync(
-                retryCount: retryConfig.MaxRetries,
-                sleepDurationProvider: retryAttempt => retryConfig.UseExponentialBackoff
-                    ? TimeSpan.FromSeconds(Math.Min(
-                        retryConfig.BaseDelaySeconds * Math.Pow(2, retryAttempt - 1),
-                        retryConfig.MaxDelaySeconds))
-                    : TimeSpan.FromSeconds(retryConfig.BaseDelaySeconds),
-                onRetry: (outcome, timespan, retryCount, context) => {
-                    _logger.LogWarning("Retry attempt {RetryCount} for Azure Search after {Delay}ms",
-                        retryCount, timespan.TotalMilliseconds);
-                });
-    }
-
-    private static bool IsRetryableError(RequestFailedException ex) {
-        // Retry on rate limiting, server errors, and timeout
-        return ex.Status == 429 || // Too Many Requests
-               ex.Status == 500 || // Internal Server Error
-               ex.Status == 502 || // Bad Gateway
-               ex.Status == 503 || // Service Unavailable
-               ex.Status == 504;   // Gateway Timeout
-    }
-
-    public void Dispose() {
-        if (!_disposed) {
-            // SearchClient and SearchIndexClient don't implement IDisposable in the current SDK version
-            _disposed = true;
-        }
-    }
-}
+}

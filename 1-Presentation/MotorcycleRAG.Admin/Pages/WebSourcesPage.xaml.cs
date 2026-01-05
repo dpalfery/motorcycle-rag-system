@@ -3,8 +3,7 @@ using MotorcycleRAG.Admin.ViewModels;
 
 namespace MotorcycleRAG.Admin.Pages;
 
-public partial class WebSourcesPage : ContentPage
-{
+public partial class WebSourcesPage : ContentPage {
     private readonly WebSourcesViewModel _viewModel;
 
     public WebSourcesPage(WebSourcesViewModel viewModel)
@@ -20,3 +19,5 @@ public partial class WebSourcesPage : ContentPage
         await _viewModel.InitializeAsync();
     }
 }
+
+

@@ -34,7 +34,7 @@ public class McpConfigurationProvider : IMcpConfigurationProvider {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving enabled MCP tools");
-            throw;
+            throw new InvalidOperationException("Error retrieving enabled MCP tools", ex);
         }
     }
 
@@ -56,7 +56,7 @@ public class McpConfigurationProvider : IMcpConfigurationProvider {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving tool configuration for {ToolId}", toolId);
-            throw;
+            throw new InvalidOperationException($"Error retrieving tool configuration for {toolId}", ex);
         }
     }
 
@@ -72,7 +72,7 @@ public class McpConfigurationProvider : IMcpConfigurationProvider {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving tools by type {ToolType}", toolType);
-            throw;
+            throw new InvalidOperationException($"Error retrieving tools by type {toolType}", ex);
         }
     }
 
@@ -109,7 +109,7 @@ public class McpConfigurationProvider : IMcpConfigurationProvider {
 
         try {
             // Validate URL format
-            var uri = new Uri(tool.ServerUrl ?? string.Empty);
+            var uri = tool.ServerUrl;
 
             // Check timeout configuration
             if (tool.TimeoutMs.HasValue && tool.TimeoutMs <= 0) {
@@ -123,7 +123,7 @@ public class McpConfigurationProvider : IMcpConfigurationProvider {
         }
         catch (UriFormatException ex) {
             _logger.LogError(ex, "Tool {ToolId} has invalid server URL: {ServerUrl}",
-                tool.ToolId, tool.ServerUrl);
+                tool.ToolId, tool.ServerUrl?.ToString() ?? string.Empty);
             return false;
         }
     }

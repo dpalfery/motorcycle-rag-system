@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using Polly;
-
 using MotorcycleRAG.Core.Options; 
 
 namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project & tests
@@ -14,15 +13,13 @@ namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project &
 /// <summary>
 /// Azure OpenAI client wrapper with retry policies and authentication
 /// </summary>
-public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
+public class AzureOpenAIClientWrapper : IAzureOpenAIClient
 {
     private readonly AzureOpenAIClient _client;
     private readonly AzureAIOptions _config;
     private readonly ILogger<AzureOpenAIClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
-    private readonly IAsyncPolicy _retryPolicy;
-    private bool _disposed;
 
     public AzureOpenAIClientWrapper(
         IOptions<AzureAIOptions> config,
@@ -30,20 +27,17 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         IResilienceService resilienceService,
         ICorrelationService correlationService)
     {
-        if (config == null) throw new ArgumentNullException(nameof(config));
+        ArgumentNullException.ThrowIfNull(config);
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
-        _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(resilienceService);
+        ArgumentNullException.ThrowIfNull(correlationService);
 
         // Initialize Azure OpenAI client with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
         _client = new AzureOpenAIClient(new Uri(_config.OpenAIEndpoint), credential);
 
-        // Configure retry policy with exponential backoff (kept for backward compatibility)
-        _retryPolicy = CreateRetryPolicy();
-
-        _logger.LogInformation("Azure OpenAI client initialized with endpoint: {Endpoint}", 
+        _logger.LogInformation("Azure OpenAI client initialized with endpoint: {Endpoint}",
             _config.OpenAIEndpoint);
     }
 
@@ -170,7 +164,7 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error in ProcessMultimodalContentAsync");
-            throw;
+            throw new InvalidOperationException("Unexpected error in ProcessMultimodalContentAsync", ex);
         }
     }
 
@@ -185,39 +179,6 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         {
             _logger.LogWarning(ex, "Azure OpenAI health check failed");
             return false;
-        }
-    }
-
-    private IAsyncPolicy CreateRetryPolicy()
-    {
-        var retryConfig = _config.Retry;
-        
-        return Policy
-            .Handle<RequestFailedException>(ex => IsRetryableError(ex))
-            .Or<TaskCanceledException>()
-            .Or<HttpRequestException>()
-            .WaitAndRetryAsync(
-                retryCount: retryConfig.MaxRetries,
-                sleepDurationProvider: retryAttempt => retryConfig.UseExponentialBackoff
-                    ? TimeSpan.FromSeconds(Math.Min(
-                        retryConfig.BaseDelaySeconds * Math.Pow(2, retryAttempt - 1),
-                        retryConfig.MaxDelaySeconds))
-                    : TimeSpan.FromSeconds(retryConfig.BaseDelaySeconds),
-                onRetry: (outcome, timespan, retryCount, context) =>
-                {
-                    _logger.LogWarning("Retry attempt {RetryCount} for Azure OpenAI after {Delay}ms",
-                        retryCount, timespan.TotalMilliseconds);
-                });
-    }
-
-    private static bool IsRetryableError(RequestFailedException ex) =>
-        ex.Status is 429 or 500 or 502 or 503 or 504;
-
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _disposed = true;
         }
     }
 }

@@ -9,11 +9,20 @@ namespace MotorcycleRAG.Admin.Processing;
 /// </summary>
 public class PdfChunkingResult
 {
+    private readonly List<DocumentChunk> _chunks = new();
+    private readonly List<string> _errors = new();
+    private readonly List<string> _warnings = new();
+
     public bool Success { get; set; }
-    public List<DocumentChunk> Chunks { get; set; } = new();
+    public IReadOnlyList<DocumentChunk> Chunks => _chunks.AsReadOnly();
     public PdfMetadata Metadata { get; set; } = new();
-    public List<string> Errors { get; set; } = new();
-    public List<string> Warnings { get; set; } = new();
+    public IReadOnlyList<string> Errors => _errors.AsReadOnly();
+    public IReadOnlyList<string> Warnings => _warnings.AsReadOnly();
+
+    // Internal methods for modification
+    internal void AddChunk(DocumentChunk chunk) => _chunks.Add(chunk);
+    internal void AddError(string error) => _errors.Add(error);
+    internal void AddWarning(string warning) => _warnings.Add(warning);
 }
 
 /// <summary>
@@ -73,20 +82,20 @@ public class PdfChunker
             // Input validation
             if (string.IsNullOrWhiteSpace(filePath))
             {
-                result.Errors.Add("File path is required.");
+                result.AddError("File path is required.");
                 return result;
             }
 
             if (!File.Exists(filePath))
             {
-                result.Errors.Add($"File not found: {filePath}");
+                result.AddError($"File not found: {filePath}");
                 return result;
             }
 
             var extension = Path.GetExtension(filePath).ToLowerInvariant();
             if (extension != ".pdf")
             {
-                result.Errors.Add("Invalid file type. Only PDF files are supported.");
+                result.AddError("Invalid file type. Only PDF files are supported.");
                 return result;
             }
 
@@ -94,7 +103,7 @@ public class PdfChunker
             const long maxSizeBytes = 100 * 1024 * 1024; // 100 MB
             if (fileInfo.Length > maxSizeBytes)
             {
-                result.Errors.Add($"File too large. Max allowed size is 100MB. Actual size: {fileInfo.Length / (1024 * 1024)}MB");
+                result.AddError($"File too large. Max allowed size is 100MB. Actual size: {fileInfo.Length / (1024 * 1024)}MB");
                 return result;
             }
 
@@ -123,18 +132,21 @@ public class PdfChunker
                 var sections = DetectSections(pageTexts);
 
                 // Create chunks with page and section metadata
-                result.Chunks = CreateChunks(pageTexts, sections);
+                foreach (var chunk in CreateChunks(pageTexts, sections))
+                {
+                    result.AddChunk(chunk);
+                }
 
                 result.Success = true;
             }, cancellationToken);
         }
         catch (OperationCanceledException)
         {
-            result.Errors.Add("Processing was cancelled");
+            result.AddError("Processing was cancelled");
         }
         catch (Exception ex)
         {
-            result.Errors.Add($"Error processing PDF: {ex.Message}");
+            result.AddError($"Error processing PDF: {ex.Message}");
         }
 
         return result;
@@ -340,3 +352,5 @@ public class PdfChunker
         return text.Trim();
     }
 }
+
+

@@ -69,7 +69,7 @@ namespace MotorcycleRAG.Application.Services {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to record usage for user {UserId} on endpoint {Endpoint}", userId, endpoint);
-                throw;
+                throw new InvalidOperationException($"Failed to record usage for user {userId} on endpoint {endpoint}", ex);
             }
         }
 
@@ -142,7 +142,7 @@ namespace MotorcycleRAG.Application.Services {
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get usage for user {UserId} between {StartDate} and {EndDate}",
                     userId, startDate, endDate);
-                throw;
+                throw new InvalidOperationException($"Failed to get usage for user {userId} between {startDate} and {endDate}", ex);
             }
         }
     }

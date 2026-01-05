@@ -41,10 +41,12 @@ namespace MotorcycleRAG.Persistence.Telemetry
             IOptions<MotorcycleRAG.Core.Options.TelemetryOptions> telemetryConfig,
             IOptions<SqlOptions> sqlOptions)
         {
-            _telemetryClient = telemetryClient ?? throw new ArgumentNullException(nameof(telemetryClient));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _telemetryConfig = telemetryConfig?.Value ?? throw new ArgumentNullException(nameof(telemetryConfig));
-            _sqlOptions = sqlOptions?.Value ?? throw new ArgumentNullException(nameof(sqlOptions));
+            ArgumentNullException.ThrowIfNull(telemetryClient);
+            ArgumentNullException.ThrowIfNull(logger);
+            ArgumentNullException.ThrowIfNull(telemetryConfig);
+            ArgumentNullException.ThrowIfNull(sqlOptions);
+            _telemetryConfig = telemetryConfig.Value ?? throw new ArgumentNullException(nameof(telemetryConfig));
+            _sqlOptions = sqlOptions.Value ?? throw new ArgumentNullException(nameof(sqlOptions));
         }
 
         /// <summary>
@@ -70,7 +72,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to track event: {EventName}", eventName);
-                throw;
+                throw new InvalidOperationException($"Failed to track event: {eventName}", ex);
             }
         }
 
@@ -81,10 +83,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
         /// <param name="properties">Additional properties</param>
         public void TrackException(Exception exception, Dictionary<string, string>? properties = null)
         {
-            if (exception == null)
-            {
-                throw new ArgumentNullException(nameof(exception));
-            }
+            ArgumentNullException.ThrowIfNull(exception);
 
             try
             {
@@ -95,8 +94,8 @@ namespace MotorcycleRAG.Persistence.Telemetry
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to track exception");
-                throw;
+                _logger.LogError(ex, "Failed to track {ExceptionType}", ex.GetType().Name);
+                throw new InvalidOperationException("Failed to track exception", ex);
             }
         }
 
@@ -123,7 +122,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to track metric: {MetricName}", metricName);
-                throw;
+                throw new InvalidOperationException($"Failed to track metric: {metricName}", ex);
             }
         }
 
@@ -152,7 +151,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to track request: {RequestName}", name);
-                throw;
+                throw new InvalidOperationException($"Failed to track request: {name}", ex);
             }
         }
 
@@ -194,7 +193,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to track query: {QueryId}", queryId);
-                throw;
+                throw new InvalidOperationException($"Failed to track query: {queryId}", ex);
             }
         }
 
@@ -311,7 +310,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to flush telemetry client");
-                throw;
+                throw new InvalidOperationException("Failed to flush telemetry client", ex);
             }
         }
 
@@ -360,7 +359,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to track degraded mode: {CorrelationId}", correlationId);
-                throw;
+                throw new InvalidOperationException($"Failed to track degraded mode: {correlationId}", ex);
             }
         }
 
@@ -402,7 +401,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to track source failure: {CorrelationId}, {Source}", correlationId, sourceName);
-                throw;
+                throw new InvalidOperationException($"Failed to track source failure: {correlationId}, {sourceName}", ex);
             }
         }
 
@@ -447,7 +446,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to track search execution: {CorrelationId}, {QueryId}", correlationId, queryId);
-                throw;
+                throw new InvalidOperationException($"Failed to track search execution: {correlationId}, {queryId}", ex);
             }
         }
     }

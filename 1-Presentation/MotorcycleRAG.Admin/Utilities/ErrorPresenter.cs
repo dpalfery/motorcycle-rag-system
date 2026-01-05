@@ -7,6 +7,10 @@ namespace MotorcycleRAG.Admin.Utilities;
 /// </summary>
 public static class ErrorPresenter
 {
+    private static readonly Regex FilePathRegex = new(@"([A-Za-z]:)?\\?(?:[^\\/]+\\)*[^\\/]+\.[a-zA-Z0-9]+", RegexOptions.Compiled);
+    private static readonly Regex UrlRegex = new(@"https?://[^\s]+", RegexOptions.Compiled);
+    private static readonly Regex IpAddressRegex = new(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", RegexOptions.Compiled);
+
     /// <summary>
     /// Sanitizes error messages to remove sensitive information before displaying to users
     /// Redacts file paths, URLs, IP addresses and limits message length
@@ -17,25 +21,13 @@ public static class ErrorPresenter
             return "An unexpected error occurred. Please try again.";
 
         // Redact file paths (Windows and Unix styles)
-        var sanitized = Regex.Replace(
-            errorMessage,
-            @"([A-Za-z]:)?\\?(?:[^\\/]+\\)*[^\\/]+\.[a-zA-Z0-9]+",
-            "[file path]",
-            RegexOptions.Compiled);
+        var sanitized = FilePathRegex.Replace(errorMessage, "[file path]");
 
         // Redact URLs
-        sanitized = Regex.Replace(
-            sanitized,
-            @"https?://[^\s]+",
-            "[url]",
-            RegexOptions.Compiled);
+        sanitized = UrlRegex.Replace(sanitized, "[url]");
 
         // Redact IP addresses
-        sanitized = Regex.Replace(
-            sanitized,
-            @"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}",
-            "[ip address]",
-            RegexOptions.Compiled);
+        sanitized = IpAddressRegex.Replace(sanitized, "[ip address]");
 
         // Limit length to prevent excessively long messages
         if (sanitized.Length > 200)

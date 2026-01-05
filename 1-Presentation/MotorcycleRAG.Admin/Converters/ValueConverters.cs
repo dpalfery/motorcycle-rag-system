@@ -1,3 +1,6 @@
+#pragma warning disable CA1812 // Members are never instantiated - kept for potential future use
+#pragma warning disable CA1852 // Types can be sealed but kept as-is
+
 using System.Globalization;
 
 namespace MotorcycleRAG.Admin.Converters;
@@ -34,7 +37,7 @@ public class StringNotEmptyConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException("StringNotEmptyConverter does not support two-way binding.");
     }
 }
 
@@ -69,14 +72,14 @@ public class HasValueConverter : IValueConverter
     {
         if (value == null)
             return false;
-        
+
         // Check for nullable types
         var type = value.GetType();
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
         {
             return true;
         }
-        
+
         return true;
     }
 
@@ -98,7 +101,7 @@ public class StringToVisibleConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException("StringToVisibleConverter does not support two-way binding.");
     }
 }
 
@@ -113,6 +116,59 @@ public class EnabledToColorConverter : IValueConverter
         {
             return boolValue ? Colors.Green : Colors.Gray;
         }
+        return Colors.Gray;
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// Converts a boolean enabled state to a display status string
+/// </summary>
+public class StatusLabelConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue)
+        {
+            return boolValue ? "Enabled" : "Disabled";
+        }
+        return "Unknown";
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// Converts a status value to a categorical color
+/// </summary>
+public class StatusColorConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue)
+        {
+            return boolValue ? Colors.Green : Colors.Gray;
+        }
+        
+        if (value is string status)
+        {
+            return status.ToLowerInvariant() switch
+            {
+                "enabled" or "active" or "success" or "completed" => Colors.Green,
+                "disabled" or "inactive" or "failed" or "error" => Colors.Red,
+                "pending" or "running" or "processing" => Colors.Blue,
+                "warning" => Colors.Orange,
+                _ => Colors.Gray
+            };
+        }
+        
         return Colors.Gray;
     }
 

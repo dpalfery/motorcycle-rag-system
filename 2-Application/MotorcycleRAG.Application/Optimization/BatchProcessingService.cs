@@ -106,7 +106,7 @@ public class BatchProcessingService : IBatchProcessingService {
         catch (Exception ex) {
             stopwatch.Stop();
             _logger.LogError(ex, "Fatal error during batch processing");
-            throw;
+            throw new InvalidOperationException("Fatal error during batch processing", ex);
         }
     }
 
@@ -182,7 +182,7 @@ public class BatchProcessingService : IBatchProcessingService {
         catch (Exception ex) {
             stopwatch.Stop();
             _logger.LogError(ex, "Fatal error during parallel batch processing");
-            throw;
+            throw new InvalidOperationException("Fatal error during parallel batch processing", ex);
         }
     }
 

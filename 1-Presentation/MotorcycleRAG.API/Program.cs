@@ -101,6 +101,18 @@ public class Program
         // Rate limiting is applied globally via MapControllers().RequireRateLimiting("authenticated")
         builder.Services.AddControllers();
 
+        // Enforce maximum request body size (50MB) for security and DoS mitigation
+        // This matches the application-level validation in FileUploadService
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.Limits.MaxRequestBodySize = 50 * 1024 * 1024;
+        });
+
+        builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+        {
+            options.MultipartBodyLengthLimit = 50 * 1024 * 1024;
+        });
+
         // Register context-aware services
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

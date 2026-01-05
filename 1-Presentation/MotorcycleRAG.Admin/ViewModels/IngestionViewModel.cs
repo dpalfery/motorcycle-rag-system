@@ -13,8 +13,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for the data ingestion workflow
 /// Handles file upload, local processing, and API submission
 /// </summary>
-public class IngestionViewModel : INotifyPropertyChanged
-{
+public class IngestionViewModel : INotifyPropertyChanged {
     private readonly ApiClient _apiClient;
     private readonly PdfChunker _pdfChunker;
     private readonly CsvChunker _csvChunker;
@@ -214,7 +213,7 @@ public class IngestionViewModel : INotifyPropertyChanged
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             StatusMessage = $"Error: {sanitizedMessage}";
             await ShowErrorAsync("Processing Error", sanitizedMessage);
-            _logger?.LogError(ex, "Processing failed for file {FilePath}", SelectedFilePath);
+            _logger?.LogError(ex, "Processing failed for file {FileName}", Path.GetFileName(SelectedFilePath));
         }
         finally
         {
@@ -276,9 +275,9 @@ public class IngestionViewModel : INotifyPropertyChanged
                 var embeddings = new List<float[]>();
                 for (int i = 0; i < chunkResult.Chunks.Count; i++)
                 {
-                    var searchableText = _csvChunker.CreateSearchableText(
-                        chunkResult.Chunks[i].Rows, 
-                        chunkResult.Metadata.ColumnNames);
+                    var rowsList = new List<Dictionary<string, object>>(chunkResult.Chunks[i].Rows);
+                    var headersList = new List<string>(chunkResult.Metadata.ColumnNames);
+                    var searchableText = _csvChunker.CreateSearchableText(rowsList, headersList);
                     
                     var embeddingResult = await _embeddingService.GenerateEmbeddingAsync(searchableText);
                     if (embeddingResult.Success)
@@ -324,7 +323,7 @@ public class IngestionViewModel : INotifyPropertyChanged
         ProgressPercentage = 0;
     }
 
-    private async Task ShowErrorAsync(string title, string message)
+    private static async Task ShowErrorAsync(string title, string message)
     {
         var window = Application.Current?.Windows?.FirstOrDefault();
         if (window?.Page != null)
@@ -435,3 +434,5 @@ public class ProcessedFileInfo : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }
+
+

@@ -21,6 +21,8 @@ public class ResilienceService : IResilienceService
         IOptions<ResilienceOptions> config,
         ILogger<ResilienceService> logger)
     {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(logger);
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _policies = new Dictionary<string, IAsyncPolicy>();
@@ -50,13 +52,13 @@ public class ResilienceService : IResilienceService
         {
             _logger.LogWarning(ex, "Circuit breaker open for policy: {PolicyKey}. Attempting fallback.", policyKey);
             if (fallback != null) return await ExecuteFallbackAsync(fallback, policyKey);
-            throw;
+            throw new InvalidOperationException($"Circuit breaker is open for policy: {policyKey}", ex);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Operation failed with policy: {PolicyKey}", policyKey);
             if (fallback != null && ShouldUseFallback(ex)) return await ExecuteFallbackAsync(fallback, policyKey);
-            throw;
+            throw new InvalidOperationException($"Operation failed with policy: {policyKey}", ex);
         }
     }
 
@@ -90,7 +92,7 @@ public class ResilienceService : IResilienceService
         catch (Exception fallbackEx)
         {
             _logger.LogError(fallbackEx, "Fallback failed for policy: {PolicyKey}", policyKey);
-            throw;
+            throw new InvalidOperationException($"Fallback failed for policy: {policyKey}", fallbackEx);
         }
     }
 
@@ -99,10 +101,14 @@ public class ResilienceService : IResilienceService
 
     private void InitializePolicies()
     {
-        // Minimal policies for legacy keys to satisfy wrappers; map to OpenAI defaults when not explicitly configured
-        _policies["AzureOpenAI"] = CreateCombinedPolicy("AzureOpenAI", _config.CircuitBreaker.OpenAI, _config.Retry);
-        _policies["AzureSearch"] = CreateCombinedPolicy("AzureSearch", _config.CircuitBreaker.Search, _config.Retry);
-        _policies["DocumentIntelligence"] = CreateCombinedPolicy("DocumentIntelligence", _config.CircuitBreaker.DocumentIntelligence, _config.Retry);
+        // Minimal policies for legacy keys to satisfy wrappers; map to OpenAI defaults when not
+        // explicitly configured
+        _policies["AzureOpenAI"] = CreateCombinedPolicy(
+            "AzureOpenAI", _config.CircuitBreaker.OpenAI, _config.Retry);
+        _policies["AzureSearch"] = CreateCombinedPolicy(
+            "AzureSearch", _config.CircuitBreaker.Search, _config.Retry);
+        _policies["DocumentIntelligence"] = CreateCombinedPolicy(
+            "DocumentIntelligence", _config.CircuitBreaker.DocumentIntelligence, _config.Retry);
 
         // Basic retry-only/circuit-only/timeout-only placeholders reuse OpenAI policy for simplicity
         _policies["RetryOnly"] = _policies["AzureOpenAI"];
@@ -121,7 +127,12 @@ public class ResilienceService : IResilienceService
                 attempt => retryConfig.UseExponentialBackoff
                     ? TimeSpan.FromSeconds(Math.Min(retryConfig.BaseDelaySeconds * Math.Pow(2, attempt - 1), retryConfig.MaxDelaySeconds))
                     : TimeSpan.FromSeconds(retryConfig.BaseDelaySeconds),
-                (outcome, span, retryCount, ctx) => _logger.LogWarning("Retry attempt {RetryCount} for {PolicyName} after {Delay}ms", retryCount, policyName, span.TotalMilliseconds));
+                (outcome, span, retryCount, ctx) =>
+                    _logger.LogWarning(
+                        "Retry attempt {RetryCount} for {PolicyName} after {Delay}ms",
+                        retryCount,
+                        policyName,
+                        span.TotalMilliseconds));
 
         var circuitBreakerPolicy = Policy
             .Handle<HttpRequestException>()
@@ -130,9 +141,25 @@ public class ResilienceService : IResilienceService
             .CircuitBreakerAsync(
                 circuitConfig.FailureThreshold,
                 circuitConfig.SamplingDuration,
-                onBreak: (ex, duration) => { _circuitStates[policyName] = CircuitBreakerState.Open; _logger.LogWarning("Circuit breaker opened for {PolicyName}. Duration: {Duration}ms. Exception: {Exception}", policyName, duration.TotalMilliseconds, ex.Message); },
-                onReset: () => { _circuitStates[policyName] = CircuitBreakerState.Closed; _logger.LogInformation("Circuit breaker reset for {PolicyName}", policyName); },
-                onHalfOpen: () => { _circuitStates[policyName] = CircuitBreakerState.HalfOpen; _logger.LogInformation("Circuit breaker half-open for {PolicyName}", policyName); });
+                onBreak: (ex, duration) =>
+                {
+                    _circuitStates[policyName] = CircuitBreakerState.Open;
+                    _logger.LogWarning(
+                        "Circuit breaker opened for {PolicyName}. Duration: {Duration}ms. Exception: {Exception}",
+                        policyName,
+                        duration.TotalMilliseconds,
+                        ex.Message);
+                },
+                onReset: () =>
+                {
+                    _circuitStates[policyName] = CircuitBreakerState.Closed;
+                    _logger.LogInformation("Circuit breaker reset for {PolicyName}", policyName);
+                },
+                onHalfOpen: () =>
+                {
+                    _circuitStates[policyName] = CircuitBreakerState.HalfOpen;
+                    _logger.LogInformation("Circuit breaker half-open for {PolicyName}", policyName);
+                });
 
         _circuitStates[policyName] = CircuitBreakerState.Closed;
         return Policy.WrapAsync(circuitBreakerPolicy, retryPolicy);

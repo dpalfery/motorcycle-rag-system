@@ -15,8 +15,8 @@ public class SqlDatabaseHealthCheck : IHealthCheck
 
     public SqlDatabaseHealthCheck(ISqlConnectionFactory connectionFactory, ILogger<SqlDatabaseHealthCheck> logger)
     {
-        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(connectionFactory);
+        ArgumentNullException.ThrowIfNull(logger);
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
@@ -50,9 +50,9 @@ public class SqlDatabaseHealthCheck : IHealthCheck
             return HealthCheckResult.Healthy("SQL Database is healthy",
                 new Dictionary<string, object> { { "response_time_ms", duration } });
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            _logger.LogWarning("SQL Database health check timed out");
+            _logger.LogWarning(ex, "SQL Database health check timed out");
             return HealthCheckResult.Unhealthy("SQL Database health check timed out");
         }
         catch (Exception ex)

@@ -1,3 +1,4 @@
+#pragma warning disable CA1506 // Avoid excessive class coupling
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using MotorcycleRag.WebUI.BFF.Middleware;
@@ -9,11 +10,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 // CORS - Allow requests from the frontend SPA
-builder.Services.AddCors(options =>
-{
+builder.Services.AddCors(options => {
     var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins")?.Get<string[]>() ?? ["http://localhost:3000"];
-    options.AddPolicy("AllowFrontend", policy =>
-    {
+    options.AddPolicy("AllowFrontend", policy => {
         policy
             .WithOrigins(allowedOrigins)
             .AllowAnyMethod()
@@ -26,29 +25,24 @@ builder.Services.AddCors(options =>
 // YARP
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
-    .AddTransforms(builderContext =>
-    {
+    .AddTransforms(builderContext => {
         // Attach Bearer Token from User Identity to downstream requests
-        builderContext.AddRequestTransform(async transformContext =>
-        {
+        builderContext.AddRequestTransform(async transformContext => {
             var token = await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions
                 .GetTokenAsync(transformContext.HttpContext, "access_token")
                 .ConfigureAwait(false);
-            if (!string.IsNullOrEmpty(token))
-            {
+            if (!string.IsNullOrEmpty(token)) {
                 transformContext.ProxyRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
             }
         });
     });
 
 // Authentication
-builder.Services.AddAuthentication(options =>
-{
+builder.Services.AddAuthentication(options => {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
 })
-.AddCookie(options =>
-{
+.AddCookie(options => {
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Strict;
@@ -60,8 +54,7 @@ builder.Services.AddAuthentication(options =>
     options.Cookie.MaxAge = TimeSpan.FromHours(1);
     options.Cookie.Domain = null; // Prevent subdomain attacks
 })
-.AddOpenIdConnect(options =>
-{
+.AddOpenIdConnect(options => {
     var authConfig = builder.Configuration.GetSection("AzureAd");
     options.Authority = $"{authConfig["Instance"]}{authConfig["TenantId"]}";
     options.ClientId = authConfig["ClientId"];
@@ -75,7 +68,7 @@ builder.Services.AddAuthentication(options =>
     options.Scope.Add("openid");
     options.Scope.Add("profile");
     options.Scope.Add("api");
-    
+
     // Redirect hardening
     options.ProtocolValidator.RequireNonce = true;
     options.ProtocolValidator.RequireState = true;
@@ -84,7 +77,7 @@ builder.Services.AddAuthentication(options =>
     // PKCE protection
     options.UsePkce = true;
     options.ResponseMode = "query";
-    
+
     // Token validation
     options.TokenValidationParameters.ValidateIssuer = true;
     options.TokenValidationParameters.ValidateAudience = true;
@@ -107,8 +100,7 @@ app.UseHsts();
 app.UseHostHeaderValidation();
 
 // 4. Security Headers
-app.Use(async (context, next) =>
-{
+app.Use(async (context, next) => {
     // Prevent clickjacking attacks
     context.Response.Headers.Append("X-Frame-Options", "DENY");
 
@@ -119,6 +111,7 @@ app.Use(async (context, next) =>
     context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
 
     // Content Security Policy - restrict resource loading
+#pragma warning disable S7039 // Content Security Policy should be restrictive
     context.Response.Headers.Append("Content-Security-Policy",
         "default-src 'self'; " +
         "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // React development requires inline scripts
@@ -129,6 +122,7 @@ app.Use(async (context, next) =>
         "frame-ancestors 'none'; " +
         "base-uri 'self'; " +
         "form-action 'self'");
+#pragma warning restore S7039 // Content Security Policy should be restrictive
 
     // Referrer Policy - control referrer information
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -162,7 +156,7 @@ app.Use(async (context, next) =>
         "vr=(), " +
         "xr-spatial-tracking=()");
 
-    await next();
+    await next().ConfigureAwait(false);
 });
 
 // 5. Static files
@@ -186,3 +180,4 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Motorcycl
 
 // Fallback to React (SPA)
 app.MapFallbackToFile("index.html");
+#pragma warning restore CA1506 // Avoid excessive class coupling

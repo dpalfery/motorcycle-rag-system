@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 
@@ -8,8 +6,7 @@ namespace MotorcycleRAG.Domain.InternalDTOs;
 /// <summary>
 /// Internal representation of a search result used only inside the Domain project
 /// </summary>
-public class DomainSearchResult
-{
+public class DomainSearchResult {
     [Required]
     public string Id { get; set; } = string.Empty;
 
@@ -22,7 +19,7 @@ public class DomainSearchResult
     [Required]
     public DomainSearchSource Source { get; set; } = new();
 
-    public Dictionary<string, object> Metadata { get; set; } = new();
+    public Dictionary<string, object> Metadata { get; } = new();
 
     /// <summary>
     /// Timestamp when the result was generated
@@ -32,21 +29,20 @@ public class DomainSearchResult
     /// <summary>
     /// Highlighted text snippets for display
     /// </summary>
-    public List<string> Highlights { get; set; } = new();
+    public Collection<string> Highlights { get; } = new();
 }
 
 /// <summary>
 /// Internal search source information
 /// </summary>
-public class DomainSearchSource
-{
+public class DomainSearchSource {
     [Required]
     public DomainSearchAgentType AgentType { get; set; }
 
     [Required]
     public string SourceName { get; set; } = string.Empty;
 
-    public string? SourceUrl { get; set; }
+    public Uri? SourceUrl { get; set; }
     public string DocumentId { get; set; } = string.Empty;
     public DateTime LastUpdated { get; set; }
 
@@ -56,8 +52,7 @@ public class DomainSearchSource
     public DomainCitation? Citation { get; set; }
 }
 
-public enum DomainCitationSourceType
-{
+public enum DomainCitationSourceType {
     Dataset,
     Website,
     ManualPdf,
@@ -66,8 +61,7 @@ public enum DomainCitationSourceType
     ExpertReview
 }
 
-public sealed class DomainCitation
-{
+public sealed class DomainCitation {
     public DomainCitationSourceType SourceType { get; set; }
     public string SourceName { get; set; } = string.Empty;
     public Uri? SourceUrl { get; set; }
@@ -84,8 +78,7 @@ public sealed class DomainCitation
 /// <summary>
 /// Internal types of search agents
 /// </summary>
-public enum DomainSearchAgentType
-{
+public enum DomainSearchAgentType {
     VectorSearch,
     WebSearch,
     PDFSearch,

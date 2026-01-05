@@ -4,7 +4,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// Implementation of INavigationService wrapping MAUI Shell navigation.
 /// This allows ViewModels to remain decoupled from Shell.Current and testable.
 /// </summary>
-public class NavigationService : INavigationService
+internal class NavigationService : INavigationService
 {
     /// <summary>
     /// Navigates to the specified route with optional query parameters.

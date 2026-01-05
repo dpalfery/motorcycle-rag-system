@@ -56,7 +56,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create plan");
-                throw;
+                throw new InvalidOperationException("Failed to create plan", ex);
             }
         }
 
@@ -80,7 +80,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get plan by ID {PlanId}", planId);
-                throw;
+                throw new InvalidOperationException($"Failed to get plan by ID {planId}", ex);
             }
         }
 
@@ -104,7 +104,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get plan by name {PlanName}", planName);
-                throw;
+                throw new InvalidOperationException($"Failed to get plan by name {planName}", ex);
             }
         }
 
@@ -124,7 +124,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get all plans");
-                throw;
+                throw new InvalidOperationException("Failed to get all plans", ex);
             }
         }
 
@@ -156,7 +156,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to update plan with ID {PlanId}", plan.Id);
-                throw;
+                throw new InvalidOperationException($"Failed to update plan with ID {plan.Id}", ex);
             }
         }
 
@@ -183,7 +183,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to delete plan with ID {PlanId}", planId);
-                throw;
+                throw new InvalidOperationException($"Failed to delete plan with ID {planId}", ex);
             }
         }
     }

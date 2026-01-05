@@ -109,6 +109,8 @@
             <converters:HasValueConverter x:Key="HasValueConverter"/>
             <converters:StringToVisibleConverter x:Key="StringToVisibleConverter"/>
             <converters:EnabledToColorConverter x:Key="EnabledToColorConverter"/>
+            <converters:StatusLabelConverter x:Key="StatusLabelConverter"/>
+            <converters:StatusColorConverter x:Key="StatusColorConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

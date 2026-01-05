@@ -10,11 +10,20 @@ namespace MotorcycleRAG.Admin.Processing;
 /// </summary>
 public class CsvChunkingResult
 {
+    private readonly List<CsvChunk> _chunks = new();
+    private readonly List<string> _errors = new();
+    private readonly List<string> _warnings = new();
+
     public bool Success { get; set; }
-    public List<CsvChunk> Chunks { get; set; } = new();
+    public IReadOnlyList<CsvChunk> Chunks => _chunks.AsReadOnly();
     public CsvMetadata Metadata { get; set; } = new();
-    public List<string> Errors { get; set; } = new();
-    public List<string> Warnings { get; set; } = new();
+    public IReadOnlyList<string> Errors => _errors.AsReadOnly();
+    public IReadOnlyList<string> Warnings => _warnings.AsReadOnly();
+
+    // Internal methods for modification
+    internal void AddChunk(CsvChunk chunk) => _chunks.Add(chunk);
+    internal void AddError(string error) => _errors.Add(error);
+    internal void AddWarning(string warning) => _warnings.Add(warning);
 }
 
 /// <summary>
@@ -24,9 +33,15 @@ public class CsvMetadata
 {
     public int TotalRows { get; set; }
     public int ColumnCount { get; set; }
-    public List<string> ColumnNames { get; set; } = new();
+    public IReadOnlyList<string> ColumnNames { get; private set; } = new List<string>();
     public string Delimiter { get; set; } = ",";
     public bool HasHeader { get; set; } = true;
+
+    // Internal method for setting column names during initialization
+    internal void SetColumnNames(List<string> columnNames)
+    {
+        ColumnNames = columnNames.AsReadOnly();
+    }
 }
 
 /// <summary>
@@ -35,10 +50,21 @@ public class CsvMetadata
 public class CsvChunk
 {
     public int ChunkIndex { get; set; }
-    public List<Dictionary<string, object>> Rows { get; set; } = new();
+    public IReadOnlyList<Dictionary<string, object>> Rows { get; private set; } = new List<Dictionary<string, object>>();
     public int StartRowNumber { get; set; }
     public int EndRowNumber { get; set; }
-    public Dictionary<string, object> Metadata { get; set; } = new();
+    public IReadOnlyDictionary<string, object> Metadata { get; private set; } = new Dictionary<string, object>();
+
+    // Internal methods for setting properties
+    internal void SetRows(List<Dictionary<string, object>> rows)
+    {
+        Rows = rows.AsReadOnly();
+    }
+
+    internal void SetMetadata(Dictionary<string, object> metadata)
+    {
+        Metadata = new System.Collections.ObjectModel.ReadOnlyDictionary<string, object>(metadata);
+    }
 }
 
 /// <summary>
@@ -68,7 +94,7 @@ public class CsvChunker
             // Input validation
             if (string.IsNullOrWhiteSpace(filePath))
             {
-                result.Errors.Add("File path is required.");
+                result.AddError("File path is required.");
                 return result;
             }
 
@@ -77,14 +103,14 @@ public class CsvChunker
 
             if (!File.Exists(canonicalPath))
             {
-                result.Errors.Add($"File not found: {filePath}");
+                result.AddError($"File not found: {filePath}");
                 return result;
             }
 
             var extension = Path.GetExtension(canonicalPath).ToLowerInvariant();
             if (extension != ".csv")
             {
-                result.Errors.Add("Invalid file type. Only CSV files are supported.");
+                result.AddError("Invalid file type. Only CSV files are supported.");
                 return result;
             }
 
@@ -92,7 +118,7 @@ public class CsvChunker
             const long maxSizeBytes = 50 * 1024 * 1024; // 50 MB
             if (fileInfo.Length > maxSizeBytes)
             {
-                result.Errors.Add($"File too large. Max allowed size is 50MB. Actual size: {fileInfo.Length / (1024 * 1024)}MB");
+                result.AddError($"File too large. Max allowed size is 50MB. Actual size: {fileInfo.Length / (1024 * 1024)}MB");
                 return result;
             }
 
@@ -105,7 +131,7 @@ public class CsvChunker
                     BadDataFound = context =>
                     {
                         var rowNum = context.Context?.Parser?.Row ?? 0;
-                        result.Warnings.Add($"Bad data at row {rowNum}: {context.RawRecord}");
+                        result.AddWarning($"Bad data at row {rowNum}: {context.RawRecord}");
                     }
                 };
 
@@ -116,14 +142,14 @@ public class CsvChunker
                 csv.Read();
                 csv.ReadHeader();
                 var headers = csv.HeaderRecord?.ToList() ?? new List<string>();
-                
-                result.Metadata.ColumnNames = headers;
+
+                result.Metadata.SetColumnNames(headers);
                 result.Metadata.ColumnCount = headers.Count;
                 result.Metadata.HasHeader = true;
 
                 if (headers.Count == 0)
                 {
-                    result.Errors.Add("No columns found in CSV file");
+                    result.AddError("No columns found in CSV file");
                     return;
                 }
 
@@ -154,7 +180,7 @@ public class CsvChunker
                     // Create chunk when we reach the target size
                     if (currentChunk.Count >= _rowsPerChunk)
                     {
-                        result.Chunks.Add(CreateChunk(currentChunk, chunkIndex++, chunkStartRow, rowNumber - 1, headers));
+                        result.AddChunk(CreateChunk(currentChunk, chunkIndex++, chunkStartRow, rowNumber - 1, headers));
                         currentChunk = new List<Dictionary<string, object>>();
                         chunkStartRow = rowNumber;
                     }
@@ -163,7 +189,7 @@ public class CsvChunker
                 // Add final chunk if there are remaining rows
                 if (currentChunk.Count > 0)
                 {
-                    result.Chunks.Add(CreateChunk(currentChunk, chunkIndex++, chunkStartRow, rowNumber - 1, headers));
+                    result.AddChunk(CreateChunk(currentChunk, chunkIndex++, chunkStartRow, rowNumber - 1, headers));
                 }
 
                 result.Metadata.TotalRows = rowNumber - 1; // Exclude header
@@ -172,11 +198,11 @@ public class CsvChunker
         }
         catch (OperationCanceledException)
         {
-            result.Errors.Add("Processing was cancelled");
+            result.AddError("Processing was cancelled");
         }
         catch (Exception ex)
         {
-            result.Errors.Add($"Error processing CSV: {ex.Message}");
+            result.AddError($"Error processing CSV: {ex.Message}");
         }
 
         return result;
@@ -218,7 +244,7 @@ public class CsvChunker
     /// <summary>
     /// Parses a string value to an appropriate type
     /// </summary>
-    private object ParseValue(string? value)
+    private static object ParseValue(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
@@ -252,21 +278,24 @@ public class CsvChunker
         int endRow,
         List<string> headers)
     {
+        var metadata = new Dictionary<string, object>
+        {
+            ["rowCount"] = rows.Count,
+            ["startRow"] = startRow,
+            ["endRow"] = endRow,
+            ["columnCount"] = headers.Count,
+            ["searchableText"] = CreateSearchableText(rows, headers)
+        };
+
         var chunk = new CsvChunk
         {
             ChunkIndex = chunkIndex,
-            Rows = new List<Dictionary<string, object>>(rows),
             StartRowNumber = startRow,
-            EndRowNumber = endRow,
-            Metadata = new Dictionary<string, object>
-            {
-                ["rowCount"] = rows.Count,
-                ["startRow"] = startRow,
-                ["endRow"] = endRow,
-                ["columnCount"] = headers.Count,
-                ["searchableText"] = CreateSearchableText(rows, headers)
-            }
+            EndRowNumber = endRow
         };
+
+        chunk.SetRows(new List<Dictionary<string, object>>(rows));
+        chunk.SetMetadata(metadata);
 
         return chunk;
     }
@@ -286,7 +315,7 @@ public class CsvChunker
             if (!File.Exists(canonicalPath))
             {
                 result.IsValid = false;
-                result.Errors.Add($"File not found: {filePath}");
+                result.AddError($"File not found: {filePath}");
                 return result;
             }
 
@@ -304,26 +333,26 @@ public class CsvChunker
 
             // Check for common motorcycle specification columns
             var expectedColumns = new[] { "make", "model", "year" };
-            var missingColumns = expectedColumns.Where(col => 
+            var missingColumns = expectedColumns.Where(col =>
                 !headers.Any(h => h.Equals(col, StringComparison.OrdinalIgnoreCase))).ToList();
 
             if (missingColumns.Any())
             {
                 result.IsValid = false;
-                result.Errors.Add($"Missing required columns: {string.Join(", ", missingColumns)}");
+                result.AddError($"Missing required columns: {string.Join(", ", missingColumns)}");
             }
 
             // Check if file has at least one data row
             if (!csv.Read())
             {
                 result.IsValid = false;
-                result.Errors.Add("CSV file contains no data rows");
+                result.AddError("CSV file contains no data rows");
             }
         }
         catch (Exception ex)
         {
             result.IsValid = false;
-            result.Errors.Add($"Validation error: {ex.Message}");
+            result.AddError($"Validation error: {ex.Message}");
         }
 
         return result;
@@ -335,7 +364,16 @@ public class CsvChunker
 /// </summary>
 public class ValidationResult
 {
+    private readonly List<string> _errors = new();
+    private readonly List<string> _warnings = new();
+
     public bool IsValid { get; set; }
-    public List<string> Errors { get; set; } = new();
-    public List<string> Warnings { get; set; } = new();
+    public IReadOnlyList<string> Errors => _errors.AsReadOnly();
+    public IReadOnlyList<string> Warnings => _warnings.AsReadOnly();
+
+    // Internal methods for modification
+    internal void AddError(string error) => _errors.Add(error);
+    internal void AddWarning(string warning) => _warnings.Add(warning);
 }
+
+

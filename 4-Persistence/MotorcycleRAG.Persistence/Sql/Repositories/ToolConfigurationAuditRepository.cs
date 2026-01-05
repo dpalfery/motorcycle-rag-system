@@ -101,7 +101,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
             _logger.LogError(ex,
                 "Error recording audit entry for tool {ToolId}: {Action}",
                 toolId, action);
-            throw;
+            throw new InvalidOperationException($"Error recording audit entry for tool {toolId}: {action}", ex);
         }
     }
 
@@ -138,7 +138,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
             _logger.LogError(ex,
                 "Error retrieving audit history for tool configuration {ToolConfigurationId}",
                 toolConfigurationId);
-            throw;
+            throw new InvalidOperationException($"Error retrieving audit history for tool configuration {toolConfigurationId}", ex);
         }
     }
 
@@ -180,7 +180,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
             _logger.LogError(ex,
                 "Error retrieving audit entries for action {Action}",
                 action);
-            throw;
+            throw new InvalidOperationException($"Error retrieving audit entries for action {action}", ex);
         }
     }
 
@@ -217,7 +217,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
             _logger.LogError(ex,
                 "Error retrieving audit entries for user {UserId}",
                 userId);
-            throw;
+            throw new InvalidOperationException($"Error retrieving audit entries for user {userId}", ex);
         }
     }
 
@@ -244,7 +244,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit summary");
-            throw;
+            throw new InvalidOperationException("Error retrieving audit summary", ex);
         }
     }
 
@@ -273,7 +273,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         catch (Exception ex) {
             _logger.LogError(ex,
                 "Error purging old audit entries");
-            throw;
+            throw new InvalidOperationException("Error purging old audit entries", ex);
         }
     }
 }

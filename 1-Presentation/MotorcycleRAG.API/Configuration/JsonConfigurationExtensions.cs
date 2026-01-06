@@ -17,7 +17,7 @@ internal static class JsonConfigurationExtensions
     /// <param name="services">Service collection</param>
     /// <param name="isDevelopment">Whether the application is running in development mode</param>
     /// <returns>Service collection for chaining</returns>
-    public static IServiceCollection ConfigureJsonSerialization(this IServiceCollection services, bool isDevelopment = false)
+    internal static IServiceCollection ConfigureJsonSerialization(this IServiceCollection services, bool isDevelopment = false)
     {
         services.ConfigureHttpJsonOptions(options =>
         {

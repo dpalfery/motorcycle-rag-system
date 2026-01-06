@@ -19,7 +19,7 @@ internal class CurrentUserService : ICurrentUserService
     /// </summary>
     /// <param name="httpContextAccessor">HTTP context accessor</param>
     /// <param name="logger">Logger</param>
-    public CurrentUserService(IHttpContextAccessor httpContextAccessor, ILogger<CurrentUserService> logger)
+    internal CurrentUserService(IHttpContextAccessor httpContextAccessor, ILogger<CurrentUserService> logger)
     {
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

@@ -13,7 +13,7 @@ using FluentAssertions;
 
 namespace MotorcycleRAG.UnitTests.Telemetry;
 
-public class TelemetryServiceTests
+public class TelemetryServiceTests : IDisposable
 {
     private readonly StubTelemetryChannel _channel;
     private readonly TelemetryClient _client;
@@ -30,13 +30,14 @@ public class TelemetryServiceTests
             ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000"
         };
         _client = new TelemetryClient(aiConfig);
+        aiConfig.Dispose();
         _mockCorrelation = new Mock<ICorrelationService>();
         _mockLogger = new Mock<ILogger<TelemetryService>>();
         _mockCorrelation.Setup(c => c.GetOrCreateCorrelationId()).Returns("corr-test");
-        
+
         // Create options for telemetryConfig (domain model) and sqlOptions
 
-        
+
         _service = new TelemetryService(_client, _mockLogger.Object);
     }
 
@@ -173,21 +174,6 @@ public class TelemetryServiceTests
         ev.Metrics["SourceSuccessRate"].Should().Be(100d);
     }
 
-    /* TrackCost test commented out - method not implemented in ITelemetryService interface
-    [Fact]
-    public void TrackCost_ShouldSendTelemetryEvent()
-    {
-        // Act
-        _service.TrackCost("query1", 0.01m, 500);
-
-        // Assert
-        var ev = _channel.Telemetries.OfType<Microsoft.ApplicationInsights.DataContracts.EventTelemetry>().Single(e => e.Name == "QueryCost");
-        ev.Properties["QueryId"].Should().Be("query1");
-        ev.Metrics["EstimatedCost"].Should().Be(0.01d);
-        ev.Metrics["TokensUsed"].Should().Be(500d);
-    }
-    */
-
     private sealed class StubTelemetryChannel : ITelemetryChannel
     {
         public ConcurrentBag<ITelemetry> Telemetries { get; } = new();
@@ -195,6 +181,22 @@ public class TelemetryServiceTests
         public void Flush() { }
         public bool? DeveloperMode { get; set; }
         public string? EndpointAddress { get; set; }
-        public void Dispose() { }
+        public void Dispose() {
+            GC.SuppressFinalize(this);
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _channel?.Dispose();
+        }
     }
 }

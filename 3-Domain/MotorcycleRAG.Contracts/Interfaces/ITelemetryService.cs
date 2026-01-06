@@ -39,7 +39,7 @@ public interface ITelemetryService
     /// <param name="availableSources">List of available source names</param>
     /// <param name="duration">Duration of the degraded operation</param>
     /// <param name="resultsFound">Number of results obtained from partial sources</param>
-    void TrackDegradedMode(string correlationId, List<string> failedSources, List<string> availableSources, TimeSpan duration, int resultsFound);
+    void TrackDegradedMode(string correlationId, IReadOnlyList<string> failedSources, IReadOnlyList<string> availableSources, TimeSpan duration, int resultsFound);
 
     /// <summary>
     /// Tracks a source failure during search operations

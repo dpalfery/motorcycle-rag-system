@@ -23,7 +23,7 @@ internal class SigningKeyCache
     private readonly TimeSpan _cacheTtl = TimeSpan.FromHours(1);  // Cache keys for 1 hour
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);  // Prevent concurrent refreshes
 
-    public SigningKeyCache(HttpClient httpClient, ILogger<SigningKeyCache> logger)
+    internal SigningKeyCache(HttpClient httpClient, ILogger<SigningKeyCache> logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -34,7 +34,7 @@ internal class SigningKeyCache
     /// Pre-warms the cache with signing keys from the specified issuers.
     /// Should be called during application startup to avoid blocking requests.
     /// </summary>
-    public async Task PreWarmCacheAsync(string workforceIssuer, string? externalIdIssuer = null)
+    internal async Task PreWarmCacheAsync(string workforceIssuer, string? externalIdIssuer = null)
     {
         _logger.LogInformation("Pre-warming signing key cache for issuers");
 
@@ -57,7 +57,7 @@ internal class SigningKeyCache
     /// Gets signing keys for an issuer from the cache.
     /// Returns cached keys without blocking. Cache must be pre-warmed at startup.
     /// </summary>
-    public IEnumerable<SecurityKey> GetSigningKeys(string issuer)
+    internal IEnumerable<SecurityKey> GetSigningKeys(string issuer)
     {
         if (string.IsNullOrEmpty(issuer))
             return [];
@@ -192,7 +192,7 @@ internal static class AuthenticationServiceExtensions
     /// <param name="configuration">Application configuration</param>
     /// <param name="logger">Logger for diagnostics</param>
     /// <returns>Authentication builder for chaining</returns>
-    public static AuthenticationBuilder AddDualIssuerJwtBearer(
+    internal static AuthenticationBuilder AddDualIssuerJwtBearer(
         this AuthenticationBuilder authenticationBuilder,
         IConfiguration configuration,
         ILogger logger)
@@ -268,7 +268,7 @@ internal static class AuthenticationServiceExtensions
 
                 // Implement dual-issuer signing key resolution using cached keys
                 // The cache is pre-warmed on startup and refreshed in background
-                options.TokenValidationParameters.IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
+                options.TokenValidationParameters.IssuerSigningKeyResolver = (_, securityToken, kid, _) =>
                 {
                     var jsonToken = securityToken as JsonWebToken;
                     var issuer = jsonToken?.Issuer;

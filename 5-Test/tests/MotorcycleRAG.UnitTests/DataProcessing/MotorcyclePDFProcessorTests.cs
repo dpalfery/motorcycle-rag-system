@@ -68,7 +68,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithChapterHeading_SetsPrimarySectionAndLevel1() {
         // Arrange
         var documentContent = "CHAPTER 3 Maintenance Procedures\n\nThis chapter covers maintenance procedures.";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
             new DocumentPage {
                 PageNumber = 3,
@@ -96,7 +96,7 @@ public class MotorcyclePDFProcessorTests {
         result.Should().NotBeNull();
         result.Documents.Should().HaveCountGreaterThan(0);
 
-        var chunk = result.Documents.First();
+        var chunk = result.Documents[0];
         chunk.Metadata.Should().NotBeNull();
         chunk.Metadata.AdditionalProperties.Should().ContainKey("Locator");
 
@@ -130,7 +130,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithNumberedSectionHeading_SetsSectionLevel2() {
         // Arrange
         var documentContent = "3. Maintenance\n\nRegular maintenance is essential.";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
             new DocumentPage {
                 PageNumber = 5,
@@ -158,7 +158,7 @@ public class MotorcyclePDFProcessorTests {
         result.Should().NotBeNull();
         result.Documents.Should().HaveCountGreaterThan(0);
 
-        var chunk = result.Documents.First();
+        var chunk = result.Documents[0];
         chunk.Metadata.AdditionalProperties.Should().ContainKey("Locator");
 
         var locator = chunk.Metadata.AdditionalProperties["Locator"];
@@ -190,7 +190,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithAllCapsHeading_SetsSectionLevel2() {
         // Arrange
         var documentContent = "SAFETY PRECAUTIONS\n\nRead all safety warnings carefully.";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
             new DocumentPage {
                 PageNumber = 2,
@@ -218,7 +218,7 @@ public class MotorcyclePDFProcessorTests {
         result.Should().NotBeNull();
         result.Documents.Should().HaveCountGreaterThan(0);
 
-        var chunk = result.Documents.First();
+        var chunk = result.Documents[0];
         chunk.Metadata.AdditionalProperties.Should().ContainKey("Locator");
 
         var locator = chunk.Metadata.AdditionalProperties["Locator"];
@@ -249,7 +249,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithTitleCaseColonHeading_SetsSectionLevel3() {
         // Arrange
         var documentContent = "Oil Change Procedure:\n\nFollow these steps to change oil.";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
             new DocumentPage {
                 PageNumber = 10,
@@ -277,7 +277,7 @@ public class MotorcyclePDFProcessorTests {
         result.Should().NotBeNull();
         result.Documents.Should().HaveCountGreaterThan(0);
 
-        var chunk = result.Documents.First();
+        var chunk = result.Documents[0];
         chunk.Metadata.AdditionalProperties.Should().ContainKey("Locator");
 
         var locator = chunk.Metadata.AdditionalProperties["Locator"];
@@ -309,7 +309,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithMultiPageTable_SetsCorrectPageRangeInLocator() {
         // Arrange
         var documentContent = "Specifications Table";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
 
         // Create a table spanning pages 5-7
         var tableCells = new[]
@@ -400,7 +400,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithSinglePageTable_SetsSinglePageRange() {
         // Arrange
         var documentContent = "Quick Reference";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
 
         // Create a single-page table
         var tableCells = new[]
@@ -483,7 +483,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithoutSectionPatterns_FallsBackToGeneralContent() {
         // Arrange
         var documentContent = "This is some regular text without any headings or section markers. Just plain content that describes motorcycle maintenance procedures in a straightforward manner.";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
             new DocumentPage {
                 PageNumber = 4,
@@ -511,7 +511,7 @@ public class MotorcyclePDFProcessorTests {
         result.Should().NotBeNull();
         result.Documents.Should().HaveCountGreaterThan(0);
 
-        var chunk = result.Documents.First();
+        var chunk = result.Documents[0];
         chunk.Metadata.AdditionalProperties.Should().ContainKey("Locator");
 
         var locator = chunk.Metadata.AdditionalProperties["Locator"];
@@ -547,7 +547,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithEmptyPage_FallsBackToEmptyPage() {
         // Arrange
         var documentContent = string.Empty;
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
             new DocumentPage {
                 PageNumber = 1,
@@ -586,7 +586,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithMultipleHeadings_CapturesAllHeadings() {
         // Arrange
         var documentContent = "CHAPTER 3 Maintenance\n\n3. Oil Change\n\n3. Brake Service\n\nRegular maintenance is important.";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
             new DocumentPage {
                 PageNumber = 3,
@@ -614,7 +614,7 @@ public class MotorcyclePDFProcessorTests {
         result.Should().NotBeNull();
         result.Documents.Should().HaveCountGreaterThan(0);
 
-        var chunk = result.Documents.First();
+        var chunk = result.Documents[0];
         chunk.Metadata.AdditionalProperties.Should().ContainKey("Locator");
 
         var locator = chunk.Metadata.AdditionalProperties["Locator"];
@@ -645,7 +645,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithTableWithoutPageNumbers_DefaultsToPage1() {
         // Arrange
         var documentContent = "Data Table";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
 
         // Create table cells without page numbers (default 0)
         var tableCells = new[]
@@ -692,7 +692,7 @@ public class MotorcyclePDFProcessorTests {
         result.Should().NotBeNull();
         result.Documents.Should().HaveCountGreaterThan(0);
 
-        var tableChunk = result.Documents.FirstOrDefault(d => d.Content.Contains("Table") && d.Content.Contains("A"));
+        var tableChunk = result.Documents.FirstOrDefault(d => d.Content.Contains("Table") && d.Content.Contains('A'));
 
         tableChunk.Should().NotBeNull("Table chunk should be created");
         tableChunk.Metadata.AdditionalProperties.Should().ContainKey("Locator");
@@ -723,7 +723,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithTableCaption_IncludesCaptionInLocator() {
         // Arrange
         var documentContent = "Table with caption";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
 
         var tableCells = new[]
         {
@@ -788,7 +788,7 @@ public class MotorcyclePDFProcessorTests {
     public async Task ProcessAsync_WithSectionHeading_SetsSectionLevel2() {
         // Arrange
         var documentContent = "SECTION 4 Electrical System\n\nThis section covers electrical components.";
-        var pdfDocument = CreateTestPDFDocument(documentContent);
+        var pdfDocument = CreateTestPdfDocument(documentContent);
         var analysisResult = CreateTestAnalysisResult(
             new DocumentPage {
                 PageNumber = 4,
@@ -816,7 +816,7 @@ public class MotorcyclePDFProcessorTests {
         result.Should().NotBeNull();
         result.Documents.Should().HaveCountGreaterThan(0);
 
-        var chunk = result.Documents.First();
+        var chunk = result.Documents[0];
         chunk.Metadata.AdditionalProperties.Should().ContainKey("Locator");
 
         var locator = chunk.Metadata.AdditionalProperties["Locator"];
@@ -855,7 +855,7 @@ public class MotorcyclePDFProcessorTests {
     /// <summary>
     /// Creates a test PDF document with given content
     /// </summary>
-    private static PDFDocument CreateTestPDFDocument(string content) {
+    private static PDFDocument CreateTestPdfDocument(string content) {
         var contentBytes = Encoding.UTF8.GetBytes(content);
         return new PDFDocument {
             FileName = "test-manual.pdf",

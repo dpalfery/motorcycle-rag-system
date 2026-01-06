@@ -111,7 +111,7 @@ public class MotorcycleManualCitationComponentTests {
         var pdfDocument = new PDFDocument {
             FileName = "Honda_CBR1000RR_Service_Manual_2024.pdf",
             Content = new MemoryStream(Encoding.UTF8.GetBytes("Test PDF content")),
-            FileSizeBytes = 1024000,
+            FileSizeBytes = 1_024_000,
             Make = "Honda",
             Model = "CBR1000RR",
             Year = "2024",
@@ -274,7 +274,7 @@ public class MotorcycleManualCitationComponentTests {
         var pdfDocument = new PDFDocument {
             FileName = "Ducati_Panigale_V4_Manual.pdf",
             Content = new MemoryStream(Encoding.UTF8.GetBytes("Test PDF content")),
-            FileSizeBytes = 2048000,
+            FileSizeBytes = 2_048_000,
             Make = "Ducati",
             Model = "Panigale V4",
             Year = "2024",
@@ -357,7 +357,7 @@ public class MotorcycleManualCitationComponentTests {
         var pdfDocument = new PDFDocument {
             FileName = "Yamaha_YZF_R1_Manual.pdf",
             Content = new MemoryStream(Encoding.UTF8.GetBytes("Test PDF content")),
-            FileSizeBytes = 1536000,
+            FileSizeBytes = 1_536_000,
             Make = "Yamaha",
             Model = "YZF-R1",
             Year = "2024",

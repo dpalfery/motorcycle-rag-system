@@ -274,7 +274,7 @@ public class WebSearchAgentTests : IDisposable {
         // Act & Assert
         // Should not throw an exception even when OpenAI fails
         var exception = await Record.ExceptionAsync(async () => {
-            var results = await _webSearchAgent.SearchAsync(query, searchOptions);
+            _ = await _webSearchAgent.SearchAsync(query, searchOptions);
         });
 
         Assert.Null(exception);
@@ -353,12 +353,6 @@ public class WebSearchAgentTests : IDisposable {
         var query = "Honda CBR1000RR specifications";
         var searchOptions = CreateDefaultSearchOptions();
 
-        var blockedPolicy = CreateTestTrustPolicy(
-            domainPattern: "blocked-motorcycle.com",
-            tier: WebTrustTier.TierB,
-            isBlocked: true,
-            reason: "Contains inaccurate technical information");
-
         var allowlistPolicy = CreateTestTrustPolicy(
             domainPattern: "test-motorcycle.com",
             tier: WebTrustTier.TierA,
@@ -369,12 +363,12 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(allowlistPolicy); // Allowlisted domain with TierA
 
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
             _mockLogger.Object,
-            mockTrustStore.Object);
+            mockTrustStore.Object); // using var already here
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -403,12 +397,12 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(allowlistPolicy);
 
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
             _mockLogger.Object,
-            mockTrustStore.Object);
+            mockTrustStore.Object); // using var already here
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -435,12 +429,12 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns((WebTrustPolicy?)null); // Not allowlisted
 
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
             _mockLogger.Object,
-            mockTrustStore.Object);
+            mockTrustStore.Object); // using var already here
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -474,12 +468,12 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(tierAPolicy);
 
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
             _mockLogger.Object,
-            mockTrustStore.Object);
+            mockTrustStore.Object); // using var already here
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -511,12 +505,12 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(tierBPolicy);
 
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
             _mockLogger.Object,
-            mockTrustStore.Object);
+            mockTrustStore.Object); // using var already here
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -548,12 +542,12 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(tierCPolicy);
 
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
             _mockLogger.Object,
-            mockTrustStore.Object);
+            mockTrustStore.Object); // using var already here
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -576,12 +570,12 @@ public class WebSearchAgentTests : IDisposable {
         var searchOptions = CreateDefaultSearchOptions();
 
         // Create agent WITHOUT trust policy store (null)
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
             _mockLogger.Object,
-            null); // No trust policy store - backward compatibility mode
+            null); // No trust policy store - backward compatibility mode, using var already here
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -602,7 +596,7 @@ public class WebSearchAgentTests : IDisposable {
             x => x.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("WebTrustPolicyStore not configured")),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("WebTrustPolicyStore not configured")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.AtLeastOnce);
@@ -625,7 +619,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(blockedPolicy);
 
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
@@ -664,7 +658,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(tierPolicy);
 
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
@@ -707,7 +701,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain(It.IsAny<string>()))
             .Returns<string>(domain => domain == "test-motorcycle.com" ? tierAPolicy : tierCPolicy);
 
-        var webSearchAgent = new WebSearchAgent(
+        using var webSearchAgent = new WebSearchAgent(
             _httpClient,
             _mockOpenAIClient.Object,
             _webSearchConfig,
@@ -752,8 +746,11 @@ public class WebSearchAgentTests : IDisposable {
             <html>
                 <body>
                     <article>
-                        <p>Honda CBR1000RR specifications include a 999cc inline-four engine producing 217 horsepower. The motorcycle features advanced electronics and aerodynamics for superior performance on track and street.</p>
-                        <p>Performance testing shows excellent acceleration and handling characteristics. The bike weighs 201kg and has a top speed of over 300 km/h.</p>
+                        <p>Honda CBR1000RR specifications include a 999cc inline-four engine producing 217
+                        horsepower. The motorcycle features advanced electronics and aerodynamics for superior
+                        performance on track and street.</p>
+                        <p>Performance testing shows excellent acceleration and handling characteristics. The bike
+                        weighs 201kg and has a top speed of over 300 km/h.</p>
                     </article>
                 </body>
             </html>";
@@ -818,7 +815,14 @@ public class WebSearchAgentTests : IDisposable {
     #endregion
 
     public void Dispose() {
-        _httpClient?.Dispose();
-        (_webSearchAgent as IDisposable)?.Dispose();
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing) {
+        if (disposing) {
+            _httpClient?.Dispose();
+            (_webSearchAgent as IDisposable)?.Dispose();
+        }
     }
 }

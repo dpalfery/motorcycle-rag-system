@@ -78,15 +78,34 @@ public sealed class MeController : ControllerBase {
     }
 
     /// <summary>
-    /// Gets the current authenticated user's usage information.
+    /// Gets the current authenticated user's usage information (default 7 days).
     /// </summary>
-    /// <param name="days">Number of days to retrieve usage for (default: 7, max: 30)</param>
     /// <returns>User usage information</returns>
     [HttpGet("usage")]
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UsageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetUsageAsync([FromQuery] int days = 7) {
+    public async Task<IActionResult> GetUsageAsync() {
+        return await GetUsageInternalAsync(7);
+    }
+
+    /// <summary>
+    /// Gets the current authenticated user's usage information with custom date range.
+    /// </summary>
+    /// <param name="days">Number of days to retrieve usage for (max: 30)</param>
+    /// <returns>User usage information</returns>
+    [HttpGet("usage")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(typeof(UsageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetUsageAsync([FromQuery] int days) {
+        return await GetUsageInternalAsync(days);
+    }
+
+    /// <summary>
+    /// Internal implementation for getting usage information.
+    /// </summary>
+    private async Task<IActionResult> GetUsageInternalAsync(int days) {
         var userId = _currentUserService.UserId;
         if (string.IsNullOrWhiteSpace(userId)) {
             _logger.LogWarning("Usage request without authenticated user");

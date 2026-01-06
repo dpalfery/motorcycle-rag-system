@@ -42,25 +42,33 @@ public class MotorcycleRagServiceTests {
     [Fact]
     public void Constructor_ShouldThrow_WhenOrchestratorIsNull() {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRagService(null!, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
+        Assert.Throws<ArgumentNullException>(() =>
+            new MotorcycleRagService(null!, _mockLogger.Object, _mockTelemetry.Object,
+                _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull() {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRagService(_mockOrchestrator.Object, null!, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
+        Assert.Throws<ArgumentNullException>(() =>
+            new MotorcycleRagService(_mockOrchestrator.Object, null!, _mockTelemetry.Object,
+                _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenTelemetryIsNull() {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, null!, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
+        Assert.Throws<ArgumentNullException>(() =>
+            new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, null!,
+                _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenOpenAIClientIsNull() {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, null!));
+        Assert.Throws<ArgumentNullException>(() =>
+            new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object,
+                _mockCacheService.Object, _mockCacheConfig.Object, null!));
     }
 
     #endregion

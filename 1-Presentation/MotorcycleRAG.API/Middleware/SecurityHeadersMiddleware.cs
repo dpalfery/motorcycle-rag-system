@@ -17,7 +17,7 @@ namespace MotorcycleRAG.API.Middleware
         /// </summary>
         /// <param name="next">Next middleware in the pipeline</param>
         /// <param name="logger">Logger</param>
-        public SecurityHeadersMiddleware(RequestDelegate next, ILogger<SecurityHeadersMiddleware> logger)
+        internal SecurityHeadersMiddleware(RequestDelegate next, ILogger<SecurityHeadersMiddleware> logger)
         {
             _next = next ?? throw new System.ArgumentNullException(nameof(next));
             _logger = logger ?? throw new System.ArgumentNullException(nameof(logger));
@@ -28,7 +28,7 @@ namespace MotorcycleRAG.API.Middleware
         /// </summary>
         /// <param name="context">HTTP context</param>
         /// <returns>Task</returns>
-        public async Task InvokeAsync(HttpContext context)
+        internal async Task InvokeAsync(HttpContext context)
         {
             // Add security headers
             context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
@@ -66,7 +66,7 @@ namespace MotorcycleRAG.API.Middleware
         /// </summary>
         /// <param name="builder">Web application builder</param>
         /// <returns>Web application builder</returns>
-        public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder builder)
+        internal static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder builder)
         {
             return builder.UseMiddleware<SecurityHeadersMiddleware>();
         }

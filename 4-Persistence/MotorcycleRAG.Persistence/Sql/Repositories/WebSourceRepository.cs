@@ -177,10 +177,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         /// </summary>
         /// <param name="url">URL to search for</param>
         /// <returns>Web source if found, null otherwise</returns>
-        public async Task<WebSource?> GetWebSourceByUrlAsync(string url) {
-            if (string.IsNullOrWhiteSpace(url)) {
-                throw new ArgumentException("URL cannot be null or empty", nameof(url));
-            }
+        public async Task<WebSource?> GetWebSourceByUrlAsync(Uri url) {
+            ArgumentNullException.ThrowIfNull(url);
 
             const string sql = @"
                 SELECT * FROM [dbo].[WebSources] WHERE [Url] = @Url;
@@ -188,7 +186,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
 
             try {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-                return await connection.QueryFirstOrDefaultAsync<WebSource>(sql, new { Url = url });
+                return await connection.QueryFirstOrDefaultAsync<WebSource>(sql, new { Url = url.ToString() });
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get web source by URL {Url}", url);

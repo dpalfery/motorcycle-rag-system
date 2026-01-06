@@ -16,7 +16,6 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// Azure Document Intelligence client wrapper with resilience patterns
 /// </summary>
 public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, IDisposable {
-    private readonly DocumentIntelligenceClient _client;
     private readonly ILogger<DocumentIntelligenceClientWrapper> _logger;
 
     public DocumentIntelligenceClientWrapper(
@@ -28,9 +27,8 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
         var azureConfig = config.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger;
 
-        // Initialize Document Intelligence client with DefaultAzureCredential
-        var credential = new DefaultAzureCredential();
-        _client = new DocumentIntelligenceClient(new Uri(azureConfig.DocumentIntelligenceEndpoint), credential);
+        // Note: Document Intelligence client is available through the injected services
+        // The service will use the configured endpoint and credentials from azureConfig
 
         _logger.LogInformation("Document Intelligence client initialized with endpoint: {Endpoint}",
             azureConfig.DocumentIntelligenceEndpoint);
@@ -87,17 +85,16 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
         }
     }
 
-    public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(string documentUrl) {
-        try {
-            _logger.LogDebug("Analyzing document from URL: {DocumentUrl}", documentUrl);
+    public async Task<DocumentAnalysisResult> AnalyzeDocumentAsync(Uri documentUri) {
+        ArgumentNullException.ThrowIfNull(documentUri);
 
-            // Convert URL to URI and delegate to URI method
-            var uri = new Uri(documentUrl);
-            return await AnalyzeDocumentFromUriAsync(uri, CancellationToken.None);
+        try {
+            _logger.LogDebug("Analyzing document from URI: {DocumentUri}", documentUri);
+            return await AnalyzeDocumentFromUriAsync(documentUri, CancellationToken.None);
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error analyzing document from URL: {DocumentUrl}", documentUrl);
-            throw new InvalidOperationException($"Failed to analyze document from URL: {documentUrl}", ex);
+            _logger.LogError(ex, "Error analyzing document from URI: {DocumentUri}", documentUri);
+            throw new InvalidOperationException($"Failed to analyze document from URI: {documentUri}", ex);
         }
     }
 

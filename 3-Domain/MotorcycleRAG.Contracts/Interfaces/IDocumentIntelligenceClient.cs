@@ -9,7 +9,7 @@ public interface IDocumentIntelligenceClient {
     /// <summary>
     /// Analyzes a document
     /// </summary>
-    Task<DocumentAnalysisResult> AnalyzeDocumentAsync(string documentUrl);
+    Task<DocumentAnalysisResult> AnalyzeDocumentAsync(Uri documentUri);
 
     /// <summary>
     /// Analyzes document content from bytes

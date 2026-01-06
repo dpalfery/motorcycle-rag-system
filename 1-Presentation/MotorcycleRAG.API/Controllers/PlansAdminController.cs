@@ -15,15 +15,14 @@ namespace MotorcycleRAG.API.Controllers;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class PlansAdminController : ControllerBase {
     private readonly IPlanRepository _planRepository;
-    private readonly IUserAdminService _userAdminService;
     private readonly ILogger<PlansAdminController> _logger;
 
     public PlansAdminController(
         IPlanRepository planRepository,
         IUserAdminService userAdminService,
         ILogger<PlansAdminController> logger) {
+        ArgumentNullException.ThrowIfNull(userAdminService);
         _planRepository = planRepository ?? throw new ArgumentNullException(nameof(planRepository));
-        _userAdminService = userAdminService ?? throw new ArgumentNullException(nameof(userAdminService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 

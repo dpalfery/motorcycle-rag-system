@@ -25,7 +25,7 @@ internal static class ServiceConfiguration {
     /// <summary>
     /// Configure Azure AI services
     /// </summary>
-    public static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration) {
+    internal static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration) {
         // Configure Azure AI settings with validation
         services.Configure<AzureAIOptions>(configuration.GetSection("AzureAI"));
         services.Configure<SearchOptions>(configuration.GetSection("Search"));
@@ -45,7 +45,7 @@ internal static class ServiceConfiguration {
     /// <summary>
     /// Configure core application services
     /// </summary>
-    public static IServiceCollection AddCoreServices(this IServiceCollection services) {
+    internal static IServiceCollection AddCoreServices(this IServiceCollection services) {
         // Register core service interfaces to concrete implementations in Application layer
         services.AddScoped<IMotorcycleRagService, MotorcycleRAG.Application.Services.MotorcycleRagService>();
         services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Application.Services.AgentOrchestrator>();
@@ -60,7 +60,7 @@ internal static class ServiceConfiguration {
     /// <summary>
     /// Configure search agents
     /// </summary>
-    public static IServiceCollection AddSearchAgents(this IServiceCollection services) {
+    internal static IServiceCollection AddSearchAgents(this IServiceCollection services) {
         // Register search agent implementations from Application layer
         // Note: QueryPlannerAgent is registered separately to avoid circular dependency
         services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.VectorSearchAgent>();
@@ -84,7 +84,7 @@ internal static class ServiceConfiguration {
     /// <summary>
     /// Configure data processors
     /// </summary>
-    public static IServiceCollection AddDataProcessors(this IServiceCollection services) {
+    internal static IServiceCollection AddDataProcessors(this IServiceCollection services) {
         // Register data processor implementations from Persistence layer
         services.AddScoped<IDataProcessor<CSVFile>, MotorcycleCsvProcessor>();
         services.AddScoped<IDataProcessor<PDFDocument>, MotorcyclePdfProcessor>();
@@ -95,7 +95,7 @@ internal static class ServiceConfiguration {
     /// <summary>
     /// Configure data pipeline services
     /// </summary>
-    public static IServiceCollection AddDataPipelineServices(this IServiceCollection services, IConfiguration configuration) {
+    internal static IServiceCollection AddDataPipelineServices(this IServiceCollection services, IConfiguration configuration) {
         // Configure pipeline settings
         services.Configure<MotorcycleRAG.Application.Pipeline.PipelineConfiguration>(configuration.GetSection("Pipeline"));
         services.Configure<MotorcycleRAG.Application.Pipeline.FileUploadConfiguration>(configuration.GetSection("FileUpload"));
@@ -117,7 +117,7 @@ internal static class ServiceConfiguration {
     /// <summary>
     /// Configure health checks for all critical dependencies
     /// </summary>
-    public static IServiceCollection AddHealthChecks(this IServiceCollection services, IConfiguration configuration) {
+    internal static IServiceCollection AddHealthChecks(this IServiceCollection services, IConfiguration configuration) {
         var healthChecksBuilder = services.AddHealthChecks()
             .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("API is running"))
             .AddCheck("configuration", () => ValidateConfiguration(configuration));
@@ -171,7 +171,7 @@ internal static class ServiceConfiguration {
     /// <summary>
     /// Configure SQL persistence services
     /// </summary>
-    public static IServiceCollection AddSqlPersistence(this IServiceCollection services, IConfiguration configuration) {
+    internal static IServiceCollection AddSqlPersistence(this IServiceCollection services, IConfiguration configuration) {
         // Configure SQL options
         services.Configure<MotorcycleRAG.Core.Options.SqlOptions>(configuration.GetSection("Sql"));
         services.AddSingleton<IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions>, SqlOptionsValidator>();
@@ -202,7 +202,7 @@ internal static class ServiceConfiguration {
     /// <summary>
     /// Configure web trust policy services
     /// </summary>
-    public static IServiceCollection AddWebTrustPolicyServices(this IServiceCollection services, IConfiguration configuration) {
+    internal static IServiceCollection AddWebTrustPolicyServices(this IServiceCollection services, IConfiguration configuration) {
         // Register web trust policy store as singleton
         services.AddSingleton<IWebTrustPolicyStore, MotorcycleRAG.Persistence.Configuration.WebTrustPolicyStore>();
 
@@ -212,7 +212,7 @@ internal static class ServiceConfiguration {
     /// <summary>
     /// Validate overall configuration health
     /// </summary>
-    private static Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult ValidateConfiguration(IConfiguration configuration) {
+    internal static Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult ValidateConfiguration(IConfiguration configuration) {
         try {
             var issues = new List<string>();
 
@@ -247,7 +247,7 @@ internal static class ServiceConfiguration {
 /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
 /// </summary>
 internal class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions> {
-    public ValidateOptionsResult Validate(string? name, MotorcycleRAG.Core.Options.SqlOptions options) {
+    ValidateOptionsResult IValidateOptions<MotorcycleRAG.Core.Options.SqlOptions>.Validate(string? name, MotorcycleRAG.Core.Options.SqlOptions options) {
         var failures = new List<string>();
 
         if (options.CommandTimeout <= 0)
@@ -269,7 +269,7 @@ internal class SqlOptionsValidator : IValidateOptions<MotorcycleRAG.Core.Options
 /// Validator for Azure AI configuration
 /// </summary>
 internal class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
-    public ValidateOptionsResult Validate(string? name, AzureAIOptions options) {
+    ValidateOptionsResult IValidateOptions<AzureAIOptions>.Validate(string? name, AzureAIOptions options) {
         var failures = new List<string>();
 
         if (string.IsNullOrWhiteSpace(options.FoundryEndpoint))
@@ -315,7 +315,7 @@ internal class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> 
 /// Validator for Search configuration
 /// </summary>
 internal class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
-    public ValidateOptionsResult Validate(string? name, SearchOptions options) {
+    ValidateOptionsResult IValidateOptions<SearchOptions>.Validate(string? name, SearchOptions options) {
         var failures = new List<string>();
 
         if (string.IsNullOrWhiteSpace(options.IndexName))
@@ -337,7 +337,7 @@ internal class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
 /// Validator for Telemetry configuration
 /// </summary>
 internal class TelemetryConfigurationValidator : IValidateOptions<TelemetryOptions> {
-    public ValidateOptionsResult Validate(string? name, TelemetryOptions options) {
+    ValidateOptionsResult IValidateOptions<TelemetryOptions>.Validate(string? name, TelemetryOptions options) {
         var failures = new List<string>();
 
         if (options.EnableTelemetry && string.IsNullOrWhiteSpace(options.ConnectionString))

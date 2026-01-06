@@ -139,7 +139,7 @@ namespace MotorcycleRAG.UnitTests.Services {
             Assert.Equal(200, result.StatusCode);
             Assert.True(result.IsSuccess);
             _mockUsageRepository.Verify(r => r.RecordUsageAsync(It.Is<Usage>(u =>
-                u.StatusCode == 200 && u.IsSuccess == true)), Times.Once);
+                u.StatusCode == 200 && u.IsSuccess)), Times.Once);
         }
 
         [Fact]
@@ -174,7 +174,7 @@ namespace MotorcycleRAG.UnitTests.Services {
             Assert.Equal(400, result.StatusCode);
             Assert.False(result.IsSuccess);
             _mockUsageRepository.Verify(r => r.RecordUsageAsync(It.Is<Usage>(u =>
-                u.StatusCode == 400 && u.IsSuccess == false)), Times.Once);
+                u.StatusCode == 400 && !u.IsSuccess)), Times.Once);
         }
 
         [Fact]

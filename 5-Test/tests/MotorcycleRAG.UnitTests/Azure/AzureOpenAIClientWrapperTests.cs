@@ -74,7 +74,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
             x => x.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Azure OpenAI client initialized")),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Azure OpenAI client initialized")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
@@ -149,7 +149,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     [Fact]
     public void Dispose_ShouldDisposeResourcesGracefully() {
         // Arrange
-        var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
+        using var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
         // Act & Assert
         var exception = Record.Exception(() => client.Dispose());
@@ -174,7 +174,14 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     }
 
     public void Dispose() {
-        // Cleanup if needed
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing) {
+        if (disposing) {
+            // Cleanup if needed
+        }
     }
 }
 

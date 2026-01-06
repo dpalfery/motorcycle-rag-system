@@ -19,7 +19,7 @@ namespace MotorcycleRAG.API.Middleware
         /// </summary>
         /// <param name="next">Next middleware in the pipeline</param>
         /// <param name="logger">Logger</param>
-        public CorrelationIdMiddleware(RequestDelegate next, ILogger<CorrelationIdMiddleware> logger)
+        internal CorrelationIdMiddleware(RequestDelegate next, ILogger<CorrelationIdMiddleware> logger)
         {
             _next = next ?? throw new ArgumentNullException(nameof(next));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -30,7 +30,7 @@ namespace MotorcycleRAG.API.Middleware
         /// </summary>
         /// <param name="context">HTTP context</param>
         /// <returns>Task</returns>
-        public async Task InvokeAsync(HttpContext context)
+        internal async Task InvokeAsync(HttpContext context)
         {
             // Check if correlation ID already exists in request headers
             if (!context.Request.Headers.TryGetValue(CorrelationIdHeader, out var correlationId))
@@ -62,7 +62,7 @@ namespace MotorcycleRAG.API.Middleware
                 {
                     var correlationIdString = correlationId.ToString();
                     _logger.LogError(ex, "Request failed with correlation ID {CorrelationId}", correlationIdString ?? "null");
-                    throw;
+                    throw new InvalidOperationException($"Request pipeline failed (CorrelationId: {correlationIdString})", ex);
                 }
             }
         }
@@ -78,7 +78,7 @@ namespace MotorcycleRAG.API.Middleware
         /// </summary>
         /// <param name="builder">Web application builder</param>
         /// <returns>Web application builder</returns>
-        public static IApplicationBuilder UseCorrelationId(this IApplicationBuilder builder)
+        internal static IApplicationBuilder UseCorrelationId(this IApplicationBuilder builder)
         {
             return builder.UseMiddleware<CorrelationIdMiddleware>();
         }

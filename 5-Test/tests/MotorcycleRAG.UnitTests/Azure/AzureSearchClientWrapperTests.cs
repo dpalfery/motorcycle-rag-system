@@ -31,13 +31,13 @@ public class AzureSearchClientWrapperTests : IDisposable {
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
             .Returns<string, Func<Task<SearchResult[]>>, Func<Task<SearchResult[]>>?, string?, CancellationToken>(
-                async (policyKey, operation, fallback, corrId, ct) => {
+                async (_, operation, _, _, _) => {
                     try {
                         return await operation();
                     }
                     catch {
                         // Return empty array if operation fails
-                        return new SearchResult[0];
+                        return Array.Empty<SearchResult>();
                     }
                 });
 
@@ -114,7 +114,7 @@ public class AzureSearchClientWrapperTests : IDisposable {
             x => x.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Azure Search client initialized")),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Azure Search client initialized")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
@@ -216,7 +216,7 @@ public class AzureSearchClientWrapperTests : IDisposable {
     [Fact]
     public void Dispose_ShouldDisposeResourcesGracefully() {
         // Arrange
-        var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
+        using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
 
         // Act & Assert
         var exception = Record.Exception(() => client.Dispose());
@@ -237,7 +237,14 @@ public class AzureSearchClientWrapperTests : IDisposable {
     }
 
     public void Dispose() {
-        // Cleanup if needed
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing) {
+        if (disposing) {
+            // Cleanup if needed
+        }
     }
 }
 

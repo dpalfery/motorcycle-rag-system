@@ -80,7 +80,7 @@ public class ModelValidationServiceTests {
             x => x.Log(
                 LogLevel.Warning,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Citation locator is not ManualPdfCitationLocator")),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Citation locator is not ManualPdfCitationLocator")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
@@ -746,7 +746,7 @@ public class ModelValidationServiceTests {
             Section = "Oil Change",
             FigureReference = "Fig 3.1",
             Version = "1.0",
-            PublicationDate = new DateTime(2023, 1, 1),
+            PublicationDate = new DateTime(2023, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             SourceUrl = "https://example.com/manuals/honda-cb500f-2023.pdf"
         };
         var citation = new Citation {

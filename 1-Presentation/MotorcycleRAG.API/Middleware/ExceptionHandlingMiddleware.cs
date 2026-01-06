@@ -27,7 +27,7 @@ namespace MotorcycleRAG.API.Middleware
         /// </summary>
         /// <param name="next">Next middleware in the pipeline</param>
         /// <param name="logger">Logger</param>
-        public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
+        internal ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
         {
             _next = next ?? throw new ArgumentNullException(nameof(next));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -38,7 +38,7 @@ namespace MotorcycleRAG.API.Middleware
         /// </summary>
         /// <param name="context">HTTP context</param>
         /// <returns>Task</returns>
-        public async Task InvokeAsync(HttpContext context)
+        internal async Task InvokeAsync(HttpContext context)
         {
             try
             {
@@ -120,6 +120,12 @@ namespace MotorcycleRAG.API.Middleware
                     problemDetails.Status = (int)HttpStatusCode.BadRequest;
                     problemDetails.Detail = "This operation is not supported";
                     break;
+
+                default:
+                    problemDetails.Title = "Internal server error";
+                    problemDetails.Status = (int)HttpStatusCode.InternalServerError;
+                    problemDetails.Detail = "An unexpected error occurred";
+                    break;
             }
 
             // Set response content type and status code
@@ -142,7 +148,7 @@ namespace MotorcycleRAG.API.Middleware
         /// </summary>
         /// <param name="builder">Web application builder</param>
         /// <returns>Web application builder</returns>
-        public static IApplicationBuilder UseExceptionHandling(this IApplicationBuilder builder)
+        internal static IApplicationBuilder UseExceptionHandling(this IApplicationBuilder builder)
         {
             return builder.UseMiddleware<ExceptionHandlingMiddleware>();
         }

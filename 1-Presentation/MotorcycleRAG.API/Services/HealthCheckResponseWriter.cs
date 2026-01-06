@@ -21,7 +21,7 @@ internal static class HealthCheckResponseWriter
     /// <summary>
     /// Writes a structured JSON health check response in the format expected by tests
     /// </summary>
-    public static Task WriteResponse(HttpContext context, HealthReport report)
+    internal static Task WriteResponse(HttpContext context, HealthReport report)
     {
         context.Response.ContentType = "application/json; charset=utf-8";
         
@@ -54,13 +54,13 @@ internal static class HealthCheckResponseWriter
     private class HealthCheckResponse
     {
         [JsonPropertyName("status")]
-        public string? Status { get; set; }
+        internal string? Status { get; set; }
 
         [JsonPropertyName("totalDuration")]
-        public string? TotalDuration { get; set; }
+        internal string? TotalDuration { get; set; }
 
         [JsonPropertyName("checks")]
-        public Dictionary<string, HealthCheckEntry>? Checks { get; set; }
+        internal Dictionary<string, HealthCheckEntry>? Checks { get; set; }
     }
 
     /// <summary>
@@ -69,15 +69,15 @@ internal static class HealthCheckResponseWriter
     private class HealthCheckEntry
     {
         [JsonPropertyName("status")]
-        public string? Status { get; set; }
+        internal string? Status { get; set; }
 
         [JsonPropertyName("duration")]
-        public string? Duration { get; set; }
+        internal string? Duration { get; set; }
 
         [JsonPropertyName("description")]
-        public string? Description { get; set; }
+        internal string? Description { get; set; }
 
         [JsonPropertyName("data")]
-        public IReadOnlyDictionary<string, object>? Data { get; set; }
+        internal IReadOnlyDictionary<string, object>? Data { get; set; }
     }
 }

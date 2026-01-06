@@ -12,6 +12,7 @@ namespace MotorcycleRAG.IntegrationTests;
 /// Test authentication handler for integration tests
 /// Supports simulating authenticated users with various roles
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812:Avoid uninstantiated internal classes", Justification = "Instantiated via DI in TestWebApplicationFactory")]
 internal class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public TestAuthHandler(
@@ -48,12 +49,10 @@ internal class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptio
             claims.Add(new Claim(ClaimTypes.Role, trimmedRole));
 
             // Per Program.cs policies, admin-level roles also require the "admin_access" scope
-            if (trimmedRole.EndsWith("Admin", StringComparison.OrdinalIgnoreCase))
+            if (trimmedRole.EndsWith("Admin", StringComparison.OrdinalIgnoreCase) &&
+                !claims.Any(c => c.Type == "scp" && c.Value == "admin_access"))
             {
-                if (!claims.Any(c => c.Type == "scp" && c.Value == "admin_access"))
-                {
-                    claims.Add(new Claim("scp", "admin_access"));
-                }
+                claims.Add(new Claim("scp", "admin_access"));
             }
         }
 

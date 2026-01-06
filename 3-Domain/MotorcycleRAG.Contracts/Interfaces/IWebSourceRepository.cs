@@ -46,6 +46,6 @@ namespace MotorcycleRAG.Contracts.Interfaces {
         /// </summary>
         /// <param name="url">URL to search for</param>
         /// <returns>Web source if found, null otherwise</returns>
-        Task<WebSource?> GetWebSourceByUrlAsync(string url);
+        Task<WebSource?> GetWebSourceByUrlAsync(Uri url);
     }
 }

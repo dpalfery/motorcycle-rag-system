@@ -46,6 +46,8 @@ public sealed class MotorcycleController : ControllerBase {
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> QueryAsync([FromBody] MotorcycleQueryRequest request) {
+        ArgumentNullException.ThrowIfNull(request);
+
         // The [ApiController] attribute automatically validates the model state and returns 400 if invalid.
 
         // Get current user
@@ -175,11 +177,9 @@ public sealed class MotorcycleController : ControllerBase {
                 foreach (var source in request.Preferences.PreferredSources) {
                     if (string.IsNullOrWhiteSpace(source)) {
                         errors.Add("PreferredSources cannot contain empty values");
-                        break;
                     }
                     else if (source.Length > 100) {
                         errors.Add("PreferredSources values cannot exceed 100 characters");
-                        break;
                     }
                 }
             }

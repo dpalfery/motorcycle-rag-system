@@ -24,6 +24,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
     /// </summary>
     public class MeApiIntegrationTests : IClassFixture<TestWebApplicationFactory> {
         private readonly TestWebApplicationFactory _factory;
+        private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         public MeApiIntegrationTests(TestWebApplicationFactory factory) {
             _factory = factory;
@@ -51,18 +52,19 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             mockUserService.Setup(s => s.LastName).Returns("User");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                 });
-            }).CreateClientWithRoles("User");
+            });
+            using var client = factory.CreateClientWithRoles("User");
 
             // Act
             var response = await client.GetAsync("/api/me");
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            var userProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfileResponse>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var userProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfileResponse>(content, JsonOptions);
 
             // Assert
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -92,18 +94,19 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                 });
-            }).CreateClientWithRoles("User");
+            });
+            using var client = factory.CreateClientWithRoles("User");
 
             // Act
             var response = await client.GetAsync("/api/me/usage?days=7");
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            var usageResponse = System.Text.Json.JsonSerializer.Deserialize<UsageResponse>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var usageResponse = System.Text.Json.JsonSerializer.Deserialize<UsageResponse>(content, JsonOptions);
 
             // Assert
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -120,18 +123,19 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                 });
-            }).CreateClientWithRoles("User");
+            });
+            using var client = factory.CreateClientWithRoles("User");
 
             // Act - test with days > 30
             var response = await client.GetAsync("/api/me/usage?days=50");
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync();
-            var usageResponse = System.Text.Json.JsonSerializer.Deserialize<UsageResponse>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var usageResponse = System.Text.Json.JsonSerializer.Deserialize<UsageResponse>(content, JsonOptions);
 
             // Assert - should clamp to 30
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -169,21 +173,22 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             var mockMcpProvider = new Mock<IMcpConfigurationProvider>();
             mockMcpProvider.Setup(m => m.GetEnabledToolsAsync()).ReturnsAsync(Array.Empty<McpToolConfiguration>());
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanPolicyService.Object);
                     services.AddSingleton(mockUsageTrackingService.Object);
                     services.AddSingleton(mockMcpProvider.Object);
                 });
-            }).CreateClientWithRoles("User");
+            });
+            using var client = factory.CreateClientWithRoles("User");
 
             // Act
-            var response = await client.PostAsync("/api/motorcycles/query",
-                new StringContent(
-                    """{"Query": "test query"}""",
-                    Encoding.UTF8,
-                    "application/json"));
+            using var content = new StringContent(
+                """{"Query": "test query"}""",
+                Encoding.UTF8,
+                "application/json");
+            var response = await client.PostAsync("/api/motorcycles/query", content);
 
             // Assert
             if (response.StatusCode != HttpStatusCode.TooManyRequests) {
@@ -192,9 +197,9 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             }
             Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
 
-            var content = await response.Content.ReadAsStringAsync();
-            Assert.Contains("Daily request limit exceeded", content);
-            Assert.Contains("remainingRequests", content);
+            var responseContent = await response.Content.ReadAsStringAsync();
+            Assert.Contains("Daily request limit exceeded", responseContent);
+            Assert.Contains("remainingRequests", responseContent);
         }
 
         [Fact]
@@ -237,7 +242,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             var mockMcpProvider = new Mock<IMcpConfigurationProvider>();
             mockMcpProvider.Setup(m => m.GetEnabledToolsAsync()).ReturnsAsync(Array.Empty<McpToolConfiguration>());
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanPolicyService.Object);
@@ -245,14 +250,15 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     services.AddSingleton(mockRagService.Object);
                     services.AddSingleton(mockMcpProvider.Object);
                 });
-            }).CreateClientWithRoles("User");
+            });
+            using var client = factory.CreateClientWithRoles("User");
 
             // Act
-            var response = await client.PostAsync("/api/motorcycles/query",
-                new StringContent(
-                    """{"Query": "test query"}""",
-                    Encoding.UTF8,
-                    "application/json"));
+            using var content = new StringContent(
+                """{"Query": "test query"}""",
+                Encoding.UTF8,
+                "application/json");
+            var response = await client.PostAsync("/api/motorcycles/query", content);
 
             // Assert
             if (response.StatusCode != HttpStatusCode.OK) {

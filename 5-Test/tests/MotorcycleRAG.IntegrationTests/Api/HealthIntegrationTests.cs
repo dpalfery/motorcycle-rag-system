@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -23,16 +24,6 @@ public class HealthIntegrationTests : IClassFixture<TestWebApplicationFactory>
     public HealthIntegrationTests(TestWebApplicationFactory factory)
     {
         _factory = factory;
-    }
-
-    private static JsonSerializerOptions GetJsonOptions()
-    {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        {
-            PropertyNameCaseInsensitive = true
-        };
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-        return options;
     }
 
     /// <summary>
@@ -131,9 +122,9 @@ public class HealthIntegrationTests : IClassFixture<TestWebApplicationFactory>
         var durationValue = durationProperty.GetString();
         Assert.NotNull(durationValue);
         Assert.NotEmpty(durationValue);
-        
+
         // Verify it's a valid timespan format (e.g., "00:00:00.1234567")
-        Assert.True(TimeSpan.TryParse(durationValue, out var duration),
+        Assert.True(TimeSpan.TryParse(durationValue, CultureInfo.InvariantCulture, out _),
             $"Duration '{durationValue}' must be a valid TimeSpan format");
     }
 
@@ -175,7 +166,7 @@ public class HealthIntegrationTests : IClassFixture<TestWebApplicationFactory>
             
             var durationValue = durationProp.GetString();
             Assert.NotNull(durationValue);
-            Assert.True(TimeSpan.TryParse(durationValue, out _),
+            Assert.True(TimeSpan.TryParse(durationValue, CultureInfo.InvariantCulture, out _),
                 $"Check '{check.Name}' duration must be a valid TimeSpan format");
         }
         
@@ -314,7 +305,6 @@ public class HealthIntegrationTests : IClassFixture<TestWebApplicationFactory>
     {
         // Arrange
         var client = _factory.CreateClient();
-        var options = GetJsonOptions();
 
         // Act
         var response1 = await client.GetAsync("/health");
@@ -327,8 +317,8 @@ public class HealthIntegrationTests : IClassFixture<TestWebApplicationFactory>
 
         // Assert
         // Both responses should have the same top-level fields
-        Assert.True(json1.TryGetProperty("status", out var status1));
-        Assert.True(json2.TryGetProperty("status", out var status2));
+        Assert.True(json1.TryGetProperty("status", out _));
+        Assert.True(json2.TryGetProperty("status", out _));
         Assert.True(json1.TryGetProperty("checks", out var checks1));
         Assert.True(json2.TryGetProperty("checks", out var checks2));
 

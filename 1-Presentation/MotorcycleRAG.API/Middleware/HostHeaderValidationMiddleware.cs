@@ -25,7 +25,7 @@ internal class HostHeaderValidationMiddleware
     /// <param name="next">Next middleware in the pipeline</param>
     /// <param name="logger">Logger</param>
     /// <param name="configuration">Application configuration</param>
-    public HostHeaderValidationMiddleware(
+    internal HostHeaderValidationMiddleware(
         RequestDelegate next,
         ILogger<HostHeaderValidationMiddleware> logger,
         IConfiguration configuration)
@@ -64,7 +64,7 @@ internal class HostHeaderValidationMiddleware
     /// </summary>
     /// <param name="context">HTTP context</param>
     /// <returns>Task</returns>
-    public async Task InvokeAsync(HttpContext context)
+    internal async Task InvokeAsync(HttpContext context)
     {
         // Get the Host header value
         if (!context.Request.Headers.TryGetValue("Host", out var hostHeader))
@@ -172,16 +172,9 @@ internal class HostHeaderValidationMiddleware
             // closingBracket returns -1 if not found, or the index position if found
             // We require closingBracket > 0 to ensure there's at least one character between [ and ]
             // (position 0 would mean empty brackets [], which is invalid)
-            if (closingBracket > 0)
-            {
-                // Return the entire IPv6 address including brackets, excluding any port after ]
-                return hostValue.Substring(0, closingBracket + 1).ToLowerInvariant();
-            }
-            else
-            {
-                // Malformed IPv6 address (missing closing bracket)
-                return string.Empty;
-            }
+            return closingBracket > 0
+                ? hostValue.Substring(0, closingBracket + 1).ToLowerInvariant()
+                : string.Empty;
         }
 
         // Handle IPv4 addresses and domain names
@@ -231,7 +224,7 @@ internal static class HostHeaderValidationMiddlewareExtensions
     /// </summary>
     /// <param name="builder">Web application builder</param>
     /// <returns>Web application builder</returns>
-    public static IApplicationBuilder UseHostHeaderValidation(this IApplicationBuilder builder)
+    internal static IApplicationBuilder UseHostHeaderValidation(this IApplicationBuilder builder)
     {
         return builder.UseMiddleware<HostHeaderValidationMiddleware>();
     }

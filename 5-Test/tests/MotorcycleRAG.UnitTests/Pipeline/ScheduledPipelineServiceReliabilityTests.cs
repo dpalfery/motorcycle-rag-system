@@ -168,7 +168,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         // Arrange
         var scheduledDir = Path.Combine(_testDirectory, "scheduled");
         Directory.CreateDirectory(scheduledDir);
-        File.WriteAllText(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
+        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
 
         _orchestratorMock.Setup(x => x.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Processing failed"));
@@ -255,6 +255,8 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     [InlineData("manual.pdf", FileType.PDF)]
     [InlineData("unknown.txt", FileType.Unknown)]
     public async Task ExecuteImmediateRunAsync_ShouldDetectCorrectFileTypes(string fileName, FileType expectedType) {
+        ArgumentNullException.ThrowIfNull(fileName);
+
         // Arrange
         var scheduledDir = Path.Combine(_testDirectory, "scheduled");
         Directory.CreateDirectory(scheduledDir);
@@ -296,8 +298,8 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         Directory.CreateDirectory(scheduledDir);
         await File.WriteAllTextAsync(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
 
-        var cancellationTokenSource = new CancellationTokenSource();
-        cancellationTokenSource.Cancel(); // Cancel immediately
+        using var cancellationTokenSource = new CancellationTokenSource();
+        await cancellationTokenSource.CancelAsync();
 
         // Act & Assert
         await Assert.ThrowsAsync<TaskCanceledException>(async () => {
@@ -334,17 +336,24 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     }
 
     public void Dispose() {
-        // Cleanup test directory
-        if (Directory.Exists(_testDirectory)) {
-            try {
-                Directory.Delete(_testDirectory, true);
-            }
-            catch {
-                // Ignore cleanup errors in tests
-            }
-        }
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
 
-        _service?.Dispose();
-        (_serviceProvider as IDisposable)?.Dispose();
+    protected virtual void Dispose(bool disposing) {
+        if (disposing) {
+            // Cleanup test directory
+            if (Directory.Exists(_testDirectory)) {
+                try {
+                    Directory.Delete(_testDirectory, true);
+                }
+                catch {
+                    // Ignore cleanup errors in tests
+                }
+            }
+
+            _service?.Dispose();
+            (_serviceProvider as IDisposable)?.Dispose();
+        }
     }
 }

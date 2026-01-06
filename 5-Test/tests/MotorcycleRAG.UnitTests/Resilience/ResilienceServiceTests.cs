@@ -114,7 +114,7 @@ public class ResilienceServiceTests {
             x => x.Log(
                 LogLevel.Debug,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("AzureOpenAI")),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("AzureOpenAI")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.AtLeastOnce);
@@ -135,7 +135,7 @@ public class ResilienceServiceTests {
             x => x.Log(
                 LogLevel.Warning,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("No resilience policy found")),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("No resilience policy found")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
@@ -175,7 +175,7 @@ public class ResilienceServiceTests {
     public async Task ExecuteAsync_CancellationRequested_ThrowsOperationCanceledException() {
         // Arrange
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var operation = () => Task.FromResult("Success");
 

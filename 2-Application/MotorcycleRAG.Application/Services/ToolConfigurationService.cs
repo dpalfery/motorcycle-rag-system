@@ -471,10 +471,8 @@ public class ToolConfigurationService : IToolConfigurationService {
             return true;
 
         // Check for 172.16.x.x to 172.31.x.x
-        if (octets.Length == 4 && octets[0] == "172") {
-            if (int.TryParse(octets[1], out var secondOctet) && secondOctet >= 16 && secondOctet <= 31)
-                return true;
-        }
+        if (octets.Length == 4 && octets[0] == "172" && int.TryParse(octets[1], out var secondOctet) && secondOctet >= 16 && secondOctet <= 31)
+            return true;
 
         // Check for 192.168.x.x
         if (octets.Length == 4 && octets[0] == "192" && octets[1] == "168")
@@ -556,7 +554,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit entries for action {Action}", action);
-            throw new InvalidOperationException($"Error retrieving audit entries for {nameof(action)} {action}", ex);
+            throw new InvalidOperationException($"Error retrieving audit entries for {nameof(action)}: {action}", ex);
         }
     }
 }

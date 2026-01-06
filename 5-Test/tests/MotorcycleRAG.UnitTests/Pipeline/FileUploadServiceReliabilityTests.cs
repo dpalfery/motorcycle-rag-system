@@ -12,6 +12,8 @@ namespace MotorcycleRAG.UnitTests.Pipeline;
 /// Reliability tests for FileUploadService to ensure robust file handling
 /// </summary>
 public class FileUploadServiceReliabilityTests {
+    private static readonly string[] AllowedExtensionsArray = { ".csv", ".pdf" };
+
     private readonly Mock<ITelemetryService> _telemetryServiceMock;
     private readonly Mock<ILogger<FileUploadService>> _loggerMock;
     private readonly Mock<IOptions<FileUploadConfiguration>> _configMock;
@@ -102,7 +104,7 @@ public class FileUploadServiceReliabilityTests {
 
         // Assert
         Assert.False(result.IsValid);
-        Assert.Contains("exceeds maximum allowed size", result.ValidationResult.Errors.First());
+        Assert.Contains("exceeds maximum allowed size", result.ValidationResult.Errors[0]);
     }
 
     [Fact]
@@ -112,14 +114,14 @@ public class FileUploadServiceReliabilityTests {
         var (stream, metadata) = CreateMockFile("test.txt", content, "text/plain");
         var options = new FileUploadOptions();
         options.AllowedFileExtensions.Clear();
-        options.AllowedFileExtensions.UnionWith(new[] { ".csv", ".pdf" });
+        options.AllowedFileExtensions.UnionWith(AllowedExtensionsArray);
 
         // Act
         var result = await _service.UploadFileAsync(stream, metadata, options);
 
         // Assert
         Assert.False(result.IsValid);
-        Assert.Contains("not allowed", result.ValidationResult.Errors.First());
+        Assert.Contains("not allowed", result.ValidationResult.Errors[0]);
     }
 
     [Fact]
@@ -151,7 +153,7 @@ public class FileUploadServiceReliabilityTests {
             ValidateFileContent = false
         };
         options.AllowedFileExtensions.Clear();
-        options.AllowedFileExtensions.UnionWith(new[] { ".csv", ".pdf" });
+        options.AllowedFileExtensions.UnionWith(AllowedExtensionsArray);
 
         // Act
         var result = await _service.UploadFilesAsync(files, options);
@@ -183,7 +185,7 @@ public class FileUploadServiceReliabilityTests {
 
         // Assert
         Assert.False(result.IsValid);
-        Assert.Contains("missing PDF header", result.Errors.First());
+        Assert.Contains("missing PDF header", result.Errors[0]);
     }
 
     [Fact]
@@ -200,14 +202,14 @@ public class FileUploadServiceReliabilityTests {
 
         // Assert
         Assert.True(result.IsValid); // Should still be valid but with warnings
-        Assert.Contains("may not be a valid CSV", result.Warnings.FirstOrDefault() ?? "");
+        Assert.Contains("may not be a valid CSV", result.Warnings.Count > 0 ? result.Warnings[0] : "");
     }
 
     [Fact]
     public async Task DeleteFileAsync_WithExistingFile_ShouldReturnTrue() {
         // Arrange
         var tempFile = Path.GetTempFileName();
-        File.WriteAllText(tempFile, "test content");
+        await File.WriteAllTextAsync(tempFile, "test content");
 
         // Act
         var result = await _service.DeleteFileAsync(tempFile);
@@ -248,6 +250,9 @@ public class FileUploadServiceReliabilityTests {
     [InlineData("manual.pdf", "application/pdf", FileType.PDF)]
     [InlineData("unknown.txt", "text/plain", FileType.Unknown)]
     public async Task ValidateFileAsync_ShouldDetectCorrectFileType(string fileName, string contentType, FileType expectedType) {
+        ArgumentNullException.ThrowIfNull(fileName);
+        ArgumentNullException.ThrowIfNull(contentType);
+
         // Arrange
         var content = fileName.EndsWith(".pdf") ? "%PDF-1.4 content" : "test,content";
         var (stream, metadata) = CreateMockFile(fileName, content, contentType);

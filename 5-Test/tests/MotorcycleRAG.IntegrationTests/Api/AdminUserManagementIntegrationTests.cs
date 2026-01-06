@@ -20,6 +20,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
     /// </summary>
     public class AdminUserManagementIntegrationTests : IClassFixture<TestWebApplicationFactory> {
         private readonly TestWebApplicationFactory _factory;
+        private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         public AdminUserManagementIntegrationTests(TestWebApplicationFactory factory) {
             _factory = factory;
@@ -29,11 +30,11 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         public async Task SetUserEnabledStatus_Unauthenticated_ReturnsUnauthorized() {
             // Act
             var client = _factory.CreateClient();
-            var response = await client.PutAsync("/api/admin/users/user-1/enabled",
-                new StringContent(
-                    """{"isEnabled": true}""",
-                    Encoding.UTF8,
-                    "application/json"));
+            using var content = new StringContent(
+                """{"isEnabled": true}""",
+                Encoding.UTF8,
+                "application/json");
+            var response = await client.PutAsync("/api/admin/users/user-1/enabled", content);
 
             // Assert
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -47,18 +48,19 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
             mockUserService.Setup(s => s.IsInRole("Admin")).Returns(false);
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                 });
-            }).CreateClientWithRoles("User");
+            });
+            using var client = factory.CreateClientWithRoles("User");
 
             // Act
-            var response = await client.PutAsync("/api/admin/users/user-1/enabled",
-                new StringContent(
-                    """{"isEnabled": true}""",
-                    Encoding.UTF8,
-                    "application/json"));
+            using var content = new StringContent(
+                """{"isEnabled": true}""",
+                Encoding.UTF8,
+                "application/json");
+            var response = await client.PutAsync("/api/admin/users/user-1/enabled", content);
 
             // Assert
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -81,24 +83,25 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     IsEnabled = true
                 });
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockUserAdminService.Object);
                 });
-            }).CreateClientWithRoles("Admin");
+            });
+            using var client = factory.CreateClientWithRoles("Admin");
 
             // Act
-            var response = await client.PutAsync("/api/admin/users/test-user-1/enabled",
-                new StringContent(
-                    """{"isEnabled": true}""",
-                    Encoding.UTF8,
-                    "application/json"));
+            using var content = new StringContent(
+                """{"isEnabled": true}""",
+                Encoding.UTF8,
+                "application/json");
+            var response = await client.PutAsync("/api/admin/users/test-user-1/enabled", content);
 
             // Assert
             response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            var user = System.Text.Json.JsonSerializer.Deserialize<UserDTO>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var user = System.Text.Json.JsonSerializer.Deserialize<UserDTO>(responseContent, JsonOptions);
 
             Assert.NotNull(user);
             Assert.True(user?.IsEnabled);
@@ -121,24 +124,25 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     PlanId = "premium-plan"
                 });
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockUserAdminService.Object);
                 });
-            }).CreateClientWithRoles("Admin");
+            });
+            using var client = factory.CreateClientWithRoles("Admin");
 
             // Act
-            var response = await client.PutAsync("/api/admin/users/test-user-1/plan",
-                new StringContent(
-                    """{"planId": "premium-plan"}""",
-                    Encoding.UTF8,
-                    "application/json"));
+            using var content = new StringContent(
+                """{"planId": "premium-plan"}""",
+                Encoding.UTF8,
+                "application/json");
+            var response = await client.PutAsync("/api/admin/users/test-user-1/plan", content);
 
             // Assert
             response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            var user = System.Text.Json.JsonSerializer.Deserialize<UserDTO>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var user = System.Text.Json.JsonSerializer.Deserialize<UserDTO>(responseContent, JsonOptions);
 
             Assert.NotNull(user);
             Assert.Equal("premium-plan", user?.PlanId);
@@ -182,20 +186,21 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     }
                 });
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
-            }).CreateClientWithRoles("Admin");
+            });
+            using var client = factory.CreateClientWithRoles("Admin");
 
             // Act
             var response = await client.GetAsync("/api/admin/plans");
 
             // Assert
             response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            var plans = System.Text.Json.JsonSerializer.Deserialize<UserPlan[]>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var plans = System.Text.Json.JsonSerializer.Deserialize<UserPlan[]>(responseContent, JsonOptions);
 
             Assert.NotNull(plans);
             Assert.Equal(2, plans?.Length);
@@ -213,19 +218,20 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                 .Setup(r => r.CreatePlanAsync(It.IsAny<UserPlan>()))
                 .ReturnsAsync((UserPlan plan) => plan);
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
-            }).CreateClientWithRoles("Admin");
+            });
+            using var client = factory.CreateClientWithRoles("Admin");
 
             // Act
-            var response = await client.PostAsync("/api/admin/plans",
-                new StringContent(
-                    """{"name": "Enterprise", "dailyRequestLimit": 1000, "isPaid": true}""",
-                    Encoding.UTF8,
-                    "application/json"));
+            using var content = new StringContent(
+                """{"name": "Enterprise", "dailyRequestLimit": 1000, "isPaid": true}""",
+                Encoding.UTF8,
+                "application/json");
+            var response = await client.PostAsync("/api/admin/plans", content);
 
             // Assert
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -252,22 +258,24 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                 .Setup(r => r.UpdatePlanAsync(It.IsAny<UserPlan>()))
                 .ReturnsAsync(true);
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
-            }).CreateClientWithRoles("Admin");
+            });
+            using var client = factory.CreateClientWithRoles("Admin");
 
             // Act
-            var response = await client.PutAsync("/api/admin/plans/premium-plan",
-                new StringContent(
-                    """{"name": "Premium Updated", "dailyRequestLimit": 600}""",
-                    Encoding.UTF8,
-                    "application/json"));
+            using var content = new StringContent(
+                """{"name": "Premium Updated", "dailyRequestLimit": 600}""",
+                Encoding.UTF8,
+                "application/json");
+            var response = await client.PutAsync("/api/admin/plans/premium-plan", content);
 
             // Assert
             response.EnsureSuccessStatusCode();
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
         [Fact]
@@ -290,12 +298,13 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                 .Setup(r => r.DeletePlanAsync("premium-plan"))
                 .ReturnsAsync(true);
 
-            var client = _factory.WithWebHostBuilder(builder => {
+            using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
                     services.AddSingleton(mockUserService.Object);
                     services.AddSingleton(mockPlanRepository.Object);
                 });
-            }).CreateClientWithRoles("Admin");
+            });
+            using var client = factory.CreateClientWithRoles("Admin");
 
             // Act
             var response = await client.DeleteAsync("/api/admin/plans/premium-plan");

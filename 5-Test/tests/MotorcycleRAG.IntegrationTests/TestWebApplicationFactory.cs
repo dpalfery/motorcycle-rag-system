@@ -29,6 +29,8 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program> {
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
+        ArgumentNullException.ThrowIfNull(builder);
+
         // Ensure SQL connection string requirement does not crash app startup in tests.
         // This is NOT a secret and MUST NOT include embedded credentials.
         Environment.SetEnvironmentVariable(
@@ -37,7 +39,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program> {
 
         base.ConfigureWebHost(builder);
 
-        builder.ConfigureAppConfiguration((context, config) => {
+        builder.ConfigureAppConfiguration((_, config) => {
             // Add in-memory configuration with dummy AzureAd settings
             // These are NOT secrets - they're dummy values for test purposes only
             config.AddInMemoryCollection(new Dictionary<string, string?> {

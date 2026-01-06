@@ -313,6 +313,13 @@ public class VectorSearchAgentTests : IDisposable {
     #endregion
 
     public void Dispose() {
-        // No explicit cleanup needed for this test class
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing) {
+        if (disposing) {
+            // No explicit cleanup needed for this test class
+        }
     }
 }

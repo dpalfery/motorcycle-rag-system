@@ -70,7 +70,20 @@ public class DataPipelineController : ControllerBase {
     }
 
     /// <summary>
-    /// Upload a single file for processing
+    /// Upload a single file for processing (without immediate processing)
+    /// </summary>
+    /// <param name="file">The file to upload</param>
+    /// <returns>File upload result</returns>
+    [HttpPost("upload")]
+    [ProducesResponseType(typeof(FileUploadResult), 200)]
+    [ProducesResponseType(typeof(ProblemDetails), 400)]
+    [ProducesResponseType(typeof(ProblemDetails), 500)]
+    public async Task<IActionResult> UploadFileAsync(IFormFile file) {
+        return await UploadFileInternalAsync(file, false);
+    }
+
+    /// <summary>
+    /// Upload a single file for processing with immediate processing option
     /// </summary>
     /// <param name="file">The file to upload</param>
     /// <param name="processImmediately">Whether to process the file immediately</param>
@@ -81,7 +94,14 @@ public class DataPipelineController : ControllerBase {
     [ProducesResponseType(typeof(ProblemDetails), 500)]
     public async Task<IActionResult> UploadFileAsync(
         IFormFile file,
-        [FromQuery] bool processImmediately = false) {
+        [FromQuery] bool processImmediately) {
+        return await UploadFileInternalAsync(file, processImmediately);
+    }
+
+    /// <summary>
+    /// Internal implementation for file upload
+    /// </summary>
+    private async Task<IActionResult> UploadFileInternalAsync(IFormFile file, bool processImmediately) {
         if (file == null || file.Length == 0) {
             return BadRequest("No file provided or file is empty");
         }
@@ -133,8 +153,8 @@ public class DataPipelineController : ControllerBase {
 
             return Ok(uploadResult);
         }
-        catch (OperationCanceledException) {
-            _logger.LogWarning("File upload was cancelled");
+        catch (OperationCanceledException ex) {
+            _logger.LogWarning(ex, "File upload was cancelled");
             return StatusCode(499, new ProblemDetails {
                 Title = "Request cancelled",
                 Detail = "The file upload was cancelled by the client",
@@ -153,7 +173,20 @@ public class DataPipelineController : ControllerBase {
     }
 
     /// <summary>
-    /// Upload multiple files for processing
+    /// Upload multiple files for processing (without immediate processing)
+    /// </summary>
+    /// <param name="files">The files to upload</param>
+    /// <returns>Batch file upload result</returns>
+    [HttpPost("upload-batch")]
+    [ProducesResponseType(typeof(BatchFileUploadResult), 200)]
+    [ProducesResponseType(typeof(ProblemDetails), 400)]
+    [ProducesResponseType(typeof(ProblemDetails), 500)]
+    public async Task<IActionResult> UploadFilesAsync(IReadOnlyList<IFormFile> files) {
+        return await UploadFilesInternalAsync(files, false);
+    }
+
+    /// <summary>
+    /// Upload multiple files for processing with immediate processing option
     /// </summary>
     /// <param name="files">The files to upload</param>
     /// <param name="processImmediately">Whether to process the files immediately</param>
@@ -164,7 +197,14 @@ public class DataPipelineController : ControllerBase {
     [ProducesResponseType(typeof(ProblemDetails), 500)]
     public async Task<IActionResult> UploadFilesAsync(
         IReadOnlyList<IFormFile> files,
-        [FromQuery] bool processImmediately = false) {
+        [FromQuery] bool processImmediately) {
+        return await UploadFilesInternalAsync(files, processImmediately);
+    }
+
+    /// <summary>
+    /// Internal implementation for batch file upload
+    /// </summary>
+    private async Task<IActionResult> UploadFilesInternalAsync(IReadOnlyList<IFormFile> files, bool processImmediately) {
         if (files == null || files.Count == 0) {
             return BadRequest("No files provided");
         }
@@ -228,8 +268,8 @@ public class DataPipelineController : ControllerBase {
 
             return Ok(uploadResult);
         }
-        catch (OperationCanceledException) {
-            _logger.LogWarning("Batch file upload was cancelled");
+        catch (OperationCanceledException ex) {
+            _logger.LogWarning(ex, "Batch file upload was cancelled");
             return StatusCode(499, new ProblemDetails {
                 Title = "Request cancelled",
                 Detail = "The batch file upload was cancelled by the client",
@@ -294,8 +334,8 @@ public class DataPipelineController : ControllerBase {
             var result = await _orchestrator.ProcessFileAsync(request, HttpContext.RequestAborted);
             return Ok(result);
         }
-        catch (OperationCanceledException) {
-            _logger.LogWarning("File processing was cancelled");
+        catch (OperationCanceledException ex) {
+            _logger.LogWarning(ex, "File processing was cancelled");
             return StatusCode(499, new ProblemDetails {
                 Title = "Request cancelled",
                 Detail = "The file processing was cancelled by the client",
@@ -340,8 +380,8 @@ public class DataPipelineController : ControllerBase {
             var result = await _orchestrator.ProcessBatchAsync(requests, HttpContext.RequestAborted);
             return Ok(result);
         }
-        catch (OperationCanceledException) {
-            _logger.LogWarning("Batch file processing was cancelled");
+        catch (OperationCanceledException ex) {
+            _logger.LogWarning(ex, "Batch file processing was cancelled");
             return StatusCode(499, new ProblemDetails {
                 Title = "Request cancelled",
                 Detail = "The batch file processing was cancelled by the client",
@@ -389,13 +429,30 @@ public class DataPipelineController : ControllerBase {
     }
 
     /// <summary>
-    /// Get pipeline metrics
+    /// Get pipeline metrics (default 24 hours)
     /// </summary>
-    /// <param name="hours">Time window in hours (default: 24)</param>
     /// <returns>Pipeline metrics</returns>
     [HttpGet("metrics")]
     [ProducesResponseType(typeof(PipelineMetrics), 200)]
-    public async Task<IActionResult> GetPipelineMetricsAsync([FromQuery] int hours = 24) {
+    public async Task<IActionResult> GetPipelineMetricsAsync() {
+        return await GetPipelineMetricsInternalAsync(24);
+    }
+
+    /// <summary>
+    /// Get pipeline metrics with custom time window
+    /// </summary>
+    /// <param name="hours">Time window in hours</param>
+    /// <returns>Pipeline metrics</returns>
+    [HttpGet("metrics")]
+    [ProducesResponseType(typeof(PipelineMetrics), 200)]
+    public async Task<IActionResult> GetPipelineMetricsAsync([FromQuery] int hours) {
+        return await GetPipelineMetricsInternalAsync(hours);
+    }
+
+    /// <summary>
+    /// Internal implementation for getting pipeline metrics
+    /// </summary>
+    private async Task<IActionResult> GetPipelineMetricsInternalAsync(int hours) {
         try {
             var timeWindow = TimeSpan.FromHours(Math.Max(1, Math.Min(168, hours))); // 1 hour to 1 week
             var metrics = await _orchestrator.GetPipelineMetricsAsync(timeWindow);
@@ -453,8 +510,8 @@ public class DataPipelineController : ControllerBase {
             var result = await _scheduledService.ExecuteImmediateRunAsync(HttpContext.RequestAborted);
             return Ok(result);
         }
-        catch (OperationCanceledException) {
-            _logger.LogWarning("Scheduled processing execution was cancelled");
+        catch (OperationCanceledException ex) {
+            _logger.LogWarning(ex, "Scheduled processing execution was cancelled");
             return StatusCode(499, new ProblemDetails {
                 Title = "Request cancelled",
                 Detail = "The scheduled processing execution was cancelled by the client",

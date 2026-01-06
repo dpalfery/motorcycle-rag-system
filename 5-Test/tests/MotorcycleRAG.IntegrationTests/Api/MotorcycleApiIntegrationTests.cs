@@ -17,6 +17,8 @@ namespace MotorcycleRAG.IntegrationTests.Api;
 /// Integration tests for MotorcycleController REST API.
 /// </summary>
 public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFactory> {
+    private static readonly string[] MockSectionHeadings = { "Mock Section" };
+
     private static JsonSerializerOptions GetJsonOptions() {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) {
             PropertyNameCaseInsensitive = true
@@ -76,7 +78,7 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
                                                     PageRange = "1",
                                                     PrimarySection = "Mock Section",
                                                     SectionLevel = 1,
-                                                    SectionHeadings = new[] { "Mock Section" },
+                                                    SectionHeadings = MockSectionHeadings,
                                                     ChunkIndex = 0,
                                                     Section = "Mock Section",
                                                     SourceUrl = "https://example.invalid/manual"
@@ -110,8 +112,8 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
 
     [Fact]
     public async Task QueryEndpoint_ReturnsOkAndResponseBody() {
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
 
         var request = new MotorcycleQueryRequest {
             Query = "What is top speed of Ducati Panigale V4?"
@@ -128,8 +130,8 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
 
     [Fact]
     public async Task QueryEndpoint_InvalidModel_ReturnsBadRequest() {
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
 
         var request = new MotorcycleQueryRequest { Query = string.Empty }; // Invalid due to [Required]
 
@@ -140,8 +142,8 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
 
     [Fact]
     public async Task HealthEndpoint_ReturnsOk() {
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
 
         var response = await client.GetAsync("/api/motorcycles/health");
 
@@ -154,8 +156,8 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
 
     [Fact]
     public async Task QueryEndpoint_ReturnsCitationsAndSources_WhenValidRequest() {
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
 
         var request = new MotorcycleQueryRequest {
             Query = "What are specifications of Honda CBR1000RR?"
@@ -190,12 +192,13 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     [Fact]
     public async Task QueryEndpoint_HandlesNoResultsWithRefinementSuggestions() {
         // Create a mock that returns empty results
-        var factory = new TestWebApplicationFactory().WithWebHostBuilder(builder => {
+        using var factory = new TestWebApplicationFactory();
+        using var configuredFactory = factory.WithWebHostBuilder(builder => {
             builder.ConfigureServices(services => {
                 var mockService = new Mock<IMotorcycleRagService>();
 
                 mockService.Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
-                            .ReturnsAsync((MotorcycleQueryRequest r) => new MotorcycleQueryResponse {
+                            .ReturnsAsync(_ => new MotorcycleQueryResponse {
                                 QueryId = Guid.NewGuid().ToString("N"),
                                 Response = "No results found. Try refining your query with more specific terms about motorcycle models, specifications, or maintenance procedures.",
                                 GeneratedAt = DateTime.UtcNow,
@@ -210,7 +213,7 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
             });
         });
 
-        var client = factory.CreateClientWithRoles("User");
+        using var client = configuredFactory.CreateClientWithRoles("User");
         var request = new MotorcycleQueryRequest { Query = "Some obscure query with no results" };
 
         var response = await client.PostAsJsonAsync("/api/motorcycles/query", request);
@@ -230,8 +233,8 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
 
     [Fact]
     public async Task QueryEndpoint_ReturnsStableQueryIdAndCompleteMetrics() {
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
 
         var request = new MotorcycleQueryRequest {
             Query = "What is top speed of Ducati Panigale V4?"

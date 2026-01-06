@@ -312,5 +312,6 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
     public void Dispose()
     {
         _scope?.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

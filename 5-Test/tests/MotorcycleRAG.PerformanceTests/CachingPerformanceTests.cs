@@ -55,7 +55,9 @@ public class CachingPerformanceTests
         _testResponse = new MotorcycleQueryResponse
         {
             QueryId = Guid.NewGuid().ToString(),
-            Response = "The Honda CBR600RR is a 600cc supersport motorcycle with an inline-4 engine producing 118 horsepower. It features a lightweight aluminum frame, advanced suspension, and aerodynamic bodywork designed for track performance.",
+            Response = "The Honda CBR600RR is a 600cc supersport motorcycle with an inline-4 engine producing 118 " +
+                "horsepower. It features a lightweight aluminum frame, advanced suspension, and aerodynamic " +
+                "bodywork designed for track performance.",
             Sources = new[]
             {
                 new SearchResult

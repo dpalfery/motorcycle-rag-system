@@ -105,7 +105,7 @@ public sealed class WebSourcesAdminController : ControllerBase {
 
         try {
             var webSource = new WebSource {
-                Url = request.Url,
+                Url = request.Url!.ToString(),
                 Name = request.Name,
                 Description = request.Description ?? string.Empty,
                 IsEnabled = request.IsEnabled ?? true,
@@ -122,11 +122,11 @@ public sealed class WebSourcesAdminController : ControllerBase {
             return Created(new Uri($"/api/admin/web-sources/{createdSource.Id}", UriKind.Relative), createdSource);
         }
         catch (InvalidOperationException ex) {
-            _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", SanitizeLogValue(request.Url));
+            _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", SanitizeLogValue(request.Url?.ToString()));
             return Conflict(new { error = "A resource with this URL already exists" });
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error creating web source with URL {Url}", SanitizeLogValue(request.Url));
+            _logger.LogError(ex, "Error creating web source with URL {Url}", SanitizeLogValue(request.Url?.ToString()));
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
@@ -168,8 +168,8 @@ public sealed class WebSourcesAdminController : ControllerBase {
             }
 
             // Update only provided fields
-            if (!string.IsNullOrWhiteSpace(request.Url)) {
-                existingSource.Url = request.Url;
+            if (request.Url != null) {
+                existingSource.Url = request.Url.ToString();
             }
 
             if (!string.IsNullOrWhiteSpace(request.Name)) {
@@ -263,11 +263,11 @@ public sealed class WebSourcesAdminController : ControllerBase {
     private List<string> ValidateCreateRequest(CreateWebSourceRequest request) {
         var errors = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(request.Url)) {
+        if (request.Url == null) {
             errors.Add("URL is required");
         }
-        else if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _)) {
-            errors.Add("URL must be a valid absolute URI");
+        else if (request.Url.Scheme != Uri.UriSchemeHttp && request.Url.Scheme != Uri.UriSchemeHttps) {
+            errors.Add("URL must use HTTP or HTTPS scheme");
         }
 
         if (string.IsNullOrWhiteSpace(request.Name)) {
@@ -302,8 +302,8 @@ public sealed class WebSourcesAdminController : ControllerBase {
     private List<string> ValidateUpdateRequest(UpdateWebSourceRequest request) {
         var errors = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(request.Url) && !Uri.TryCreate(request.Url, UriKind.Absolute, out _)) {
-            errors.Add("URL must be a valid absolute URI");
+        if (request.Url != null && (request.Url.Scheme != Uri.UriSchemeHttp && request.Url.Scheme != Uri.UriSchemeHttps)) {
+            errors.Add("URL must use HTTP or HTTPS scheme");
         }
 
         if (!string.IsNullOrWhiteSpace(request.Name) && request.Name.Length > 255) {
@@ -339,7 +339,7 @@ public sealed class WebSourcesAdminController : ControllerBase {
 
         const int maxLogLength = 48;
         if (value.Length > maxLogLength) {
-            return value.Substring(0, maxLogLength) + "...";
+            return string.Concat(value.AsSpan(0, maxLogLength), "...");
         }
 
         return value;
@@ -355,9 +355,7 @@ public class CreateWebSourceRequest {
     /// URL of the web source
     /// </summary>
     [Required]
-    [Url]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056:URI parameters should not be strings", Justification = "API DTO requires string for JSON serialization")]
-    public string Url { get; set; } = string.Empty;
+    public Uri? Url { get; set; }
 
     /// <summary>
     /// Display name for the web source
@@ -404,8 +402,7 @@ public class UpdateWebSourceRequest {
     /// <summary>
     /// URL of the web source
     /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056:URI parameters should not be strings", Justification = "API DTO requires string for JSON serialization")]
-    public string? Url { get; set; }
+    public Uri? Url { get; set; }
 
     /// <summary>
     /// Display name for the web source

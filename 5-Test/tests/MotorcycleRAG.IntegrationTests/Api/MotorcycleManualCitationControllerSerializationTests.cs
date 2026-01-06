@@ -65,8 +65,8 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     [Fact]
     public async Task QueryEndpoint_SerializesManualCitationWithLocatorMetadata_Correctly() {
         // Arrange
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
         var request = new MotorcycleQueryRequest {
             Query = "How do I change the oil on a Honda CBR1000RR?"
         };
@@ -117,8 +117,8 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     [Fact]
     public async Task QueryEndpoint_SerializesMultipleManualCitationsWithDifferentLocators_Correctly() {
         // Arrange
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
         var request = new MotorcycleQueryRequest {
             Query = "What are the brake maintenance procedures for Ducati Panigale V4?"
         };
@@ -161,8 +161,8 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     [Fact]
     public async Task QueryEndpoint_SerializesSectionHierarchyInLocator_Correctly() {
         // Arrange
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
         var request = new MotorcycleQueryRequest {
             Query = "What are the suspension adjustment procedures?"
         };
@@ -209,8 +209,8 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     [Fact]
     public async Task QueryEndpoint_SerializesPageRangeInLocator_Correctly() {
         // Arrange
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
         var request = new MotorcycleQueryRequest {
             Query = "Show me the complete engine disassembly procedure"
         };
@@ -248,8 +248,8 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
     [Fact]
     public async Task QueryEndpoint_SerializesMixedManualAndDatasetCitations_Correctly() {
         // Arrange
-        var factory = CreateFactoryWithMockedService();
-        var client = factory.CreateClientWithRoles("User");
+        using var factory = CreateFactoryWithMockedService();
+        using var client = factory.CreateClientWithRoles("User");
         var request = new MotorcycleQueryRequest {
             Query = "What are the specifications and maintenance procedures for Kawasaki Ninja ZX-10R?"
         };
@@ -349,7 +349,7 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
                                 Section = "Engine Maintenance",
                                 FigureReference = "Fig 3.2",
                                 Version = "2024.1",
-                                PublicationDate = new DateTime(2024, 1, 1),
+                                PublicationDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                                 SourceUrl = "https://manuals.honda.com/cbr1000rr-2024"
                             }
                         }
@@ -390,7 +390,7 @@ public class MotorcycleManualCitationControllerSerializationTests : IClassFixtur
                                 ChunkIndex = 2,
                                 Section = "Torque Specifications",
                                 Version = "2024.1",
-                                PublicationDate = new DateTime(2024, 1, 1),
+                                PublicationDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                                 SourceUrl = "https://manuals.honda.com/cbr1000rr-2024"
                             }
                         }

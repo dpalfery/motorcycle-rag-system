@@ -37,7 +37,12 @@ public class WebSourceRegistryService {
         }
 
         // Check if URL already exists
-        var existingSource = await _webSourceRepository.GetWebSourceByUrlAsync(webSource.Url);
+        if (string.IsNullOrWhiteSpace(webSource.Url)) {
+            throw new InvalidOperationException("Web source URL must not be null or empty");
+        }
+
+        Uri urlUri = new Uri(webSource.Url);
+        var existingSource = await _webSourceRepository.GetWebSourceByUrlAsync(urlUri);
         if (existingSource != null) {
             throw new InvalidOperationException($"A web source with URL '{webSource.Url}' already exists");
         }

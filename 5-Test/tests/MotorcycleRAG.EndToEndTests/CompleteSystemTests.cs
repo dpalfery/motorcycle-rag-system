@@ -432,5 +432,7 @@ startxref
                 // Ignore cleanup errors in tests
             }
         }
+
+        GC.SuppressFinalize(this);
     }
 }

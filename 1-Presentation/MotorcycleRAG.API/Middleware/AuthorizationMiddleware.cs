@@ -13,7 +13,7 @@ internal class AuthorizationMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<AuthorizationMiddleware> _logger;
 
-    public AuthorizationMiddleware(
+    internal AuthorizationMiddleware(
         RequestDelegate next,
         ILogger<AuthorizationMiddleware> logger)
     {
@@ -21,7 +21,7 @@ internal class AuthorizationMiddleware
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task InvokeAsync(HttpContext context)
+    internal async Task InvokeAsync(HttpContext context)
     {
         // Get correlation ID for tracking
         var correlationId = context.Request.Headers["X-Correlation-ID"].FirstOrDefault() ?? "unknown";
@@ -80,7 +80,7 @@ internal class AuthorizationMiddleware
 /// </summary>
 internal static class AuthorizationMiddlewareExtensions
 {
-    public static IApplicationBuilder UseAuthorizationLogging(this IApplicationBuilder builder)
+    internal static IApplicationBuilder UseAuthorizationLogging(this IApplicationBuilder builder)
     {
         return builder.UseMiddleware<AuthorizationMiddleware>();
     }

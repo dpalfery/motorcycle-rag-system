@@ -54,7 +54,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                 ToolType = "search"
             };
 
-            var content = new StringContent(
+            using var content = new StringContent(
                 JsonSerializer.Serialize(request),
                 Encoding.UTF8,
                 "application/json");
@@ -82,7 +82,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                 ConfigurationJson = "{ invalid json }" // Invalid JSON
             };
 
-            var content = new StringContent(
+            using var content = new StringContent(
                 JsonSerializer.Serialize(request),
                 Encoding.UTF8,
                 "application/json");
@@ -109,7 +109,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                 Name = "Updated Name"
             };
 
-            var content = new StringContent(
+            using var content = new StringContent(
                 JsonSerializer.Serialize(request),
                 Encoding.UTF8,
                 "application/json");
@@ -117,7 +117,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             // Act - empty toolId in URL causes routing to reject
             var response = await client.PutAsync($"{BaseUrl}/", content);
 
-            // Assert - empty route segment doesn't match [HttpPut("{toolId}")] 
+            // Assert - empty route segment doesn't match [HttpPut("{toolId}")]
             // so routing returns 405 (Method Not Allowed)
             Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
         }
@@ -174,7 +174,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                 ToolType = "search"
             };
 
-            var content = new StringContent(
+            using var content = new StringContent(
                 JsonSerializer.Serialize(request),
                 Encoding.UTF8,
                 "application/json");

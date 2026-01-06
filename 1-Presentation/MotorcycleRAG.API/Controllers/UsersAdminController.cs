@@ -107,17 +107,37 @@ public sealed class UsersAdminController : ControllerBase {
     }
 
     /// <summary>
-    /// Gets all users (admin view).
+    /// Gets all users (admin view) with default pagination.
     /// </summary>
-    /// <param name="page">Page number (default: 1)</param>
-    /// <param name="pageSize">Page size (default: 50)</param>
     /// <returns>Paged list of users</returns>
     [HttpGet]
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UserListResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAllUsersAsync([FromQuery] int page = 1, [FromQuery] int pageSize = 50) {
+    public async Task<IActionResult> GetAllUsersAsync() {
+        return await GetAllUsersInternalAsync(1, 50);
+    }
+
+    /// <summary>
+    /// Gets all users (admin view) with custom pagination.
+    /// </summary>
+    /// <param name="page">Page number</param>
+    /// <param name="pageSize">Page size</param>
+    /// <returns>Paged list of users</returns>
+    [HttpGet]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(typeof(UserListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetAllUsersAsync([FromQuery] int page, [FromQuery] int pageSize) {
+        return await GetAllUsersInternalAsync(page, pageSize);
+    }
+
+    /// <summary>
+    /// Internal implementation for getting all users.
+    /// </summary>
+    private async Task<IActionResult> GetAllUsersInternalAsync(int page, int pageSize) {
         try {
             var users = await _userAdminService.GetAllUsersAsync(page, pageSize);
             _logger.LogInformation("Admin retrieved {Count} users (page: {Page}, pageSize: {PageSize})", users.Length, page, pageSize);

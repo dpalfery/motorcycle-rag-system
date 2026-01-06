@@ -310,8 +310,8 @@ namespace MotorcycleRAG.Persistence.Telemetry
         /// <inheritdoc />
         public void TrackDegradedMode(
             string correlationId,
-            List<string> failedSources,
-            List<string> availableSources,
+            IReadOnlyList<string> failedSources,
+            IReadOnlyList<string> availableSources,
             TimeSpan duration,
             int resultsFound)
         {

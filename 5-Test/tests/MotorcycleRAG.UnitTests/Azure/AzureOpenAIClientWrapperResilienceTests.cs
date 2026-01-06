@@ -12,7 +12,7 @@ using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
-public class AzureOpenAIClientWrapperResilienceTests {
+public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
     private readonly Mock<ILogger<AzureOpenAIClientWrapper>> _mockLogger;
     private readonly Mock<IResilienceService> _mockResilienceService;
     private readonly Mock<ICorrelationService> _mockCorrelationService;
@@ -94,7 +94,7 @@ public class AzureOpenAIClientWrapperResilienceTests {
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .Returns<string, Func<Task<string>>, Func<Task<string>>, string, CancellationToken>(
-                async (policy, operation, fallback, corrId, token) => {
+                async (_, _, fallback, _, _) => {
                     // Simulate circuit breaker triggering fallback
                     return await fallback();
                 });
@@ -111,8 +111,8 @@ public class AzureOpenAIClientWrapperResilienceTests {
         // Arrange
         var expectedEmbeddings = new[]
         {
-            new float[] { 0.1f, 0.2f, 0.3f },
-            new float[] { 0.4f, 0.5f, 0.6f }
+            new[] { 0.1f, 0.2f, 0.3f },
+            new[] { 0.4f, 0.5f, 0.6f }
         };
         const string correlationId = "test-correlation-789";
         var texts = new[] { "text1", "text2" };
@@ -155,7 +155,7 @@ public class AzureOpenAIClientWrapperResilienceTests {
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .Returns<string, Func<Task<float[][]>>, Func<Task<float[][]>>, string, CancellationToken>(
-                async (policy, operation, fallback, corrId, token) => {
+                async (_, _, fallback, _, _) => {
                     // Simulate circuit breaker triggering fallback
                     return await fallback();
                 });
@@ -174,7 +174,7 @@ public class AzureOpenAIClientWrapperResilienceTests {
     [Fact]
     public async Task GetEmbeddingAsync_SingleText_ReturnsFirstEmbedding() {
         // Arrange
-        var expectedEmbedding = new float[] { 0.1f, 0.2f, 0.3f };
+        var expectedEmbedding = new[] { 0.1f, 0.2f, 0.3f };
         const string correlationId = "test-correlation-single";
         const string text = "single text";
 
@@ -221,7 +221,7 @@ public class AzureOpenAIClientWrapperResilienceTests {
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .Returns<string, Func<Task<string>>, Func<Task<string>>?, string?, CancellationToken>(
-                async (policyKey, operation, fallback, corrId, ct) => {
+                async (_, operation, _, _, _) => {
                     // Execute the operation to trigger the CreateLoggingScope call
                     try {
                         return await operation();
@@ -268,7 +268,7 @@ public class AzureOpenAIClientWrapperResilienceTests {
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .Returns<string, Func<Task<float[][]>>, Func<Task<float[][]>>?, string?, CancellationToken>(
-                async (policyKey, operation, fallback, corrId, ct) => {
+                async (_, operation, _, _, _) => {
                     // Execute the operation to trigger the CreateLoggingScope call
                     try {
                         return await operation();
@@ -316,5 +316,16 @@ public class AzureOpenAIClientWrapperResilienceTests {
         // Act & Assert
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => _client.GetChatCompletionAsync("gpt-4", "Test prompt", cts.Token));
+    }
+
+    public void Dispose() {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing) {
+        if (disposing) {
+            _client?.Dispose();
+        }
     }
 }

@@ -134,7 +134,8 @@ public sealed class McpAdminController : ControllerBase {
             return BadRequest(ModelState);
 
         // SC-003: Manual input validation beyond DataAnnotations
-        var validationErrors = ValidateToolInput(request.ToolId, request.Name, request.ServerUrl);
+        var serverUri = request.ServerUrl != null ? new Uri(request.ServerUrl) : null;
+        var validationErrors = ValidateToolInput(request.ToolId, request.Name, serverUri!);
         if (validationErrors.Any())
             return BadRequest(new { errors = validationErrors });
 
@@ -415,7 +416,22 @@ public sealed class McpAdminController : ControllerBase {
 
 
     /// <summary>
-    /// Gets audit history for a tool configuration.
+    /// Gets audit history for a tool configuration with default limit (100).
+    /// </summary>
+    /// <param name="toolId">Tool ID</param>
+    /// <returns>Audit entries</returns>
+    [HttpGet("{toolId}/audit")]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(typeof(ToolConfigurationAuditEntry[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetAuditHistoryAsync(string toolId) {
+        return await GetAuditHistoryInternalAsync(toolId, 100);
+    }
+
+    /// <summary>
+    /// Gets audit history for a tool configuration with custom limit.
     /// </summary>
     /// <param name="toolId">Tool ID</param>
     /// <param name="limit">Number of entries to return</param>
@@ -426,16 +442,21 @@ public sealed class McpAdminController : ControllerBase {
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAuditHistoryAsync(string toolId, [FromQuery] int limit = 100)
-    {
+    public async Task<IActionResult> GetAuditHistoryAsync(string toolId, [FromQuery] int limit) {
+        return await GetAuditHistoryInternalAsync(toolId, limit);
+    }
+
+    /// <summary>
+    /// Internal implementation for getting audit history.
+    /// </summary>
+    private async Task<IActionResult> GetAuditHistoryInternalAsync(string toolId, int limit) {
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });
 
         if (limit <= 0 || limit > 1000)
             return BadRequest(new { error = "Limit must be between 1 and 1000" });
 
-        try
-        {
+        try {
             var config = await _configService.GetToolAsync(toolId);
             if (config == null)
                 return NotFound(new { error = "Tool not found" });
@@ -443,8 +464,7 @@ public sealed class McpAdminController : ControllerBase {
             var auditEntries = await _configService.GetAuditHistoryAsync(config.Id, limit);
             return Ok(auditEntries);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Error retrieving audit history for tool {ToolId}", toolId);
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "An error occurred" });
@@ -502,7 +522,7 @@ public sealed class McpAdminController : ControllerBase {
     /// Validates tool input parameters.
     /// SC-003: Manual input validation beyond DataAnnotations.
     /// </summary>
-    private List<string> ValidateToolInput(string toolId, string name, string serverUrl) {
+    private List<string> ValidateToolInput(string toolId, string name, Uri serverUrl) {
         var errors = new List<string>();
 
         if (string.IsNullOrWhiteSpace(toolId))
@@ -515,9 +535,9 @@ public sealed class McpAdminController : ControllerBase {
         else if (name.Length > 255)
             errors.Add("Name exceeds maximum length of 255 characters");
 
-        if (string.IsNullOrWhiteSpace(serverUrl))
+        if (serverUrl == null)
             errors.Add("Server URL is required");
-        else if (serverUrl.Length > 500)
+        else if (serverUrl.ToString().Length > 500)
             errors.Add("Server URL exceeds maximum length of 500 characters");
 
         return errors;

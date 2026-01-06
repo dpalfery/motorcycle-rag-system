@@ -53,9 +53,6 @@ public class ServiceCollectionExtensionsTests {
 
         // Assert
         serviceProvider.GetService<IAzureOpenAIClient>().Should().NotBeNull();
-        // Note: IAzureSearchClient and IDocumentIntelligenceClient are not yet implemented
-        // serviceProvider.GetService<IAzureSearchClient>().Should().NotBeNull();
-        // serviceProvider.GetService<IDocumentIntelligenceClient>().Should().NotBeNull();
     }
 
     [Fact]

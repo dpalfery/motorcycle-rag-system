@@ -205,18 +205,16 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
                 }
 
                 // Check if we should create a new chunk BEFORE adding the current record
-                if (ShouldCreateNewChunk(currentChunk, record)) {
-                    if (currentChunk.Count > 0) {
-                        var chunk = new CsvChunk { Index = chunkIndex++ };
-                        foreach (var header in headers) {
-                            chunk.Headers.Add(header);
-                        }
-                        foreach (var row in currentChunk) {
-                            chunk.Rows.Add(row);
-                        }
-                        chunks.Add(chunk);
-                        currentChunk.Clear();
+                if (ShouldCreateNewChunk(currentChunk, record) && currentChunk.Count > 0) {
+                    var chunk = new CsvChunk { Index = chunkIndex++ };
+                    foreach (var header in headers) {
+                        chunk.Headers.Add(header);
                     }
+                    foreach (var row in currentChunk) {
+                        chunk.Rows.Add(row);
+                    }
+                    chunks.Add(chunk);
+                    currentChunk.Clear();
                 }
 
                 currentChunk.Add(record);
@@ -272,10 +270,8 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
     /// </summary>
     private bool IsSameMotorcycle(Dictionary<string, object> row1, Dictionary<string, object> row2) {
         foreach (var field in _configuration.IdentifierFields) {
-            if (row1.TryGetValue(field, out var value1) && row2.TryGetValue(field, out var value2)) {
-                if (!string.Equals(value1?.ToString(), value2?.ToString(), StringComparison.OrdinalIgnoreCase)) {
-                    return false;
-                }
+            if (row1.TryGetValue(field, out var value1) && row2.TryGetValue(field, out var value2) && !string.Equals(value1?.ToString(), value2?.ToString(), StringComparison.OrdinalIgnoreCase)) {
+                return false;
             }
         }
         return true;

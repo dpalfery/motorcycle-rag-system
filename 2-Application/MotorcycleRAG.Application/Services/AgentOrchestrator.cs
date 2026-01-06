@@ -6,6 +6,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
+using System.Collections.ObjectModel;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -374,7 +375,7 @@ Answer in markdown:
 
         // Remove duplicates.
         var deduped = results.GroupBy(r => string.IsNullOrWhiteSpace(r.Source.DocumentId) ? r.Id : r.Source.DocumentId)
-                              .Select(g => g.OrderByDescending(r => r.RelevanceScore).First())
+                              .Select(g => g.OrderByDescending(r => r.RelevanceScore).ToArray()[0])
                               .ToList();
 
         // Optionally apply semantic ranking.
@@ -497,25 +498,28 @@ public sealed class SearchResultFusionService
     }
 
     public async Task<SearchResult[]> FuseAndRankResultsAsync(
-        List<SearchResult> results,
+        Collection<SearchResult> results,
         string query,
         SearchParameters options,
         bool degradedMode)
     {
+        ArgumentNullException.ThrowIfNull(results);
+        ArgumentNullException.ThrowIfNull(options);
+
         if (results.Count == 0)
         {
             return Array.Empty<SearchResult>();
         }
 
         var deduped = results.GroupBy(r => string.IsNullOrWhiteSpace(r.Source.DocumentId) ? r.Id : r.Source.DocumentId)
-                             .Select(g => g.OrderByDescending(r => r.RelevanceScore).First())
+                             .Select(g => g.OrderByDescending(r => r.RelevanceScore).ToArray()[0])
                              .ToList();
 
         if (_searchConfig.EnableSemanticRanking)
         {
             try
             {
-                deduped = await ApplySemanticRankingAsync(query, deduped);
+                deduped = (await ApplySemanticRankingAsync(query, new Collection<SearchResult>(deduped))).ToList();
             }
             catch (Exception ex)
             {
@@ -542,7 +546,7 @@ public sealed class SearchResultFusionService
         return finalResults;
     }
 
-    private async Task<List<SearchResult>> ApplySemanticRankingAsync(string query, List<SearchResult> results)
+    private async Task<Collection<SearchResult>> ApplySemanticRankingAsync(string query, Collection<SearchResult> results)
     {
         var queryEmbedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", query, CancellationToken.None);
         var contents = results.Select(r => AgentOrchestrator.Truncate(r.Content, 1024)).ToArray();
@@ -556,7 +560,8 @@ public sealed class SearchResultFusionService
             scored.Add((results[i], blendedScore));
         }
 
-        return scored.OrderByDescending(s => s.Score).Select(s => s.Result).ToList();
+        var ordered = scored.OrderByDescending(s => s.Score).Select(s => s.Result).ToList();
+        return new Collection<SearchResult>(ordered);
     }
 
     private static double CosineSimilarity(float[] v1, float[] v2)

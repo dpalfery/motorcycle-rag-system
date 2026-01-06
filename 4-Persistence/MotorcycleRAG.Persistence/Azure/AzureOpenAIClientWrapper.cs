@@ -35,9 +35,6 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         _resilienceService = resilienceService;
         _correlationService = correlationService;
 
-        // Initialize Azure OpenAI client with DefaultAzureCredential
-        var credential = new DefaultAzureCredential();
-
         _logger.LogInformation("Azure OpenAI client initialized with endpoint: {Endpoint}",
             azureConfig.OpenAIEndpoint);
     }
@@ -86,25 +83,25 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
     }
 
     public async Task<float[]> GetEmbeddingAsync(
-        string deploymentName,
+        string model,
         string text,
         CancellationToken cancellationToken)
     {
-        var embeddings = await GetEmbeddingsAsync(deploymentName, new[] { text }, cancellationToken);
+        var embeddings = await GetEmbeddingsAsync(model, new[] { text }, cancellationToken);
         return embeddings[0];
     }
 
     public async Task<float[]> GetEmbeddingsAsync(
-        string deploymentName,
+        string model,
         string text,
         CancellationToken cancellationToken)
     {
-        var result = await GetEmbeddingsAsync(deploymentName, new[] { text }, cancellationToken);
+        var result = await GetEmbeddingsAsync(model, new[] { text }, cancellationToken);
         return result[0];
     }
 
     public async Task<float[][]> GetEmbeddingsAsync(
-        string deploymentName,
+        string model,
         string[] texts,
         CancellationToken cancellationToken)
     {
@@ -117,12 +114,12 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
                 using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
                 {
                     ["Operation"] = "GetEmbeddings",
-                    ["DeploymentName"] = deploymentName,
+                    ["DeploymentName"] = model,
                     ["TextCount"] = texts.Length
                 });
 
-                _logger.LogDebug("Getting embeddings for deployment: {DeploymentName}, Text count: {TextCount}", 
-                    deploymentName, texts.Length);
+                _logger.LogDebug("Getting embeddings for deployment: {DeploymentName}, Text count: {TextCount}",
+                    model, texts.Length);
 
                 await Task.Delay(100, cancellationToken);
 
@@ -146,7 +143,7 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
     }
 
     public async Task<string> ProcessMultimodalContentAsync(
-        string deploymentName,
+        string model,
         string textPrompt,
         byte[] imageData,
         string imageContentType,
@@ -156,16 +153,16 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
 
         try
         {
-            _logger.LogDebug("Processing multimodal content for deployment: {DeploymentName}", deploymentName);
+            _logger.LogDebug("Processing multimodal content for deployment: {DeploymentName}", model);
             await Task.Delay(200, cancellationToken);
             _logger.LogDebug("Successfully processed multimodal content");
             return $"GPT-4 Vision analysis of image ({imageData.Length} bytes): {textPrompt}";
         }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(ex, "Azure OpenAI multimodal request failed: {ErrorCode} - {Message}", 
+            _logger.LogError(ex, "Azure OpenAI multimodal request failed: {ErrorCode} - {Message}",
                 ex.ErrorCode, ex.Message);
-            throw;
+            throw new InvalidOperationException($"Failed to process multimodal content for deployment {model}: {ex.Message}", ex);
         }
         catch (Exception ex)
         {

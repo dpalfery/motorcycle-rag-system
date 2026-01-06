@@ -322,7 +322,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             // Clean up cancellation token source with safe disposal
             if (_activeScrapes.TryRemove(runId, out var cts)) {
                 try {
-                    using (cts) { }
+                    cts?.Dispose();
                 }
                 catch (Exception ex) {
                     _logger.LogWarning(ex, "Error disposing CancellationTokenSource for run {RunId}", runId);
@@ -426,9 +426,27 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             return false;
         }
 
-        // Extract domain from URLs for comparison
-        var resultDomain = ExtractDomainFromUrl(result.Source.SourceUrl);
-        var sourceDomain = ExtractDomainFromUrl(webSource.Url);
+        // Convert string URL to Uri for comparison
+        string resultDomain = string.Empty;
+        try {
+            if (Uri.TryCreate(result.Source.SourceUrl, UriKind.Absolute, out var resultUri)) {
+                resultDomain = ExtractDomainFromUrl(resultUri);
+            }
+        }
+        catch (Exception ex) {
+            _logger.LogWarning(ex, "Error extracting domain from result URL: {ResultUrl}", result.Source.SourceUrl);
+        }
+
+        // Extract domain from web source (convert string to Uri)
+        string sourceDomain = string.Empty;
+        try {
+            if (Uri.TryCreate(webSource.Url, UriKind.Absolute, out var sourceUri)) {
+                sourceDomain = ExtractDomainFromUrl(sourceUri);
+            }
+        }
+        catch (Exception ex) {
+            _logger.LogWarning(ex, "Error extracting domain from web source URL: {WebSourceUrl}", webSource.Url);
+        }
 
         return !string.IsNullOrEmpty(resultDomain) &&
                resultDomain.Equals(sourceDomain, StringComparison.OrdinalIgnoreCase);
@@ -437,16 +455,13 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     /// <summary>
     /// Extracts the domain from a URL
     /// </summary>
-    private string ExtractDomainFromUrl(string url) {
+    private string ExtractDomainFromUrl(Uri url) {
         try {
-            if (!url.StartsWith("http")) {
-                url = "http://" + url;
-            }
-
-            var uri = new Uri(url);
-            return uri.Host.ToUpperInvariant();
+            ArgumentNullException.ThrowIfNull(url);
+            return url.Host.ToUpperInvariant();
         }
-        catch {
+        catch (Exception ex) {
+            _logger.LogWarning(ex, "Error extracting domain from URI: {Uri}", url);
             return string.Empty;
         }
     }
@@ -527,7 +542,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         }
         catch (OperationCanceledException ex) {
             _logger.LogWarning(ex, "Indexing was cancelled");
-            throw;
+            throw new OperationCanceledException("Indexing operation was cancelled", ex);
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Indexing failed");

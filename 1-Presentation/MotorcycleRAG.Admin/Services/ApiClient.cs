@@ -39,7 +39,7 @@ public class ApiClient {
             .OrResult<HttpResponseMessage>(r => r.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
                                                 (int)r.StatusCode == 503)
             .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
-                (outcome, timespan, retryCount, context) => {
+                (outcome, timespan, retryCount, _) => {
                     _logger.LogWarning("ApiClient retry {Retry} after {Delay}s. Reason: {Reason}",
                         retryCount, timespan.TotalSeconds, outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString());
                 });
@@ -307,7 +307,10 @@ public class ApiClient {
     /// <summary>
     /// Updates an MCP tool configuration
     /// </summary>
-    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(string toolId, MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request, CancellationToken cancellationToken = default)
+    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(
+        string toolId,
+        MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(toolId))
@@ -316,7 +319,11 @@ public class ApiClient {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var response = await ExecuteWithResilienceAsync(() =>
-            _httpClient.PutAsJsonAsync($"api/admin/mcp-tools/{Uri.EscapeDataString(toolId)}", request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
+            _httpClient.PutAsJsonAsync(
+                $"api/admin/mcp-tools/{Uri.EscapeDataString(toolId)}",
+                request,
+                _jsonOptions,
+                cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)

@@ -13,7 +13,7 @@ namespace MotorcycleRAG.UnitTests.Configuration
     /// Unit tests for McpConfigurationProvider
     /// Tests config provider refresh behavior and tool retrieval
     /// </summary>
-    public class McpConfigurationProviderTests
+    public class McpConfigurationProviderTests : IDisposable
     {
         private readonly Mock<ILogger<McpConfigurationProvider>> _mockLogger;
         private readonly Mock<IToolConfigurationRepository> _mockRepository;
@@ -43,18 +43,6 @@ namespace MotorcycleRAG.UnitTests.Configuration
                 CreatedAt = DateTime.UtcNow
             };
 
-            var disabledTool = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "disabled-tool",
-                Name = "Disabled Tool",
-                ServerUrl = new Uri("http://localhost:8001"),
-                ToolType = "processor",
-                IsEnabled = false,
-                DisabledReason = "Under maintenance",
-                CreatedAt = DateTime.UtcNow
-            };
-
             _mockRepository.Setup(r => r.GetEnabledAsync())
                 .ReturnsAsync(new[] { enabledTool });
 
@@ -69,20 +57,6 @@ namespace MotorcycleRAG.UnitTests.Configuration
 
         [Fact]
         public async Task GetEnabledToolsAsync_NoEnabledTools_ReturnsEmptyArray()
-        {
-            // Arrange
-            _mockRepository.Setup(r => r.GetEnabledAsync())
-                .ReturnsAsync(Array.Empty<McpToolConfiguration>());
-
-            // Act
-            var result = await _provider.GetEnabledToolsAsync();
-
-            // Assert
-            Assert.Empty(result);
-        }
-
-        [Fact]
-        public async Task GetEnabledToolsAsync_EmptyStore_ReturnsEmptyArray()
         {
             // Arrange
             _mockRepository.Setup(r => r.GetEnabledAsync())
@@ -194,17 +168,6 @@ namespace MotorcycleRAG.UnitTests.Configuration
                 ToolType = "search",
                 IsEnabled = true,
                 Priority = 2,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            var processorTool = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "processor-tool",
-                Name = "Processor Tool",
-                ServerUrl = new Uri("http://localhost:8002"),
-                ToolType = "processor",
-                IsEnabled = true,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -439,5 +402,19 @@ namespace MotorcycleRAG.UnitTests.Configuration
         }
 
         #endregion
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _provider?.Dispose();
+            }
+        }
     }
 }

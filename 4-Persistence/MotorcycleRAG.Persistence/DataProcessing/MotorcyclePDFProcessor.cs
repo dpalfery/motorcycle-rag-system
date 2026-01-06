@@ -577,20 +577,18 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                         Level = headerDef.Level
                     };
                     isHeader = true;
-                    break;
+                    continue;
                 }
             }
 
             if (!isHeader) {
                 // If no section has been started yet, create a default "General Content" section
-                if (currentSection == null) {
-                    currentSection = new DocumentSection {
-                        Title = "General Content",
-                        Content = new StringBuilder(),
-                        Type = "General",
-                        Level = 0
-                    };
-                }
+                currentSection ??= new DocumentSection {
+                    Title = "General Content",
+                    Content = new StringBuilder(),
+                    Type = "General",
+                    Level = 0
+                };
                 currentSection.Content.AppendLine(line);
             }
         }
@@ -637,7 +635,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                         maxLevel = headerDef.Level;
                     }
 
-                    break;
+                    continue;
                 }
             }
         }
@@ -759,7 +757,8 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         // For chunks that are too different, consider splitting them further
         var refinedChunks = new List<PDFChunk>();
 
-        for (int i = 0; i < chunks.Count; i++) {
+        int i = 0;
+        while (i < chunks.Count) {
             var currentChunk = chunks[i];
 
             // Check similarity with next chunk if it exists
@@ -775,6 +774,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 if (embeddings.Length < 2) {
                     _logger.LogWarning("Failed to generate embeddings for similarity comparison between chunks {CurrentId} and {NextId}", currentChunk.Id, nextChunk.Id);
                     refinedChunks.Add(currentChunk);
+                    i++;
                     continue;
                 }
 
@@ -795,12 +795,17 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                     };
 
                     refinedChunks.Add(mergedChunk);
-                    i++; // Skip the next chunk because it's merged
+                    i += 2; // Skip the next chunk because it's merged
                     continue;
                 }
 
                 // Not merged - keep current chunk
                 refinedChunks.Add(currentChunk);
+                i++;
+            }
+            else {
+                refinedChunks.Add(currentChunk);
+                i++;
             }
         }
 
@@ -823,14 +828,9 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             // T053/T055: Extract locator metadata from chunk metadata for citation support with defensive type checking
             int pageNumber;
             try {
-                if (chunk.Metadata.TryGetValue("PageNumber", out var pageNumberObj))
-                {
-                    pageNumber = Convert.ToInt32(pageNumberObj);
-                }
-                else
-                {
-                    pageNumber = chunk.PageNumber;
-                }
+                pageNumber = chunk.Metadata.TryGetValue("PageNumber", out var pageNumberObj)
+                    ? Convert.ToInt32(pageNumberObj)
+                    : chunk.PageNumber;
             }
             catch (Exception ex) {
                 _logger.LogWarning(ex, "Failed to parse PageNumber from metadata for chunk {ChunkId}, using fallback", chunk.Id);

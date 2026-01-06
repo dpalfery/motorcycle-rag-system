@@ -14,6 +14,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/admin/users")]
 [Authorize(Policy = "Admin")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class UsersAdminController : ControllerBase {
     private readonly IUserAdminService _userAdminService;
     private readonly ILogger<UsersAdminController> _logger;
@@ -140,6 +141,7 @@ public sealed class UsersAdminController : ControllerBase {
 /// <summary>
 /// Set user enabled status request model
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class SetUserEnabledRequest {
     public bool IsEnabled { get; set; }
 }
@@ -147,6 +149,7 @@ public class SetUserEnabledRequest {
 /// <summary>
 /// Assign plan request model
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class AssignPlanRequest {
     public string PlanId { get; set; } = string.Empty;
 }
@@ -154,6 +157,7 @@ public class AssignPlanRequest {
 /// <summary>
 /// User list response model
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class UserListResponse {
     public IReadOnlyList<MotorcycleRAG.Contracts.Models.DTOs.UserDTO> Users { get; set; } = Array.Empty<MotorcycleRAG.Contracts.Models.DTOs.UserDTO>();
     public int Page { get; set; }

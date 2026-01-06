@@ -40,7 +40,7 @@
                     </VerticalStackLayout>
                 </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="viewmodels:JobViewModel">
                         <Frame BorderColor="LightGray" 
                                Margin="0,5" 
                                Padding="15"

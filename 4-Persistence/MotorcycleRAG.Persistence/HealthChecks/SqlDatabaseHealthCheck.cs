@@ -29,7 +29,7 @@ public class SqlDatabaseHealthCheck : IHealthCheck
             var startTime = DateTime.UtcNow;
             
             // Get a connection from the factory and test it
-            using (var connection = _connectionFactory.CreateConnection() as SqlConnection)
+            await using (var connection = await _connectionFactory.CreateConnectionAsync() as SqlConnection)
             {
                 if (connection == null)
                 {

@@ -30,7 +30,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task GET_GetTool_Unauthorized_Returns401() {
             // Arrange
-            var client = _factory.CreateClient();
+            using var client = _factory.CreateClient();
 
             // Act
             var response = await client.GetAsync($"{BaseUrl}/test-tool");
@@ -46,11 +46,11 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task POST_CreateTool_MissingRequiredField_ReturnsBadRequest() {
             // Arrange
-            var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("DataAdmin");
             var request = new CreateMcpToolRequest {
                 ToolId = "", // Empty required field
                 Name = "Test Tool",
-                ServerUrl = new Uri("http://localhost:8080"),
+                ServerUrl = "http://localhost:8080",
                 ToolType = "search"
             };
 
@@ -73,11 +73,11 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task POST_CreateTool_InvalidJSON_ReturnsBadRequest() {
             // Arrange
-            var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("DataAdmin");
             var request = new CreateMcpToolRequest {
                 ToolId = "test-tool",
                 Name = "Test Tool",
-                ServerUrl = new Uri("http://localhost:8080"),
+                ServerUrl = "http://localhost:8080",
                 ToolType = "search",
                 ConfigurationJson = "{ invalid json }" // Invalid JSON
             };
@@ -104,7 +104,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task PUT_UpdateTool_MissingToolId_ReturnsMethodNotAllowed() {
             // Arrange
-            var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("DataAdmin");
             var request = new UpdateMcpToolRequest {
                 Name = "Updated Name"
             };
@@ -129,7 +129,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task DELETE_DeleteTool_Unauthorized_Returns401() {
             // Arrange
-            var client = _factory.CreateClient();
+            using var client = _factory.CreateClient();
 
             // Act
             var response = await client.DeleteAsync($"{BaseUrl}/test-tool");
@@ -145,7 +145,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task DELETE_DeleteTool_NotFound_Returns404() {
             // Arrange
-            var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("DataAdmin");
 
             // Act
             var response = await client.DeleteAsync($"{BaseUrl}/nonexistent-tool");
@@ -164,13 +164,13 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task POST_CreateTool_ExceedsMaxLength_ReturnsBadRequest() {
             // Arrange
-            var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("DataAdmin");
             var veryLongString = new string('x', 300); // Exceeds 255 limit
 
             var request = new CreateMcpToolRequest {
                 ToolId = veryLongString,
                 Name = "Test Tool",
-                ServerUrl = new Uri("http://localhost:8080"),
+                ServerUrl = "http://localhost:8080",
                 ToolType = "search"
             };
 
@@ -193,7 +193,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task GET_GetAuditHistory_Unauthorized_Returns401() {
             // Arrange
-            var client = _factory.CreateClient();
+            using var client = _factory.CreateClient();
 
             // Act
             var response = await client.GetAsync($"{BaseUrl}/test-tool/audit");
@@ -209,7 +209,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task GET_GetAuditSummary_Unauthorized_Returns401() {
             // Arrange
-            var client = _factory.CreateClient();
+            using var client = _factory.CreateClient();
 
             // Act
             var response = await client.GetAsync($"{BaseUrl}/audit/summary");

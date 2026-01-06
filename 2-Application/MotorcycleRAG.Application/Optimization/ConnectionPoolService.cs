@@ -108,10 +108,8 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
     private HttpClient CreateHttpClient(string serviceName) {
         var settings = _settings.GetValueOrDefault(serviceName, new ConnectionPoolSettings());
 
-        SocketsHttpHandler? handler = null;
-        HttpClient? client = null;
         try {
-            handler = new SocketsHttpHandler {
+            var handler = new SocketsHttpHandler {
                 MaxConnectionsPerServer = settings.MaxConnectionsPerEndpoint,
                 ConnectTimeout = settings.ConnectionTimeout,
                 PooledConnectionIdleTimeout = settings.ConnectionIdleTimeout,
@@ -122,10 +120,10 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
                     DecompressionMethods.None
             };
 
-            client = new HttpClient(handler, disposeHandler: true) {
-                Timeout = settings.ConnectionTimeout
-            };
-            handler = null; // Ownership transferred to HttpClient
+            var client = new HttpClient(handler, disposeHandler: true);
+            // handler ownership transferred to HttpClient, do not dispose here
+
+            client.Timeout = settings.ConnectionTimeout;
 
             // Add default headers
             foreach (var header in settings.DefaultHeaders) {
@@ -147,8 +145,8 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
             return client;
         }
         catch {
-            client?.Dispose();
-            handler?.Dispose();
+            // No need to dispose handler here, as it is only created inside try block and
+            // will not leak if exception is thrown before assignment to client.
             throw;
         }
     }

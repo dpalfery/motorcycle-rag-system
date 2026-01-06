@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Identity.Web;
 using Moq;
+using MotorcycleRAG.API;
 using MotorcycleRAG.API.Services;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -20,6 +21,7 @@ namespace MotorcycleRAG.IntegrationTests;
 /// Provides test-specific configuration including dummy AzureAd settings
 /// and adds test authentication handler for simulating authenticated users
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "xUnit fixture must be public")]
 public class TestWebApplicationFactory : WebApplicationFactory<Program> {
     static TestWebApplicationFactory() {
         // Set environment to Testing early so Program.Main loads correct appsettings

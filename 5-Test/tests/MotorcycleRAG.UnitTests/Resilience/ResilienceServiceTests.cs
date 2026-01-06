@@ -162,7 +162,7 @@ public class ResilienceServiceTests {
     [Fact]
     public void GetHealthStatus_ReturnsAllCircuitBreakerStates() {
         // Act
-        var healthStatus = _resilienceService.GetHealthStatus();
+        var healthStatus = _resilienceService.HealthStatus;
 
         // Assert
         Assert.NotEmpty(healthStatus);

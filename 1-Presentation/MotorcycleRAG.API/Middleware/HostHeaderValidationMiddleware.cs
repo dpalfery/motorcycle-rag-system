@@ -45,7 +45,7 @@ internal class HostHeaderValidationMiddleware
         // Fail fast if AllowedHosts is empty - this indicates a misconfiguration
         if (_allowedHosts.Count == 0)
         {
-            var errorMessage =
+            const string errorMessage =
                 "HostHeaderValidationMiddleware configuration error: AllowedHosts is empty. " +
                 "Configure 'AllowedHosts' in appsettings.json with a comma-separated list of allowed hostnames. " +
                 "Example: 'AllowedHosts': 'localhost,api.example.com,api-staging.example.com'";

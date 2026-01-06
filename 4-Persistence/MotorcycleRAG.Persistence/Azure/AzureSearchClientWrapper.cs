@@ -18,7 +18,7 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// <summary>
 /// Azure AI Search client wrapper with connection management and resilience
 /// </summary>
-public class AzureSearchClientWrapper : IAzureSearchClient {
+public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
     private readonly SearchClient _searchClient;
     private readonly ILogger<AzureSearchClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
@@ -208,6 +208,20 @@ public class AzureSearchClientWrapper : IAzureSearchClient {
             _logger.LogWarning(ex, "Azure Search health check failed");
             return false;
         }
+    }
+
+    private bool _disposed;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed) return;
+        // SearchClient is not IDisposable; nothing to dispose.
+        _disposed = true;
+    }
+
+    public void Dispose() {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
     // Implement VectorSearchAsync

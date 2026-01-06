@@ -322,7 +322,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             // Clean up cancellation token source with safe disposal
             if (_activeScrapes.TryRemove(runId, out var cts)) {
                 try {
-                    cts?.Dispose();
+                    using (cts) { }
                 }
                 catch (Exception ex) {
                     _logger.LogWarning(ex, "Error disposing CancellationTokenSource for run {RunId}", runId);

@@ -32,25 +32,22 @@ public class WebSearchAgentTests : IDisposable {
         _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         _mockLogger = new Mock<ILogger<WebSearchAgent>>();
 
-        _webSearchConfig = Options.Create(new WebSearchOptions {
+        var options = new WebSearchOptions {
             MaxConcurrentRequests = 3,
             MinRequestIntervalMs = 100, // Reduced for testing
             RequestTimeoutSeconds = 30,
             MinCredibilityScore = 0.6f,
             SearchTermModel = "gpt-4o-mini",
-            ValidationModel = "gpt-4o-mini",
-            TrustedSources = new List<TrustedSourceOptions>
-            {
-                new TrustedSourceOptions
-                {
-                    Name = "Test Motorcycle Site",
-                    BaseUrl = new Uri("https://test-motorcycle.com"),
-                    SearchUrlTemplate = new Uri("https://test-motorcycle.com/search?q={query}"),
-                    ContentSelector = "//article//p",
-                    CredibilityScore = 0.9f
-                }
-            }
+            ValidationModel = "gpt-4o-mini"
+        };
+        options.TrustedSources.Add(new TrustedSourceOptions {
+            Name = "Test Motorcycle Site",
+            BaseUrl = new Uri("https://test-motorcycle.com"),
+            SearchUrlTemplate = new Uri("https://test-motorcycle.com/search?q={query}"),
+            ContentSelector = "//article//p",
+            CredibilityScore = 0.9f
         });
+        _webSearchConfig = Options.Create(options);
 
         _webSearchAgent = new WebSearchAgent(
             _httpClient,
@@ -822,5 +819,6 @@ public class WebSearchAgentTests : IDisposable {
 
     public void Dispose() {
         _httpClient?.Dispose();
+        (_webSearchAgent as IDisposable)?.Dispose();
     }
 }

@@ -11,7 +11,6 @@ namespace MotorcycleRAG.Application.Agents;
 /// </summary>
 public class VectorSearchAgent : ISearchAgent {
     private readonly IAzureSearchClient _searchClient;
-    private readonly IAzureOpenAIClient _openAIClient;
     private readonly SearchOptions _searchConfig;
     private readonly ILogger<VectorSearchAgent> _logger;
 
@@ -19,11 +18,9 @@ public class VectorSearchAgent : ISearchAgent {
 
     public VectorSearchAgent(
         IAzureSearchClient searchClient,
-        IAzureOpenAIClient openAIClient,
         IOptions<SearchOptions> searchConfig,
         ILogger<VectorSearchAgent> logger) {
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
-        _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _searchConfig = searchConfig?.Value ?? throw new ArgumentNullException(nameof(searchConfig));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }

@@ -5,11 +5,14 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
+using MotorcycleRAG.API;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using Xunit;
 using FluentAssertions;
 using MotorcycleRAG.IntegrationTests;
+
+namespace MotorcycleRAG.IntegrationTests.Api;
 
 /// <summary>
 /// Controller serialization tests for manual PDF citation locators.

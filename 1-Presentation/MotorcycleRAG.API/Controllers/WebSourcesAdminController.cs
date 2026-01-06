@@ -14,6 +14,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/admin/web-sources")]
 [Authorize(Policy = "DataAdmin")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class WebSourcesAdminController : ControllerBase {
     private readonly WebSourceRegistryService _webSourceRegistryService;
     private readonly ILogger<WebSourcesAdminController> _logger;
@@ -348,6 +349,7 @@ public sealed class WebSourcesAdminController : ControllerBase {
 /// <summary>
 /// Create web source request model
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class CreateWebSourceRequest {
     /// <summary>
     /// URL of the web source
@@ -397,6 +399,7 @@ public class CreateWebSourceRequest {
 /// <summary>
 /// Update web source request model
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class UpdateWebSourceRequest {
     /// <summary>
     /// URL of the web source

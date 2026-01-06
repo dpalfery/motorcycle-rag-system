@@ -18,6 +18,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/admin/mcp-tools")]
 [Authorize(Policy = "DataAdmin")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class McpAdminController : ControllerBase {
     private readonly IToolConfigurationService _configService;
     private readonly ILogger<McpAdminController> _logger;
@@ -127,6 +128,8 @@ public sealed class McpAdminController : ControllerBase {
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateToolAsync([FromBody] CreateMcpToolRequest request) {
+        ArgumentNullException.ThrowIfNull(request);
+
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
@@ -204,6 +207,8 @@ public sealed class McpAdminController : ControllerBase {
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateToolAsync(string toolId, [FromBody] UpdateMcpToolRequest request) {
+        ArgumentNullException.ThrowIfNull(request);
+
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });
 
@@ -408,23 +413,6 @@ public sealed class McpAdminController : ControllerBase {
         }
     }
 
-    /// <summary>
-    /// Gets audit history for a tool configuration.
-    /// </summary>
-    /// <param name="toolId">Tool ID</param>
-    /// <param name="limit">Number of entries to return</param>
-    /// <returns>Audit entries</returns>
-    [HttpGet("{toolId}/audit")]
-    [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(ToolConfigurationAuditEntry[]), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public Task<IActionResult> GetAuditHistoryAsync(string toolId)
-    {
-        // Call the overload with the default value
-        return GetAuditHistoryAsync(toolId, 100);
-    }
 
     /// <summary>
     /// Gets audit history for a tool configuration.
@@ -438,7 +426,7 @@ public sealed class McpAdminController : ControllerBase {
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAuditHistoryAsync(string toolId, [FromQuery] int limit)
+    public async Task<IActionResult> GetAuditHistoryAsync(string toolId, [FromQuery] int limit = 100)
     {
         if (string.IsNullOrWhiteSpace(toolId))
             return BadRequest(new { error = "Tool ID must not be empty" });

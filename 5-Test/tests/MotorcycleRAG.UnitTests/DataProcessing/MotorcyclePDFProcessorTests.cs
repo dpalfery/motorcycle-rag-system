@@ -23,7 +23,7 @@ public class MotorcyclePDFProcessorTests {
     private readonly Mock<IAzureSearchClient> _mockSearchClient;
     private readonly IOptions<PDFProcessingConfiguration> _configOptions;
     private readonly IOptions<AzureAIOptions> _azureConfigOptions;
-    private readonly MotorcyclePDFProcessor _processor;
+    private readonly MotorcyclePdfProcessor _processor;
 
     public MotorcyclePDFProcessorTests() {
         _mockDocumentClient = new Mock<IDocumentIntelligenceClient>();
@@ -50,9 +50,9 @@ public class MotorcyclePDFProcessorTests {
         };
         _azureConfigOptions = Options.Create(azureConfig);
 
-        var logger = new NullLogger<MotorcyclePDFProcessor>();
+        var logger = new NullLogger<MotorcyclePdfProcessor>();
 
-        _processor = new MotorcyclePDFProcessor(
+        _processor = new MotorcyclePdfProcessor(
             _mockDocumentClient.Object,
             _mockOpenAIClient.Object,
             _mockSearchClient.Object,

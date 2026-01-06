@@ -15,7 +15,7 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// <summary>
 /// Azure Document Intelligence client wrapper with resilience patterns
 /// </summary>
-public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
+public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, IDisposable {
     private readonly DocumentIntelligenceClient _client;
     private readonly ILogger<DocumentIntelligenceClientWrapper> _logger;
 
@@ -173,5 +173,19 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient {
             _logger.LogWarning(ex, "Document Intelligence health check failed");
             return false;
         }
+    }
+
+    private bool _disposed;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed) return;
+        // DocumentIntelligenceClient is not IDisposable; nothing to dispose.
+        _disposed = true;
+    }
+
+    public void Dispose() {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 }

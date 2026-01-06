@@ -113,7 +113,7 @@ namespace MotorcycleRAG.Persistence.Sql
             {
                 _logger.LogError(ex, "Failed to open SQL connection");
                 connection.Dispose();
-                throw;
+                throw new InvalidOperationException("An error occurred while opening a SQL connection.", ex);
             }
         }
 

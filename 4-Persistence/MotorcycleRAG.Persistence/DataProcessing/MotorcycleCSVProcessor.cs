@@ -122,7 +122,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
             foreach (var batch in batches) {
                 try {
                     await _searchClient.IndexDocumentsAsync(batch.ToArray());
-                    totalIndexed += batch.Count();
+                    totalIndexed += batch.Length;
                 }
                 catch (Exception ex) {
                     _logger.LogError(ex, "Error indexing batch");

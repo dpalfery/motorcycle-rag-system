@@ -97,7 +97,7 @@ public class WebContentExtractor {
         var searchWords = searchTerm.ToUpperInvariant().Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
         var contentUpper = content.ToUpperInvariant();
 
-        var hasMotorcycleKeyword = MotorcycleKeywords.Any(keyword => contentUpper.Contains(keyword.ToUpperInvariant()));
+        var hasMotorcycleKeyword = MotorcycleKeywords.Any(keyword => contentUpper.Contains(keyword, StringComparison.OrdinalIgnoreCase));
         var hasSearchTerm = searchWords.Any(word => word.Length > 2 && contentUpper.Contains(word));
 
         return hasMotorcycleKeyword || hasSearchTerm;

@@ -471,11 +471,109 @@ Answer in markdown:
         };
     }
 
-    private static string Truncate(string text, int maxLength) {
+    internal static string Truncate(string text, int maxLength) {
         if (string.IsNullOrWhiteSpace(text) || text.Length <= maxLength)
             return text;
         return text[..maxLength] + "…";
     }
 
     #endregion
+}
+
+public sealed class SearchResultFusionService
+{
+    private readonly SearchOptions _searchConfig;
+    private readonly IAzureOpenAIClient _openAIClient;
+    private readonly ILogger<SearchResultFusionService> _logger;
+
+    public SearchResultFusionService(
+        SearchOptions searchConfig,
+        IAzureOpenAIClient openAIClient,
+        ILogger<SearchResultFusionService> logger)
+    {
+        _searchConfig = searchConfig;
+        _openAIClient = openAIClient;
+        _logger = logger;
+    }
+
+    public async Task<SearchResult[]> FuseAndRankResultsAsync(
+        List<SearchResult> results,
+        string query,
+        SearchParameters options,
+        bool degradedMode)
+    {
+        if (results.Count == 0)
+        {
+            return Array.Empty<SearchResult>();
+        }
+
+        var deduped = results.GroupBy(r => string.IsNullOrWhiteSpace(r.Source.DocumentId) ? r.Id : r.Source.DocumentId)
+                             .Select(g => g.OrderByDescending(r => r.RelevanceScore).First())
+                             .ToList();
+
+        if (_searchConfig.EnableSemanticRanking)
+        {
+            try
+            {
+                deduped = await ApplySemanticRankingAsync(query, deduped);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Semantic ranking failed – falling back to relevance score only");
+                deduped = deduped.OrderByDescending(r => r.RelevanceScore).ToList();
+            }
+        }
+        else
+        {
+            deduped = deduped.OrderByDescending(r => r.RelevanceScore).ToList();
+        }
+
+        var finalResults = deduped.Take(options.MaxResults).ToArray();
+
+        if (degradedMode && finalResults.Length > 0)
+        {
+            foreach (var metadata in finalResults.Select(r => r.Metadata))
+            {
+                metadata["DegradedMode"] = true;
+                metadata["Note"] = "Results from partial sources due to unavailable service(s).";
+            }
+        }
+
+        return finalResults;
+    }
+
+    private async Task<List<SearchResult>> ApplySemanticRankingAsync(string query, List<SearchResult> results)
+    {
+        var queryEmbedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", query, CancellationToken.None);
+        var contents = results.Select(r => AgentOrchestrator.Truncate(r.Content, 1024)).ToArray();
+        var resultEmbeddings = await _openAIClient.GetEmbeddingsAsync("text-embedding-3-large", contents, CancellationToken.None);
+
+        var scored = new List<(SearchResult Result, double Score)>();
+        for (var i = 0; i < results.Count; i++)
+        {
+            var semanticScore = CosineSimilarity(queryEmbedding, resultEmbeddings[i]);
+            var blendedScore = (results[i].RelevanceScore * 0.7) + (semanticScore * 0.3);
+            scored.Add((results[i], blendedScore));
+        }
+
+        return scored.OrderByDescending(s => s.Score).Select(s => s.Result).ToList();
+    }
+
+    private static double CosineSimilarity(float[] v1, float[] v2)
+    {
+        if (v1.Length != v2.Length)
+            return 0;
+
+        double dot = 0;
+        double mag1 = 0;
+        double mag2 = 0;
+        for (int i = 0; i < v1.Length; i++)
+        {
+            dot += v1[i] * v2[i];
+            mag1 += Math.Pow(v1[i], 2);
+            mag2 += Math.Pow(v2[i], 2);
+        }
+
+        return dot / (Math.Sqrt(mag1) * Math.Sqrt(mag2) + 1e-8);
+    }
 }

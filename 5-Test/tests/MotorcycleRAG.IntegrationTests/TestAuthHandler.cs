@@ -12,7 +12,7 @@ namespace MotorcycleRAG.IntegrationTests;
 /// Test authentication handler for integration tests
 /// Supports simulating authenticated users with various roles
 /// </summary>
-public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+internal class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public TestAuthHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -26,12 +26,12 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         // Check if the request has the test auth header
-        if (!Request.Headers.ContainsKey("X-Test-Auth"))
+        if (!Request.Headers.TryGetValue("X-Test-Auth", out var headerValues))
         {
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var authHeaderValue = Request.Headers["X-Test-Auth"].ToString();
+        var authHeaderValue = headerValues.ToString();
         var roles = authHeaderValue.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
         var claims = new List<Claim>

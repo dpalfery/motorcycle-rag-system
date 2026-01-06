@@ -16,6 +16,9 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace MotorcycleRAG.API;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Program class must be public for functional tests.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1052:Static holder types should be Static or NotInheritable", Justification = "Program class must be valid generic type argument for WebApplicationFactory.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling", Justification = "Composition root inherently has high coupling")]
 public class Program
 {
     public static async Task Main(string[] args)
@@ -182,7 +185,8 @@ public class Program
             // Supports tokens from BOTH Entra ID (workforce/admin users) and Entra External ID/B2C (customer users)
             // Hard invariant: The API MUST NOT accept cross-issuer tokens (token.iss must match one of the configured issuers)
             var authenticationBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
-            var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Program");
+            using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
+            var startupLogger = loggerFactory.CreateLogger("Program");
             authenticationBuilder.AddDualIssuerJwtBearer(builder.Configuration, startupLogger);
 
             // Add authorization policies for admin roles
@@ -266,7 +270,8 @@ public class Program
         catch (Exception ex)
         {
             // Log configuration errors during startup
-            var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Program");
+            using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
+            var startupLogger = loggerFactory.CreateLogger("Program");
             startupLogger.LogCritical(ex, "Failed to configure services during startup");
             throw;
         }
@@ -392,7 +397,8 @@ public class Program
         }
 
         // Log secret sources for audit trail
-        var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Program");
+        using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
+        var startupLogger = loggerFactory.CreateLogger("Program");
         startupLogger.LogInformation("Azure AD configuration loaded from environment variables (MCR_API_AZURE_AD_TENANT_ID, MCR_API_AZURE_AD_CLIENT_ID)");
 
         // Update configuration with environment values
@@ -439,11 +445,10 @@ public class Program
         ValidateEndpoint("Foundry", foundryEndpoint, "MCR_API_AZURE_FOUNDRY_ENDPOINT", environment.IsProduction());
 
         // Log secret sources for audit trail
-        var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Program");
-        var envVarsMessage = "Azure AI configuration loaded from environment variables " +
-            "(MCR_API_AZURE_OPENAI_ENDPOINT, MCR_API_AZURE_SEARCH_ENDPOINT, " +
-            "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, MCR_API_AZURE_FOUNDRY_ENDPOINT)";
-        startupLogger.LogInformation(envVarsMessage);
+        using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
+        var startupLogger = loggerFactory.CreateLogger("Program");
+        startupLogger.LogInformation(
+            "Azure AI configuration loaded from environment variables (MCR_API_AZURE_OPENAI_ENDPOINT, MCR_API_AZURE_SEARCH_ENDPOINT, MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, MCR_API_AZURE_FOUNDRY_ENDPOINT)");
 
         // Update configuration with environment values (environment variables ONLY)
         var azureAIConfig = new Dictionary<string, string?>

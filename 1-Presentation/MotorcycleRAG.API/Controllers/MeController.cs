@@ -13,6 +13,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/me")]
 [Authorize]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class MeController : ControllerBase {
     private readonly ICurrentUserService _currentUserService;
     private readonly IUserRepository _userRepository;
@@ -154,6 +155,8 @@ public sealed class MeController : ControllerBase {
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateProfileAsync([FromBody] UpdateProfileRequest request) {
+        ArgumentNullException.ThrowIfNull(request);
+
         var userId = _currentUserService.UserId;
         if (string.IsNullOrWhiteSpace(userId)) {
             _logger.LogWarning("Profile update request without authenticated user");

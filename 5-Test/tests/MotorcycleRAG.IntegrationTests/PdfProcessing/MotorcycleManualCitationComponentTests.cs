@@ -21,7 +21,7 @@ namespace MotorcycleRAG.IntegrationTests.PdfProcessing;
 /// Tests the real processing pipeline: PDF processing → indexing payload creation → citation mapping.
 /// 
 /// What's REAL (not mocked):
-/// - MotorcyclePDFProcessor chunking + locator enrichment logic
+/// - MotorcyclePdfProcessor chunking + locator enrichment logic
 /// - MotorcycleRagService citation mapping into Citation.Locator
 /// 
 /// What's MOCKED (external dependencies):
@@ -36,7 +36,7 @@ public class MotorcycleManualCitationComponentTests {
         var mockDocumentClient = new Mock<IDocumentIntelligenceClient>();
         var mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         var mockSearchClient = new Mock<IAzureSearchClient>();
-        var mockLogger = new Mock<ILogger<MotorcyclePDFProcessor>>();
+        var mockLogger = new Mock<ILogger<MotorcyclePdfProcessor>>();
         var mockIndexingLogger = new Mock<ILogger<MotorcycleIndexingService>>();
         var mockRagLogger = new Mock<ILogger<MotorcycleRagService>>();
         var mockOrchestrator = new Mock<IAgentOrchestrator>();
@@ -93,7 +93,7 @@ public class MotorcycleManualCitationComponentTests {
         });
 
         // Create real processor with mocked dependencies
-        var pdfProcessor = new MotorcyclePDFProcessor(
+        var pdfProcessor = new MotorcyclePdfProcessor(
             mockDocumentClient.Object,
             mockOpenAIClient.Object,
             mockSearchClient.Object,
@@ -226,7 +226,7 @@ public class MotorcycleManualCitationComponentTests {
         var mockDocumentClient = new Mock<IDocumentIntelligenceClient>();
         var mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         var mockSearchClient = new Mock<IAzureSearchClient>();
-        var mockLogger = new Mock<ILogger<MotorcyclePDFProcessor>>();
+        var mockLogger = new Mock<ILogger<MotorcyclePdfProcessor>>();
 
         // Create DocumentAnalysisResult with multi-page table
         var analysisResult = CreateDocumentAnalysisResultWithMultiPageTable();
@@ -263,7 +263,7 @@ public class MotorcycleManualCitationComponentTests {
             }
         });
 
-        var pdfProcessor = new MotorcyclePDFProcessor(
+        var pdfProcessor = new MotorcyclePdfProcessor(
             mockDocumentClient.Object,
             mockOpenAIClient.Object,
             mockSearchClient.Object,
@@ -309,7 +309,7 @@ public class MotorcycleManualCitationComponentTests {
         var mockDocumentClient = new Mock<IDocumentIntelligenceClient>();
         var mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         var mockSearchClient = new Mock<IAzureSearchClient>();
-        var mockLogger = new Mock<ILogger<MotorcyclePDFProcessor>>();
+        var mockLogger = new Mock<ILogger<MotorcyclePdfProcessor>>();
 
         // Create DocumentAnalysisResult with hierarchical sections
         var analysisResult = CreateDocumentAnalysisResultWithSectionHierarchy();
@@ -346,7 +346,7 @@ public class MotorcycleManualCitationComponentTests {
             }
         });
 
-        var pdfProcessor = new MotorcyclePDFProcessor(
+        var pdfProcessor = new MotorcyclePdfProcessor(
             mockDocumentClient.Object,
             mockOpenAIClient.Object,
             mockSearchClient.Object,
@@ -606,7 +606,7 @@ public class MotorcycleManualCitationComponentTests {
                 ["PageRange"] = doc.PageRange ?? "1",
                 ["PrimarySection"] = doc.PrimarySection ?? "",
                 ["SectionLevel"] = doc.SectionLevel ?? 0,
-                ["SectionHeadings"] = doc.SectionHeadings ?? Array.Empty<string>(),
+                ["SectionHeadings"] = doc.SectionHeadings?.ToArray() ?? Array.Empty<string>(),
                 ["ChunkIndex"] = doc.ChunkIndex ?? 0
             };
 

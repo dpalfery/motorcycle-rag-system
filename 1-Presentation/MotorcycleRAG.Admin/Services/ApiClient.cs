@@ -123,9 +123,9 @@ public class ApiClient {
                 if (!File.Exists(filePath))
                     throw new FileNotFoundException($"File not found: {filePath}");
 
-                var fileStream = File.OpenRead(filePath);
-                streams.Add(fileStream);  // Track for cleanup
-
+                var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+                streams.Add(fileStream); // Track for cleanup
+                
                 var streamContent = new StreamContent(fileStream);
                 streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
                 content.Add(streamContent, "files", Path.GetFileName(filePath));

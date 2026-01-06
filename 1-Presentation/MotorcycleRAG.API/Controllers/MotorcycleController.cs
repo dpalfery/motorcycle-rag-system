@@ -13,6 +13,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/motorcycles")]
 [Authorize] // Default authorization for all endpoints
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class MotorcycleController : ControllerBase {
     private readonly IMotorcycleRagService _ragService;
     private readonly ICurrentUserService _currentUserService;

@@ -13,9 +13,8 @@ namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project &
 /// <summary>
 /// Azure OpenAI client wrapper with retry policies and authentication
 /// </summary>
-public class AzureOpenAIClientWrapper : IAzureOpenAIClient
+public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
 {
-    private readonly AzureOpenAIClient _client;
     private readonly ILogger<AzureOpenAIClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
@@ -38,26 +37,25 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
 
         // Initialize Azure OpenAI client with DefaultAzureCredential
         var credential = new DefaultAzureCredential();
-        _client = new AzureOpenAIClient(new Uri(azureConfig.OpenAIEndpoint), credential);
 
         _logger.LogInformation("Azure OpenAI client initialized with endpoint: {Endpoint}",
             azureConfig.OpenAIEndpoint);
     }
 
     // Convenience overloads (tests call these)
-    public Task<string> GetChatCompletionAsync(string model, string prompt) =>
-        GetChatCompletionAsync(model, prompt, CancellationToken.None);
-    public Task<float[]> GetEmbeddingAsync(string model, string text) =>
-        GetEmbeddingAsync(model, text, CancellationToken.None);
-    public Task<float[]> GetEmbeddingsAsync(string model, string text) =>
-        GetEmbeddingsAsync(model, text, CancellationToken.None);
-    public Task<float[][]> GetEmbeddingsAsync(string model, string[] texts) =>
-        GetEmbeddingsAsync(model, texts, CancellationToken.None);
-    public Task<string> ProcessMultimodalContentAsync(string model, string textPrompt, byte[] imageData, string imageContentType) =>
-        ProcessMultimodalContentAsync(model, textPrompt, imageData, imageContentType, CancellationToken.None);
+    public Task<string> GetChatCompletionAsync(string deploymentName, string prompt) =>
+        GetChatCompletionAsync(deploymentName, prompt, CancellationToken.None);
+    public Task<float[]> GetEmbeddingAsync(string deploymentName, string text) =>
+        GetEmbeddingAsync(deploymentName, text, CancellationToken.None);
+    public Task<float[]> GetEmbeddingsAsync(string deploymentName, string text) =>
+        GetEmbeddingsAsync(deploymentName, text, CancellationToken.None);
+    public Task<float[][]> GetEmbeddingsAsync(string deploymentName, string[] texts) =>
+        GetEmbeddingsAsync(deploymentName, texts, CancellationToken.None);
+    public Task<string> ProcessMultimodalContentAsync(string deploymentName, string textPrompt, byte[] imageData, string imageContentType) =>
+        ProcessMultimodalContentAsync(deploymentName, textPrompt, imageData, imageContentType, CancellationToken.None);
 
     public async Task<string> GetChatCompletionAsync(
-        string model,
+        string deploymentName,
         string prompt,
         CancellationToken cancellationToken)
     {
@@ -70,15 +68,15 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
                 using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
                 {
                     ["Operation"] = "GetChatCompletion",
-                    ["DeploymentName"] = model
+                    ["DeploymentName"] = deploymentName
                 });
 
-                _logger.LogDebug("Getting chat completion for model: {Model}", model);
+                _logger.LogDebug("Getting chat completion for deployment: {DeploymentName}", deploymentName);
                 await Task.Delay(100, cancellationToken);
                 _logger.LogDebug("Successfully retrieved chat completion");
                 return $"Chat completion response for: {prompt}";
             },
-            fallback: async () =>
+            async () =>
             {
                 _logger.LogWarning("Using fallback response for chat completion");
                 return "Fallback response: Unable to process request at this time. Please try again later.";
@@ -88,25 +86,25 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
     }
 
     public async Task<float[]> GetEmbeddingAsync(
-        string model,
+        string deploymentName,
         string text,
         CancellationToken cancellationToken)
     {
-        var embeddings = await GetEmbeddingsAsync(model, new[] { text }, cancellationToken);
+        var embeddings = await GetEmbeddingsAsync(deploymentName, new[] { text }, cancellationToken);
         return embeddings[0];
     }
 
     public async Task<float[]> GetEmbeddingsAsync(
-        string model,
+        string deploymentName,
         string text,
         CancellationToken cancellationToken)
     {
-        var result = await GetEmbeddingsAsync(model, new[] { text }, cancellationToken);
+        var result = await GetEmbeddingsAsync(deploymentName, new[] { text }, cancellationToken);
         return result[0];
     }
 
     public async Task<float[][]> GetEmbeddingsAsync(
-        string model,
+        string deploymentName,
         string[] texts,
         CancellationToken cancellationToken)
     {
@@ -119,23 +117,26 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
                 using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
                 {
                     ["Operation"] = "GetEmbeddings",
-                    ["DeploymentName"] = model,
+                    ["DeploymentName"] = deploymentName,
                     ["TextCount"] = texts.Length
                 });
 
                 _logger.LogDebug("Getting embeddings for deployment: {DeploymentName}, Text count: {TextCount}", 
-                    model, texts.Length);
+                    deploymentName, texts.Length);
 
                 await Task.Delay(100, cancellationToken);
 
+                // Only for mock implementation
+#pragma warning disable CA5394
                 var embeddings = texts.Select(_ => 
                     Enumerable.Range(0, 1536).Select(_ => (float)Random.Shared.NextDouble()).ToArray()
                 ).ToArray();
+#pragma warning restore CA5394
 
                 _logger.LogDebug("Successfully retrieved embeddings");
                 return embeddings;
             },
-            fallback: async () =>
+            async () =>
             {
                 _logger.LogWarning("Using fallback embeddings for {TextCount} texts", texts.Length);
                 return texts.Select(_ => new float[1536]).ToArray();
@@ -190,5 +191,20 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient
             _logger.LogWarning(ex, "Azure OpenAI health check failed");
             return false;
         }
+    }
+
+    private bool _disposed;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed) return;
+        // No managed or unmanaged resources to release because AzureOpenAIClient is not IDisposable.
+        _disposed = true;
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
     }
 }

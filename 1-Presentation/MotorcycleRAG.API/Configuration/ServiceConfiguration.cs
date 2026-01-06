@@ -15,7 +15,13 @@ namespace MotorcycleRAG.API.Configuration;
 /// <summary>
 /// Extension methods for configuring services in the DI container
 /// </summary>
-public static class ServiceConfiguration {
+internal static class ServiceConfiguration {
+    private static readonly string[] AzureSearchTags = new[] { "azure", "search" };
+    private static readonly string[] AzureOpenAITags = new[] { "azure", "ai" };
+    private static readonly string[] AzureDocumentTags = new[] { "azure", "document" };
+    private static readonly string[] SqlDatabaseTags = new[] { "database", "sql" };
+    private static readonly string[] AzureFoundryTags = new[] { "azure", "foundry" };
+
     /// <summary>
     /// Configure Azure AI services
     /// </summary>
@@ -121,35 +127,35 @@ public static class ServiceConfiguration {
         healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.AzureSearchHealthCheck>(
             "azure_ai_search",
             failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
-            tags: new[] { "azure", "search" },
+            tags: AzureSearchTags,
             timeout: TimeSpan.FromSeconds(5));
 
         // Azure OpenAI health check
         healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.AzureOpenAIHealthCheck>(
             "azure_openai",
             failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
-            tags: new[] { "azure", "ai" },
+            tags: AzureOpenAITags,
             timeout: TimeSpan.FromSeconds(10));
 
         // Azure Document Intelligence health check
         healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.DocumentIntelligenceHealthCheck>(
             "azure_document_intelligence",
             failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
-            tags: new[] { "azure", "document" },
+            tags: AzureDocumentTags,
             timeout: TimeSpan.FromSeconds(5));
 
         // SQL Database health check
         healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.SqlDatabaseHealthCheck>(
             "sql_database",
             failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
-            tags: new[] { "database", "sql" },
+            tags: SqlDatabaseTags,
             timeout: TimeSpan.FromSeconds(5));
 
         // Azure AI Foundry health check
         healthChecksBuilder.AddCheck<MotorcycleRAG.Persistence.HealthChecks.AzureFoundryHealthCheck>(
             "azure_foundry",
             failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
-            tags: new[] { "azure", "foundry" },
+            tags: AzureFoundryTags,
             timeout: TimeSpan.FromSeconds(5));
 
         // Configure health check response caching to prevent health check storms

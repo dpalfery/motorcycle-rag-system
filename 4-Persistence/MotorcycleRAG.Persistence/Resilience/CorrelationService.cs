@@ -166,6 +166,7 @@ public class CorrelationService : ICorrelationService
 /// <summary>
 /// Extension methods for ILogger to automatically include correlation ID
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2254:Template should be a static expression", Justification = "Extension methods forward the template")]
 public static class LoggerExtensions
 {
     /// <summary>

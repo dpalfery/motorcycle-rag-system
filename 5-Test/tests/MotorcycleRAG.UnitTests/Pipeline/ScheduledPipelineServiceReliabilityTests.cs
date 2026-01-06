@@ -105,9 +105,10 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
 
         // Create test files
         var csvFile = Path.Combine(scheduledDir, "test.csv");
+
         var pdfFile = Path.Combine(scheduledDir, "manual.pdf");
-        File.WriteAllText(csvFile, "Make,Model\nHonda,CBR");
-        File.WriteAllText(pdfFile, "%PDF-1.4 test content");
+        await File.WriteAllTextAsync(csvFile, "Make,Model\nHonda,CBR");
+        await File.WriteAllTextAsync(pdfFile, "%PDF-1.4 test content");
 
         var batchResult = new BatchPipelineResult {
             TotalFiles = 2,
@@ -141,7 +142,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         // Arrange
         var scheduledDir = Path.Combine(_testDirectory, "scheduled");
         Directory.CreateDirectory(scheduledDir);
-        File.WriteAllText(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
+        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
 
         var batchResult = new BatchPipelineResult {
             TotalFiles = 1,
@@ -259,7 +260,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         Directory.CreateDirectory(scheduledDir);
 
         var content = fileName.EndsWith(".pdf") ? "%PDF-1.4 content" : "test,content";
-        File.WriteAllText(Path.Combine(scheduledDir, fileName), content);
+        await File.WriteAllTextAsync(Path.Combine(scheduledDir, fileName), content);
 
         var batchResult = new BatchPipelineResult {
             TotalFiles = expectedType == FileType.Unknown ? 0 : 1,
@@ -293,7 +294,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         // Arrange
         var scheduledDir = Path.Combine(_testDirectory, "scheduled");
         Directory.CreateDirectory(scheduledDir);
-        File.WriteAllText(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
+        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
 
         var cancellationTokenSource = new CancellationTokenSource();
         cancellationTokenSource.Cancel(); // Cancel immediately
@@ -309,7 +310,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         // Arrange
         var scheduledDir = Path.Combine(_testDirectory, "scheduled");
         Directory.CreateDirectory(scheduledDir);
-        File.WriteAllText(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
+        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
 
         _orchestratorMock.Setup(x => x.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new BatchPipelineResult {

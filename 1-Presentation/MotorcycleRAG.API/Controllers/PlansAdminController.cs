@@ -12,6 +12,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/admin/plans")]
 [Authorize(Policy = "Admin")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class PlansAdminController : ControllerBase {
     private readonly IPlanRepository _planRepository;
     private readonly IUserAdminService _userAdminService;
@@ -253,6 +254,7 @@ public sealed class PlansAdminController : ControllerBase {
 /// <summary>
 /// Create plan request model
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class CreatePlanRequest {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
@@ -263,6 +265,7 @@ public class CreatePlanRequest {
 /// <summary>
 /// Update plan request model
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class UpdatePlanRequest {
     public string? Name { get; set; }
     public string? Description { get; set; }

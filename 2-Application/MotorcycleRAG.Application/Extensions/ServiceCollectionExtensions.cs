@@ -22,6 +22,8 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddMotorcycleCaching(this IServiceCollection services, IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
+
         // Configure cache settings
         services.Configure<CacheConfiguration>(configuration.GetSection("Cache"));
 
@@ -62,6 +64,7 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddPerformanceOptimization(this IServiceCollection services, IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
         // Add vector compression service
         services.AddSingleton<IVectorCompressionService, VectorCompressionService>();
 

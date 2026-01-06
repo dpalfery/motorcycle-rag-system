@@ -94,7 +94,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         ArgumentNullException.ThrowIfNull(configuration);
 
         if (string.IsNullOrWhiteSpace(configuration.ToolId))
-            throw new ArgumentException("Tool ID must not be empty", nameof(configuration.ToolId));
+            throw new ArgumentException("Tool ID must not be empty", nameof(configuration));
 
         try {
             // Validate the configuration

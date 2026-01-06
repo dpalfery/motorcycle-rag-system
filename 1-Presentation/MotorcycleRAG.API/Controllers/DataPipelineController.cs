@@ -4,12 +4,14 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using System.Collections.ObjectModel;
 
 namespace MotorcycleRAG.API.Controllers;
 
 /// <summary>
 /// Response for cancel pipeline operation
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class CancelPipelineResponse {
     public string ExecutionId { get; set; } = string.Empty;
     public bool Cancelled { get; set; }
@@ -18,6 +20,7 @@ public class CancelPipelineResponse {
 /// <summary>
 /// Response for get pipeline status operation
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class PipelineStatusResponse {
     public string ExecutionId { get; set; } = string.Empty;
     public PipelineStatus Status { get; set; }
@@ -30,6 +33,7 @@ public class PipelineStatusResponse {
 [Route("api/[controller]")]
 [Produces("application/json")]
 [Authorize(Policy = "DataAdmin")] // Require DataAdmin role for all pipeline operations
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public class DataPipelineController : ControllerBase {
     private readonly IDataPipelineOrchestrator _orchestrator;
     private readonly IFileUploadService _fileUploadService;
@@ -317,7 +321,7 @@ public class DataPipelineController : ControllerBase {
     [ProducesResponseType(typeof(BatchPipelineResult), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
     [ProducesResponseType(typeof(ProblemDetails), 500)]
-    public async Task<IActionResult> ProcessBatchAsync([FromBody] List<DataPipelineRequest> requests) {
+    public async Task<IActionResult> ProcessBatchAsync([FromBody] Collection<DataPipelineRequest> requests) {
         if (requests == null || requests.Count == 0) {
             return BadRequest("No processing requests provided");
         }

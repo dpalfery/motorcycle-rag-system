@@ -39,9 +39,7 @@ namespace MotorcycleRAG.Application.Services {
         /// <param name="user">User to check</param>
         /// <returns>Daily request limit</returns>
         public async Task<int> GetDailyRequestLimitAsync(UserDTO user) {
-            if (user == null) {
-                throw new ArgumentNullException(nameof(user));
-            }
+            ArgumentNullException.ThrowIfNull(user);
 
             // If user has no plan assigned, return default limit
             if (string.IsNullOrWhiteSpace(user.PlanId)) {

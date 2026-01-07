@@ -1,5 +1,7 @@
 using CsvHelper;
 using CsvHelper.Configuration;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Globalization;
 using System.Text;
 
@@ -33,7 +35,7 @@ public class CsvMetadata
 {
     public int TotalRows { get; set; }
     public int ColumnCount { get; set; }
-    public IReadOnlyList<string> ColumnNames { get; private set; } = new List<string>();
+    public IReadOnlyList<string> ColumnNames { get; private set; } = new List<string>().AsReadOnly();
     public string Delimiter { get; set; } = ",";
     public bool HasHeader { get; set; } = true;
 
@@ -50,10 +52,10 @@ public class CsvMetadata
 public class CsvChunk
 {
     public int ChunkIndex { get; set; }
-    public IReadOnlyList<Dictionary<string, object>> Rows { get; private set; } = new List<Dictionary<string, object>>();
+    public IReadOnlyList<Dictionary<string, object>> Rows { get; private set; } = new List<Dictionary<string, object>>().AsReadOnly();
     public int StartRowNumber { get; set; }
     public int EndRowNumber { get; set; }
-    public IReadOnlyDictionary<string, object> Metadata { get; private set; } = new Dictionary<string, object>();
+    public IReadOnlyDictionary<string, object> Metadata { get; private set; } = new Dictionary<string, object>().AsReadOnly();
 
     // Internal methods for setting properties
     internal void SetRows(List<Dictionary<string, object>> rows)
@@ -63,7 +65,7 @@ public class CsvChunk
 
     internal void SetMetadata(Dictionary<string, object> metadata)
     {
-        Metadata = new System.Collections.ObjectModel.ReadOnlyDictionary<string, object>(metadata);
+        Metadata = metadata.AsReadOnly();
     }
 }
 
@@ -211,15 +213,17 @@ public class CsvChunker
     /// <summary>
     /// Creates a searchable text representation of CSV data for a chunk
     /// </summary>
-    public string CreateSearchableText(List<Dictionary<string, object>> rows, List<string> headers)
+    public string CreateSearchableText(
+        IReadOnlyList<Dictionary<string, object>> rows,
+        IReadOnlyList<string> headers)
     {
         var sb = new StringBuilder();
-        
+
         foreach (var row in rows)
         {
             // Create a natural language representation of each row
             var parts = new List<string>();
-            
+
             foreach (var header in headers)
             {
                 if (row.TryGetValue(header, out var value) && value != null)
@@ -231,7 +235,7 @@ public class CsvChunker
                     }
                 }
             }
-            
+
             if (parts.Count > 0)
             {
                 sb.AppendLine(string.Join(", ", parts));

@@ -9,6 +9,7 @@ using MotorcycleRAG.Domain.ValueObjects;
 using System.Globalization;
 using System.Text;
 using System.Collections.ObjectModel;
+using CsvDataChunk = System.Collections.Generic.Dictionary<string, object>;
 
 namespace MotorcycleRAG.Persistence.DataProcessing;
 
@@ -115,7 +116,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
             // Use the search client for basic indexing (backward compatibility)
             // In production, this would be replaced with IMotorcycleIndexingService
             var batchSize = 100; // Optimal batch size for Azure AI Search
-            var batches = data.Documents.Chunk(batchSize);
+            var batches = data.Documents.Chunk<MotorcycleDocument>(batchSize);
             var totalIndexed = 0;
             var errors = new List<string>();
 
@@ -155,7 +156,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
     /// </summary>
     private async Task<List<CsvChunk>> ParseCsvIntoChunksAsync(CSVFile csvFile) {
         var chunks = new List<CsvChunk>();
-        var currentChunk = new List<Dictionary<string, object>>();
+        var currentChunk = new List<CsvDataChunk>();
         var headers = new List<string>();
 
         if (csvFile.Content == null) {
@@ -243,7 +244,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
     /// <summary>
     /// Determine if a new chunk should be created based on relational integrity
     /// </summary>
-    private bool ShouldCreateNewChunk(List<Dictionary<string, object>> currentChunk, Dictionary<string, object> newRow) {
+    private bool ShouldCreateNewChunk(List<CsvDataChunk> currentChunk, CsvDataChunk newRow) {
         // If chunk is empty, don't create a new chunk
         if (currentChunk.Count == 0) {
             return false;

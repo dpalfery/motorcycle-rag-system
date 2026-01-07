@@ -251,14 +251,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
                 foreach (var kvp in properties)
                 {
                     // Skip known sensitive property names
-                    if (IsSensitivePropertyName(kvp.Key))
-                    {
-                        redactedProperties[kvp.Key] = "[REDACTED]";
-                    }
-                    else
-                    {
-                        redactedProperties[kvp.Key] = RedactSensitiveData(kvp.Value);
-                    }
+                    redactedProperties[kvp.Key] = IsSensitivePropertyName(kvp.Key) ? "[REDACTED]" : RedactSensitiveData(kvp.Value);
                 }
                 return redactedProperties;
             }
@@ -281,13 +274,13 @@ namespace MotorcycleRAG.Persistence.Telemetry
                 return false;
             }
 
-            var lowerPropertyName = propertyName.ToLowerInvariant();
-            return lowerPropertyName.Contains("password") ||
-                   lowerPropertyName.Contains("secret") ||
-                   lowerPropertyName.Contains("key") ||
-                   lowerPropertyName.Contains("token") ||
-                   lowerPropertyName.Contains("connection") ||
-                   lowerPropertyName.Contains("credential");
+            var upperPropertyName = propertyName.ToUpperInvariant();
+            return upperPropertyName.Contains("PASSWORD") ||
+                   upperPropertyName.Contains("SECRET") ||
+                   upperPropertyName.Contains("KEY") ||
+                   upperPropertyName.Contains("TOKEN") ||
+                   upperPropertyName.Contains("CONNECTION") ||
+                   upperPropertyName.Contains("CREDENTIAL");
         }
 
         /// <summary>

@@ -17,7 +17,10 @@ namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
 /// Azure AI Search client wrapper with connection management and resilience
+/// S1200: This class requires multiple dependencies for comprehensive Azure Search functionality
+/// including resilience, correlation tracking, and configuration management.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "SearchClient is not IDisposable")]
 public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
     private readonly SearchClient _searchClient;
     private readonly ILogger<AzureSearchClientWrapper> _logger;

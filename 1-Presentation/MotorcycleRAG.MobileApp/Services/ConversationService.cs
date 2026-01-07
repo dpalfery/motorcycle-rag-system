@@ -185,7 +185,7 @@ namespace MotorcycleRAG.MobileApp.Services
         {
             if (string.IsNullOrEmpty(agentType)) return SourceType.WebSource;
 
-            return agentType.ToLower() switch
+            return agentType.ToLowerInvariant() switch
             {
                 "pdf" => SourceType.PdfManual,
                 "web" => SourceType.WebSource,

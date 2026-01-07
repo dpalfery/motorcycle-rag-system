@@ -122,11 +122,11 @@ public sealed class WebSourcesAdminController : ControllerBase {
             return Created(new Uri($"/api/admin/web-sources/{createdSource.Id}", UriKind.Relative), createdSource);
         }
         catch (InvalidOperationException ex) {
-            _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", SanitizeLogValue(request.Url?.ToString()));
+            _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", SanitizeLogValue(request.Url?.ToString() ?? string.Empty));
             return Conflict(new { error = "A resource with this URL already exists" });
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error creating web source with URL {Url}", SanitizeLogValue(request.Url?.ToString()));
+            _logger.LogError(ex, "Error creating web source with URL {Url}", SanitizeLogValue(request.Url?.ToString() ?? string.Empty));
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }

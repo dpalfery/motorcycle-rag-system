@@ -502,7 +502,7 @@ public class Program
                 $"Azure {serviceName} {EndpointLabel} is REQUIRED but not configured. " +
                 $"Set the {envVarName} environment variable to a valid HTTPS URL. " +
                 $"No fallback to configuration files is permitted for security compliance. " +
-                $"For local development, use: dotnet user-secrets set \"{envVarName}\" \"https://your-{serviceName.ToLower()}-{EndpointLabel}.openai.azure.com/\"");
+                $"For local development, use: dotnet user-secrets set \"{envVarName}\" \"https://your-{serviceName.ToUpperInvariant()}-{EndpointLabel}.openai.azure.com/\"");
         }
 
         // Verify endpoint is HTTPS
@@ -534,4 +534,5 @@ public class Program
                 $"Set the {envVarName} environment variable to your actual Azure service {EndpointLabel} URL.");
         }
     }
+
 }

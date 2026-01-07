@@ -192,7 +192,7 @@ internal sealed class HostHeaderValidationMiddleware {
             // We require closingBracket > 0 to ensure there's at least one character between [ and ]
             // (position 0 would mean empty brackets [], which is invalid)
             return closingBracket > 0
-                ? hostValue.Substring(0, closingBracket + 1).ToUpper(CultureInfo.InvariantCulture)
+                ? hostValue.Substring(0, closingBracket + 1).ToUpperInvariant()
                 : string.Empty;
         }
 
@@ -205,12 +205,12 @@ internal sealed class HostHeaderValidationMiddleware {
             var potentialPort = hostValue.Substring(colonIndex + 1);
             if (int.TryParse(potentialPort, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
             {
-                return hostValue.Substring(0, colonIndex).ToUpper(CultureInfo.InvariantCulture);
+                return hostValue.Substring(0, colonIndex).ToUpperInvariant();
             }
         }
 
         // No port found, return the entire hostname
-        return hostValue.ToUpper(CultureInfo.InvariantCulture);
+        return hostValue.ToUpperInvariant();
     }
 
     /// <summary>

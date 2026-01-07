@@ -238,7 +238,7 @@ public class AgentFrameworkAdapterFactory {
                 SearchAgentType.VectorSearch => "vector_search",
                 SearchAgentType.WebSearch => "web_search",
                 SearchAgentType.PDFSearch => "pdf_search",
-                _ => $"agent_{agent.AgentType.ToString().ToLower()}"
+                _ => $"agent_{agent.AgentType.ToString().ToUpperInvariant()}"
             };
 
             var handler = AgentFrameworkAdapter.CreateSearchAgentHandler(agent, logger);

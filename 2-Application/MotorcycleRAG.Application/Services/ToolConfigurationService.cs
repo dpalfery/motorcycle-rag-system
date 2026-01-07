@@ -99,7 +99,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         try {
             // Validate the configuration
             if (!await ValidateToolAsync(configuration))
-                throw new InvalidOperationException("Tool configuration validation failed");
+                throw new InvalidOperationException($"Tool {nameof(configuration)} validation failed");
 
             // Check for duplicates
             var existingTool = await _configRepository.GetByToolIdAsync(configuration.ToolId);
@@ -158,7 +158,7 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             // Validate updated configuration
             if (!await ValidateToolAsync(configuration))
-                throw new InvalidOperationException("Updated tool configuration validation failed");
+                throw new InvalidOperationException($"Updated tool {nameof(configuration)} validation failed");
 
             // Record before state for audit
             var beforeJson = JsonSerializer.Serialize(existingConfig);
@@ -406,34 +406,43 @@ public class ToolConfigurationService : IToolConfigurationService {
         if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri))
             return false;
 
+        return IsValidMcpServerUrl(uri);
+    }
+
+    /// <summary>
+    /// Validate MCP server URL to prevent SSRF attacks.
+    /// OWASP A01:2021 - Injection / SSRF Protection.
+    /// SC-002: Development ports (8000-8009) restricted to localhost only.
+    /// </summary>
+    private bool IsValidMcpServerUrl(Uri serverUrl) {
         // Only allow HTTP/HTTPS schemes
-        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        if (serverUrl.Scheme != Uri.UriSchemeHttp && serverUrl.Scheme != Uri.UriSchemeHttps)
             return false;
 
         // Block localhost variants
-        if (IsLoopbackAddress(uri.Host))
+        if (IsLoopbackAddress(serverUrl.Host))
             return false;
 
         // Block private IP ranges
-        if (IsPrivateIpAddress(uri.Host))
+        if (IsPrivateIpAddress(serverUrl.Host))
             return false;
 
         // Block reserved and special addresses
-        if (IsReservedAddress(uri.Host))
+        if (IsReservedAddress(serverUrl.Host))
             return false;
 
         // CQ-001 + SC-002: Port validation using constants
         // Development ports allowed only on localhost, standard ports allowed everywhere
-        if (uri.Port > 0 && DevelopmentPorts.Contains(uri.Port)) {
+        if (serverUrl.Port > 0 && DevelopmentPorts.Contains(serverUrl.Port)) {
             // SC-002: Development ports MUST be on localhost only
-            if (!IsLocalhostAddress(uri.Host)) {
+            if (!IsLocalhostAddress(serverUrl.Host)) {
                 _logger.LogWarning(
                     "Development port {Port} attempted on non-localhost address: {Host}",
-                    uri.Port, uri.Host);
+                    serverUrl.Port, serverUrl.Host);
                 return false;
             }
         }
-        else if (uri.Port > 0 && !StandardPorts.Contains(uri.Port)) {
+        else if (serverUrl.Port > 0 && !StandardPorts.Contains(serverUrl.Port)) {
             // CQ-001: Port not in allowed lists
             return false;
         }

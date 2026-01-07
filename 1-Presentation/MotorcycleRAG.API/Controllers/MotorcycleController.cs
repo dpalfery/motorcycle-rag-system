@@ -4,6 +4,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using System.Net.Mime;
 using System.Diagnostics;
+using Microsoft.AspNetCore.Http.Extensions;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -20,18 +21,21 @@ public sealed class MotorcycleController : ControllerBase {
     private readonly IPlanPolicyService _planPolicyService;
     private readonly IUsageTrackingService _usageTrackingService;
     private readonly ILogger<MotorcycleController> _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public MotorcycleController(
         IMotorcycleRagService ragService,
         ICurrentUserService currentUserService,
         IPlanPolicyService planPolicyService,
         IUsageTrackingService usageTrackingService,
-        ILogger<MotorcycleController> logger) {
+        ILogger<MotorcycleController> logger,
+        IHttpContextAccessor httpContextAccessor) {
         _ragService = ragService ?? throw new ArgumentNullException(nameof(ragService));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         _planPolicyService = planPolicyService ?? throw new ArgumentNullException(nameof(planPolicyService));
         _usageTrackingService = usageTrackingService ?? throw new ArgumentNullException(nameof(usageTrackingService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
     }
 
     /// <summary>
@@ -89,7 +93,7 @@ public sealed class MotorcycleController : ControllerBase {
                 queryId: response.QueryId,
                 durationMs: stopwatch.ElapsedMilliseconds,
                 callerIp: HttpContext.Connection.RemoteIpAddress?.ToString(),
-                userAgent: Request.Headers["User-Agent"].ToString());
+                userAgent: GetRequestUserAgent());
 
             return Ok(response);
         }
@@ -106,7 +110,7 @@ public sealed class MotorcycleController : ControllerBase {
                 statusCode: StatusCodes.Status400BadRequest,
                 durationMs: stopwatch.ElapsedMilliseconds,
                 callerIp: HttpContext.Connection.RemoteIpAddress?.ToString(),
-                userAgent: Request.Headers["User-Agent"].ToString());
+                userAgent: GetRequestUserAgent());
 
             return BadRequest(new { error = ex.Message });
         }
@@ -123,7 +127,7 @@ public sealed class MotorcycleController : ControllerBase {
                 statusCode: StatusCodes.Status500InternalServerError,
                 durationMs: stopwatch.ElapsedMilliseconds,
                 callerIp: HttpContext.Connection.RemoteIpAddress?.ToString(),
-                userAgent: Request.Headers["User-Agent"].ToString());
+                userAgent: GetRequestUserAgent());
 
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An unexpected error occurred." });
         }
@@ -191,6 +195,13 @@ public sealed class MotorcycleController : ControllerBase {
         }
 
         return new ValidationResult { IsValid = errors.Count == 0, Errors = errors };
+    }
+
+    /// <summary>
+    /// Extracts User-Agent from request headers safely
+    /// </summary>
+    private string GetRequestUserAgent() {
+        return _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString() ?? string.Empty;
     }
 
     /// <summary>

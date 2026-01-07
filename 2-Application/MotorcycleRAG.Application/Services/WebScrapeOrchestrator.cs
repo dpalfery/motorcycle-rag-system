@@ -320,6 +320,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         }
         finally {
             // Clean up cancellation token source with safe disposal
+            // CA2000: Using proper dispose pattern with try-catch for safe disposal
             if (_activeScrapes.TryRemove(runId, out var cts)) {
                 try {
                     cts?.Dispose();
@@ -430,7 +431,8 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         string resultDomain = string.Empty;
         try {
             if (Uri.TryCreate(result.Source.SourceUrl, UriKind.Absolute, out var resultUri)) {
-                resultDomain = ExtractDomainFromUrl(resultUri);
+                var hostnameUri = ExtractHostnameFromUri(resultUri);
+                resultDomain = hostnameUri.Host;
             }
         }
         catch (Exception ex) {
@@ -441,7 +443,8 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         string sourceDomain = string.Empty;
         try {
             if (Uri.TryCreate(webSource.Url, UriKind.Absolute, out var sourceUri)) {
-                sourceDomain = ExtractDomainFromUrl(sourceUri);
+                var hostnameUri = ExtractHostnameFromUri(sourceUri);
+                sourceDomain = hostnameUri.Host;
             }
         }
         catch (Exception ex) {
@@ -453,16 +456,16 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     }
 
     /// <summary>
-    /// Extracts the domain from a URL
+    /// Extracts the hostname from a URI
     /// </summary>
-    private string ExtractDomainFromUrl(Uri url) {
+    private Uri ExtractHostnameFromUri(Uri url) {
         try {
             ArgumentNullException.ThrowIfNull(url);
-            return url.Host.ToUpperInvariant();
+            return new Uri($"http://{url.Host}");
         }
         catch (Exception ex) {
-            _logger.LogWarning(ex, "Error extracting domain from URI: {Uri}", url);
-            return string.Empty;
+            _logger.LogWarning(ex, "Error extracting hostname from URI: {Uri}", url);
+            return new Uri("http://localhost");
         }
     }
 

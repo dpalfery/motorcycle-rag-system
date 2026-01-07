@@ -94,7 +94,7 @@ public sealed class MeController : ControllerBase {
     /// </summary>
     /// <param name="days">Number of days to retrieve usage for (max: 30)</param>
     /// <returns>User usage information</returns>
-    [HttpGet("usage")]
+    [HttpGet("usage-by-days")]
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UsageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

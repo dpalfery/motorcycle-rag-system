@@ -27,6 +27,8 @@
   - Assume Windows-native solutions unless easy docker alternative exists
   - Assume Windows 11 
 
+
+
 # 3. Project Overview
 This project is a sophisticated **multi-agent RAG (Retrieval-Augmented Generation) system** for motorcycle information retrieval. It is designed to pass **OWASP ASVS Level 2** security standards and follows strict **Clean Architecture** principles.
 
@@ -108,6 +110,11 @@ The project strictly follows these layers. Dependencies must point **inward** (P
 *   **In Progress/Pending**: PDF Manual Search (US3), MAUI Admin App (US3a), Web Source Management (US6), MCP Config (US7).
 
 # 11. Usage Commands
+
+### build to check for errors
+``` powershell
+Build dotnet build -c Debug -p:Platform="Any CPU" -p:EnforceCodeStyleInBuild=true -p:EnableNETAnalyzers=true
+```
 
 ### Backend & API
 ```powershell

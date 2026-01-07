@@ -259,10 +259,8 @@ public sealed class MotorcycleRagService : IMotorcycleRagService {
                     evidence.Citations.AddRange(CreateCitationsFromSources(matchingSources, claim));
                     
                     // Add to results with enhanced citations
-                    foreach (var source in matchingSources) {
-                        if (resultsWithCitations.All(r => r.Id != source.Id)) {
-                            resultsWithCitations.Add(source);
-                        }
+                    foreach (var source in matchingSources.Where(s => resultsWithCitations.All(r => r.Id != s.Id))) {
+                        resultsWithCitations.Add(source);
                     }
                 }
                 else {

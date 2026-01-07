@@ -34,6 +34,7 @@ public class PipelineStatusResponse {
 [Produces("application/json")]
 [Authorize(Policy = "DataAdmin")] // Require DataAdmin role for all pipeline operations
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056:Uri properties should not be strings", Justification = "DTOs for API")]
 public class DataPipelineController : ControllerBase {
     private readonly IDataPipelineOrchestrator _orchestrator;
     private readonly IFileUploadService _fileUploadService;
@@ -88,7 +89,7 @@ public class DataPipelineController : ControllerBase {
     /// <param name="file">The file to upload</param>
     /// <param name="processImmediately">Whether to process the file immediately</param>
     /// <returns>File upload result</returns>
-    [HttpPost("upload")]
+    [HttpPost("upload-with-processing")]
     [ProducesResponseType(typeof(FileUploadResult), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
     [ProducesResponseType(typeof(ProblemDetails), 500)]
@@ -177,7 +178,7 @@ public class DataPipelineController : ControllerBase {
     /// </summary>
     /// <param name="files">The files to upload</param>
     /// <returns>Batch file upload result</returns>
-    [HttpPost("upload-batch")]
+    [HttpPost("upload-batch-simple")]
     [ProducesResponseType(typeof(BatchFileUploadResult), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
     [ProducesResponseType(typeof(ProblemDetails), 500)]
@@ -443,9 +444,9 @@ public class DataPipelineController : ControllerBase {
     /// </summary>
     /// <param name="hours">Time window in hours</param>
     /// <returns>Pipeline metrics</returns>
-    [HttpGet("metrics")]
+    [HttpGet("metrics/{hours:int}")]
     [ProducesResponseType(typeof(PipelineMetrics), 200)]
-    public async Task<IActionResult> GetPipelineMetricsAsync([FromQuery] int hours) {
+    public async Task<IActionResult> GetPipelineMetricsAsync(int hours) {
         return await GetPipelineMetricsInternalAsync(hours);
     }
 

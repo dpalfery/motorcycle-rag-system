@@ -34,16 +34,16 @@ namespace MotorcycleRAG.API.Middleware
             context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
             context.Response.Headers.Append("X-Frame-Options", "DENY");
             context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
-            var cspPolicy = "default-src 'self'; " +
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-                "style-src 'self' 'unsafe-inline'; " +
+            var cspPolicy = "default-src 'none'; " +
+                "script-src 'none'; " +
+                "style-src 'none'; " +
                 "img-src 'self' data:; " +
                 "font-src 'self'; " +
                 "connect-src 'self'; " +
                 "frame-src 'none'; " +
                 "object-src 'none'; " +
                 "base-uri 'self'; " +
-                "form-action 'self'";
+                "form-action 'none'";
             context.Response.Headers.Append("Content-Security-Policy", cspPolicy);
             context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
             context.Response.Headers.Append("Permissions-Policy", 

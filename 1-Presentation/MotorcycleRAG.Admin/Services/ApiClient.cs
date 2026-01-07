@@ -145,7 +145,7 @@ public class ApiClient {
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading batch files");
-            throw;
+            throw new FileLoadException($"Error uploading batch files. See inner exception for details. File paths: {string.Join(", ", filePaths)}", ex);
         }
         finally
         {

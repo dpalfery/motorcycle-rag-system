@@ -197,17 +197,19 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
             builder.ConfigureServices(services => {
                 var mockService = new Mock<IMotorcycleRagService>();
 
+                var noResultsResponse = new MotorcycleQueryResponse {
+                    QueryId = Guid.NewGuid().ToString("N"),
+                    Response = "No results found. Try refining your query with more specific terms about motorcycle models, specifications, or maintenance procedures.",
+                    GeneratedAt = DateTime.UtcNow,
+                    Sources = Array.Empty<SearchResult>(),
+                    Metrics = new QueryMetrics {
+                        ResultsFound = 0,
+                        TotalDuration = TimeSpan.FromMilliseconds(100)
+                    }
+                };
+
                 mockService.Setup(s => s.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
-                            .ReturnsAsync(_ => new MotorcycleQueryResponse {
-                                QueryId = Guid.NewGuid().ToString("N"),
-                                Response = "No results found. Try refining your query with more specific terms about motorcycle models, specifications, or maintenance procedures.",
-                                GeneratedAt = DateTime.UtcNow,
-                                Sources = Array.Empty<SearchResult>(),
-                                Metrics = new QueryMetrics {
-                                    ResultsFound = 0,
-                                    TotalDuration = TimeSpan.FromMilliseconds(100)
-                                }
-                            });
+                            .ReturnsAsync(noResultsResponse);
 
                 services.AddSingleton(mockService.Object);
             });

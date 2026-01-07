@@ -35,7 +35,6 @@ public class VectorSearchAgentTests : IDisposable {
 
         _vectorSearchAgent = new VectorSearchAgent(
             _mockSearchClient.Object,
-            _mockOpenAIClient.Object,
             _searchConfig,
             _mockLogger.Object);
     }
@@ -53,16 +52,13 @@ public class VectorSearchAgentTests : IDisposable {
     public void Constructor_ShouldThrowArgumentNullException_WhenRequiredParametersAreNull() {
         // Arrange & Act & Assert
         Assert.Throws<ArgumentNullException>(() => new VectorSearchAgent(
-            null!, _mockOpenAIClient.Object, _searchConfig, _mockLogger.Object));
+            null!, _searchConfig, _mockLogger.Object));
 
         Assert.Throws<ArgumentNullException>(() => new VectorSearchAgent(
-            _mockSearchClient.Object, null!, _searchConfig, _mockLogger.Object));
+            _mockSearchClient.Object, null!, _mockLogger.Object));
 
         Assert.Throws<ArgumentNullException>(() => new VectorSearchAgent(
-            _mockSearchClient.Object, _mockOpenAIClient.Object, null!, _mockLogger.Object));
-
-        Assert.Throws<ArgumentNullException>(() => new VectorSearchAgent(
-            _mockSearchClient.Object, _mockOpenAIClient.Object, _searchConfig, null!));
+            _mockSearchClient.Object, _searchConfig, null!));
     }
 
     [Fact]

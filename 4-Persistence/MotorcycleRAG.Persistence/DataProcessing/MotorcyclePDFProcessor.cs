@@ -307,7 +307,7 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
         }
 
         // Fallback: analyze table content to infer section
-        var allCellText = string.Join(" ", table.Cells.Select(c => c.Content.ToLowerInvariant()));
+        var allCellText = string.Join(" ", table.Cells.Select(c => c.Content.ToUpperInvariant()));
 
         if (allCellText.Contains("specification") || allCellText.Contains("spec"))
             return "Specifications";
@@ -560,28 +560,25 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         DocumentSection? currentSection = null;
 
         foreach (var line in lines) {
-            var isHeader = false;
-            foreach (var headerDef in headerPatterns) {
-                var match = Regex.Match(line.Trim(), headerDef.Pattern, RegexOptions.Multiline);
-                if (match.Success) {
-                    // Save current section
-                    if (currentSection != null && currentSection.Content.Length > 0) {
-                        sections.Add(currentSection);
-                    }
+            var matchedHeader = headerPatterns
+                .Select(headerDef => new { HeaderDef = headerDef, Match = Regex.Match(line.Trim(), headerDef.Pattern, RegexOptions.Multiline) })
+                .FirstOrDefault(result => result.Match.Success);
 
-                    // Start new section with hierarchy level
-                    currentSection = new DocumentSection {
-                        Title = match.Groups[1].Value.Trim(),
-                        Content = new StringBuilder(),
-                        Type = DetermineContentType(match.Groups[1].Value),
-                        Level = headerDef.Level
-                    };
-                    isHeader = true;
-                    continue;
+            if (matchedHeader != null) {
+                // Save current section
+                if (currentSection != null && currentSection.Content.Length > 0) {
+                    sections.Add(currentSection);
                 }
-            }
 
-            if (!isHeader) {
+                // Start new section with hierarchy level
+                currentSection = new DocumentSection {
+                    Title = matchedHeader.Match.Groups[1].Value.Trim(),
+                    Content = new StringBuilder(),
+                    Type = DetermineContentType(matchedHeader.Match.Groups[1].Value),
+                    Level = matchedHeader.HeaderDef.Level
+                };
+            }
+            else {
                 // If no section has been started yet, create a default "General Content" section
                 currentSection ??= new DocumentSection {
                     Title = "General Content",
@@ -623,19 +620,18 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
         foreach (var line in lines) {
-            foreach (var headerDef in headerPatterns) {
-                var match = Regex.Match(line.Trim(), headerDef.Pattern, RegexOptions.Multiline);
-                if (match.Success) {
-                    var heading = match.Groups[1].Value.Trim();
-                    headings.Add(heading);
+            var matchedHeader = headerPatterns
+                .Select(headerDef => new { HeaderDef = headerDef, Match = Regex.Match(line.Trim(), headerDef.Pattern, RegexOptions.Multiline) })
+                .FirstOrDefault(result => result.Match.Success);
 
-                    // Track primary section (highest level heading)
-                    if (string.IsNullOrEmpty(primarySection) || headerDef.Level < maxLevel) {
-                        primarySection = heading;
-                        maxLevel = headerDef.Level;
-                    }
+            if (matchedHeader != null) {
+                var heading = matchedHeader.Match.Groups[1].Value.Trim();
+                headings.Add(heading);
 
-                    continue;
+                // Track primary section (highest level heading)
+                if (string.IsNullOrEmpty(primarySection) || matchedHeader.HeaderDef.Level < maxLevel) {
+                    primarySection = heading;
+                    maxLevel = matchedHeader.HeaderDef.Level;
                 }
             }
         }
@@ -649,7 +645,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     }
 
     private string DetermineContentType(string sectionTitle) {
-        var title = sectionTitle.ToLowerInvariant();
+        var title = sectionTitle.ToUpperInvariant();
 
         if (title.Contains("maintenance") || title.Contains("service"))
             return "Maintenance";

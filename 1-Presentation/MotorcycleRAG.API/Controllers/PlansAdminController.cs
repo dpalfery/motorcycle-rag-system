@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.Contracts.Interfaces;
+using System.Text.Json.Serialization;
 
 using System.Net.Mime;
 
@@ -257,7 +258,9 @@ public sealed class PlansAdminController : ControllerBase {
 public class CreatePlanRequest {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    [JsonRequired]
     public int DailyRequestLimit { get; set; } = 100;
+    [JsonRequired]
     public bool IsPaid { get; set; }
 }
 

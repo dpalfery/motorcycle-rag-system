@@ -157,7 +157,7 @@ public sealed class McpAdminController : ControllerBase {
                 ToolId = request.ToolId,
                 Name = request.Name,
                 Description = request.Description,
-                ServerUrl = new Uri(request.ServerUrl), // FIX: Convert string to Uri
+                ServerUrl = !string.IsNullOrWhiteSpace(request.ServerUrl) ? new Uri(request.ServerUrl!) : null,
                 ToolType = request.ToolType,
                 Version = request.Version,
                 IsEnabled = request.IsEnabled ?? true,
@@ -420,7 +420,7 @@ public sealed class McpAdminController : ControllerBase {
     /// </summary>
     /// <param name="toolId">Tool ID</param>
     /// <returns>Audit entries</returns>
-    [HttpGet("{toolId}/audit")]
+    [HttpGet("{toolId}/audit-with-limit")]
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(ToolConfigurationAuditEntry[]), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

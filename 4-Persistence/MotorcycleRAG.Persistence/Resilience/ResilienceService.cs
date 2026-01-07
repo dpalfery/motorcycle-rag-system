@@ -31,7 +31,7 @@ public class ResilienceService : IResilienceService
     }
 
     // Unified ExecuteAsync (generic)
-    public async Task<T> ExecuteAsync<T>(string policyKey, Func<Task<T>> operation, Func<Task<T>>? fallback, string? correlationId, CancellationToken cancellationToken)
+    public async Task<T> ExecuteAsync<T>(string policyKey, Func<Task<T>> operation, Func<Task<T>>? fallback = null, string? correlationId = null, CancellationToken cancellationToken = default)
     {
         var activity = Activity.Current;
         correlationId ??= activity?.Id ?? Guid.NewGuid().ToString();
@@ -65,22 +65,22 @@ public class ResilienceService : IResilienceService
     }
 
     // Unified ExecuteAsync (void)
-    public async Task ExecuteAsync(string policyKey, Func<Task> operation, Func<Task>? fallback, string? correlationId, CancellationToken cancellationToken)
+    public async Task ExecuteAsync(string policyKey, Func<Task> operation, Func<Task>? fallback = null, string? correlationId = null, CancellationToken cancellationToken = default)
     {
         await ExecuteAsync(policyKey, async () => { await operation(); return true; }, fallback != null ? async () => { await fallback(); return true; } : null, correlationId, cancellationToken);
     }
 
     // Backwards-compatible simple wrappers required by interface
     public Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> operation, string operationName)
-        => ExecuteAsync("RetryOnly", operation, fallback: null, correlationId: operationName, cancellationToken: default);
+        => ExecuteAsync("RetryOnly", operation, correlationId: operationName);
 
     public Task<T> ExecuteWithCircuitBreakerAsync<T>(Func<Task<T>> operation, string operationName)
-        => ExecuteAsync("CircuitBreakerOnly", operation, fallback: null, correlationId: operationName, cancellationToken: default);
+        => ExecuteAsync("CircuitBreakerOnly", operation, correlationId: operationName);
 
     public async Task<T> ExecuteWithTimeoutAsync<T>(Func<Task<T>> operation, TimeSpan timeout, string operationName)
     {
         using var cts = new CancellationTokenSource(timeout);
-        return await ExecuteAsync("TimeoutOnly", operation, fallback: null, correlationId: operationName, cancellationToken: cts.Token);
+        return await ExecuteAsync("TimeoutOnly", operation, correlationId: operationName, cancellationToken: cts.Token);
     }
 
     private async Task<T> ExecuteFallbackAsync<T>(Func<Task<T>> fallback, string policyKey)

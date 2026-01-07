@@ -1,13 +1,13 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using System.Text.Json;
-using System.Collections.Concurrent;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Enums;
-using HtmlAgilityPack;
-using System.Text.RegularExpressions;
 
 namespace MotorcycleRAG.Application.Agents;
 
@@ -322,18 +322,18 @@ Return only the search terms, one per line, without explanations.
             if (results.Count == 0) {
                 var fullContent = ExtractCleanText(doc.DocumentNode);
                 if (!string.IsNullOrWhiteSpace(fullContent) && fullContent.Length > 50) {
-                                            var sr2 = new SearchResult {
-                                            Id = $"web_{Guid.NewGuid()}",
-                                            Content = fullContent.AsSpan(0, Math.Min(500, fullContent.Length)).ToString(),
-                                            RelevanceScore = 0.6f, // Default relevance for fallback content
-                                            Source = new SearchSource {
-                                                AgentType = SearchAgentType.WebSearch,
-                                                SourceName = source.Name,
-                                                SourceUrl = source.BaseUrl?.ToString(),
-                                                LastUpdated = DateTime.UtcNow
-                                            },
-                                            GeneratedAt = DateTime.UtcNow
-                                        };
+                    var sr2 = new SearchResult {
+                        Id = $"web_{Guid.NewGuid()}",
+                        Content = fullContent.AsSpan(0, Math.Min(500, fullContent.Length)).ToString(),
+                        RelevanceScore = 0.6f, // Default relevance for fallback content
+                        Source = new SearchSource {
+                            AgentType = SearchAgentType.WebSearch,
+                            SourceName = source.Name,
+                            SourceUrl = source.BaseUrl?.ToString(),
+                            LastUpdated = DateTime.UtcNow
+                        },
+                        GeneratedAt = DateTime.UtcNow
+                    };
                     sr2.Metadata["searchTerm"] = searchTerm;
                     sr2.Metadata["sourceType"] = "web";
                     sr2.Metadata["credibilityScore"] = source.CredibilityScore;
@@ -380,9 +380,9 @@ Return only the search terms, one per line, without explanations.
         if (string.IsNullOrWhiteSpace(content) || content.Length < 20)
             return false;
 
-        var searchWords = searchTerm.ToLower().Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var searchWords = searchTerm.ToUpperInvariant().Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
 
-        var contentLower = content.ToLower();
+        var contentLower = content.ToUpperInvariant();
 
         // Must contain at least one motorcycle keyword OR one search term word (more lenient for testing)
         var hasMotorcycleKeyword = MotorcycleKeywords.Any(keyword => contentLower.Contains(keyword));
@@ -395,8 +395,8 @@ Return only the search terms, one per line, without explanations.
     /// Calculate relevance score based on content and search term
     /// </summary>
     private float CalculateRelevanceScore(string content, string searchTerm) {
-        var contentLower = content.ToLower();
-        var searchWords = searchTerm.ToLower().Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var contentLower = content.ToUpperInvariant();
+        var searchWords = searchTerm.ToUpperInvariant().Split(SpaceSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         var score = 0.3f; // Base score for web content
 
@@ -417,9 +417,9 @@ Return only the search terms, one per line, without explanations.
     }
 
     /// <summary>
-    /// Extract domain from URL
+    /// Extract host from URI
     /// </summary>
-    private string ExtractDomainFromUrl(Uri? uri) {
+    private string GetHostFromUri(Uri? uri) {
         if (uri == null)
             return string.Empty;
 
@@ -427,7 +427,7 @@ Return only the search terms, one per line, without explanations.
             return uri.Host.ToUpperInvariant();
         }
         catch (Exception ex) {
-            _logger.LogWarning(ex, "Failed to extract domain from URL: {Url}", uri);
+            _logger.LogWarning(ex, "Failed to extract host from URI: {Uri}", uri);
             return string.Empty;
         }
     }
@@ -475,7 +475,7 @@ Return only the search terms, one per line, without explanations.
                 if (Uri.TryCreate(result.Source.SourceUrl, UriKind.Absolute, out var parsedUri)) {
                     sourceUri = parsedUri;
                 }
-                var domain = ExtractDomainFromUrl(sourceUri);
+                var domain = GetHostFromUri(sourceUri);
 
                 // Check trust policy first (blocks take precedence over credibility scores)
                 var (isAllowed, tier, blockReason) = CheckDomainTrustPolicy(domain);

@@ -46,7 +46,7 @@ public class ResilienceServiceTests {
         var operation = () => Task.FromResult(expectedResult);
 
         // Act
-        var result = await _resilienceService.ExecuteAsync("AzureOpenAI", operation);
+        var result = await _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback: null, correlationId: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(expectedResult, result);
@@ -64,7 +64,7 @@ public class ResilienceServiceTests {
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<HttpRequestException>(
-            () => _resilienceService.ExecuteAsync("AzureOpenAI", operation));
+            () => _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback: null, correlationId: null, CancellationToken.None));
 
         Assert.Equal("Service unavailable", exception.Message);
         Assert.True(callCount > 1, "Should have retried the operation");
@@ -83,7 +83,7 @@ public class ResilienceServiceTests {
         // Trigger circuit breaker by failing multiple times
         for (int i = 0; i < 3; i++) {
             try {
-                await _resilienceService.ExecuteAsync("AzureOpenAI", operation);
+                await _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback: null, correlationId: null, CancellationToken.None);
             }
             catch {
                 // Expected failures to trigger circuit breaker
@@ -91,7 +91,7 @@ public class ResilienceServiceTests {
         }
 
         // Act - Circuit breaker should be open now
-        var result = await _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback);
+        var result = await _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback, correlationId: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(fallbackResult, result);
@@ -105,7 +105,7 @@ public class ResilienceServiceTests {
         var operation = () => Task.FromResult(expectedResult);
 
         // Act
-        var result = await _resilienceService.ExecuteAsync("AzureOpenAI", operation, null, correlationId);
+        var result = await _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback: null, correlationId: correlationId, CancellationToken.None);
 
         // Assert
         Assert.Equal(expectedResult, result);
@@ -127,7 +127,7 @@ public class ResilienceServiceTests {
         var operation = () => Task.FromResult(expectedResult);
 
         // Act
-        var result = await _resilienceService.ExecuteAsync("UnknownPolicy", operation);
+        var result = await _resilienceService.ExecuteAsync("UnknownPolicy", operation, fallback: null, correlationId: null, CancellationToken.None);
 
         // Assert
         Assert.Equal(expectedResult, result);
@@ -181,7 +181,7 @@ public class ResilienceServiceTests {
 
         // Act & Assert
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => _resilienceService.ExecuteAsync("AzureOpenAI", operation, cancellationToken: cts.Token));
+            () => _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback: null, correlationId: null, cancellationToken: cts.Token));
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public class ResilienceServiceTests {
         // Trigger circuit breaker
         for (int i = 0; i < 3; i++) {
             try {
-                await _resilienceService.ExecuteAsync("AzureOpenAI", operation);
+                await _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback: null, correlationId: null, CancellationToken.None);
             }
             catch {
                 // Expected failures
@@ -208,7 +208,7 @@ public class ResilienceServiceTests {
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback));
+            () => _resilienceService.ExecuteAsync("AzureOpenAI", operation, fallback, correlationId: null, CancellationToken.None));
 
         Assert.Equal("Fallback error", exception.Message);
     }

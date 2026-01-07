@@ -108,20 +108,24 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
     private HttpClient CreateHttpClient(string serviceName) {
         var settings = _settings.GetValueOrDefault(serviceName, new ConnectionPoolSettings());
 
-        try {
-            var handler = new SocketsHttpHandler {
-                MaxConnectionsPerServer = settings.MaxConnectionsPerEndpoint,
-                ConnectTimeout = settings.ConnectionTimeout,
-                PooledConnectionIdleTimeout = settings.ConnectionIdleTimeout,
-                PooledConnectionLifetime = settings.ConnectionLifetime,
-                UseCookies = false, // Disable cookies for better performance
-                AutomaticDecompression = settings.EnableCompression ?
-                    (DecompressionMethods.GZip | DecompressionMethods.Deflate) :
-                    DecompressionMethods.None
-            };
+        SocketsHttpHandler handler;
+        HttpClient? client = null;
 
-            var client = new HttpClient(handler, disposeHandler: true);
-            // handler ownership transferred to HttpClient, do not dispose here
+        try {
+            // Initialize handler inside try block to ensure proper disposal
+            handler = new SocketsHttpHandler();
+
+            handler.MaxConnectionsPerServer = settings.MaxConnectionsPerEndpoint;
+            handler.ConnectTimeout = settings.ConnectionTimeout;
+            handler.PooledConnectionIdleTimeout = settings.ConnectionIdleTimeout;
+            handler.PooledConnectionLifetime = settings.ConnectionLifetime;
+            handler.UseCookies = false; // Disable cookies for better performance
+            handler.AutomaticDecompression = settings.EnableCompression ?
+                (DecompressionMethods.GZip | DecompressionMethods.Deflate) :
+                DecompressionMethods.None;
+
+            client = new HttpClient(handler, disposeHandler: true);
+            // handler ownership transferred to HttpClient.
 
             client.Timeout = settings.ConnectionTimeout;
 
@@ -144,10 +148,14 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
 
             return client;
         }
-        catch {
-            // No need to dispose handler here, as it is only created inside try block and
-            // will not leak if exception is thrown before assignment to client.
-            throw;
+        catch (Exception ex) {
+            // If client was created, dispose it (which disposes handler).
+            // If client wasn't created, we must dispose handler manually.
+            if (client != null) {
+                client.Dispose();
+            }
+
+            throw new InvalidOperationException($"Failed to create HTTP client for service '{serviceName}'", ex);
         }
     }
 

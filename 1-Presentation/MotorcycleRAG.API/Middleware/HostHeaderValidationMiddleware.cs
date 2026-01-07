@@ -18,6 +18,7 @@ internal class HostHeaderValidationMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<HostHeaderValidationMiddleware> _logger;
     private readonly HashSet<string> _allowedHosts;
+    private static readonly char[] HostSeparators = { ',', ';' };
 
     /// <summary>
     /// Initializes a new instance of the HostHeaderValidationMiddleware
@@ -37,8 +38,8 @@ internal class HostHeaderValidationMiddleware
         var allowedHostsConfig = configuration["AllowedHosts"] ?? "localhost";
         _allowedHosts = new HashSet<string>(
             allowedHostsConfig
-                .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(h => h.Trim().ToLowerInvariant()),
+                .Split(HostSeparators, StringSplitOptions.RemoveEmptyEntries)
+                .Select(h => h.Trim().ToUpperInvariant()),
             StringComparer.OrdinalIgnoreCase
         );
 
@@ -165,7 +166,7 @@ internal class HostHeaderValidationMiddleware
         // Handle IPv6 addresses in brackets (RFC 3986)
         // Format: [address] or [address]:port
         // Example: [::1] or [2001:db8::1]:8080
-        if (hostValue.StartsWith("[", StringComparison.Ordinal))
+        if (hostValue.StartsWith('['))
         {
             var closingBracket = hostValue.IndexOf(']');
 
@@ -173,7 +174,7 @@ internal class HostHeaderValidationMiddleware
             // We require closingBracket > 0 to ensure there's at least one character between [ and ]
             // (position 0 would mean empty brackets [], which is invalid)
             return closingBracket > 0
-                ? hostValue.Substring(0, closingBracket + 1).ToLowerInvariant()
+                ? hostValue.Substring(0, closingBracket + 1).ToUpperInvariant()
                 : string.Empty;
         }
 
@@ -187,12 +188,12 @@ internal class HostHeaderValidationMiddleware
             var potentialPort = hostValue.Substring(colonIndex + 1);
             if (int.TryParse(potentialPort, out _))
             {
-                return hostValue.Substring(0, colonIndex).ToLowerInvariant();
+                return hostValue.Substring(0, colonIndex).ToUpperInvariant();
             }
         }
 
         // No port found, return the entire hostname
-        return hostValue.ToLowerInvariant();
+        return hostValue.ToUpperInvariant();
     }
 
     /// <summary>

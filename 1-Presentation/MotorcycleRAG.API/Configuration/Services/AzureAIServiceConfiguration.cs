@@ -1,0 +1,54 @@
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Persistence.Azure;
+using MotorcycleRAG.Persistence.HealthChecks;
+using MotorcycleRAG.API.Configuration;
+
+namespace MotorcycleRAG.API.Configuration.Services;
+
+/// <summary>
+/// Configuration for Azure AI services
+/// </summary>
+internal static class AzureAIServiceConfiguration
+{
+    /// <summary>
+    /// Configure Azure AI services
+    /// </summary>
+    internal static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        // Configure Azure AI settings with validation
+        services.Configure<AzureAIOptions>(configuration.GetSection("AzureAI"));
+        services.Configure<SearchOptions>(configuration.GetSection("Search"));
+        services.Configure<TelemetryOptions>(configuration.GetSection("ApplicationInsights"));
+
+        // Add options validation
+        services.AddSingleton<IValidateOptions<AzureAIOptions>, AzureAIConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<TelemetryOptions>, TelemetryConfigurationValidator>();
+
+        // Register Azure service clients (now implemented in Infrastructure layer)
+        services.AddAzureServices(configuration);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configure health checks for Azure AI services
+    /// </summary>
+    internal static IHealthChecksBuilder AddAzureAIHealthChecks(this IHealthChecksBuilder builder, IConfiguration configuration)
+    {
+        // Add dependency-specific health checks
+        builder.AddCheck<AzureSearchHealthCheck>("azure_ai_search");
+
+        builder.AddCheck<AzureOpenAIHealthCheck>("azure_openai");
+
+        builder.AddCheck<DocumentIntelligenceHealthCheck>("azure_document_intelligence");
+
+        // Add foundry health check
+        builder.AddCheck<AzureFoundryHealthCheck>("azure_foundry");
+
+        return builder;
+    }
+}

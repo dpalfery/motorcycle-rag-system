@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
+using System.Text.Json.Serialization;
 
 using System.Net.Mime;
 
@@ -163,6 +164,7 @@ public sealed class UsersAdminController : ControllerBase {
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
 public class SetUserEnabledRequest {
+    [JsonRequired]
     public bool IsEnabled { get; set; }
 }
 

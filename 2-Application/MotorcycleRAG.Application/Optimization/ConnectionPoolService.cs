@@ -108,52 +108,55 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
     private HttpClient CreateHttpClient(string serviceName) {
         var settings = _settings.GetValueOrDefault(serviceName, new ConnectionPoolSettings());
 
-        SocketsHttpHandler handler;
         HttpClient? client = null;
 
         try {
-            // Initialize handler inside try block to ensure proper disposal
-            handler = new SocketsHttpHandler();
+            SocketsHttpHandler? handler = null;
+            try
+            {
+                handler = new SocketsHttpHandler();
 
-            handler.MaxConnectionsPerServer = settings.MaxConnectionsPerEndpoint;
-            handler.ConnectTimeout = settings.ConnectionTimeout;
-            handler.PooledConnectionIdleTimeout = settings.ConnectionIdleTimeout;
-            handler.PooledConnectionLifetime = settings.ConnectionLifetime;
-            handler.UseCookies = false; // Disable cookies for better performance
-            handler.AutomaticDecompression = settings.EnableCompression ?
-                (DecompressionMethods.GZip | DecompressionMethods.Deflate) :
-                DecompressionMethods.None;
+                handler.MaxConnectionsPerServer = settings.MaxConnectionsPerEndpoint;
+                handler.ConnectTimeout = settings.ConnectionTimeout;
+                handler.PooledConnectionIdleTimeout = settings.ConnectionIdleTimeout;
+                handler.PooledConnectionLifetime = settings.ConnectionLifetime;
+                handler.UseCookies = false; // Disable cookies for better performance
+                handler.AutomaticDecompression = settings.EnableCompression ?
+                    (DecompressionMethods.GZip | DecompressionMethods.Deflate) :
+                    DecompressionMethods.None;
 
-            client = new HttpClient(handler, disposeHandler: true);
-            // handler ownership transferred to HttpClient.
+                client = new HttpClient(handler, disposeHandler: true);
+                // handler = null; // Ownership transferred to HttpClient (no longer needed)
 
-            client.Timeout = settings.ConnectionTimeout;
+                client.Timeout = settings.ConnectionTimeout;
 
-            // Add default headers
-            foreach (var header in settings.DefaultHeaders) {
-                client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+                // Add default headers
+                foreach (var header in settings.DefaultHeaders) {
+                    client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+                }
+
+                // Add user agent
+                client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MotorcycleRAG/1.0");
+
+                // Initialize statistics
+                _statistics.TryAdd(serviceName, new ConnectionPoolStatistics {
+                    ServiceName = serviceName,
+                    LastActivity = DateTime.UtcNow
+                });
+
+                _logger.LogInformation("Created HTTP client for service {ServiceName} with settings: MaxConnections={MaxConnections}, Timeout={Timeout}",
+                    serviceName, settings.MaxConnectionsPerEndpoint, settings.ConnectionTimeout);
+
+                return client;
             }
-
-            // Add user agent
-            client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MotorcycleRAG/1.0");
-
-            // Initialize statistics
-            _statistics.TryAdd(serviceName, new ConnectionPoolStatistics {
-                ServiceName = serviceName,
-                LastActivity = DateTime.UtcNow
-            });
-
-            _logger.LogInformation("Created HTTP client for service {ServiceName} with settings: MaxConnections={MaxConnections}, Timeout={Timeout}",
-                serviceName, settings.MaxConnectionsPerEndpoint, settings.ConnectionTimeout);
-
-            return client;
+            catch
+            {
+                handler?.Dispose();
+                throw;
+            }
         }
         catch (Exception ex) {
-            // If client was created, dispose it (which disposes handler).
-            // If client wasn't created, we must dispose handler manually.
-            if (client != null) {
-                client.Dispose();
-            }
+            client?.Dispose();
 
             throw new InvalidOperationException($"Failed to create HTTP client for service '{serviceName}'", ex);
         }

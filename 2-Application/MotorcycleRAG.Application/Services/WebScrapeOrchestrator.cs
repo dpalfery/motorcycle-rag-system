@@ -320,14 +320,15 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         }
         finally {
             // Clean up cancellation token source with safe disposal
-            // CA2000: Using proper dispose pattern with try-catch for safe disposal
-            if (_activeScrapes.TryRemove(runId, out var cts)) {
-                try {
-                    cts?.Dispose();
-                }
-                catch (Exception ex) {
-                    _logger.LogWarning(ex, "Error disposing CancellationTokenSource for run {RunId}", runId);
-                }
+            // CA2000: Using proper dispose pattern with try-finally for safe disposal
+            CancellationTokenSource? cts = null;
+            try
+            {
+                _activeScrapes.TryRemove(runId, out cts);
+            }
+            finally
+            {
+                cts?.Dispose();
             }
         }
     }
@@ -461,11 +462,16 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     private Uri ExtractHostnameFromUri(Uri url) {
         try {
             ArgumentNullException.ThrowIfNull(url);
-            return new Uri($"http://{url.Host}");
+            return new Uri($"{url.Scheme}://{url.Host}");
         }
         catch (Exception ex) {
             _logger.LogWarning(ex, "Error extracting hostname from URI: {Uri}", url);
-            return new Uri("http://localhost");
+            // Fallback: return the original URI's host with its scheme, or throw if not possible
+            if (!string.IsNullOrEmpty(url?.Host) && !string.IsNullOrEmpty(url?.Scheme))
+            {
+                return new Uri($"{url.Scheme}://{url.Host}");
+            }
+            throw;
         }
     }
 

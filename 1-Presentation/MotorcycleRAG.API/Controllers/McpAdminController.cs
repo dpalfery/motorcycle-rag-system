@@ -157,7 +157,7 @@ public sealed class McpAdminController : ControllerBase {
                 ToolId = request.ToolId,
                 Name = request.Name,
                 Description = request.Description,
-                ServerUrl = !string.IsNullOrWhiteSpace(request.ServerUrl) ? new Uri(request.ServerUrl!) : null,
+                ServerUrl = request.ServerUrl != null ? new Uri(request.ServerUrl) : throw new ArgumentNullException(nameof(request)),
                 ToolType = request.ToolType,
                 Version = request.Version,
                 IsEnabled = request.IsEnabled ?? true,

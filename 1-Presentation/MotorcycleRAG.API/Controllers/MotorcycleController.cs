@@ -4,7 +4,6 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using System.Net.Mime;
 using System.Diagnostics;
-using Microsoft.AspNetCore.Http.Extensions;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -21,21 +20,18 @@ public sealed class MotorcycleController : ControllerBase {
     private readonly IPlanPolicyService _planPolicyService;
     private readonly IUsageTrackingService _usageTrackingService;
     private readonly ILogger<MotorcycleController> _logger;
-    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public MotorcycleController(
         IMotorcycleRagService ragService,
         ICurrentUserService currentUserService,
         IPlanPolicyService planPolicyService,
         IUsageTrackingService usageTrackingService,
-        ILogger<MotorcycleController> logger,
-        IHttpContextAccessor httpContextAccessor) {
+        ILogger<MotorcycleController> logger) {
         _ragService = ragService ?? throw new ArgumentNullException(nameof(ragService));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         _planPolicyService = planPolicyService ?? throw new ArgumentNullException(nameof(planPolicyService));
         _usageTrackingService = usageTrackingService ?? throw new ArgumentNullException(nameof(usageTrackingService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
     }
 
     /// <summary>
@@ -201,7 +197,8 @@ public sealed class MotorcycleController : ControllerBase {
     /// Extracts User-Agent from request headers safely
     /// </summary>
     private string GetRequestUserAgent() {
-        return _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString() ?? string.Empty;
+        // Access User-Agent through the HttpContext which is properly managed by ASP.NET Core
+        return HttpContext?.Request?.Headers.UserAgent.ToString() ?? string.Empty;
     }
 
     /// <summary>

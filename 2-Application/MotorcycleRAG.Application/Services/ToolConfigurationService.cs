@@ -316,7 +316,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         }
 
         // Validate URL with SSRF protection
-        if (!IsValidMcpServerUrl(tool.ServerUrl?.ToString() ?? string.Empty)) {
+        if (!IsValidMcpServerUrl(tool.ServerUrl)) {
             _logger.LogWarning("Tool {ToolId} has invalid or disallowed server URL: {ServerUrl}",
                 tool.ToolId, tool.ServerUrl);
             return false;
@@ -392,21 +392,6 @@ public class ToolConfigurationService : IToolConfigurationService {
             _logger.LogError(ex, "Error deleting MCP tool {ToolId}", toolId);
             throw new InvalidOperationException($"Error deleting MCP tool {toolId}", ex);
         }
-    }
-
-    /// <summary>
-    /// Validate MCP server URL to prevent SSRF attacks.
-    /// OWASP A01:2021 - Injection / SSRF Protection.
-    /// SC-002: Development ports (8000-8009) restricted to localhost only.
-    /// </summary>
-    private bool IsValidMcpServerUrl(string serverUrl) {
-        if (string.IsNullOrWhiteSpace(serverUrl))
-            return false;
-
-        if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri))
-            return false;
-
-        return IsValidMcpServerUrl(uri);
     }
 
     /// <summary>

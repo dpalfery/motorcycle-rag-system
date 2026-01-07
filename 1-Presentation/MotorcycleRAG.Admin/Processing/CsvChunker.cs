@@ -4,70 +4,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Globalization;
 using System.Text;
+using MotorcycleRAG.Admin.Models.Processing;
 
 namespace MotorcycleRAG.Admin.Processing;
-
-/// <summary>
-/// Result of CSV chunking operation
-/// </summary>
-public class CsvChunkingResult
-{
-    private readonly List<CsvChunk> _chunks = new();
-    private readonly List<string> _errors = new();
-    private readonly List<string> _warnings = new();
-
-    public bool Success { get; set; }
-    public IReadOnlyList<CsvChunk> Chunks => _chunks.AsReadOnly();
-    public CsvMetadata Metadata { get; set; } = new();
-    public IReadOnlyList<string> Errors => _errors.AsReadOnly();
-    public IReadOnlyList<string> Warnings => _warnings.AsReadOnly();
-
-    // Internal methods for modification
-    internal void AddChunk(CsvChunk chunk) => _chunks.Add(chunk);
-    internal void AddError(string error) => _errors.Add(error);
-    internal void AddWarning(string warning) => _warnings.Add(warning);
-}
-
-/// <summary>
-/// Metadata extracted from CSV
-/// </summary>
-public class CsvMetadata
-{
-    public int TotalRows { get; set; }
-    public int ColumnCount { get; set; }
-    public IReadOnlyList<string> ColumnNames { get; private set; } = new List<string>().AsReadOnly();
-    public string Delimiter { get; set; } = ",";
-    public bool HasHeader { get; set; } = true;
-
-    // Internal method for setting column names during initialization
-    internal void SetColumnNames(List<string> columnNames)
-    {
-        ColumnNames = columnNames.AsReadOnly();
-    }
-}
-
-/// <summary>
-/// A chunk of CSV data
-/// </summary>
-public class CsvChunk
-{
-    public int ChunkIndex { get; set; }
-    public IReadOnlyList<Dictionary<string, object>> Rows { get; private set; } = new List<Dictionary<string, object>>().AsReadOnly();
-    public int StartRowNumber { get; set; }
-    public int EndRowNumber { get; set; }
-    public IReadOnlyDictionary<string, object> Metadata { get; private set; } = new Dictionary<string, object>().AsReadOnly();
-
-    // Internal methods for setting properties
-    internal void SetRows(List<Dictionary<string, object>> rows)
-    {
-        Rows = rows.AsReadOnly();
-    }
-
-    internal void SetMetadata(Dictionary<string, object> metadata)
-    {
-        Metadata = metadata.AsReadOnly();
-    }
-}
 
 /// <summary>
 /// Service for chunking CSV files for motorcycle specification data
@@ -166,12 +105,12 @@ public class CsvChunker
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var row = new Dictionary<string, object>();
-                    
+
                     for (int i = 0; i < headers.Count; i++)
                     {
                         var columnName = headers[i];
                         var value = csv.GetField(i);
-                        
+
                         // Try to parse as appropriate type
                         row[columnName] = ParseValue(value);
                     }
@@ -362,22 +301,3 @@ public class CsvChunker
         return result;
     }
 }
-
-/// <summary>
-/// Result of validation operation
-/// </summary>
-public class ValidationResult
-{
-    private readonly List<string> _errors = new();
-    private readonly List<string> _warnings = new();
-
-    public bool IsValid { get; set; }
-    public IReadOnlyList<string> Errors => _errors.AsReadOnly();
-    public IReadOnlyList<string> Warnings => _warnings.AsReadOnly();
-
-    // Internal methods for modification
-    internal void AddError(string error) => _errors.Add(error);
-    internal void AddWarning(string warning) => _warnings.Add(warning);
-}
-
-

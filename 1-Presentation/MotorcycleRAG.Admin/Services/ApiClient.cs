@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using MotorcycleRAG.Admin.Models.Api;
 using MotorcycleRAG.Admin.Services.Dtos;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using Polly;
@@ -111,7 +112,7 @@ public class ApiClient {
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var streams = new List<FileStream>();  // Track all opened streams
+        var streams = new List<FileStream>();
 
         try
         {
@@ -119,12 +120,11 @@ public class ApiClient {
 
             foreach (var filePath in filePaths)
             {
-                // Validate before opening
                 if (!File.Exists(filePath))
                     throw new FileNotFoundException($"File not found: {filePath}");
 
                 var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
-                streams.Add(fileStream); // Track for cleanup
+                streams.Add(fileStream);
                 
                 var streamContent = new StreamContent(fileStream);
                 streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
@@ -141,7 +141,7 @@ public class ApiClient {
             var batchResult = await response.Content.ReadFromJsonAsync<BatchFileUploadResult>(_jsonOptions, cancellationToken).ConfigureAwait(false);
             UploadResultValidator.ValidateBatchFileUploadResult(batchResult);
             return batchResult!;
-        }  // <-- content disposed here AFTER PostAsync completes
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading batch files");
@@ -149,7 +149,6 @@ public class ApiClient {
         }
         finally
         {
-            // Ensure all streams are disposed even on exception
             foreach (var stream in streams)
             {
                 stream?.Dispose();
@@ -486,57 +485,3 @@ public class ApiClient {
 
     #endregion
 }
-
-/// <summary>
-/// Response for cancel pipeline operation
-/// </summary>
-public class CancelPipelineResponse {
-    public string ExecutionId { get; set; } = string.Empty;
-    public bool Cancelled { get; set; }
-}
-
-/// <summary>
-/// Response for get pipeline status operation
-/// </summary>
-public class PipelineStatusResponse {
-    public string ExecutionId { get; set; } = string.Empty;
-    public PipelineStatus Status { get; set; }
-}
-
-/// <summary>
-/// DTO for user information
-/// </summary>
-public class UserDto {
-    public string UserId { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty;
-    public bool IsEnabled { get; set; }
-    public string PlanSku { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-    public DateTime? LastSignInAt { get; set; }
-}
-
-/// <summary>
-/// Pipeline execution information
-/// </summary>
-public class PipelineExecution {
-    public string ExecutionId { get; set; } = string.Empty;
-    public string PipelineType { get; set; } = string.Empty;
-    public PipelineStatus Status { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime? EndTime { get; set; }
-    public string CreatedBy { get; set; } = string.Empty;
-    public Collection<string> Errors { get; } = new();
-    public Collection<string> Warnings { get; } = new();
-}
-
-/// <summary>
-/// Upload constraints information
-/// </summary>
-public class UploadConstraints {
-    public long MaxFileSizeBytes { get; set; }
-    public int MaxFilesPerBatch { get; set; }
-    public Collection<string> AllowedFileTypes { get; } = new();
-}
-
-

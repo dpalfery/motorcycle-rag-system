@@ -419,16 +419,17 @@ Return only the search terms, one per line, without explanations.
     /// <summary>
     /// Extract host from URI
     /// </summary>
-    private string GetHostFromUri(Uri? uri) {
+    private Uri? GetHostFromUri(Uri? uri) {
         if (uri == null)
-            return string.Empty;
+            return null;
 
         try {
-            return uri.Host.ToUpperInvariant();
+            // Return a new Uri with only the scheme and host
+            return new Uri($"{uri.Scheme}://{uri.Host}");
         }
         catch (Exception ex) {
             _logger.LogWarning(ex, "Failed to extract host from URI: {Uri}", uri);
-            return string.Empty;
+            return null;
         }
     }
 
@@ -475,7 +476,7 @@ Return only the search terms, one per line, without explanations.
                 if (Uri.TryCreate(result.Source.SourceUrl, UriKind.Absolute, out var parsedUri)) {
                     sourceUri = parsedUri;
                 }
-                var domain = GetHostFromUri(sourceUri);
+                var domain = GetHostFromUri(sourceUri)?.Host ?? string.Empty;
 
                 // Check trust policy first (blocks take precedence over credibility scores)
                 var (isAllowed, tier, blockReason) = CheckDomainTrustPolicy(domain);

@@ -1,20 +1,13 @@
 namespace MotorcycleRAG.Admin;
 
-public partial class MainPage : ContentPage {
-    private int _count;
-
-    public MainPage()
+public partial class MainPage : ContentPage
+{
+    protected override async void OnAppearing()
     {
-        InitializeComponent();
-    }
+        base.OnAppearing();
 
-    private void OnCounterClicked(object? sender, EventArgs e)
-    {
-        _count++;
-
-        CounterBtn.Text = _count == 1 ? $"Clicked {_count} time" : $"Clicked {_count} times";
-
-        SemanticScreenReader.Announce(CounterBtn.Text);
+        // Navigate to Dashboard page
+        await Shell.Current.GoToAsync("///Dashboard");
     }
 }
 

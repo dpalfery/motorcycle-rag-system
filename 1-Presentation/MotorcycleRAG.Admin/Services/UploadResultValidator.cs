@@ -6,7 +6,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// Validator for file upload API responses
 /// Ensures all required fields are present and in valid format
 /// </summary>
-public static class UploadResultValidator {
+internal static class UploadResultValidator {
     /// <summary>
     /// Validates the response from a single file upload operation
     /// </summary>

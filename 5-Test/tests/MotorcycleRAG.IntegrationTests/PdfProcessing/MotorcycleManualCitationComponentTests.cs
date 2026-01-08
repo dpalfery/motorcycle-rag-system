@@ -44,6 +44,20 @@ public class MotorcycleManualCitationComponentTests {
         var mockCacheService = new Mock<IQueryCacheService>();
         var mockSearchIndexClient = new Mock<Azure.Search.Documents.Indexes.SearchIndexClient>();
 
+        // Create real instances of the service classes (they are concrete, not interfaces)
+        var mockCitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.Citations.ClaimCitationService>>();
+        var mockRefinementLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService>>();
+        var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
+
+        var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
+            mockOpenAIClient.Object,
+            mockCitationLogger.Object);
+        var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
+            mockRefinementLogger.Object);
+        var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
+            mockLimitationLogger.Object);
+        var costCalculator = new MotorcycleRAG.Application.Services.Metrics.QueryCostCalculator();
+
         // Create deterministic DocumentAnalysisResult with locator metadata
         var analysisResult = CreateDeterministicDocumentAnalysisResult();
 
@@ -140,7 +154,11 @@ public class MotorcycleManualCitationComponentTests {
             mockTelemetryService.Object,
             mockCacheService.Object,
             cacheConfig,
-            mockOpenAIClient.Object);
+            mockOpenAIClient.Object,
+            citationService,
+            refinementService,
+            limitationAnalyzer,
+            costCalculator);
 
         // Use reflection to access private method for testing
         var createLocatorMethod = typeof(MotorcycleRagService)

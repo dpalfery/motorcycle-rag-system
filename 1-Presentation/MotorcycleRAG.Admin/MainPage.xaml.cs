@@ -1,6 +1,6 @@
 namespace MotorcycleRAG.Admin;
 
-public partial class MainPage : ContentPage
+internal partial class MainPage : ContentPage
 {
     protected override async void OnAppearing()
     {

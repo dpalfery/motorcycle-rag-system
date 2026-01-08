@@ -32,7 +32,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
         _msalClient = msalClient ??
             PublicClientApplicationBuilder
                 .Create(clientId)
-                .WithAuthority(authority)
+                .WithAuthority(new Uri(authority))
                 .WithDefaultRedirectUri()
                 .Build();
     }

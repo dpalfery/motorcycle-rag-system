@@ -7,7 +7,7 @@ namespace MotorcycleRAG.Admin.Utilities;
 /// Utility for URL validation with SSRF protection.
 /// Blocks loopback addresses, private IP ranges, and reserved addresses.
 /// </summary>
-public static class UrlValidator
+internal static class UrlValidator
 {
     private static readonly int[] StandardPorts = { 80, 443 };
     private static readonly int[] DevelopmentPorts = { 8000, 8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009 };

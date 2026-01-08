@@ -48,7 +48,33 @@ internal static class ServiceConfiguration {
     internal static IServiceCollection AddCoreServices(this IServiceCollection services) {
         // Register core service interfaces to concrete implementations in Application layer
         services.AddScoped<IMotorcycleRagService, MotorcycleRAG.Application.Services.MotorcycleRagService>();
-        services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Application.Services.AgentOrchestrator>();
+        
+        // Register extracted services for AgentOrchestrator
+        services.AddScoped<MotorcycleRAG.Application.Services.Mcp.McpToolManager>();
+        services.AddScoped<MotorcycleRAG.Application.Services.Telemetry.DegradedModeTracker>();
+        services.AddScoped<MotorcycleRAG.Application.Services.SearchResultFusionService>();
+        
+        // Register AgentOrchestrator with its dependencies
+        services.AddScoped<IAgentOrchestrator>(provider => {
+            var agents = provider.GetRequiredService<IEnumerable<MotorcycleRAG.Contracts.Interfaces.ISearchAgent>>();
+            var openAIClient = provider.GetRequiredService<MotorcycleRAG.Contracts.Interfaces.IAzureOpenAIClient>();
+            var searchConfig = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MotorcycleRAG.Core.Options.SearchOptions>>();
+            var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<MotorcycleRAG.Application.Services.AgentOrchestrator>>();
+            var mcpToolManager = provider.GetRequiredService<MotorcycleRAG.Application.Services.Mcp.McpToolManager>();
+            var degradedModeTracker = provider.GetRequiredService<MotorcycleRAG.Application.Services.Telemetry.DegradedModeTracker>();
+            var resultFusionService = provider.GetRequiredService<MotorcycleRAG.Application.Services.SearchResultFusionService>();
+            var correlationService = provider.GetRequiredService<MotorcycleRAG.Contracts.Interfaces.ICorrelationService>();
+            
+            return new MotorcycleRAG.Application.Services.AgentOrchestrator(
+                agents,
+                openAIClient,
+                searchConfig,
+                logger,
+                mcpToolManager,
+                degradedModeTracker,
+                resultFusionService,
+                correlationService);
+        });
 
         // Add Application Insights TelemetryClient
         services.AddApplicationInsightsTelemetry();
@@ -65,6 +91,13 @@ internal static class ServiceConfiguration {
         // Note: QueryPlannerAgent is registered separately to avoid circular dependency
         services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.VectorSearchAgent>();
 
+        // Register extracted web search services
+        services.AddScoped<MotorcycleRAG.Application.Services.Web.WebSearchRateLimiter>();
+        services.AddScoped<MotorcycleRAG.Application.Services.Web.WebSearchCache>();
+        services.AddScoped<MotorcycleRAG.Application.Services.Web.WebContentExtractor>();
+        services.AddScoped<MotorcycleRAG.Application.Services.Web.WebSearchTermEnhancer>();
+        services.AddScoped<MotorcycleRAG.Application.Services.Web.WebSourceValidator>();
+
         // Register WebSearchAgent with optional IWebTrustPolicyStore for trust tier filtering
         services.AddScoped<ISearchAgent>(provider => {
             var httpClient = provider.GetRequiredService<HttpClient>();
@@ -72,8 +105,13 @@ internal static class ServiceConfiguration {
             var config = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MotorcycleRAG.Core.Options.WebSearchOptions>>();
             var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<MotorcycleRAG.Application.Agents.WebSearchAgent>>();
             var trustPolicyStore = provider.GetService<MotorcycleRAG.Contracts.Interfaces.IWebTrustPolicyStore>();
+            var rateLimiter = provider.GetRequiredService<MotorcycleRAG.Application.Services.Web.WebSearchRateLimiter>();
+            var cache = provider.GetRequiredService<MotorcycleRAG.Application.Services.Web.WebSearchCache>();
+            var extractor = provider.GetRequiredService<MotorcycleRAG.Application.Services.Web.WebContentExtractor>();
+            var termEnhancer = provider.GetRequiredService<MotorcycleRAG.Application.Services.Web.WebSearchTermEnhancer>();
+            var validator = provider.GetRequiredService<MotorcycleRAG.Application.Services.Web.WebSourceValidator>();
 
-            return new MotorcycleRAG.Application.Agents.WebSearchAgent(httpClient, openAIClient, config, logger, trustPolicyStore);
+            return new MotorcycleRAG.Application.Agents.WebSearchAgent(httpClient, config, logger, rateLimiter, cache, extractor, termEnhancer, validator);
         });
 
         services.AddScoped<IQueryPlannerAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();

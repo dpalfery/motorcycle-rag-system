@@ -7,7 +7,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for the admin dashboard page.
 /// Handles navigation commands and displays system overview information.
 /// </summary>
-public class DashboardViewModel {
+internal class DashboardViewModel {
     private readonly INavigationService _navigationService;
 
     /// <summary>Command to navigate to the upload page</summary>

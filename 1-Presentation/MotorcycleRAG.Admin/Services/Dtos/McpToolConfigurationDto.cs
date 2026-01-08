@@ -3,7 +3,7 @@ namespace MotorcycleRAG.Admin.Services.Dtos;
 /// <summary>
 /// DTO for MCP tool configuration (from API)
 /// </summary>
-public class McpToolConfigurationDto
+internal class McpToolConfigurationDto
 {
     public Guid Id { get; set; }
     public string ToolId { get; set; } = string.Empty;

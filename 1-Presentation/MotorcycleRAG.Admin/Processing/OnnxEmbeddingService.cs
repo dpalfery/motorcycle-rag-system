@@ -8,7 +8,7 @@ namespace MotorcycleRAG.Admin.Processing;
 /// <summary>
 /// Result of embedding generation
 /// </summary>
-public class EmbeddingResult
+internal class EmbeddingResult
 {
     public bool Success { get; set; }
     public float[] Embedding { get; set; } = Array.Empty<float>();
@@ -20,7 +20,7 @@ public class EmbeddingResult
 /// Service for generating embeddings using ONNX Runtime
 /// Supports sentence-transformers models like all-MiniLM-L6-v2
 /// </summary>
-public class OnnxEmbeddingService : IDisposable
+internal class OnnxEmbeddingService : IDisposable
 {
     private readonly InferenceSession _session;
     private readonly string _modelPath;
@@ -247,7 +247,7 @@ public class OnnxEmbeddingService : IDisposable
 /// <summary>
 /// Factory for creating ONNX embedding services
 /// </summary>
-public static class OnnxEmbeddingServiceFactory
+internal static class OnnxEmbeddingServiceFactory
 {
     /// <summary>
     /// Creates an embedding service with the default model

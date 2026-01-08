@@ -2,6 +2,8 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Agents;
+using MotorcycleRAG.Application.Services.Mcp;
+using MotorcycleRAG.Application.Services.Telemetry;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
@@ -18,57 +20,45 @@ namespace MotorcycleRAG.Application.Services;
 public sealed class AgentOrchestrator : IAgentOrchestrator {
     private readonly IReadOnlyList<ISearchAgent> _agents;
     private readonly IAzureOpenAIClient _openAIClient;
-    private readonly SearchOptions _searchConfig;
     private readonly ILogger<AgentOrchestrator> _logger;
     private readonly AgentFrameworkAdapter _frameworkAdapter;
     private readonly AgentState _executionState;
-    private readonly IMcpConfigurationProvider _mcpConfigProvider;
+    private readonly McpToolManager _mcpToolManager;
+    private readonly DegradedModeTracker _degradedModeTracker;
+    private readonly SearchResultFusionService _resultFusionService;
     private readonly ICorrelationService _correlationService;
-    private readonly ITelemetryService _telemetryService;
-    private McpToolConfiguration[]? _cachedEnabledTools;
-    private DateTime _lastToolRefresh = DateTime.MinValue;
-    private readonly TimeSpan _toolRefreshInterval = TimeSpan.FromMinutes(5);
-
-    /// <summary>
-    /// Tracks which sources have succeeded or failed during orchestration
-    /// </summary>
-    private class SourceExecutionStatus {
-        public SearchAgentType AgentType { get; set; }
-        public bool Succeeded { get; set; }
-        public int ResultsCount { get; set; }
-        public TimeSpan Duration { get; set; }
-        public string? ErrorMessage { get; set; }
-    }
 
     public AgentOrchestrator(
         IEnumerable<ISearchAgent> agents,
         IAzureOpenAIClient openAIClient,
         IOptions<SearchOptions> searchConfig,
         ILogger<AgentOrchestrator> logger,
-        IMcpConfigurationProvider mcpConfigProvider,
-        ICorrelationService correlationService,
-        ITelemetryService telemetryService) {
+        McpToolManager mcpToolManager,
+        DegradedModeTracker degradedModeTracker,
+        SearchResultFusionService resultFusionService,
+        ICorrelationService correlationService) {
         ArgumentNullException.ThrowIfNull(agents);
         ArgumentNullException.ThrowIfNull(openAIClient);
         ArgumentNullException.ThrowIfNull(searchConfig);
         ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(mcpConfigProvider);
+        ArgumentNullException.ThrowIfNull(mcpToolManager);
+        ArgumentNullException.ThrowIfNull(degradedModeTracker);
+        ArgumentNullException.ThrowIfNull(resultFusionService);
         ArgumentNullException.ThrowIfNull(correlationService);
-        ArgumentNullException.ThrowIfNull(telemetryService);
 
         _agents = agents.ToList();
         _openAIClient = openAIClient;
-        _searchConfig = searchConfig.Value;
         _logger = logger;
-        _mcpConfigProvider = mcpConfigProvider;
+        _mcpToolManager = mcpToolManager;
+        _degradedModeTracker = degradedModeTracker;
+        _resultFusionService = resultFusionService;
         _correlationService = correlationService;
-        _telemetryService = telemetryService;
 
         _frameworkAdapter = new AgentFrameworkAdapter(logger);
         _executionState = new AgentState();
 
         InitializeFrameworkAdapter();
-        InitializeMcpTools();
+        _ = InitializeMcpTools();
     }
 
     /// <summary>
@@ -94,10 +84,9 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
     /// <summary>
     /// Initialize MCP tool configurations
     /// </summary>
-    private void InitializeMcpTools() {
+    private async Task InitializeMcpTools() {
         try {
-            // Load enabled tools on startup
-            CacheMcpToolsAsync().GetAwaiter().GetResult();
+            await _mcpToolManager.InitializeAsync();
             _logger.LogInformation("MCP tools initialized successfully");
         }
         catch (Exception ex) {
@@ -106,32 +95,10 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
     }
 
     /// <summary>
-    /// Cache enabled MCP tools with refresh interval
-    /// </summary>
-    private async Task CacheMcpToolsAsync() {
-        var now = DateTime.UtcNow;
-        if (_lastToolRefresh != DateTime.MinValue && (now - _lastToolRefresh) < _toolRefreshInterval) {
-            // Use cached tools if refresh interval hasn't elapsed
-            return;
-        }
-
-        try {
-            _cachedEnabledTools = await _mcpConfigProvider.GetEnabledToolsAsync();
-            _lastToolRefresh = now;
-            _logger.LogDebug("Cached {ToolCount} enabled MCP tools", _cachedEnabledTools.Length);
-        }
-        catch (Exception ex) {
-            _logger.LogWarning(ex, "Failed to load MCP tools - orchestration will continue with builtin agents only");
-            _cachedEnabledTools ??= Array.Empty<McpToolConfiguration>();
-        }
-    }
-
-    /// <summary>
     /// Get enabled MCP tools for current execution
     /// </summary>
     private async Task<McpToolConfiguration[]> GetEnabledMcpToolsAsync() {
-        await CacheMcpToolsAsync();
-        return _cachedEnabledTools ?? Array.Empty<McpToolConfiguration>();
+        return await _mcpToolManager.GetEnabledToolsAsync();
     }
 
     #region IAgentOrchestrator Implementation
@@ -298,10 +265,9 @@ Answer in markdown:
         var degradedMode = sourceStatuses.Any(s => !s.Succeeded);
         var failedSources = sourceStatuses.Where(s => !s.Succeeded).ToList();
         var successfulSources = sourceStatuses.Where(s => s.Succeeded).ToList();
-        var correlationId = _correlationService.GetOrCreateCorrelationId();
 
         if (degradedMode) {
-            TrackDegradedMode(correlationId, failedSources, successfulSources, stopwatch.Elapsed, aggregatedResults.Count);
+            _degradedModeTracker.TrackSearchExecution(failedSources.Concat(successfulSources).ToList(), stopwatch.Elapsed, aggregatedResults.Count);
         }
 
         // Update search pattern metrics
@@ -309,22 +275,7 @@ Answer in markdown:
             UpdateQueryContextMetrics(context, executionMetrics, degradedMode, failedSources, successfulSources);
         }
 
-        return await FuseAndRankResultsAsync(aggregatedResults, query, searchParameters, degradedMode);
-    }
-
-    private void TrackDegradedMode(string correlationId, List<SourceExecutionStatus> failedSources, List<SourceExecutionStatus> successfulSources, TimeSpan totalDuration, int totalResults) {
-        var failedSourceList = failedSources.Select(s => s.AgentType.ToString()).ToList();
-        var availableSourceList = successfulSources.Select(s => s.AgentType.ToString()).ToList();
-
-        _telemetryService.TrackDegradedMode(correlationId, failedSourceList, availableSourceList, totalDuration, totalResults);
-
-        foreach (var failedSource in failedSources) {
-            _telemetryService.TrackSourceFailure(
-                correlationId,
-                failedSource.AgentType.ToString(),
-                failedSource.ErrorMessage ?? "Unknown error",
-                failedSource.Duration);
-        }
+        return await _resultFusionService.FuseAndRankResultsAsync(aggregatedResults, query, searchParameters, degradedMode);
     }
 
     private static void UpdateQueryContextMetrics(
@@ -364,80 +315,7 @@ Answer in markdown:
 
     #region Result Fusion & Ranking
 
-    /// <summary>
-    /// Fuses and ranks search results from multiple agents.
-    /// When degraded mode is active, adds metadata indicating which sources were unavailable.
-    /// </summary>
-    private async Task<SearchResult[]> FuseAndRankResultsAsync(List<SearchResult> results, string query, SearchParameters options, bool degradedMode) {
-        if (results.Count == 0) {
-            return Array.Empty<SearchResult>();
-        }
-
-        // Remove duplicates.
-        var deduped = results.GroupBy(r => string.IsNullOrWhiteSpace(r.Source.DocumentId) ? r.Id : r.Source.DocumentId)
-                              .Select(g => g.OrderByDescending(r => r.RelevanceScore).ToArray()[0])
-                              .ToList();
-
-        // Optionally apply semantic ranking.
-        if (_searchConfig.EnableSemanticRanking) {
-            try {
-                deduped = await ApplySemanticRankingAsync(query, deduped);
-            }
-            catch (Exception ex) {
-                _logger.LogWarning(ex, "Semantic ranking failed – falling back to relevance score only");
-                deduped = deduped.OrderByDescending(r => r.RelevanceScore).ToList();
-            }
-        }
-        else {
-            deduped = deduped.OrderByDescending(r => r.RelevanceScore).ToList();
-        }
-
-        var finalResults = deduped.Take(options.MaxResults).ToArray();
-
-        // Add degraded mode metadata to results
-        if (degradedMode && finalResults.Length > 0) {
-            foreach (var metadata in finalResults.Select(r => r.Metadata)) {
-                metadata["DegradedMode"] = true;
-                metadata["Note"] = "Results from partial sources due to unavailable service(s).";
-            }
-        }
-
-        return finalResults;
-    }
-
-    private async Task<List<SearchResult>> ApplySemanticRankingAsync(string query, List<SearchResult> results) {
-        // Generate embedding for the query.
-        var queryEmbedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", query, CancellationToken.None);
-
-        // Generate embeddings for each candidate result.
-        var contents = results.Select(r => Truncate(r.Content, 1024)).ToArray();
-        var resultEmbeddings = await _openAIClient.GetEmbeddingsAsync("text-embedding-3-large", contents, CancellationToken.None);
-
-        var scored = new List<(SearchResult Result, double Score)>();
-        for (var i = 0; i < results.Count; i++) {
-            var semanticScore = CosineSimilarity(queryEmbedding, resultEmbeddings[i]);
-            var blendedScore = (results[i].RelevanceScore * 0.7) + (semanticScore * 0.3);
-            scored.Add((results[i], blendedScore));
-        }
-
-        return scored.OrderByDescending(s => s.Score).Select(s => s.Result).ToList();
-    }
-
-    private static double CosineSimilarity(float[] v1, float[] v2) {
-        if (v1.Length != v2.Length)
-            return 0;
-
-        double dot = 0;
-        double mag1 = 0;
-        double mag2 = 0;
-        for (int i = 0; i < v1.Length; i++) {
-            dot += v1[i] * v2[i];
-            mag1 += Math.Pow(v1[i], 2);
-            mag2 += Math.Pow(v2[i], 2);
-        }
-
-        return dot / (Math.Sqrt(mag1) * Math.Sqrt(mag2) + 1e-8);
-    }
+    // Result fusion is now handled by SearchResultFusionService
 
     #endregion
 
@@ -481,104 +359,3 @@ Answer in markdown:
     #endregion
 }
 
-public sealed class SearchResultFusionService
-{
-    private readonly SearchOptions _searchConfig;
-    private readonly IAzureOpenAIClient _openAIClient;
-    private readonly ILogger<SearchResultFusionService> _logger;
-
-    public SearchResultFusionService(
-        SearchOptions searchConfig,
-        IAzureOpenAIClient openAIClient,
-        ILogger<SearchResultFusionService> logger)
-    {
-        _searchConfig = searchConfig;
-        _openAIClient = openAIClient;
-        _logger = logger;
-    }
-
-    public async Task<SearchResult[]> FuseAndRankResultsAsync(
-        Collection<SearchResult> results,
-        string query,
-        SearchParameters options,
-        bool degradedMode)
-    {
-        ArgumentNullException.ThrowIfNull(results);
-        ArgumentNullException.ThrowIfNull(options);
-
-        if (results.Count == 0)
-        {
-            return Array.Empty<SearchResult>();
-        }
-
-        var deduped = results.GroupBy(r => string.IsNullOrWhiteSpace(r.Source.DocumentId) ? r.Id : r.Source.DocumentId)
-                             .Select(g => g.OrderByDescending(r => r.RelevanceScore).ToArray()[0])
-                             .ToList();
-
-        if (_searchConfig.EnableSemanticRanking)
-        {
-            try
-            {
-                deduped = (await ApplySemanticRankingAsync(query, new Collection<SearchResult>(deduped))).ToList();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Semantic ranking failed – falling back to relevance score only");
-                deduped = deduped.OrderByDescending(r => r.RelevanceScore).ToList();
-            }
-        }
-        else
-        {
-            deduped = deduped.OrderByDescending(r => r.RelevanceScore).ToList();
-        }
-
-        var finalResults = deduped.Take(options.MaxResults).ToArray();
-
-        if (degradedMode && finalResults.Length > 0)
-        {
-            foreach (var metadata in finalResults.Select(r => r.Metadata))
-            {
-                metadata["DegradedMode"] = true;
-                metadata["Note"] = "Results from partial sources due to unavailable service(s).";
-            }
-        }
-
-        return finalResults;
-    }
-
-    private async Task<Collection<SearchResult>> ApplySemanticRankingAsync(string query, Collection<SearchResult> results)
-    {
-        var queryEmbedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", query, CancellationToken.None);
-        var contents = results.Select(r => AgentOrchestrator.Truncate(r.Content, 1024)).ToArray();
-        var resultEmbeddings = await _openAIClient.GetEmbeddingsAsync("text-embedding-3-large", contents, CancellationToken.None);
-
-        var scored = new List<(SearchResult Result, double Score)>();
-        for (var i = 0; i < results.Count; i++)
-        {
-            var semanticScore = CosineSimilarity(queryEmbedding, resultEmbeddings[i]);
-            var blendedScore = (results[i].RelevanceScore * 0.7) + (semanticScore * 0.3);
-            scored.Add((results[i], blendedScore));
-        }
-
-        var ordered = scored.OrderByDescending(s => s.Score).Select(s => s.Result).ToList();
-        return new Collection<SearchResult>(ordered);
-    }
-
-    private static double CosineSimilarity(float[] v1, float[] v2)
-    {
-        if (v1.Length != v2.Length)
-            return 0;
-
-        double dot = 0;
-        double mag1 = 0;
-        double mag2 = 0;
-        for (int i = 0; i < v1.Length; i++)
-        {
-            dot += v1[i] * v2[i];
-            mag1 += Math.Pow(v1[i], 2);
-            mag2 += Math.Pow(v2[i], 2);
-        }
-
-        return dot / (Math.Sqrt(mag1) * Math.Sqrt(mag2) + 1e-8);
-    }
-}

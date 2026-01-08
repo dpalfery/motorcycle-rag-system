@@ -3,7 +3,7 @@ namespace MotorcycleRAG.Admin.Models.Api;
 /// <summary>
 /// DTO for user information
 /// </summary>
-public class UserDto
+internal class UserDto
 {
     public string UserId { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;

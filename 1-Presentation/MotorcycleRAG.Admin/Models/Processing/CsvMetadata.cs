@@ -3,7 +3,7 @@ namespace MotorcycleRAG.Admin.Models.Processing;
 /// <summary>
 /// Metadata extracted from CSV
 /// </summary>
-public class CsvMetadata
+internal class CsvMetadata
 {
     public int TotalRows { get; set; }
     public int ColumnCount { get; set; }

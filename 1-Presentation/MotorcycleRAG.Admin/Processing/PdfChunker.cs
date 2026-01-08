@@ -7,7 +7,7 @@ namespace MotorcycleRAG.Admin.Processing;
 /// <summary>
 /// Result of PDF chunking operation
 /// </summary>
-public class PdfChunkingResult
+internal class PdfChunkingResult
 {
     private readonly List<DocumentChunk> _chunks = new();
     private readonly List<string> _errors = new();
@@ -28,7 +28,7 @@ public class PdfChunkingResult
 /// <summary>
 /// Metadata extracted from PDF
 /// </summary>
-public class PdfMetadata
+internal class PdfMetadata
 {
     public string? Title { get; set; }
     public string? Author { get; set; }
@@ -40,7 +40,7 @@ public class PdfMetadata
 /// <summary>
 /// A chunk of document text with metadata
 /// </summary>
-public class DocumentChunk
+internal class DocumentChunk
 {
     public int ChunkIndex { get; set; }
     public string Text { get; set; } = string.Empty;
@@ -52,7 +52,7 @@ public class DocumentChunk
 /// <summary>
 /// Service for chunking PDF documents with page and section metadata extraction
 /// </summary>
-public class PdfChunker
+internal class PdfChunker
 {
     private readonly int _targetChunkSize;
     private readonly int _chunkOverlap;

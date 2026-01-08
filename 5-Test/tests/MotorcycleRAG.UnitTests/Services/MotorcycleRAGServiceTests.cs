@@ -34,41 +34,121 @@ public class MotorcycleRagServiceTests {
         _mockOpenAIClient.Setup(o => o.GetChatCompletionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                         .ReturnsAsync("[]");
 
-        _service = new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object, _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object);
+        // Create real instances of the 4 new services required by MotorcycleRagService
+        var mockCitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.Citations.ClaimCitationService>>();
+        var mockRefinementLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService>>();
+        var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
+
+        var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
+            _mockOpenAIClient.Object,
+            mockCitationLogger.Object);
+        var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
+            mockRefinementLogger.Object);
+        var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
+            mockLimitationLogger.Object);
+        var costCalculator = new MotorcycleRAG.Application.Services.Metrics.QueryCostCalculator();
+
+        _service = new MotorcycleRagService(
+            _mockOrchestrator.Object,
+            _mockLogger.Object,
+            _mockTelemetry.Object,
+            _mockCacheService.Object,
+            _mockCacheConfig.Object,
+            _mockOpenAIClient.Object,
+            citationService,
+            refinementService,
+            limitationAnalyzer,
+            costCalculator);
     }
 
     #region Constructor
 
     [Fact]
     public void Constructor_ShouldThrow_WhenOrchestratorIsNull() {
+        // Arrange
+        var mockCitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.Citations.ClaimCitationService>>();
+        var mockRefinementLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService>>();
+        var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
+
+        var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
+            _mockOpenAIClient.Object, mockCitationLogger.Object);
+        var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
+            mockRefinementLogger.Object);
+        var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
+            mockLimitationLogger.Object);
+        var costCalculator = new MotorcycleRAG.Application.Services.Metrics.QueryCostCalculator();
+
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
             new MotorcycleRagService(null!, _mockLogger.Object, _mockTelemetry.Object,
-                _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
+                _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object,
+                citationService, refinementService, limitationAnalyzer, costCalculator));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenLoggerIsNull() {
+        // Arrange
+        var mockCitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.Citations.ClaimCitationService>>();
+        var mockRefinementLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService>>();
+        var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
+
+        var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
+            _mockOpenAIClient.Object, mockCitationLogger.Object);
+        var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
+            mockRefinementLogger.Object);
+        var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
+            mockLimitationLogger.Object);
+        var costCalculator = new MotorcycleRAG.Application.Services.Metrics.QueryCostCalculator();
+
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
             new MotorcycleRagService(_mockOrchestrator.Object, null!, _mockTelemetry.Object,
-                _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
+                _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object,
+                citationService, refinementService, limitationAnalyzer, costCalculator));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenTelemetryIsNull() {
+        // Arrange
+        var mockCitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.Citations.ClaimCitationService>>();
+        var mockRefinementLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService>>();
+        var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
+
+        var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
+            _mockOpenAIClient.Object, mockCitationLogger.Object);
+        var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
+            mockRefinementLogger.Object);
+        var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
+            mockLimitationLogger.Object);
+        var costCalculator = new MotorcycleRAG.Application.Services.Metrics.QueryCostCalculator();
+
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
             new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, null!,
-                _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object));
+                _mockCacheService.Object, _mockCacheConfig.Object, _mockOpenAIClient.Object,
+                citationService, refinementService, limitationAnalyzer, costCalculator));
     }
 
     [Fact]
     public void Constructor_ShouldThrow_WhenOpenAIClientIsNull() {
+        // Arrange
+        var mockCitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.Citations.ClaimCitationService>>();
+        var mockRefinementLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService>>();
+        var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
+
+        var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
+            _mockOpenAIClient.Object, mockCitationLogger.Object);
+        var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
+            mockRefinementLogger.Object);
+        var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
+            mockLimitationLogger.Object);
+        var costCalculator = new MotorcycleRAG.Application.Services.Metrics.QueryCostCalculator();
+
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() =>
             new MotorcycleRagService(_mockOrchestrator.Object, _mockLogger.Object, _mockTelemetry.Object,
-                _mockCacheService.Object, _mockCacheConfig.Object, null!));
+                _mockCacheService.Object, _mockCacheConfig.Object, null!,
+                citationService, refinementService, limitationAnalyzer, costCalculator));
     }
 
     #endregion

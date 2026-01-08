@@ -3,24 +3,6 @@
 	<PropertyGroup>
 		<!-- Suppress code analysis rules that are less critical for a MAUI client application -->
 		<!-- See AGENTS.md for architectural rules that take precedence -->
-		<!-- CA1515: Public types in client apps don't need to be internal -->
-		<!-- CA1826: LINQ on indexable collections - already in use, legitimate pattern -->
-		<!-- S2360: Optional parameters - refactoring overloads is lower priority -->
-		<!-- S4040: ToLowerInvariant/ToUpperInvariant - already using correctly -->
-		<!-- S4005: Property setters - observable collections need setters -->
-		<!-- CA2234: Use Uri objects - string URLs are acceptable for config -->
-		<!-- CA1062: Parameter validation - many validated through DI -->
-		<!-- CA2000: Dispose objects - many managed by MAUI/DI containers -->
-		<!-- S1200: Class dependencies - large ViewModels are acceptable in MAUI -->
-		<!-- S3776: Nested statements depth - UI code often requires nesting -->
-		<!-- S4017: Method too complex - MAUI methods often complex; refactor separately -->
-		<!-- S4004: Property setter visibility - bindings require public setters -->
-		<!-- S3996: Uri property - string URLs acceptable for config/state -->
-		<!-- CA1056: Uri property - string URLs acceptable for config/state -->
-		<!-- S1066: Boolean expressions - legitimate patterns for MAUI bindings -->
-		<!-- CA1861: Static array - acceptable for small config arrays -->
-		<!-- S106/S112: Exceptions - DI and MAUI-specific exceptions are OK -->
-		<NoWarn>$(NoWarn);CA1826;CA1515;S2360;S4040;S4005;CA2234;CA1062;CA2000;S1200;S3776;S4017;S4004;S3996;CA1056;S1066;CA1861;S106;S112;S1854;S1481;CA1812;S4144;S3908;S3881;S105;S103</NoWarn>
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
 		<!-- Note for MacCatalyst:

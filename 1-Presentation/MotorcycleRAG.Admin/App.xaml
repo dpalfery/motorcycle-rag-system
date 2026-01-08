@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:MotorcycleRAG.Admin"
              xmlns:converters="clr-namespace:MotorcycleRAG.Admin.Converters"
-             x:Class="MotorcycleRAG.Admin.App">
+             x:Class="MotorcycleRAG.Admin.App"
+             x:ClassModifier="Internal">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

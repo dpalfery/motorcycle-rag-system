@@ -5,7 +5,7 @@ namespace MotorcycleRAG.Admin.Utilities;
 /// <summary>
 /// Utility class for presenting errors to users
 /// </summary>
-public static class ErrorPresenter
+internal static class ErrorPresenter
 {
     private static readonly Regex FilePathRegex = new(@"([A-Za-z]:)?\\?(?:[^\\/]+\\)*[^\\/]+\.[a-zA-Z0-9]+", RegexOptions.Compiled);
     private static readonly Regex UrlRegex = new(@"https?://[^\s]+", RegexOptions.Compiled);

@@ -3,7 +3,7 @@ namespace MotorcycleRAG.Admin.Models.Processing;
 /// <summary>
 /// A chunk of CSV data
 /// </summary>
-public class CsvChunk
+internal class CsvChunk
 {
     public int ChunkIndex { get; set; }
     public IReadOnlyList<Dictionary<string, object>> Rows { get; private set; } = new List<Dictionary<string, object>>().AsReadOnly();

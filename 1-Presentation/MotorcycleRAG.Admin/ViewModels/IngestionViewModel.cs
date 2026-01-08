@@ -12,7 +12,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for data ingestion page
 /// Handles file upload, local processing, and API submission
 /// </summary>
-public partial class IngestionViewModel : ObservableObject
+internal partial class IngestionViewModel : ObservableObject
 {
     private readonly ApiClient _apiClient;
     private readonly PdfChunker _pdfChunker;
@@ -334,7 +334,7 @@ public partial class IngestionViewModel : ObservableObject
 /// <summary>
 /// Information about a processed file
 /// </summary>
-public partial class ProcessedFileInfo : ObservableObject
+internal partial class ProcessedFileInfo : ObservableObject
 {
     [ObservableProperty]
     private string _status = string.Empty;

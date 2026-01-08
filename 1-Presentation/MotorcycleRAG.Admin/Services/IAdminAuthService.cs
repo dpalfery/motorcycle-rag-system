@@ -3,8 +3,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// <summary>
 /// Interface for admin authentication services
 /// </summary>
-public interface IAdminAuthService
-{
+internal interface IAdminAuthService {
     /// <summary>
     /// Signs in the user interactively
     /// </summary>

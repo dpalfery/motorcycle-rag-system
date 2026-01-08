@@ -2,7 +2,7 @@ using MotorcycleRAG.Admin.Services;
 
 namespace MotorcycleRAG.Admin;
 
-public partial class App : Application {
+internal partial class App : Application {
     private readonly IAdminAuthService _authService;
     private readonly ISettingsService _settingsService;
     private readonly IServiceProvider _serviceProvider;

@@ -7,7 +7,7 @@ namespace MotorcycleRAG.Admin.Models.Api;
 /// <summary>
 /// Pipeline execution information
 /// </summary>
-public class PipelineExecution
+internal class PipelineExecution
 {
     public string ExecutionId { get; set; } = string.Empty;
     public string PipelineType { get; set; } = string.Empty;

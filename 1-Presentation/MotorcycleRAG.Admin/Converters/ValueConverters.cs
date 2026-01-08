@@ -8,7 +8,7 @@ namespace MotorcycleRAG.Admin.Converters;
 /// <summary>
 /// Converts a boolean value to its inverse
 /// </summary>
-public class InverseBoolConverter : IValueConverter
+internal class InverseBoolConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -28,7 +28,7 @@ public class InverseBoolConverter : IValueConverter
 /// <summary>
 /// Checks if a string is not null or empty
 /// </summary>
-public class StringNotEmptyConverter : IValueConverter
+internal class StringNotEmptyConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -44,7 +44,7 @@ public class StringNotEmptyConverter : IValueConverter
 /// <summary>
 /// Converts a percentage (0-100) to a progress value (0-1)
 /// </summary>
-public class PercentageConverter : IValueConverter
+internal class PercentageConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -66,7 +66,7 @@ public class PercentageConverter : IValueConverter
 /// <summary>
 /// Checks if a nullable value has a value
 /// </summary>
-public class HasValueConverter : IValueConverter
+internal class HasValueConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -92,7 +92,7 @@ public class HasValueConverter : IValueConverter
 /// <summary>
 /// Converts a string to visibility (visible if not empty)
 /// </summary>
-public class StringToVisibleConverter : IValueConverter
+internal class StringToVisibleConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -108,7 +108,7 @@ public class StringToVisibleConverter : IValueConverter
 /// <summary>
 /// Converts a boolean enabled state to a color (green if enabled, gray if disabled)
 /// </summary>
-public class EnabledToColorConverter : IValueConverter
+internal class EnabledToColorConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -128,7 +128,7 @@ public class EnabledToColorConverter : IValueConverter
 /// <summary>
 /// Converts a boolean enabled state to a display status string
 /// </summary>
-public class StatusLabelConverter : IValueConverter
+internal class StatusLabelConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
@@ -148,7 +148,7 @@ public class StatusLabelConverter : IValueConverter
 /// <summary>
 /// Converts a status value to a categorical color
 /// </summary>
-public class StatusColorConverter : IValueConverter
+internal class StatusColorConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {

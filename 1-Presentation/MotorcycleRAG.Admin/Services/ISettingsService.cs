@@ -5,8 +5,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// This interface wraps MAUI's Preferences and SecureStorage APIs.
 /// Enables testability by allowing mock implementations in unit tests.
 /// </summary>
-public interface ISettingsService
-{
+internal interface ISettingsService {
     /// <summary>
     /// Retrieves a non-sensitive setting value.
     /// </summary>

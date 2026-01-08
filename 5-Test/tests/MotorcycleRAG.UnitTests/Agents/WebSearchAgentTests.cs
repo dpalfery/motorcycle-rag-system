@@ -11,6 +11,11 @@ using Xunit;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Core.Options;
+using WebExtractor = MotorcycleRAG.Application.Services.Web.WebContentExtractor;
+using WebSearchRateLimiter = MotorcycleRAG.Application.Services.Web.WebSearchRateLimiter;
+using WebSearchCache = MotorcycleRAG.Application.Services.Web.WebSearchCache;
+using WebSearchTermEnhancer = MotorcycleRAG.Application.Services.Web.WebSearchTermEnhancer;
+using WebSourceValidator = MotorcycleRAG.Application.Services.Web.WebSourceValidator;
 
 namespace MotorcycleRAG.UnitTests.Agents;
 
@@ -23,6 +28,11 @@ public class WebSearchAgentTests : IDisposable {
     private readonly HttpClient _httpClient;
     private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
     private readonly Mock<ILogger<WebSearchAgent>> _mockLogger;
+    private readonly Mock<ILogger<WebSearchRateLimiter>> _mockRateLimiterLogger;
+    private readonly Mock<ILogger<WebSearchCache>> _mockCacheLogger;
+    private readonly Mock<ILogger<WebExtractor>> _mockExtractorLogger;
+    private readonly Mock<ILogger<WebSearchTermEnhancer>> _mockEnhancerLogger;
+    private readonly Mock<ILogger<WebSourceValidator>> _mockValidatorLogger;
     private readonly IOptions<WebSearchOptions> _webSearchConfig;
     private readonly WebSearchAgent _webSearchAgent;
 
@@ -31,6 +41,11 @@ public class WebSearchAgentTests : IDisposable {
         _httpClient = new HttpClient(_mockHttpHandler.Object);
         _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
         _mockLogger = new Mock<ILogger<WebSearchAgent>>();
+        _mockRateLimiterLogger = new Mock<ILogger<WebSearchRateLimiter>>();
+        _mockCacheLogger = new Mock<ILogger<WebSearchCache>>();
+        _mockExtractorLogger = new Mock<ILogger<WebExtractor>>();
+        _mockEnhancerLogger = new Mock<ILogger<WebSearchTermEnhancer>>();
+        _mockValidatorLogger = new Mock<ILogger<WebSourceValidator>>();
 
         var options = new WebSearchOptions {
             MaxConcurrentRequests = 3,
@@ -49,11 +64,40 @@ public class WebSearchAgentTests : IDisposable {
         });
         _webSearchConfig = Options.Create(options);
 
+        // Create dependencies
+        var rateLimiter = new WebSearchRateLimiter(
+            options.MaxConcurrentRequests,
+            options.MinRequestIntervalMs,
+            _mockRateLimiterLogger.Object);
+
+        var cache = new WebSearchCache(
+            TimeSpan.FromMinutes(15),
+            100,
+            _mockCacheLogger.Object);
+
+        var extractor = new WebExtractor(_mockExtractorLogger.Object);
+
+        var termEnhancer = new WebSearchTermEnhancer(
+            _mockOpenAIClient.Object,
+            options.SearchTermModel,
+            _mockEnhancerLogger.Object);
+
+        var validator = new WebSourceValidator(
+            _mockOpenAIClient.Object,
+            null, // No trust policy store for basic tests
+            options.MinCredibilityScore,
+            options.ValidationModel,
+            _mockValidatorLogger.Object);
+
         _webSearchAgent = new WebSearchAgent(
             _httpClient,
-            _mockOpenAIClient.Object,
             _webSearchConfig,
-            _mockLogger.Object);
+            _mockLogger.Object,
+            rateLimiter,
+            cache,
+            extractor,
+            termEnhancer,
+            validator);
     }
 
     [Fact]
@@ -67,18 +111,44 @@ public class WebSearchAgentTests : IDisposable {
 
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenRequiredParametersAreNull() {
-        // Arrange & Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            null!, _mockOpenAIClient.Object, _webSearchConfig, _mockLogger.Object));
+        // Arrange
+        var rateLimiter = new WebSearchRateLimiter(3, 100, _mockRateLimiterLogger.Object);
+        var cache = new WebSearchCache(TimeSpan.FromMinutes(15), 100, _mockCacheLogger.Object);
+        var extractor = new WebExtractor(_mockExtractorLogger.Object);
+        var termEnhancer = new WebSearchTermEnhancer(_mockOpenAIClient.Object, "gpt-4o-mini", _mockEnhancerLogger.Object);
+        var validator = new WebSourceValidator(_mockOpenAIClient.Object, null, 0.6f, "gpt-4o-mini", _mockValidatorLogger.Object);
 
+        // Act & Assert - Test null HttpClient
         Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, null!, _webSearchConfig, _mockLogger.Object));
+            null!, _webSearchConfig, _mockLogger.Object, rateLimiter, cache, extractor, termEnhancer, validator));
 
+        // Test null config
         Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, _mockOpenAIClient.Object, null!, _mockLogger.Object));
+            _httpClient, null!, _mockLogger.Object, rateLimiter, cache, extractor, termEnhancer, validator));
 
+        // Test null logger
         Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, _mockOpenAIClient.Object, _webSearchConfig, null!));
+            _httpClient, _webSearchConfig, null!, rateLimiter, cache, extractor, termEnhancer, validator));
+
+        // Test null rateLimiter
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
+            _httpClient, _webSearchConfig, _mockLogger.Object, null!, cache, extractor, termEnhancer, validator));
+
+        // Test null cache
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
+            _httpClient, _webSearchConfig, _mockLogger.Object, rateLimiter, null!, extractor, termEnhancer, validator));
+
+        // Test null extractor
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
+            _httpClient, _webSearchConfig, _mockLogger.Object, rateLimiter, cache, null!, termEnhancer, validator));
+
+        // Test null termEnhancer
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
+            _httpClient, _webSearchConfig, _mockLogger.Object, rateLimiter, cache, extractor, null!, validator));
+
+        // Test null validator
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
+            _httpClient, _webSearchConfig, _mockLogger.Object, rateLimiter, cache, extractor, termEnhancer, null!));
     }
 
     [Fact]
@@ -347,6 +417,45 @@ public class WebSearchAgentTests : IDisposable {
         };
     }
 
+    /// <summary>
+    /// Helper to create WebSearchAgent with trust policy store
+    /// </summary>
+    private WebSearchAgent CreateWebSearchAgentWithTrustStore(IWebTrustPolicyStore? trustPolicyStore) {
+        var rateLimiter = new WebSearchRateLimiter(
+            _webSearchConfig.Value.MaxConcurrentRequests,
+            _webSearchConfig.Value.MinRequestIntervalMs,
+            _mockRateLimiterLogger.Object);
+
+        var cache = new WebSearchCache(
+            TimeSpan.FromMinutes(15),
+            100,
+            _mockCacheLogger.Object);
+
+        var extractor = new WebExtractor(_mockExtractorLogger.Object);
+
+        var termEnhancer = new WebSearchTermEnhancer(
+            _mockOpenAIClient.Object,
+            _webSearchConfig.Value.SearchTermModel,
+            _mockEnhancerLogger.Object);
+
+        var validator = new WebSourceValidator(
+            _mockOpenAIClient.Object,
+            trustPolicyStore,
+            _webSearchConfig.Value.MinCredibilityScore,
+            _webSearchConfig.Value.ValidationModel,
+            _mockValidatorLogger.Object);
+
+        return new WebSearchAgent(
+            _httpClient,
+            _webSearchConfig,
+            _mockLogger.Object,
+            rateLimiter,
+            cache,
+            extractor,
+            termEnhancer,
+            validator);
+    }
+
     [Fact]
     public async Task SearchAsync_ShouldRejectBlockedDomains_WhenTrustPolicyStoreConfigured() {
         // Arrange
@@ -363,12 +472,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(allowlistPolicy); // Allowlisted domain with TierA
 
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            mockTrustStore.Object); // using var already here
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -397,12 +501,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(allowlistPolicy);
 
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            mockTrustStore.Object); // using var already here
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -429,12 +528,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns((WebTrustPolicy?)null); // Not allowlisted
 
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            mockTrustStore.Object); // using var already here
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -468,12 +562,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(tierAPolicy);
 
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            mockTrustStore.Object); // using var already here
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -505,12 +594,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(tierBPolicy);
 
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            mockTrustStore.Object); // using var already here
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -542,12 +626,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(tierCPolicy);
 
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            mockTrustStore.Object); // using var already here
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -570,12 +649,7 @@ public class WebSearchAgentTests : IDisposable {
         var searchOptions = CreateDefaultSearchOptions();
 
         // Create agent WITHOUT trust policy store (null)
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            null); // No trust policy store - backward compatibility mode, using var already here
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(null);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -591,12 +665,12 @@ public class WebSearchAgentTests : IDisposable {
             Assert.True(result.RelevanceScore > 0);
         });
 
-        // Verify logger was called with backward compatibility message at least once
-        _mockLogger.Verify(
+        // Verify validator logger was called with message about no trust policy store
+        _mockValidatorLogger.Verify(
             x => x.Log(
-                LogLevel.Information,
+                It.IsAny<LogLevel>(),
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("WebTrustPolicyStore not configured")),
+                It.IsAny<It.IsAnyType>(),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.AtLeastOnce);
@@ -619,12 +693,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(blockedPolicy);
 
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            mockTrustStore.Object);
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -658,12 +727,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain("test-motorcycle.com"))
             .Returns(tierPolicy);
 
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            mockTrustStore.Object);
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();
@@ -701,12 +765,7 @@ public class WebSearchAgentTests : IDisposable {
             .Setup(x => x.GetPolicyForDomain(It.IsAny<string>()))
             .Returns<string>(domain => domain == "test-motorcycle.com" ? tierAPolicy : tierCPolicy);
 
-        using var webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _mockOpenAIClient.Object,
-            _webSearchConfig,
-            _mockLogger.Object,
-            mockTrustStore.Object);
+        using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
         SetupMockOpenAIClient();

@@ -14,7 +14,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for managing web sources in the admin panel.
 /// Handles loading, creating, and deleting web sources with proper error handling and state management.
 /// </summary>
-public partial class WebSourcesViewModel : ObservableObject {
+internal partial class WebSourcesViewModel : ObservableObject {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<WebSourcesViewModel> _logger;
@@ -338,7 +338,7 @@ public partial class WebSourcesViewModel : ObservableObject {
 /// <summary>
 /// ViewModel for a single web source in the list
 /// </summary>
-public class WebSourceViewModel : ObservableObject {
+internal class WebSourceViewModel : ObservableObject {
     private readonly WebSource _source;
 
     public WebSourceViewModel(WebSource source) {

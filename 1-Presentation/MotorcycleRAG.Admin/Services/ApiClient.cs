@@ -16,7 +16,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// HTTP client wrapper for calling the Motorcycle RAG API.
 /// Handles authentication, request/response serialization, and error handling.
 /// </summary>
-public class ApiClient {
+internal class ApiClient {
     private readonly HttpClient _httpClient;
     private readonly IAdminAuthService _authService;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -87,8 +87,9 @@ public class ApiClient {
 
             content.Add(streamContent, "file", Path.GetFileName(filePath));
 
+            var requestUri = new Uri($"api/datapipeline/upload?processImmediately={processImmediately}", UriKind.Relative);
             var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
-                $"api/datapipeline/upload?processImmediately={processImmediately}",
+                requestUri,
                 content,
                 cancellationToken)).ConfigureAwait(false);
 
@@ -131,8 +132,9 @@ public class ApiClient {
                 content.Add(streamContent, "files", Path.GetFileName(filePath));
             }
 
+            var requestUri = new Uri($"api/datapipeline/upload-batch?processImmediately={processImmediately}", UriKind.Relative);
             var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
-                $"api/datapipeline/upload-batch?processImmediately={processImmediately}",
+                requestUri,
                 content,
                 cancellationToken)).ConfigureAwait(false);
 
@@ -163,7 +165,8 @@ public class ApiClient {
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await _httpClient.GetAsync("api/datapipeline/upload-constraints", cancellationToken).ConfigureAwait(false);
+        var requestUri = new Uri("api/datapipeline/upload-constraints", UriKind.Relative);
+        var response = await _httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<UploadConstraints>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -182,8 +185,9 @@ public class ApiClient {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
+        var requestUri = new Uri($"api/datapipeline/process/{Uri.EscapeDataString(executionId)}", UriKind.Relative);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
-            $"api/datapipeline/process/{Uri.EscapeDataString(executionId)}",
+            requestUri,
             null,
             cancellationToken)).ConfigureAwait(false);
 
@@ -201,7 +205,8 @@ public class ApiClient {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync($"api/datapipeline/status/{Uri.EscapeDataString(executionId)}", cancellationToken)).ConfigureAwait(false);
+        var requestUri = new Uri($"api/datapipeline/status/{Uri.EscapeDataString(executionId)}", UriKind.Relative);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<PipelineStatusResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)

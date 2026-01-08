@@ -48,6 +48,11 @@ public static class ServiceCollectionExtensions {
         services.AddSingleton<IAzureOpenAIClient, MotorcycleRAG.Persistence.Azure.AzureOpenAIClientWrapper>();
         services.AddSingleton<IAzureSearchClient, MotorcycleRAG.Persistence.Azure.AzureSearchClientWrapper>();
         services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
+        
+        // Register extracted Azure Search services
+        services.AddScoped<MotorcycleRAG.Contracts.Interfaces.IAzureSearchQueryService, MotorcycleRAG.Persistence.Azure.Search.AzureSearchQueryService>();
+        services.AddScoped<MotorcycleRAG.Contracts.Interfaces.IAzureSearchDocumentService, MotorcycleRAG.Persistence.Azure.Search.AzureSearchDocumentService>();
+        services.AddScoped<MotorcycleRAG.Contracts.Interfaces.IAzureSearchHealthService, MotorcycleRAG.Persistence.Azure.Search.AzureSearchHealthService>();
 
         // Register SearchIndexClient for direct Azure Search operations
         services.AddSingleton<SearchIndexClient>(serviceProvider => {

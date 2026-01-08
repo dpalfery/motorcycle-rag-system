@@ -4,8 +4,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// Abstraction for Shell-based navigation.
 /// This interface enables testability of ViewModels by decoupling them from Shell.Current.
 /// </summary>
-public interface INavigationService
-{
+internal interface INavigationService {
     /// <summary>
     /// Navigates to the specified route with optional query parameters.
     /// </summary>

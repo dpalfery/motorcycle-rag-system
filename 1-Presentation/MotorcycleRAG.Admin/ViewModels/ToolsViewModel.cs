@@ -13,7 +13,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for managing MCP tool configurations in the admin panel.
 /// Handles loading, saving, and managing MCP tool enable/disable states with validation.
 /// </summary>
-public partial class ToolsViewModel : ObservableObject {
+internal partial class ToolsViewModel : ObservableObject {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<ToolsViewModel> _logger;
@@ -251,7 +251,7 @@ public partial class ToolsViewModel : ObservableObject {
 /// <summary>
 /// View model item for a single MCP tool configuration
 /// </summary>
-public partial class ToolConfigItem : ObservableObject
+internal partial class ToolConfigItem : ObservableObject
 {
     public Guid Id { get; }
     public string ToolId { get; }

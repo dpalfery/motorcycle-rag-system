@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(1)"
+      "Bash(1)",
+      "Bash(Select-String -Pattern \"Error\\(s\\)|Warning\\(s\\)|Build succeeded|Build FAILED\")",
+      "Bash(powershell -Command:*)",
+      "Bash(Select-String -Pattern \"error|warning\")",
+      "Bash(Select-Object -First 20)",
+      "Bash(Select-String -Pattern \"error CS\")",
+      "Bash(Select-Object -First 30)",
+      "Bash(Select-String -Pattern \"\\(error|warning|succeeded|failed\\)\" -Context 0,1)",
+      "Bash(Select-String -Pattern \"error|warning|Build succeeded|Build FAILED\")",
+      "Bash(git diff:*)"
     ]
   }
 }

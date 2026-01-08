@@ -3,7 +3,7 @@ using MotorcycleRAG.Admin.Services;
 
 namespace MotorcycleRAG.Admin.Pages;
 
-public partial class JobsPage : ContentPage {
+internal partial class JobsPage : ContentPage {
     private readonly JobsViewModel _viewModel;
 
     public JobsPage(JobsViewModel viewModel)

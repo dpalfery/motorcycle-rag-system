@@ -3,7 +3,7 @@ namespace MotorcycleRAG.Admin.Models.Processing;
 /// <summary>
 /// Result of CSV chunking operation
 /// </summary>
-public class CsvChunkingResult
+internal class CsvChunkingResult
 {
     private readonly List<CsvChunk> _chunks = new();
     private readonly List<string> _errors = new();

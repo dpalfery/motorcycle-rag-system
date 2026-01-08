@@ -14,7 +14,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for pipeline jobs management.
 /// Handles loading, polling, and canceling pipeline executions.
 /// </summary>
-public class JobsViewModel : IDisposable {
+internal class JobsViewModel : IDisposable {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<JobsViewModel> _logger;
@@ -276,7 +276,7 @@ public class JobsViewModel : IDisposable {
 /// <summary>
 /// ViewModel for a pipeline job in the list
 /// </summary>
-public class JobViewModel : INotifyPropertyChanged
+internal class JobViewModel : INotifyPropertyChanged
 {
     private PipelineStatus _status;
 

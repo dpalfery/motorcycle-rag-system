@@ -3,7 +3,7 @@ namespace MotorcycleRAG.Admin.Models.Processing;
 /// <summary>
 /// Result of validation operation
 /// </summary>
-public class ValidationResult
+internal class ValidationResult
 {
     private readonly List<string> _errors = new();
     private readonly List<string> _warnings = new();

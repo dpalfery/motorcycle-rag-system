@@ -11,7 +11,7 @@ namespace MotorcycleRAG.Admin.Processing;
 /// <summary>
 /// Service for chunking CSV files for motorcycle specification data
 /// </summary>
-public class CsvChunker
+internal class CsvChunker
 {
     private readonly int _rowsPerChunk;
 

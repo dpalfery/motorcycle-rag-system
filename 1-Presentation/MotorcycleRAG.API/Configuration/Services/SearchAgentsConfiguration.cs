@@ -35,7 +35,6 @@ internal static class SearchAgentsConfiguration
 
         services.AddSingleton<WebSearchCache>(sp =>
         {
-            var config = sp.GetRequiredService<IOptions<WebSearchOptions>>().Value;
             var logger = sp.GetRequiredService<ILogger<WebSearchCache>>();
             return new WebSearchCache(
                 TimeSpan.FromHours(1),
@@ -50,9 +49,8 @@ internal static class SearchAgentsConfiguration
         // Register WebSearchAgent with extracted services
         services.AddScoped<ISearchAgent>(provider => {
             var httpClient = provider.GetRequiredService<HttpClient>();
-            var config = provider.GetRequiredService<IOptions<WebSearchOptions>>();
             var logger = provider.GetRequiredService<ILogger<WebSearchAgent>>();
-            
+
             // Inject extracted services
             var rateLimiter = provider.GetRequiredService<WebSearchRateLimiter>();
             var cache = provider.GetRequiredService<WebSearchCache>();
@@ -62,7 +60,7 @@ internal static class SearchAgentsConfiguration
 
             return new MotorcycleRAG.Application.Agents.WebSearchAgent(
                 httpClient,
-                config,
+                provider.GetRequiredService<IOptions<WebSearchOptions>>(),
                 logger,
                 rateLimiter,
                 cache,

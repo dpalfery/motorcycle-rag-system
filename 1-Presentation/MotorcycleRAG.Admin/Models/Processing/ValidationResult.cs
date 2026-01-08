@@ -8,9 +8,9 @@ internal class ValidationResult
     private readonly List<string> _errors = new();
     private readonly List<string> _warnings = new();
 
-    public bool IsValid { get; set; }
-    public IReadOnlyList<string> Errors => _errors.AsReadOnly();
-    public IReadOnlyList<string> Warnings => _warnings.AsReadOnly();
+    internal bool IsValid { get; set; }
+    internal IReadOnlyList<string> Errors => _errors.AsReadOnly();
+    internal IReadOnlyList<string> Warnings => _warnings.AsReadOnly();
 
     // Internal methods for modification
     internal void AddError(string error) => _errors.Add(error);

@@ -25,7 +25,7 @@ public class SearchResultFusionService
     /// When degraded mode is active, adds metadata indicating which sources were unavailable.
     /// </summary>
     public async Task<SearchResult[]> FuseAndRankResultsAsync(
-        List<SearchResult> results,
+        IReadOnlyCollection<SearchResult> results,
         string query,
         SearchParameters options,
         bool degradedMode)
@@ -64,10 +64,10 @@ public class SearchResultFusionService
     /// Fuses results from multiple agent execution attempts with source tracking
     /// </summary>
     public async Task<SearchResult[]> FuseResultsWithSourceTrackingAsync(
-        List<SearchResult> aggregatedResults,
+        IReadOnlyCollection<SearchResult> aggregatedResults,
         string query,
         SearchParameters options,
-        List<Application.Services.Telemetry.SourceExecutionStatus> sourceStatuses)
+        IReadOnlyCollection<Application.Services.Telemetry.SourceExecutionStatus> sourceStatuses)
     {
         ArgumentNullException.ThrowIfNull(aggregatedResults);
         ArgumentNullException.ThrowIfNull(sourceStatuses);

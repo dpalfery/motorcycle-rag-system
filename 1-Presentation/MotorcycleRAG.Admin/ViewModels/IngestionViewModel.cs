@@ -12,8 +12,11 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for data ingestion page
 /// Handles file upload, local processing, and API submission
 /// </summary>
-internal partial class IngestionViewModel : ObservableObject
+public partial class IngestionViewModel : ObservableObject
 {
+    private static readonly string[] PdfAndCsvExtensions = { ".pdf", ".csv" };
+    private static readonly string[] PdfAndCsvMimeTypes = { "pdf", "csv" };
+
     private readonly ApiClient _apiClient;
     private readonly PdfChunker _pdfChunker;
     private readonly CsvChunker _csvChunker;
@@ -42,16 +45,43 @@ internal partial class IngestionViewModel : ObservableObject
         ApiClient apiClient,
         PdfChunker pdfChunker,
         CsvChunker csvChunker,
-        OnnxEmbeddingService? embeddingService = null,
-        ILogger<IngestionViewModel>? logger = null)
+        OnnxEmbeddingService? embeddingService,
+        ILogger<IngestionViewModel>? logger)
+        : this(apiClient, pdfChunker, csvChunker, embeddingService, logger, enableLocalProcessing: true)
+    {
+    }
+
+    public IngestionViewModel(
+        ApiClient apiClient,
+        PdfChunker pdfChunker,
+        CsvChunker csvChunker,
+        OnnxEmbeddingService? embeddingService)
+        : this(apiClient, pdfChunker, csvChunker, embeddingService, logger: null, enableLocalProcessing: true)
+    {
+    }
+
+    public IngestionViewModel(
+        ApiClient apiClient,
+        PdfChunker pdfChunker,
+        CsvChunker csvChunker)
+        : this(apiClient, pdfChunker, csvChunker, embeddingService: null, logger: null, enableLocalProcessing: false)
+    {
+    }
+
+    private IngestionViewModel(
+        ApiClient apiClient,
+        PdfChunker pdfChunker,
+        CsvChunker csvChunker,
+        OnnxEmbeddingService? embeddingService,
+        ILogger<IngestionViewModel>? logger,
+        bool enableLocalProcessing)
     {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _pdfChunker = pdfChunker ?? throw new ArgumentNullException(nameof(pdfChunker));
         _csvChunker = csvChunker ?? throw new ArgumentNullException(nameof(csvChunker));
         _embeddingService = embeddingService;
         _logger = logger;
-
-        _enableLocalProcessing = _embeddingService != null;
+        _enableLocalProcessing = enableLocalProcessing;
     }
 
     partial void OnIsProcessingChanged(bool value)
@@ -78,8 +108,8 @@ internal partial class IngestionViewModel : ObservableObject
                 PickerTitle = "Select a file to process",
                 FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
                 {
-                    { DevicePlatform.WinUI, new[] { ".pdf", ".csv" } },
-                    { DevicePlatform.macOS, new[] { "pdf", "csv" } }
+                    { DevicePlatform.WinUI, PdfAndCsvExtensions },
+                    { DevicePlatform.macOS, PdfAndCsvMimeTypes }
                 })
             });
 
@@ -87,8 +117,8 @@ internal partial class IngestionViewModel : ObservableObject
             {
                 // File size validation
                 var info = new FileInfo(result.FullPath);
-                var ext = Path.GetExtension(result.FullPath).ToLowerInvariant();
-                long sizeLimit = ext == ".pdf" ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
+                var ext = Path.GetExtension(result.FullPath).ToUpperInvariant();
+                long sizeLimit = ext == ".PDF" ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
                 if (info.Length > sizeLimit)
                 {
                     await ShowErrorAsync("File too large", $"File exceeds limit ({sizeLimit / (1024 * 1024)}MB).");
@@ -147,7 +177,7 @@ internal partial class IngestionViewModel : ObservableObject
             ProcessedFiles.Add(fileInfo);
 
             // Determine file type
-            var extension = Path.GetExtension(SelectedFilePath).ToLowerInvariant();
+            var extension = Path.GetExtension(SelectedFilePath).ToUpperInvariant();
 
             if (EnableLocalProcessing && _embeddingService != null)
             {
@@ -201,7 +231,7 @@ internal partial class IngestionViewModel : ObservableObject
         StatusMessage = "Chunking document...";
 
         // Step 1: Chunking document
-        if (extension == ".pdf")
+        if (extension == ".PDF")
         {
             var chunkResult = await _pdfChunker.ProcessPdfAsync(fileInfo.FilePath);
             if (!chunkResult.Success)
@@ -230,7 +260,7 @@ internal partial class IngestionViewModel : ObservableObject
                 fileInfo.EmbeddingCount = embeddings.Count;
             }
         }
-        else if (extension == ".csv")
+        else if (extension == ".CSV")
         {
             var chunkResult = await _csvChunker.ProcessCsvAsync(fileInfo.FilePath);
             if (!chunkResult.Success)
@@ -316,8 +346,8 @@ internal partial class IngestionViewModel : ObservableObject
 
             return ext switch
             {
-                ".pdf" => header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46,
-                ".csv" => true,
+                ".PDF" => header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46,
+                ".CSV" => true,
                 _ => false
             };
         }
@@ -334,7 +364,7 @@ internal partial class IngestionViewModel : ObservableObject
 /// <summary>
 /// Information about a processed file
 /// </summary>
-internal partial class ProcessedFileInfo : ObservableObject
+public partial class ProcessedFileInfo : ObservableObject
 {
     [ObservableProperty]
     private string _status = string.Empty;

@@ -10,43 +10,50 @@ namespace MotorcycleRAG.Admin.Processing;
 /// </summary>
 internal class EmbeddingResult
 {
-    public bool Success { get; set; }
-    public float[] Embedding { get; set; } = Array.Empty<float>();
-    public int Dimensions { get; set; }
-    public string Error { get; set; } = string.Empty;
+    internal bool Success { get; set; }
+    internal float[] Embedding { get; set; } = Array.Empty<float>();
+    internal int Dimensions { get; set; }
+    internal string Error { get; set; } = string.Empty;
 }
 
 /// <summary>
 /// Service for generating embeddings using ONNX Runtime
 /// Supports sentence-transformers models like all-MiniLM-L6-v2
 /// </summary>
-internal class OnnxEmbeddingService : IDisposable
+public class OnnxEmbeddingService : IDisposable
 {
     private readonly InferenceSession _session;
-    private readonly string _modelPath;
+    private readonly SessionOptions _sessionOptions;
     private readonly int _maxTokens;
     private bool _disposed;
 
-    public OnnxEmbeddingService(string modelPath, int maxTokens = 256)
+    internal OnnxEmbeddingService(string modelPath)
+        : this(modelPath, maxTokens: 256)
+    {
+    }
+
+    internal OnnxEmbeddingService(string modelPath, int maxTokens)
     {
         if (string.IsNullOrEmpty(modelPath))
             throw new ArgumentException("Model path cannot be null or empty", nameof(modelPath));
-        
+
         if (!File.Exists(modelPath))
             throw new FileNotFoundException($"ONNX model not found at: {modelPath}", modelPath);
 
-        _modelPath = modelPath;
         _maxTokens = maxTokens;
+
+        _sessionOptions = new SessionOptions
+        {
+            GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
+        };
 
         try
         {
-            var sessionOptions = new SessionOptions();
-            sessionOptions.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-            
-            _session = new InferenceSession(modelPath, sessionOptions);
+            _session = new InferenceSession(modelPath, _sessionOptions);
         }
         catch (Exception ex)
         {
+            _sessionOptions?.Dispose();
             throw new InvalidOperationException($"Failed to load ONNX model: {ex.Message}", ex);
         }
     }
@@ -54,10 +61,14 @@ internal class OnnxEmbeddingService : IDisposable
     /// <summary>
     /// Generates an embedding for the given text
     /// </summary>
-    public async Task<EmbeddingResult> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
+    internal Task<EmbeddingResult> GenerateEmbeddingAsync(string text)
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(OnnxEmbeddingService));
+        return GenerateEmbeddingAsync(text, default);
+    }
+
+    internal async Task<EmbeddingResult> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
         var result = new EmbeddingResult();
 
@@ -132,9 +143,14 @@ internal class OnnxEmbeddingService : IDisposable
     /// <summary>
     /// Generates embeddings for multiple texts in batch
     /// </summary>
-    public async Task<List<EmbeddingResult>> GenerateEmbeddingsBatchAsync(
-        IEnumerable<string> texts, 
-        CancellationToken cancellationToken = default)
+    internal Task<List<EmbeddingResult>> GenerateEmbeddingsBatchAsync(IEnumerable<string> texts)
+    {
+        return GenerateEmbeddingsBatchAsync(texts, default);
+    }
+
+    internal async Task<List<EmbeddingResult>> GenerateEmbeddingsBatchAsync(
+        IEnumerable<string> texts,
+        CancellationToken cancellationToken)
     {
         var results = new List<EmbeddingResult>();
 
@@ -239,6 +255,7 @@ internal class OnnxEmbeddingService : IDisposable
             return;
 
         _session?.Dispose();
+        _sessionOptions?.Dispose();
         _disposed = true;
         GC.SuppressFinalize(this);
     }
@@ -247,12 +264,12 @@ internal class OnnxEmbeddingService : IDisposable
 /// <summary>
 /// Factory for creating ONNX embedding services
 /// </summary>
-internal static class OnnxEmbeddingServiceFactory
+public static class OnnxEmbeddingServiceFactory
 {
     /// <summary>
     /// Creates an embedding service with the default model
     /// </summary>
-    public static OnnxEmbeddingService CreateFromAppResources()
+    internal static OnnxEmbeddingService CreateFromAppResources()
     {
         // Look for embedded model in app resources
         var appPath = AppDomain.CurrentDomain.BaseDirectory;
@@ -271,7 +288,7 @@ internal static class OnnxEmbeddingServiceFactory
     /// <summary>
     /// Creates an embedding service with a custom model path
     /// </summary>
-    public static OnnxEmbeddingService CreateFromPath(string modelPath)
+    internal static OnnxEmbeddingService CreateFromPath(string modelPath)
     {
         return new OnnxEmbeddingService(modelPath);
     }

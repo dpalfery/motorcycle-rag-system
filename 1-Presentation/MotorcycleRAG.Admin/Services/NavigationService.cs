@@ -4,14 +4,24 @@ namespace MotorcycleRAG.Admin.Services;
 /// Implementation of INavigationService wrapping MAUI Shell navigation.
 /// This allows ViewModels to remain decoupled from Shell.Current and testable.
 /// </summary>
-internal class NavigationService : INavigationService
+public class NavigationService : INavigationService
 {
     /// <summary>
     /// Navigates to the specified route with optional query parameters.
     /// </summary>
     /// <param name="route">The route to navigate to</param>
     /// <param name="parameters">Optional query parameters</param>
-    public async Task NavigateToAsync(string route, IDictionary<string, object>? parameters = null)
+    public async Task NavigateToAsync(string route)
+    {
+        await NavigateToAsync(route, parameters: null);
+    }
+
+    /// <summary>
+    /// Navigates to the specified route with query parameters.
+    /// </summary>
+    /// <param name="route">The route to navigate to</param>
+    /// <param name="parameters">Query parameters</param>
+    public async Task NavigateToAsync(string route, IDictionary<string, object>? parameters)
     {
         try
         {

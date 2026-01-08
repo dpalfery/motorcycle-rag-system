@@ -43,7 +43,10 @@ public class FileUploadService : IFileUploadService {
             .Replace('\t', ' ');
     }
 
-    public async Task<FileUploadResult> UploadFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options, CancellationToken cancellationToken = default) {
+    public Task<FileUploadResult> UploadFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options)
+        => UploadFileAsync(fileStream, metadata, options, CancellationToken.None);
+
+    public async Task<FileUploadResult> UploadFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options, CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(fileStream);
@@ -111,7 +114,10 @@ public class FileUploadService : IFileUploadService {
         }
     }
 
-    public async Task<BatchFileUploadResult> UploadFilesAsync(IEnumerable<(Stream stream, FileMetadata metadata)> files, FileUploadOptions options, CancellationToken cancellationToken = default) {
+    public Task<BatchFileUploadResult> UploadFilesAsync(IEnumerable<(Stream stream, FileMetadata metadata)> files, FileUploadOptions options)
+        => UploadFilesAsync(files, options, CancellationToken.None);
+
+    public async Task<BatchFileUploadResult> UploadFilesAsync(IEnumerable<(Stream stream, FileMetadata metadata)> files, FileUploadOptions options, CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(options);
 

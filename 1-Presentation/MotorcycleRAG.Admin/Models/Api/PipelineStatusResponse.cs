@@ -5,8 +5,8 @@ namespace MotorcycleRAG.Admin.Models.Api;
 /// <summary>
 /// Response for get pipeline status operation
 /// </summary>
-internal class PipelineStatusResponse
+public class PipelineStatusResponse
 {
-    public string ExecutionId { get; set; } = string.Empty;
-    public PipelineStatus Status { get; set; }
+    internal string ExecutionId { get; set; } = string.Empty;
+    internal PipelineStatus Status { get; set; }
 }

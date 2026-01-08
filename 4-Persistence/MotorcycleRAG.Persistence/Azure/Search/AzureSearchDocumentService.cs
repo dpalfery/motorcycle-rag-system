@@ -23,7 +23,6 @@ public class AzureSearchDocumentService : IAzureSearchDocumentService
     private readonly ILogger<AzureSearchDocumentService> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
-    private readonly MotorcycleRAG.Core.Options.SearchOptions _searchOptions;
 
     public AzureSearchDocumentService(
         SearchClient searchClient,
@@ -33,7 +32,7 @@ public class AzureSearchDocumentService : IAzureSearchDocumentService
         ICorrelationService correlationService)
     {
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
-        _searchOptions = searchOptions?.Value ?? throw new ArgumentNullException(nameof(searchOptions));
+        ArgumentNullException.ThrowIfNull(searchOptions);
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
         _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
@@ -70,14 +69,14 @@ public class AzureSearchDocumentService : IAzureSearchDocumentService
             var success = await IndexDocumentsAsync(documentsArray);
             if (!success)
             {
-                throw new InvalidOperationException("Failed to index documents");
+                throw new InvalidOperationException($"Failed to index {nameof(documents)}");
             }
 
             _logger.LogDebug("Successfully indexed {DocumentCount} documents", documentCount);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error indexing documents");
+            _logger.LogError(ex, "Error indexing {ParameterName}", nameof(documents));
             throw new InvalidOperationException($"Error indexing {nameof(documents)}", ex);
         }
     }

@@ -73,7 +73,10 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         _logger.LogInformation("Scheduled pipeline service stopped");
     }
 
-    public async Task<PipelineExecutionResult> ExecuteImmediateRunAsync(CancellationToken cancellationToken = default) {
+    public Task<PipelineExecutionResult> ExecuteImmediateRunAsync()
+        => ExecuteImmediateRunAsync(CancellationToken.None);
+
+    public async Task<PipelineExecutionResult> ExecuteImmediateRunAsync(CancellationToken cancellationToken) {
         await _executionSemaphore.WaitAsync(cancellationToken);
 
         try {

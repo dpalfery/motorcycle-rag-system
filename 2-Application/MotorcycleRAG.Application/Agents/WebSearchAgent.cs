@@ -27,6 +27,7 @@ public class WebSearchAgent : ISearchAgent, IDisposable
     private readonly WebExtractor _extractor;
     private readonly WebSearchTermEnhancer _termEnhancer;
     private readonly WebSourceValidator _validator;
+    private bool _disposed;
 
     public SearchAgentType AgentType => SearchAgentType.WebSearch;
 
@@ -262,7 +263,23 @@ public class WebSearchAgent : ISearchAgent, IDisposable
 
     public void Dispose()
     {
+        Dispose(true);
         GC.SuppressFinalize(this);
-        // No disposable dependencies to clean up
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (disposing)
+        {
+            // No owned disposable dependencies to clean up
+            // HttpClient is injected and managed by IHttpClientFactory
+        }
+
+        _disposed = true;
     }
 }

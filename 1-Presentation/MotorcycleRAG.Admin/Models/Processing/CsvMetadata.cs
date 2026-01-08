@@ -5,11 +5,11 @@ namespace MotorcycleRAG.Admin.Models.Processing;
 /// </summary>
 internal class CsvMetadata
 {
-    public int TotalRows { get; set; }
-    public int ColumnCount { get; set; }
-    public IReadOnlyList<string> ColumnNames { get; private set; } = new List<string>().AsReadOnly();
-    public string Delimiter { get; set; } = ",";
-    public bool HasHeader { get; set; } = true;
+    internal int TotalRows { get; set; }
+    internal int ColumnCount { get; set; }
+    internal IReadOnlyList<string> ColumnNames { get; private set; } = new List<string>().AsReadOnly();
+    internal string Delimiter { get; set; } = ",";
+    internal bool HasHeader { get; set; } = true;
 
     // Internal method for setting column names during initialization
     internal void SetColumnNames(List<string> columnNames)

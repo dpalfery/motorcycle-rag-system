@@ -14,7 +14,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for managing web sources in the admin panel.
 /// Handles loading, creating, and deleting web sources with proper error handling and state management.
 /// </summary>
-internal partial class WebSourcesViewModel : ObservableObject {
+public partial class WebSourcesViewModel : ObservableObject {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<WebSourcesViewModel> _logger;
@@ -61,7 +61,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
     /// Command to load web sources from the API
     /// </summary>
     [RelayCommand]
-    public async Task LoadSourcesAsync() {
+    internal async Task LoadSourcesAsync() {
         IsLoading = true;
         ErrorMessage = null;
 
@@ -111,7 +111,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
     /// Command to show the add source form
     /// </summary>
     [RelayCommand]
-    public void OpenAddSourceForm() {
+    internal void OpenAddSourceForm() {
         ResetForm();
         ShowAddSourceForm = true;
     }
@@ -120,7 +120,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
     /// Command to hide the add source form
     /// </summary>
     [RelayCommand]
-    public void CloseAddSourceForm() {
+    internal void CloseAddSourceForm() {
         ShowAddSourceForm = false;
         ResetForm();
     }
@@ -129,7 +129,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
     /// Command to add a new web source
     /// </summary>
     [RelayCommand]
-    public async Task AddSourceAsync() {
+    internal async Task AddSourceAsync() {
         IsLoading = true;
         ErrorMessage = null;
 
@@ -208,7 +208,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
     /// Command to delete a web source
     /// </summary>
     [RelayCommand]
-    public async Task DeleteSourceAsync(int sourceId) {
+    internal async Task DeleteSourceAsync(int sourceId) {
         try {
             var window = Application.Current?.Windows?.FirstOrDefault();
             if (window?.Page == null)
@@ -279,7 +279,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
     /// Command to refresh the web sources list
     /// </summary>
     [RelayCommand]
-    public async Task RefreshAsync() {
+    internal async Task RefreshAsync() {
         await LoadSourcesAsync();
     }
 
@@ -290,7 +290,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
     /// <summary>
     /// Initialize the view model
     /// </summary>
-    public async Task InitializeAsync() {
+    internal async Task InitializeAsync() {
         try {
             await EnsureAuthorizedAsync();
             await LoadSourcesAsync();
@@ -338,7 +338,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
 /// <summary>
 /// ViewModel for a single web source in the list
 /// </summary>
-internal class WebSourceViewModel : ObservableObject {
+public class WebSourceViewModel : ObservableObject {
     private readonly WebSource _source;
 
     public WebSourceViewModel(WebSource source) {

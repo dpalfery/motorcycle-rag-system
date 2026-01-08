@@ -17,10 +17,15 @@ public class WebContentExtractor
         _logger = logger;
     }
 
-    public List<ExtractedContent> ExtractFromHtml(
+    public IReadOnlyCollection<ExtractedContent> ExtractFromHtml(
+        string htmlContent,
+        string customSelector)
+        => ExtractFromHtml(htmlContent, customSelector, 5);
+
+    public IReadOnlyCollection<ExtractedContent> ExtractFromHtml(
         string htmlContent,
         string customSelector,
-        int maxResults = 5)
+        int maxResults)
     {
         var results = new List<ExtractedContent>();
 

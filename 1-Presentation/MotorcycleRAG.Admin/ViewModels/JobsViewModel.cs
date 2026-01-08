@@ -14,7 +14,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for pipeline jobs management.
 /// Handles loading, polling, and canceling pipeline executions.
 /// </summary>
-internal class JobsViewModel : IDisposable {
+public class JobsViewModel : IDisposable {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<JobsViewModel> _logger;
@@ -108,11 +108,11 @@ internal class JobsViewModel : IDisposable {
                     var statusResponse = await _apiClient.GetPipelineStatusAsync(job.ExecutionId).ConfigureAwait(false);
                     job.Status = statusResponse.Status;
 
-                    // If job completed, reload full job list
+                    // If job completed, reload full job list and stop polling other jobs
                     if (!IsRunningStatus(statusResponse.Status))
                     {
                         await LoadJobsAsync().ConfigureAwait(false);
-                        break;
+                        return; // Exit early - LoadJobsAsync will refresh all jobs
                     }
                 }
             }
@@ -140,7 +140,7 @@ internal class JobsViewModel : IDisposable {
         IsLoading = true;
         try
         {
-            var executions = await _apiClient.GetPipelineExecutionsAsync().ConfigureAwait(false);
+            var executions = await _apiClient.GetPipelineExecutionsAsync(default).ConfigureAwait(false);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
@@ -257,12 +257,10 @@ internal class JobsViewModel : IDisposable {
     }
 
     protected virtual void Dispose(bool disposing) {
-        if (disposing) {
+        if (disposing && _pollTimer != null) {
             // Stop the timer before disposing to prevent race conditions
-            if (_pollTimer != null) {
-                _pollTimer.Stop();
-                _pollTimer.Dispose();
-            }
+            _pollTimer.Stop();
+            _pollTimer.Dispose();
         }
     }
 
@@ -276,7 +274,7 @@ internal class JobsViewModel : IDisposable {
 /// <summary>
 /// ViewModel for a pipeline job in the list
 /// </summary>
-internal class JobViewModel : INotifyPropertyChanged
+public class JobViewModel : INotifyPropertyChanged
 {
     private PipelineStatus _status;
 

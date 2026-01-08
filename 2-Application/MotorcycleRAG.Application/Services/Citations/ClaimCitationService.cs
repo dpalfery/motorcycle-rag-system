@@ -23,11 +23,17 @@ public class ClaimCitationService
         _logger = logger;
     }
 
+    public Task<CitedResponse> GenerateCitedResponseAsync(
+        string originalAnswer,
+        SearchResult[] sources,
+        string query)
+        => GenerateCitedResponseAsync(originalAnswer, sources, query, CancellationToken.None);
+
     public async Task<CitedResponse> GenerateCitedResponseAsync(
         string originalAnswer,
         SearchResult[] sources,
         string query,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(originalAnswer);
         ArgumentNullException.ThrowIfNull(sources);
@@ -122,7 +128,10 @@ Factual claims (JSON array):
 
             if (matchingSources.Any())
             {
-                evidence.Citations.AddRange(CreateCitationsFromSources(matchingSources, claim));
+                foreach (var citation in CreateCitationsFromSources(matchingSources, claim))
+                {
+                    evidence.Citations.Add(citation);
+                }
 
                 // Add to results with enhanced citations
                 foreach (var source in matchingSources.Where(s => evidence.Results.All(r => r.Id != s.Id)))
@@ -484,11 +493,11 @@ Factual claims (JSON array):
 public class CitedResponse
 {
     public string Answer { get; init; } = string.Empty;
-    public SearchResult[] Results { get; init; } = Array.Empty<SearchResult>();
+    public IReadOnlyList<SearchResult> Results { get; init; } = Array.Empty<SearchResult>();
 }
 
 public class ClaimEvidence
 {
-    public List<Citation> Citations { get; } = new();
-    public List<SearchResult> Results { get; } = new();
+    public IList<Citation> Citations { get; } = new List<Citation>();
+    public IList<SearchResult> Results { get; } = new List<SearchResult>();
 }

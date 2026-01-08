@@ -66,7 +66,10 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
         }
     }
 
-    public async Task<Dictionary<string, bool>> HealthCheckAsync(CancellationToken cancellationToken = default) {
+    public Task<Dictionary<string, bool>> HealthCheckAsync()
+        => HealthCheckAsync(CancellationToken.None);
+
+    public async Task<Dictionary<string, bool>> HealthCheckAsync(CancellationToken cancellationToken) {
         var results = new Dictionary<string, bool>();
         var tasks = new List<Task>();
 
@@ -108,57 +111,50 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
     private HttpClient CreateHttpClient(string serviceName) {
         var settings = _settings.GetValueOrDefault(serviceName, new ConnectionPoolSettings());
 
+        // CA2000 suppressed: handler ownership is transferred to HttpClient with disposeHandler: true
+        // HttpClient will dispose the handler when it is disposed
+        #pragma warning disable CA2000
+        var handler = new SocketsHttpHandler
+        {
+            MaxConnectionsPerServer = settings.MaxConnectionsPerEndpoint,
+            ConnectTimeout = settings.ConnectionTimeout,
+            PooledConnectionIdleTimeout = settings.ConnectionIdleTimeout,
+            PooledConnectionLifetime = settings.ConnectionLifetime,
+            UseCookies = false, // Disable cookies for better performance
+            AutomaticDecompression = settings.EnableCompression ?
+                (DecompressionMethods.GZip | DecompressionMethods.Deflate) :
+                DecompressionMethods.None
+        };
+        #pragma warning restore CA2000
+
         HttpClient? client = null;
-
         try {
-            SocketsHttpHandler? handler = null;
-            try
-            {
-                handler = new SocketsHttpHandler();
+            client = new HttpClient(handler, disposeHandler: true);
 
-                handler.MaxConnectionsPerServer = settings.MaxConnectionsPerEndpoint;
-                handler.ConnectTimeout = settings.ConnectionTimeout;
-                handler.PooledConnectionIdleTimeout = settings.ConnectionIdleTimeout;
-                handler.PooledConnectionLifetime = settings.ConnectionLifetime;
-                handler.UseCookies = false; // Disable cookies for better performance
-                handler.AutomaticDecompression = settings.EnableCompression ?
-                    (DecompressionMethods.GZip | DecompressionMethods.Deflate) :
-                    DecompressionMethods.None;
+            client.Timeout = settings.ConnectionTimeout;
 
-                client = new HttpClient(handler, disposeHandler: true);
-                // handler = null; // Ownership transferred to HttpClient (no longer needed)
-
-                client.Timeout = settings.ConnectionTimeout;
-
-                // Add default headers
-                foreach (var header in settings.DefaultHeaders) {
-                    client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
-                }
-
-                // Add user agent
-                client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MotorcycleRAG/1.0");
-
-                // Initialize statistics
-                _statistics.TryAdd(serviceName, new ConnectionPoolStatistics {
-                    ServiceName = serviceName,
-                    LastActivity = DateTime.UtcNow
-                });
-
-                _logger.LogInformation("Created HTTP client for service {ServiceName} with settings: MaxConnections={MaxConnections}, Timeout={Timeout}",
-                    serviceName, settings.MaxConnectionsPerEndpoint, settings.ConnectionTimeout);
-
-                return client;
+            // Add default headers
+            foreach (var header in settings.DefaultHeaders) {
+                client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
             }
-            catch
-            {
-                handler?.Dispose();
-                throw;
-            }
+
+            // Add user agent
+            client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "MotorcycleRAG/1.0");
+
+            // Initialize statistics
+            _statistics.TryAdd(serviceName, new ConnectionPoolStatistics {
+                ServiceName = serviceName,
+                LastActivity = DateTime.UtcNow
+            });
+
+            _logger.LogInformation("Created HTTP client for service {ServiceName} with settings: MaxConnections={MaxConnections}, Timeout={Timeout}",
+                serviceName, settings.MaxConnectionsPerEndpoint, settings.ConnectionTimeout);
+
+            return client;
         }
-        catch (Exception ex) {
+        catch {
             client?.Dispose();
-
-            throw new InvalidOperationException($"Failed to create HTTP client for service '{serviceName}'", ex);
+            throw;
         }
     }
 

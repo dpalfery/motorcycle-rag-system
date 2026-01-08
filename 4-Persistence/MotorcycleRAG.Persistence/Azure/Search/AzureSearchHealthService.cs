@@ -16,11 +16,9 @@ namespace MotorcycleRAG.Persistence.Azure.Search;
 /// </summary>
 public class AzureSearchHealthService : IAzureSearchHealthService
 {
-    private readonly SearchClient _searchClient;
     private readonly ILogger<AzureSearchHealthService> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
-    private readonly MotorcycleRAG.Core.Options.SearchOptions _searchOptions;
 
     public AzureSearchHealthService(
         SearchClient searchClient,
@@ -29,8 +27,8 @@ public class AzureSearchHealthService : IAzureSearchHealthService
         IResilienceService resilienceService,
         ICorrelationService correlationService)
     {
-        _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
-        _searchOptions = searchOptions?.Value ?? throw new ArgumentNullException(nameof(searchOptions));
+        ArgumentNullException.ThrowIfNull(searchClient);
+        ArgumentNullException.ThrowIfNull(searchOptions);
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
         _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));

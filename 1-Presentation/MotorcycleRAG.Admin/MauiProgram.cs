@@ -10,7 +10,7 @@ namespace MotorcycleRAG.Admin;
 
 internal static class MauiProgram
 {
-    public static MauiApp CreateMauiApp()
+    internal static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
         builder
@@ -88,14 +88,12 @@ internal static class MauiProgram
                 }
 
                 // Validate HTTPS in production (non-localhost URLs must use HTTPS)
-                if (!baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (!baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
+                    !baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase) &&
+                    !baseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase) &&
-                        !baseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new InvalidOperationException(
-                            $"MCR_ADMIN_API_BASE_URL must use HTTPS for non-localhost URLs. Got: {baseUrl}");
-                    }
+                    throw new InvalidOperationException(
+                        $"MCR_ADMIN_API_BASE_URL must use HTTPS for non-localhost URLs. Got: {baseUrl}");
                 }
 
                 // Validate URL format
@@ -120,14 +118,15 @@ internal static class MauiProgram
         // embedding processing as fallback if this service is not registered
         try
         {
-            var embeddingService = OnnxEmbeddingServiceFactory.CreateFromAppResources();
-            builder.Services.AddSingleton(embeddingService);
+            // Register factory method so DI container manages disposal
+            builder.Services.AddSingleton<OnnxEmbeddingService>(_ =>
+                OnnxEmbeddingServiceFactory.CreateFromAppResources());
         }
         catch (Exception ex)
         {
             // Model not available - log warning and continue without local embeddings
-            var logger = LoggerFactory.Create(configure => configure.AddDebug())
-                .CreateLogger<MauiApp>();
+            using var loggerFactory = LoggerFactory.Create(configure => configure.AddDebug());
+            var logger = loggerFactory.CreateLogger<MauiApp>();
             logger.LogWarning(ex,
                 "ONNX embedding model not available. Local embedding processing will be disabled. " +
                 "To enable local processing, place the ONNX model file in Resources/Raw/. " +

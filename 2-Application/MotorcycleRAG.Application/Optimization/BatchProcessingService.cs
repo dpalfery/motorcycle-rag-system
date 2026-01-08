@@ -19,11 +19,22 @@ public class BatchProcessingService : IBatchProcessingService {
         _logger = logger;
     }
 
+    public Task<BatchProcessingResult<TResult>> ProcessBatchAsync<T, TResult>(
+        IEnumerable<T> documents,
+        BatchProcessor<T, TResult> processor)
+        => ProcessBatchAsync(documents, processor, 100, CancellationToken.None);
+
+    public Task<BatchProcessingResult<TResult>> ProcessBatchAsync<T, TResult>(
+        IEnumerable<T> documents,
+        BatchProcessor<T, TResult> processor,
+        int batchSize)
+        => ProcessBatchAsync(documents, processor, batchSize, CancellationToken.None);
+
     public async Task<BatchProcessingResult<TResult>> ProcessBatchAsync<T, TResult>(
         IEnumerable<T> documents,
         BatchProcessor<T, TResult> processor,
-        int batchSize = 100,
-        CancellationToken cancellationToken = default) {
+        int batchSize,
+        CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(documents);
         ArgumentNullException.ThrowIfNull(processor);
 
@@ -108,11 +119,17 @@ public class BatchProcessingService : IBatchProcessingService {
         }
     }
 
+    public Task<BatchProcessingResult<TResult>> ProcessParallelBatchAsync<T, TResult>(
+        IEnumerable<T> documents,
+        Func<T, CancellationToken, Task<TResult>> processor,
+        BatchProcessingOptions options)
+        => ProcessParallelBatchAsync(documents, processor, options, CancellationToken.None);
+
     public async Task<BatchProcessingResult<TResult>> ProcessParallelBatchAsync<T, TResult>(
         IEnumerable<T> documents,
         Func<T, CancellationToken, Task<TResult>> processor,
         BatchProcessingOptions options,
-        CancellationToken cancellationToken = default) {
+        CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(documents);
         ArgumentNullException.ThrowIfNull(processor);
         ArgumentNullException.ThrowIfNull(options);

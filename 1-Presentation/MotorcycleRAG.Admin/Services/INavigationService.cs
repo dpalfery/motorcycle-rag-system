@@ -4,14 +4,21 @@ namespace MotorcycleRAG.Admin.Services;
 /// Abstraction for Shell-based navigation.
 /// This interface enables testability of ViewModels by decoupling them from Shell.Current.
 /// </summary>
-internal interface INavigationService {
+public interface INavigationService {
     /// <summary>
-    /// Navigates to the specified route with optional query parameters.
+    /// Navigates to the specified route.
     /// </summary>
     /// <param name="route">The route to navigate to (e.g., "dashboardpage", "uploadpage")</param>
-    /// <param name="parameters">Optional dictionary of query parameters</param>
     /// <returns>Task representing the navigation operation</returns>
-    Task NavigateToAsync(string route, IDictionary<string, object>? parameters = null);
+    Task NavigateToAsync(string route);
+
+    /// <summary>
+    /// Navigates to the specified route with query parameters.
+    /// </summary>
+    /// <param name="route">The route to navigate to (e.g., "dashboardpage", "uploadpage")</param>
+    /// <param name="parameters">Dictionary of query parameters</param>
+    /// <returns>Task representing the navigation operation</returns>
+    Task NavigateToAsync(string route, IDictionary<string, object>? parameters);
 
     /// <summary>
     /// Navigates back to the previous page in the navigation stack.

@@ -6,9 +6,9 @@ namespace MotorcycleRAG.Admin.Models.Api;
 /// <summary>
 /// Upload constraints information
 /// </summary>
-internal class UploadConstraints
+public class UploadConstraints
 {
-    public long MaxFileSizeBytes { get; set; }
-    public int MaxFilesPerBatch { get; set; }
-    public Collection<string> AllowedFileTypes { get; } = new();
+    internal long MaxFileSizeBytes { get; set; }
+    internal int MaxFilesPerBatch { get; set; }
+    internal Collection<string> AllowedFileTypes { get; } = new();
 }

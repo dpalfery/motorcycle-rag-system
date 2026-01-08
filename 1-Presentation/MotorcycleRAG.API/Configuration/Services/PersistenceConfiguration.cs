@@ -4,6 +4,7 @@ using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Sql.Repositories;
 using MotorcycleRAG.Application.Services;
+using MotorcycleRAG.Persistence.Resilience;
 
 namespace MotorcycleRAG.API.Configuration.Services;
 
@@ -40,6 +41,9 @@ internal static class PersistenceConfiguration
         services.AddScoped<IToolConfigurationAuditRepository, ToolConfigurationAuditRepository>();
         services.AddScoped<IToolConfigurationService, ToolConfigurationService>();
         services.AddScoped<IMcpConfigurationProvider, McpConfigurationProvider>();
+
+        // Correlation and telemetry services
+        services.AddSingleton<ICorrelationService, CorrelationService>();
 
         return services;
     }

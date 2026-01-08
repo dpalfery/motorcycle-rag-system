@@ -26,7 +26,6 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
     private readonly McpToolManager _mcpToolManager;
     private readonly DegradedModeTracker _degradedModeTracker;
     private readonly SearchResultFusionService _resultFusionService;
-    private readonly ICorrelationService _correlationService;
 
     public AgentOrchestrator(
         IEnumerable<ISearchAgent> agents,
@@ -52,7 +51,6 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
         _mcpToolManager = mcpToolManager;
         _degradedModeTracker = degradedModeTracker;
         _resultFusionService = resultFusionService;
-        _correlationService = correlationService;
 
         _frameworkAdapter = new AgentFrameworkAdapter(logger);
         _executionState = new AgentState();

@@ -26,7 +26,7 @@ public class WebSearchCache
         _logger = logger;
     }
 
-    public bool TryGet(string query, out List<SearchResult> results)
+    public bool TryGet(string query, out IReadOnlyCollection<SearchResult> results)
     {
         ArgumentNullException.ThrowIfNull(query);
 
@@ -67,7 +67,7 @@ public class WebSearchCache
         return false;
     }
 
-    public void Set(string query, List<SearchResult> results)
+    public void Set(string query, IReadOnlyCollection<SearchResult> results)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(results);
@@ -84,7 +84,7 @@ public class WebSearchCache
 
         _cache[cacheKey] = new CachedSearchResults
         {
-            Results = results,
+            Results = results.ToList(),
             CachedAt = DateTime.UtcNow
         };
 

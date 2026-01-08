@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.Admin.Utilities;
 
@@ -15,7 +16,7 @@ internal static class ErrorPresenter
     /// Sanitizes error messages to remove sensitive information before displaying to users
     /// Redacts file paths, URLs, IP addresses and limits message length
     /// </summary>
-    public static string SanitizeErrorMessage(string? errorMessage)
+    internal static string SanitizeErrorMessage(string? errorMessage)
     {
         if (string.IsNullOrWhiteSpace(errorMessage))
             return "An unexpected error occurred. Please try again.";
@@ -31,7 +32,7 @@ internal static class ErrorPresenter
 
         // Limit length to prevent excessively long messages
         if (sanitized.Length > 200)
-            sanitized = sanitized.Substring(0, 197) + "...";
+            sanitized = string.Concat(sanitized.AsSpan(0, 197), "...");
 
         return sanitized;
     }
@@ -39,7 +40,7 @@ internal static class ErrorPresenter
     /// <summary>
     /// Displays an error alert to the user
     /// </summary>
-    public static Task ShowErrorAsync(string title, string message)
+    internal static Task ShowErrorAsync(string title, string message)
     {
         return MainThread.InvokeOnMainThreadAsync(async () =>
         {
@@ -54,7 +55,7 @@ internal static class ErrorPresenter
     /// <summary>
     /// Displays an exception to the user with optional details
     /// </summary>
-    public static Task ShowExceptionAsync(string title, Exception exception, bool showDetails = false)
+    internal static Task ShowExceptionAsync(string title, Exception exception, bool showDetails = false)
     {
         var message = showDetails 
             ? $"{exception.Message}\n\nDetails: {exception}"
@@ -66,7 +67,7 @@ internal static class ErrorPresenter
     /// <summary>
     /// Displays a warning alert to the user
     /// </summary>
-    public static Task ShowWarningAsync(string title, string message)
+    internal static Task ShowWarningAsync(string title, string message)
     {
         return MainThread.InvokeOnMainThreadAsync(async () =>
         {
@@ -81,7 +82,7 @@ internal static class ErrorPresenter
     /// <summary>
     /// Displays a success message to the user
     /// </summary>
-    public static Task ShowSuccessAsync(string title, string message)
+    internal static Task ShowSuccessAsync(string title, string message)
     {
         return MainThread.InvokeOnMainThreadAsync(async () =>
         {
@@ -96,7 +97,7 @@ internal static class ErrorPresenter
     /// <summary>
     /// Displays a confirmation dialog and returns user's choice
     /// </summary>
-    public static Task<bool> ShowConfirmAsync(string title, string message, string accept = "Yes", string cancel = "No")
+    internal static Task<bool> ShowConfirmAsync(string title, string message, string accept = "Yes", string cancel = "No")
     {
         return MainThread.InvokeOnMainThreadAsync(async () =>
         {
@@ -110,17 +111,41 @@ internal static class ErrorPresenter
     }
 
     /// <summary>
-    /// Logs error to console and optionally displays to user
+    /// Logs error and optionally displays to user
     /// </summary>
-    public static async Task LogAndShowErrorAsync(string context, Exception exception, bool showToUser = true)
+    internal static async Task LogAndShowErrorAsync(string context, Exception exception, ILogger? logger, bool showToUser)
     {
-        // Log to console
-        Console.WriteLine($"[ERROR] {context}: {exception}");
+        // Log using ILogger if available, otherwise no-op
+        logger?.LogError(exception, "[ERROR] {Context}", context);
 
         // Show to user if requested
         if (showToUser)
         {
             await ShowExceptionAsync("Error", exception);
         }
+    }
+
+    /// <summary>
+    /// Logs error and displays to user
+    /// </summary>
+    internal static Task LogAndShowErrorAsync(string context, Exception exception, ILogger? logger)
+    {
+        return LogAndShowErrorAsync(context, exception, logger, showToUser: true);
+    }
+
+    /// <summary>
+    /// Logs error without displaying to user
+    /// </summary>
+    internal static Task LogAndShowErrorAsync(string context, Exception exception, bool showToUser)
+    {
+        return LogAndShowErrorAsync(context, exception, logger: null, showToUser);
+    }
+
+    /// <summary>
+    /// Logs error without displaying to user
+    /// </summary>
+    internal static Task LogAndShowErrorAsync(string context, Exception exception)
+    {
+        return LogAndShowErrorAsync(context, exception, logger: null, showToUser: true);
     }
 }

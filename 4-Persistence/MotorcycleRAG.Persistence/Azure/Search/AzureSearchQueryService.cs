@@ -20,7 +20,6 @@ public class AzureSearchQueryService : IAzureSearchQueryService
     private readonly ILogger<AzureSearchQueryService> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
-    private readonly MotorcycleRAG.Core.Options.SearchOptions _searchOptions;
 
     public AzureSearchQueryService(
         SearchClient searchClient,
@@ -30,7 +29,7 @@ public class AzureSearchQueryService : IAzureSearchQueryService
         ICorrelationService correlationService)
     {
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
-        _searchOptions = searchOptions?.Value ?? throw new ArgumentNullException(nameof(searchOptions));
+        ArgumentNullException.ThrowIfNull(searchOptions);
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
         _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));

@@ -16,7 +16,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// HTTP client wrapper for calling the Motorcycle RAG API.
 /// Handles authentication, request/response serialization, and error handling.
 /// </summary>
-internal class ApiClient {
+public class ApiClient {
     private readonly HttpClient _httpClient;
     private readonly IAdminAuthService _authService;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -24,7 +24,7 @@ internal class ApiClient {
     private readonly AsyncCircuitBreakerPolicy<HttpResponseMessage> _circuitBreaker;
     private readonly ILogger<ApiClient> _logger;
 
-    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger)
+    internal ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
@@ -74,7 +74,23 @@ internal class ApiClient {
     /// <summary>
     /// Uploads a single file to the pipeline
     /// </summary>
-    public async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately = false, CancellationToken cancellationToken = default)
+    public Task<FileUploadResult> UploadFileAsync(string filePath)
+    {
+        return UploadFileAsync(filePath, processImmediately: false, default);
+    }
+
+    /// <summary>
+    /// Uploads a single file to the pipeline with processing option
+    /// </summary>
+    public Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately)
+    {
+        return UploadFileAsync(filePath, processImmediately, default);
+    }
+
+    /// <summary>
+    /// Uploads a single file to the pipeline with processing option and cancellation
+    /// </summary>
+    public async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately, CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -82,7 +98,7 @@ internal class ApiClient {
         {
             using var fileStream = File.OpenRead(filePath);
             using var content = new MultipartFormDataContent();
-            var streamContent = new StreamContent(fileStream);
+            using var streamContent = new StreamContent(fileStream);
             streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
 
             content.Add(streamContent, "file", Path.GetFileName(filePath));
@@ -99,21 +115,44 @@ internal class ApiClient {
             UploadResultValidator.ValidateFileUploadResult(result);
             return result!;
         }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP request failed uploading file: {FileName}. Status: {StatusCode}",
+                Path.GetFileName(filePath), ex.StatusCode);
+            throw new FileLoadException($"HTTP request failed uploading file: {Path.GetFileName(filePath)}. Status: {ex.StatusCode}", ex);
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error uploading file: {FileName}", Path.GetFileName(filePath));
-            throw;
+            _logger.LogError(ex, "Unexpected error uploading file: {FileName}", Path.GetFileName(filePath));
+            throw new FileLoadException($"Unexpected error uploading file: {Path.GetFileName(filePath)}", ex);
         }
     }
 
     /// <summary>
     /// Uploads multiple files to the pipeline
     /// </summary>
-    public async Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately = false, CancellationToken cancellationToken = default)
+    public Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths)
+    {
+        return UploadBatchAsync(filePaths, processImmediately: false, default);
+    }
+
+    /// <summary>
+    /// Uploads multiple files to the pipeline with processing option
+    /// </summary>
+    public Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately)
+    {
+        return UploadBatchAsync(filePaths, processImmediately, default);
+    }
+
+    /// <summary>
+    /// Uploads multiple files to the pipeline with processing option and cancellation
+    /// </summary>
+    public async Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately, CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var streams = new List<FileStream>();
+        var streamContents = new List<StreamContent>();
 
         try
         {
@@ -126,8 +165,9 @@ internal class ApiClient {
 
                 var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
                 streams.Add(fileStream);
-                
+
                 var streamContent = new StreamContent(fileStream);
+                streamContents.Add(streamContent);
                 streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
                 content.Add(streamContent, "files", Path.GetFileName(filePath));
             }
@@ -144,16 +184,30 @@ internal class ApiClient {
             UploadResultValidator.ValidateBatchFileUploadResult(batchResult);
             return batchResult!;
         }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP request failed uploading batch files. Status: {StatusCode}, File count: {FileCount}",
+                ex.StatusCode, filePaths.Count());
+            throw new FileLoadException($"HTTP error uploading batch files. Status: {ex.StatusCode}. File paths: {string.Join(", ", filePaths)}", ex);
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error uploading batch files");
+            _logger.LogError(ex, "Unexpected error uploading batch files. File count: {FileCount}", filePaths.Count());
             throw new FileLoadException($"Error uploading batch files. See inner exception for details. File paths: {string.Join(", ", filePaths)}", ex);
         }
         finally
         {
+            foreach (var streamContent in streamContents)
+            {
+                streamContent?.Dispose();
+            }
+
             foreach (var stream in streams)
             {
-                stream?.Dispose();
+                if (stream != null)
+                {
+                    await stream.DisposeAsync().ConfigureAwait(false);
+                }
             }
         }
     }
@@ -161,7 +215,15 @@ internal class ApiClient {
     /// <summary>
     /// Gets upload constraints (file size limits, allowed types, etc.)
     /// </summary>
-    public async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken = default)
+    public Task<UploadConstraints> GetUploadConstraintsAsync()
+    {
+        return GetUploadConstraintsAsync(default);
+    }
+
+    /// <summary>
+    /// Gets upload constraints (file size limits, allowed types, etc.) with cancellation
+    /// </summary>
+    public async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -180,7 +242,15 @@ internal class ApiClient {
     /// <summary>
     /// Processes a previously uploaded file
     /// </summary>
-    public async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken = default)
+    public Task<ProcessingResult> ProcessFileAsync(string executionId)
+    {
+        return ProcessFileAsync(executionId, default);
+    }
+
+    /// <summary>
+    /// Processes a previously uploaded file with cancellation
+    /// </summary>
+    public async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken)
     {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -200,7 +270,15 @@ internal class ApiClient {
     /// <summary>
     /// Gets the status of a pipeline execution
     /// </summary>
-    public async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken = default)
+    public Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId)
+    {
+        return GetPipelineStatusAsync(executionId, default);
+    }
+
+    /// <summary>
+    /// Gets the status of a pipeline execution with cancellation
+    /// </summary>
+    public async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken)
     {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -216,7 +294,15 @@ internal class ApiClient {
     /// <summary>
     /// Gets metrics for a pipeline execution
     /// </summary>
-    public async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken = default)
+    public Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId)
+    {
+        return GetPipelineMetricsAsync(executionId, default);
+    }
+
+    /// <summary>
+    /// Gets metrics for a pipeline execution with cancellation
+    /// </summary>
+    public async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken)
     {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -233,7 +319,15 @@ internal class ApiClient {
     /// <summary>
     /// Cancels a running pipeline execution
     /// </summary>
-    public async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken = default)
+    public Task<CancelPipelineResponse> CancelPipelineAsync(string executionId)
+    {
+        return CancelPipelineAsync(executionId, default);
+    }
+
+    /// <summary>
+    /// Cancels a running pipeline execution with cancellation
+    /// </summary>
+    public async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken)
     {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -251,11 +345,27 @@ internal class ApiClient {
     /// <summary>
     /// Gets all pipeline executions with optional filtering
     /// </summary>
+    public Task<List<PipelineExecution>> GetPipelineExecutionsAsync(CancellationToken cancellationToken)
+    {
+        return GetPipelineExecutionsAsync(status: null, startTime: null, endTime: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets all pipeline executions with optional filtering
+    /// </summary>
+    public Task<List<PipelineExecution>> GetPipelineExecutionsAsync(PipelineStatus? status, CancellationToken cancellationToken)
+    {
+        return GetPipelineExecutionsAsync(status, startTime: null, endTime: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets all pipeline executions with optional filtering
+    /// </summary>
     public async Task<List<PipelineExecution>> GetPipelineExecutionsAsync(
-        PipelineStatus? status = null,
-        DateTime? startTime = null,
-        DateTime? endTime = null,
-        CancellationToken cancellationToken = default)
+        PipelineStatus? status,
+        DateTime? startTime,
+        DateTime? endTime,
+        CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -296,7 +406,15 @@ internal class ApiClient {
     /// <summary>
     /// Gets all MCP tool configurations
     /// </summary>
-    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync(CancellationToken cancellationToken = default)
+    internal Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync()
+    {
+        return GetMcpToolsAsync(default);
+    }
+
+    /// <summary>
+    /// Gets all MCP tool configurations with cancellation
+    /// </summary>
+    internal async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync(CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -311,10 +429,20 @@ internal class ApiClient {
     /// <summary>
     /// Updates an MCP tool configuration
     /// </summary>
-    public async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(
+    internal Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(
+        string toolId,
+        MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request)
+    {
+        return UpdateMcpToolAsync(toolId, request, default);
+    }
+
+    /// <summary>
+    /// Updates an MCP tool configuration with cancellation
+    /// </summary>
+    internal async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(
         string toolId,
         MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(toolId))
@@ -341,7 +469,15 @@ internal class ApiClient {
     /// <summary>
     /// Gets all web sources
     /// </summary>
-    public async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken = default)
+    public Task<List<WebSource>> GetWebSourcesAsync()
+    {
+        return GetWebSourcesAsync(default);
+    }
+
+    /// <summary>
+    /// Gets all web sources with cancellation
+    /// </summary>
+    public async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -356,7 +492,15 @@ internal class ApiClient {
     /// <summary>
     /// Adds a new web source
     /// </summary>
-    public async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken = default)
+    public Task<WebSource> AddWebSourceAsync(WebSource source)
+    {
+        return AddWebSourceAsync(source, default);
+    }
+
+    /// <summary>
+    /// Adds a new web source with cancellation
+    /// </summary>
+    public async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
 
@@ -373,7 +517,15 @@ internal class ApiClient {
     /// <summary>
     /// Updates an existing web source
     /// </summary>
-    public async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken = default)
+    public Task<WebSource> UpdateWebSourceAsync(WebSource source)
+    {
+        return UpdateWebSourceAsync(source, default);
+    }
+
+    /// <summary>
+    /// Updates an existing web source with cancellation
+    /// </summary>
+    public async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
 
@@ -393,7 +545,15 @@ internal class ApiClient {
     /// <summary>
     /// Deletes a web source
     /// </summary>
-    public async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken = default)
+    public Task DeleteWebSourceAsync(int sourceId)
+    {
+        return DeleteWebSourceAsync(sourceId, default);
+    }
+
+    /// <summary>
+    /// Deletes a web source with cancellation
+    /// </summary>
+    public async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken)
     {
         if (sourceId <= 0)
             throw new ArgumentException("Invalid web source ID", nameof(sourceId));
@@ -413,7 +573,15 @@ internal class ApiClient {
     /// <summary>
     /// Gets all users with optional filtering
     /// </summary>
-    public async Task<List<UserDto>> GetUsersAsync(bool? isEnabled = null, CancellationToken cancellationToken = default)
+    public Task<List<UserDto>> GetUsersAsync(CancellationToken cancellationToken)
+    {
+        return GetUsersAsync(isEnabled: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets all users with optional filtering
+    /// </summary>
+    public async Task<List<UserDto>> GetUsersAsync(bool? isEnabled, CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -430,7 +598,15 @@ internal class ApiClient {
     /// <summary>
     /// Enables a user account
     /// </summary>
-    public async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken = default)
+    public Task<UserDto> EnableUserAsync(string userId)
+    {
+        return EnableUserAsync(userId, default);
+    }
+
+    /// <summary>
+    /// Enables a user account with cancellation
+    /// </summary>
+    public async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -446,7 +622,15 @@ internal class ApiClient {
     /// <summary>
     /// Disables a user account
     /// </summary>
-    public async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken = default)
+    public Task<UserDto> DisableUserAsync(string userId)
+    {
+        return DisableUserAsync(userId, default);
+    }
+
+    /// <summary>
+    /// Disables a user account with cancellation
+    /// </summary>
+    public async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 

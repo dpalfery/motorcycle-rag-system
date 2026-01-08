@@ -7,7 +7,7 @@ internal partial class App : Application {
     private readonly ISettingsService _settingsService;
     private readonly IServiceProvider _serviceProvider;
 
-    public App(IAdminAuthService authService, ISettingsService settingsService, IServiceProvider serviceProvider)
+    internal App(IAdminAuthService authService, ISettingsService settingsService, IServiceProvider serviceProvider)
     {
         InitializeComponent();
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));

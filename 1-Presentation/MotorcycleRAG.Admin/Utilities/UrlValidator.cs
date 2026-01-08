@@ -18,13 +18,26 @@ internal static class UrlValidator
     /// <param name="url">The URL to validate</param>
     /// <param name="allowLocalhost">Whether to allow localhost/loopback addresses (e.g. for local testing)</param>
     /// <returns>True if the URL is valid and safe, false otherwise</returns>
-    public static bool IsValidUrl(string url, bool allowLocalhost = false)
+    internal static bool IsValidUrl(string url, bool allowLocalhost = false)
     {
         if (string.IsNullOrWhiteSpace(url))
             return false;
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return false;
+
+        return IsValidUrl(uri, allowLocalhost);
+    }
+
+    /// <summary>
+    /// Validates a URL for SSRF protection.
+    /// </summary>
+    /// <param name="uri">The URI to validate</param>
+    /// <param name="allowLocalhost">Whether to allow localhost/loopback addresses (e.g. for local testing)</param>
+    /// <returns>True if the URL is valid and safe, false otherwise</returns>
+    internal static bool IsValidUrl(Uri uri, bool allowLocalhost = false)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
 
         // Only allow HTTP/HTTPS schemes
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
@@ -45,13 +58,10 @@ internal static class UrlValidator
         // Port validation
         if (uri.Port > 0)
         {
-            if (DevelopmentPorts.Contains(uri.Port))
+            if (DevelopmentPorts.Contains(uri.Port) && !IsLocalhostAddress(uri.Host))
             {
                 // Development ports allowed only on localhost
-                if (!IsLocalhostAddress(uri.Host))
-                {
-                    return false;
-                }
+                return false;
             }
             else if (!StandardPorts.Contains(uri.Port))
             {
@@ -85,10 +95,9 @@ internal static class UrlValidator
             return true;
 
         // 172.16.x.x to 172.31.x.x
-        if (octets.Length == 4 && octets[0] == "172")
+        if (octets.Length == 4 && octets[0] == "172" && int.TryParse(octets[1], out var secondOctet) && secondOctet >= 16 && secondOctet <= 31)
         {
-            if (int.TryParse(octets[1], out var secondOctet) && secondOctet >= 16 && secondOctet <= 31)
-                return true;
+            return true;
         }
 
         // 192.168.x.x
@@ -114,10 +123,9 @@ internal static class UrlValidator
             return true;
 
         // 224.x.x.x to 239.x.x.x
-        if (octets.Length == 4 && int.TryParse(octets[0], out var firstOctet))
+        if (octets.Length == 4 && int.TryParse(octets[0], out var firstOctet) && firstOctet >= 224 && firstOctet <= 239)
         {
-            if (firstOctet >= 224 && firstOctet <= 239)
-                return true;
+            return true;
         }
 
         // 255.255.255.255 or 0.0.0.0

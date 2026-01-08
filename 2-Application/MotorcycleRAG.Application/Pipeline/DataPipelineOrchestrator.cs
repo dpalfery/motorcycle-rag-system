@@ -16,7 +16,10 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator {
         _logger = logger;
     }
 
-    public async Task<PipelineExecutionResult> ProcessFileAsync(DataPipelineRequest request, CancellationToken cancellationToken = default) {
+    public Task<PipelineExecutionResult> ProcessFileAsync(DataPipelineRequest request)
+        => ProcessFileAsync(request, CancellationToken.None);
+
+    public async Task<PipelineExecutionResult> ProcessFileAsync(DataPipelineRequest request, CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(request);
         _logger.LogInformation("Processing file: {FileName}", request.FileName);
 
@@ -30,7 +33,10 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator {
         });
     }
 
-    public async Task<BatchPipelineResult> ProcessBatchAsync(IEnumerable<DataPipelineRequest> requests, CancellationToken cancellationToken = default) {
+    public Task<BatchPipelineResult> ProcessBatchAsync(IEnumerable<DataPipelineRequest> requests)
+        => ProcessBatchAsync(requests, CancellationToken.None);
+
+    public async Task<BatchPipelineResult> ProcessBatchAsync(IEnumerable<DataPipelineRequest> requests, CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(requests);
         var requestList = requests.ToList();
         var count = requestList.Count;

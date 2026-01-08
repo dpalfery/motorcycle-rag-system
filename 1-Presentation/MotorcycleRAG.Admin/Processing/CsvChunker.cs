@@ -11,11 +11,16 @@ namespace MotorcycleRAG.Admin.Processing;
 /// <summary>
 /// Service for chunking CSV files for motorcycle specification data
 /// </summary>
-internal class CsvChunker
+public class CsvChunker
 {
     private readonly int _rowsPerChunk;
 
-    public CsvChunker(int rowsPerChunk = 100)
+    internal CsvChunker()
+        : this(rowsPerChunk: 100)
+    {
+    }
+
+    internal CsvChunker(int rowsPerChunk)
     {
         if (rowsPerChunk <= 0)
             throw new ArgumentException("Rows per chunk must be positive", nameof(rowsPerChunk));
@@ -26,7 +31,12 @@ internal class CsvChunker
     /// <summary>
     /// Processes a CSV file and extracts chunks
     /// </summary>
-    public async Task<CsvChunkingResult> ProcessCsvAsync(string filePath, CancellationToken cancellationToken = default)
+    internal Task<CsvChunkingResult> ProcessCsvAsync(string filePath)
+    {
+        return ProcessCsvAsync(filePath, default);
+    }
+
+    internal async Task<CsvChunkingResult> ProcessCsvAsync(string filePath, CancellationToken cancellationToken)
     {
         var result = new CsvChunkingResult();
 
@@ -96,7 +106,6 @@ internal class CsvChunker
 
                 // Process rows in chunks
                 var currentChunk = new List<Dictionary<string, object>>();
-                var chunkIndex = 0;
                 var rowNumber = 1; // Starting from 1 (after header)
                 var chunkStartRow = rowNumber;
 
@@ -121,7 +130,7 @@ internal class CsvChunker
                     // Create chunk when we reach the target size
                     if (currentChunk.Count >= _rowsPerChunk)
                     {
-                        result.AddChunk(CreateChunk(currentChunk, chunkIndex++, chunkStartRow, rowNumber - 1, headers));
+                        result.AddChunk(CreateChunk(currentChunk, result.Chunks.Count, chunkStartRow, rowNumber - 1, headers));
                         currentChunk = new List<Dictionary<string, object>>();
                         chunkStartRow = rowNumber;
                     }
@@ -130,7 +139,7 @@ internal class CsvChunker
                 // Add final chunk if there are remaining rows
                 if (currentChunk.Count > 0)
                 {
-                    result.AddChunk(CreateChunk(currentChunk, chunkIndex++, chunkStartRow, rowNumber - 1, headers));
+                    result.AddChunk(CreateChunk(currentChunk, result.Chunks.Count, chunkStartRow, rowNumber - 1, headers));
                 }
 
                 result.Metadata.TotalRows = rowNumber - 1; // Exclude header
@@ -152,7 +161,7 @@ internal class CsvChunker
     /// <summary>
     /// Creates a searchable text representation of CSV data for a chunk
     /// </summary>
-    public string CreateSearchableText(
+    internal string CreateSearchableText(
         IReadOnlyList<Dictionary<string, object>> rows,
         IReadOnlyList<string> headers)
     {
@@ -246,7 +255,7 @@ internal class CsvChunker
     /// <summary>
     /// Validates CSV structure for motorcycle specifications
     /// </summary>
-    public ValidationResult ValidateMotorcycleSpecCsv(string filePath)
+    internal ValidationResult ValidateMotorcycleSpecCsv(string filePath)
     {
         var result = new ValidationResult { IsValid = true };
 

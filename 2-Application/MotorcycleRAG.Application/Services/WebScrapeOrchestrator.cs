@@ -54,7 +54,13 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     /// <summary>
     /// Initiates a web scrape run for a specific web source and orchestrates the complete pipeline
     /// </summary>
-    public async Task<long> StartScrapeRunAsync(int webSourceId, CancellationToken cancellationToken = default) {
+    public Task<long> StartScrapeRunAsync(int webSourceId)
+        => StartScrapeRunAsync(webSourceId, CancellationToken.None);
+
+    /// <summary>
+    /// Initiates a web scrape run for a specific web source and orchestrates the complete pipeline
+    /// </summary>
+    public async Task<long> StartScrapeRunAsync(int webSourceId, CancellationToken cancellationToken) {
         if (webSourceId <= 0) {
             throw new ArgumentException("Invalid web source ID", nameof(webSourceId));
         }
@@ -392,6 +398,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             return result;
         }
         catch (OperationCanceledException) {
+            // OperationCanceledException is a flow control exception - rethrow without modification
             throw;
         }
         catch (Exception ex) {
@@ -465,13 +472,13 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             return new Uri($"{url.Scheme}://{url.Host}");
         }
         catch (Exception ex) {
-            _logger.LogWarning(ex, "Error extracting hostname from URI: {Uri}", url);
-            // Fallback: return the original URI's host with its scheme, or throw if not possible
+            _logger.LogError(ex, "Failed to extract hostname from URI: {Uri}. Unable to create fallback URI.", url);
+            // Fallback: return the original URI's host with its scheme, or throw with context if not possible
             if (!string.IsNullOrEmpty(url?.Host) && !string.IsNullOrEmpty(url?.Scheme))
             {
                 return new Uri($"{url.Scheme}://{url.Host}");
             }
-            throw;
+            throw new InvalidOperationException($"Unable to extract hostname from URI: {url}", ex);
         }
     }
 

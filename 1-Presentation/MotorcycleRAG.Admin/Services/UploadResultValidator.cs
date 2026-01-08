@@ -11,7 +11,7 @@ internal static class UploadResultValidator {
     /// Validates the response from a single file upload operation
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown if response is null or has invalid data</exception>
-    public static void ValidateFileUploadResult(FileUploadResult? result) {
+    internal static void ValidateFileUploadResult(FileUploadResult? result) {
         if (result == null)
             throw new InvalidOperationException("Upload response was null");
 
@@ -32,7 +32,7 @@ internal static class UploadResultValidator {
     /// Validates the response from a batch file upload operation
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown if response is null or has invalid data</exception>
-    public static void ValidateBatchFileUploadResult(BatchFileUploadResult? result) {
+    internal static void ValidateBatchFileUploadResult(BatchFileUploadResult? result) {
         if (result == null)
             throw new InvalidOperationException("Batch upload response was null");
 

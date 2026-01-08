@@ -65,6 +65,8 @@ public class WebSearchAgentTests : IDisposable {
         _webSearchConfig = Options.Create(options);
 
         // Create dependencies
+        // CA2000 suppressed: WebSearchAgent takes ownership of disposable dependencies
+        #pragma warning disable CA2000
         var rateLimiter = new WebSearchRateLimiter(
             options.MaxConcurrentRequests,
             options.MinRequestIntervalMs,
@@ -74,6 +76,7 @@ public class WebSearchAgentTests : IDisposable {
             TimeSpan.FromMinutes(15),
             100,
             _mockCacheLogger.Object);
+        #pragma warning restore CA2000
 
         var extractor = new WebExtractor(_mockExtractorLogger.Object);
 
@@ -112,7 +115,7 @@ public class WebSearchAgentTests : IDisposable {
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenRequiredParametersAreNull() {
         // Arrange
-        var rateLimiter = new WebSearchRateLimiter(3, 100, _mockRateLimiterLogger.Object);
+        using var rateLimiter = new WebSearchRateLimiter(3, 100, _mockRateLimiterLogger.Object);
         var cache = new WebSearchCache(TimeSpan.FromMinutes(15), 100, _mockCacheLogger.Object);
         var extractor = new WebExtractor(_mockExtractorLogger.Object);
         var termEnhancer = new WebSearchTermEnhancer(_mockOpenAIClient.Object, "gpt-4o-mini", _mockEnhancerLogger.Object);
@@ -418,9 +421,12 @@ public class WebSearchAgentTests : IDisposable {
     }
 
     /// <summary>
-    /// Helper to create WebSearchAgent with trust policy store
+    /// Helper to create WebSearchAgent with trust policy store.
+    /// Note: Caller must dispose the returned WebSearchAgent.
     /// </summary>
     private WebSearchAgent CreateWebSearchAgentWithTrustStore(IWebTrustPolicyStore? trustPolicyStore) {
+        // CA2000 suppressed: WebSearchAgent takes ownership of disposable dependencies
+        #pragma warning disable CA2000
         var rateLimiter = new WebSearchRateLimiter(
             _webSearchConfig.Value.MaxConcurrentRequests,
             _webSearchConfig.Value.MinRequestIntervalMs,
@@ -430,6 +436,7 @@ public class WebSearchAgentTests : IDisposable {
             TimeSpan.FromMinutes(15),
             100,
             _mockCacheLogger.Object);
+        #pragma warning restore CA2000
 
         var extractor = new WebExtractor(_mockExtractorLogger.Object);
 
@@ -445,6 +452,7 @@ public class WebSearchAgentTests : IDisposable {
             _webSearchConfig.Value.ValidationModel,
             _mockValidatorLogger.Object);
 
+        // WebSearchAgent takes ownership of disposable dependencies
         return new WebSearchAgent(
             _httpClient,
             _webSearchConfig,

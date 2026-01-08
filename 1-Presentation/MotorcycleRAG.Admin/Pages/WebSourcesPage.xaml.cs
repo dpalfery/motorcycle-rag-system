@@ -6,7 +6,7 @@ namespace MotorcycleRAG.Admin.Pages;
 internal partial class WebSourcesPage : ContentPage {
     private readonly WebSourcesViewModel _viewModel;
 
-    public WebSourcesPage(WebSourcesViewModel viewModel)
+    internal WebSourcesPage(WebSourcesViewModel viewModel)
     {
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));

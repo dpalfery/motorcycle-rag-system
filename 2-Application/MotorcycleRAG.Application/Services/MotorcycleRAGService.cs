@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Caching;
@@ -167,14 +168,17 @@ public sealed class MotorcycleRagService : IMotorcycleRagService {
         // Extract claims and ensure citations (delegated)
         var citedResponse = await _citationService.GenerateCitedResponseAsync(answer, results, request.Query);
 
+        // Convert to array for compatibility with MotorcycleQueryResponse and LimitationAnalyzer
+        var citedResultsArray = citedResponse.Results.ToArray();
+
         // Analyze limitations and inject messages (delegated)
         var responseWithLimitations = _limitationAnalyzer.InjectLimitationMessages(
-            citedResponse.Answer, citedResponse.Results, metrics, queryId);
+            citedResponse.Answer, citedResultsArray, metrics, queryId);
 
         var response = new MotorcycleQueryResponse {
             QueryId = queryId,
             Response = responseWithLimitations,
-            Sources = citedResponse.Results,
+            Sources = citedResultsArray,
             Metrics = metrics,
             GeneratedAt = DateTime.UtcNow
         };

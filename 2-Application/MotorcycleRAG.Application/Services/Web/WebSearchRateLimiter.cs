@@ -13,6 +13,7 @@ public class WebSearchRateLimiter : IDisposable
     private readonly ConcurrentDictionary<string, DateTime> _lastRequestTimes;
     private readonly TimeSpan _minRequestInterval;
     private readonly ILogger<WebSearchRateLimiter> _logger;
+    private bool _disposed;
 
     public WebSearchRateLimiter(
         int maxConcurrentRequests,
@@ -25,9 +26,12 @@ public class WebSearchRateLimiter : IDisposable
         _logger = logger;
     }
 
+    public Task<T> ExecuteWithRateLimitAsync<T>(Func<Task<T>> operation)
+        => ExecuteWithRateLimitAsync(operation, CancellationToken.None);
+
     public async Task<T> ExecuteWithRateLimitAsync<T>(
         Func<Task<T>> operation,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(operation);
 
@@ -67,11 +71,26 @@ public class WebSearchRateLimiter : IDisposable
 
     public void Dispose()
     {
+        Dispose(true);
         GC.SuppressFinalize(this);
-        _semaphore?.Dispose();
     }
 
-    private class RateLimitToken : IDisposable
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (disposing)
+        {
+            _semaphore?.Dispose();
+        }
+
+        _disposed = true;
+    }
+
+    private sealed class RateLimitToken : IDisposable
     {
         private readonly SemaphoreSlim _semaphore;
         private bool _disposed;
@@ -83,11 +102,23 @@ public class WebSearchRateLimiter : IDisposable
 
         public void Dispose()
         {
-            if (!_disposed)
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        private void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (disposing)
             {
                 _semaphore.Release();
-                _disposed = true;
             }
+
+            _disposed = true;
         }
     }
 }

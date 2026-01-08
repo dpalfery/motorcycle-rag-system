@@ -31,7 +31,7 @@ public class AzureSearchClientWrapperTests : IDisposable {
                 It.IsAny<string>(),
                 It.IsAny<int>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SearchResult[] {
+            .ReturnsAsync(new[] {
                 new SearchResult {
                     Id = "test-1",
                     Content = "test content",

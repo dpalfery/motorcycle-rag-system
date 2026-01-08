@@ -3,13 +3,13 @@ namespace MotorcycleRAG.Admin.Models.Api;
 /// <summary>
 /// DTO for user information
 /// </summary>
-internal class UserDto
+public class UserDto
 {
-    public string UserId { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty;
-    public bool IsEnabled { get; set; }
-    public string PlanSku { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-    public DateTime? LastSignInAt { get; set; }
+    internal string UserId { get; set; } = string.Empty;
+    internal string Email { get; set; } = string.Empty;
+    internal string DisplayName { get; set; } = string.Empty;
+    internal bool IsEnabled { get; set; }
+    internal string PlanSku { get; set; } = string.Empty;
+    internal DateTime CreatedAt { get; set; }
+    internal DateTime? LastSignInAt { get; set; }
 }

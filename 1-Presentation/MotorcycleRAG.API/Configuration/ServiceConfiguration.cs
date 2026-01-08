@@ -64,7 +64,7 @@ internal static class ServiceConfiguration {
             var degradedModeTracker = provider.GetRequiredService<MotorcycleRAG.Application.Services.Telemetry.DegradedModeTracker>();
             var resultFusionService = provider.GetRequiredService<MotorcycleRAG.Application.Services.SearchResultFusionService>();
             var correlationService = provider.GetRequiredService<MotorcycleRAG.Contracts.Interfaces.ICorrelationService>();
-            
+
             return new MotorcycleRAG.Application.Services.AgentOrchestrator(
                 agents,
                 openAIClient,
@@ -101,10 +101,8 @@ internal static class ServiceConfiguration {
         // Register WebSearchAgent with optional IWebTrustPolicyStore for trust tier filtering
         services.AddScoped<ISearchAgent>(provider => {
             var httpClient = provider.GetRequiredService<HttpClient>();
-            var openAIClient = provider.GetRequiredService<MotorcycleRAG.Contracts.Interfaces.IAzureOpenAIClient>();
             var config = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MotorcycleRAG.Core.Options.WebSearchOptions>>();
             var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<MotorcycleRAG.Application.Agents.WebSearchAgent>>();
-            var trustPolicyStore = provider.GetService<MotorcycleRAG.Contracts.Interfaces.IWebTrustPolicyStore>();
             var rateLimiter = provider.GetRequiredService<MotorcycleRAG.Application.Services.Web.WebSearchRateLimiter>();
             var cache = provider.GetRequiredService<MotorcycleRAG.Application.Services.Web.WebSearchCache>();
             var extractor = provider.GetRequiredService<MotorcycleRAG.Application.Services.Web.WebContentExtractor>();

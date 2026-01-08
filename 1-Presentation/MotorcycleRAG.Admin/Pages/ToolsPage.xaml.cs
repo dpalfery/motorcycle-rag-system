@@ -7,7 +7,7 @@ namespace MotorcycleRAG.Admin.Pages;
 internal partial class ToolsPage : ContentPage
 {
     [SupportedOSPlatform("windows10.0.17763.0")]
-    public ToolsPage(MotorcycleRAG.Admin.ViewModels.ToolsViewModel viewModel)
+    internal ToolsPage(MotorcycleRAG.Admin.ViewModels.ToolsViewModel viewModel)
     {
         InitializeComponent();
 #if WINDOWS

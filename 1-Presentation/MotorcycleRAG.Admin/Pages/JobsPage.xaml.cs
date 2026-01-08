@@ -6,7 +6,7 @@ namespace MotorcycleRAG.Admin.Pages;
 internal partial class JobsPage : ContentPage {
     private readonly JobsViewModel _viewModel;
 
-    public JobsPage(JobsViewModel viewModel)
+    internal JobsPage(JobsViewModel viewModel)
     {
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));

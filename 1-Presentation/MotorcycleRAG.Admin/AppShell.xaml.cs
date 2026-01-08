@@ -16,7 +16,7 @@ internal partial class AppShell : Shell {
     private readonly IAdminAuthService _authService;
     private readonly ISettingsService _settingsService;
 
-    public AppShell(IAdminAuthService authService, ISettingsService settingsService, IServiceProvider serviceProvider)
+    internal AppShell(IAdminAuthService authService, ISettingsService settingsService, IServiceProvider serviceProvider)
     {
         InitializeComponent();
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));

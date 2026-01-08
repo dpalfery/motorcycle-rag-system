@@ -17,7 +17,7 @@ public class DegradedModeTracker
     }
 
     public void TrackSearchExecution(
-        List<SourceExecutionStatus> allStatuses,
+        IReadOnlyCollection<SourceExecutionStatus> allStatuses,
         TimeSpan totalDuration,
         int totalResults)
     {
@@ -38,8 +38,8 @@ public class DegradedModeTracker
         SearchContext context,
         Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)> metrics,
         bool degradedMode,
-        List<SourceExecutionStatus> failedSources,
-        List<SourceExecutionStatus> successfulSources)
+        IReadOnlyCollection<SourceExecutionStatus> failedSources,
+        IReadOnlyCollection<SourceExecutionStatus> successfulSources)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(metrics);

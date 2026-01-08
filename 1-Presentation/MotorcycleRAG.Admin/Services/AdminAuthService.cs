@@ -17,7 +17,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
     private readonly ILogger<AdminAuthService> _logger;
     private readonly SemaphoreSlim _tokenRefreshLock = new SemaphoreSlim(1, 1);
 
-    public AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService> logger, IPublicClientApplication? msalClient = null)
+    internal AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService> logger, IPublicClientApplication? msalClient)
     {
         if (string.IsNullOrEmpty(clientId))
             throw new ArgumentException("Client ID cannot be null or empty", nameof(clientId));
@@ -35,6 +35,11 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
                 .WithAuthority(new Uri(authority))
                 .WithDefaultRedirectUri()
                 .Build();
+    }
+
+    internal AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService> logger)
+        : this(clientId, authority, scopes, logger, msalClient: null)
+    {
     }
 
     /// <summary>
@@ -129,9 +134,8 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
                 .AcquireTokenWithDeviceCode(_scopes, deviceCodeResult =>
                 {
                     // Display the device code to the user - log key information only
-                    _logger.LogInformation("Device code flow initiated. ExpiresOn: {Expires}, VerificationUrl: {Url}, CodeLength: {CodeLength}",
-                        deviceCodeResult.ExpiresOn, deviceCodeResult.VerificationUrl, deviceCodeResult.DeviceCode?.Length ?? 0);
-                    Console.WriteLine(deviceCodeResult.Message);
+                    _logger.LogInformation("Device code flow initiated. ExpiresOn: {Expires}, VerificationUrl: {Url}, CodeLength: {CodeLength}, Message: {Message}",
+                        deviceCodeResult.ExpiresOn, deviceCodeResult.VerificationUrl, deviceCodeResult.DeviceCode?.Length ?? 0, deviceCodeResult.Message);
 
                     // On Windows, we can also show this in the UI
                     MainThread.BeginInvokeOnMainThread(() =>
@@ -156,7 +160,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
         }
         catch (MsalException ex)
         {
-            Console.WriteLine($"Authentication failed: {ex.Message}");
+            _logger.LogError(ex, "Authentication failed");
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
                 var window = Application.Current?.Windows?.FirstOrDefault();
@@ -168,7 +172,6 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
                         "OK").ConfigureAwait(false);
                 }
             }).ConfigureAwait(false);
-            _logger.LogError(ex, "Authentication failed");
             return false;
         }
         catch (OperationCanceledException ex)

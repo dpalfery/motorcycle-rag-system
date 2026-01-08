@@ -23,11 +23,9 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "SearchClient is not IDisposable")]
 public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
-    private readonly SearchClient _searchClient;
     private readonly AzureSearchQueryService _queryService;
     private readonly AzureSearchDocumentService _documentService;
     private readonly AzureSearchHealthService _healthService;
-    private readonly ILogger<AzureSearchClientWrapper> _logger;
 
     public AzureSearchClientWrapper(
         IOptions<AzureAIOptions> azureConfig,
@@ -45,18 +43,11 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
 
         var azureConfigValue = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
         var searchOptions = searchConfig.Value ?? throw new ArgumentNullException(nameof(searchConfig));
-        _logger = logger;
         _queryService = queryService;
         _documentService = documentService;
         _healthService = healthService;
 
-        // Initialize Azure Search clients with DefaultAzureCredential
-        var credential = new DefaultAzureCredential();
-        var searchEndpoint = new Uri(azureConfigValue.SearchServiceEndpoint);
-
-        _searchClient = new SearchClient(searchEndpoint, searchOptions.IndexName, credential);
-
-        _logger.LogInformation("Azure Search client initialized with endpoint: {Endpoint}, Index: {IndexName}",
+        logger.LogInformation("Azure Search client initialized with endpoint: {Endpoint}, Index: {IndexName}",
             azureConfigValue.SearchServiceEndpoint, searchOptions.IndexName);
     }
 

@@ -31,8 +31,8 @@ public class WebSourceValidator
         _logger = logger;
     }
 
-    public async Task<List<SearchResult>> ValidateResultsAsync(
-        List<SearchResult> results,
+    public async Task<IReadOnlyCollection<SearchResult>> ValidateResultsAsync(
+        IReadOnlyCollection<SearchResult> results,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(results);
@@ -186,6 +186,12 @@ Rate content on a scale of 0.0 to 1.0. Respond with only JSON:
             return string.Empty;
         }
 
+        return ExtractDomain(uri);
+    }
+
+    private string ExtractDomain(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
         return uri.Host.ToUpperInvariant();
     }
 

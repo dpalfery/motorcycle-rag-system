@@ -19,6 +19,10 @@
   5. git commands require approval
   - Never run git commands without explicit approval except for non-destructive read-only commands (e.g., `git status`, `git diff`, `git log`).
   - Never run destructive or history-changing commands without asking first (e.g., `git restore`, `git reset`, `git checkout`, `git clean`, `git commit`, `git rebase`, `git push`).
+  6. Always select the most specialized mode or agent available:
+    - Use **.NET Developer** for backend tasks instead of generic Code mode.  
+    - Use **maui-dev** for maui tasks instead of generic Code mode.
+    - Use **React Developer** for frontend tasks instead of generic Code mode.  
 
 # 2. Development Environment Constraints
 

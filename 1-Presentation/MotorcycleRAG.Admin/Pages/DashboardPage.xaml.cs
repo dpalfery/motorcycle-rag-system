@@ -2,7 +2,7 @@ using MotorcycleRAG.Admin.ViewModels;
 
 namespace MotorcycleRAG.Admin.Pages;
 
-internal partial class DashboardPage : ContentPage {
+public partial class DashboardPage : ContentPage {
     public DashboardPage(DashboardViewModel viewModel)
     {
         InitializeComponent();

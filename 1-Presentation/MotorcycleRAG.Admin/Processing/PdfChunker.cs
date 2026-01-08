@@ -13,11 +13,11 @@ internal class PdfChunkingResult
     private readonly List<string> _errors = new();
     private readonly List<string> _warnings = new();
 
-    public bool Success { get; set; }
-    public IReadOnlyList<DocumentChunk> Chunks => _chunks.AsReadOnly();
-    public PdfMetadata Metadata { get; set; } = new();
-    public IReadOnlyList<string> Errors => _errors.AsReadOnly();
-    public IReadOnlyList<string> Warnings => _warnings.AsReadOnly();
+    internal bool Success { get; set; }
+    internal IReadOnlyList<DocumentChunk> Chunks => _chunks.AsReadOnly();
+    internal PdfMetadata Metadata { get; set; } = new();
+    internal IReadOnlyList<string> Errors => _errors.AsReadOnly();
+    internal IReadOnlyList<string> Warnings => _warnings.AsReadOnly();
 
     // Internal methods for modification
     internal void AddChunk(DocumentChunk chunk) => _chunks.Add(chunk);
@@ -30,11 +30,11 @@ internal class PdfChunkingResult
 /// </summary>
 internal class PdfMetadata
 {
-    public string? Title { get; set; }
-    public string? Author { get; set; }
-    public int PageCount { get; set; }
-    public DateTime? CreationDate { get; set; }
-    public string? Producer { get; set; }
+    internal string? Title { get; set; }
+    internal string? Author { get; set; }
+    internal int PageCount { get; set; }
+    internal DateTime? CreationDate { get; set; }
+    internal string? Producer { get; set; }
 }
 
 /// <summary>
@@ -42,22 +42,33 @@ internal class PdfMetadata
 /// </summary>
 internal class DocumentChunk
 {
-    public int ChunkIndex { get; set; }
-    public string Text { get; set; } = string.Empty;
-    public int PageNumber { get; set; }
-    public string? Section { get; set; }
-    public Dictionary<string, object> Metadata { get; set; } = new();
+    internal int ChunkIndex { get; set; }
+    internal string Text { get; set; } = string.Empty;
+    internal int PageNumber { get; set; }
+    internal string? Section { get; set; }
+    internal Dictionary<string, object> Metadata { get; set; } = new();
 }
 
 /// <summary>
 /// Service for chunking PDF documents with page and section metadata extraction
 /// </summary>
-internal class PdfChunker
+public class PdfChunker
 {
+    private static readonly char[] LineSeparators = { '\n', '\r' };
     private readonly int _targetChunkSize;
     private readonly int _chunkOverlap;
 
-    public PdfChunker(int targetChunkSize = 1000, int chunkOverlap = 200)
+    internal PdfChunker()
+        : this(targetChunkSize: 1000, chunkOverlap: 200)
+    {
+    }
+
+    internal PdfChunker(int targetChunkSize)
+        : this(targetChunkSize, chunkOverlap: 200)
+    {
+    }
+
+    internal PdfChunker(int targetChunkSize, int chunkOverlap)
     {
         if (targetChunkSize <= 0)
             throw new ArgumentException("Target chunk size must be positive", nameof(targetChunkSize));
@@ -73,7 +84,7 @@ internal class PdfChunker
     /// <summary>
     /// Processes a PDF file and extracts chunks with metadata
     /// </summary>
-    public async Task<PdfChunkingResult> ProcessPdfAsync(string filePath, CancellationToken cancellationToken = default)
+    internal async Task<PdfChunkingResult> ProcessPdfAsync(string filePath, CancellationToken cancellationToken = default)
     {
         var result = new PdfChunkingResult();
 
@@ -168,7 +179,7 @@ internal class PdfChunker
             metadata.Title = !string.IsNullOrEmpty(info.Title) ? info.Title : null;
             metadata.Author = !string.IsNullOrEmpty(info.Author) ? info.Author : null;
             metadata.Producer = !string.IsNullOrEmpty(info.Producer) ? info.Producer : null;
-            
+
             if (!string.IsNullOrEmpty(info.CreationDate) && DateTime.TryParse(info.CreationDate, out var creationDate))
             {
                 metadata.CreationDate = creationDate;
@@ -214,23 +225,21 @@ internal class PdfChunker
         foreach (var (pageNumber, text) in pageTexts)
         {
             // Look for section headers (simple heuristic: short lines in all caps or numbered)
-            var lines = text.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+            var lines = text.Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries);
             
-            foreach (var line in lines)
+            // Find first section header in the page
+            var sectionHeader = lines
+                .Select(line => line.Trim())
+                .FirstOrDefault(trimmed =>
+                    trimmed.Length > 5 &&
+                    trimmed.Length < 100 &&
+                    IsLikelySectionHeader(trimmed));
+
+            if (sectionHeader != null)
             {
-                var trimmed = line.Trim();
-                
-                // Detect section headers: all caps, short, or numbered
-                if (trimmed.Length > 5 && trimmed.Length < 100)
-                {
-                    if (IsLikelySectionHeader(trimmed))
-                    {
-                        currentSection = trimmed;
-                        break;
-                    }
-                }
+                currentSection = sectionHeader;
             }
-            
+
             sections[pageNumber] = currentSection;
         }
 
@@ -252,7 +261,9 @@ internal class PdfChunker
         {
             var upperCount = line.Count(char.IsUpper);
             if ((double)upperCount / letters >= 0.7)
+            {
                 return true;
+            }
         }
 
         return false;
@@ -266,7 +277,6 @@ internal class PdfChunker
         Dictionary<int, string> sections)
     {
         var chunks = new List<DocumentChunk>();
-        var chunkIndex = 0;
         var buffer = new StringBuilder();
         var bufferPageStart = 1;
         var bufferSection = sections.GetValueOrDefault(1, "Unknown");
@@ -274,7 +284,7 @@ internal class PdfChunker
         foreach (var (pageNumber, pageText) in pageTexts)
         {
             var currentSection = sections.GetValueOrDefault(pageNumber, bufferSection);
-            
+
             // Add page text to buffer
             if (buffer.Length > 0)
                 buffer.Append(' ');
@@ -284,10 +294,10 @@ internal class PdfChunker
             while (buffer.Length >= _targetChunkSize)
             {
                 var chunkText = ExtractChunk(buffer);
-                
+
                 chunks.Add(new DocumentChunk
                 {
-                    ChunkIndex = chunkIndex++,
+                    ChunkIndex = chunks.Count,
                     Text = chunkText,
                     PageNumber = bufferPageStart,
                     Section = bufferSection,
@@ -311,14 +321,14 @@ internal class PdfChunker
         {
             chunks.Add(new DocumentChunk
             {
-                ChunkIndex = chunkIndex++,
+                ChunkIndex = chunks.Count,
                 Text = buffer.ToString(),
                 PageNumber = bufferPageStart,
                 Section = bufferSection,
                 Metadata = new Dictionary<string, object>
                 {
                     ["pageNumber"] = bufferPageStart,
-                    ["pageRange"] = $"{bufferPageStart}-{pageTexts.Last().PageNumber}",
+                    ["pageRange"] = $"{bufferPageStart}-{pageTexts[^1].PageNumber}",
                     ["section"] = bufferSection ?? "Unknown",
                     ["chunkSize"] = buffer.Length
                 }

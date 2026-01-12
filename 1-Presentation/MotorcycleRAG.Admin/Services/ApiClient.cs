@@ -215,7 +215,7 @@ public class ApiClient {
     /// <summary>
     /// Gets upload constraints (file size limits, allowed types, etc.)
     /// </summary>
-    public Task<UploadConstraints> GetUploadConstraintsAsync()
+    internal Task<UploadConstraints> GetUploadConstraintsAsync()
     {
         return GetUploadConstraintsAsync(default);
     }
@@ -223,7 +223,7 @@ public class ApiClient {
     /// <summary>
     /// Gets upload constraints (file size limits, allowed types, etc.) with cancellation
     /// </summary>
-    public async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken)
+    internal async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -270,7 +270,7 @@ public class ApiClient {
     /// <summary>
     /// Gets the status of a pipeline execution
     /// </summary>
-    public Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId)
+    internal Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId)
     {
         return GetPipelineStatusAsync(executionId, default);
     }
@@ -278,7 +278,7 @@ public class ApiClient {
     /// <summary>
     /// Gets the status of a pipeline execution with cancellation
     /// </summary>
-    public async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken)
+    internal async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken)
     {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -319,7 +319,7 @@ public class ApiClient {
     /// <summary>
     /// Cancels a running pipeline execution
     /// </summary>
-    public Task<CancelPipelineResponse> CancelPipelineAsync(string executionId)
+    internal Task<CancelPipelineResponse> CancelPipelineAsync(string executionId)
     {
         return CancelPipelineAsync(executionId, default);
     }
@@ -327,7 +327,7 @@ public class ApiClient {
     /// <summary>
     /// Cancels a running pipeline execution with cancellation
     /// </summary>
-    public async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken)
+    internal async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken)
     {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -345,7 +345,7 @@ public class ApiClient {
     /// <summary>
     /// Gets all pipeline executions with optional filtering
     /// </summary>
-    public Task<List<PipelineExecution>> GetPipelineExecutionsAsync(CancellationToken cancellationToken)
+    internal Task<List<PipelineExecution>> GetPipelineExecutionsAsync(CancellationToken cancellationToken)
     {
         return GetPipelineExecutionsAsync(status: null, startTime: null, endTime: null, cancellationToken);
     }
@@ -353,7 +353,7 @@ public class ApiClient {
     /// <summary>
     /// Gets all pipeline executions with optional filtering
     /// </summary>
-    public Task<List<PipelineExecution>> GetPipelineExecutionsAsync(PipelineStatus? status, CancellationToken cancellationToken)
+    internal Task<List<PipelineExecution>> GetPipelineExecutionsAsync(PipelineStatus? status, CancellationToken cancellationToken)
     {
         return GetPipelineExecutionsAsync(status, startTime: null, endTime: null, cancellationToken);
     }
@@ -361,7 +361,7 @@ public class ApiClient {
     /// <summary>
     /// Gets all pipeline executions with optional filtering
     /// </summary>
-    public async Task<List<PipelineExecution>> GetPipelineExecutionsAsync(
+    internal async Task<List<PipelineExecution>> GetPipelineExecutionsAsync(
         PipelineStatus? status,
         DateTime? startTime,
         DateTime? endTime,
@@ -573,7 +573,7 @@ public class ApiClient {
     /// <summary>
     /// Gets all users with optional filtering
     /// </summary>
-    public Task<List<UserDto>> GetUsersAsync(CancellationToken cancellationToken)
+    internal Task<List<UserDto>> GetUsersAsync(CancellationToken cancellationToken)
     {
         return GetUsersAsync(isEnabled: null, cancellationToken);
     }
@@ -581,7 +581,7 @@ public class ApiClient {
     /// <summary>
     /// Gets all users with optional filtering
     /// </summary>
-    public async Task<List<UserDto>> GetUsersAsync(bool? isEnabled, CancellationToken cancellationToken)
+    internal async Task<List<UserDto>> GetUsersAsync(bool? isEnabled, CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -598,7 +598,7 @@ public class ApiClient {
     /// <summary>
     /// Enables a user account
     /// </summary>
-    public Task<UserDto> EnableUserAsync(string userId)
+    internal Task<UserDto> EnableUserAsync(string userId)
     {
         return EnableUserAsync(userId, default);
     }
@@ -606,7 +606,7 @@ public class ApiClient {
     /// <summary>
     /// Enables a user account with cancellation
     /// </summary>
-    public async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken)
+    internal async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -622,7 +622,7 @@ public class ApiClient {
     /// <summary>
     /// Disables a user account
     /// </summary>
-    public Task<UserDto> DisableUserAsync(string userId)
+    internal Task<UserDto> DisableUserAsync(string userId)
     {
         return DisableUserAsync(userId, default);
     }
@@ -630,7 +630,7 @@ public class ApiClient {
     /// <summary>
     /// Disables a user account with cancellation
     /// </summary>
-    public async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken)
+    internal async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 

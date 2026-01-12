@@ -1,5 +1,4 @@
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
+﻿using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -10,7 +9,7 @@ namespace MotorcycleRAG.API.Services;
 /// </summary>
 internal static class HealthCheckResponseWriter
 {
-    private static readonly JsonSerializerOptions _jsonOptions = new()
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = false,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -23,61 +22,31 @@ internal static class HealthCheckResponseWriter
     /// </summary>
     internal static Task WriteResponse(HttpContext context, HealthReport report)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(report);
+
         context.Response.ContentType = "application/json; charset=utf-8";
-        
-        // Set HTTP status code: return 200 OK for all states to allow monitoring systems to process the full report
-        // The "status" field in the JSON indicates the actual health state
+
+        // Return 200 OK for all states to allow monitoring systems to process the full report.
+        // The "status" field in the JSON indicates the actual health state.
         context.Response.StatusCode = StatusCodes.Status200OK;
 
         var response = new HealthCheckResponse
         {
             Status = report.Status.ToString(),
-            TotalDuration = report.TotalDuration.ToString("G"),  // TimeSpan format: HH:mm:ss.fffffff
+            TotalDuration = report.TotalDuration.ToString("G"), // TimeSpan format: HH:mm:ss.fffffff
             Checks = report.Entries.ToDictionary(
                 kvp => kvp.Key,
                 kvp => new HealthCheckEntry
                 {
                     Status = kvp.Value.Status.ToString(),
-                    Duration = kvp.Value.Duration.ToString("G"),  // TimeSpan format: HH:mm:ss.fffffff
+                    Duration = kvp.Value.Duration.ToString("G"), // TimeSpan format: HH:mm:ss.fffffff
                     Description = kvp.Value.Description,
                     Data = kvp.Value.Data
                 })
         };
 
-        var json = JsonSerializer.Serialize(response, _jsonOptions);
+        var json = JsonSerializer.Serialize(response, JsonOptions);
         return context.Response.WriteAsync(json);
-    }
-
-    /// <summary>
-    /// Health check response model
-    /// </summary>
-    private class HealthCheckResponse
-    {
-        [JsonPropertyName("status")]
-        internal string? Status { get; set; }
-
-        [JsonPropertyName("totalDuration")]
-        internal string? TotalDuration { get; set; }
-
-        [JsonPropertyName("checks")]
-        internal Dictionary<string, HealthCheckEntry>? Checks { get; set; }
-    }
-
-    /// <summary>
-    /// Individual health check entry
-    /// </summary>
-    private class HealthCheckEntry
-    {
-        [JsonPropertyName("status")]
-        internal string? Status { get; set; }
-
-        [JsonPropertyName("duration")]
-        internal string? Duration { get; set; }
-
-        [JsonPropertyName("description")]
-        internal string? Description { get; set; }
-
-        [JsonPropertyName("data")]
-        internal IReadOnlyDictionary<string, object>? Data { get; set; }
     }
 }

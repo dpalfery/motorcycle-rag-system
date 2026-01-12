@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:viewmodels="clr-namespace:MotorcycleRAG.Admin.ViewModels"
              x:Class="MotorcycleRAG.Admin.Pages.DashboardPage"
-             x:ClassModifier="Public"
+             x:ClassModifier="Internal"
              x:DataType="viewmodels:DashboardViewModel"
              Title="Dashboard">
 

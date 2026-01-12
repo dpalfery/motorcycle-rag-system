@@ -2,9 +2,8 @@ using MotorcycleRAG.Admin.ViewModels;
 
 namespace MotorcycleRAG.Admin.Pages;
 
-public partial class DashboardPage : ContentPage {
-    public DashboardPage(DashboardViewModel viewModel)
-    {
+internal partial class DashboardPage : ContentPage {
+    internal DashboardPage(DashboardViewModel viewModel) {
         InitializeComponent();
         BindingContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
     }

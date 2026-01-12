@@ -30,7 +30,7 @@ public class TelemetryServiceTests : IDisposable
             ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000"
         };
         _client = new TelemetryClient(aiConfig);
-        aiConfig.Dispose();
+        // Do not dispose TelemetryConfiguration here; TelemetryClient depends on it for the test lifetime.
         _mockCorrelation = new Mock<ICorrelationService>();
         _mockLogger = new Mock<ILogger<TelemetryService>>();
         _mockCorrelation.Setup(c => c.GetOrCreateCorrelationId()).Returns("corr-test");

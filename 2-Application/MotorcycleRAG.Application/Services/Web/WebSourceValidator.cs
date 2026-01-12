@@ -1,6 +1,8 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
@@ -20,10 +22,32 @@ public class WebSourceValidator
     public WebSourceValidator(
         IAzureOpenAIClient openAIClient,
         IWebTrustPolicyStore? trustPolicyStore,
+        IOptions<WebSearchOptions> options,
+        ILogger<WebSourceValidator> logger)
+        : this(
+            openAIClient,
+            trustPolicyStore,
+            (options ?? throw new ArgumentNullException(nameof(options))).Value.MinCredibilityScore,
+            options.Value.ValidationModel,
+            logger)
+    {
+    }
+
+    public WebSourceValidator(
+        IAzureOpenAIClient openAIClient,
+        IWebTrustPolicyStore? trustPolicyStore,
         float minCredibilityScore,
         string validationModel,
         ILogger<WebSourceValidator> logger)
     {
+        ArgumentNullException.ThrowIfNull(openAIClient);
+        ArgumentException.ThrowIfNullOrWhiteSpace(validationModel);
+        ArgumentNullException.ThrowIfNull(logger);
+        if (minCredibilityScore is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(minCredibilityScore), minCredibilityScore, "minCredibilityScore must be between 0 and 1");
+        }
+
         _openAIClient = openAIClient;
         _trustPolicyStore = trustPolicyStore;
         _minCredibilityScore = minCredibilityScore;
@@ -62,6 +86,7 @@ public class WebSourceValidator
 
     public async Task<bool> ValidateSourceAsync(string sourceName, string content)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
         ArgumentNullException.ThrowIfNull(content);
 
         try
@@ -192,7 +217,7 @@ Rate content on a scale of 0.0 to 1.0. Respond with only JSON:
     private string ExtractDomain(Uri uri)
     {
         ArgumentNullException.ThrowIfNull(uri);
-        return uri.Host.ToUpperInvariant();
+        return uri.Host.ToLowerInvariant();
     }
 
     private float GetCredibilityScore(SearchResult result)

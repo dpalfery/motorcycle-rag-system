@@ -1,30 +1,35 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.Application.Pipeline;
 
-public class DataPipelineOrchestrator : IDataPipelineOrchestrator {
+public class DataPipelineOrchestrator : IDataPipelineOrchestrator
+{
     private readonly ILogger<DataPipelineOrchestrator> _logger;
 
     public DataPipelineOrchestrator(
         IOptions<PipelineConfiguration> config,
-        ILogger<DataPipelineOrchestrator> logger) {
+        ILogger<DataPipelineOrchestrator> logger)
+    {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(logger);
+
         _logger = logger;
     }
 
-    public Task<PipelineExecutionResult> ProcessFileAsync(DataPipelineRequest request)
-        => ProcessFileAsync(request, CancellationToken.None);
-
-    public async Task<PipelineExecutionResult> ProcessFileAsync(DataPipelineRequest request, CancellationToken cancellationToken) {
+    public Task<PipelineExecutionResult> ProcessFileAsync(
+        DataPipelineRequest request,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(request);
+
         _logger.LogInformation("Processing file: {FileName}", request.FileName);
 
         // Placeholder implementation
-        return await Task.FromResult(new PipelineExecutionResult {
+        return Task.FromResult(new PipelineExecutionResult
+        {
             ExecutionId = Guid.NewGuid().ToString(),
             Status = PipelineStatus.Completed,
             Message = "Processed successfully (placeholder)",
@@ -33,17 +38,20 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator {
         });
     }
 
-    public Task<BatchPipelineResult> ProcessBatchAsync(IEnumerable<DataPipelineRequest> requests)
-        => ProcessBatchAsync(requests, CancellationToken.None);
-
-    public async Task<BatchPipelineResult> ProcessBatchAsync(IEnumerable<DataPipelineRequest> requests, CancellationToken cancellationToken) {
+    public Task<BatchPipelineResult> ProcessBatchAsync(
+        IEnumerable<DataPipelineRequest> requests,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(requests);
+
         var requestList = requests.ToList();
         var count = requestList.Count;
+
         _logger.LogInformation("Processing batch of {Count} files", count);
 
         // Placeholder implementation
-        return await Task.FromResult(new BatchPipelineResult {
+        return Task.FromResult(new BatchPipelineResult
+        {
             BatchId = Guid.NewGuid().ToString(),
             TotalFiles = count,
             ProcessedSuccessfully = count,
@@ -53,15 +61,21 @@ public class DataPipelineOrchestrator : IDataPipelineOrchestrator {
         });
     }
 
-    public Task<PipelineStatus> GetPipelineStatusAsync(string executionId) {
+    public Task<PipelineStatus> GetPipelineStatusAsync(string executionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(executionId);
         return Task.FromResult(PipelineStatus.Completed);
     }
 
-    public Task<PipelineMetrics> GetPipelineMetricsAsync(TimeSpan? timeWindow = null) {
+    public Task<PipelineMetrics> GetPipelineMetricsAsync(TimeSpan? timeWindow = null)
+    {
+        _ = timeWindow;
         return Task.FromResult(new PipelineMetrics());
     }
 
-    public Task<bool> CancelPipelineAsync(string executionId) {
+    public Task<bool> CancelPipelineAsync(string executionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(executionId);
         return Task.FromResult(true);
     }
 }

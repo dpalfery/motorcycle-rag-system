@@ -18,9 +18,23 @@ public class McpToolManager
 
     public McpToolManager(
         IToolConfigurationService configProvider,
+        ILogger<McpToolManager> logger)
+        : this(configProvider, TimeSpan.FromMinutes(5), logger)
+    {
+    }
+
+    public McpToolManager(
+        IToolConfigurationService configProvider,
         TimeSpan refreshInterval,
         ILogger<McpToolManager> logger)
     {
+        ArgumentNullException.ThrowIfNull(configProvider);
+        ArgumentNullException.ThrowIfNull(logger);
+        if (refreshInterval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(refreshInterval), refreshInterval, "refreshInterval must be greater than zero");
+        }
+
         _configProvider = configProvider;
         _refreshInterval = refreshInterval;
         _logger = logger;

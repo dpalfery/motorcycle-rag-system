@@ -1,5 +1,4 @@
-using System.Collections.ObjectModel;
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -19,6 +18,9 @@ public class ClaimCitationService
         IAzureOpenAIClient openAIClient,
         ILogger<ClaimCitationService> logger)
     {
+        ArgumentNullException.ThrowIfNull(openAIClient);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _openAIClient = openAIClient;
         _logger = logger;
     }
@@ -52,7 +54,7 @@ public class ClaimCitationService
             }
 
             var claimEvidences = MapClaimsToEvidence(claims, sources);
-            var citedAnswer = await GenerateAnswerWithCitationsAsync(originalAnswer, claims, claimEvidences, cancellationToken);
+            var citedAnswer = await GenerateAnswerWithCitationsAsync(originalAnswer, claims, claimEvidences);
             var citedResults = EnsureAllResultsHaveCitations(sources);
 
             var (isCompliant, issues) = EnforceClaimCitationPolicy(claims, claimEvidences);
@@ -185,7 +187,7 @@ Factual claims (JSON array):
                 {
                     { "MatchedClaim", claim },
                     { "RelevanceScore", source.RelevanceScore },
-                    { "ContentPreview", source.Content.Length > 100 ? source.Content[..100] + "…" : source.Content }
+                    { "ContentPreview", source.Content.Length > 100 ? source.Content[..100] + "â€¦" : source.Content }
                 }
             };
 
@@ -298,8 +300,7 @@ Factual claims (JSON array):
     private async Task<string> GenerateAnswerWithCitationsAsync(
         string originalAnswer,
         string[] claims,
-        List<ClaimEvidence> claimEvidences,
-        CancellationToken cancellationToken)
+        List<ClaimEvidence> claimEvidences)
     {
         try
         {
@@ -349,7 +350,7 @@ Factual claims (JSON array):
                         finalAnswer = string.Concat(finalAnswer, " ([URL](", citation.SourceUrl, "))");
                     }
 
-                    finalAnswer = string.Concat(finalAnswer, (citation.Verified ? " ✓ Verified" : " ⚠ Requires verification"), "\n");
+                    finalAnswer = string.Concat(finalAnswer, (citation.Verified ? " âœ“ Verified" : " âš  Requires verification"), "\n");
                 }
             }
 
@@ -490,14 +491,4 @@ Factual claims (JSON array):
     private static readonly string[] FactIndicators = { " is ", " has ", " are ", " was ", " were " };
 }
 
-public class CitedResponse
-{
-    public string Answer { get; init; } = string.Empty;
-    public IReadOnlyList<SearchResult> Results { get; init; } = Array.Empty<SearchResult>();
-}
 
-public class ClaimEvidence
-{
-    public IList<Citation> Citations { get; } = new List<Citation>();
-    public IList<SearchResult> Results { get; } = new List<SearchResult>();
-}

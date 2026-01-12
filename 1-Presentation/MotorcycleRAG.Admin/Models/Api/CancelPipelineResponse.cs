@@ -3,8 +3,11 @@ namespace MotorcycleRAG.Admin.Models.Api;
 /// <summary>
 /// Response for cancel pipeline operation
 /// </summary>
-public class CancelPipelineResponse
+#pragma warning disable CA1812 // Instantiated via deserialization
+#pragma warning disable S3059 // Public properties required for serialization
+internal class CancelPipelineResponse
 {
-    internal string ExecutionId { get; set; } = string.Empty;
-    internal bool Cancelled { get; set; }
+    public string ExecutionId { get; set; } = string.Empty;
+#pragma warning restore S3059
+    public bool Cancelled { get; set; }
 }

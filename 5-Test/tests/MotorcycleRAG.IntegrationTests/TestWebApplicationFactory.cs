@@ -26,6 +26,15 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program> {
     static TestWebApplicationFactory() {
         // Set environment to Testing early so Program.Main loads correct appsettings
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+        // Program.cs enforces env vars only for Azure AD + Azure AI endpoints.
+        // These are dummy test values (NOT secrets).
+        Environment.SetEnvironmentVariable("MCR_API_AZURE_AD_TENANT_ID", "00000000-0000-0000-0000-000000000000");
+        Environment.SetEnvironmentVariable("MCR_API_AZURE_AD_CLIENT_ID", "11111111-1111-1111-1111-111111111111");
+
+        Environment.SetEnvironmentVariable("MCR_API_AZURE_OPENAI_ENDPOINT", "https://test-openai.openai.azure.com/");
+        Environment.SetEnvironmentVariable("MCR_API_AZURE_SEARCH_ENDPOINT", "https://test-search.search.windows.net/");
+        Environment.SetEnvironmentVariable("MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", "https://test-docint.cognitiveservices.azure.com/");
+        Environment.SetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT", "https://test-foundry.azure.com/");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
@@ -35,6 +44,10 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program> {
         // This is NOT a secret and MUST NOT include embedded credentials.
         Environment.SetEnvironmentVariable(
             "SQL_CONNECTION_STRING",
+            "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Authentication=Active Directory Integrated;");
+
+        Environment.SetEnvironmentVariable(
+            "MCR_API_SQL_CONNECTION_STRING",
             "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Authentication=Active Directory Integrated;");
 
         base.ConfigureWebHost(builder);

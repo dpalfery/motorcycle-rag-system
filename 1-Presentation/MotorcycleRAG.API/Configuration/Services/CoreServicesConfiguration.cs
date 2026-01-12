@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Services;
@@ -24,10 +24,17 @@ internal static class CoreServicesConfiguration
         services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Application.Services.AgentOrchestrator>();
 
         // Register extracted services for MotorcycleRagService
-        services.AddScoped<ClaimCitationService>();
+                services.AddScoped<ClaimCitationService>();
         services.AddScoped<QueryRefinementService>();
         services.AddScoped<ResponseLimitationAnalyzer>();
         services.AddScoped<QueryCostCalculator>();
+
+        services.AddScoped<MotorcycleRagServiceDependencies>();
+        services.AddScoped<AgentOrchestratorDependencies>();
+
+        services.AddScoped<SearchResultFusionService>();
+        services.AddScoped<MotorcycleRAG.Application.Services.Telemetry.DegradedModeTracker>();
+        services.AddScoped<MotorcycleRAG.Application.Services.Mcp.McpToolManager>();
 
         // Add Application Insights TelemetryClient
         services.AddApplicationInsightsTelemetry();
@@ -36,3 +43,4 @@ internal static class CoreServicesConfiguration
         return services;
     }
 }
+

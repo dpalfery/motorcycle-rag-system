@@ -69,7 +69,7 @@ public class QueryRefinementService
 
 I couldn't find information for: "{query}"
 
-## Suggestions:
+## Suggestions to Improve Your Search
 {string.Join("\n", analysis.Suggestions)}
 
 ## Example Queries:

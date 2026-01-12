@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Moq.Contrib.HttpClient;
@@ -92,15 +92,18 @@ public class WebSearchAgentTests : IDisposable {
             options.ValidationModel,
             _mockValidatorLogger.Object);
 
-        _webSearchAgent = new WebSearchAgent(
-            _httpClient,
-            _webSearchConfig,
-            _mockLogger.Object,
+        var services = new WebSearchAgentServices(
             rateLimiter,
             cache,
             extractor,
             termEnhancer,
             validator);
+
+        _webSearchAgent = new WebSearchAgent(
+            _httpClient,
+            _webSearchConfig,
+            _mockLogger.Object,
+            services);
     }
 
     [Fact]
@@ -120,38 +123,20 @@ public class WebSearchAgentTests : IDisposable {
         var extractor = new WebExtractor(_mockExtractorLogger.Object);
         var termEnhancer = new WebSearchTermEnhancer(_mockOpenAIClient.Object, "gpt-4o-mini", _mockEnhancerLogger.Object);
         var validator = new WebSourceValidator(_mockOpenAIClient.Object, null, 0.6f, "gpt-4o-mini", _mockValidatorLogger.Object);
+        var services = new WebSearchAgentServices(rateLimiter, cache, extractor, termEnhancer, validator);
 
-        // Act & Assert - Test null HttpClient
-        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            null!, _webSearchConfig, _mockLogger.Object, rateLimiter, cache, extractor, termEnhancer, validator));
+        // Act & Assert - WebSearchAgent constructor
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(null!, _webSearchConfig, _mockLogger.Object, services));
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(_httpClient, null!, _mockLogger.Object, services));
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(_httpClient, _webSearchConfig, null!, services));
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(_httpClient, _webSearchConfig, _mockLogger.Object, null!));
 
-        // Test null config
-        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, null!, _mockLogger.Object, rateLimiter, cache, extractor, termEnhancer, validator));
-
-        // Test null logger
-        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, _webSearchConfig, null!, rateLimiter, cache, extractor, termEnhancer, validator));
-
-        // Test null rateLimiter
-        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, _webSearchConfig, _mockLogger.Object, null!, cache, extractor, termEnhancer, validator));
-
-        // Test null cache
-        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, _webSearchConfig, _mockLogger.Object, rateLimiter, null!, extractor, termEnhancer, validator));
-
-        // Test null extractor
-        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, _webSearchConfig, _mockLogger.Object, rateLimiter, cache, null!, termEnhancer, validator));
-
-        // Test null termEnhancer
-        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, _webSearchConfig, _mockLogger.Object, rateLimiter, cache, extractor, null!, validator));
-
-        // Test null validator
-        Assert.Throws<ArgumentNullException>(() => new WebSearchAgent(
-            _httpClient, _webSearchConfig, _mockLogger.Object, rateLimiter, cache, extractor, termEnhancer, null!));
+        // Act & Assert - WebSearchAgentServices constructor
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgentServices(null!, cache, extractor, termEnhancer, validator));
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgentServices(rateLimiter, null!, extractor, termEnhancer, validator));
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgentServices(rateLimiter, cache, null!, termEnhancer, validator));
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgentServices(rateLimiter, cache, extractor, null!, validator));
+        Assert.Throws<ArgumentNullException>(() => new WebSearchAgentServices(rateLimiter, cache, extractor, termEnhancer, null!));
     }
 
     [Fact]
@@ -453,15 +438,18 @@ public class WebSearchAgentTests : IDisposable {
             _mockValidatorLogger.Object);
 
         // WebSearchAgent takes ownership of disposable dependencies
-        return new WebSearchAgent(
-            _httpClient,
-            _webSearchConfig,
-            _mockLogger.Object,
+        var services = new WebSearchAgentServices(
             rateLimiter,
             cache,
             extractor,
             termEnhancer,
             validator);
+
+        return new WebSearchAgent(
+            _httpClient,
+            _webSearchConfig,
+            _mockLogger.Object,
+            services);
     }
 
     [Fact]
@@ -893,3 +881,5 @@ public class WebSearchAgentTests : IDisposable {
         }
     }
 }
+
+

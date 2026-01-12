@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Core.Options;
@@ -58,15 +58,18 @@ internal static class SearchAgentsConfiguration
             var validator = provider.GetRequiredService<WebSourceValidator>();
             var termEnhancer = provider.GetRequiredService<WebSearchTermEnhancer>();
 
-            return new MotorcycleRAG.Application.Agents.WebSearchAgent(
-                httpClient,
-                provider.GetRequiredService<IOptions<WebSearchOptions>>(),
-                logger,
+            var agentServices = new WebSearchAgentServices(
                 rateLimiter,
                 cache,
                 contentExtractor,
                 termEnhancer,
                 validator);
+
+            return new MotorcycleRAG.Application.Agents.WebSearchAgent(
+                httpClient,
+                provider.GetRequiredService<IOptions<WebSearchOptions>>(),
+                logger,
+                agentServices);
         });
 
         services.AddScoped<IQueryPlannerAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();
@@ -74,3 +77,4 @@ internal static class SearchAgentsConfiguration
         return services;
     }
 }
+

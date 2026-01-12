@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Application.Services.Web;
@@ -15,9 +17,24 @@ public class WebSearchTermEnhancer
 
     public WebSearchTermEnhancer(
         IAzureOpenAIClient openAIClient,
+        IOptions<WebSearchOptions> options,
+        ILogger<WebSearchTermEnhancer> logger)
+        : this(
+            openAIClient,
+            (options ?? throw new ArgumentNullException(nameof(options))).Value.SearchTermModel,
+            logger)
+    {
+    }
+
+    public WebSearchTermEnhancer(
+        IAzureOpenAIClient openAIClient,
         string modelName,
         ILogger<WebSearchTermEnhancer> logger)
     {
+        ArgumentNullException.ThrowIfNull(openAIClient);
+        ArgumentException.ThrowIfNullOrWhiteSpace(modelName);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _openAIClient = openAIClient;
         _modelName = modelName;
         _logger = logger;

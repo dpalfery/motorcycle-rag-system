@@ -1,0 +1,43 @@
+﻿using Microsoft.Extensions.Options;
+using MotorcycleRAG.Application.Caching;
+using MotorcycleRAG.Application.Services.Citations;
+using MotorcycleRAG.Application.Services.Metrics;
+using MotorcycleRAG.Application.Services.QueryProcessing;
+using MotorcycleRAG.Application.Services.ResponseProcessing;
+using MotorcycleRAG.Contracts.Interfaces;
+
+namespace MotorcycleRAG.Application.Services;
+
+/// <summary>
+/// Groups MotorcycleRagService dependencies to keep the service constructor small.
+/// </summary>
+public sealed class MotorcycleRagServiceDependencies
+{
+    public ITelemetryService TelemetryService { get; }
+    public IQueryCacheService CacheService { get; }
+    public CacheConfiguration CacheConfig { get; }
+
+    public ClaimCitationService CitationService { get; }
+    public QueryRefinementService RefinementService { get; }
+    public ResponseLimitationAnalyzer LimitationAnalyzer { get; }
+    public QueryCostCalculator CostCalculator { get; }
+
+    public MotorcycleRagServiceDependencies(
+        ITelemetryService telemetryService,
+        IQueryCacheService cacheService,
+        IOptions<CacheConfiguration> cacheConfig,
+        ClaimCitationService citationService,
+        QueryRefinementService refinementService,
+        ResponseLimitationAnalyzer limitationAnalyzer,
+        QueryCostCalculator costCalculator)
+    {
+        TelemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
+        CacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
+        CacheConfig = cacheConfig?.Value ?? throw new ArgumentNullException(nameof(cacheConfig));
+
+        CitationService = citationService ?? throw new ArgumentNullException(nameof(citationService));
+        RefinementService = refinementService ?? throw new ArgumentNullException(nameof(refinementService));
+        LimitationAnalyzer = limitationAnalyzer ?? throw new ArgumentNullException(nameof(limitationAnalyzer));
+        CostCalculator = costCalculator ?? throw new ArgumentNullException(nameof(costCalculator));
+    }
+}

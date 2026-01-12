@@ -5,8 +5,11 @@ namespace MotorcycleRAG.Admin.Models.Api;
 /// <summary>
 /// Response for get pipeline status operation
 /// </summary>
-public class PipelineStatusResponse
+#pragma warning disable CA1812 // Instantiated via deserialization
+#pragma warning disable S3059 // Public properties required for serialization
+internal class PipelineStatusResponse
 {
-    internal string ExecutionId { get; set; } = string.Empty;
-    internal PipelineStatus Status { get; set; }
+    public string ExecutionId { get; set; } = string.Empty;
+#pragma warning restore S3059
+    public PipelineStatus Status { get; set; }
 }

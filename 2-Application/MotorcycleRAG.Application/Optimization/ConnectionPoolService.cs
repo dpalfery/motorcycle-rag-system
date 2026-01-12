@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
@@ -65,11 +65,7 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
             _logger.LogInformation("Recreated HTTP client for service {ServiceName} with new settings", serviceName);
         }
     }
-
-    public Task<Dictionary<string, bool>> HealthCheckAsync()
-        => HealthCheckAsync(CancellationToken.None);
-
-    public async Task<Dictionary<string, bool>> HealthCheckAsync(CancellationToken cancellationToken) {
+    public async Task<Dictionary<string, bool>> HealthCheckAsync(CancellationToken cancellationToken = default) {
         var results = new Dictionary<string, bool>();
         var tasks = new List<Task>();
 
@@ -246,3 +242,4 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
         Dispose(false);
     }
 }
+

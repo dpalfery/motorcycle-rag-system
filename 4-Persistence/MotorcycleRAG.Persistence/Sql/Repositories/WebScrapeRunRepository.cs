@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Extensions.Logging;
@@ -166,3 +166,5 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
         }
     }
 }
+
+

@@ -11,9 +11,9 @@ namespace MotorcycleRAG.UnitTests.Azure;
 
 public class AzureSearchClientWrapperTests : IDisposable {
     private readonly Mock<ILogger<AzureSearchClientWrapper>> _mockLogger;
-    private readonly Mock<AzureSearchQueryService> _mockQueryService;
-    private readonly Mock<AzureSearchDocumentService> _mockDocumentService;
-    private readonly Mock<AzureSearchHealthService> _mockHealthService;
+    private readonly Mock<IAzureSearchQueryService> _mockQueryService;
+    private readonly Mock<IAzureSearchDocumentService> _mockDocumentService;
+    private readonly Mock<IAzureSearchHealthService> _mockHealthService;
     private readonly AzureAIOptions _azureConfig;
     private readonly SearchOptions _searchConfig;
     private readonly IOptions<AzureAIOptions> _azureOptions;
@@ -21,9 +21,9 @@ public class AzureSearchClientWrapperTests : IDisposable {
 
     public AzureSearchClientWrapperTests() {
         _mockLogger = new Mock<ILogger<AzureSearchClientWrapper>>();
-        _mockQueryService = new Mock<AzureSearchQueryService>();
-        _mockDocumentService = new Mock<AzureSearchDocumentService>();
-        _mockHealthService = new Mock<AzureSearchHealthService>();
+        _mockQueryService = new Mock<IAzureSearchQueryService>();
+        _mockDocumentService = new Mock<IAzureSearchDocumentService>();
+        _mockHealthService = new Mock<IAzureSearchHealthService>();
 
         // Setup health service to return successful search results
         _mockHealthService

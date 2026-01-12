@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -18,23 +18,11 @@ public class BatchProcessingService : IBatchProcessingService {
         ArgumentNullException.ThrowIfNull(logger);
         _logger = logger;
     }
-
-    public Task<BatchProcessingResult<TResult>> ProcessBatchAsync<T, TResult>(
-        IEnumerable<T> documents,
-        BatchProcessor<T, TResult> processor)
-        => ProcessBatchAsync(documents, processor, 100, CancellationToken.None);
-
-    public Task<BatchProcessingResult<TResult>> ProcessBatchAsync<T, TResult>(
-        IEnumerable<T> documents,
-        BatchProcessor<T, TResult> processor,
-        int batchSize)
-        => ProcessBatchAsync(documents, processor, batchSize, CancellationToken.None);
-
     public async Task<BatchProcessingResult<TResult>> ProcessBatchAsync<T, TResult>(
         IEnumerable<T> documents,
         BatchProcessor<T, TResult> processor,
-        int batchSize,
-        CancellationToken cancellationToken) {
+        int batchSize = 100,
+        CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(documents);
         ArgumentNullException.ThrowIfNull(processor);
 
@@ -118,18 +106,11 @@ public class BatchProcessingService : IBatchProcessingService {
             throw new InvalidOperationException("Fatal error during batch processing", ex);
         }
     }
-
-    public Task<BatchProcessingResult<TResult>> ProcessParallelBatchAsync<T, TResult>(
-        IEnumerable<T> documents,
-        Func<T, CancellationToken, Task<TResult>> processor,
-        BatchProcessingOptions options)
-        => ProcessParallelBatchAsync(documents, processor, options, CancellationToken.None);
-
     public async Task<BatchProcessingResult<TResult>> ProcessParallelBatchAsync<T, TResult>(
         IEnumerable<T> documents,
         Func<T, CancellationToken, Task<TResult>> processor,
         BatchProcessingOptions options,
-        CancellationToken cancellationToken) {
+        CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(documents);
         ArgumentNullException.ThrowIfNull(processor);
         ArgumentNullException.ThrowIfNull(options);

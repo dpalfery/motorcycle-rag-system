@@ -35,32 +35,55 @@ public class ResilienceService : IResilienceService
     {
         var activity = Activity.Current;
         correlationId ??= activity?.Id ?? Guid.NewGuid().ToString();
-        using var scope = _logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId, ["PolicyKey"] = policyKey });
+
+        using var scope = _logger.BeginScope(new Dictionary<string, object>
+        {
+            ["CorrelationId"] = correlationId,
+            ["PolicyKey"] = policyKey
+        });
+
+        ArgumentNullException.ThrowIfNull(operation);
+
+        if (!_policies.TryGetValue(policyKey, out var policy))
+        {
+            _logger.LogWarning("No resilience policy found for key: {PolicyKey}. Executing without resilience.", policyKey);
+            return await operation();
+        }
+
         try
         {
-            ArgumentNullException.ThrowIfNull(operation);
-
-            if (!_policies.TryGetValue(policyKey, out var policy))
-            {
-                _logger.LogWarning("No resilience policy found for key: {PolicyKey}. Executing without resilience.", policyKey);
-                return await operation();
-            }
             _logger.LogDebug("Executing operation with resilience policy: {PolicyKey}", policyKey);
-            var result = await policy.ExecuteAsync(async () => { cancellationToken.ThrowIfCancellationRequested(); return await operation(); });
+
+            var result = await policy.ExecuteAsync(async () =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return await operation();
+            });
+
             _logger.LogDebug("Operation completed successfully with policy: {PolicyKey}", policyKey);
             return result;
         }
         catch (BrokenCircuitException ex)
         {
             _logger.LogWarning(ex, "Circuit breaker open for policy: {PolicyKey}. Attempting fallback.", policyKey);
-            if (fallback != null) return await ExecuteFallbackAsync(fallback, policyKey);
-            throw new InvalidOperationException($"Circuit breaker is open for policy: {policyKey}", ex);
+
+            if (fallback is null)
+            {
+                throw;
+            }
+
+            return await ExecuteFallbackAsync(fallback, policyKey);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Operation failed with policy: {PolicyKey}", policyKey);
-            if (fallback != null && ShouldUseFallback(ex)) return await ExecuteFallbackAsync(fallback, policyKey);
-            throw new InvalidOperationException($"Operation failed with policy: {policyKey}", ex);
+
+            if (fallback is not null && ShouldUseFallback(ex))
+            {
+                return await ExecuteFallbackAsync(fallback, policyKey);
+            }
+
+            throw;
         }
     }
 
@@ -94,7 +117,7 @@ public class ResilienceService : IResilienceService
         catch (Exception fallbackEx)
         {
             _logger.LogError(fallbackEx, "Fallback failed for policy: {PolicyKey}", policyKey);
-            throw new InvalidOperationException($"Fallback failed for policy: {policyKey}", fallbackEx);
+            throw;
         }
     }
 

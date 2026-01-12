@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -42,11 +42,7 @@ public class FileUploadService : IFileUploadService {
             .Replace('\r', ' ')
             .Replace('\t', ' ');
     }
-
-    public Task<FileUploadResult> UploadFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options)
-        => UploadFileAsync(fileStream, metadata, options, CancellationToken.None);
-
-    public async Task<FileUploadResult> UploadFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options, CancellationToken cancellationToken) {
+    public async Task<FileUploadResult> UploadFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options, CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(fileStream);
@@ -113,11 +109,7 @@ public class FileUploadService : IFileUploadService {
             return result;
         }
     }
-
-    public Task<BatchFileUploadResult> UploadFilesAsync(IEnumerable<(Stream stream, FileMetadata metadata)> files, FileUploadOptions options)
-        => UploadFilesAsync(files, options, CancellationToken.None);
-
-    public async Task<BatchFileUploadResult> UploadFilesAsync(IEnumerable<(Stream stream, FileMetadata metadata)> files, FileUploadOptions options, CancellationToken cancellationToken) {
+    public async Task<BatchFileUploadResult> UploadFilesAsync(IEnumerable<(Stream stream, FileMetadata metadata)> files, FileUploadOptions options, CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(files);
         ArgumentNullException.ThrowIfNull(options);
 
@@ -373,3 +365,5 @@ public class FileUploadConfiguration {
     public IReadOnlyList<string> AllowedExtensions { get; init; } = new[] { ".CSV", ".PDF" };
     public IReadOnlyList<string> AllowedContentTypes { get; init; } = new[] { "text/csv", "application/csv", "application/pdf" };
 }
+
+

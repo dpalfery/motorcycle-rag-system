@@ -8,31 +8,33 @@ namespace MotorcycleRAG.Admin.Processing;
 /// <summary>
 /// Result of embedding generation
 /// </summary>
-internal class EmbeddingResult
+public class EmbeddingResult
 {
-    internal bool Success { get; set; }
-    internal float[] Embedding { get; set; } = Array.Empty<float>();
-    internal int Dimensions { get; set; }
-    internal string Error { get; set; } = string.Empty;
+    public bool Success { get; set; }
+    public float[] Embedding { get; set; } = Array.Empty<float>();
+    public int Dimensions { get; set; }
+    public string Error { get; set; } = string.Empty;
 }
 
 /// <summary>
 /// Service for generating embeddings using ONNX Runtime
 /// Supports sentence-transformers models like all-MiniLM-L6-v2
 /// </summary>
+#pragma warning disable CA1515
 public class OnnxEmbeddingService : IDisposable
 {
+#pragma warning restore CA1515
     private readonly InferenceSession _session;
     private readonly SessionOptions _sessionOptions;
     private readonly int _maxTokens;
     private bool _disposed;
 
-    internal OnnxEmbeddingService(string modelPath)
+    public OnnxEmbeddingService(string modelPath)
         : this(modelPath, maxTokens: 256)
     {
     }
 
-    internal OnnxEmbeddingService(string modelPath, int maxTokens)
+    public OnnxEmbeddingService(string modelPath, int maxTokens)
     {
         if (string.IsNullOrEmpty(modelPath))
             throw new ArgumentException("Model path cannot be null or empty", nameof(modelPath));
@@ -264,8 +266,10 @@ public class OnnxEmbeddingService : IDisposable
 /// <summary>
 /// Factory for creating ONNX embedding services
 /// </summary>
+#pragma warning disable CA1515
 public static class OnnxEmbeddingServiceFactory
 {
+#pragma warning restore CA1515
     /// <summary>
     /// Creates an embedding service with the default model
     /// </summary>

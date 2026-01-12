@@ -1,11 +1,7 @@
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace MotorcycleRAG.API.Middleware;
 
@@ -13,7 +9,7 @@ namespace MotorcycleRAG.API.Middleware;
 /// Middleware for validating Host headers against a configured allowlist.
 /// Prevents Host Header Injection attacks (OWASP A07:2021 - Cross-Site Request Forgery).
 /// </summary>
-internal class HostHeaderValidationMiddleware
+internal sealed class HostHeaderValidationMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<HostHeaderValidationMiddleware> _logger;
@@ -26,13 +22,14 @@ internal class HostHeaderValidationMiddleware
     /// <param name="next">Next middleware in the pipeline</param>
     /// <param name="logger">Logger</param>
     /// <param name="configuration">Application configuration</param>
-    internal HostHeaderValidationMiddleware(
+    public HostHeaderValidationMiddleware(
         RequestDelegate next,
         ILogger<HostHeaderValidationMiddleware> logger,
         IConfiguration configuration)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(configuration);
 
         // Parse AllowedHosts from configuration
         var allowedHostsConfig = configuration["AllowedHosts"] ?? "localhost";
@@ -40,8 +37,7 @@ internal class HostHeaderValidationMiddleware
             allowedHostsConfig
                 .Split(HostSeparators, StringSplitOptions.RemoveEmptyEntries)
                 .Select(h => h.Trim().ToUpperInvariant()),
-            StringComparer.OrdinalIgnoreCase
-        );
+            StringComparer.OrdinalIgnoreCase);
 
         // Fail fast if AllowedHosts is empty - this indicates a misconfiguration
         if (_allowedHosts.Count == 0)
@@ -56,8 +52,7 @@ internal class HostHeaderValidationMiddleware
 
         _logger.LogInformation(
             "HostHeaderValidationMiddleware initialized with allowed hosts: {AllowedHosts}",
-            string.Join(", ", _allowedHosts)
-        );
+            string.Join(", ", _allowedHosts));
     }
 
     /// <summary>
@@ -65,8 +60,10 @@ internal class HostHeaderValidationMiddleware
     /// </summary>
     /// <param name="context">HTTP context</param>
     /// <returns>Task</returns>
-    internal async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         // Get the Host header value
         if (!context.Request.Headers.TryGetValue("Host", out var hostHeader))
         {
@@ -120,8 +117,7 @@ internal class HostHeaderValidationMiddleware
                 "Host header validation failed. Host: {Host}, HostOnly: {HostOnly}, AllowedHosts: {AllowedHosts}",
                 hostValue,
                 hostOnly,
-                string.Join(", ", _allowedHosts)
-            );
+                string.Join(", ", _allowedHosts));
 
             // Return 400 Bad Request with ProblemDetails response
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
@@ -143,8 +139,7 @@ internal class HostHeaderValidationMiddleware
         _logger.LogDebug(
             "Host header validation successful. Host: {Host}, HostOnly: {HostOnly}",
             hostValue,
-            hostOnly
-        );
+            hostOnly);
 
         await _next(context);
     }
@@ -154,8 +149,6 @@ internal class HostHeaderValidationMiddleware
     /// RFC 3986 format: IPv6 addresses are enclosed in brackets, e.g., [::1]:8080
     /// IPv4/hostname format: hostname or hostname:port
     /// </summary>
-    /// <param name="hostValue">The Host header value</param>
-    /// <returns>The hostname without port, or empty string if malformed</returns>
     private static string ExtractHostname(string hostValue)
     {
         if (string.IsNullOrWhiteSpace(hostValue))
@@ -165,14 +158,9 @@ internal class HostHeaderValidationMiddleware
 
         // Handle IPv6 addresses in brackets (RFC 3986)
         // Format: [address] or [address]:port
-        // Example: [::1] or [2001:db8::1]:8080
         if (hostValue.StartsWith('['))
         {
             var closingBracket = hostValue.IndexOf(']');
-
-            // closingBracket returns -1 if not found, or the index position if found
-            // We require closingBracket > 0 to ensure there's at least one character between [ and ]
-            // (position 0 would mean empty brackets [], which is invalid)
             return closingBracket > 0
                 ? hostValue.Substring(0, closingBracket + 1).ToUpperInvariant()
                 : string.Empty;
@@ -184,7 +172,6 @@ internal class HostHeaderValidationMiddleware
         if (colonIndex > 0)
         {
             // Verify that what follows the colon is actually a valid port number
-            // This prevents misinterpreting part of the hostname as a port
             var potentialPort = hostValue.Substring(colonIndex + 1);
             if (int.TryParse(potentialPort, out _))
             {
@@ -200,8 +187,6 @@ internal class HostHeaderValidationMiddleware
     /// Checks if a given hostname is in the allowed hosts list.
     /// Performs case-insensitive comparison.
     /// </summary>
-    /// <param name="hostname">The hostname to validate</param>
-    /// <returns>True if the hostname is allowed; otherwise false</returns>
     private bool IsHostAllowed(string hostname)
     {
         if (string.IsNullOrWhiteSpace(hostname))
@@ -227,6 +212,7 @@ internal static class HostHeaderValidationMiddlewareExtensions
     /// <returns>Web application builder</returns>
     internal static IApplicationBuilder UseHostHeaderValidation(this IApplicationBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
         return builder.UseMiddleware<HostHeaderValidationMiddleware>();
     }
 }

@@ -109,6 +109,14 @@ public class McpConfigurationProvider : IMcpConfigurationProvider {
             return Task.FromResult(false);
         }
 
+        if (!tool.ServerUrl.IsAbsoluteUri ||
+            (!string.Equals(tool.ServerUrl.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+             !string.Equals(tool.ServerUrl.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) ||
+            string.IsNullOrWhiteSpace(tool.ServerUrl.Host)) {
+            _logger.LogWarning("Tool {ToolId} has invalid server URL configured: {ServerUrl}", tool.ToolId, tool.ServerUrl);
+            return Task.FromResult(false);
+        }
+
         // Check timeout configuration
         if (tool.TimeoutMs.HasValue && tool.TimeoutMs <= 0) {
             _logger.LogWarning("Tool {ToolId} has invalid timeout configuration: {Timeout}ms",

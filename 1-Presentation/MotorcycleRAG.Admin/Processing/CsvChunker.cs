@@ -15,16 +15,13 @@ public class CsvChunker
 {
     private readonly int _rowsPerChunk;
 
-    internal CsvChunker()
+    public CsvChunker()
         : this(rowsPerChunk: 100)
     {
     }
 
-    internal CsvChunker(int rowsPerChunk)
+    public CsvChunker(int rowsPerChunk)
     {
-        if (rowsPerChunk <= 0)
-            throw new ArgumentException("Rows per chunk must be positive", nameof(rowsPerChunk));
-
         _rowsPerChunk = rowsPerChunk;
     }
 

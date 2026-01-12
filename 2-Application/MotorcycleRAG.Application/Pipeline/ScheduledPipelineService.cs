@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -72,11 +72,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
 
         _logger.LogInformation("Scheduled pipeline service stopped");
     }
-
-    public Task<PipelineExecutionResult> ExecuteImmediateRunAsync()
-        => ExecuteImmediateRunAsync(CancellationToken.None);
-
-    public async Task<PipelineExecutionResult> ExecuteImmediateRunAsync(CancellationToken cancellationToken) {
+    public async Task<PipelineExecutionResult> ExecuteImmediateRunAsync(CancellationToken cancellationToken = default) {
         await _executionSemaphore.WaitAsync(cancellationToken);
 
         try {
@@ -355,3 +351,4 @@ public class ScheduledProcessingConfiguration {
     public int DefaultMaxConcurrentJobs { get; set; } = 3;
     public string BaseDirectory { get; set; } = "data";
 }
+

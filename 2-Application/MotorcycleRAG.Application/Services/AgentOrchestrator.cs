@@ -1,14 +1,11 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Agents;
-using MotorcycleRAG.Application.Services.Mcp;
 using MotorcycleRAG.Application.Services.Telemetry;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
-using System.Collections.ObjectModel;
+using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -17,54 +14,50 @@ namespace MotorcycleRAG.Application.Services;
 /// Integrates MCP (Model Context Protocol) tool configuration for extensible tool management.
 /// Implements partial-results aggregation for graceful degradation when sources become unavailable.
 /// </summary>
-public sealed class AgentOrchestrator : IAgentOrchestrator {
+public sealed class AgentOrchestrator : IAgentOrchestrator
+{
     private readonly IReadOnlyList<ISearchAgent> _agents;
     private readonly IAzureOpenAIClient _openAIClient;
     private readonly ILogger<AgentOrchestrator> _logger;
     private readonly AgentFrameworkAdapter _frameworkAdapter;
     private readonly AgentState _executionState;
-    private readonly McpToolManager _mcpToolManager;
-    private readonly DegradedModeTracker _degradedModeTracker;
+    private readonly MotorcycleRAG.Application.Services.Mcp.McpToolManager _mcpToolManager;
+    private readonly MotorcycleRAG.Application.Services.Telemetry.DegradedModeTracker _degradedModeTracker;
     private readonly SearchResultFusionService _resultFusionService;
 
     public AgentOrchestrator(
         IEnumerable<ISearchAgent> agents,
-        IAzureOpenAIClient openAIClient,
-        IOptions<SearchOptions> searchConfig,
         ILogger<AgentOrchestrator> logger,
-        McpToolManager mcpToolManager,
-        DegradedModeTracker degradedModeTracker,
-        SearchResultFusionService resultFusionService,
-        ICorrelationService correlationService) {
+        AgentOrchestratorDependencies dependencies)
+    {
         ArgumentNullException.ThrowIfNull(agents);
-        ArgumentNullException.ThrowIfNull(openAIClient);
-        ArgumentNullException.ThrowIfNull(searchConfig);
         ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(mcpToolManager);
-        ArgumentNullException.ThrowIfNull(degradedModeTracker);
-        ArgumentNullException.ThrowIfNull(resultFusionService);
-        ArgumentNullException.ThrowIfNull(correlationService);
+        ArgumentNullException.ThrowIfNull(dependencies);
 
         _agents = agents.ToList();
-        _openAIClient = openAIClient;
         _logger = logger;
-        _mcpToolManager = mcpToolManager;
-        _degradedModeTracker = degradedModeTracker;
-        _resultFusionService = resultFusionService;
+
+        _openAIClient = dependencies.OpenAIClient;
+        _mcpToolManager = dependencies.McpToolManager;
+        _degradedModeTracker = dependencies.DegradedModeTracker;
+        _resultFusionService = dependencies.ResultFusionService;
 
         _frameworkAdapter = new AgentFrameworkAdapter(logger);
         _executionState = new AgentState();
 
         InitializeFrameworkAdapter();
-        _ = InitializeMcpTools();
+        _ = InitializeMcpToolsAsync();
     }
 
     /// <summary>
     /// Initialize the Agent Framework adapter with registered agents
     /// </summary>
-    private void InitializeFrameworkAdapter() {
-        foreach (var agent in _agents) {
-            var toolName = agent.AgentType switch {
+    private void InitializeFrameworkAdapter()
+    {
+        foreach (var agent in _agents)
+        {
+            var toolName = agent.AgentType switch
+            {
                 SearchAgentType.VectorSearch => "vector_search",
                 SearchAgentType.WebSearch => "web_search",
                 SearchAgentType.PDFSearch => "pdf_search",
@@ -82,12 +75,15 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
     /// <summary>
     /// Initialize MCP tool configurations
     /// </summary>
-    private async Task InitializeMcpTools() {
-        try {
+    private async Task InitializeMcpToolsAsync()
+    {
+        try
+        {
             await _mcpToolManager.InitializeAsync();
             _logger.LogInformation("MCP tools initialized successfully");
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             _logger.LogWarning(ex, "Failed to initialize MCP tools on startup - will retry later");
         }
     }
@@ -95,15 +91,15 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
     /// <summary>
     /// Get enabled MCP tools for current execution
     /// </summary>
-    private async Task<McpToolConfiguration[]> GetEnabledMcpToolsAsync() {
-        return await _mcpToolManager.GetEnabledToolsAsync();
-    }
+    private Task<McpToolConfiguration[]> GetEnabledMcpToolsAsync() => _mcpToolManager.GetEnabledToolsAsync();
 
     #region IAgentOrchestrator Implementation
 
     /// <inheritdoc />
-    public async Task<SearchResult[]> ExecuteSequentialSearchAsync(string query, SearchContext context) {
-        if (string.IsNullOrWhiteSpace(query)) {
+    public async Task<SearchResult[]> ExecuteSequentialSearchAsync(string query, SearchContext context)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
             _logger.LogWarning("ExecuteSequentialSearchAsync was invoked with an empty query");
             return Array.Empty<SearchResult>();
         }
@@ -114,11 +110,14 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
         _executionState.SearchContext = context;
         _executionState.Status = AgentExecutionStatus.Running;
 
-        try {
+        try
+        {
             // Load enabled MCP tools for this execution
             var enabledMcpTools = await GetEnabledMcpToolsAsync();
-            if (enabledMcpTools.Length > 0) {
-                _logger.LogInformation("Executing search with {McpToolCount} enabled MCP tools: {Tools}",
+            if (enabledMcpTools.Length > 0)
+            {
+                _logger.LogInformation(
+                    "Executing search with {McpToolCount} enabled MCP tools: {Tools}",
                     enabledMcpTools.Length,
                     string.Join(", ", enabledMcpTools.Select(t => t.ToolId)));
             }
@@ -129,7 +128,8 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
             _executionState.MarkComplete();
             return results;
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             _executionState.MarkFailed();
             _logger.LogError(ex, "Sequential search execution failed");
             throw new InvalidOperationException("Sequential search execution failed", ex);
@@ -137,21 +137,24 @@ public sealed class AgentOrchestrator : IAgentOrchestrator {
     }
 
     /// <inheritdoc />
-    public async Task<string> GenerateResponseAsync(SearchResult[] results, string originalQuery) {
-        if (results == null || results.Length == 0) {
+    public async Task<string> GenerateResponseAsync(SearchResult[] results, string originalQuery)
+    {
+        if (results == null || results.Length == 0)
+        {
             _logger.LogWarning("GenerateResponseAsync called with no results – returning empty response.");
             return string.Empty;
         }
 
-        try {
+        try
+        {
             _logger.LogInformation("Generating response for query: {Query}", originalQuery);
 
             var snippets = results.Take(10)
-                                  .Select(r => $"[{r.Id}] {Truncate(r.Content, 500)}")
-                                  .ToArray();
+                .Select(r => $"[{r.Id}] {Truncate(r.Content, 500)}")
+                .ToArray();
 
             var prompt = $"""
-User question: "{originalQuery}"
+User question: \"{originalQuery}\"
 
 Snippets:
 {string.Join("\n\n", snippets)}
@@ -169,7 +172,8 @@ Answer in markdown:
             _logger.LogInformation("Response generated successfully");
             return answer;
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             _logger.LogError(ex, "Failed to generate response via OpenAI");
             _executionState.RecordError("ResponseGenerator", ex.Message, ex);
             throw new InvalidOperationException("Failed to generate response via OpenAI", ex);
@@ -177,27 +181,30 @@ Answer in markdown:
     }
 
     /// <inheritdoc />
-    public async Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchParameters options) {
+    public Task<SearchResult[]> OrchestrateSearchAsync(string query, SearchParameters options)
+    {
         ArgumentNullException.ThrowIfNull(options);
-        if (string.IsNullOrWhiteSpace(query)) {
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
             _logger.LogWarning("OrchestrateSearchAsync was invoked with an empty query");
-            return Array.Empty<SearchResult>();
+            return Task.FromResult(Array.Empty<SearchResult>());
         }
 
-        var context = new SearchContext {
-            Preferences = new SearchPreferences {
+        var context = new SearchContext
+        {
+            Preferences = new SearchPreferences
+            {
                 MaxResults = options.MaxResults,
                 MinRelevanceScore = options.MinRelevanceScore
             }
         };
 
-        return await ExecuteSequentialSearchAsync(query, context);
+        return ExecuteSequentialSearchAsync(query, context);
     }
 
     /// <inheritdoc />
-    public IEnumerable<ISearchAgent> GetAvailableAgents() {
-        return _agents;
-    }
+    public IEnumerable<ISearchAgent> GetAvailableAgents() => _agents;
 
     #endregion
 
@@ -208,30 +215,29 @@ Answer in markdown:
     /// Implements partial-results aggregation with degraded-mode tracking.
     /// When sources fail, continues with remaining available sources and tracks the degradation.
     /// </summary>
-    private async Task<SearchResult[]> ExecuteSequentialRetrievalPolicyAsync(string query, SearchContext context) {
+    private async Task<SearchResult[]> ExecuteSequentialRetrievalPolicyAsync(string query, SearchContext context)
+    {
         var searchParameters = BuildSearchOptions(context);
         var aggregatedResults = new List<SearchResult>();
         var sourceStatuses = new List<SourceExecutionStatus>();
         var executionMetrics = new Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)>();
 
         // Define the execution order: VectorSearch (index) → WebSearch → PDFSearch (fallback)
-        var executionOrder = new[]
-        {
-            SearchAgentType.VectorSearch,
-            SearchAgentType.WebSearch,
-            SearchAgentType.PDFSearch
-        };
+        var executionOrder = new[] { SearchAgentType.VectorSearch, SearchAgentType.WebSearch, SearchAgentType.PDFSearch };
 
         var stopwatch = Stopwatch.StartNew();
 
-        foreach (var agentType in executionOrder) {
+        foreach (var agentType in executionOrder)
+        {
             var (results, elapsed) = await ExecuteAgentSearchWithMetricsAsync(agentType, query, searchParameters);
-            
-            if (results != null) {
+
+            if (results != null)
+            {
                 executionMetrics[agentType] = (elapsed, results.Length);
                 aggregatedResults.AddRange(results);
 
-                sourceStatuses.Add(new SourceExecutionStatus {
+                sourceStatuses.Add(new SourceExecutionStatus
+                {
                     AgentType = agentType,
                     Succeeded = true,
                     ResultsCount = results.Length,
@@ -240,14 +246,17 @@ Answer in markdown:
                 });
 
                 // Early exit if we have enough results and this is a high-confidence source
-                if (aggregatedResults.Count >= searchParameters.MaxResults && agentType == SearchAgentType.VectorSearch) {
+                if (aggregatedResults.Count >= searchParameters.MaxResults && agentType == SearchAgentType.VectorSearch)
+                {
                     _logger.LogInformation("Sufficient results from primary index search, skipping fallback sources");
                     return aggregatedResults.ToArray();
                 }
             }
-            else {
+            else
+            {
                 executionMetrics[agentType] = (TimeSpan.Zero, 0);
-                sourceStatuses.Add(new SourceExecutionStatus {
+                sourceStatuses.Add(new SourceExecutionStatus
+                {
                     AgentType = agentType,
                     Succeeded = false,
                     ResultsCount = 0,
@@ -259,17 +268,20 @@ Answer in markdown:
 
         stopwatch.Stop();
 
-        // Determine if system is operating in degraded mode
         var degradedMode = sourceStatuses.Any(s => !s.Succeeded);
         var failedSources = sourceStatuses.Where(s => !s.Succeeded).ToList();
         var successfulSources = sourceStatuses.Where(s => s.Succeeded).ToList();
 
-        if (degradedMode) {
-            _degradedModeTracker.TrackSearchExecution(failedSources.Concat(successfulSources).ToList(), stopwatch.Elapsed, aggregatedResults.Count);
+        if (degradedMode)
+        {
+            _degradedModeTracker.TrackSearchExecution(
+                failedSources.Concat(successfulSources).ToList(),
+                stopwatch.Elapsed,
+                aggregatedResults.Count);
         }
 
-        // Update search pattern metrics
-        if (context?.QueryContext != null) {
+        if (context.QueryContext != null)
+        {
             UpdateQueryContextMetrics(context, executionMetrics, degradedMode, failedSources, successfulSources);
         }
 
@@ -281,29 +293,26 @@ Answer in markdown:
         Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)> executionMetrics,
         bool degradedMode,
         List<SourceExecutionStatus> failedSources,
-        List<SourceExecutionStatus> successfulSources) {
+        List<SourceExecutionStatus> successfulSources)
+    {
         if (context.QueryContext == null) return;
 
-        context.QueryContext.AdditionalProperties["SearchPatternMetrics"] = new SearchPatternMetrics {
+        context.QueryContext.AdditionalProperties["SearchPatternMetrics"] = new SearchPatternMetrics
+        {
             VectorSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.VectorSearch),
             WebSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.WebSearch),
             PDFSearchExecuted = executionMetrics.ContainsKey(SearchAgentType.PDFSearch),
-            VectorSearchTime = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var v)
-                ? v.Duration : TimeSpan.Zero,
-            WebSearchTime = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var w)
-                ? w.Duration : TimeSpan.Zero,
-            PDFSearchTime = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var p)
-                ? p.Duration : TimeSpan.Zero,
-            VectorResultsFound = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var vr)
-                ? vr.ResultsFound : 0,
-            WebResultsFound = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var wr)
-                ? wr.ResultsFound : 0,
-            PDFResultsFound = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var pr)
-                ? pr.ResultsFound : 0
+            VectorSearchTime = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var v) ? v.Duration : TimeSpan.Zero,
+            WebSearchTime = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var w) ? w.Duration : TimeSpan.Zero,
+            PDFSearchTime = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var p) ? p.Duration : TimeSpan.Zero,
+            VectorResultsFound = executionMetrics.TryGetValue(SearchAgentType.VectorSearch, out var vr) ? vr.ResultsFound : 0,
+            WebResultsFound = executionMetrics.TryGetValue(SearchAgentType.WebSearch, out var wr) ? wr.ResultsFound : 0,
+            PDFResultsFound = executionMetrics.TryGetValue(SearchAgentType.PDFSearch, out var pr) ? pr.ResultsFound : 0
         };
 
         context.QueryContext.AdditionalProperties["DegradedMode"] = degradedMode;
-        if (degradedMode) {
+        if (degradedMode)
+        {
             context.QueryContext.AdditionalProperties["FailedSources"] = failedSources.Select(s => new { s.AgentType, s.ErrorMessage }).ToList();
             context.QueryContext.AdditionalProperties["AvailableSources"] = successfulSources.Select(s => new { s.AgentType, s.ResultsCount }).ToList();
         }
@@ -311,36 +320,39 @@ Answer in markdown:
 
     #endregion
 
-    #region Result Fusion & Ranking
-
-    // Result fusion is now handled by SearchResultFusionService
-
-    #endregion
-
     #region Helpers
 
-    private async Task<(SearchResult[]? Results, TimeSpan Elapsed)> ExecuteAgentSearchWithMetricsAsync(SearchAgentType agentType, string query, SearchParameters searchParameters) {
+    private async Task<(SearchResult[]? Results, TimeSpan Elapsed)> ExecuteAgentSearchWithMetricsAsync(
+        SearchAgentType agentType,
+        string query,
+        SearchParameters searchParameters)
+    {
         var agent = _agents.FirstOrDefault(a => a.AgentType == agentType);
-        if (agent == null) {
+        if (agent == null)
+        {
             return (null, TimeSpan.Zero);
         }
 
         var agentStopwatch = Stopwatch.StartNew();
-        try {
+        try
+        {
             var results = await agent.SearchAsync(query, searchParameters);
             agentStopwatch.Stop();
             return (results, agentStopwatch.Elapsed);
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             agentStopwatch.Stop();
             _logger.LogWarning(ex, "Agent {AgentType} failed – continuing with remaining sources", agentType);
             return (null, agentStopwatch.Elapsed);
         }
     }
 
-    private static SearchParameters BuildSearchOptions(SearchContext context) {
+    private static SearchParameters BuildSearchOptions(SearchContext context)
+    {
         var prefs = context.Preferences ?? new SearchPreferences();
-        return new SearchParameters {
+        return new SearchParameters
+        {
             MaxResults = prefs.MaxResults,
             MinRelevanceScore = prefs.MinRelevanceScore,
             EnableCaching = true,
@@ -348,9 +360,11 @@ Answer in markdown:
         };
     }
 
-    internal static string Truncate(string text, int maxLength) {
+    internal static string Truncate(string text, int maxLength)
+    {
         if (string.IsNullOrWhiteSpace(text) || text.Length <= maxLength)
             return text;
+
         return text[..maxLength] + "…";
     }
 

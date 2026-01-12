@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -54,13 +54,10 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     /// <summary>
     /// Initiates a web scrape run for a specific web source and orchestrates the complete pipeline
     /// </summary>
-    public Task<long> StartScrapeRunAsync(int webSourceId)
-        => StartScrapeRunAsync(webSourceId, CancellationToken.None);
-
     /// <summary>
     /// Initiates a web scrape run for a specific web source and orchestrates the complete pipeline
     /// </summary>
-    public async Task<long> StartScrapeRunAsync(int webSourceId, CancellationToken cancellationToken) {
+    public async Task<long> StartScrapeRunAsync(int webSourceId, CancellationToken cancellationToken = default) {
         if (webSourceId <= 0) {
             throw new ArgumentException("Invalid web source ID", nameof(webSourceId));
         }
@@ -614,3 +611,4 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
 
     #endregion
 }
+

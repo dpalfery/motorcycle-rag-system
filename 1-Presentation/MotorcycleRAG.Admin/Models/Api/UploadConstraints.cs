@@ -6,9 +6,12 @@ namespace MotorcycleRAG.Admin.Models.Api;
 /// <summary>
 /// Upload constraints information
 /// </summary>
-public class UploadConstraints
+#pragma warning disable CA1812 // Instantiated via deserialization
+#pragma warning disable S3059 // Public properties required for System.Text.Json serialization
+internal class UploadConstraints
 {
-    internal long MaxFileSizeBytes { get; set; }
-    internal int MaxFilesPerBatch { get; set; }
-    internal Collection<string> AllowedFileTypes { get; } = new();
+    public long MaxFileSizeBytes { get; set; }
+#pragma warning restore S3059
+    public int MaxFilesPerBatch { get; set; }
+    public Collection<string> AllowedFileTypes { get; } = new();
 }

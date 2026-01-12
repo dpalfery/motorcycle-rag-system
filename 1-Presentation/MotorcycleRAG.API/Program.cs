@@ -1,5 +1,6 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.API.Configuration;
+using MotorcycleRAG.API.Configuration.Services;
 using MotorcycleRAG.API.Extensions;
 using MotorcycleRAG.API.Middleware;
 using MotorcycleRAG.API.Services;
@@ -184,13 +185,14 @@ public class Program
         {
             builder.Services.AddAzureAIServices(configuration);
             builder.Services.AddCoreServices();
-            builder.Services.AddSearchAgents();
-            builder.Services.AddDataProcessors();
+            builder.Services.AddSearchAgents(configuration);
+            builder.Services.AddDataProcessors(configuration);
             builder.Services.AddDataPipelineServices(configuration);
             builder.Services.AddCachingAndOptimization(configuration);
             builder.Services.AddSqlPersistence(configuration);
             builder.Services.AddWebTrustPolicyServices(configuration);
-            builder.Services.AddHealthChecks(configuration);
+            var healthChecksBuilder = builder.Services.AddHealthChecks();
+            healthChecksBuilder.AddHealthChecks(configuration);
 
             // Add dual-issuer JWT bearer authentication
             // Supports tokens from BOTH Entra ID (workforce/admin users) and Entra External ID/B2C (customer users)
@@ -536,3 +538,4 @@ public class Program
     }
 
 }
+

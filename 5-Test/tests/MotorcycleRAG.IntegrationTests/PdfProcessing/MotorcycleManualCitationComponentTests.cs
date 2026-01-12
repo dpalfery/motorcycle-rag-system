@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -18,7 +18,7 @@ namespace MotorcycleRAG.IntegrationTests.PdfProcessing;
 
 /// <summary>
 /// True component/slice test for manual PDF citation locator flow.
-/// Tests the real processing pipeline: PDF processing → indexing payload creation → citation mapping.
+/// Tests the real processing pipeline: PDF processing â†’ indexing payload creation â†’ citation mapping.
 /// 
 /// What's REAL (not mocked):
 /// - MotorcyclePdfProcessor chunking + locator enrichment logic
@@ -148,17 +148,19 @@ public class MotorcycleManualCitationComponentTests {
 
         // Act - Step 4: Map search results to citations through real MotorcycleRagService logic
         // We'll use reflection to invoke the private CreateManualPdfLocator method
-        var ragService = new MotorcycleRagService(
-            mockOrchestrator.Object,
-            mockRagLogger.Object,
+        var dependencies = new MotorcycleRagServiceDependencies(
             mockTelemetryService.Object,
             mockCacheService.Object,
             cacheConfig,
-            mockOpenAIClient.Object,
             citationService,
             refinementService,
             limitationAnalyzer,
             costCalculator);
+
+        var ragService = new MotorcycleRagService(
+            mockOrchestrator.Object,
+            mockRagLogger.Object,
+            dependencies);
 
         // Use reflection to access private method for testing
         var createLocatorMethod = typeof(MotorcycleRagService)
@@ -665,4 +667,5 @@ public class MotorcycleManualCitationComponentTests {
         return embedding;
     }
 }
+
 

@@ -1,4 +1,6 @@
 using Azure.Identity;
+using Azure.Identity;
+using AzureSearchClient = Azure.Search.Documents.SearchClient;
 using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,6 +61,13 @@ public static class ServiceCollectionExtensions {
             var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIOptions>>().Value;
             var credential = new DefaultAzureCredential();
             return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), credential);
+        });
+
+        services.AddSingleton<AzureSearchClient>(serviceProvider => {
+            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIOptions>>().Value;
+            var searchConfig = serviceProvider.GetRequiredService<IOptions<SearchOptions>>().Value;
+            var credential = new DefaultAzureCredential();
+            return new AzureSearchClient(new Uri(azureConfig.SearchServiceEndpoint), searchConfig.IndexName, credential);
         });
 
         // Register indexing service

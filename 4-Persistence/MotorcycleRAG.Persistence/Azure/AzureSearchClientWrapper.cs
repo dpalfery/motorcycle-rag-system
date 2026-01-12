@@ -23,17 +23,17 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "SearchClient is not IDisposable")]
 public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
-    private readonly AzureSearchQueryService _queryService;
-    private readonly AzureSearchDocumentService _documentService;
-    private readonly AzureSearchHealthService _healthService;
+    private readonly IAzureSearchQueryService _queryService;
+    private readonly IAzureSearchDocumentService _documentService;
+    private readonly IAzureSearchHealthService _healthService;
 
     public AzureSearchClientWrapper(
         IOptions<AzureAIOptions> azureConfig,
         IOptions<Core.Options.SearchOptions> searchConfig,
         ILogger<AzureSearchClientWrapper> logger,
-        AzureSearchQueryService queryService,
-        AzureSearchDocumentService documentService,
-        AzureSearchHealthService healthService) {
+        IAzureSearchQueryService queryService,
+        IAzureSearchDocumentService documentService,
+        IAzureSearchHealthService healthService) {
         ArgumentNullException.ThrowIfNull(azureConfig);
         ArgumentNullException.ThrowIfNull(searchConfig);
         ArgumentNullException.ThrowIfNull(logger);
@@ -134,4 +134,4 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
         await _documentService.DeleteDocumentsAsync(documentIds);
     }
 
-}
+}

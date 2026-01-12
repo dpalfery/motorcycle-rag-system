@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -9,7 +9,8 @@ namespace MotorcycleRAG.API.Services;
 /// <summary>
 /// Implementation of current user service that resolves user information from HTTP context claims
 /// </summary>
-internal class CurrentUserService : ICurrentUserService
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Referenced by integration tests and registered as the default ICurrentUserService implementation.")]
+public class CurrentUserService : ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<CurrentUserService> _logger;
@@ -19,7 +20,7 @@ internal class CurrentUserService : ICurrentUserService
     /// </summary>
     /// <param name="httpContextAccessor">HTTP context accessor</param>
     /// <param name="logger">Logger</param>
-    internal CurrentUserService(IHttpContextAccessor httpContextAccessor, ILogger<CurrentUserService> logger)
+    public CurrentUserService(IHttpContextAccessor httpContextAccessor, ILogger<CurrentUserService> logger)
     {
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -130,3 +131,4 @@ internal class CurrentUserService : ICurrentUserService
         return claim?.Value;
     }
 }
+

@@ -242,14 +242,17 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
     /// <summary>
     /// Gets the current user's display name
     /// </summary>
-    public string? GetUserDisplayName()
+    public string? UserDisplayName
     {
-        if (_currentAuthResult?.Account == null)
-            return null;
+        get
+        {
+            if (_currentAuthResult?.Account == null)
+                return null;
 
-        var name = _currentAuthResult.Account.Username;
-        _logger?.LogDebug("GetUserDisplayName: {Name}", name);
-        return name;
+            var name = _currentAuthResult.Account.Username;
+            _logger?.LogDebug("UserDisplayName property accessed: {Name}", name);
+            return name;
+        }
     }
 
     /// <summary>

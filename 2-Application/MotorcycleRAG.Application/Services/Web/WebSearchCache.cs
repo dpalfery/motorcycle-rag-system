@@ -15,11 +15,23 @@ public class WebSearchCache
     private readonly int _maxCacheSize;
     private readonly ILogger<WebSearchCache> _logger;
 
+    public WebSearchCache(ILogger<WebSearchCache> logger)
+        : this(TimeSpan.FromMinutes(15), 100, logger)
+    {
+    }
+
     public WebSearchCache(
         TimeSpan cacheExpiration,
         int maxCacheSize,
         ILogger<WebSearchCache> logger)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxCacheSize, 1);
+        if (cacheExpiration <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(cacheExpiration), cacheExpiration, "cacheExpiration must be greater than zero");
+        }
+        ArgumentNullException.ThrowIfNull(logger);
+
         _cache = new ConcurrentDictionary<string, CachedSearchResults>();
         _cacheExpiration = cacheExpiration;
         _maxCacheSize = maxCacheSize;

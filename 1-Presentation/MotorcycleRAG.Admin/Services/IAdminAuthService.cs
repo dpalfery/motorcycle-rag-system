@@ -27,7 +27,7 @@ public interface IAdminAuthService {
     /// <summary>
     /// Gets the current user's display name
     /// </summary>
-    string? GetUserDisplayName();
+    string? UserDisplayName { get; }
 
     /// <summary>
     /// Gets the current user's roles

@@ -13,7 +13,9 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for managing MCP tool configurations in the admin panel.
 /// Handles loading, saving, and managing MCP tool enable/disable states with validation.
 /// </summary>
+#pragma warning disable CA1515
 public partial class ToolsViewModel : ObservableObject {
+#pragma warning restore CA1515
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<ToolsViewModel> _logger;
@@ -207,7 +209,7 @@ public partial class ToolsViewModel : ObservableObject {
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(tool.ServerUrl))
+        if (tool.ServerUrl == null)
         {
             _logger.LogWarning("Tool server URL is empty");
             return false;
@@ -251,13 +253,15 @@ public partial class ToolsViewModel : ObservableObject {
 /// <summary>
 /// View model item for a single MCP tool configuration
 /// </summary>
+#pragma warning disable CA1515
 public partial class ToolConfigItem : ObservableObject
 {
+#pragma warning restore CA1515
     public Guid Id { get; }
     public string ToolId { get; }
     public string Name { get; }
     public string? Description { get; }
-    public string ServerUrl { get; }
+    public Uri ServerUrl { get; }
     public string ToolType { get; }
     public string? Version { get; }
 

@@ -3,21 +3,20 @@ using MotorcycleRAG.Admin.Services;
 namespace MotorcycleRAG.Admin;
 
 internal partial class App : Application {
-    private readonly IAdminAuthService _authService;
-    private readonly ISettingsService _settingsService;
-    private readonly IServiceProvider _serviceProvider;
-
-    internal App(IAdminAuthService authService, ISettingsService settingsService, IServiceProvider serviceProvider)
-    {
+    internal App() {
         InitializeComponent();
-        _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
-    protected override Window CreateWindow(IActivationState? activationState)
-    {
-        return new Window(new AppShell(_authService, _settingsService, _serviceProvider));
+    protected override Window CreateWindow(IActivationState? activationState) {
+        // Resolve dependencies from the service provider at window creation time
+        var serviceProvider = Handler?.MauiContext?.Services
+            ?? throw new InvalidOperationException("Service provider not available");
+
+        var authService = serviceProvider.GetRequiredService<IAdminAuthService>();
+        var settingsService = serviceProvider.GetRequiredService<ISettingsService>();
+        var appShell = serviceProvider.GetRequiredService<AppShell>();
+
+        return new Window(appShell);
     }
 }
 

@@ -74,7 +74,7 @@ internal partial class AppShell : Shell {
             // Update user display name in TitleView
             if (_authService.IsSignedIn())
             {
-                var displayName = _authService.GetUserDisplayName();
+                var displayName = _authService.UserDisplayName;
                 UserDisplayName.Text = displayName ?? "User";
             }
             else

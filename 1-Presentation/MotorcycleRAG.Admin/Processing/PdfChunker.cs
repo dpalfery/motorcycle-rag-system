@@ -50,25 +50,25 @@ internal class DocumentChunk
 }
 
 /// <summary>
-/// Service for chunking PDF documents with page and section metadata extraction
+/// Service for chunking PDF documents into searchable segments.
+/// Implements domain-specific logic for parsing motorcycle manuals.
 /// </summary>
-public class PdfChunker
-{
-    private static readonly char[] LineSeparators = { '\n', '\r' };
+public class PdfChunker {
+    private static readonly string[] LineSeparators = { "\r\n", "\n", "\r" };
     private readonly int _targetChunkSize;
     private readonly int _chunkOverlap;
 
-    internal PdfChunker()
+    public PdfChunker()
         : this(targetChunkSize: 1000, chunkOverlap: 200)
     {
     }
 
-    internal PdfChunker(int targetChunkSize)
+    public PdfChunker(int targetChunkSize)
         : this(targetChunkSize, chunkOverlap: 200)
     {
     }
 
-    internal PdfChunker(int targetChunkSize, int chunkOverlap)
+    public PdfChunker(int targetChunkSize, int chunkOverlap)
     {
         if (targetChunkSize <= 0)
             throw new ArgumentException("Target chunk size must be positive", nameof(targetChunkSize));

@@ -1,32 +1,21 @@
-using System.Collections.Concurrent;
-using System.Text.Json;
-using System.Text.RegularExpressions;
-using HtmlAgilityPack;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Enums;
-using System.Threading;
-using MotorcycleRAG.Application.Services.Web;
-using WebExtractor = MotorcycleRAG.Application.Services.Web.WebContentExtractor;
 
 namespace MotorcycleRAG.Application.Agents;
 
 /// <summary>
-/// Web search agent - now focused only on orchestrating specialized components
+/// Web search agent - orchestrates web search via injected services.
 /// </summary>
-public class WebSearchAgent : ISearchAgent, IDisposable
+public sealed class WebSearchAgent : ISearchAgent, IDisposable
 {
     private readonly HttpClient _httpClient;
     private readonly WebSearchOptions _config;
     private readonly ILogger<WebSearchAgent> _logger;
-    private readonly WebSearchRateLimiter _rateLimiter;
-    private readonly WebSearchCache _cache;
-    private readonly WebExtractor _extractor;
-    private readonly WebSearchTermEnhancer _termEnhancer;
-    private readonly WebSourceValidator _validator;
+    private readonly WebSearchAgentServices _services;
     private bool _disposed;
 
     public SearchAgentType AgentType => SearchAgentType.WebSearch;
@@ -35,29 +24,17 @@ public class WebSearchAgent : ISearchAgent, IDisposable
         HttpClient httpClient,
         IOptions<WebSearchOptions> config,
         ILogger<WebSearchAgent> logger,
-        WebSearchRateLimiter rateLimiter,
-        WebSearchCache cache,
-        WebExtractor extractor,
-        WebSearchTermEnhancer termEnhancer,
-        WebSourceValidator validator)
+        WebSearchAgentServices services)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(rateLimiter);
-        ArgumentNullException.ThrowIfNull(cache);
-        ArgumentNullException.ThrowIfNull(extractor);
-        ArgumentNullException.ThrowIfNull(termEnhancer);
-        ArgumentNullException.ThrowIfNull(validator);
+        ArgumentNullException.ThrowIfNull(services);
 
         _httpClient = httpClient;
         _config = config.Value;
         _logger = logger;
-        _rateLimiter = rateLimiter;
-        _cache = cache;
-        _extractor = extractor;
-        _termEnhancer = termEnhancer;
-        _validator = validator;
+        _services = services;
 
         ConfigureHttpClient();
     }
@@ -68,6 +45,7 @@ public class WebSearchAgent : ISearchAgent, IDisposable
     public async Task<SearchResult[]> SearchAsync(string query, SearchParameters options)
     {
         ArgumentNullException.ThrowIfNull(options);
+
         if (string.IsNullOrWhiteSpace(query))
         {
             _logger.LogWarning("Empty query provided");
@@ -80,59 +58,47 @@ public class WebSearchAgent : ISearchAgent, IDisposable
             var startTime = DateTime.UtcNow;
 
             // Use rate limiter
-            using var rateLimit = await _rateLimiter.AcquireAsync();
+            using var rateLimit = await _services.RateLimiter.AcquireAsync();
 
-            // Check cache first
-            if (_cache.TryGetCachedResults(query, options, out var cachedResults))
+            // Check cache first (only when enabled)
+            if (options.EnableCaching && _services.Cache.TryGetCachedResults(query, options, out var cachedResults))
             {
                 _logger.LogInformation("Cache hit for query: {Query}", query);
                 return cachedResults;
             }
 
-            // Enhance search terms
-            var enhancedQuery = await _termEnhancer.EnhanceSearchTermsAsync(query);
+            // Enhance search terms (generate multiple terms and search across them)
+            var searchTerms = await _services.TermEnhancer.GenerateSearchTermsAsync(query, CancellationToken.None);
 
-            // Execute searches across sources
+            // Execute searches across sources and terms
             var allResults = new List<SearchResult>();
             foreach (var source in _config.TrustedSources)
             {
-                var sourceResults = await SearchSourceAsync(source, enhancedQuery, options);
-                allResults.AddRange(sourceResults);
-            }
-
-            // Extract content using the extractor
-            var extractedResults = new List<SearchResult>();
-            foreach (var result in allResults)
-            {
-                var extractedContent = await _extractor.ExtractContentAsync(result.Content);
-                if (!string.IsNullOrWhiteSpace(extractedContent.Text))
+                foreach (var term in searchTerms)
                 {
-                    result.Content = extractedContent.Text;
-                    extractedResults.Add(result);
+                    var sourceResults = await SearchSourceAsync(source, term, options);
+                    allResults.AddRange(sourceResults);
                 }
             }
 
-            // Validate sources
-            var validatedResults = new List<SearchResult>();
-            foreach (var result in extractedResults)
-            {
-                var isValid = await _validator.ValidateSourceAsync(result.Source.SourceName, result.Content);
-                if (isValid)
-                {
-                    validatedResults.Add(result);
-                }
-            }
+            // Validate sources + enrich metadata (trust policy tier, AI quality, etc.)
+            var validatedResults = await _services.Validator.ValidateResultsAsync(allResults, CancellationToken.None);
 
             // Format and rank
-            var formattedResults = FormatResults(validatedResults, query);
+            var formattedResults = FormatResults(validatedResults.ToList(), query, options.IncludeMetadata);
             var finalResults = RankAndFilter(formattedResults, options);
 
-            // Cache results
-            _cache.CacheResults(query, options, finalResults);
+            // Cache results (only when enabled)
+            if (options.EnableCaching)
+            {
+                _services.Cache.CacheResults(query, options, finalResults);
+            }
 
             var duration = DateTime.UtcNow - startTime;
-            _logger.LogInformation("Web search completed in {Duration}ms with {Count} results",
-                duration.TotalMilliseconds, finalResults.Length);
+            _logger.LogInformation(
+                "Web search completed in {Duration}ms with {Count} results",
+                duration.TotalMilliseconds,
+                finalResults.Length);
 
             return finalResults;
         }
@@ -145,47 +111,58 @@ public class WebSearchAgent : ISearchAgent, IDisposable
 
     private void ConfigureHttpClient()
     {
-        _httpClient.DefaultRequestHeaders.Add("User-Agent",
-            "MotorcycleRAG/1.0 (Educational Research Bot)");
+        if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
+        {
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "MotorcycleRAG/1.0 (Educational Research Bot)");
+        }
+
         _httpClient.Timeout = TimeSpan.FromSeconds(_config.RequestTimeoutSeconds);
     }
 
     private async Task<List<SearchResult>> SearchSourceAsync(
         TrustedSourceOptions source,
-        string query,
+        string searchTerm,
         SearchParameters options)
     {
         var results = new List<SearchResult>();
 
         try
         {
-            var searchUrl = BuildSearchUrl(source, query);
+            var searchUrl = BuildSearchUrl(source, searchTerm);
+            var html = await FetchWebContentAsync(searchUrl);
 
-            var content = await FetchWebContentAsync(searchUrl);
-
-            if (!string.IsNullOrWhiteSpace(content))
+            if (string.IsNullOrWhiteSpace(html))
             {
-                // Use the extractor to extract content
-                var extractedContent = await _extractor.ExtractContentAsync(content);
-                if (!string.IsNullOrWhiteSpace(extractedContent.Text))
-                {
-                    results.AddRange(ConvertToSearchResults(new List<ExtractedContent> { extractedContent }, query, source));
-                }
+                return results;
+            }
+
+            var extracted = _services.Extractor.ExtractFromHtml(
+                html,
+                source.ContentSelector ?? "//p",
+                maxResults: Math.Max(1, options.MaxResults));
+
+            if (extracted.Count > 0)
+            {
+                results.AddRange(ConvertToSearchResults(extracted, searchTerm, source, searchUrl, options.IncludeMetadata));
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to search {Source} for: {Query}", source.Name, query);
+            _logger.LogWarning(ex, "Failed to search {Source} for: {Query}", source.Name, searchTerm);
         }
 
-        return results.Take(options.MaxResults / _config.TrustedSources.Count).ToList();
+        var perSourceLimit = _config.TrustedSources.Count > 0
+            ? Math.Max(1, options.MaxResults / _config.TrustedSources.Count)
+            : options.MaxResults;
+
+        return results.Take(perSourceLimit).ToList();
     }
 
-    private Uri BuildSearchUrl(TrustedSourceOptions source, string searchTerm)
+    private static Uri BuildSearchUrl(TrustedSourceOptions source, string searchTerm)
     {
         var encodedTerm = Uri.EscapeDataString(searchTerm);
         var url = source.SearchUrlTemplate?.ToString()?.Replace("{query}", encodedTerm) ?? string.Empty;
-        return new Uri(url);
+        return new Uri(url, UriKind.Absolute);
     }
 
     private async Task<string> FetchWebContentAsync(Uri uri)
@@ -203,28 +180,42 @@ public class WebSearchAgent : ISearchAgent, IDisposable
         }
     }
 
-    private List<SearchResult> ConvertToSearchResults(
-        List<ExtractedContent> contents,
+    private static List<SearchResult> ConvertToSearchResults(
+        IReadOnlyCollection<MotorcycleRAG.Application.Services.Web.ExtractedContent> contents,
         string searchTerm,
-        TrustedSourceOptions source)
+        TrustedSourceOptions source,
+        Uri searchUrl,
+        bool includeMetadata)
     {
-        return contents.Select(content => new SearchResult
+        return contents.Select(content =>
         {
-            Id = $"web_{Guid.NewGuid()}",
-            Content = content.Text,
-            RelevanceScore = CalculateRelevanceScore(content.Text, searchTerm),
-            Source = new SearchSource
+            var result = new SearchResult
             {
-                AgentType = SearchAgentType.WebSearch,
-                SourceName = source.Name,
-                SourceUrl = source.BaseUrl?.ToString(),
-                LastUpdated = DateTime.UtcNow
-            },
-            GeneratedAt = DateTime.UtcNow
+                Id = $"web_{Guid.NewGuid()}",
+                Content = content.Text,
+                RelevanceScore = CalculateRelevanceScore(content.Text, searchTerm),
+                Source = new SearchSource
+                {
+                    AgentType = SearchAgentType.WebSearch,
+                    SourceName = source.Name,
+                    SourceUrl = searchUrl.ToString(),
+                    LastUpdated = DateTime.UtcNow
+                },
+                GeneratedAt = DateTime.UtcNow
+            };
+
+            if (includeMetadata)
+            {
+                result.Metadata["searchTerm"] = searchTerm;
+                result.Metadata["sourceType"] = "web";
+                result.Metadata["credibilityScore"] = source.CredibilityScore;
+            }
+
+            return result;
         }).ToList();
     }
 
-    private float CalculateRelevanceScore(string content, string searchTerm)
+    private static float CalculateRelevanceScore(string content, string searchTerm)
     {
         var contentUpper = content.ToUpperInvariant();
         var score = 0.3f;
@@ -235,24 +226,35 @@ public class WebSearchAgent : ISearchAgent, IDisposable
         }
 
         var searchWords = searchTerm.ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var wordMatches = searchWords.Count(word => contentUpper.Contains(word));
-        score += (wordMatches / (float)searchWords.Length) * 0.4f;
+        var wordMatches = searchWords.Count(word => contentUpper.Contains(word, StringComparison.Ordinal));
+        score += (wordMatches / (float)Math.Max(1, searchWords.Length)) * 0.4f;
 
         return Math.Min(1.0f, score);
     }
 
-    private List<SearchResult> FormatResults(List<SearchResult> results, string query)
+    private static List<SearchResult> FormatResults(List<SearchResult> results, string query, bool includeMetadata)
     {
         return results.Select(r =>
         {
             r.Content = $"[Web Source: {r.Source.SourceName}] {r.Content}";
-            r.Metadata["integrationType"] = "webAugmentation";
-            r.Metadata["originalQuery"] = query;
+
+            if (includeMetadata)
+            {
+                r.Metadata["integrationType"] = "webAugmentation";
+                r.Metadata["originalQuery"] = query;
+
+                // Backfill sourceType if earlier pipeline didn't set it
+                if (!r.Metadata.ContainsKey("sourceType"))
+                {
+                    r.Metadata["sourceType"] = "web";
+                }
+            }
+
             return r;
         }).ToList();
     }
 
-    private SearchResult[] RankAndFilter(List<SearchResult> results, SearchParameters options)
+    private static SearchResult[] RankAndFilter(List<SearchResult> results, SearchParameters options)
     {
         return results
             .Where(r => r.RelevanceScore >= options.MinRelevanceScore)
@@ -267,7 +269,7 @@ public class WebSearchAgent : ISearchAgent, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    protected virtual void Dispose(bool disposing)
+    private void Dispose(bool disposing)
     {
         if (_disposed)
         {
@@ -283,3 +285,4 @@ public class WebSearchAgent : ISearchAgent, IDisposable
         _disposed = true;
     }
 }
+

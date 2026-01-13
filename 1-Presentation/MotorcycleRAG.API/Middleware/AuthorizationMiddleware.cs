@@ -14,7 +14,7 @@ internal sealed class AuthorizationMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<AuthorizationMiddleware> _logger;
 
-    public AuthorizationMiddleware(
+    internal AuthorizationMiddleware(
         RequestDelegate next,
         ILogger<AuthorizationMiddleware> logger)
     {
@@ -22,7 +22,7 @@ internal sealed class AuthorizationMiddleware
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task InvokeAsync(HttpContext context)
+    internal async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

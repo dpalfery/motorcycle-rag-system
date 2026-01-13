@@ -2,6 +2,7 @@ using MotorcycleRAG.Admin.Services;
 
 namespace MotorcycleRAG.Admin;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
 internal partial class App : Application {
     internal App() {
         InitializeComponent();
@@ -12,8 +13,6 @@ internal partial class App : Application {
         var serviceProvider = Handler?.MauiContext?.Services
             ?? throw new InvalidOperationException("Service provider not available");
 
-        var authService = serviceProvider.GetRequiredService<IAdminAuthService>();
-        var settingsService = serviceProvider.GetRequiredService<ISettingsService>();
         var appShell = serviceProvider.GetRequiredService<AppShell>();
 
         return new Window(appShell);

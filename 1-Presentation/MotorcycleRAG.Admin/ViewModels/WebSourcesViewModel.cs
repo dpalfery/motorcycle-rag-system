@@ -11,97 +11,51 @@ using Microsoft.Extensions.Logging;
 namespace MotorcycleRAG.Admin.ViewModels;
 
 /// <summary>
-
 /// ViewModel for managing web sources in the admin panel.
-
 /// Handles loading, creating, and deleting web sources with proper error handling and state management.
-
 /// </summary>
-
-#pragma warning disable CA1515
-
-public partial class WebSourcesViewModel : ObservableObject {
-
-#pragma warning restore CA1515
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
+internal partial class WebSourcesViewModel : ObservableObject {
     private readonly ApiClient _apiClient;
 
-
-
     private readonly IAdminAuthService _authService;
-
     private readonly ILogger<WebSourcesViewModel> _logger;
 
-
-
     [ObservableProperty]
-
     private ObservableCollection<WebSourceViewModel> webSources = new();
 
-
-
     [ObservableProperty]
-
     private bool isLoading;
 
-
-
     [ObservableProperty]
-
     private string? errorMessage;
 
-
-
     [ObservableProperty]
-
     private bool showAddSourceForm;
 
-
-
     [ObservableProperty]
-
     private string newSourceName = string.Empty;
 
-
-
     [ObservableProperty]
-
     private string newSourceUrl = string.Empty;
 
-
-
     [ObservableProperty]
-
     private string newSourceDescription = string.Empty;
 
-
-
     [ObservableProperty]
-
     private int selectedTrustTier = (int)WebTrustTier.TierB;
 
-
-
     [ObservableProperty]
-
     private bool newSourceIsEnabled = true;
 
-
-
     [ObservableProperty]
-
     private bool newSourceIncludeInSearch = true;
 
-
-
-    public WebSourcesViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<WebSourcesViewModel> logger) {
-
+    internal WebSourcesViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<WebSourcesViewModel> logger) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
-
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
     }
 
 
@@ -188,7 +142,7 @@ public partial class WebSourcesViewModel : ObservableObject {
 
                 ErrorMessage = $"Failed to load web sources: {sanitizedMessage}";
 
-                var window = Application.Current?.Windows?.FirstOrDefault();
+                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
 
                 if (window?.Page != null) {
 
@@ -286,7 +240,7 @@ public partial class WebSourcesViewModel : ObservableObject {
 
 
 
-            if (!UrlValidator.IsValidUrl(NewSourceUrl)) {
+            if (Uri.TryCreate(NewSourceUrl, UriKind.Absolute, out var uriForValidation) && !UrlValidator.IsValidUrl(uriForValidation)) {
 
                 ErrorMessage = "Invalid or disallowed URL format (SSRF protection)";
 
@@ -301,55 +255,34 @@ public partial class WebSourcesViewModel : ObservableObject {
 
 
             var newSource = new WebSource {
-
                 Name = NewSourceName,
-
                 Url = NewSourceUrl,
-
                 Description = NewSourceDescription,
-
                 TrustTier = SelectedTrustTier,
-
                 IsEnabled = NewSourceIsEnabled,
-
                 IncludeInSearch = NewSourceIncludeInSearch,
-
                 CrawlFrequencyHours = 24,
-
                 MaxCrawlDepth = 2
-
             };
 
 
 
-            var createdSource = await _apiClient.AddWebSourceAsync(newSource);
+            if (!string.IsNullOrWhiteSpace(NewSourceUrl) && Uri.TryCreate(NewSourceUrl, UriKind.Absolute, out _)) {
+                var createdSource = await _apiClient.AddWebSourceAsync(newSource);
 
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    WebSources.Add(new WebSourceViewModel(createdSource));
+                    ShowAddSourceForm = false;
+                    ResetForm();
+                }).ConfigureAwait(false);
 
+                _logger.LogInformation("Added web source: {SourceName}", createdSource.Name);
 
-            await MainThread.InvokeOnMainThreadAsync(() =>
-
-            {
-
-                WebSources.Add(new WebSourceViewModel(createdSource));
-
-                ShowAddSourceForm = false;
-
-                ResetForm();
-
-            }).ConfigureAwait(false);
-
-
-
-            _logger.LogInformation("Added web source: {SourceName}", createdSource.Name);
-
-
-
-            var window = Application.Current?.Windows?.FirstOrDefault();
-
-            if (window?.Page != null) {
-
-                await window.Page.DisplayAlertAsync("Success", "Web source added successfully", "OK");
-
+                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+                if (window?.Page != null) {
+                    await window.Page.DisplayAlertAsync("Success", "Web source added successfully", "OK");
+                }
             }
 
         }
@@ -382,7 +315,7 @@ public partial class WebSourcesViewModel : ObservableObject {
 
             await MainThread.InvokeOnMainThreadAsync(async () => {
 
-                var window = Application.Current?.Windows?.FirstOrDefault();
+                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
 
                 if (window?.Page != null) {
 
@@ -416,7 +349,7 @@ public partial class WebSourcesViewModel : ObservableObject {
 
         try {
 
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
 
             if (window?.Page == null)
 
@@ -488,7 +421,7 @@ public partial class WebSourcesViewModel : ObservableObject {
 
 
 
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
 
             if (window?.Page != null) {
 
@@ -506,7 +439,7 @@ public partial class WebSourcesViewModel : ObservableObject {
 
 
 
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
 
             if (window?.Page != null) {
 
@@ -526,7 +459,7 @@ public partial class WebSourcesViewModel : ObservableObject {
 
 
 
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
 
             if (window?.Page != null) {
 
@@ -672,17 +605,15 @@ public partial class WebSourcesViewModel : ObservableObject {
 
 /// </summary>
 
-#pragma warning disable CA1515
 
-public class WebSourceViewModel : ObservableObject {
+internal class WebSourceViewModel : ObservableObject {
 
-#pragma warning restore CA1515
 
     private readonly WebSource _source;
 
 
 
-    public WebSourceViewModel(WebSource source) {
+    internal WebSourceViewModel(WebSource source) {
 
         _source = source ?? throw new ArgumentNullException(nameof(source));
 
@@ -690,26 +621,26 @@ public class WebSourceViewModel : ObservableObject {
 
 
 
-    public int Id => _source.Id;
+    internal int Id => _source.Id;
 
-    public string Name => _source.Name;
+    internal string Name => _source.Name;
 
-    public Uri Url => new Uri(_source.Url);
+    internal Uri Url => new Uri(_source.Url, UriKind.Absolute);
 
-    public string Description => _source.Description;
-    public bool IsEnabled => _source.IsEnabled;
-    public int TrustTier => _source.TrustTier;
-    public DateTime CreatedDate => _source.CreatedDate;
-    public DateTime? LastUpdatedDate => _source.LastUpdatedDate;
-    public DateTime? LastCrawledDate => _source.LastCrawledDate;
-    public int CrawlFrequencyHours => _source.CrawlFrequencyHours;
-    public bool IncludeInSearch => _source.IncludeInSearch;
-    public int MaxCrawlDepth => _source.MaxCrawlDepth;
+    internal string Description => _source.Description;
+    internal bool IsEnabled => _source.IsEnabled;
+    internal int TrustTier => _source.TrustTier;
+    internal DateTime CreatedDate => _source.CreatedDate;
+    internal DateTime? LastUpdatedDate => _source.LastUpdatedDate;
+    internal DateTime? LastCrawledDate => _source.LastCrawledDate;
+    internal int CrawlFrequencyHours => _source.CrawlFrequencyHours;
+    internal bool IncludeInSearch => _source.IncludeInSearch;
+    internal int MaxCrawlDepth => _source.MaxCrawlDepth;
 
     /// <summary>
     /// Get the display label for the trust tier
     /// </summary>
-    public string TrustTierLabel => TrustTier switch {
+    internal string TrustTierLabel => TrustTier switch {
         (int)WebTrustTier.TierA => "Tier A - OEM",
         (int)WebTrustTier.TierB => "Tier B - Media",
         (int)WebTrustTier.TierC => "Tier C - Community",
@@ -719,7 +650,7 @@ public class WebSourceViewModel : ObservableObject {
     /// <summary>
     /// Get the color for the trust tier badge
     /// </summary>
-    public Color TrustTierColor => TrustTier switch {
+    internal Color TrustTierColor => TrustTier switch {
         (int)WebTrustTier.TierA => Colors.Green,
         (int)WebTrustTier.TierB => Colors.Blue,
         (int)WebTrustTier.TierC => Colors.Orange,
@@ -729,7 +660,7 @@ public class WebSourceViewModel : ObservableObject {
     /// <summary>
     /// Status display label
     /// </summary>
-    public string StatusLabel => IsEnabled ? "Enabled" : "Disabled";
+    internal string StatusLabel => IsEnabled ? "Enabled" : "Disabled";
 }
 
 

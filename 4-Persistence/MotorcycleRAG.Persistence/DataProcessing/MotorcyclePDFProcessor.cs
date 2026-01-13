@@ -14,6 +14,7 @@ namespace MotorcycleRAG.Persistence.DataProcessing;
 /// <summary>
 /// PDF processor for motorcycle manuals and documentation with semantic chunking and multimodal support
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Split this class into smaller and more specialized ones", Justification = "Complex processor requires multiple service integrations")]
 public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
     private readonly IDocumentIntelligenceClient _documentClient;
     private readonly IAzureOpenAIClient _openAIClient;

@@ -140,7 +140,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
                     // On Windows, we can also show this in the UI
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
-                        var window = Application.Current?.Windows?.FirstOrDefault();
+                        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
                         window?.Page?.DisplayAlertAsync(
                             "Sign In",
                             deviceCodeResult.Message,
@@ -163,7 +163,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
             _logger.LogError(ex, "Authentication failed");
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
-                var window = Application.Current?.Windows?.FirstOrDefault();
+                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
                 if (window?.Page != null)
                 {
                     await window.Page.DisplayAlertAsync(
@@ -179,7 +179,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
             _logger.LogWarning(ex, "Device code authentication timed out after 5 minutes");
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
-                var window = Application.Current?.Windows?.FirstOrDefault();
+                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
                 if (window?.Page != null)
                 {
                     await window.Page.DisplayAlertAsync(

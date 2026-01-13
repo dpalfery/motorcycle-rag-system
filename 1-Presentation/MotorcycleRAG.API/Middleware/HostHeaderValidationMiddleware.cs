@@ -22,7 +22,7 @@ internal sealed class HostHeaderValidationMiddleware
     /// <param name="next">Next middleware in the pipeline</param>
     /// <param name="logger">Logger</param>
     /// <param name="configuration">Application configuration</param>
-    public HostHeaderValidationMiddleware(
+    internal HostHeaderValidationMiddleware(
         RequestDelegate next,
         ILogger<HostHeaderValidationMiddleware> logger,
         IConfiguration configuration)
@@ -60,7 +60,7 @@ internal sealed class HostHeaderValidationMiddleware
     /// </summary>
     /// <param name="context">HTTP context</param>
     /// <returns>Task</returns>
-    public async Task InvokeAsync(HttpContext context)
+    internal async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

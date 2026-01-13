@@ -53,22 +53,24 @@ internal class DocumentChunk
 /// Service for chunking PDF documents into searchable segments.
 /// Implements domain-specific logic for parsing motorcycle manuals.
 /// </summary>
-public class PdfChunker {
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework via DI")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "Internal class members")]
+internal class PdfChunker {
     private static readonly string[] LineSeparators = { "\r\n", "\n", "\r" };
     private readonly int _targetChunkSize;
     private readonly int _chunkOverlap;
 
-    public PdfChunker()
+    internal PdfChunker()
         : this(targetChunkSize: 1000, chunkOverlap: 200)
     {
     }
 
-    public PdfChunker(int targetChunkSize)
+    internal PdfChunker(int targetChunkSize)
         : this(targetChunkSize, chunkOverlap: 200)
     {
     }
 
-    public PdfChunker(int targetChunkSize, int chunkOverlap)
+    internal PdfChunker(int targetChunkSize, int chunkOverlap)
     {
         if (targetChunkSize <= 0)
             throw new ArgumentException("Target chunk size must be positive", nameof(targetChunkSize));
@@ -103,8 +105,8 @@ public class PdfChunker {
                 return result;
             }
 
-            var extension = Path.GetExtension(filePath).ToLowerInvariant();
-            if (extension != ".pdf")
+            var extension = Path.GetExtension(filePath).ToUpperInvariant();
+            if (extension != ".PDF")
             {
                 result.AddError("Invalid file type. Only PDF files are supported.");
                 return result;
@@ -127,7 +129,6 @@ public class PdfChunker {
                 result.Metadata = ExtractMetadata(document);
 
                 // Process each page
-                var allText = new StringBuilder();
                 var pageTexts = new List<(int PageNumber, string Text)>();
 
                 foreach (var page in document.GetPages())
@@ -136,7 +137,6 @@ public class PdfChunker {
 
                     var pageText = ExtractPageText(page);
                     pageTexts.Add((page.Number, pageText));
-                    allText.AppendLine(pageText);
                 }
 
                 // Detect sections (basic heuristic: lines starting with numbers or uppercase headers)
@@ -180,7 +180,12 @@ public class PdfChunker {
             metadata.Author = !string.IsNullOrEmpty(info.Author) ? info.Author : null;
             metadata.Producer = !string.IsNullOrEmpty(info.Producer) ? info.Producer : null;
 
-            if (!string.IsNullOrEmpty(info.CreationDate) && DateTime.TryParse(info.CreationDate, out var creationDate))
+            if (!string.IsNullOrEmpty(info.CreationDate) &&
+                DateTime.TryParse(
+                    info.CreationDate,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None,
+                    out var creationDate))
             {
                 metadata.CreationDate = creationDate;
             }

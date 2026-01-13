@@ -91,7 +91,12 @@ public class WebSourceValidator
 
         try
         {
-            var domain = ExtractDomain(sourceName);
+            var domain = string.Empty;
+            if (Uri.TryCreate(sourceName, UriKind.Absolute, out var uri))
+            {
+                domain = ExtractDomain(uri);
+            }
+            
             var policyCheck = CheckTrustPolicy(domain);
 
             if (!policyCheck.IsAllowed)
@@ -122,7 +127,12 @@ public class WebSourceValidator
         try
         {
             // Check trust policy first
-            var domain = ExtractDomain(result.Source.SourceUrl);
+            var domain = string.Empty;
+            if (Uri.TryCreate(result.Source.SourceUrl, UriKind.Absolute, out var uri))
+            {
+                domain = ExtractDomain(uri);
+            }
+
             var policyCheck = CheckTrustPolicy(domain);
 
             if (!policyCheck.IsAllowed)
@@ -204,20 +214,10 @@ Rate content on a scale of 0.0 to 1.0. Respond with only JSON:
         }
     }
 
-    private string ExtractDomain(string? url)
-    {
-        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
-        {
-            return string.Empty;
-        }
-
-        return ExtractDomain(uri);
-    }
-
     private string ExtractDomain(Uri uri)
     {
         ArgumentNullException.ThrowIfNull(uri);
-        return uri.Host.ToLowerInvariant();
+        return uri.Host.ToUpperInvariant();
     }
 
     private float GetCredibilityScore(SearchResult result)

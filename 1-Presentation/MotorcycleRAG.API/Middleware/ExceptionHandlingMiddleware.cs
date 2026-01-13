@@ -26,7 +26,7 @@ internal sealed class ExceptionHandlingMiddleware
     /// </summary>
     /// <param name="next">Next middleware in the pipeline</param>
     /// <param name="logger">Logger</param>
-    public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
+    internal ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -37,7 +37,7 @@ internal sealed class ExceptionHandlingMiddleware
     /// </summary>
     /// <param name="context">HTTP context</param>
     /// <returns>Task</returns>
-    public async Task InvokeAsync(HttpContext context)
+    internal async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

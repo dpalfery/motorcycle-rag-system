@@ -3,6 +3,7 @@ using MotorcycleRAG.Admin.Services;
 
 namespace MotorcycleRAG.Admin.Pages;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
 internal partial class JobsPage : ContentPage {
     private readonly JobsViewModel _viewModel;
 

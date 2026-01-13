@@ -11,16 +11,17 @@ namespace MotorcycleRAG.Admin.Processing;
 /// <summary>
 /// Service for chunking CSV files for motorcycle specification data
 /// </summary>
-public class CsvChunker
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework via DI")]
+internal class CsvChunker
 {
     private readonly int _rowsPerChunk;
 
-    public CsvChunker()
+    internal CsvChunker()
         : this(rowsPerChunk: 100)
     {
     }
 
-    public CsvChunker(int rowsPerChunk)
+    internal CsvChunker(int rowsPerChunk)
     {
         _rowsPerChunk = rowsPerChunk;
     }
@@ -55,8 +56,8 @@ public class CsvChunker
                 return result;
             }
 
-            var extension = Path.GetExtension(canonicalPath).ToLowerInvariant();
-            if (extension != ".csv")
+            var extension = Path.GetExtension(canonicalPath).ToUpperInvariant();
+            if (extension != ".CSV")
             {
                 result.AddError("Invalid file type. Only CSV files are supported.");
                 return result;
@@ -102,7 +103,7 @@ public class CsvChunker
                 }
 
                 // Process rows in chunks
-                var currentChunk = new List<Dictionary<string, object>>();
+                var currentChunk = new List<CsvRow>();
                 var rowNumber = 1; // Starting from 1 (after header)
                 var chunkStartRow = rowNumber;
 
@@ -110,7 +111,7 @@ public class CsvChunker
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var row = new Dictionary<string, object>();
+                    var row = new CsvRow();
 
                     for (int i = 0; i < headers.Count; i++)
                     {
@@ -128,7 +129,7 @@ public class CsvChunker
                     if (currentChunk.Count >= _rowsPerChunk)
                     {
                         result.AddChunk(CreateChunk(currentChunk, result.Chunks.Count, chunkStartRow, rowNumber - 1, headers));
-                        currentChunk = new List<Dictionary<string, object>>();
+                        currentChunk = new List<CsvRow>();
                         chunkStartRow = rowNumber;
                     }
                 }
@@ -159,7 +160,7 @@ public class CsvChunker
     /// Creates a searchable text representation of CSV data for a chunk
     /// </summary>
     internal string CreateSearchableText(
-        IReadOnlyList<Dictionary<string, object>> rows,
+        IReadOnlyList<CsvRow> rows,
         IReadOnlyList<string> headers)
     {
         var sb = new StringBuilder();
@@ -221,7 +222,7 @@ public class CsvChunker
     /// Creates a CsvChunk from row data
     /// </summary>
     private CsvChunk CreateChunk(
-        List<Dictionary<string, object>> rows,
+        List<CsvRow> rows,
         int chunkIndex,
         int startRow,
         int endRow,
@@ -243,7 +244,7 @@ public class CsvChunker
             EndRowNumber = endRow
         };
 
-        chunk.SetRows(new List<Dictionary<string, object>>(rows));
+        chunk.SetRows(new List<CsvRow>(rows));
         chunk.SetMetadata(metadata);
 
         return chunk;

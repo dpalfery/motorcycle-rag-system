@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Processing;
+using MotorcycleRAG.Admin.Models.Processing;
 using MotorcycleRAG.Admin.Utilities;
 using System.Collections.ObjectModel;
 using Microsoft.Extensions.Logging;
@@ -12,7 +13,13 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for data ingestion page
 /// Handles file upload, local processing, and API submission
 /// </summary>
-public partial class IngestionViewModel : ObservableObject
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Performance",
+    "CA1812: Avoid uninstantiated internal classes",
+    Justification = "Instantiated by MAUI framework")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Dependencies", Justification = "Coordinator class")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
+internal partial class IngestionViewModel : ObservableObject
 {
     private static readonly string[] PdfAndCsvExtensions = { ".pdf", ".csv" };
     private static readonly string[] PdfAndCsvMimeTypes = { "pdf", "csv" };
@@ -41,7 +48,7 @@ public partial class IngestionViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<ProcessedFileInfo> _processedFiles = new();
 
-    public IngestionViewModel(
+    internal IngestionViewModel(
         ApiClient apiClient,
         PdfChunker pdfChunker,
         CsvChunker csvChunker,
@@ -51,7 +58,7 @@ public partial class IngestionViewModel : ObservableObject
     {
     }
 
-    public IngestionViewModel(
+    internal IngestionViewModel(
         ApiClient apiClient,
         PdfChunker pdfChunker,
         CsvChunker csvChunker,
@@ -60,7 +67,7 @@ public partial class IngestionViewModel : ObservableObject
     {
     }
 
-    public IngestionViewModel(
+    internal IngestionViewModel(
         ApiClient apiClient,
         PdfChunker pdfChunker,
         CsvChunker csvChunker)
@@ -279,9 +286,8 @@ public partial class IngestionViewModel : ObservableObject
                 var embeddings = new List<float[]>();
                 for (int i = 0; i < chunkResult.Chunks.Count; i++)
                 {
-                    var rowsList = new List<Dictionary<string, object>>(chunkResult.Chunks[i].Rows);
                     var headersList = new List<string>(chunkResult.Metadata.ColumnNames);
-                    var searchableText = _csvChunker.CreateSearchableText(rowsList, headersList);
+                    var searchableText = _csvChunker.CreateSearchableText(chunkResult.Chunks[i].Rows, headersList);
 
                     var embeddingResult = await _embeddingService.GenerateEmbeddingAsync(searchableText);
                     if (embeddingResult.Success)
@@ -322,7 +328,7 @@ public partial class IngestionViewModel : ObservableObject
 
     private static async Task ShowErrorAsync(string title, string message)
     {
-        var window = Application.Current?.Windows?.FirstOrDefault();
+        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
         if (window?.Page != null)
         {
             await window.Page.DisplayAlertAsync(title, message, "OK");
@@ -364,17 +370,18 @@ public partial class IngestionViewModel : ObservableObject
 /// <summary>
 /// Information about a processed file
 /// </summary>
-public partial class ProcessedFileInfo : ObservableObject
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
+internal partial class ProcessedFileInfo : ObservableObject
 {
     [ObservableProperty]
     private string _status = string.Empty;
 
-    public string FileName { get; set; } = string.Empty;
-    public string FilePath { get; set; } = string.Empty;
-    public string ExecutionId { get; set; } = string.Empty;
-    public int ChunkCount { get; set; }
-    public int EmbeddingCount { get; set; }
-    public string Metadata { get; set; } = string.Empty;
-    public DateTime StartTime { get; set; }
-    public DateTime? EndTime { get; set; }
+    internal string FileName { get; set; } = string.Empty;
+    internal string FilePath { get; set; } = string.Empty;
+    internal string ExecutionId { get; set; } = string.Empty;
+    internal int ChunkCount { get; set; }
+    internal int EmbeddingCount { get; set; }
+    internal string Metadata { get; set; } = string.Empty;
+    internal DateTime StartTime { get; set; }
+    internal DateTime? EndTime { get; set; }
 }

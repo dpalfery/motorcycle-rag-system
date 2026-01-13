@@ -14,6 +14,7 @@ namespace MotorcycleRAG.Application.Services;
 /// Integrates MCP (Model Context Protocol) tool configuration for extensible tool management.
 /// Implements partial-results aggregation for graceful degradation when sources become unavailable.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Split this class into smaller and more specialized ones", Justification = "Orchestrator naturally depends on multiple service types")]
 public sealed class AgentOrchestrator : IAgentOrchestrator
 {
     private readonly IReadOnlyList<ISearchAgent> _agents;

@@ -9,7 +9,10 @@ namespace MotorcycleRAG.API.Services;
 /// <summary>
 /// Implementation of current user service that resolves user information from HTTP context claims
 /// </summary>
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Referenced by integration tests and registered as the default ICurrentUserService implementation.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Design",
+    "CA1515:Consider making public types internal",
+    Justification = "Referenced by integration tests and registered as the default ICurrentUserService implementation.")]
 public class CurrentUserService : ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;

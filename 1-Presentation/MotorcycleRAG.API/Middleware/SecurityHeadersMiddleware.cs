@@ -7,7 +7,7 @@ namespace MotorcycleRAG.API.Middleware;
 /// <summary>
 /// Middleware for adding security headers to responses
 /// </summary>
-public sealed class SecurityHeadersMiddleware
+internal sealed class SecurityHeadersMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<SecurityHeadersMiddleware> _logger;
@@ -17,7 +17,7 @@ public sealed class SecurityHeadersMiddleware
     /// </summary>
     /// <param name="next">Next middleware in the pipeline</param>
     /// <param name="logger">Logger</param>
-    public SecurityHeadersMiddleware(RequestDelegate next, ILogger<SecurityHeadersMiddleware> logger)
+    internal SecurityHeadersMiddleware(RequestDelegate next, ILogger<SecurityHeadersMiddleware> logger)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -28,7 +28,7 @@ public sealed class SecurityHeadersMiddleware
     /// </summary>
     /// <param name="context">HTTP context</param>
     /// <returns>Task</returns>
-    public async Task InvokeAsync(HttpContext context)
+    internal async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

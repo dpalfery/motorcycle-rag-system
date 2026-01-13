@@ -13,9 +13,9 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for managing MCP tool configurations in the admin panel.
 /// Handles loading, saving, and managing MCP tool enable/disable states with validation.
 /// </summary>
-#pragma warning disable CA1515
-public partial class ToolsViewModel : ObservableObject {
-#pragma warning restore CA1515
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
+internal partial class ToolsViewModel : ObservableObject {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<ToolsViewModel> _logger;
@@ -32,7 +32,7 @@ public partial class ToolsViewModel : ObservableObject {
     [ObservableProperty]
     private ToolConfigItem? selectedTool;
 
-    public ToolsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<ToolsViewModel> logger)
+    internal ToolsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<ToolsViewModel> logger)
     {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
@@ -45,7 +45,7 @@ public partial class ToolsViewModel : ObservableObject {
     /// Command to load MCP tools from the API
     /// </summary>
     [RelayCommand]
-    public async Task RefreshAsync()
+    internal async Task RefreshAsync()
     {
         IsLoading = true;
         ErrorMessage = null;
@@ -86,7 +86,7 @@ public partial class ToolsViewModel : ObservableObject {
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
                 ErrorMessage = $"Failed to load MCP tools: {sanitizedMessage}";
-                var window = Application.Current?.Windows?.FirstOrDefault();
+                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
                 if (window?.Page != null)
                 {
                     await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
@@ -103,7 +103,7 @@ public partial class ToolsViewModel : ObservableObject {
     /// Command to save a tool configuration change
     /// </summary>
     [RelayCommand]
-    public async Task SaveToolAsync(ToolConfigItem? tool)
+    internal async Task SaveToolAsync(ToolConfigItem? tool)
     {
         if (tool == null)
             return;
@@ -137,7 +137,7 @@ public partial class ToolsViewModel : ObservableObject {
             // Show success message
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
-                var window = Application.Current?.Windows?.FirstOrDefault();
+                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
                 if (window?.Page != null)
                 {
                     await window.Page.DisplayAlertAsync("Success",
@@ -158,7 +158,7 @@ public partial class ToolsViewModel : ObservableObject {
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
                 ErrorMessage = $"Failed to save tool: {sanitizedMessage}";
-                var window = Application.Current?.Windows?.FirstOrDefault();
+                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
                 if (window?.Page != null)
                 {
                     await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
@@ -175,7 +175,7 @@ public partial class ToolsViewModel : ObservableObject {
     /// Command to select a tool
     /// </summary>
     [RelayCommand]
-    public void SelectTool(ToolConfigItem? tool)
+    internal void SelectTool(ToolConfigItem? tool)
     {
         SelectedTool = tool;
         _logger.LogDebug("Selected tool: {ToolId}", tool?.ToolId ?? "null");
@@ -253,17 +253,16 @@ public partial class ToolsViewModel : ObservableObject {
 /// <summary>
 /// View model item for a single MCP tool configuration
 /// </summary>
-#pragma warning disable CA1515
-public partial class ToolConfigItem : ObservableObject
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
+internal partial class ToolConfigItem : ObservableObject
 {
-#pragma warning restore CA1515
-    public Guid Id { get; }
-    public string ToolId { get; }
-    public string Name { get; }
-    public string? Description { get; }
-    public Uri ServerUrl { get; }
-    public string ToolType { get; }
-    public string? Version { get; }
+    internal Guid Id { get; }
+    internal string ToolId { get; }
+    internal string Name { get; }
+    internal string? Description { get; }
+    internal Uri ServerUrl { get; }
+    internal string ToolType { get; }
+    internal string? Version { get; set; }
 
     [ObservableProperty]
     private bool isEnabled;

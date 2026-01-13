@@ -63,10 +63,8 @@ public class ResilienceService : IResilienceService
             _logger.LogDebug("Operation completed successfully with policy: {PolicyKey}", policyKey);
             return result;
         }
-        catch (BrokenCircuitException ex)
+        catch (BrokenCircuitException)
         {
-            _logger.LogWarning(ex, "Circuit breaker open for policy: {PolicyKey}. Attempting fallback.", policyKey);
-
             if (fallback is null)
             {
                 throw;
@@ -76,10 +74,9 @@ public class ResilienceService : IResilienceService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogError(ex, "Operation failed with policy: {PolicyKey}", policyKey);
-
             if (fallback is not null && ShouldUseFallback(ex))
             {
+                _logger.LogWarning(ex, "Operation failed with policy: {PolicyKey}. Attempting fallback.", policyKey);
                 return await ExecuteFallbackAsync(fallback, policyKey);
             }
 
@@ -108,17 +105,9 @@ public class ResilienceService : IResilienceService
 
     private async Task<T> ExecuteFallbackAsync<T>(Func<Task<T>> fallback, string policyKey)
     {
-        try
-        {
-            var fallbackResult = await fallback();
-            _logger.LogInformation("Fallback executed successfully for policy: {PolicyKey}", policyKey);
-            return fallbackResult;
-        }
-        catch (Exception fallbackEx)
-        {
-            _logger.LogError(fallbackEx, "Fallback failed for policy: {PolicyKey}", policyKey);
-            throw;
-        }
+        var fallbackResult = await fallback();
+        _logger.LogInformation("Fallback executed successfully for policy: {PolicyKey}", policyKey);
+        return fallbackResult;
     }
 
     public CircuitBreakerState GetCircuitBreakerState(string policyKey) => _circuitStates.TryGetValue(policyKey, out var state) ? state : CircuitBreakerState.Closed;

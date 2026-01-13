@@ -31,6 +31,10 @@ namespace MotorcycleRAG.API;
     "CodeQuality",
     "S1118:Add a static constructor to initialize static fields",
     Justification = "Program class does not use static fields requiring initialization")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Design",
+    "S1200:Split this class into smaller and more specialized ones",
+    Justification = "Composition root naturally has many dependencies")]
 public class Program
 {
     public static async Task Main(string[] args)

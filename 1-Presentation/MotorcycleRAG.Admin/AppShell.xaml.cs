@@ -12,6 +12,7 @@ namespace MotorcycleRAG.Admin;
 ///
 /// Do not rely on UI visibility for security. Always validate on the server side.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
 internal partial class AppShell : Shell {
     private readonly IAdminAuthService _authService;
     private readonly ISettingsService _settingsService;

@@ -4,6 +4,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// Implementation of ISettingsService wrapping MAUI's Preferences and SecureStorage APIs.
 /// Provides a testable abstraction for application settings and secure credential storage.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by dependency injection")]
 internal class SettingsService : ISettingsService
 {
     /// <summary>

@@ -8,6 +8,7 @@ using MotorcycleRAG.Admin.Processing;
 
 namespace MotorcycleRAG.Admin;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Split this class into smaller and more specialized ones", Justification = "Composition root naturally has many dependencies")]
 internal static class MauiProgram
 {
     internal static MauiApp CreateMauiApp()

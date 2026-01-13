@@ -7,7 +7,8 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for the admin dashboard page.
 /// Handles navigation commands and displays system overview information.
 /// </summary>
-public class DashboardViewModel {
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
+internal class DashboardViewModel {
     private readonly INavigationService _navigationService;
 
     /// <summary>Command to navigate to the upload page</summary>
@@ -22,7 +23,7 @@ public class DashboardViewModel {
     /// <summary>Command to navigate to the tools page</summary>
     internal ICommand NavigateToToolsCommand { get; }
 
-    public DashboardViewModel(INavigationService navigationService)
+    internal DashboardViewModel(INavigationService navigationService)
     {
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 

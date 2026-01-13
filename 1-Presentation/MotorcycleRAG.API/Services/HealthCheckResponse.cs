@@ -8,11 +8,11 @@ namespace MotorcycleRAG.API.Services;
 internal sealed class HealthCheckResponse
 {
     [JsonPropertyName("status")]
-    public string? Status { get; set; }
+    internal string? Status { get; set; }
 
     [JsonPropertyName("totalDuration")]
-    public string? TotalDuration { get; set; }
+    internal string? TotalDuration { get; set; }
 
     [JsonPropertyName("checks")]
-    public Dictionary<string, HealthCheckEntry>? Checks { get; set; }
+    internal Dictionary<string, HealthCheckEntry>? Checks { get; set; }
 }

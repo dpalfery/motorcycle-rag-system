@@ -14,7 +14,10 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// ViewModel for pipeline jobs management.
 /// Handles loading, polling, and canceling pipeline executions.
 /// </summary>
-public class JobsViewModel : IDisposable {
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "Internal patterns")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S103:LineLength", Justification = "Due to suppressions")]
+internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly ILogger<JobsViewModel> _logger;
@@ -22,7 +25,7 @@ public class JobsViewModel : IDisposable {
     private bool _isLoading;
     private bool _isPolling;
 
-    public JobsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<JobsViewModel> logger) {
+    internal JobsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<JobsViewModel> logger) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -39,13 +42,14 @@ public class JobsViewModel : IDisposable {
         CancelJobCommand = new Command<string>(async (executionId) => await CancelJobAsync(executionId));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
     public event PropertyChangedEventHandler? PropertyChanged;
 
     #region Properties
 
-    public ObservableCollection<JobViewModel> Jobs { get; }
+    internal ObservableCollection<JobViewModel> Jobs { get; }
 
-    public bool IsLoading {
+    internal bool IsLoading {
         get => _isLoading;
         set {
             if (_isLoading != value) {
@@ -59,8 +63,10 @@ public class JobsViewModel : IDisposable {
 
     #region Commands
 
-    public ICommand LoadJobsCommand { get; }
-    public ICommand CancelJobCommand { get; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
+    internal ICommand LoadJobsCommand { get; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
+    internal ICommand CancelJobCommand { get; }
 
     #endregion
 
@@ -187,7 +193,7 @@ public class JobsViewModel : IDisposable {
     {
         try
         {
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
             if (window?.Page != null)
             {
                 var confirm = await window.Page.DisplayAlertAsync(
@@ -217,7 +223,7 @@ public class JobsViewModel : IDisposable {
         }
         catch (HttpRequestException ex)
         {
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
             if (window?.Page != null)
             {
                 await window.Page.DisplayAlertAsync("Error", "Failed to reach the API server", "OK").ConfigureAwait(false);
@@ -274,14 +280,15 @@ public class JobsViewModel : IDisposable {
 /// <summary>
 /// ViewModel for a pipeline job in the list
 /// </summary>
-public class JobViewModel : INotifyPropertyChanged
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "Internal patterns")]
+internal class JobViewModel : INotifyPropertyChanged
 {
     private PipelineStatus _status;
 
-    public string ExecutionId { get; set; } = string.Empty;
-    public string PipelineType { get; set; } = string.Empty;
+    internal string ExecutionId { get; set; } = string.Empty;
+    internal string PipelineType { get; set; } = string.Empty;
 
-    public PipelineStatus Status {
+    internal PipelineStatus Status {
         get => _status;
         set {
             if (_status != value) {
@@ -291,15 +298,16 @@ public class JobViewModel : INotifyPropertyChanged
         }
     }
 
-    public DateTime StartTime { get; set; }
-    public DateTime? EndTime { get; set; }
-    public string CreatedBy { get; set; } = string.Empty;
-    public ObservableCollection<string> Errors { get; set; } = new();
-    public ObservableCollection<string> Warnings { get; set; } = new();
-    public bool IsRunning { get; set; }
-    public bool HasErrors => Errors.Count > 0;
-    public bool HasWarnings => Warnings.Count > 0;
+    internal DateTime StartTime { get; set; }
+    internal DateTime? EndTime { get; set; }
+    internal string CreatedBy { get; set; } = string.Empty;
+    internal ObservableCollection<string> Errors { get; init; } = new();
+    internal ObservableCollection<string> Warnings { get; init; } = new();
+    internal bool IsRunning { get; set; }
+    internal bool HasErrors => Errors.Count > 0;
+    internal bool HasWarnings => Warnings.Count > 0;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
     public event PropertyChangedEventHandler? PropertyChanged;
 }
 

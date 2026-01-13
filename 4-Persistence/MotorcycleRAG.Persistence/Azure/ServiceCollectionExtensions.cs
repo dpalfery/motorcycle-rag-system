@@ -1,5 +1,4 @@
 using Azure.Identity;
-using Azure.Identity;
 using AzureSearchClient = Azure.Search.Documents.SearchClient;
 using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Configuration;
@@ -18,6 +17,7 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// <summary>
 /// Extension methods for registering Azure services in DI container
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Split this class into smaller and more specialized ones", Justification = "DI registration class naturally has many dependencies")]
 public static class ServiceCollectionExtensions {
     /// <summary>
     /// Register all Azure service clients with authentication and resilience patterns

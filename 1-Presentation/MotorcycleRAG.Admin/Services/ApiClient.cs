@@ -16,7 +16,14 @@ namespace MotorcycleRAG.Admin.Services;
 /// HTTP client wrapper for calling the Motorcycle RAG API.
 /// Handles authentication, request/response serialization, and error handling.
 /// </summary>
-public class ApiClient {
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Performance",
+    "CA1812: Avoid uninstantiated internal classes",
+    Justification = "Instantiated by MAUI framework via DI")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Dependencies", Justification = "Resilience and DTOs")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Maintainability", "CA1506:Coupling", Justification = "Inherent to resilience client")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "Internal access needed")]
+internal class ApiClient {
     private readonly HttpClient _httpClient;
     private readonly IAdminAuthService _authService;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -74,7 +81,7 @@ public class ApiClient {
     /// <summary>
     /// Uploads a single file to the pipeline
     /// </summary>
-    public Task<FileUploadResult> UploadFileAsync(string filePath)
+    internal Task<FileUploadResult> UploadFileAsync(string filePath)
     {
         return UploadFileAsync(filePath, processImmediately: false, default);
     }
@@ -82,7 +89,7 @@ public class ApiClient {
     /// <summary>
     /// Uploads a single file to the pipeline with processing option
     /// </summary>
-    public Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately)
+    internal Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately)
     {
         return UploadFileAsync(filePath, processImmediately, default);
     }
@@ -90,7 +97,7 @@ public class ApiClient {
     /// <summary>
     /// Uploads a single file to the pipeline with processing option and cancellation
     /// </summary>
-    public async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately, CancellationToken cancellationToken)
+    internal async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately, CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -131,7 +138,7 @@ public class ApiClient {
     /// <summary>
     /// Uploads multiple files to the pipeline
     /// </summary>
-    public Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths)
+    internal Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths)
     {
         return UploadBatchAsync(filePaths, processImmediately: false, default);
     }
@@ -139,7 +146,7 @@ public class ApiClient {
     /// <summary>
     /// Uploads multiple files to the pipeline with processing option
     /// </summary>
-    public Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately)
+    internal Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately)
     {
         return UploadBatchAsync(filePaths, processImmediately, default);
     }
@@ -149,6 +156,8 @@ public class ApiClient {
     /// </summary>
     public async Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(filePaths);
+        var filePathList = filePaths.ToArray();
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var streams = new List<FileStream>();
@@ -158,7 +167,7 @@ public class ApiClient {
         {
             using var content = new MultipartFormDataContent();
 
-            foreach (var filePath in filePaths)
+            foreach (var filePath in filePathList)
             {
                 if (!File.Exists(filePath))
                     throw new FileNotFoundException($"File not found: {filePath}");
@@ -187,13 +196,13 @@ public class ApiClient {
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "HTTP request failed uploading batch files. Status: {StatusCode}, File count: {FileCount}",
-                ex.StatusCode, filePaths.Count());
-            throw new FileLoadException($"HTTP error uploading batch files. Status: {ex.StatusCode}. File paths: {string.Join(", ", filePaths)}", ex);
+                ex.StatusCode, filePathList.Length);
+            throw new FileLoadException($"HTTP error uploading batch files. Status: {ex.StatusCode}. File paths: {string.Join(", ", filePathList)}", ex);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error uploading batch files. File count: {FileCount}", filePaths.Count());
-            throw new FileLoadException($"Error uploading batch files. See inner exception for details. File paths: {string.Join(", ", filePaths)}", ex);
+            _logger.LogError(ex, "Unexpected error uploading batch files. File count: {FileCount}", filePathList.Length);
+            throw new FileLoadException($"Error uploading batch files. See inner exception for details. File paths: {string.Join(", ", filePathList)}", ex);
         }
         finally
         {
@@ -202,12 +211,9 @@ public class ApiClient {
                 streamContent?.Dispose();
             }
 
-            foreach (var stream in streams)
+            foreach (var stream in streams.Where(s => s != null))
             {
-                if (stream != null)
-                {
-                    await stream.DisposeAsync().ConfigureAwait(false);
-                }
+                await stream.DisposeAsync().ConfigureAwait(false);
             }
         }
     }
@@ -242,7 +248,7 @@ public class ApiClient {
     /// <summary>
     /// Processes a previously uploaded file
     /// </summary>
-    public Task<ProcessingResult> ProcessFileAsync(string executionId)
+    internal Task<ProcessingResult> ProcessFileAsync(string executionId)
     {
         return ProcessFileAsync(executionId, default);
     }
@@ -250,7 +256,7 @@ public class ApiClient {
     /// <summary>
     /// Processes a previously uploaded file with cancellation
     /// </summary>
-    public async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken)
+    internal async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken)
     {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -294,7 +300,7 @@ public class ApiClient {
     /// <summary>
     /// Gets metrics for a pipeline execution
     /// </summary>
-    public Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId)
+    internal Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId)
     {
         return GetPipelineMetricsAsync(executionId, default);
     }
@@ -302,7 +308,7 @@ public class ApiClient {
     /// <summary>
     /// Gets metrics for a pipeline execution with cancellation
     /// </summary>
-    public async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken)
+    internal async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken)
     {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -469,7 +475,7 @@ public class ApiClient {
     /// <summary>
     /// Gets all web sources
     /// </summary>
-    public Task<List<WebSource>> GetWebSourcesAsync()
+    internal Task<List<WebSource>> GetWebSourcesAsync()
     {
         return GetWebSourcesAsync(default);
     }
@@ -477,7 +483,7 @@ public class ApiClient {
     /// <summary>
     /// Gets all web sources with cancellation
     /// </summary>
-    public async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken)
+    internal async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken)
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -492,7 +498,7 @@ public class ApiClient {
     /// <summary>
     /// Adds a new web source
     /// </summary>
-    public Task<WebSource> AddWebSourceAsync(WebSource source)
+    internal Task<WebSource> AddWebSourceAsync(WebSource source)
     {
         return AddWebSourceAsync(source, default);
     }
@@ -500,7 +506,7 @@ public class ApiClient {
     /// <summary>
     /// Adds a new web source with cancellation
     /// </summary>
-    public async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken)
+    internal async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
 
@@ -517,7 +523,7 @@ public class ApiClient {
     /// <summary>
     /// Updates an existing web source
     /// </summary>
-    public Task<WebSource> UpdateWebSourceAsync(WebSource source)
+    internal Task<WebSource> UpdateWebSourceAsync(WebSource source)
     {
         return UpdateWebSourceAsync(source, default);
     }
@@ -525,7 +531,7 @@ public class ApiClient {
     /// <summary>
     /// Updates an existing web source with cancellation
     /// </summary>
-    public async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken)
+    internal async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
 
@@ -545,7 +551,7 @@ public class ApiClient {
     /// <summary>
     /// Deletes a web source
     /// </summary>
-    public Task DeleteWebSourceAsync(int sourceId)
+    internal Task DeleteWebSourceAsync(int sourceId)
     {
         return DeleteWebSourceAsync(sourceId, default);
     }
@@ -553,7 +559,7 @@ public class ApiClient {
     /// <summary>
     /// Deletes a web source with cancellation
     /// </summary>
-    public async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken)
+    internal async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken)
     {
         if (sourceId <= 0)
             throw new ArgumentException("Invalid web source ID", nameof(sourceId));
@@ -662,12 +668,12 @@ public class ApiClient {
     /// Gets the MIME content type for a file based on its extension
     /// </summary>
     private static string GetContentType(string filePath) {
-        var extension = Path.GetExtension(filePath).ToLowerInvariant();
+        var extension = Path.GetExtension(filePath).ToUpperInvariant();
         return extension switch {
-            ".pdf" => "application/pdf",
-            ".csv" => "text/csv",
-            ".json" => "application/json",
-            ".txt" => "text/plain",
+            ".PDF" => "application/pdf",
+            ".CSV" => "text/csv",
+            ".JSON" => "application/json",
+            ".TXT" => "text/plain",
             _ => "application/octet-stream"
         };
     }

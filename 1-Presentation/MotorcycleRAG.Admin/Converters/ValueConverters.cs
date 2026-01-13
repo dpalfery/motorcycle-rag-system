@@ -19,9 +19,7 @@ internal class InverseBoolConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (value is bool boolValue)
-            return !boolValue;
-        return false;
+        return Convert(value, targetType, parameter, culture);
     }
 }
 
@@ -159,12 +157,12 @@ internal class StatusColorConverter : IValueConverter
         
         if (value is string status)
         {
-            return status.ToLowerInvariant() switch
+            return status.ToUpperInvariant() switch
             {
-                "enabled" or "active" or "success" or "completed" => Colors.Green,
-                "disabled" or "inactive" or "failed" or "error" => Colors.Red,
-                "pending" or "running" or "processing" => Colors.Blue,
-                "warning" => Colors.Orange,
+                "ENABLED" or "ACTIVE" or "SUCCESS" or "COMPLETED" => Colors.Green,
+                "DISABLED" or "INACTIVE" or "FAILED" or "ERROR" => Colors.Red,
+                "PENDING" or "RUNNING" or "PROCESSING" => Colors.Blue,
+                "WARNING" => Colors.Orange,
                 _ => Colors.Gray
             };
         }

@@ -8,33 +8,33 @@ namespace MotorcycleRAG.Admin.Processing;
 /// <summary>
 /// Result of embedding generation
 /// </summary>
-public class EmbeddingResult
+internal class EmbeddingResult
 {
-    public bool Success { get; set; }
-    public float[] Embedding { get; set; } = Array.Empty<float>();
-    public int Dimensions { get; set; }
-    public string Error { get; set; } = string.Empty;
+    internal bool Success { get; set; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1819:Properties should not return arrays", Justification = "Embeddings are naturally represented as arrays")]
+    internal float[] Embedding { get; set; } = Array.Empty<float>();
+    internal int Dimensions { get; set; }
+    internal string Error { get; set; } = string.Empty;
 }
 
 /// <summary>
 /// Service for generating embeddings using ONNX Runtime
 /// Supports sentence-transformers models like all-MiniLM-L6-v2
 /// </summary>
-#pragma warning disable CA1515
-public class OnnxEmbeddingService : IDisposable
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "Internal class members")]
+internal class OnnxEmbeddingService : IDisposable
 {
-#pragma warning restore CA1515
     private readonly InferenceSession _session;
     private readonly SessionOptions _sessionOptions;
     private readonly int _maxTokens;
     private bool _disposed;
 
-    public OnnxEmbeddingService(string modelPath)
+    internal OnnxEmbeddingService(string modelPath)
         : this(modelPath, maxTokens: 256)
     {
     }
 
-    public OnnxEmbeddingService(string modelPath, int maxTokens)
+    internal OnnxEmbeddingService(string modelPath, int maxTokens)
     {
         if (string.IsNullOrEmpty(modelPath))
             throw new ArgumentException("Model path cannot be null or empty", nameof(modelPath));
@@ -55,7 +55,6 @@ public class OnnxEmbeddingService : IDisposable
         }
         catch (Exception ex)
         {
-            _sessionOptions?.Dispose();
             throw new InvalidOperationException($"Failed to load ONNX model: {ex.Message}", ex);
         }
     }
@@ -106,7 +105,8 @@ public class OnnxEmbeddingService : IDisposable
             var outputs = await Task.Run(() => _session.Run(inputs), cancellationToken);
             
             // Extract embedding from output
-            var outputTensor = outputs.FirstOrDefault()?.AsEnumerable<float>().ToArray();
+            var outputValue = outputs.Count > 0 ? outputs[0] : null;
+            var outputTensor = outputValue?.AsEnumerable<float>().ToArray();
             
             if (outputTensor == null || outputTensor.Length == 0)
             {
@@ -172,7 +172,7 @@ public class OnnxEmbeddingService : IDisposable
     private long[] TokenizeText(string text)
     {
         // Clean and normalize text
-        text = text.ToLowerInvariant();
+        text = text.ToUpperInvariant();
         text = Regex.Replace(text, @"[^\w\s]", " ");
         text = Regex.Replace(text, @"\s+", " ");
         text = text.Trim();
@@ -251,14 +251,22 @@ public class OnnxEmbeddingService : IDisposable
         return embedding.Select(x => (float)(x / norm)).ToArray();
     }
 
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                _session?.Dispose();
+                _sessionOptions?.Dispose();
+            }
+            _disposed = true;
+        }
+    }
+
     public void Dispose()
     {
-        if (_disposed)
-            return;
-
-        _session?.Dispose();
-        _sessionOptions?.Dispose();
-        _disposed = true;
+        Dispose(true);
         GC.SuppressFinalize(this);
     }
 }
@@ -266,10 +274,8 @@ public class OnnxEmbeddingService : IDisposable
 /// <summary>
 /// Factory for creating ONNX embedding services
 /// </summary>
-#pragma warning disable CA1515
-public static class OnnxEmbeddingServiceFactory
+internal static class OnnxEmbeddingServiceFactory
 {
-#pragma warning restore CA1515
     /// <summary>
     /// Creates an embedding service with the default model
     /// </summary>

@@ -27,7 +27,7 @@
 		     (1) Update to a newer ONNX Runtime version with 16KB support, or
 		     (2) Exclude Android platform if embedding functionality is not required on mobile.
 		     Tracking: Microsoft.ML.OnnxRuntime issue for Android 16 compatibility. -->
-		<NoWarn>$(NoWarn);XA0141</NoWarn>
+		<NoWarn>$(NoWarn);XA0141;MVVMTK0045;CA1501;CA5392</NoWarn>
 
 		<!-- Display name -->
 		<ApplicationTitle>MotorcycleRAG.Admin</ApplicationTitle>

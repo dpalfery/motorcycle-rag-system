@@ -16,6 +16,7 @@ namespace MotorcycleRAG.UnitTests.Telemetry;
 public class TelemetryServiceTests : IDisposable
 {
     private readonly StubTelemetryChannel _channel;
+    private readonly TelemetryConfiguration _aiConfig;
     private readonly TelemetryClient _client;
     private readonly Mock<ICorrelationService> _mockCorrelation;
     private readonly Mock<ILogger<TelemetryService>> _mockLogger;
@@ -24,13 +25,12 @@ public class TelemetryServiceTests : IDisposable
     public TelemetryServiceTests()
     {
         _channel = new StubTelemetryChannel();
-        var aiConfig = new Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration
+        _aiConfig = new TelemetryConfiguration
         {
             TelemetryChannel = _channel,
             ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000"
         };
-        _client = new TelemetryClient(aiConfig);
-        // Do not dispose TelemetryConfiguration here; TelemetryClient depends on it for the test lifetime.
+        _client = new TelemetryClient(_aiConfig);
         _mockCorrelation = new Mock<ICorrelationService>();
         _mockLogger = new Mock<ILogger<TelemetryService>>();
         _mockCorrelation.Setup(c => c.GetOrCreateCorrelationId()).Returns("corr-test");
@@ -196,6 +196,7 @@ public class TelemetryServiceTests : IDisposable
     {
         if (disposing)
         {
+            _aiConfig?.Dispose();
             _channel?.Dispose();
         }
     }

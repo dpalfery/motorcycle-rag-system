@@ -44,7 +44,7 @@ internal static class ErrorPresenter
     {
         return MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
             if (window?.Page != null)
             {
                 await window.Page.DisplayAlertAsync(title, message, "OK");
@@ -71,7 +71,7 @@ internal static class ErrorPresenter
     {
         return MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
             if (window?.Page != null)
             {
                 await window.Page.DisplayAlertAsync(title, message, "OK");
@@ -86,7 +86,7 @@ internal static class ErrorPresenter
     {
         return MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
             if (window?.Page != null)
             {
                 await window.Page.DisplayAlertAsync(title, message, "OK");
@@ -101,7 +101,7 @@ internal static class ErrorPresenter
     {
         return MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            var window = Application.Current?.Windows?.FirstOrDefault();
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
             if (window?.Page != null)
             {
                 return await window.Page.DisplayAlertAsync(title, message, accept, cancel);

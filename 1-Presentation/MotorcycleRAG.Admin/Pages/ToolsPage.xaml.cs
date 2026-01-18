@@ -5,11 +5,9 @@ using MotorcycleRAG.Admin.ViewModels; // Ensure this using is present
 namespace MotorcycleRAG.Admin.Pages;
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
-internal partial class ToolsPage : ContentPage
-{
+internal partial class ToolsPage : ContentPage {
     [SupportedOSPlatform("windows10.0.17763.0")]
-    internal ToolsPage(MotorcycleRAG.Admin.ViewModels.ToolsViewModel viewModel)
-    {
+    public ToolsPage(MotorcycleRAG.Admin.ViewModels.ToolsViewModel viewModel) {
         InitializeComponent();
 #if WINDOWS
         BindingContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));

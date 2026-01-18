@@ -16,12 +16,14 @@ namespace MotorcycleRAG.Admin;
 internal partial class AppShell : Shell {
     private readonly IAdminAuthService _authService;
     private readonly ISettingsService _settingsService;
+    private readonly IConfigurationStateService _configService;
 
-    internal AppShell(IAdminAuthService authService, ISettingsService settingsService, IServiceProvider serviceProvider)
+    internal AppShell(IAdminAuthService authService, ISettingsService settingsService, IConfigurationStateService configService, IServiceProvider serviceProvider)
     {
         InitializeComponent();
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _ = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
         // Register routes for navigation
@@ -40,10 +42,21 @@ internal partial class AppShell : Shell {
         Routing.RegisterRoute("jobspage", typeof(Pages.JobsPage));
         Routing.RegisterRoute("websourcespage", typeof(Pages.WebSourcesPage));
         Routing.RegisterRoute("toolspage", typeof(Pages.ToolsPage));
+        Routing.RegisterRoute("settingspage", typeof(Pages.SettingsPage));
     }
 
     private async void OnShellLoaded(object? sender, EventArgs e)
     {
+        // Load configuration on startup
+        try
+        {
+            await _configService.LoadConfigurationAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading configuration: {ex.Message}");
+        }
+
         await UpdateUIAsync();
     }
 

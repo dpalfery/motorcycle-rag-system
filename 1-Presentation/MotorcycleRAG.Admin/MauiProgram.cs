@@ -9,15 +9,12 @@ using MotorcycleRAG.Admin.Processing;
 namespace MotorcycleRAG.Admin;
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Split this class into smaller and more specialized ones", Justification = "Composition root naturally has many dependencies")]
-internal static class MauiProgram
-{
-    internal static MauiApp CreateMauiApp()
-    {
+internal static class MauiProgram {
+    internal static MauiApp CreateMauiApp() {
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
-            .ConfigureFonts(fonts =>
-            {
+            .ConfigureFonts(fonts => {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
@@ -39,35 +36,45 @@ internal static class MauiProgram
         // Settings Service - wraps Preferences and SecureStorage for testability
         builder.Services.AddSingleton<ISettingsService, SettingsService>();
 
-        // Authentication Service
-        builder.Services.AddSingleton<IAdminAuthService>(sp =>
-        {
-            // Retrieve authentication configuration from environment variables
-            // Never use placeholder values - fail fast if configuration is missing
-            var clientId = Environment.GetEnvironmentVariable("MCR_ADMIN_CLIENT_ID")
-                ?? throw new InvalidOperationException(
-                    "MCR_ADMIN_CLIENT_ID environment variable is required. " +
-                    "Please set it to your Microsoft Entra (Azure AD) application client ID.");
+        // Configuration State Service - tracks app configuration state
+        builder.Services.AddSingleton<IConfigurationStateService, ConfigurationStateService>();
 
-            var authority = Environment.GetEnvironmentVariable("MCR_ADMIN_AUTHORITY")
-                ?? throw new InvalidOperationException(
-                    "MCR_ADMIN_AUTHORITY environment variable is required. " +
-                    "Please set it to your Microsoft Entra authority URL (e.g., https://login.microsoftonline.com/{tenant-id}).");
-
-            var apiScope = Environment.GetEnvironmentVariable("MCR_ADMIN_API_SCOPE")
-                ?? throw new InvalidOperationException(
-                    "MCR_ADMIN_API_SCOPE environment variable is required. " +
-                    "Please set it to your API scope (e.g., api://{client-id}/.default).");
-
-            // Get logger from service provider - required for AdminAuthService
+        // Authentication Service - uses ConfigurationStateService to determine if configured
+        builder.Services.AddSingleton<IAdminAuthService>(sp => {
+            var configService = sp.GetRequiredService<IConfigurationStateService>();
             var logger = sp.GetRequiredService<ILogger<AdminAuthService>>();
+            var demoLogger = sp.GetRequiredService<ILogger<DemoAdminAuthService>>();
 
-            return new AdminAuthService(
-                clientId: clientId,
-                authority: authority,
-                scopes: new[] { apiScope },
-                logger: logger
-            );
+            // Check if auth is configured via UI settings
+            if (configService.IsAuthConfigured) {
+                logger.LogInformation("Using configured authentication settings");
+                return new AdminAuthService(
+                    clientId: configService.AuthClientId!,
+                    authority: configService.AuthAuthority!,
+                    scopes: new[] { configService.AuthScope! },
+                    logger: logger
+                );
+            }
+
+            // Fall back to environment variables for backward compatibility
+            var envClientId = Environment.GetEnvironmentVariable("MCR_ADMIN_CLIENT_ID");
+            var envAuthority = Environment.GetEnvironmentVariable("MCR_ADMIN_AUTHORITY");
+            var envScope = Environment.GetEnvironmentVariable("MCR_ADMIN_API_SCOPE");
+
+            if (!string.IsNullOrEmpty(envClientId) &&
+                !string.IsNullOrEmpty(envAuthority) &&
+                !string.IsNullOrEmpty(envScope)) {
+                logger.LogInformation("Using environment variable authentication settings");
+                return new AdminAuthService(
+                    clientId: envClientId,
+                    authority: envAuthority,
+                    scopes: new[] { envScope },
+                    logger: logger
+                );
+            }
+
+            // No configuration available - use demo service
+            return new DemoAdminAuthService(demoLogger);
         });
 
         // ========== HTTP Client with Resilience Policies ==========
@@ -75,36 +82,41 @@ internal static class MauiProgram
         // Configure HttpClient with resilience handlers (retry, circuit breaker, timeout)
         // Using Microsoft.Extensions.Http.Resilience for production-grade policies
         builder.Services
-            .AddHttpClient<ApiClient>(client =>
-            {
-                // CRITICAL: MCR_ADMIN_API_BASE_URL must be provided - no insecure fallbacks allowed
-                var baseUrl = Environment.GetEnvironmentVariable("MCR_ADMIN_API_BASE_URL");
+            .AddHttpClient<ApiClient>((sp, client) => {
+                var configService = sp.GetRequiredService<IConfigurationStateService>();
+                var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+                var logger = loggerFactory.CreateLogger("MauiProgram.HttpClient");
 
-                if (string.IsNullOrWhiteSpace(baseUrl))
-                {
-                    throw new InvalidOperationException(
-                        "MCR_ADMIN_API_BASE_URL environment variable is required and must not be empty. " +
-                        "Set it to your API base URL (e.g., https://api.yourdomain.com). " +
-                        "Never leave this unset as it could connect to an unintended server.");
+                // Try UI-configured API URL first
+                Uri? apiUri = configService.ApiBaseUrl;
+
+                // Fall back to environment variable
+                if (apiUri == null) {
+                    var envUrl = Environment.GetEnvironmentVariable("MCR_ADMIN_API_BASE_URL");
+                    if (!string.IsNullOrEmpty(envUrl) && Uri.TryCreate(envUrl, UriKind.Absolute, out var parsedUri)) {
+                        apiUri = parsedUri;
+                    }
                 }
 
-                // Validate HTTPS in production (non-localhost URLs must use HTTPS)
-                if (!baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
-                    !baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase) &&
-                    !baseUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException(
-                        $"MCR_ADMIN_API_BASE_URL must use HTTPS for non-localhost URLs. Got: {baseUrl}");
+                // If we have a URL, validate and configure it
+                if (apiUri != null) {
+                    // Validate HTTPS in production (non-localhost URLs must use HTTPS)
+                    var isLocalhost = apiUri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                                      apiUri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+
+                    if (!isLocalhost && !apiUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)) {
+                        logger.LogWarning(
+                            "MCR_ADMIN_API_BASE_URL must use HTTPS for non-localhost URLs. API calls will fail until configured correctly.");
+                    }
+                    else {
+                        client.BaseAddress = apiUri;
+                        logger.LogInformation("API base URL configured: {Url}", apiUri.Host);
+                    }
+                }
+                else {
+                    logger.LogWarning("API base URL not configured. Go to Settings to configure.");
                 }
 
-                // Validate URL format
-                if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var apiUri))
-                {
-                    throw new InvalidOperationException(
-                        $"MCR_ADMIN_API_BASE_URL is not a valid URI: {baseUrl}");
-                }
-
-                client.BaseAddress = apiUri;
                 client.Timeout = TimeSpan.FromSeconds(30);
             })
             .AddStandardResilienceHandler(); // Includes retry + circuit breaker policies
@@ -117,22 +129,17 @@ internal static class MauiProgram
         // Optional: ONNX embedding service (requires model file in Resources/Raw/)
         // Only register if model is available - IngestionViewModel will use server-side
         // embedding processing as fallback if this service is not registered
-        try
-        {
+        // Note: We can't log here since DI container isn't built yet.
+        // The warning will be logged by OnnxEmbeddingServiceFactory when it tries to load the model.
+        try {
             // Register factory method so DI container manages disposal
             builder.Services.AddSingleton<OnnxEmbeddingService>(_ =>
                 OnnxEmbeddingServiceFactory.CreateFromAppResources());
         }
-        catch (Exception ex)
-        {
-            // Model not available - log warning and continue without local embeddings
-            using var loggerFactory = LoggerFactory.Create(configure => configure.AddDebug());
-            var logger = loggerFactory.CreateLogger<MauiApp>();
-            logger.LogWarning(ex,
-                "ONNX embedding model not available. Local embedding processing will be disabled. " +
-                "To enable local processing, place the ONNX model file in Resources/Raw/. " +
-                "Server-side embedding will be used as fallback.");
-            // Don't register the service - IngestionViewModel will handle missing service gracefully
+        catch (Exception) {
+            // Model not available - don't register the service
+            // IngestionViewModel will handle missing service gracefully
+            // We can't log here since logger isn't available yet
         }
 
         // ========== Pages (Transient - Fresh instance per navigation) ==========
@@ -142,6 +149,7 @@ internal static class MauiProgram
         builder.Services.AddTransient<JobsPage>();
         builder.Services.AddTransient<WebSourcesPage>();
         builder.Services.AddTransient<ToolsPage>();
+        builder.Services.AddTransient<SettingsPage>();
 
         // ========== ViewModels (Transient - Fresh instance per navigation) ==========
 
@@ -150,10 +158,18 @@ internal static class MauiProgram
         builder.Services.AddTransient<JobsViewModel>();
         builder.Services.AddTransient<WebSourcesViewModel>();
         builder.Services.AddTransient<ToolsViewModel>();
+        builder.Services.AddTransient<SettingsViewModel>();
 
-        // Register App and AppShell (Singletons - single instance for app lifetime)
-        builder.Services.AddSingleton<App>();
-        builder.Services.AddSingleton<AppShell>();
+        // Register AppShell (Singleton - single instance for app lifetime)
+        builder.Services.AddSingleton<AppShell>(sp =>
+            new AppShell(
+                sp.GetRequiredService<IAdminAuthService>(),
+                sp.GetRequiredService<ISettingsService>(),
+                sp.GetRequiredService<IConfigurationStateService>(),
+                sp));
+
+        // Register App as transient for MAUI to resolve
+        builder.Services.AddTransient<App>();
 
         return builder.Build();
     }

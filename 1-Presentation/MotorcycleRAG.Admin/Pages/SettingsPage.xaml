@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:MotorcycleRAG.Admin.ViewModels"
+             x:Class="MotorcycleRAG.Admin.Pages.SettingsPage"
+             x:ClassModifier="Internal"
+             x:DataType="viewmodels:SettingsViewModel"
+             Title="Settings">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="15">
+
+            <!-- Page Header -->
+            <Label Text="Application Settings"
+                   FontSize="24"
+                   FontAttributes="Bold"
+                   Margin="0,0,0,10" />
+
+            <!-- Status Message -->
+            <Frame BorderColor="LightGray"
+                   CornerRadius="4"
+                   Padding="10"
+                   IsVisible="{Binding StatusMessage, Converter={StaticResource StringToBoolConverter}}">
+                <Label Text="{Binding StatusMessage}"
+                       FontSize="14"
+                       TextColor="{StaticResource Primary}" />
+            </Frame>
+
+            <!-- API Configuration Section -->
+            <Frame BorderColor="LightGray"
+                   CornerRadius="8"
+                   Padding="15">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="API Configuration"
+                           FontSize="18"
+                           FontAttributes="Bold" />
+                    <Label Text="Configure the connection to the Motorcycle RAG API server."
+                           FontSize="12"
+                           TextColor="Gray" />
+
+                    <!-- API Base URL -->
+                    <Label Text="API Base URL"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           Margin="0,10,0,0" />
+                    <Entry Text="{Binding ApiBaseUrl}"
+                           Placeholder="https://your-api-server.com"
+                           Keyboard="Url" />
+                    <Label Text="{Binding ApiValidationMessage}"
+                           FontSize="12"
+                           TextColor="{Binding IsApiValid, Converter={StaticResource BoolToColorConverter}}" />
+
+                    <!-- Test Connection Button -->
+                    <HorizontalStackLayout Spacing="10">
+                        <Button Text="Test Connection"
+                                Command="{Binding TestApiConnectionCommand}"
+                                BackgroundColor="{StaticResource Secondary}"
+                                TextColor="White"
+                                Padding="15,8"
+                                FontSize="12"
+                                CornerRadius="4"
+                                IsEnabled="{Binding IsTestingApi, Converter={StaticResource InverseBoolConverter}}" />
+                        <ActivityIndicator IsRunning="{Binding IsTestingApi}"
+                                           IsVisible="{Binding IsTestingApi}"
+                                           HeightRequest="20"
+                                           WidthRequest="20"
+                                           VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Label Text="{Binding ApiTestResult}"
+                           FontSize="12"
+                           TextColor="Gray"
+                           IsVisible="{Binding ApiTestResult, Converter={StaticResource StringToBoolConverter}}" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Authentication Configuration Section -->
+            <Frame BorderColor="LightGray"
+                   CornerRadius="8"
+                   Padding="15">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Authentication Configuration"
+                           FontSize="18"
+                           FontAttributes="Bold" />
+                    <Label Text="Configure Microsoft Entra ID / Azure AD authentication credentials."
+                           FontSize="12"
+                           TextColor="Gray" />
+
+                    <!-- Client ID -->
+                    <Label Text="Client ID (Application ID)"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           Margin="0,10,0,0" />
+                    <Entry Text="{Binding AuthClientId}"
+                           Placeholder="00000000-0000-0000-0000-000000000000"
+                           IsPassword="False" />
+
+                    <!-- Authority -->
+                    <Label Text="Authority URL"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           Margin="0,10,0,0" />
+                    <Entry Text="{Binding AuthAuthority}"
+                           Placeholder="https://login.microsoftonline.com/your-tenant-id"
+                           Keyboard="Url" />
+
+                    <!-- API Scope -->
+                    <Label Text="API Scope"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           Margin="0,10,0,0" />
+                    <Entry Text="{Binding AuthScope}"
+                           Placeholder="api://your-api-client-id/.default" />
+
+                    <!-- Validation Message -->
+                    <Label Text="{Binding AuthValidationMessage}"
+                           FontSize="12"
+                           TextColor="{Binding IsAuthValid, Converter={StaticResource BoolToColorConverter}}" />
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Local Processing Configuration Section -->
+            <Frame BorderColor="LightGray"
+                   CornerRadius="8"
+                   Padding="15">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Local Processing (Optional)"
+                           FontSize="18"
+                           FontAttributes="Bold" />
+                    <Label Text="Configure local ONNX embedding model for offline processing."
+                           FontSize="12"
+                           TextColor="Gray" />
+
+                    <!-- Embedding Model Path -->
+                    <Label Text="Embedding Model Path"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           Margin="0,10,0,0" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <Entry Grid.Column="0"
+                               Text="{Binding EmbeddingModelPath}"
+                               Placeholder="Path to ONNX model file"
+                               IsReadOnly="True" />
+                        <Button Grid.Column="1"
+                                Text="Browse"
+                                Command="{Binding BrowseModelPathCommand}"
+                                BackgroundColor="{StaticResource Secondary}"
+                                TextColor="White"
+                                Padding="15,8"
+                                FontSize="12"
+                                CornerRadius="4" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Action Buttons -->
+            <Frame BorderColor="LightGray"
+                   CornerRadius="8"
+                   Padding="15">
+                <HorizontalStackLayout Spacing="15" HorizontalOptions="End">
+                    <Button Text="Reset All"
+                            Command="{Binding ResetSettingsCommand}"
+                            BackgroundColor="#FF6B6B"
+                            TextColor="White"
+                            Padding="20,10"
+                            FontSize="14"
+                            CornerRadius="4" />
+                    <Button Text="Save Settings"
+                            Command="{Binding SaveSettingsCommand}"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            Padding="20,10"
+                            FontSize="14"
+                            FontAttributes="Bold"
+                            CornerRadius="4" />
+                    <ActivityIndicator IsRunning="{Binding IsSaving}"
+                                       IsVisible="{Binding IsSaving}"
+                                       HeightRequest="24"
+                                       WidthRequest="24"
+                                       VerticalOptions="Center" />
+                </HorizontalStackLayout>
+            </Frame>
+
+            <!-- Unsaved Changes Indicator -->
+            <Label Text="You have unsaved changes"
+                   FontSize="12"
+                   TextColor="Orange"
+                   HorizontalOptions="Center"
+                   IsVisible="{Binding HasUnsavedChanges}" />
+
+            <!-- Help Text -->
+            <Frame BorderColor="LightGray"
+                   CornerRadius="8"
+                   Padding="15"
+                   BackgroundColor="#F8F8F8">
+                <VerticalStackLayout Spacing="5">
+                    <Label Text="Note"
+                           FontSize="14"
+                           FontAttributes="Bold" />
+                    <Label Text="After saving settings, you may need to restart the application for all changes to take effect. Authentication credentials are stored securely on this device."
+                           FontSize="12"
+                           TextColor="Gray"
+                           LineBreakMode="WordWrap" />
+                </VerticalStackLayout>
+            </Frame>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

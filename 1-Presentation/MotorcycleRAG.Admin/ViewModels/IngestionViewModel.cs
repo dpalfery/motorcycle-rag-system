@@ -19,8 +19,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
     Justification = "Instantiated by MAUI framework")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Dependencies", Justification = "Coordinator class")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
-internal partial class IngestionViewModel : ObservableObject
-{
+internal partial class IngestionViewModel : ObservableObject {
     private static readonly string[] PdfAndCsvExtensions = { ".pdf", ".csv" };
     private static readonly string[] PdfAndCsvMimeTypes = { "pdf", "csv" };
 
@@ -48,31 +47,28 @@ internal partial class IngestionViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<ProcessedFileInfo> _processedFiles = new();
 
-    internal IngestionViewModel(
+    public IngestionViewModel(
         ApiClient apiClient,
         PdfChunker pdfChunker,
         CsvChunker csvChunker,
         OnnxEmbeddingService? embeddingService,
         ILogger<IngestionViewModel>? logger)
-        : this(apiClient, pdfChunker, csvChunker, embeddingService, logger, enableLocalProcessing: true)
-    {
+        : this(apiClient, pdfChunker, csvChunker, embeddingService, logger, enableLocalProcessing: true) {
     }
 
-    internal IngestionViewModel(
+    public IngestionViewModel(
         ApiClient apiClient,
         PdfChunker pdfChunker,
         CsvChunker csvChunker,
         OnnxEmbeddingService? embeddingService)
-        : this(apiClient, pdfChunker, csvChunker, embeddingService, logger: null, enableLocalProcessing: true)
-    {
+        : this(apiClient, pdfChunker, csvChunker, embeddingService, logger: null, enableLocalProcessing: true) {
     }
 
-    internal IngestionViewModel(
+    public IngestionViewModel(
         ApiClient apiClient,
         PdfChunker pdfChunker,
         CsvChunker csvChunker)
-        : this(apiClient, pdfChunker, csvChunker, embeddingService: null, logger: null, enableLocalProcessing: false)
-    {
+        : this(apiClient, pdfChunker, csvChunker, embeddingService: null, logger: null, enableLocalProcessing: false) {
     }
 
     private IngestionViewModel(
@@ -81,8 +77,7 @@ internal partial class IngestionViewModel : ObservableObject
         CsvChunker csvChunker,
         OnnxEmbeddingService? embeddingService,
         ILogger<IngestionViewModel>? logger,
-        bool enableLocalProcessing)
-    {
+        bool enableLocalProcessing) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _pdfChunker = pdfChunker ?? throw new ArgumentNullException(nameof(pdfChunker));
         _csvChunker = csvChunker ?? throw new ArgumentNullException(nameof(csvChunker));
@@ -91,27 +86,22 @@ internal partial class IngestionViewModel : ObservableObject
         _enableLocalProcessing = enableLocalProcessing;
     }
 
-    partial void OnIsProcessingChanged(bool value)
-    {
+    partial void OnIsProcessingChanged(bool value) {
         SelectFileCommand.NotifyCanExecuteChanged();
         ProcessFileCommand.NotifyCanExecuteChanged();
         ClearCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnSelectedFilePathChanged(string value)
-    {
+    partial void OnSelectedFilePathChanged(string value) {
         ProcessFileCommand.NotifyCanExecuteChanged();
     }
 
     #region Commands
 
     [RelayCommand]
-    private async Task SelectFileAsync()
-    {
-        try
-        {
-            var result = await FilePicker.PickAsync(new PickOptions
-            {
+    private async Task SelectFileAsync() {
+        try {
+            var result = await FilePicker.PickAsync(new PickOptions {
                 PickerTitle = "Select a file to process",
                 FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
                 {
@@ -120,21 +110,18 @@ internal partial class IngestionViewModel : ObservableObject
                 })
             });
 
-            if (result != null)
-            {
+            if (result != null) {
                 // File size validation
                 var info = new FileInfo(result.FullPath);
                 var ext = Path.GetExtension(result.FullPath).ToUpperInvariant();
                 long sizeLimit = ext == ".PDF" ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
-                if (info.Length > sizeLimit)
-                {
+                if (info.Length > sizeLimit) {
                     await ShowErrorAsync("File too large", $"File exceeds limit ({sizeLimit / (1024 * 1024)}MB).");
                     return;
                 }
 
                 // Simple MIME validation (magic numbers)
-                if (!IsValidMime(result.FullPath, ext))
-                {
+                if (!IsValidMime(result.FullPath, ext)) {
                     await ShowErrorAsync("Invalid file", "The selected file type does not match its content.");
                     return;
                 }
@@ -144,8 +131,7 @@ internal partial class IngestionViewModel : ObservableObject
                 _logger?.LogInformation("File selected: {FileName}, SizeBytes: {Size}, Ext: {Ext}", info.Name, info.Length, ext);
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             await ShowErrorAsync("File Selection Error", sanitizedMessage);
             _logger?.LogError(ex, "File selection failed");
@@ -153,14 +139,12 @@ internal partial class IngestionViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanProcessFile))]
-    private async Task ProcessFileAsync()
-    {
+    private async Task ProcessFileAsync() {
         if (string.IsNullOrEmpty(SelectedFilePath))
             return;
 
         // SECURITY: Check network connectivity before starting processing
-        if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet)
-        {
+        if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet) {
             StatusMessage = "No internet connection. Please check your network.";
             await ShowErrorAsync("No Connection", "Internet connection is required to process files.");
             _logger?.LogWarning("File processing attempted without internet connection");
@@ -171,10 +155,8 @@ internal partial class IngestionViewModel : ObservableObject
         ProgressPercentage = 0;
         StatusMessage = "Starting processing...";
 
-        try
-        {
-            var fileInfo = new ProcessedFileInfo
-            {
+        try {
+            var fileInfo = new ProcessedFileInfo {
                 FileName = Path.GetFileName(SelectedFilePath),
                 FilePath = SelectedFilePath,
                 Status = "Processing",
@@ -186,13 +168,11 @@ internal partial class IngestionViewModel : ObservableObject
             // Determine file type
             var extension = Path.GetExtension(SelectedFilePath).ToUpperInvariant();
 
-            if (EnableLocalProcessing && _embeddingService != null)
-            {
+            if (EnableLocalProcessing && _embeddingService != null) {
                 // Local processing workflow
                 await ProcessLocallyAsync(fileInfo, extension);
             }
-            else
-            {
+            else {
                 // Server-side processing workflow
                 await ProcessOnServerAsync(fileInfo);
             }
@@ -203,15 +183,13 @@ internal partial class IngestionViewModel : ObservableObject
             ProgressPercentage = 100;
             _logger?.LogInformation("Processing completed for file {FileName}", fileInfo.FileName);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             StatusMessage = $"Error: {sanitizedMessage}";
             await ShowErrorAsync("Processing Error", sanitizedMessage);
             _logger?.LogError(ex, "Processing failed for file {FileName}", Path.GetFileName(SelectedFilePath));
         }
-        finally
-        {
+        finally {
             IsProcessing = false;
         }
     }
@@ -219,8 +197,7 @@ internal partial class IngestionViewModel : ObservableObject
     private bool CanProcessFile() => !IsProcessing && !string.IsNullOrEmpty(SelectedFilePath);
 
     [RelayCommand(CanExecute = nameof(CanClear))]
-    private void Clear()
-    {
+    private void Clear() {
         SelectedFilePath = string.Empty;
         StatusMessage = string.Empty;
         ProgressPercentage = 0;
@@ -232,17 +209,14 @@ internal partial class IngestionViewModel : ObservableObject
 
     #region Methods
 
-    private async Task ProcessLocallyAsync(ProcessedFileInfo fileInfo, string extension)
-    {
+    private async Task ProcessLocallyAsync(ProcessedFileInfo fileInfo, string extension) {
         ProgressPercentage = 10;
         StatusMessage = "Chunking document...";
 
         // Step 1: Chunking document
-        if (extension == ".PDF")
-        {
+        if (extension == ".PDF") {
             var chunkResult = await _pdfChunker.ProcessPdfAsync(fileInfo.FilePath);
-            if (!chunkResult.Success)
-            {
+            if (!chunkResult.Success) {
                 throw new InvalidOperationException($"PDF chunking failed: {string.Join(", ", chunkResult.Errors)}");
             }
             fileInfo.ChunkCount = chunkResult.Chunks.Count;
@@ -252,14 +226,11 @@ internal partial class IngestionViewModel : ObservableObject
             StatusMessage = $"Chunked into {chunkResult.Chunks.Count} chunks, generating embeddings...";
 
             // Step 2: Generate embeddings
-            if (_embeddingService != null)
-            {
+            if (_embeddingService != null) {
                 var embeddings = new List<float[]>();
-                for (int i = 0; i < chunkResult.Chunks.Count; i++)
-                {
+                for (int i = 0; i < chunkResult.Chunks.Count; i++) {
                     var embeddingResult = await _embeddingService.GenerateEmbeddingAsync(chunkResult.Chunks[i].Text);
-                    if (embeddingResult.Success)
-                    {
+                    if (embeddingResult.Success) {
                         embeddings.Add(embeddingResult.Embedding);
                     }
                     ProgressPercentage = 40 + (50.0 * (i + 1) / chunkResult.Chunks.Count);
@@ -267,11 +238,9 @@ internal partial class IngestionViewModel : ObservableObject
                 fileInfo.EmbeddingCount = embeddings.Count;
             }
         }
-        else if (extension == ".CSV")
-        {
+        else if (extension == ".CSV") {
             var chunkResult = await _csvChunker.ProcessCsvAsync(fileInfo.FilePath);
-            if (!chunkResult.Success)
-            {
+            if (!chunkResult.Success) {
                 throw new InvalidOperationException($"CSV chunking failed: {string.Join(", ", chunkResult.Errors)}");
             }
             fileInfo.ChunkCount = chunkResult.Chunks.Count;
@@ -281,17 +250,14 @@ internal partial class IngestionViewModel : ObservableObject
             StatusMessage = $"Chunked {chunkResult.Metadata.TotalRows} rows, generating embeddings...";
 
             // Step 2: Generate embeddings for CSV chunks
-            if (_embeddingService != null)
-            {
+            if (_embeddingService != null) {
                 var embeddings = new List<float[]>();
-                for (int i = 0; i < chunkResult.Chunks.Count; i++)
-                {
+                for (int i = 0; i < chunkResult.Chunks.Count; i++) {
                     var headersList = new List<string>(chunkResult.Metadata.ColumnNames);
                     var searchableText = _csvChunker.CreateSearchableText(chunkResult.Chunks[i].Rows, headersList);
 
                     var embeddingResult = await _embeddingService.GenerateEmbeddingAsync(searchableText);
-                    if (embeddingResult.Success)
-                    {
+                    if (embeddingResult.Success) {
                         embeddings.Add(embeddingResult.Embedding);
                     }
                     ProgressPercentage = 40 + (50.0 * (i + 1) / chunkResult.Chunks.Count);
@@ -308,8 +274,7 @@ internal partial class IngestionViewModel : ObservableObject
         fileInfo.ExecutionId = uploadResult.FileId;
     }
 
-    private async Task ProcessOnServerAsync(ProcessedFileInfo fileInfo)
-    {
+    private async Task ProcessOnServerAsync(ProcessedFileInfo fileInfo) {
         ProgressPercentage = 20;
         StatusMessage = "Uploading to server...";
 
@@ -326,11 +291,9 @@ internal partial class IngestionViewModel : ObservableObject
         ProgressPercentage = 90;
     }
 
-    private static async Task ShowErrorAsync(string title, string message)
-    {
+    private static async Task ShowErrorAsync(string title, string message) {
         var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-        if (window?.Page != null)
-        {
+        if (window?.Page != null) {
             await window.Page.DisplayAlertAsync(title, message, "OK");
         }
     }
@@ -339,10 +302,8 @@ internal partial class IngestionViewModel : ObservableObject
     /// Validates file content matches expected MIME type by checking magic numbers.
     /// Prevents file extension spoofing attacks.
     /// </summary>
-    private bool IsValidMime(string path, string ext)
-    {
-        try
-        {
+    private bool IsValidMime(string path, string ext) {
+        try {
             using var fs = File.OpenRead(path);
             var header = new byte[8];
             var bytesRead = fs.Read(header, 0, 8);
@@ -350,15 +311,13 @@ internal partial class IngestionViewModel : ObservableObject
             if (bytesRead < 4)
                 return false;
 
-            return ext switch
-            {
+            return ext switch {
                 ".PDF" => header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46,
                 ".CSV" => true,
                 _ => false
             };
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger?.LogError(ex, "Failed MIME validation for {Path}", path);
             return false;
         }
@@ -371,8 +330,7 @@ internal partial class IngestionViewModel : ObservableObject
 /// Information about a processed file
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
-internal partial class ProcessedFileInfo : ObservableObject
-{
+internal partial class ProcessedFileInfo : ObservableObject {
     [ObservableProperty]
     private string _status = string.Empty;
 

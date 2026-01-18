@@ -32,8 +32,7 @@ internal partial class ToolsViewModel : ObservableObject {
     [ObservableProperty]
     private ToolConfigItem? selectedTool;
 
-    internal ToolsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<ToolsViewModel> logger)
-    {
+    public ToolsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<ToolsViewModel> logger) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -45,56 +44,46 @@ internal partial class ToolsViewModel : ObservableObject {
     /// Command to load MCP tools from the API
     /// </summary>
     [RelayCommand]
-    internal async Task RefreshAsync()
-    {
+    internal async Task RefreshAsync() {
         IsLoading = true;
         ErrorMessage = null;
 
-        try
-        {
+        try {
             await EnsureAuthorizedAsync();
             var toolConfigs = await _apiClient.GetMcpToolsAsync();
 
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(() => {
                 Tools.Clear();
-                foreach (var config in toolConfigs)
-                {
+                foreach (var config in toolConfigs) {
                     Tools.Add(new ToolConfigItem(config));
                 }
             });
 
             _logger.LogInformation("Loaded {Count} MCP tool configurations", toolConfigs.Length);
         }
-        catch (UnauthorizedAccessException ex)
-        {
+        catch (UnauthorizedAccessException ex) {
             // User not authorized - expected in demo mode
             _logger.LogWarning(ex, "User not authorized to view MCP tools");
             await MainThread.InvokeOnMainThreadAsync(() => Tools.Clear());
         }
-        catch (HttpRequestException ex)
-        {
+        catch (HttpRequestException ex) {
             // API not available - silently fail
             _logger.LogWarning(ex, "API not available for loading MCP tools");
             await MainThread.InvokeOnMainThreadAsync(() => Tools.Clear());
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             _logger.LogError(ex, "Error loading MCP tools");
 
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(async () => {
                 ErrorMessage = $"Failed to load MCP tools: {sanitizedMessage}";
                 var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-                if (window?.Page != null)
-                {
+                if (window?.Page != null) {
                     await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
                 }
             });
         }
-        finally
-        {
+        finally {
             IsLoading = false;
         }
     }
@@ -103,19 +92,16 @@ internal partial class ToolsViewModel : ObservableObject {
     /// Command to save a tool configuration change
     /// </summary>
     [RelayCommand]
-    internal async Task SaveToolAsync(ToolConfigItem? tool)
-    {
+    internal async Task SaveToolAsync(ToolConfigItem? tool) {
         if (tool == null)
             return;
 
         IsLoading = true;
         ErrorMessage = null;
 
-        try
-        {
+        try {
             // Validate tool configuration
-            if (!ValidateTool(tool))
-            {
+            if (!ValidateTool(tool)) {
                 ErrorMessage = "Invalid tool configuration. Please check the settings.";
                 return;
             }
@@ -123,8 +109,7 @@ internal partial class ToolsViewModel : ObservableObject {
             await EnsureAuthorizedAsync();
 
             // Call API to update tool
-            var updateRequest = new UpdateMcpToolRequest
-            {
+            var updateRequest = new UpdateMcpToolRequest {
                 IsEnabled = tool.IsEnabled,
                 ChangeReason = tool.IsEnabled ? "Enabled via admin panel" : "Disabled via admin panel"
             };
@@ -135,38 +120,31 @@ internal partial class ToolsViewModel : ObservableObject {
                 tool.ToolId, tool.IsEnabled);
 
             // Show success message
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(async () => {
                 var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-                if (window?.Page != null)
-                {
+                if (window?.Page != null) {
                     await window.Page.DisplayAlertAsync("Success",
                         $"Tool '{tool.Name}' has been {(tool.IsEnabled ? "enabled" : "disabled")}.", "OK");
                 }
             });
         }
-        catch (UnauthorizedAccessException ex)
-        {
+        catch (UnauthorizedAccessException ex) {
             _logger.LogWarning(ex, "User not authorized to update MCP tool '{ToolId}'", tool.ToolId);
             ErrorMessage = "You do not have permission to modify MCP tools.";
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             _logger.LogError(ex, "Error saving MCP tool '{ToolId}'", tool.ToolId);
 
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-            {
+            await MainThread.InvokeOnMainThreadAsync(async () => {
                 ErrorMessage = $"Failed to save tool: {sanitizedMessage}";
                 var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-                if (window?.Page != null)
-                {
+                if (window?.Page != null) {
                     await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
                 }
             });
         }
-        finally
-        {
+        finally {
             IsLoading = false;
         }
     }
@@ -175,8 +153,7 @@ internal partial class ToolsViewModel : ObservableObject {
     /// Command to select a tool
     /// </summary>
     [RelayCommand]
-    internal void SelectTool(ToolConfigItem? tool)
-    {
+    internal void SelectTool(ToolConfigItem? tool) {
         SelectedTool = tool;
         _logger.LogDebug("Selected tool: {ToolId}", tool?.ToolId ?? "null");
     }
@@ -188,36 +165,30 @@ internal partial class ToolsViewModel : ObservableObject {
     /// <summary>
     /// Validate tool configuration
     /// </summary>
-    private bool ValidateTool(ToolConfigItem tool)
-    {
-        if (tool == null)
-        {
+    private bool ValidateTool(ToolConfigItem tool) {
+        if (tool == null) {
             _logger.LogWarning("Cannot validate null tool");
             return false;
         }
 
         // Basic validation
-        if (string.IsNullOrWhiteSpace(tool.ToolId))
-        {
+        if (string.IsNullOrWhiteSpace(tool.ToolId)) {
             _logger.LogWarning("Tool ID is empty");
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(tool.Name))
-        {
+        if (string.IsNullOrWhiteSpace(tool.Name)) {
             _logger.LogWarning("Tool name is empty");
             return false;
         }
 
-        if (tool.ServerUrl == null)
-        {
+        if (tool.ServerUrl == null) {
             _logger.LogWarning("Tool server URL is empty");
             return false;
         }
 
         // Validate URL format with SSRF protection
-        if (!UrlValidator.IsValidUrl(tool.ServerUrl))
-        {
+        if (!UrlValidator.IsValidUrl(tool.ServerUrl)) {
             _logger.LogWarning("Tool server URL is invalid or disallowed (SSRF protection): {ServerUrl}", tool.ServerUrl);
             return false;
         }
@@ -232,17 +203,14 @@ internal partial class ToolsViewModel : ObservableObject {
     /// <summary>
     /// Ensure user is authorized to manage MCP tools
     /// </summary>
-    private async Task EnsureAuthorizedAsync()
-    {
-        if (!_authService.IsAuthenticated)
-        {
+    private async Task EnsureAuthorizedAsync() {
+        if (!_authService.IsAuthenticated) {
             throw new UnauthorizedAccessException("User is not authenticated");
         }
 
         var roles = await _authService.GetUserRolesAsync();
         var adminRoles = AdminRoles.GetValidAdminRoles(roles);
-        if (!adminRoles.Any())
-        {
+        if (!adminRoles.Any()) {
             throw new UnauthorizedAccessException("User does not have required admin roles to manage tools");
         }
     }
@@ -254,8 +222,7 @@ internal partial class ToolsViewModel : ObservableObject {
 /// View model item for a single MCP tool configuration
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
-internal partial class ToolConfigItem : ObservableObject
-{
+internal partial class ToolConfigItem : ObservableObject {
     internal Guid Id { get; }
     internal string ToolId { get; }
     internal string Name { get; }
@@ -267,8 +234,7 @@ internal partial class ToolConfigItem : ObservableObject
     [ObservableProperty]
     private bool isEnabled;
 
-    internal ToolConfigItem(McpToolConfigurationDto config)
-    {
+    internal ToolConfigItem(McpToolConfigurationDto config) {
         Id = config.Id;
         ToolId = config.ToolId;
         Name = config.Name;

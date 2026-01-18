@@ -1,31 +1,5 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(1)",
-      "Bash(Select-String -Pattern \"Error\\(s\\)|Warning\\(s\\)|Build succeeded|Build FAILED\")",
-      "Bash(powershell -Command:*)",
-      "Bash(Select-String -Pattern \"error|warning\")",
-      "Bash(Select-Object -First 20)",
-      "Bash(Select-String -Pattern \"error CS\")",
-      "Bash(Select-Object -First 30)",
-      "Bash(Select-String -Pattern \"\\(error|warning|succeeded|failed\\)\" -Context 0,1)",
-      "Bash(Select-String -Pattern \"error|warning|Build succeeded|Build FAILED\")",
-      "Bash(git diff:*)",
-      "Bash(Sort-Object -Unique)",
-      "Bash(Measure-Object)",
-      "Bash(findstr:*)",
-      "Bash(Select-String -Pattern \"S1066|S1227|S6608|warning|error\" -Context 0,2)",
-      "Bash(dotnet restore:*)",
-      "Bash(Select-String -Pattern \"S4040|CA1845|S2302|S6580\" -Context 2)",
-      "Bash(Select-String -Pattern \"S106|S105|CA1861\" -Context 0,2)",
-      "Bash(Select-String \"S3059\")",
-      "Bash(Select-String \"error CS|Build succeeded|Build FAILED|warning S2139|warning CA1513\")",
-      "Bash(Select-String \"NU1510|NU1603\")",
-      "Bash(Select-String -Pattern \"S1481|S1854|S3257|error CS\")",
-      "Bash(timeout 5 cat:*)",
-      "Bash(Select-String -Pattern \"ClaimCitationService|ClaimEvidence|error CS1061\" -Context 0,2)",
-      "Bash(git -C \"c:\\\\git\\\\motorcycle-rag-system\" diff --stat)",
-      "Bash(Select-String -Pattern \"S3881|Build succeeded|Build FAILED|error\")"
-    ]
-  }
+  "disabledMcpjsonServers": [
+    "playwright"
+  ]
 }

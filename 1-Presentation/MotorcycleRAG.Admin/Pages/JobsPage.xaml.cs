@@ -7,21 +7,18 @@ namespace MotorcycleRAG.Admin.Pages;
 internal partial class JobsPage : ContentPage {
     private readonly JobsViewModel _viewModel;
 
-    internal JobsPage(JobsViewModel viewModel)
-    {
+    public JobsPage(JobsViewModel viewModel) {
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         BindingContext = _viewModel;
     }
 
-    protected override async void OnAppearing()
-    {
+    protected override async void OnAppearing() {
         base.OnAppearing();
         await _viewModel.InitializeAsync();
     }
 
-    protected override void OnDisappearing()
-    {
+    protected override void OnDisappearing() {
         base.OnDisappearing();
         _viewModel.StopPolling();
     }

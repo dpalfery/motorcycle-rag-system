@@ -5,22 +5,25 @@
             // Use IntelliSense to find out which attributes exist for C# debugging
             // Use hover for the description of the existing attributes
             // For further information visit https://github.com/dotnet/vscode-csharp/blob/main/debugger-launchjson.md.
-            "name": ".NET Core Launch (web)",
+            "name": ".NET Core Launch (API)",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "build",
+            "preLaunchTask": "build: api",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/src/MotorcycleRAG.API/bin/Debug/net9.0/MotorcycleRAG.API.dll",
+            "program": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API/bin/Debug/net10.0/MotorcycleRAG.API.dll",
             "args": [],
-            "cwd": "${workspaceFolder}/src/MotorcycleRAG.API",
+            "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API",
             "stopAtEntry": false,
+            "console": "integratedTerminal",
             // Enable launching a web browser when ASP.NET Core starts. For more information: https://aka.ms/VSCode-CS-LaunchJson-WebBrowser
             "serverReadyAction": {
                 "action": "openExternally",
                 "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
             },
             "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development"
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "DOTNET_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "https://localhost:7215;http://localhost:5028"
             },
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"
@@ -41,6 +44,16 @@
             "name": ".NET Core Attach",
             "type": "coreclr",
             "request": "attach"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Admin + API (Windows)",
+            "configurations": [
+                ".NET Core Launch (API)",
+                ".NET MAUI Admin (Windows)"
+            ],
+            "stopAll": true
         }
     ]
 }

@@ -18,7 +18,7 @@
       "Skill(delegate-dotnet)",
       "Skill(delegate-frontend)",
       "Skill(mandatory-review)",
-      "Skill(code-review)",
+      "Skill(code-review)"
     ],
     "deny": [
       "Bash(git commit :*)",
@@ -34,16 +34,13 @@
       "Skill(github-cli)"
     ]
   },
-  "enabledMcpjsonServers": [
-    "auth0",
-    "playwright"
-  ],
+  "enabledMcpjsonServers": [],
   "slashCommands": {
     "/push": "save all files, stage all files, generate a detailed commit message. commit all changes with message, pull from origin with rebase, fix any merge issues and then push"
   },
   "enabledPlugins": {
     "csharp-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true
+    "playwright@claude-plugins-official": false
   }
 }

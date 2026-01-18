@@ -2,6 +2,17 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "build: api",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/1-Presentation/MotorcycleRAG.API/MotorcycleRAG.API.csproj",
+        "/p:Configuration=Debug"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
       "label": "build: admin",
       "command": "dotnet",
       "type": "process",

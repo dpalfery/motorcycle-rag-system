@@ -112,6 +112,9 @@
             <converters:EnabledToColorConverter x:Key="EnabledToColorConverter"/>
             <converters:StatusLabelConverter x:Key="StatusLabelConverter"/>
             <converters:StatusColorConverter x:Key="StatusColorConverter"/>
+            <converters:BoolToObjectConverter x:Key="BoolToObjectConverter"/>
+            <converters:StringToBoolConverter x:Key="StringToBoolConverter"/>
+            <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

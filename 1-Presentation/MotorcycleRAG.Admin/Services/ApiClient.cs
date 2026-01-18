@@ -63,10 +63,25 @@ internal class ApiClient {
     }
 
     /// <summary>
+    /// Ensures the HTTP client is configured with a base URL.
+    /// Throws InvalidOperationException with a user-friendly message if not configured.
+    /// </summary>
+    private void EnsureConfigured()
+    {
+        if (_httpClient.BaseAddress == null)
+        {
+            throw new InvalidOperationException("API not configured. Go to Settings to configure the API base URL.");
+        }
+    }
+
+    /// <summary>
     /// Ensures the HTTP client has a valid access token
     /// </summary>
     private async Task EnsureAuthenticatedAsync()
     {
+        // First check that the API is configured
+        EnsureConfigured();
+
         var accessToken = await _authService.GetAccessTokenAsync().ConfigureAwait(false);
         if (string.IsNullOrEmpty(accessToken))
         {

@@ -2,6 +2,8 @@
 #pragma warning disable CA1852 // Types can be sealed but kept as-is
 
 using System.Globalization;
+using Microsoft.Maui.Controls;
+using Microsoft.Maui.Graphics;
 
 namespace MotorcycleRAG.Admin.Converters;
 
@@ -173,5 +175,64 @@ internal class StatusColorConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// Converts a boolean value to different objects based on parameter
+/// </summary>
+internal class BoolToObjectConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue && parameter is string paramString)
+        {
+            var parts = paramString.Split('|');
+            var falseValue = parts.Length > 1 ? parts[1] : parts[0];
+            return boolValue ? parts[0] : falseValue;
+        }
+        return parameter;
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException("BoolToObjectConverter does not support two-way binding.");
+    }
+}
+
+/// <summary>
+/// Converts a string to boolean (true if not null or empty)
+/// </summary>
+internal class StringToBoolConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        return value is string str && !string.IsNullOrWhiteSpace(str);
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException("StringToBoolConverter does not support two-way binding.");
+    }
+}
+
+/// <summary>
+/// Converts a boolean to a color (green if true, red if false)
+/// Used for validation indicators.
+/// </summary>
+internal class BoolToColorConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue)
+        {
+            return boolValue ? Colors.Green : Colors.Red;
+        }
+        return Colors.Gray;
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException("BoolToColorConverter does not support two-way binding.");
     }
 }

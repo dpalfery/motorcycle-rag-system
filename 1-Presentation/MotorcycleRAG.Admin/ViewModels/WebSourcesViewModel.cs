@@ -52,7 +52,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
     [ObservableProperty]
     private bool newSourceIncludeInSearch = true;
 
-    internal WebSourcesViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<WebSourcesViewModel> logger) {
+    public WebSourcesViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<WebSourcesViewModel> logger) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -88,15 +88,11 @@ internal partial class WebSourcesViewModel : ObservableObject {
 
 
 
-            await MainThread.InvokeOnMainThreadAsync(() =>
-
-            {
+            await MainThread.InvokeOnMainThreadAsync(() => {
 
                 WebSources.Clear();
 
-                foreach (var source in sources)
-
-                {
+                foreach (var source in sources) {
 
                     WebSources.Add(new WebSourceViewModel(source));
 
@@ -270,8 +266,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
             if (!string.IsNullOrWhiteSpace(NewSourceUrl) && Uri.TryCreate(NewSourceUrl, UriKind.Absolute, out _)) {
                 var createdSource = await _apiClient.AddWebSourceAsync(newSource);
 
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
+                await MainThread.InvokeOnMainThreadAsync(() => {
                     WebSources.Add(new WebSourceViewModel(createdSource));
                     ShowAddSourceForm = false;
                     ResetForm();
@@ -395,9 +390,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
 
 
 
-            await MainThread.InvokeOnMainThreadAsync(() =>
-
-            {
+            await MainThread.InvokeOnMainThreadAsync(() => {
 
                 WebSources.Remove(sourceToDelete);
 

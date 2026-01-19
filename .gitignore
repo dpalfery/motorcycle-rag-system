@@ -388,3 +388,6 @@ FodyWeavers.xsd
 dotnet-install.sh
 *.tar.gz
 packages-microsoft-prod.deb
+
+# Local utilities (contain secrets)
+local-utils/

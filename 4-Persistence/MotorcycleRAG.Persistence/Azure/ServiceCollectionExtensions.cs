@@ -46,9 +46,9 @@ public static class ServiceCollectionExtensions {
         services.AddSingleton<IResilienceService, MotorcycleRAG.Persistence.Resilience.ResilienceService>();
         services.AddSingleton<ICorrelationService, MotorcycleRAG.Persistence.Resilience.CorrelationService>();
 
-        // Register Azure service clients as singletons for connection pooling
+        // Register Azure service clients (scope aligns with dependencies)
         services.AddSingleton<IAzureOpenAIClient, MotorcycleRAG.Persistence.Azure.AzureOpenAIClientWrapper>();
-        services.AddSingleton<IAzureSearchClient, MotorcycleRAG.Persistence.Azure.AzureSearchClientWrapper>();
+        services.AddScoped<IAzureSearchClient, MotorcycleRAG.Persistence.Azure.AzureSearchClientWrapper>();
         services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
         
         // Register extracted Azure Search services

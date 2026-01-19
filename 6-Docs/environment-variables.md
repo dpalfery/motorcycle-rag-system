@@ -47,10 +47,12 @@ MCR_<APP>_<VARIABLE>
 ### Azure Services (Endpoints)
 | Variable | Example | Purpose | Required | Type |
 | --- | --- | --- | --- | --- |
-| `MCR_API_AZURE_OPENAI_ENDPOINT` | `https://my-openai.openai.azure.com` | Base URL for Azure OpenAI resource. | Yes | Non-Secret |
-| `MCR_API_AZURE_SEARCH_ENDPOINT` | `https://my-search.search.windows.net` | Base URL for Azure AI Search service. | Yes | Non-Secret |
-| `MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | `https://my-di.cognitiveservices.azure.com` | Endpoint for Document Intelligence. | Yes | Non-Secret |
-| `MCR_API_AZURE_FOUNDRY_ENDPOINT` | `https://my-foundry.cognitiveservices.azure.com` | Endpoint for Azure AI Foundry. | No | Non-Secret |
+| `MCR_API_AZURE_OPENAI_ENDPOINT` | `https://my-openai.openai.azure.com` | Base URL for Azure OpenAI resource. | No* | Non-Secret |
+| `MCR_API_AZURE_SEARCH_ENDPOINT` | `https://my-search.search.windows.net` | Base URL for Azure AI Search service. | No* | Non-Secret |
+| `MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | `https://my-di.cognitiveservices.azure.com` | Endpoint for Document Intelligence. | No* | Non-Secret |
+| `MCR_API_AZURE_FOUNDRY_ENDPOINT` | `https://my-foundry.cognitiveservices.azure.com` | Endpoint for Azure AI Foundry. | No* | Non-Secret |
+
+\* **Degraded Mode**: The API will start without these endpoints configured, but features requiring these services will fail with a "not yet configured" error. This allows development to proceed before Azure resources are provisioned.
 
 ### Azure Services (Keys)
 | Variable | Example | Purpose | Required | Type |

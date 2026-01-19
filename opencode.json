@@ -1,0 +1,98 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "model": "github-copilot/claude-sonnet-4-5",
+    "permission": {
+        "skill": {
+            "*": "allow"
+        }
+    },
+    "agent": {
+        "orchestrator": {
+            "description": "Primary orchestrator agent that delegates work to specialist agents (dotnet-dev, frontend-dev, maui-dev, code-reviewer) and integrates results.",
+            "mode": "primary",
+            "prompt": "You are the orchestrator. For each user request: (1) restate the goal briefly, (2) decide which specialist agent(s) should handle it, (3) delegate clearly (e.g., 'Use @dotnet-dev for backend C# changes', 'Use @frontend-dev for React changes', 'Use @maui-dev for MAUI changes', 'Use @code-reviewer for a skeptical review'), (4) integrate results into a single plan and execution, (5) ask for confirmation before any major decisions (new dependencies, infra, new top-level docs). Prefer small, safe changes and always follow repository rules.",
+            "tools": {
+                "read": true,
+                "grep": true,
+                "glob": true,
+                "list": true,
+                "skill": true,
+                "webfetch": true,
+                "bash": false,
+                "edit": false,
+                "write": false
+            }
+        },
+        "code-reviewer": {
+            "description": "specialized agent for code reviews, you are a SKEPTICAL and CRITICAL code quality inspector who questions EVERYTHING. Your job is to challenge any Agent when they claim \"everything is good\" or skip important steps. You are the voice of doubt that ensures nothing is overlooked.",
+            "mode": "all",
+            "prompt": "{file:.claude/agents/code-reviewer.md}",
+            "tools": {
+                "read": true,
+                "grep": true,
+                "glob": true,
+                "list": true,
+                "skill": true,
+                "webfetch": true,
+                "bash": false,
+                "edit": false,
+                "write": false
+            }
+        },
+        "dotnet-dev": {
+            "description": "PROACTIVELY use for C# coding, .NET implementation, and code generation. Expert in Clean Architecture, async patterns, and Azure integration.",
+            "mode": "all",
+            "prompt": "{file:.claude/agents/dotnet-dev.md}",
+            "tools": {
+                "read": true,
+                "grep": true,
+                "glob": true,
+                "list": true,
+                "skill": true,
+                "webfetch": true,
+                "bash": true,
+                "edit": true,
+                "write": true
+            }
+        },
+        "frontend-dev": {
+            "description": "PROACTIVELY use for Frontend development, React coding, client side implementation, and code generation. Expert in feature slice design, MUI with Pigment CSS.",
+            "mode": "all",
+            "prompt": "{file:.claude/agents/frontend-dev.md}",
+            "tools": {
+                "read": true,
+                "grep": true,
+                "glob": true,
+                "list": true,
+                "skill": true,
+                "webfetch": true,
+                "bash": true,
+                "edit": true,
+                "write": true
+            }
+        },
+        "maui-dev": {
+            "description": "PROACTIVELY use for MAUI UI development with CommunityToolkit.Maui, cross-platform code, and mobile/desktop features. Expert in MAUI Shell, MVVM, and accessibility.",
+            "mode": "all",
+            "prompt": "{file:.claude/agents/maui-dev.md}",
+            "tools": {
+                "read": true,
+                "grep": true,
+                "glob": true,
+                "list": true,
+                "skill": true,
+                "webfetch": true,
+                "bash": true,
+                "edit": true,
+                "write": true
+            }
+        }
+    },
+    "command": {
+        "dp-code-reviewer": {
+            "description": "Orchestrate the code review cycle between development agents and the code-reviewer agent until code is commit-ready.",
+            "agent": "build",
+            "template": "Use the following command playbook:\n@.claude/commands/dp-code-reviewer.md\n\nUser input:\n$ARGUMENTS"
+        }
+    }
+}

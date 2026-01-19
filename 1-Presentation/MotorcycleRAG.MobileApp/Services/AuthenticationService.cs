@@ -14,9 +14,29 @@ public class AuthenticationService : IAuthenticationService
     public AuthenticationService(IConfiguration configuration)
     {
         var authSettings = configuration.GetSection("Authentication");
-        var clientId = authSettings["ClientId"];
-        var tenantId = authSettings["TenantId"];
-        var redirectUri = authSettings["RedirectUri"];
+
+        // Try environment variables first, fall back to configuration
+        var clientId = Environment.GetEnvironmentVariable("MCR_MOBILE_CLIENT_ID")
+            ?? authSettings["ClientId"];
+        var tenantId = Environment.GetEnvironmentVariable("MCR_MOBILE_TENANT_ID")
+            ?? authSettings["TenantId"];
+        var redirectUri = Environment.GetEnvironmentVariable("MCR_MOBILE_REDIRECT_URI")
+            ?? authSettings["RedirectUri"];
+
+        // Validate required settings
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            throw new InvalidOperationException(
+                "Mobile authentication ClientId is not configured. " +
+                "Set MCR_MOBILE_CLIENT_ID environment variable or configure Authentication:ClientId in appsettings.json");
+        }
+
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            throw new InvalidOperationException(
+                "Mobile authentication TenantId is not configured. " +
+                "Set MCR_MOBILE_TENANT_ID environment variable or configure Authentication:TenantId in appsettings.json");
+        }
 
         // Default scopes if not provided in config
         _scopes = authSettings.GetSection("Scopes").Get<string[]>() ?? new[] { "User.Read" };
@@ -42,7 +62,7 @@ public class AuthenticationService : IAuthenticationService
         {
             var accounts = await _pca.GetAccountsAsync();
             var firstAccount = accounts.FirstOrDefault();
-            AuthenticationResult? result;
+            AuthenticationResult? result = null;
 
             if (firstAccount != null)
             {
@@ -54,11 +74,22 @@ public class AuthenticationService : IAuthenticationService
                                     .ExecuteAsync();
             }
 
-            return result != null;
+            // Validate token is not expired (with 1-minute buffer)
+            if (result != null && result.ExpiresOn > DateTimeOffset.UtcNow.AddMinutes(1))
+            {
+                return true;
+            }
+
+            return false;
+        }
+        catch (MsalUiRequiredException)
+        {
+            // User needs interactive sign-in
+            return false;
         }
         catch (MsalException)
         {
-            // In a real app, we might want to log this or handle specific error codes
+            // Authentication error
             return false;
         }
     }

@@ -29,7 +29,9 @@ internal static class DataPipelineConfiguration
         services.AddSingleton<IScheduledPipelineService, MotorcycleRAG.Application.Pipeline.ScheduledPipelineService>();
 
         // Register scheduled service as a hosted service
-        services.AddHostedService(serviceProvider =>
+        // ScheduledPipelineService extends BackgroundService which implements IHostedService
+        // Use singleton factory to ensure same instance is used for both interfaces
+        services.AddSingleton<Microsoft.Extensions.Hosting.IHostedService>(serviceProvider =>
             serviceProvider.GetRequiredService<IScheduledPipelineService>() as Microsoft.Extensions.Hosting.IHostedService
             ?? throw new InvalidOperationException("ScheduledPipelineService must implement IHostedService"));
 

@@ -59,12 +59,20 @@ internal sealed class CorrelationIdMiddleware
             {
                 await _next(context);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException)
             {
-                var correlationIdString = correlationId.ToString();
-                _logger.LogError(ex, "Request failed with correlation ID {CorrelationId}", correlationIdString ?? "null");
-                throw new InvalidOperationException($"Request pipeline failed (CorrelationId: {correlationIdString})", ex);
+                // Operation cancelled (e.g., client disconnect); don't log as error
+                throw;
             }
+#pragma warning disable S2139 // Either log this exception and handle it, or rethrow it with contextual information
+            catch (Exception ex)
+            {
+                // Log the error with correlation ID, but re-throw the original exception
+                // This allows downstream exception handling middleware to see the original exception type
+                _logger.LogError(ex, "Request failed");
+                throw;
+            }
+#pragma warning restore S2139
         }
     }
 }

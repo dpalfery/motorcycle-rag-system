@@ -21,10 +21,33 @@ public class MotorcycleRagApiClient : IApiClient
 
     public MotorcycleRagApiClient(HttpClient httpClient, IConfiguration configuration, ILogger<MotorcycleRagApiClient> logger)
     {
-        _httpClient = httpClient;
-        _logger = logger;
-        var baseUrl = configuration["ApiSettings:BaseUrl"] ?? "https://api.motorcyclerag.com";
-        _httpClient.BaseAddress = new Uri(baseUrl);
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        // Get base URL from environment variable first, then configuration
+        var baseUrl = Environment.GetEnvironmentVariable("MCR_MOBILE_API_BASE_URL")
+            ?? configuration["ApiSettings:BaseUrl"];
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            throw new InvalidOperationException(
+                "API base URL is not configured. " +
+                "Set MCR_MOBILE_API_BASE_URL environment variable or configure ApiSettings:BaseUrl in appsettings.json");
+        }
+
+        // Validate HTTPS
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) || uri.Scheme != "https")
+        {
+            throw new InvalidOperationException(
+                $"API base URL must use HTTPS protocol for security. " +
+                $"Configured URL: {baseUrl}. " +
+                $"Update ApiSettings:BaseUrl in appsettings.json to a valid HTTPS endpoint or set MCR_MOBILE_API_BASE_URL.");
+        }
+
+        _httpClient.BaseAddress = uri;
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+        _logger.LogInformation("Mobile API client configured for {ApiHost}", uri.Host);
 
         _retryPolicy = Policy
             .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode && r.StatusCode != HttpStatusCode.TooManyRequests)

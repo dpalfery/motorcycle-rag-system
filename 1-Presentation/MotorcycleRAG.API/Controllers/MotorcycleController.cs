@@ -174,12 +174,20 @@ public sealed class MotorcycleController : ControllerBase {
 
             // Validate preferred sources if any
             if (request.Preferences.PreferredSources != null) {
+                const int maxPreferredSources = 10;
+                if (request.Preferences.PreferredSources.Count > maxPreferredSources) {
+                    errors.Add($"PreferredSources cannot exceed {maxPreferredSources} items");
+                }
+
                 foreach (var source in request.Preferences.PreferredSources) {
                     if (string.IsNullOrWhiteSpace(source)) {
                         errors.Add("PreferredSources cannot contain empty values");
                     }
                     else if (source.Length > 100) {
                         errors.Add("PreferredSources values cannot exceed 100 characters");
+                    }
+                    else if (!System.Text.RegularExpressions.Regex.IsMatch(source, @"^[a-zA-Z0-9\-_]+$")) {
+                        errors.Add("PreferredSources values must contain only alphanumeric characters, hyphens, or underscores");
                     }
                 }
             }

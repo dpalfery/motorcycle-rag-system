@@ -108,30 +108,28 @@ public sealed class UsersAdminController : ControllerBase {
     }
 
     /// <summary>
-    /// Gets all users (admin view) with default pagination.
-    /// </summary>
-    /// <returns>Paged list of users</returns>
-    [HttpGet]
-    [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(UserListResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAllUsersAsync() {
-        return await GetAllUsersInternalAsync(1, 50);
-    }
-
-    /// <summary>
     /// Gets all users (admin view) with custom pagination.
     /// </summary>
-    /// <param name="page">Page number</param>
-    /// <param name="pageSize">Page size</param>
+    /// <param name="page">Page number (minimum 1)</param>
+    /// <param name="pageSize">Page size (1-100)</param>
     /// <returns>Paged list of users</returns>
     [HttpGet]
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UserListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetAllUsersAsync([FromQuery] int page, [FromQuery] int pageSize) {
+        // Validate pagination parameters
+        if (page < 1) {
+            return BadRequest(new { error = "Page must be greater than or equal to 1" });
+        }
+
+        const int maxPageSize = 100;
+        if (pageSize < 1 || pageSize > maxPageSize) {
+            return BadRequest(new { error = $"PageSize must be between 1 and {maxPageSize}" });
+        }
+
         return await GetAllUsersInternalAsync(page, pageSize);
     }
 

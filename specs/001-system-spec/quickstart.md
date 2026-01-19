@@ -35,15 +35,33 @@ This script will:
 
 ### Step 3: Load Environment Variables for Local Development
 
+**Minimum Required for API Startup:**
+- `MCR_API_AZURE_AD_TENANT_ID` - Your Azure AD tenant ID
+- `MCR_API_AZURE_AD_CLIENT_ID` - Your API app registration client ID
+
+**Optional (for full functionality):**
+- `MCR_API_AZURE_OPENAI_ENDPOINT`
+- `MCR_API_AZURE_SEARCH_ENDPOINT`
+- `MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT`
+- `MCR_API_AZURE_FOUNDRY_ENDPOINT`
+
+**Degraded Mode**: The API will start without the optional Azure service endpoints configured. Features requiring these services will return "service not configured" errors until you set up the endpoints.
+
 Choose one method appropriate for your development workflow:
 
 **Option A: Using User Secrets (Recommended for Visual Studio)**
 ```powershell
 cd 1-Presentation/MotorcycleRAG.API
-dotnet user-secrets init
-dotnet user-secrets set "AzureAd:TenantId" "your-actual-tenant-id"
-dotnet user-secrets set "AzureAd:ClientId" "your-actual-client-id"
-dotnet user-secrets set "AzureAd:Audience" "your-actual-client-id"
+
+# Minimum required for startup
+dotnet user-secrets set "MCR_API_AZURE_AD_TENANT_ID" "your-actual-tenant-id"
+dotnet user-secrets set "MCR_API_AZURE_AD_CLIENT_ID" "your-actual-client-id"
+
+# Optional - add when you have Azure resources provisioned
+dotnet user-secrets set "MCR_API_AZURE_OPENAI_ENDPOINT" "https://your-openai.openai.azure.com"
+dotnet user-secrets set "MCR_API_AZURE_SEARCH_ENDPOINT" "https://your-search.search.windows.net"
+dotnet user-secrets set "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT" "https://your-di.cognitiveservices.azure.com"
+dotnet user-secrets set "MCR_API_AZURE_FOUNDRY_ENDPOINT" "https://your-foundry.cognitiveservices.azure.com"
 ```
 
 User Secrets are stored securely outside the repository and override `appsettings.json` values during development. This is the recommended approach.

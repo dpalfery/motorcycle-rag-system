@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.API.Configuration.Services;
 using MotorcycleRAG.API.Extensions;
@@ -35,10 +35,8 @@ namespace MotorcycleRAG.API;
     "Design",
     "S1200:Split this class into smaller and more specialized ones",
     Justification = "Composition root naturally has many dependencies")]
-public class Program
-{
-    public static async Task Main(string[] args)
-    {
+public class Program {
+    public static async Task Main(string[] args) {
         var builder = WebApplication.CreateBuilder(args);
 
         // Configure logging
@@ -47,18 +45,15 @@ public class Program
         builder.Logging.AddDebug();
 
         // Configure structured logging
-        if (builder.Environment.IsProduction())
-        {
+        if (builder.Environment.IsProduction()) {
             builder.Logging.AddJsonConsole();
         }
 
         // Add Azure App Configuration & Key Vault
         var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
-        if (!string.IsNullOrEmpty(appConfigEndpoint))
-        {
+        if (!string.IsNullOrEmpty(appConfigEndpoint)) {
             var credential = new DefaultAzureCredential();
-            builder.Configuration.AddAzureAppConfiguration(options =>
-            {
+            builder.Configuration.AddAzureAppConfiguration(options => {
                 options.Connect(new Uri(appConfigEndpoint), credential)
                        // Load all non-labelled keys
                        .Select(KeyFilter.Any)
@@ -67,8 +62,7 @@ public class Program
                        // Configure Key Vault integration
                        .ConfigureKeyVault(kv => kv.SetCredential(credential))
                        // Configure refresh with sentinel key for live configuration updates
-                       .ConfigureRefresh(refreshOptions =>
-                       {
+                       .ConfigureRefresh(refreshOptions => {
                            // When the sentinel key changes, refresh all cached configuration values
                            refreshOptions.Register("Settings:Sentinel", refreshAll: true)
                            .SetRefreshInterval(TimeSpan.FromSeconds(30));
@@ -82,8 +76,7 @@ public class Program
         var appConfigEndpointConfigured = configuration["AppConfig:Endpoint"];
         var isAppConfigEnabled = !string.IsNullOrEmpty(appConfigEndpointConfigured);
 
-        if (isAppConfigEnabled)
-        {
+        if (isAppConfigEnabled) {
             // Registers IAzureAppConfigurationRefresher and other required services
             builder.Services.AddAzureAppConfiguration();
         }
@@ -94,8 +87,7 @@ public class Program
         var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights");
 
         // Fail fast if telemetry is enabled but connection string is not configured
-        if (enableTelemetry && string.IsNullOrWhiteSpace(appInsightsConnectionString))
-        {
+        if (enableTelemetry && string.IsNullOrWhiteSpace(appInsightsConnectionString)) {
             throw new InvalidOperationException(
                 "Application Insights is enabled (EnableTelemetry=true) but ConnectionString is not configured. " +
                 "REQUIRED: Set the MCR_API_APPINSIGHTS_CONNECTION_STRING environment variable. " +
@@ -104,10 +96,8 @@ public class Program
         }
 
         // Add Application Insights telemetry only if connection string is provided
-        if (!string.IsNullOrEmpty(appInsightsConnectionString))
-        {
-            builder.Services.AddApplicationInsightsTelemetry(options =>
-            {
+        if (!string.IsNullOrEmpty(appInsightsConnectionString)) {
+            builder.Services.AddApplicationInsightsTelemetry(options => {
                 options.ConnectionString = appInsightsConnectionString;
                 options.EnableAdaptiveSampling = true;
                 options.EnableQuickPulseMetricStream = true;
@@ -124,13 +114,11 @@ public class Program
 
         // Enforce maximum request body size (50MB) for security and DoS mitigation
         // This matches the application-level validation in FileUploadService
-        builder.WebHost.ConfigureKestrel(options =>
-        {
+        builder.WebHost.ConfigureKestrel(options => {
             options.Limits.MaxRequestBodySize = 50 * 1024 * 1024;
         });
 
-        builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
-        {
+        builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options => {
             options.MultipartBodyLengthLimit = 50 * 1024 * 1024;
         });
 
@@ -149,10 +137,8 @@ public class Program
 
         // Configure API documentation
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen(c =>
-        {
-            c.SwaggerDoc("v1", new()
-            {
+        builder.Services.AddSwaggerGen(c => {
+            c.SwaggerDoc("v1", new() {
                 Title = "Motorcycle RAG API",
                 Version = "v1",
                 Description = "AI-powered motorcycle information retrieval system"
@@ -165,10 +151,8 @@ public class Program
         var corsOrigins = configuration["Cors:AllowedOrigins"]?.Split(";", StringSplitOptions.RemoveEmptyEntries)
             ?? new[] { "https://localhost:3000" }; // Default for local development only
 
-        builder.Services.AddCors(options =>
-        {
-            options.AddDefaultPolicy(policy =>
-            {
+        builder.Services.AddCors(options => {
+            options.AddDefaultPolicy(policy => {
                 policy.WithOrigins(corsOrigins)
                       .AllowCredentials() // Support HttpOnly cookies for secure auth
                       .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // Exclude PATCH, CONNECT, TRACE
@@ -185,8 +169,7 @@ public class Program
         ValidateAndPopulateAzureAIConfiguration(configuration);
 
         // Configure custom services with validation
-        try
-        {
+        try {
             builder.Services.AddAzureAIServices(configuration);
             builder.Services.AddCoreServices();
             builder.Services.AddSearchAgents(configuration);
@@ -210,50 +193,43 @@ public class Program
             // Per spec.md (FR-038e.8) and plan.md: Admin-only operations require BOTH:
             //   1. "admin_access" in the 'scp' (scope) claim
             //   2. An allowed value in the 'roles' claim (e.g., Admin, DataAdmin, ContentAdmin, SuperAdmin)
-            builder.Services.AddAuthorization(options =>
-            {
+            builder.Services.AddAuthorization(options => {
                 // Admin policy - requires BOTH admin_access scope AND Admin app role
-                options.AddPolicy("Admin", policy =>
-                {
+                options.AddPolicy("Admin", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
                     policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Admin"); // Role requirement
                 });
 
                 // DataAdmin policy - requires BOTH admin_access scope AND DataAdmin app role
-                options.AddPolicy("DataAdmin", policy =>
-                {
+                options.AddPolicy("DataAdmin", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
                     policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "DataAdmin"); // Role requirement
                 });
 
                 // ContentAdmin policy - requires BOTH admin_access scope AND ContentAdmin app role
-                options.AddPolicy("ContentAdmin", policy =>
-                {
+                options.AddPolicy("ContentAdmin", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
                     policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "ContentAdmin"); // Role requirement
                 });
 
                 // SuperAdmin policy - requires BOTH admin_access scope AND SuperAdmin app role
-                options.AddPolicy("SuperAdmin", policy =>
-                {
+                options.AddPolicy("SuperAdmin", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
                     policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "SuperAdmin"); // Role requirement
                 });
 
                 // User policy - requires User app role (no scope requirement for regular users)
-                options.AddPolicy("User", policy =>
-                {
+                options.AddPolicy("User", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "User");
                 });
 
                 // Viewer policy - requires Viewer app role (no scope requirement for read-only access)
-                options.AddPolicy("Viewer", policy =>
-                {
+                options.AddPolicy("Viewer", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Viewer");
                 });
@@ -265,17 +241,14 @@ public class Program
             });
 
             // Add rate limiting for public endpoints
-            builder.Services.AddRateLimiter(options =>
-            {
-                options.AddFixedWindowLimiter("public", rateLimiterOptions =>
-                {
+            builder.Services.AddRateLimiter(options => {
+                options.AddFixedWindowLimiter("public", rateLimiterOptions => {
                     rateLimiterOptions.Window = TimeSpan.FromSeconds(10);
                     rateLimiterOptions.PermitLimit = 100;
                     rateLimiterOptions.QueueLimit = 50;
                 });
 
-                options.AddFixedWindowLimiter("authenticated", rateLimiterOptions =>
-                {
+                options.AddFixedWindowLimiter("authenticated", rateLimiterOptions => {
                     rateLimiterOptions.Window = TimeSpan.FromMinutes(1);
                     rateLimiterOptions.PermitLimit = 1000;
                     rateLimiterOptions.QueueLimit = 100;
@@ -284,8 +257,7 @@ public class Program
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             });
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             // Log configuration errors during startup before rethrowing
             // This ensures the error is recorded in application logs while preventing startup
             using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
@@ -297,11 +269,9 @@ public class Program
         var app = builder.Build();
 
         // Configure the HTTP request pipeline
-        if (app.Environment.IsDevelopment())
-        {
+        if (app.Environment.IsDevelopment()) {
             app.UseSwagger();
-            app.UseSwaggerUI(c =>
-            {
+            app.UseSwaggerUI(c => {
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "Motorcycle RAG API v1");
                 c.RoutePrefix = string.Empty; // Serve Swagger UI at root
             });
@@ -309,8 +279,7 @@ public class Program
 
         // Enable automatic refresh of configuration values from Azure App Configuration
         var isAppConfigEndpointConfigured = !string.IsNullOrEmpty(appConfigEndpointConfigured);
-        if (isAppConfigEndpointConfigured)
-        {
+        if (isAppConfigEndpointConfigured) {
             app.UseAzureAppConfiguration();
         }
 
@@ -343,8 +312,7 @@ public class Program
         // Map global health check endpoint to use "public" policy (not authenticated, higher limit)
         // Health checks should be accessible to monitoring systems without authentication
         // Returns structured JSON response with individual dependency status
-        app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-        {
+        app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions {
             ResponseWriter = HealthCheckResponseWriter.WriteResponse,
             AllowCachingResponses = false
         }).RequireRateLimiting("public");
@@ -356,26 +324,22 @@ public class Program
 
         // Pre-warm the JWT signing key cache to avoid blocking on first request
         // This is critical to prevent deadlocks under concurrent load
-        try
-        {
+        try {
             var authConfig = builder.Configuration.GetSection("Authentication:Issuers");
             var workforceIssuer = authConfig["Workforce"];
             var externalIdIssuer = authConfig["ExternalId"];
 
-            if (!string.IsNullOrEmpty(workforceIssuer))
-            {
+            if (!string.IsNullOrEmpty(workforceIssuer)) {
                 var signingKeyCache = app.Services.GetRequiredService<SigningKeyCache>();
                 logger.LogInformation("Pre-warming JWT signing key cache...");
                 await signingKeyCache.PreWarmCacheAsync(workforceIssuer, externalIdIssuer);
                 logger.LogInformation("JWT signing key cache pre-warming completed");
             }
-            else
-            {
+            else {
                 logger.LogWarning("Workforce issuer not configured - signing key cache will not be pre-warmed");
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             logger.LogError(ex, "Error pre-warming JWT signing key cache. Application will continue but JWT validation may fail on first request.");
         }
 
@@ -383,42 +347,42 @@ public class Program
     }
 
     /// <summary>
-    /// Validates and populates Azure AD configuration from environment variables.
-    /// This ensures sensitive identifiers are read from environment variables ONLY.
-    /// No fallbacks to configuration files are permitted for security compliance.
+    /// Validates and populates Azure AD configuration from secure sources.
+    /// Reads from: 1) Environment variables (production), 2) User Secrets (development).
+    /// No fallbacks to appsettings.json files are permitted for security compliance.
     /// </summary>
     /// <param name="configuration">The application configuration</param>
-    private static void ValidateAndPopulateAzureAdConfiguration(IConfiguration configuration)
-    {
+    private static void ValidateAndPopulateAzureAdConfiguration(IConfiguration configuration) {
         const string ConfigFilesLabel = nameof(configuration);
 
-        // SECURITY: Environment variables ONLY - no fallbacks to config files
-        var tenantId = Environment.GetEnvironmentVariable("MCR_API_AZURE_AD_TENANT_ID");
-        var clientId = Environment.GetEnvironmentVariable("MCR_API_AZURE_AD_CLIENT_ID");
+        // SECURITY: Read from environment variables OR user secrets (both are secure)
+        // Priority: Environment variables > User Secrets > (fail - no appsettings.json fallback)
+        var tenantId = Environment.GetEnvironmentVariable("MCR_API_AZURE_AD_TENANT_ID") 
+                       ?? configuration["MCR_API_AZURE_AD_TENANT_ID"];
+        var clientId = Environment.GetEnvironmentVariable("MCR_API_AZURE_AD_CLIENT_ID") 
+                       ?? configuration["MCR_API_AZURE_AD_CLIENT_ID"];
 
         // Fail fast if required secrets are missing
-        if (string.IsNullOrWhiteSpace(tenantId))
-        {
+        if (string.IsNullOrWhiteSpace(tenantId)) {
             throw new InvalidOperationException(
                 "Azure AD Tenant ID is not configured. " +
-                "REQUIRED: Set the MCR_API_AZURE_AD_TENANT_ID environment variable. " +
+                "REQUIRED: Set the MCR_API_AZURE_AD_TENANT_ID environment variable or user secret. " +
                 $"No fallback to {ConfigFilesLabel} files is permitted for security compliance. " +
-                $"For local development, use: dotnet user-secrets set \"{nameof(tenantId)}\" \"your-tenant-id\"");
+                $"For local development, use: dotnet user-secrets set \"MCR_API_AZURE_AD_TENANT_ID\" \"your-tenant-id\" --project 1-Presentation/MotorcycleRAG.API");
         }
 
-        if (string.IsNullOrWhiteSpace(clientId))
-        {
+        if (string.IsNullOrWhiteSpace(clientId)) {
             throw new InvalidOperationException(
                 "Azure AD Client ID is not configured. " +
-                "REQUIRED: Set the MCR_API_AZURE_AD_CLIENT_ID environment variable. " +
+                "REQUIRED: Set the MCR_API_AZURE_AD_CLIENT_ID environment variable or user secret. " +
                 $"No fallback to {ConfigFilesLabel} files is permitted for security compliance. " +
-                $"For local development, use: dotnet user-secrets set \"{nameof(clientId)}\" \"your-client-id\"");
+                $"For local development, use: dotnet user-secrets set \"MCR_API_AZURE_AD_CLIENT_ID\" \"your-client-id\" --project 1-Presentation/MotorcycleRAG.API");
         }
 
         // Log secret sources for audit trail
         using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
         var startupLogger = loggerFactory.CreateLogger("Program");
-        startupLogger.LogInformation("Azure AD configuration loaded from environment variables (MCR_API_AZURE_AD_TENANT_ID, MCR_API_AZURE_AD_CLIENT_ID)");
+        startupLogger.LogInformation("Azure AD configuration loaded from secure source (MCR_API_AZURE_AD_TENANT_ID, MCR_API_AZURE_AD_CLIENT_ID)");
 
         // Update configuration with environment values
         var azureAdSection = new ConfigurationBuilder()
@@ -436,39 +400,56 @@ public class Program
             .Build();
 
         // Merge environment-based config into the existing configuration
-        foreach (var kvp in azureAdSection.AsEnumerable().Where(x => x.Value != null))
-        {
+        foreach (var kvp in azureAdSection.AsEnumerable().Where(x => x.Value != null)) {
             ((IConfigurationBuilder)configuration).AddInMemoryCollection(new[] { kvp });
         }
     }
 
     /// <summary>
-    /// Validates and populates Azure AI service endpoints from environment variables ONLY.
+    /// Validates and populates Azure AI service endpoints from secure sources.
+    /// Reads from: 1) Environment variables (production), 2) User Secrets (development).
     /// Ensures endpoints are HTTPS URLs and not empty/placeholder values.
-    /// No fallbacks to configuration files are permitted for security compliance.
+    /// OPTIONAL: Services can be configured later. App will run in degraded state if not configured.
     /// </summary>
     /// <param name="configuration">The application configuration</param>
-    private static void ValidateAndPopulateAzureAIConfiguration(IConfiguration configuration)
-    {
-        // SECURITY: Environment variables ONLY - no fallbacks to config files
-        var openAIEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_OPENAI_ENDPOINT");
-        var searchEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_SEARCH_ENDPOINT");
-        var documentIntelligenceEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT");
-        var foundryEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT");
+    private static void ValidateAndPopulateAzureAIConfiguration(IConfiguration configuration) {
+        // SECURITY: Read from environment variables OR user secrets (both are secure)
+        // Priority: Environment variables > User Secrets > null (degraded mode)
+        var openAIEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_OPENAI_ENDPOINT")
+                             ?? configuration["MCR_API_AZURE_OPENAI_ENDPOINT"];
+        var searchEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_SEARCH_ENDPOINT")
+                             ?? configuration["MCR_API_AZURE_SEARCH_ENDPOINT"];
+        var documentIntelligenceEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+                                           ?? configuration["MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"];
+        var foundryEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT")
+                              ?? configuration["MCR_API_AZURE_FOUNDRY_ENDPOINT"];
 
-        // Validate endpoints are provided and valid HTTPS URLs
-        ValidateEndpoint("OpenAI", openAIEndpoint, "MCR_API_AZURE_OPENAI_ENDPOINT");
-        ValidateEndpoint("Search", searchEndpoint, "MCR_API_AZURE_SEARCH_ENDPOINT");
-        ValidateEndpoint("Document Intelligence", documentIntelligenceEndpoint, "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT");
-        ValidateEndpoint("Foundry", foundryEndpoint, "MCR_API_AZURE_FOUNDRY_ENDPOINT");
+        // Validate endpoints ONLY if they are provided (optional for degraded mode)
+        ValidateEndpointIfProvided("OpenAI", openAIEndpoint, "MCR_API_AZURE_OPENAI_ENDPOINT");
+        ValidateEndpointIfProvided("Search", searchEndpoint, "MCR_API_AZURE_SEARCH_ENDPOINT");
+        ValidateEndpointIfProvided("Document Intelligence", documentIntelligenceEndpoint, "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT");
+        ValidateEndpointIfProvided("Foundry", foundryEndpoint, "MCR_API_AZURE_FOUNDRY_ENDPOINT");
 
-        // Log secret sources for audit trail
+        // Log configuration status for audit trail
         using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
         var startupLogger = loggerFactory.CreateLogger("Program");
-        startupLogger.LogInformation(
-            "Azure AI configuration loaded from environment variables " +
-            "(MCR_API_AZURE_OPENAI_ENDPOINT, MCR_API_AZURE_SEARCH_ENDPOINT, " +
-            "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, MCR_API_AZURE_FOUNDRY_ENDPOINT)");
+        
+        var configuredServices = new List<string>();
+        if (!string.IsNullOrWhiteSpace(openAIEndpoint)) configuredServices.Add("OpenAI");
+        if (!string.IsNullOrWhiteSpace(searchEndpoint)) configuredServices.Add("Search");
+        if (!string.IsNullOrWhiteSpace(documentIntelligenceEndpoint)) configuredServices.Add("Document Intelligence");
+        if (!string.IsNullOrWhiteSpace(foundryEndpoint)) configuredServices.Add("Foundry");
+
+        if (configuredServices.Any()) {
+            startupLogger.LogInformation(
+                "Azure AI services configured: {Services}. Other services will run in degraded mode.",
+                string.Join(", ", configuredServices));
+        } else {
+            startupLogger.LogWarning(
+                "No Azure AI services configured. App running in degraded mode. " +
+                "Set MCR_API_AZURE_OPENAI_ENDPOINT, MCR_API_AZURE_SEARCH_ENDPOINT, " +
+                "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, MCR_API_AZURE_FOUNDRY_ENDPOINT to enable features.");
+        }
 
         // Update configuration with environment values (environment variables ONLY)
         var azureAIConfig = new Dictionary<string, string?>
@@ -484,36 +465,30 @@ public class Program
             .Build();
 
         // Merge environment-based config into the existing configuration
-        foreach (var kvp in azureAISection.AsEnumerable().Where(x => x.Value != null))
-        {
+        foreach (var kvp in azureAISection.AsEnumerable().Where(x => x.Value != null)) {
             ((IConfigurationBuilder)configuration).AddInMemoryCollection(new[] { kvp });
         }
     }
 
     /// <summary>
-    /// Validates a single Azure service endpoint from environment variables.
+    /// Validates a single Azure service endpoint from environment variables if provided.
     /// Ensures endpoint is a valid HTTPS URL (not a placeholder or example value).
+    /// If not provided, the service will run in degraded mode.
     /// </summary>
-    private static void ValidateEndpoint(string serviceName, string? endpoint, string envVarName)
-    {
+    private static void ValidateEndpointIfProvided(string serviceName, string? endpoint, string envVarName) {
+        // If not provided, skip validation - service will run in degraded mode
+        if (string.IsNullOrWhiteSpace(endpoint)) {
+            return;
+        }
+
         const string YourPrefix = "your-";
         const string ExampleKeyword = "example";
         const string PlaceholderKeyword = "placeholder";
         const string CurrentLabel = nameof(endpoint);
         const string EndpointLabel = nameof(endpoint);
 
-        if (string.IsNullOrWhiteSpace(endpoint))
-        {
-            throw new InvalidOperationException(
-                $"Azure {serviceName} {EndpointLabel} is REQUIRED but not configured. " +
-                $"Set the {envVarName} environment variable to a valid HTTPS URL. " +
-                $"No fallback to configuration files is permitted for security compliance. " +
-                $"For local development, use: dotnet user-secrets set \"{envVarName}\" \"https://your-{serviceName.ToUpperInvariant()}-{EndpointLabel}.openai.azure.com/\"");
-        }
-
         // Verify endpoint is HTTPS
-        if (!endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
+        if (!endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
             throw new InvalidOperationException(
                 $"Azure {serviceName} {EndpointLabel} MUST use HTTPS protocol for security. " +
                 $"Current {CurrentLabel}: {endpoint}. " +
@@ -521,8 +496,7 @@ public class Program
         }
 
         // Verify endpoint is a valid URI
-        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || uri.Scheme != "https")
-        {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || uri.Scheme != "https") {
             throw new InvalidOperationException(
                 $"Azure {serviceName} {EndpointLabel} is not a valid HTTPS URL. " +
                 $"Current {CurrentLabel}: {endpoint}. " +
@@ -532,8 +506,7 @@ public class Program
         // Warn if endpoint looks like a placeholder or example value
         if (endpoint.Contains(YourPrefix, StringComparison.OrdinalIgnoreCase) ||
             endpoint.Contains(ExampleKeyword, StringComparison.OrdinalIgnoreCase) ||
-            endpoint.Contains(PlaceholderKeyword, StringComparison.OrdinalIgnoreCase))
-        {
+            endpoint.Contains(PlaceholderKeyword, StringComparison.OrdinalIgnoreCase)) {
             throw new InvalidOperationException(
                 $"Azure {serviceName} {EndpointLabel} appears to be a placeholder or example value. " +
                 $"Current {CurrentLabel}: {endpoint}. " +

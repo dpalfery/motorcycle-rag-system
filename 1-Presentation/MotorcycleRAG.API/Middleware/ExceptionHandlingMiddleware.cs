@@ -61,35 +61,41 @@ internal sealed class ExceptionHandlingMiddleware
 
         _logger.LogError(exception, "Unhandled exception occurred: {Message}", exception.Message);
 
+        // Generate correlation ID for client support reference
+        var correlationId = context.TraceIdentifier ?? Guid.NewGuid().ToString();
+
         var problemDetails = new ProblemDetails
         {
             Title = "An unexpected error occurred",
             Status = (int)HttpStatusCode.InternalServerError,
-            Detail = exception.Message,
+            Detail = $"An unexpected error occurred. Reference ID: {correlationId}",
             Instance = context.Request.Path
         };
 
-        // Add correlation ID if available
-        if (!string.IsNullOrEmpty(context.TraceIdentifier))
-        {
-            problemDetails.Extensions["traceId"] = context.TraceIdentifier;
-        }
+        // Add correlation ID for support reference
+        problemDetails.Extensions["referenceId"] = correlationId;
 
-        // Handle specific exception types
+        // Handle specific exception types with safe messages
         switch (exception)
         {
             case ArgumentNullException nullEx:
                 problemDetails.Title = "Missing required parameter";
                 problemDetails.Status = (int)HttpStatusCode.BadRequest;
-                problemDetails.Detail = nullEx.Message;
-                problemDetails.Extensions["parameterName"] = nullEx.ParamName;
+                problemDetails.Detail = "A required parameter is missing";
+                if (!string.IsNullOrEmpty(nullEx.ParamName))
+                {
+                    problemDetails.Extensions["parameter"] = nullEx.ParamName;
+                }
                 break;
 
             case ArgumentException argEx:
                 problemDetails.Title = "Invalid argument";
                 problemDetails.Status = (int)HttpStatusCode.BadRequest;
-                problemDetails.Detail = argEx.Message;
-                problemDetails.Extensions["parameterName"] = argEx.ParamName;
+                problemDetails.Detail = "One or more arguments are invalid. Please check your input";
+                if (!string.IsNullOrEmpty(argEx.ParamName))
+                {
+                    problemDetails.Extensions["parameter"] = argEx.ParamName;
+                }
                 break;
 
             case UnauthorizedAccessException:
@@ -98,16 +104,16 @@ internal sealed class ExceptionHandlingMiddleware
                 problemDetails.Detail = "You are not authorized to access this resource";
                 break;
 
-            case InvalidOperationException opEx:
+            case InvalidOperationException:
                 problemDetails.Title = "Invalid operation";
                 problemDetails.Status = (int)HttpStatusCode.BadRequest;
-                problemDetails.Detail = opEx.Message;
+                problemDetails.Detail = "The requested operation is invalid in this context";
                 break;
 
             case TimeoutException:
                 problemDetails.Title = "Request timeout";
                 problemDetails.Status = (int)HttpStatusCode.RequestTimeout;
-                problemDetails.Detail = "The request timed out";
+                problemDetails.Detail = "The request took too long to complete";
                 break;
 
             case NotImplementedException:
@@ -125,7 +131,7 @@ internal sealed class ExceptionHandlingMiddleware
             default:
                 problemDetails.Title = "Internal server error";
                 problemDetails.Status = (int)HttpStatusCode.InternalServerError;
-                problemDetails.Detail = "An unexpected error occurred";
+                problemDetails.Detail = $"An unexpected error occurred. Contact support with Reference ID: {correlationId}";
                 break;
         }
 

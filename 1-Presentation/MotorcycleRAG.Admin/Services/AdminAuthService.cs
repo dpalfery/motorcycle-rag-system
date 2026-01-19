@@ -133,11 +133,12 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
             _currentAuthResult = await _msalClient
                 .AcquireTokenWithDeviceCode(_scopes, deviceCodeResult =>
                 {
-                    // Display the device code to the user - log key information only
-                    _logger.LogInformation("Device code flow initiated. ExpiresOn: {Expires}, VerificationUrl: {Url}, CodeLength: {CodeLength}, Message: {Message}",
-                        deviceCodeResult.ExpiresOn, deviceCodeResult.VerificationUrl, deviceCodeResult.DeviceCode?.Length ?? 0, deviceCodeResult.Message);
+                    // Display the device code to the user
+                    // Do NOT log verification URL or message; device code credentials are sensitive
+                    var minutesRemaining = (deviceCodeResult.ExpiresOn - DateTime.UtcNow).TotalMinutes;
+                    _logger.LogInformation("Device code flow initiated. Expires in {MinutesRemaining} minutes", minutesRemaining);
 
-                    // On Windows, we can also show this in the UI
+                    // Show device code message to user via UI (not logs)
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
                         var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;

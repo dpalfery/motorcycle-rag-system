@@ -15,10 +15,11 @@ builder.Services.AddCors(options => {
     options.AddPolicy("AllowFrontend", policy => {
         policy
             .WithOrigins(allowedOrigins)
-            .AllowAnyMethod()
-            .AllowAnyHeader()
+            .WithMethods("GET", "POST", "PUT", "DELETE")  // Explicit methods only
+            .WithHeaders("Content-Type", "Authorization", "X-Requested-With")  // Explicit headers
             .AllowCredentials()
-            .WithExposedHeaders("Content-Disposition"); // Allow download headers
+            .WithExposedHeaders("Content-Disposition")  // Allow download headers
+            .SetPreflightMaxAge(TimeSpan.FromMinutes(5));  // Cache preflight for 5 minutes
     });
 });
 
@@ -110,19 +111,29 @@ app.Use(async (context, next) => {
     // Enable XSS protection
     context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
 
-    // Content Security Policy - restrict resource loading
-#pragma warning disable S7039 // Content Security Policy should be restrictive
-    context.Response.Headers.Append("Content-Security-Policy",
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // React development requires inline scripts
-        "style-src 'self' 'unsafe-inline'; " + // Material UI uses inline styles
-        "img-src 'self' data: https:; " +
-        "font-src 'self' data:; " +
-        "connect-src 'self'; " +
-        "frame-ancestors 'none'; " +
-        "base-uri 'self'; " +
-        "form-action 'self'");
-#pragma warning restore S7039 // Content Security Policy should be restrictive
+    // Content Security Policy - environment-dependent strictness
+    var cspPolicy = app.Environment.IsDevelopment()
+        ? "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // Development: allow inline scripts for React HMR
+          "style-src 'self' 'unsafe-inline'; " + // Development: allow inline styles for Pigment CSS development
+          "img-src 'self' data: https:; " +
+          "font-src 'self' data:; " +
+          "connect-src 'self' ws: wss:; " + // Allow WebSocket for HMR
+          "frame-ancestors 'none'; " +
+          "base-uri 'self'; " +
+          "form-action 'self';"
+        : "default-src 'none'; " +
+          "script-src 'self'; " + // Production: external scripts only
+          "style-src 'self'; " + // Production: Pigment CSS outputs to external files
+          "img-src 'self' data: https:; " +
+          "font-src 'self' data:; " +
+          "connect-src 'self'; " +
+          "frame-ancestors 'none'; " +
+          "base-uri 'self'; " +
+          "form-action 'self'; " +
+          "upgrade-insecure-requests;"; // Redirect HTTP to HTTPS
+
+    context.Response.Headers.Append("Content-Security-Policy", cspPolicy);
 
     // Referrer Policy - control referrer information
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");

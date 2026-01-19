@@ -29,11 +29,11 @@ internal sealed class AuthController : ControllerBase {
     [HttpGet("me")]
     public ActionResult GetUser() {
         if (User.Identity != null && User.Identity.IsAuthenticated) {
-            var claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
+            // Return only essential user information; do NOT expose raw claims
+            // Raw claims may contain sensitive scopes, roles, OID, TID, and other metadata
             return Ok(new {
                 authenticated = true,
-                user = User.Identity.Name ?? "User",
-                claims
+                user = User.Identity.Name ?? "User"
             });
         }
         return Unauthorized(new { authenticated = false });

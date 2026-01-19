@@ -313,16 +313,20 @@ internal static class AuthenticationServiceExtensions
             workforceIssuer,
             externalIdIssuer ?? "<not configured>");
 
-        // Register a singleton cache for OpenID keys to avoid blocking on network I/O during request processing
-        authenticationBuilder.Services.AddSingleton<SigningKeyCache>();
-
-        // Register HttpClient as singleton to avoid socket exhaustion
-        authenticationBuilder.Services.AddHttpClient<SigningKeyCache>()
+        // Register HttpClient for the signing key cache
+        authenticationBuilder.Services.AddHttpClient("SigningKeyCache")
             .ConfigureHttpClient(client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(10);  // Timeout for metadata fetches
                 client.DefaultRequestHeaders.Add("Accept", "application/json");
             });
+
+        // Register a singleton cache for OpenID keys to avoid blocking on network I/O during request processing
+        authenticationBuilder.Services.AddSingleton(sp =>
+            new SigningKeyCache(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("SigningKeyCache"),
+                sp.GetRequiredService<ILogger<SigningKeyCache>>()));
+
 
         // Configure JWT bearer options with dependency injection support
         authenticationBuilder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)

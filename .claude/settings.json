@@ -42,5 +42,9 @@
     "csharp-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "playwright@claude-plugins-official": false
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /mnt/c/git/motorcycle-rag-system/.claude/statusline.sh"
   }
 }

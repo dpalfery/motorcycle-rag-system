@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -9,7 +9,7 @@ namespace MotorcycleRAG.API.Middleware;
 /// Middleware for validating Host headers against a configured allowlist.
 /// Prevents Host Header Injection attacks (OWASP A07:2021 - Cross-Site Request Forgery).
 /// </summary>
-internal sealed class HostHeaderValidationMiddleware
+public sealed class HostHeaderValidationMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<HostHeaderValidationMiddleware> _logger;
@@ -22,7 +22,7 @@ internal sealed class HostHeaderValidationMiddleware
     /// <param name="next">Next middleware in the pipeline</param>
     /// <param name="logger">Logger</param>
     /// <param name="configuration">Application configuration</param>
-    internal HostHeaderValidationMiddleware(
+    public HostHeaderValidationMiddleware(
         RequestDelegate next,
         ILogger<HostHeaderValidationMiddleware> logger,
         IConfiguration configuration)
@@ -60,7 +60,7 @@ internal sealed class HostHeaderValidationMiddleware
     /// </summary>
     /// <param name="context">HTTP context</param>
     /// <returns>Task</returns>
-    internal async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

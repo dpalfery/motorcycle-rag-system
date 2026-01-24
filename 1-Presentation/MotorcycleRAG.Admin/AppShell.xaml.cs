@@ -60,24 +60,34 @@ internal partial class AppShell : Shell {
         await UpdateUIAsync();
     }
 
-    private async void OnSignOutClicked(object? sender, EventArgs e)
+    private async void OnAuthButtonClicked(object? sender, EventArgs e)
     {
         try
         {
-            // Sign out from auth service
-            await _authService.SignOutAsync();
+            if (_authService.IsSignedIn())
+            {
+                // Sign out from auth service
+                await _authService.SignOutAsync();
 
-            // Clear any cached tokens
-            await _settingsService.RemoveSecureAsync("auth_token");
-            await _settingsService.RemoveSecureAsync("auth_refresh_token");
+                // Clear any cached tokens
+                await _settingsService.RemoveSecureAsync("auth_token");
+                await _settingsService.RemoveSecureAsync("auth_refresh_token");
 
-            // Navigate back to main page or splash
-            await Shell.Current.GoToAsync("//");
+                // Navigate back to main page or splash
+                await Shell.Current.GoToAsync("//");
+            }
+            else
+            {
+                // Sign in
+                await _authService.SignInAsync();
+            }
+            
+            await UpdateUIAsync();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Sign out error: {ex.Message}");
-            await DisplayAlertAsync("Sign Out Error", "Failed to sign out. Please try again.", "OK");
+            System.Diagnostics.Debug.WriteLine($"Auth error: {ex.Message}");
+            await DisplayAlertAsync("Authentication Error", $"Action failed: {ex.Message}", "OK");
         }
     }
 
@@ -85,15 +95,19 @@ internal partial class AppShell : Shell {
     {
         try
         {
+            var isSignedIn = _authService.IsSignedIn();
+
             // Update user display name in TitleView
-            if (_authService.IsSignedIn())
+            if (isSignedIn)
             {
                 var displayName = _authService.UserDisplayName;
                 UserDisplayName.Text = displayName ?? "User";
+                AuthButton.Text = "Sign Out";
             }
             else
             {
                 UserDisplayName.Text = "Not signed in";
+                AuthButton.Text = "Sign In";
             }
         }
         catch (Exception ex)

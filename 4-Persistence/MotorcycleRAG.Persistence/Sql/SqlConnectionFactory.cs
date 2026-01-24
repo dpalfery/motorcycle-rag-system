@@ -43,16 +43,28 @@ namespace MotorcycleRAG.Persistence.Sql
 
             // Enforce policy: connection string must not contain embedded credentials
             // Azure AD / Managed Identity authentication is required
+            // EXCEPTION: Allow credentials in Development environment for local SQL Server
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
+
             var upperConnectionString = connectionString.ToUpperInvariant();
             if (upperConnectionString.Contains("PASSWORD=") ||
                 upperConnectionString.Contains("PWD=") ||
                 upperConnectionString.Contains("USER ID=") ||
                 upperConnectionString.Contains("UID="))
             {
-                throw new InvalidOperationException(
-                    "MCR_API_SQL_CONNECTION_STRING must not contain embedded credentials (Password, Pwd, User ID, or UID). " +
-                    "Azure AD / Managed Identity authentication is required. " +
-                    "Please configure your connection string to use Azure AD authentication.");
+                if (isDevelopment)
+                {
+                    _logger.LogWarning("Development environment detected: Allowing SQL connection string with embedded credentials. " +
+                                     "Ensure this is NOT used in production.");
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "MCR_API_SQL_CONNECTION_STRING must not contain embedded credentials (Password, Pwd, User ID, or UID). " +
+                        "Azure AD / Managed Identity authentication is required. " +
+                        "Please configure your connection string to use Azure AD authentication.");
+                }
             }
 
             _connectionString = connectionString;

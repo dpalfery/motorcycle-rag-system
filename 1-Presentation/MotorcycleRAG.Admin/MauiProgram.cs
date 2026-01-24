@@ -50,9 +50,20 @@ internal static class MauiProgram {
             var logger = sp.GetRequiredService<ILogger<AdminAuthService>>();
             var demoLogger = sp.GetRequiredService<ILogger<DemoAdminAuthService>>();
 
+            // Ensure configuration is loaded from persistence before initializing auth
+            // This is critical to respect user-saved settings over environment variables
+            try 
+            {
+                Task.Run(() => configService.LoadConfigurationAsync()).Wait();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to load configuration during startup");
+            }
+
             // Check if auth is configured via UI settings
             if (configService.IsAuthConfigured) {
-                logger.LogInformation("Using configured authentication settings");
+                logger.LogInformation("Using configured authentication settings. ClientId: {ClientId}", configService.AuthClientId);
                 return new AdminAuthService(
                     clientId: configService.AuthClientId!,
                     authority: configService.AuthAuthority!,
@@ -69,7 +80,7 @@ internal static class MauiProgram {
             if (!string.IsNullOrEmpty(envClientId) &&
                 !string.IsNullOrEmpty(envAuthority) &&
                 !string.IsNullOrEmpty(envScope)) {
-                logger.LogInformation("Using environment variable authentication settings");
+                logger.LogInformation("Using environment variable authentication settings. Scope: {Scope}", envScope);
                 return new AdminAuthService(
                     clientId: envClientId,
                     authority: envAuthority,

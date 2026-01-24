@@ -191,8 +191,29 @@ internal partial class SettingsViewModel : ObservableObject {
 
     [RelayCommand(CanExecute = nameof(CanSaveSettings))]
     private async Task SaveSettingsAsync() {
-        if (!IsApiValid && !string.IsNullOrWhiteSpace(ApiBaseUrl)) {
-            StatusMessage = "Please fix API URL validation errors";
+        // Validate all settings before saving
+        var hasValidationErrors = false;
+        var errorMessages = new List<string>();
+
+        if (!IsApiValid) {
+            hasValidationErrors = true;
+            errorMessages.Add($"API: {ApiValidationMessage}");
+        }
+
+        if (!IsAuthValid) {
+            hasValidationErrors = true;
+            errorMessages.Add($"Auth: {AuthValidationMessage}");
+        }
+
+        if (hasValidationErrors) {
+            StatusMessage = "Please fix validation errors before saving.";
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+            if (window?.Page != null) {
+                await window.Page.DisplayAlertAsync(
+                    "Validation Error",
+                    $"Please fix the following errors:\n\n{string.Join("\n", errorMessages)}",
+                    "OK");
+            }
             return;
         }
 
@@ -218,11 +239,22 @@ internal partial class SettingsViewModel : ObservableObject {
             HasUnsavedChanges = false;
             StatusMessage = "Settings saved successfully. Restart the app for changes to take effect.";
             _logger.LogInformation("Settings saved successfully");
+            
+            // Show success alert to ensure user knows it worked
+             var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+            if (window?.Page != null) {
+                await window.Page.DisplayAlertAsync("Success", "Settings saved successfully. Please restart the app.", "OK");
+            }
         }
         catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             StatusMessage = $"Failed to save settings: {sanitizedMessage}";
             _logger.LogError(ex, "Failed to save settings");
+            
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+            if (window?.Page != null) {
+                await window.Page.DisplayAlertAsync("Error", $"Failed to save settings: {sanitizedMessage}", "OK");
+            }
         }
         finally {
             IsSaving = false;

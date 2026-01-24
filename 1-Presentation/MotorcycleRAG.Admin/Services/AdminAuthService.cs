@@ -1,6 +1,8 @@
 using Microsoft.Identity.Client;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.ApplicationModel.DataTransfer;
 
 namespace MotorcycleRAG.Admin.Services;
 
@@ -134,7 +136,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
 
             _currentAuthResult = await _msalClient
-                .AcquireTokenWithDeviceCode(_scopes, deviceCodeResult =>
+                .AcquireTokenWithDeviceCode(_scopes, async deviceCodeResult =>
                 {
                     // Display the device code to the user
                     // Do NOT log verification URL or message; device code credentials are sensitive
@@ -142,16 +144,45 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
                     _logger.LogInformation("Device code flow initiated. Expires in {MinutesRemaining} minutes", minutesRemaining);
 
                     // Show device code message to user via UI (not logs)
-                    MainThread.BeginInvokeOnMainThread(() =>
+                    // Run on main thread to access Clipboard and UI
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
                     {
-                        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-                        window?.Page?.DisplayAlertAsync(
-                            "Sign In",
-                            deviceCodeResult.Message,
-                            "OK");
-                    });
+                        try 
+                        {
+                            // 1. Copy code to clipboard
+                            if (Clipboard.Default != null)
+                            {
+                                await Clipboard.Default.SetTextAsync(deviceCodeResult.UserCode);
+                            }
 
-                    return Task.CompletedTask;
+                            // 2. Open verification URL in browser
+                            if (Launcher.Default != null)
+                            {
+                                await Launcher.Default.OpenAsync(new Uri(deviceCodeResult.VerificationUrl));
+                            }
+
+                            // 3. Show customized message
+                            var message = $"The code '{deviceCodeResult.UserCode}' has been copied to your clipboard.\n\n" +
+                                          "The verification page has been opened in your browser.\n\n" +
+                                          "Please paste the code to sign in.";
+
+                            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+                            if (window?.Page != null)
+                            {
+                                await window.Page.DisplayAlertAsync("Sign In", message, "OK");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // Fallback to standard message if automation fails
+                            _logger.LogWarning(ex, "Failed to automate device code UX");
+                            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+                            if (window?.Page != null)
+                            {
+                                await window.Page.DisplayAlertAsync("Sign In", deviceCodeResult.Message, "OK");
+                            }
+                        }
+                    });
                 })
                 .ExecuteAsync(cts.Token).ConfigureAwait(false);
 

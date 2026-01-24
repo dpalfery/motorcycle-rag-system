@@ -35,9 +35,9 @@
                        VerticalOptions="Center"
                        TextColor="Gray"/>
 
-                <Button x:Name="SignOutButton"
+                <Button x:Name="AuthButton"
                         Text="Sign Out"
-                        Clicked="OnSignOutClicked"
+                        Clicked="OnAuthButtonClicked"
                         BackgroundColor="{StaticResource Secondary}"
                         TextColor="White"
                         Padding="15,8"

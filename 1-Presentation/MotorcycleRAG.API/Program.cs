@@ -143,6 +143,13 @@ public class Program {
                 Version = "v1",
                 Description = "AI-powered motorcycle information retrieval system"
             });
+
+            // Enable file upload support for [FromForm] IFormFile parameters
+            c.MapType<IFormFile>(() => new Microsoft.OpenApi.OpenApiSchema
+            {
+                Type = Microsoft.OpenApi.JsonSchemaType.String,
+                Format = "binary"
+            });
         });
 
         // Configure CORS with strict security controls

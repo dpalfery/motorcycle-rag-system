@@ -31,9 +31,10 @@ public sealed class DataPipelineUploadController : ControllerBase
     /// Route: POST /api/DataPipeline/upload
     /// </summary>
     [HttpPost("upload")]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(FileUploadResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UploadAsync([FromForm] IFormFile file)
+    public async Task<IActionResult> UploadAsync(IFormFile file)
     {
         if (file == null || file.Length == 0)
         {

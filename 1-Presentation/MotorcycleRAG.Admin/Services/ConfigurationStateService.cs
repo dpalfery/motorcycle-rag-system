@@ -8,9 +8,11 @@ namespace MotorcycleRAG.Admin.Services;
 /// via ISettingsService. Provides validation for API URLs and auth settings.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
-    "Performance",
-    "CA1812: Avoid uninstantiated internal classes",
+    "Performance", "CA1812: Avoid uninstantiated internal classes",
     Justification = "Instantiated by dependency injection")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Design", "S3059:Types should not have members with visibility set higher than the type's visibility",
+    Justification = "Internal class implements public interface IConfigurationStateService required by clients in other assemblies")]
 internal sealed class ConfigurationStateService : IConfigurationStateService
 {
     private readonly ISettingsService _settingsService;

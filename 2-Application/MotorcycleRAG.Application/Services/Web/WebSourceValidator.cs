@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -214,11 +214,13 @@ Rate content on a scale of 0.0 to 1.0. Respond with only JSON:
         }
     }
 
+#pragma warning disable S4040 // Use ToLowerInvariant for culture-invariant host normalization
     private string ExtractDomain(Uri uri)
     {
         ArgumentNullException.ThrowIfNull(uri);
-        return uri.Host.ToUpperInvariant();
+        return uri.Host.ToLowerInvariant();
     }
+#pragma warning restore S4040
 
     private float GetCredibilityScore(SearchResult result)
     {

@@ -8,6 +8,9 @@ namespace MotorcycleRAG.Admin.Services;
 /// Admin authentication service using Microsoft Authentication Library (MSAL)
 /// Implements device code flow for desktop applications
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Design", "S3059:Types should not have members with visibility set higher than the type's visibility",
+    Justification = "Internal class implements public interface for DI; interface must be public for consumers outside assembly (XAML bindings, MAUI)")]
 internal class AdminAuthService : IAdminAuthService, IDisposable
 {
     private readonly IPublicClientApplication _msalClient;

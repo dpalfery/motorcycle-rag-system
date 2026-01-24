@@ -1,18 +1,25 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace MotorcycleRAG.API.Services;
 
 /// <summary>
 /// Health check response model.
 /// </summary>
-internal sealed class HealthCheckResponse
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Maintainability", "CA1515:Consider making public types internal",
+    Justification = "Public DTO for health check endpoint response serialization")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Design", "S4004:Utility classes should not have public constructors",
+    Justification = "DTO for JSON serialization, requires instance type with public settable properties")]
+public sealed class HealthCheckResponse
 {
     [JsonPropertyName("status")]
-    internal string? Status { get; set; }
+    public string? Status { get; set; }
 
     [JsonPropertyName("totalDuration")]
-    internal string? TotalDuration { get; set; }
+    public string? TotalDuration { get; set; }
 
     [JsonPropertyName("checks")]
-    internal Dictionary<string, HealthCheckEntry>? Checks { get; set; }
+    public Dictionary<string, HealthCheckEntry>? Checks { get; set; }
 }
+

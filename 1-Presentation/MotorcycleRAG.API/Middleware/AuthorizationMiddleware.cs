@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 
 namespace MotorcycleRAG.API.Middleware;
@@ -9,12 +10,13 @@ namespace MotorcycleRAG.API.Middleware;
 /// <summary>
 /// Middleware for comprehensive authorization logging and auditing
 /// </summary>
-internal sealed class AuthorizationMiddleware
+[SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Middleware must be public for pipeline registration.")]
+public sealed class AuthorizationMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<AuthorizationMiddleware> _logger;
 
-    internal AuthorizationMiddleware(
+    public AuthorizationMiddleware(
         RequestDelegate next,
         ILogger<AuthorizationMiddleware> logger)
     {
@@ -22,7 +24,7 @@ internal sealed class AuthorizationMiddleware
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    internal async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MotorcycleRAG.API.Middleware;
 
 /// <summary>
 /// Middleware for adding security headers to responses
 /// </summary>
+[SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Middleware must be public for pipeline registration.")]
 public sealed class SecurityHeadersMiddleware
 {
     private readonly RequestDelegate _next;

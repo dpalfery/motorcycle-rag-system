@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,6 +11,12 @@ namespace MotorcycleRAG.Application.Pipeline;
 /// <summary>
 /// Background service for scheduled processing of data pipelines
 /// </summary>
+#pragma warning disable S103 // Lines should not be too long
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Design",
+    "S1200:Split this class into smaller and more specialized ones",
+    Justification = "Scheduled processing service orchestrates multiple dependencies by design.")]
+#pragma warning restore S103 // Lines should not be too long
 public class ScheduledPipelineService : BackgroundService, IScheduledPipelineService {
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger<ScheduledPipelineService> _logger;
@@ -324,8 +330,14 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
 
     public override void Dispose() {
         if (_cancellationTokenSource != null) {
-            _cancellationTokenSource.Cancel();
+            try {
+                _cancellationTokenSource.Cancel();
+            }
+            catch (ObjectDisposedException ex) {
+                _logger.LogDebug(ex, "Cancellation token source already disposed during service shutdown");
+            }
             _cancellationTokenSource.Dispose();
+            _cancellationTokenSource = null;
         }
         _executionSemaphore?.Dispose();
         base.Dispose();
@@ -334,11 +346,17 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
 
     public async Task<bool> CancelCurrentRunAsync() {
         if (_cancellationTokenSource != null) {
-            await _cancellationTokenSource.CancelAsync();
-            return true;
+            try {
+                await _cancellationTokenSource.CancelAsync();
+                return true;
+            }
+            catch (ObjectDisposedException) {
+                return false;
+            }
         }
         return false;
     }
+
 }
 
 /// <summary>

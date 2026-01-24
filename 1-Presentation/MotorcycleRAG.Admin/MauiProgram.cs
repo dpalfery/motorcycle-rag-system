@@ -8,7 +8,12 @@ using MotorcycleRAG.Admin.Processing;
 
 namespace MotorcycleRAG.Admin;
 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Split this class into smaller and more specialized ones", Justification = "Composition root naturally has many dependencies")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Design", "S1200:Split this class into smaller and more specialized ones",
+    Justification = "Composition root naturally has many dependencies")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Design", "S3059:Types should not have members with visibility set higher than the type's visibility",
+    Justification = "Allowed: composition root has internal type with internal members by design for MAUI startup")]
 internal static class MauiProgram {
     internal static MauiApp CreateMauiApp() {
         var builder = MauiApp.CreateBuilder();

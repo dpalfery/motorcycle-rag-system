@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MotorcycleRAG.API.Middleware;
 
@@ -9,6 +10,7 @@ namespace MotorcycleRAG.API.Middleware;
 /// Middleware for validating Host headers against a configured allowlist.
 /// Prevents Host Header Injection attacks (OWASP A07:2021 - Cross-Site Request Forgery).
 /// </summary>
+[SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Middleware must be public for pipeline registration.")]
 public sealed class HostHeaderValidationMiddleware
 {
     private readonly RequestDelegate _next;

@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json;
 
@@ -10,7 +11,8 @@ namespace MotorcycleRAG.API.Middleware;
 /// <summary>
 /// Middleware for handling exceptions and returning ProblemDetails responses
 /// </summary>
-internal sealed class ExceptionHandlingMiddleware
+[SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Middleware must be public for pipeline registration.")]
+public sealed class ExceptionHandlingMiddleware
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -26,7 +28,7 @@ internal sealed class ExceptionHandlingMiddleware
     /// </summary>
     /// <param name="next">Next middleware in the pipeline</param>
     /// <param name="logger">Logger</param>
-    internal ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
+    public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -37,7 +39,7 @@ internal sealed class ExceptionHandlingMiddleware
     /// </summary>
     /// <param name="context">HTTP context</param>
     /// <returns>Task</returns>
-    internal async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

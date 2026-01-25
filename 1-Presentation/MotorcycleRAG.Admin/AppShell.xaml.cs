@@ -50,7 +50,7 @@ internal partial class AppShell : Shell {
         // Load configuration on startup
         try
         {
-            await _configService.LoadConfigurationAsync().ConfigureAwait(false);
+            await _configService.LoadConfigurationAsync();
         }
         catch (Exception ex)
         {
@@ -93,29 +93,31 @@ internal partial class AppShell : Shell {
 
     private async Task UpdateUIAsync()
     {
-        try
+        await MainThread.InvokeOnMainThreadAsync(() =>
         {
-            var isSignedIn = _authService.IsSignedIn();
+            try
+            {
+                var isSignedIn = _authService.IsSignedIn();
 
-            // Update user display name in TitleView
-            if (isSignedIn)
-            {
-                var displayName = _authService.UserDisplayName;
-                UserDisplayName.Text = displayName ?? "User";
-                AuthButton.Text = "Sign Out";
+                // Update user display name in TitleView
+                if (isSignedIn)
+                {
+                    var displayName = _authService.UserDisplayName;
+                    UserDisplayName.Text = displayName ?? "User";
+                    AuthButton.Text = "Sign Out";
+                }
+                else
+                {
+                    UserDisplayName.Text = "Not signed in";
+                    AuthButton.Text = "Sign In";
+                }
             }
-            else
+            catch (Exception ex)
             {
-                UserDisplayName.Text = "Not signed in";
-                AuthButton.Text = "Sign In";
+                System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
+                UserDisplayName.Text = "User";
             }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
-            UserDisplayName.Text = "User";
-        }
-        await Task.CompletedTask;
+        });
     }
 }
 

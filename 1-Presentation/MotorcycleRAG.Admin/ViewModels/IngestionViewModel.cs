@@ -25,6 +25,8 @@ internal partial class IngestionViewModel : ObservableObject {
     private static readonly string[] PdfAndCsvMimeTypes = { "pdf", "csv" };
 
     private readonly ApiClient _apiClient;
+    private readonly IAdminAuthService _authService;
+    private readonly IConfigurationStateService _configService;
     private readonly PdfChunker _pdfChunker;
     private readonly CsvChunker _csvChunker;
     private readonly OnnxEmbeddingService? _embeddingService;
@@ -52,12 +54,16 @@ internal partial class IngestionViewModel : ObservableObject {
         ApiClient apiClient,
         PdfChunker pdfChunker,
         CsvChunker csvChunker,
+        IAdminAuthService authService,
+        IConfigurationStateService configService,
         IServiceProvider serviceProvider,
         ILogger<IngestionViewModel>? logger = null) {
         
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _pdfChunker = pdfChunker ?? throw new ArgumentNullException(nameof(pdfChunker));
         _csvChunker = csvChunker ?? throw new ArgumentNullException(nameof(csvChunker));
+        _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         
         // Safely resolve optional dependency using Service Locator pattern
         // This prevents exceptions if the service is not registered (e.g. missing model file)
@@ -192,6 +198,47 @@ internal partial class IngestionViewModel : ObservableObject {
 
     #endregion
 
+    #region Lifecycle
+
+    /// <summary>
+    /// Initialize the view model - check prerequisites
+    /// </summary>
+    internal async Task InitializeAsync() {
+        StatusMessage = string.Empty;
+        
+        if (!_configService.IsApiConfigured) {
+            StatusMessage = "API not configured. Configure API base URL in Settings.";
+            await ShowWarningAsync(
+                "Configuration Required",
+                "API is not configured. Go to Settings to configure the API base URL before uploading files."
+            ).ConfigureAwait(false);
+            return;
+        }
+
+        if (!_authService.IsSignedIn()) {
+            StatusMessage = "Sign in required to upload files.";
+            await ShowWarningAsync(
+                "Sign In Required",
+                "Please sign in before uploading files."
+            ).ConfigureAwait(false);
+            return;
+        }
+        
+        // Display information about local processing
+        if (!EnableLocalProcessing) {
+            StatusMessage = "Local processing unavailable. Files will be processed server-side.";
+            _logger?.LogInformation("Upload page initialized. Local processing: {Enabled}", EnableLocalProcessing);
+        }
+        else {
+            StatusMessage = "Ready to process files locally.";
+            _logger?.LogInformation("Upload page initialized. Local processing enabled with ONNX embeddings.");
+        }
+        
+        await Task.CompletedTask;
+    }
+
+    #endregion
+
     #region Methods
 
     private async Task ProcessLocallyAsync(ProcessedFileInfo fileInfo, string extension) {
@@ -277,10 +324,11 @@ internal partial class IngestionViewModel : ObservableObject {
     }
 
     private static async Task ShowErrorAsync(string title, string message) {
-        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-        if (window?.Page != null) {
-            await window.Page.DisplayAlertAsync(title, message, "OK");
-        }
+        await ErrorPresenter.ShowErrorAsync(title, message);
+    }
+
+    private static async Task ShowWarningAsync(string title, string message) {
+        await ErrorPresenter.ShowWarningAsync(title, message);
     }
 
     /// <summary>

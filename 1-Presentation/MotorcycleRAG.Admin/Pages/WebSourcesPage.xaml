@@ -47,40 +47,53 @@
                 </Frame>
 
                 <!-- Add Source Form (Conditional) -->
-                <Frame BorderColor="#4CAF50" CornerRadius="8" Padding="15" 
-                       BackgroundColor="#F1F8F5"
+                <Frame BorderColor="#3B4A5C" CornerRadius="8" Padding="15" 
+                       BackgroundColor="#2D3748"
                        IsVisible="{Binding ShowAddSourceForm}">
                     <VerticalStackLayout Spacing="12">
                         <Label Text="Add New Web Source"
                                FontSize="16"
-                               FontAttributes="Bold" />
+                               FontAttributes="Bold"
+                               TextColor="#E6EDF5" />
 
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="Source Name" FontSize="12" FontAttributes="Bold" />
+                            <Label Text="Source Name" FontSize="12" FontAttributes="Bold" TextColor="#E6EDF5" />
                             <Entry Text="{Binding NewSourceName}"
                                    Placeholder="e.g., Honda Official"
+                                   TextColor="White"
+                                   PlaceholderColor="#B0BAC8"
+                                   BackgroundColor="#1F2937"
                                    IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}" />
                         </VerticalStackLayout>
 
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="URL" FontSize="12" FontAttributes="Bold" />
+                            <Label Text="URL" FontSize="12" FontAttributes="Bold" TextColor="#E6EDF5" />
                             <Entry Text="{Binding NewSourceUrl}"
                                    Placeholder="https://example.com"
                                    Keyboard="Url"
+                                   TextColor="White"
+                                   PlaceholderColor="#B0BAC8"
+                                   BackgroundColor="#1F2937"
                                    IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}" />
                         </VerticalStackLayout>
 
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="Description" FontSize="12" FontAttributes="Bold" />
+                            <Label Text="Description" FontSize="12" FontAttributes="Bold" TextColor="#E6EDF5" />
                             <Editor Text="{Binding NewSourceDescription}"
                                     Placeholder="Brief description of the source"
                                     HeightRequest="60"
+                                    TextColor="White"
+                                    PlaceholderColor="#B0BAC8"
+                                    BackgroundColor="#1F2937"
                                     IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}" />
                         </VerticalStackLayout>
 
                         <VerticalStackLayout Spacing="4">
-                            <Label Text="Trust Tier" FontSize="12" FontAttributes="Bold" />
+                            <Label Text="Trust Tier" FontSize="12" FontAttributes="Bold" TextColor="#E6EDF5" />
                             <Picker SelectedIndex="{Binding SelectedTrustTier}"
+                                    TextColor="White"
+                                    TitleColor="#B0BAC8"
+                                    BackgroundColor="#1F2937"
                                     IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}">
                                 <Picker.Items>
                                     <x:String>Tier C - Community</x:String>
@@ -90,21 +103,25 @@
                             </Picker>
                         </VerticalStackLayout>
 
-                        <VerticalStackLayout Spacing="8">
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
                             <CheckBox IsChecked="{Binding NewSourceIsEnabled}"
+                                      Color="#E6EDF5"
                                       IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}" />
                             <Label Text="Enabled"
                                    FontSize="12"
-                                   Margin="-38,0,0,0" />
-                        </VerticalStackLayout>
+                                   VerticalTextAlignment="Center"
+                                   TextColor="#E6EDF5" />
+                        </HorizontalStackLayout>
 
-                        <VerticalStackLayout Spacing="8">
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
                             <CheckBox IsChecked="{Binding NewSourceIncludeInSearch}"
+                                      Color="#E6EDF5"
                                       IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}" />
                             <Label Text="Include in Search"
                                    FontSize="12"
-                                   Margin="-38,0,0,0" />
-                        </VerticalStackLayout>
+                                   VerticalTextAlignment="Center"
+                                   TextColor="#E6EDF5" />
+                        </HorizontalStackLayout>
 
                         <HorizontalStackLayout Spacing="10">
                             <Button Text="Save"
@@ -126,6 +143,7 @@
 
                 <!-- Web Sources List -->
                 <CollectionView ItemsSource="{Binding WebSources}"
+                                BackgroundColor="#2D3748"
                                 SelectionMode="None">
                     <CollectionView.EmptyView>
                         <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10" Padding="20">
@@ -142,19 +160,21 @@
                     </CollectionView.EmptyView>
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
-                            <Frame BorderColor="LightGray" Margin="0,5" Padding="15" CornerRadius="8">
+                            <Frame BorderColor="#3B4A5C" Margin="0,5" Padding="15" CornerRadius="8"
+                                   BackgroundColor="#2D3748">
                                 <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
 
                                     <!-- Source Name and Status -->
                                     <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="5">
                                         <Label Text="{Binding Name}"
                                                FontAttributes="Bold"
-                                               FontSize="14" />
+                                               FontSize="14"
+                                               TextColor="#E6EDF5" />
 
                                         <HorizontalStackLayout Spacing="10">
                                             <Label Text="{Binding Url}"
                                                    FontSize="11"
-                                                   TextColor="Blue"
+                                                   TextColor="#8AB4F8"
                                                    TextDecorations="Underline"
                                                    LineBreakMode="TailTruncation" />
                                         </HorizontalStackLayout>
@@ -174,7 +194,7 @@
                                     <Label Grid.Row="1" Grid.ColumnSpan="2"
                                            Text="{Binding Description}"
                                            FontSize="12"
-                                           TextColor="Gray"
+                                           TextColor="#B0BAC8"
                                            LineBreakMode="WordWrap"
                                            Margin="0,8,0,0"
                                            IsVisible="{Binding Description, Converter={StaticResource StringToVisibleConverter}}" />
@@ -205,12 +225,12 @@
                                                TextColor="{Binding IsEnabled, Converter={StaticResource EnabledToColorConverter}}" />
                                         <Label Text="{Binding CrawlFrequencyHours, StringFormat='Crawl: {0}h'}"
                                                FontSize="10"
-                                               TextColor="Gray" />
+                                               TextColor="#B0BAC8" />
                                     </VerticalStackLayout>
 
                                     <!-- Metadata Row -->
                                     <VerticalStackLayout Grid.Row="3" Grid.ColumnSpan="2" Spacing="2" Margin="0,8,0,0">
-                                        <Label FontSize="10" TextColor="Gray"
+                                        <Label FontSize="10" TextColor="#B0BAC8"
                                                IsVisible="{Binding CreatedDate}">
                                             <Label.Text>
                                                 <MultiBinding StringFormat="Created: {0:MMM d, yyyy}">
@@ -219,7 +239,7 @@
                                             </Label.Text>
                                         </Label>
 
-                                        <Label FontSize="10" TextColor="Gray"
+                                        <Label FontSize="10" TextColor="#B0BAC8"
                                                IsVisible="{Binding LastCrawledDate, Converter={StaticResource HasValueConverter}}">
                                             <Label.Text>
                                                 <MultiBinding StringFormat="Last crawled: {0:MMM d, yyyy HH:mm}">
@@ -236,32 +256,37 @@
                 </CollectionView>
 
                 <!-- Information Section -->
-                <Frame BorderColor="LightGray" CornerRadius="8" Padding="15" BackgroundColor="#F9F9F9">
+                <Frame BorderColor="#3B4A5C" CornerRadius="8" Padding="15" BackgroundColor="#2D3748">
                     <VerticalStackLayout Spacing="10">
                         <Label Text="About Web Sources"
                                FontSize="16"
-                               FontAttributes="Bold" />
+                               FontAttributes="Bold"
+                               TextColor="#E6EDF5" />
 
                         <Label Text="Web sources are trusted domains used for supplementary search results. The system will only retrieve information from explicitly approved domains."
                                FontSize="12"
-                               TextColor="Gray"
+                               TextColor="#B0BAC8"
                                LineBreakMode="WordWrap" />
 
                         <Label Text="Trust Tiers:"
                                FontSize="12"
                                FontAttributes="Bold"
+                               TextColor="#E6EDF5"
                                Margin="0,10,0,5" />
 
                         <Label Text="• Tier A: OEM Manuals (Highest Trust)"
                                FontSize="11"
+                               TextColor="#B0BAC8"
                                Margin="10,0,0,0" />
 
                         <Label Text="• Tier B: Reputable Media (Medium Trust)"
                                FontSize="11"
+                               TextColor="#B0BAC8"
                                Margin="10,0,0,0" />
 
                         <Label Text="• Tier C: Community Sources (Lower Trust)"
                                FontSize="11"
+                               TextColor="#B0BAC8"
                                Margin="10,0,0,0" />
                     </VerticalStackLayout>
                 </Frame>

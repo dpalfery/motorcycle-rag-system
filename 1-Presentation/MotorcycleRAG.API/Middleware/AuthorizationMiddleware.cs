@@ -40,11 +40,26 @@ public sealed class AuthorizationMiddleware
             ? string.Join(", ", context.User.FindAll(ClaimTypes.Role).Select(c => c.Value))
             : "none";
 
+        var rawRoleClaims = context.User.Identity?.IsAuthenticated ?? false
+            ? string.Join(", ", context.User.FindAll("roles").Select(c => c.Value))
+            : "none";
+
+        var scopeClaims = context.User.Identity?.IsAuthenticated ?? false
+            ? string.Join(", ", context.User.FindAll("scp").Select(c => c.Value))
+            : "none";
+
+        var altScopeClaims = context.User.Identity?.IsAuthenticated ?? false
+            ? string.Join(", ", context.User.FindAll("http://schemas.microsoft.com/identity/claims/scope").Select(c => c.Value))
+            : "none";
+
         _logger.LogInformation(
-            "Authorization attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, Path: {Path}, Method: {Method}",
+            "Authorization attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Path: {Path}, Method: {Method}",
             correlationId,
             userId,
             userRoles,
+            rawRoleClaims,
+            scopeClaims,
+            altScopeClaims,
             context.Request.Path,
             context.Request.Method);
 
@@ -76,17 +91,25 @@ public sealed class AuthorizationMiddleware
         if (statusCode == StatusCodes.Status401Unauthorized)
         {
             _logger.LogWarning(
-                "Authorization failed - Unauthorized - CorrelationId: {CorrelationId}, UserId: {UserId}, Path: {Path}",
+                "Authorization failed - Unauthorized - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Path: {Path}",
                 correlationId,
                 userId,
+                userRoles,
+                rawRoleClaims,
+                scopeClaims,
+                altScopeClaims,
                 context.Request.Path);
         }
         else if (statusCode == StatusCodes.Status403Forbidden)
         {
             _logger.LogWarning(
-                "Authorization failed - Forbidden - CorrelationId: {CorrelationId}, UserId: {UserId}, Path: {Path}",
+                "Authorization failed - Forbidden - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Path: {Path}",
                 correlationId,
                 userId,
+                userRoles,
+                rawRoleClaims,
+                scopeClaims,
+                altScopeClaims,
                 context.Request.Path);
         }
         else if (statusCode is >= 200 and < 300)

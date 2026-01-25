@@ -1,5 +1,6 @@
 using MotorcycleRAG.Admin.ViewModels;
 using MotorcycleRAG.Admin.Services;
+using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.Admin.Pages;
 
@@ -11,16 +12,27 @@ namespace MotorcycleRAG.Admin.Pages;
     Justification = "Internal class has public constructor required by MAUI DI framework")]
 internal partial class JobsPage : ContentPage {
     private readonly JobsViewModel _viewModel;
+    private readonly ILogger<JobsPage> _logger;
 
-    public JobsPage(JobsViewModel viewModel) {
+    public JobsPage(JobsViewModel viewModel, ILogger<JobsPage> logger) {
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         BindingContext = _viewModel;
     }
 
     protected override async void OnAppearing() {
         base.OnAppearing();
-        await _viewModel.InitializeAsync();
+        try {
+            await _viewModel.InitializeAsync();
+        }
+        catch (Exception ex) {
+            _logger.LogError(ex, "Failed to initialize Jobs page");
+            await Utilities.ErrorPresenter.ShowErrorAsync(
+                "Initialization Error",
+                "Failed to load pipeline jobs. Please check Settings to ensure API and authentication are configured."
+            );
+        }
     }
 
     protected override void OnDisappearing() {

@@ -31,7 +31,7 @@ internal class ApiClient {
     private readonly AsyncCircuitBreakerPolicy<HttpResponseMessage> _circuitBreaker;
     private readonly ILogger<ApiClient> _logger;
 
-    internal ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger)
+    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));

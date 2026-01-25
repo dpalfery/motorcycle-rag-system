@@ -201,32 +201,67 @@ public class Program {
             //   1. "admin_access" in the 'scp' (scope) claim
             //   2. An allowed value in the 'roles' claim (e.g., Admin, DataAdmin, ContentAdmin, SuperAdmin)
             builder.Services.AddAuthorization(options => {
+                static bool HasScope(System.Security.Claims.ClaimsPrincipal user, string requiredScope) {
+                    if (user == null) {
+                        return false;
+                    }
+
+                    var scopeClaims = user.FindAll("scp")
+                        .Select(c => c.Value)
+                        .Concat(user.FindAll("http://schemas.microsoft.com/identity/claims/scope").Select(c => c.Value));
+
+                    foreach (var scopeClaim in scopeClaims) {
+                        var scopes = scopeClaim.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (scopes.Any(s => string.Equals(s, requiredScope, StringComparison.OrdinalIgnoreCase))) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+
+                static bool HasAnyRole(System.Security.Claims.ClaimsPrincipal user, params string[] roles) {
+                    if (user == null) {
+                        return false;
+                    }
+
+                    var roleClaims = user.FindAll(System.Security.Claims.ClaimTypes.Role)
+                        .Select(c => c.Value)
+                        .Concat(user.FindAll("roles").Select(c => c.Value));
+
+                    return roleClaims.Any(role => roles.Any(allowed =>
+                        string.Equals(role, allowed, StringComparison.OrdinalIgnoreCase)));
+                }
                 // Admin policy - requires BOTH admin_access scope AND Admin app role
                 options.AddPolicy("Admin", policy => {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
-                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Admin"); // Role requirement
+                    policy.RequireAssertion(ctx =>
+                        HasScope(ctx.User, "admin_access") &&
+                        HasAnyRole(ctx.User, "Admin", "SuperAdmin"));
                 });
 
                 // DataAdmin policy - requires BOTH admin_access scope AND DataAdmin app role
                 options.AddPolicy("DataAdmin", policy => {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
-                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "DataAdmin"); // Role requirement
+                    policy.RequireAssertion(ctx =>
+                        HasScope(ctx.User, "admin_access") &&
+                        HasAnyRole(ctx.User, "DataAdmin", "Admin", "SuperAdmin"));
                 });
 
                 // ContentAdmin policy - requires BOTH admin_access scope AND ContentAdmin app role
                 options.AddPolicy("ContentAdmin", policy => {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
-                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "ContentAdmin"); // Role requirement
+                    policy.RequireAssertion(ctx =>
+                        HasScope(ctx.User, "admin_access") &&
+                        HasAnyRole(ctx.User, "ContentAdmin", "Admin", "SuperAdmin"));
                 });
 
                 // SuperAdmin policy - requires BOTH admin_access scope AND SuperAdmin app role
                 options.AddPolicy("SuperAdmin", policy => {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("scp", "admin_access"); // Scope requirement for admin operations
-                    policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "SuperAdmin"); // Role requirement
+                    policy.RequireAssertion(ctx =>
+                        HasScope(ctx.User, "admin_access") &&
+                        HasAnyRole(ctx.User, "SuperAdmin"));
                 });
 
                 // User policy - requires User app role (no scope requirement for regular users)

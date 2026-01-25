@@ -9,10 +9,22 @@ internal static class AdminRoles
     /// <summary>Global admin role with full system access</summary>
     internal const string Admin = "Admin";
 
+    /// <summary>Data administration role for ingestion and pipeline management</summary>
+    internal const string DataAdmin = "DataAdmin";
+
+    /// <summary>Content administration role for content configuration management</summary>
+    internal const string ContentAdmin = "ContentAdmin";
+
+    /// <summary>Super admin role with full system access and elevated privileges</summary>
+    internal const string SuperAdmin = "SuperAdmin";
+
     /// <summary>Collection of all valid admin roles</summary>
     internal static readonly IReadOnlyList<string> AllAdminRoles = new[]
     {
-        Admin
+        Admin,
+        DataAdmin,
+        ContentAdmin,
+        SuperAdmin
     };
 
     /// <summary>

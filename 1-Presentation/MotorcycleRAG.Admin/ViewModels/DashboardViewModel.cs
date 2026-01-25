@@ -29,29 +29,11 @@ internal partial class DashboardViewModel : ObservableObject {
     [ObservableProperty]
     private string _configurationStatusMessage = string.Empty;
 
-    /// <summary>Command to navigate to the upload page</summary>
-    internal ICommand NavigateToUploadCommand { get; }
-
-    /// <summary>Command to navigate to the jobs page</summary>
-    internal ICommand NavigateToJobsCommand { get; }
-
-    /// <summary>Command to navigate to web sources page</summary>
-    internal ICommand NavigateToWebSourcesCommand { get; }
-
-    /// <summary>Command to navigate to the tools page</summary>
-    internal ICommand NavigateToToolsCommand { get; }
-
     public DashboardViewModel(
         INavigationService navigationService,
         IConfigurationStateService configService) {
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
-
-        // Initialize navigation commands
-        NavigateToUploadCommand = new Command(async () => await _navigationService.NavigateToAsync("uploadpage"));
-        NavigateToJobsCommand = new Command(async () => await _navigationService.NavigateToAsync("jobspage"));
-        NavigateToWebSourcesCommand = new Command(async () => await _navigationService.NavigateToAsync("websourcespage"));
-        NavigateToToolsCommand = new Command(async () => await _navigationService.NavigateToAsync("toolspage"));
 
         // Check configuration status
         CheckConfigurationStatus();
@@ -94,6 +76,27 @@ internal partial class DashboardViewModel : ObservableObject {
 
     [RelayCommand]
     private async Task NavigateToSettingsAsync() {
-        await _navigationService.NavigateToAsync("settingspage");
+        // Use absolute route to switch Flyout item context
+        await _navigationService.NavigateToAsync("//settings/settingspage");
+    }
+
+    [RelayCommand]
+    private async Task NavigateToUploadAsync() {
+        await _navigationService.NavigateToAsync("//upload/uploadpage");
+    }
+
+    [RelayCommand]
+    private async Task NavigateToJobsAsync() {
+        await _navigationService.NavigateToAsync("//jobs/jobspage");
+    }
+
+    [RelayCommand]
+    private async Task NavigateToWebSourcesAsync() {
+        await _navigationService.NavigateToAsync("//websources/websourcespage");
+    }
+
+    [RelayCommand]
+    private async Task NavigateToToolsAsync() {
+        await _navigationService.NavigateToAsync("//tools/toolspage");
     }
 }

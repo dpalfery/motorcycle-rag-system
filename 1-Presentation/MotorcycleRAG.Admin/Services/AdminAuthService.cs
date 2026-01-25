@@ -1,8 +1,10 @@
 using Microsoft.Identity.Client;
+using Microsoft.Identity.Client.Extensions.Msal;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
+using Microsoft.Maui.Storage;
 
 namespace MotorcycleRAG.Admin.Services;
 
@@ -15,12 +17,14 @@ namespace MotorcycleRAG.Admin.Services;
     Justification = "Internal class implements public interface for DI; interface must be public for consumers outside assembly (XAML bindings, MAUI)")]
 internal class AdminAuthService : IAdminAuthService, IDisposable
 {
+    private const string CacheFileName = "msal_cache.dat";
     private readonly IPublicClientApplication _msalClient;
     private readonly string[] _scopes;
     private AuthenticationResult? _currentAuthResult;
     private DateTime _tokenExpiresAt = DateTime.MinValue;
     private readonly ILogger<AdminAuthService> _logger;
     private readonly SemaphoreSlim _tokenRefreshLock = new SemaphoreSlim(1, 1);
+    private MsalCacheHelper? _cacheHelper;
 
     internal AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService> logger, IPublicClientApplication? msalClient)
     {
@@ -40,11 +44,76 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
                 .WithAuthority(new Uri(authority))
                 .WithDefaultRedirectUri()
                 .Build();
+
+        // Initialize token cache and try to restore session
+        InitializeCache();
     }
 
     internal AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService> logger)
         : this(clientId, authority, scopes, logger, msalClient: null)
     {
+    }
+
+    /// <summary>
+    /// Initializes persistent token cache using Microsoft.Identity.Client.Extensions.Msal.
+    /// Tokens are stored in Windows Credential Manager, encrypted with DPAPI.
+    /// This enables admins to remain authenticated across app restarts.
+    /// </summary>
+    /// <remarks>
+    /// Security: Tokens are encrypted at rest using Data Protection API (DPAPI).
+    /// For manual cleanup, use Windows Credential Manager or delete cache file at:
+    /// %LOCALAPPDATA%\MotorcycleRAG.Admin\msal_cache.dat
+    ///
+    /// Dependency: Requires Microsoft.Identity.Client.Extensions.Msal v4.81.0+
+    ///
+    /// Implementation Notes:
+    /// - Uses Task.Run().Result for synchronous initialization (safe for file-based operations)
+    /// - Attempts to restore existing session from cache automatically
+    /// - Gracefully degrades to no caching if initialization fails
+    /// </remarks>
+    private void InitializeCache()
+    {
+        try
+        {
+            // Configure cache storage properties
+            var storageProperties = new StorageCreationPropertiesBuilder(
+                CacheFileName,
+                FileSystem.AppDataDirectory)
+                .Build();
+
+            // Initialize CacheHelper (async wrapped in sync for constructor)
+            // This is safe because CacheHelper creation is fast and file-based
+            _cacheHelper = Task.Run(() => MsalCacheHelper.CreateAsync(storageProperties)).Result;
+            _cacheHelper.RegisterCache(_msalClient.UserTokenCache);
+
+            _logger.LogInformation("Token cache initialized at {Path}", Path.Combine(FileSystem.AppDataDirectory, CacheFileName));
+
+            // Try to restore session from cache
+            var accounts = Task.Run(() => _msalClient.GetAccountsAsync()).Result;
+            if (accounts.Any())
+            {
+                try 
+                {
+                    _currentAuthResult = Task.Run(() => _msalClient.AcquireTokenSilent(_scopes, accounts.FirstOrDefault())
+                        .ExecuteAsync()).Result;
+                    _tokenExpiresAt = _currentAuthResult.ExpiresOn.UtcDateTime;
+                    _logger.LogInformation("Session restored from cache for user: {User}", _currentAuthResult.Account.Username);
+                }
+                catch (MsalUiRequiredException)
+                {
+                    _logger.LogInformation("Cached token invalid or expired");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to restore session from cache");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize token cache");
+            // Continue without caching - better than crashing the app
+        }
     }
 
     /// <summary>

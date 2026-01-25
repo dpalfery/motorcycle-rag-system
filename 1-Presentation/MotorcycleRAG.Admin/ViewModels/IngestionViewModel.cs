@@ -6,6 +6,7 @@ using MotorcycleRAG.Admin.Models.Processing;
 using MotorcycleRAG.Admin.Utilities;
 using System.Collections.ObjectModel;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace MotorcycleRAG.Admin.ViewModels;
 
@@ -51,39 +52,23 @@ internal partial class IngestionViewModel : ObservableObject {
         ApiClient apiClient,
         PdfChunker pdfChunker,
         CsvChunker csvChunker,
-        OnnxEmbeddingService? embeddingService,
-        ILogger<IngestionViewModel>? logger)
-        : this(apiClient, pdfChunker, csvChunker, embeddingService, logger, enableLocalProcessing: true) {
-    }
-
-    public IngestionViewModel(
-        ApiClient apiClient,
-        PdfChunker pdfChunker,
-        CsvChunker csvChunker,
-        OnnxEmbeddingService? embeddingService)
-        : this(apiClient, pdfChunker, csvChunker, embeddingService, logger: null, enableLocalProcessing: true) {
-    }
-
-    public IngestionViewModel(
-        ApiClient apiClient,
-        PdfChunker pdfChunker,
-        CsvChunker csvChunker)
-        : this(apiClient, pdfChunker, csvChunker, embeddingService: null, logger: null, enableLocalProcessing: false) {
-    }
-
-    private IngestionViewModel(
-        ApiClient apiClient,
-        PdfChunker pdfChunker,
-        CsvChunker csvChunker,
-        OnnxEmbeddingService? embeddingService,
-        ILogger<IngestionViewModel>? logger,
-        bool enableLocalProcessing) {
+        IServiceProvider serviceProvider,
+        ILogger<IngestionViewModel>? logger = null) {
+        
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _pdfChunker = pdfChunker ?? throw new ArgumentNullException(nameof(pdfChunker));
         _csvChunker = csvChunker ?? throw new ArgumentNullException(nameof(csvChunker));
-        _embeddingService = embeddingService;
+        
+        // Safely resolve optional dependency using Service Locator pattern
+        // This prevents exceptions if the service is not registered (e.g. missing model file)
+        _embeddingService = serviceProvider.GetService<OnnxEmbeddingService>();
+        
         _logger = logger;
-        _enableLocalProcessing = enableLocalProcessing;
+        _enableLocalProcessing = _embeddingService != null;
+        
+        if (_embeddingService == null) {
+            _logger?.LogWarning("OnnxEmbeddingService not available. Local processing will be disabled.");
+        }
     }
 
     partial void OnIsProcessingChanged(bool value) {

@@ -201,6 +201,13 @@ _pkginfo.txt
 # but keep track of directories ending in .cache
 !?*.[Cc]ache/
 
+# MSAL Token Cache (Microsoft Authentication Library)
+# These files contain encrypted auth tokens and should never be committed
+**/msal_cache.dat
+**/msal_cache.bin
+**/msal.cache
+**/.msal_token_cache
+
 # Others
 ClientBin/
 ~$*

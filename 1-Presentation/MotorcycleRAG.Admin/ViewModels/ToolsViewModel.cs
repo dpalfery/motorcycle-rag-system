@@ -18,6 +18,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 internal partial class ToolsViewModel : ObservableObject {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
+    private readonly IConfigurationStateService _configService;
     private readonly ILogger<ToolsViewModel> _logger;
 
     [ObservableProperty]
@@ -32,9 +33,10 @@ internal partial class ToolsViewModel : ObservableObject {
     [ObservableProperty]
     private ToolConfigItem? selectedTool;
 
-    public ToolsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<ToolsViewModel> logger) {
+    public ToolsViewModel(ApiClient apiClient, IAdminAuthService authService, IConfigurationStateService configService, ILogger<ToolsViewModel> logger) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -49,7 +51,10 @@ internal partial class ToolsViewModel : ObservableObject {
         ErrorMessage = null;
 
         try {
-            await EnsureAuthorizedAsync();
+            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+            if (!authorized) {
+                return;
+            }
             var toolConfigs = await _apiClient.GetMcpToolsAsync();
 
             await MainThread.InvokeOnMainThreadAsync(() => {
@@ -60,11 +65,6 @@ internal partial class ToolsViewModel : ObservableObject {
             });
 
             _logger.LogInformation("Loaded {Count} MCP tool configurations", toolConfigs.Length);
-        }
-        catch (UnauthorizedAccessException ex) {
-            // User not authorized - expected in demo mode
-            _logger.LogWarning(ex, "User not authorized to view MCP tools");
-            await MainThread.InvokeOnMainThreadAsync(() => Tools.Clear());
         }
         catch (HttpRequestException ex) {
             // API not available - silently fail
@@ -106,7 +106,10 @@ internal partial class ToolsViewModel : ObservableObject {
                 return;
             }
 
-            await EnsureAuthorizedAsync();
+            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+            if (!authorized) {
+                return;
+            }
 
             // Call API to update tool
             var updateRequest = new UpdateMcpToolRequest {
@@ -127,10 +130,6 @@ internal partial class ToolsViewModel : ObservableObject {
                         $"Tool '{tool.Name}' has been {(tool.IsEnabled ? "enabled" : "disabled")}.", "OK");
                 }
             });
-        }
-        catch (UnauthorizedAccessException ex) {
-            _logger.LogWarning(ex, "User not authorized to update MCP tool '{ToolId}'", tool.ToolId);
-            ErrorMessage = "You do not have permission to modify MCP tools.";
         }
         catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
@@ -156,6 +155,17 @@ internal partial class ToolsViewModel : ObservableObject {
     internal void SelectTool(ToolConfigItem? tool) {
         SelectedTool = tool;
         _logger.LogDebug("Selected tool: {ToolId}", tool?.ToolId ?? "null");
+    }
+
+    #endregion
+
+    #region Lifecycle
+
+    /// <summary>
+    /// Initialize the view model - load MCP tools
+    /// </summary>
+    internal async Task InitializeAsync() {
+        await RefreshAsync();
     }
 
     #endregion
@@ -203,16 +213,37 @@ internal partial class ToolsViewModel : ObservableObject {
     /// <summary>
     /// Ensure user is authorized to manage MCP tools
     /// </summary>
-    private async Task EnsureAuthorizedAsync() {
-        if (!_authService.IsAuthenticated) {
-            throw new UnauthorizedAccessException("User is not authenticated");
+    private async Task<bool> EnsureAuthorizedAsync() {
+        if (!_configService.IsApiConfigured) {
+            _logger.LogWarning("Tools page blocked: API not configured");
+            await ErrorPresenter.ShowWarningAsync(
+                "Configuration Required",
+                "API is not configured. Go to Settings to configure the API base URL."
+            ).ConfigureAwait(false);
+            return false;
         }
 
-        var roles = await _authService.GetUserRolesAsync();
-        var adminRoles = AdminRoles.GetValidAdminRoles(roles);
-        if (!adminRoles.Any()) {
-            throw new UnauthorizedAccessException("User does not have required admin roles to manage tools");
+        if (!_authService.IsAuthenticated) {
+            _logger.LogWarning("Tools page blocked: user not authenticated");
+            await ErrorPresenter.ShowWarningAsync(
+                "Sign In Required",
+                "Please sign in to manage MCP tools."
+            ).ConfigureAwait(false);
+            return false;
         }
+
+        // Use IsAuthorizedAdminAsync to support Debug mode bypass
+        var isAuthorized = await _authService.IsAuthorizedAdminAsync().ConfigureAwait(false);
+        if (!isAuthorized) {
+            _logger.LogWarning("Tools page blocked: user lacks admin roles");
+            await ErrorPresenter.ShowWarningAsync(
+                "Access Denied",
+                "You do not have permission to manage MCP tools."
+            ).ConfigureAwait(false);
+            return false;
+        }
+
+        return true;
     }
 
     #endregion

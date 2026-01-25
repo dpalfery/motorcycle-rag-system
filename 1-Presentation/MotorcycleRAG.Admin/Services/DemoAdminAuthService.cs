@@ -60,5 +60,11 @@ internal sealed class DemoAdminAuthService : IAdminAuthService
     }
 
     /// <inheritdoc/>
+    public Task<bool> IsAuthorizedAdminAsync()
+    {
+        return Task.FromResult(false);
+    }
+
+    /// <inheritdoc/>
     public bool IsAuthenticated => false;
 }

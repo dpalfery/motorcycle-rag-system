@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using Microsoft.Maui.Storage;
+using MotorcycleRAG.Admin.Constants;
 
 namespace MotorcycleRAG.Admin.Services;
 
@@ -336,6 +337,28 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
         var signedIn = _currentAuthResult != null && _currentAuthResult.ExpiresOn > DateTimeOffset.UtcNow;
         _logger?.LogDebug("IsSignedIn: {SignedIn}, ExpiresOn: {Expires}", signedIn, _currentAuthResult?.ExpiresOn);
         return signedIn;
+    }
+
+    /// <summary>
+    /// Checks if the user is authorized as an administrator.
+    /// In DEBUG mode, this returns true for any authenticated user.
+    /// In RELEASE mode, checks for specific admin roles.
+    /// </summary>
+    public async Task<bool> IsAuthorizedAdminAsync()
+    {
+        if (!IsSignedIn()) 
+            return false;
+
+#if DEBUG
+        // In DEBUG mode, we assume the signed-in user is an admin to facilitate local development
+        // This avoids the need for complex Azure AD Role setup for local testing
+        _logger.LogWarning("DEBUG MODE: Bypassing RBAC checks. Authenticated user treated as Admin.");
+        await Task.CompletedTask; // Keep async signature
+        return true;
+#else
+        var roles = await GetUserRolesAsync();
+        return AdminRoles.GetValidAdminRoles(roles).Any();
+#endif
     }
 
     /// <summary>

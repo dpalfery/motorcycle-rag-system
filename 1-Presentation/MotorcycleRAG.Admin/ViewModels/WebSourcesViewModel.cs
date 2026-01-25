@@ -20,6 +20,7 @@ internal partial class WebSourcesViewModel : ObservableObject {
     private readonly ApiClient _apiClient;
 
     private readonly IAdminAuthService _authService;
+    private readonly IConfigurationStateService _configService;
     private readonly ILogger<WebSourcesViewModel> _logger;
 
     [ObservableProperty]
@@ -52,9 +53,10 @@ internal partial class WebSourcesViewModel : ObservableObject {
     [ObservableProperty]
     private bool newSourceIncludeInSearch = true;
 
-    public WebSourcesViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<WebSourcesViewModel> logger) {
+    public WebSourcesViewModel(ApiClient apiClient, IAdminAuthService authService, IConfigurationStateService configService, ILogger<WebSourcesViewModel> logger) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -81,8 +83,10 @@ internal partial class WebSourcesViewModel : ObservableObject {
 
 
         try {
-
-            await EnsureAuthorizedAsync();
+            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+            if (!authorized) {
+                return;
+            }
 
             var sources = await _apiClient.GetWebSourcesAsync();
 
@@ -106,15 +110,6 @@ internal partial class WebSourcesViewModel : ObservableObject {
 
         }
 
-        catch (UnauthorizedAccessException ex) {
-
-            // User not authorized - expected in demo mode
-
-            _logger.LogWarning(ex, "User not authorized to view web sources");
-
-            await MainThread.InvokeOnMainThreadAsync(() => WebSources.Clear());
-
-        }
 
         catch (HttpRequestException ex) {
 
@@ -505,19 +500,17 @@ internal partial class WebSourcesViewModel : ObservableObject {
     internal async Task InitializeAsync() {
 
         try {
+            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+            if (!authorized) {
+                return;
+            }
 
-            await EnsureAuthorizedAsync();
-
-            await LoadSourcesAsync();
+            await LoadSourcesAsync().ConfigureAwait(false);
 
         }
 
-        catch (UnauthorizedAccessException ex) {
-
-            // User not authorized - this is expected in demo mode
-
-            _logger.LogDebug(ex, "User not authorized to view web sources");
-
+        catch (HttpRequestException ex) {
+            _logger.LogWarning(ex, "API not available for loading web sources");
         }
 
     }
@@ -538,26 +531,37 @@ internal partial class WebSourcesViewModel : ObservableObject {
 
     /// </summary>
 
-    private async Task EnsureAuthorizedAsync() {
+    private async Task<bool> EnsureAuthorizedAsync() {
+        if (!_configService.IsApiConfigured) {
+            _logger.LogWarning("Web sources page blocked: API not configured");
+            await ErrorPresenter.ShowWarningAsync(
+                "Configuration Required",
+                "API is not configured. Go to Settings to configure the API base URL."
+            ).ConfigureAwait(false);
+            return false;
+        }
 
         if (!_authService.IsSignedIn()) {
-
-            throw new UnauthorizedAccessException("User is not signed in");
-
+            _logger.LogWarning("Web sources page blocked: user not signed in");
+            await ErrorPresenter.ShowWarningAsync(
+                "Sign In Required",
+                "Please sign in to manage web sources."
+            ).ConfigureAwait(false);
+            return false;
         }
 
-
-
-        var roles = await _authService.GetUserRolesAsync();
-
-        var isAdmin = AdminRoles.GetValidAdminRoles(roles).Any();
-
-        if (!isAdmin) {
-
-            throw new UnauthorizedAccessException("User does not have admin permissions");
-
+        // Use IsAuthorizedAdminAsync to support Debug mode bypass
+        var isAuthorized = await _authService.IsAuthorizedAdminAsync().ConfigureAwait(false);
+        if (!isAuthorized) {
+            _logger.LogWarning("Web sources page blocked: user lacks admin permissions");
+            await ErrorPresenter.ShowWarningAsync(
+                "Access Denied",
+                "You do not have permission to manage web sources."
+            ).ConfigureAwait(false);
+            return false;
         }
 
+        return true;
     }
 
 

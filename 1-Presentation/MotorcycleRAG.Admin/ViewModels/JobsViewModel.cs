@@ -20,14 +20,16 @@ namespace MotorcycleRAG.Admin.ViewModels;
 internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
+    private readonly IConfigurationStateService _configService;
     private readonly ILogger<JobsViewModel> _logger;
     private readonly System.Timers.Timer _pollTimer;
     private bool _isLoading;
     private bool _isPolling;
 
-    public JobsViewModel(ApiClient apiClient, IAdminAuthService authService, ILogger<JobsViewModel> logger) {
+    public JobsViewModel(ApiClient apiClient, IAdminAuthService authService, IConfigurationStateService configService, ILogger<JobsViewModel> logger) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         Jobs = new ObservableCollection<JobViewModel>();
@@ -73,8 +75,11 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     #region Lifecycle
 
     public async Task InitializeAsync() {
-        await EnsureAuthorizedAsync();
-        await LoadJobsAsync();
+        var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+        if (!authorized) {
+            return;
+        }
+        await LoadJobsAsync().ConfigureAwait(false);
         _pollTimer.Start();
     }
 
@@ -95,7 +100,10 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         // Poll for updates on running jobs
         await MainThread.InvokeOnMainThreadAsync(async () => {
             try {
-                await EnsureAuthorizedAsync().ConfigureAwait(false);
+                var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+                if (!authorized) {
+                    return;
+                }
 
                 // Filter running jobs using indexer access instead of LINQ
                 var runningJobs = new List<JobViewModel>();
@@ -116,9 +124,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
                     }
                 }
             }
-            catch (UnauthorizedAccessException ex) {
-                _logger.LogWarning(ex, "User not authorized for polling");
-            }
             catch (HttpRequestException ex) {
                 _logger.LogWarning(ex, "API not available during polling");
             }
@@ -134,6 +139,10 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private async Task LoadJobsAsync() {
         IsLoading = true;
         try {
+            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+            if (!authorized) {
+                return;
+            }
             var executions = await _apiClient.GetPipelineExecutionsAsync(default).ConfigureAwait(false);
 
             await MainThread.InvokeOnMainThreadAsync(() => {
@@ -152,10 +161,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
                     });
                 }
             }).ConfigureAwait(false);
-        }
-        catch (UnauthorizedAccessException) {
-            // Don't show error for missing authentication - this is expected in demo mode
-            await MainThread.InvokeOnMainThreadAsync(() => Jobs.Clear()).ConfigureAwait(false);
         }
         catch (HttpRequestException) {
             // API not available - silently fail
@@ -207,16 +212,37 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         }
     }
 
-    private async Task EnsureAuthorizedAsync() {
-        if (!_authService.IsSignedIn()) {
-            throw new UnauthorizedAccessException("User is not signed in");
+    private async Task<bool> EnsureAuthorizedAsync() {
+        if (!_configService.IsApiConfigured) {
+            _logger.LogWarning("Jobs page blocked: API not configured");
+            await ErrorPresenter.ShowWarningAsync(
+                "Configuration Required",
+                "API is not configured. Go to Settings to configure the API base URL."
+            ).ConfigureAwait(false);
+            return false;
         }
 
-        var roles = await _authService.GetUserRolesAsync().ConfigureAwait(false);
-        var isAdmin = AdminRoles.GetValidAdminRoles(roles).Any();
-        if (!isAdmin) {
-            throw new UnauthorizedAccessException("User does not have admin permissions");
+        if (!_authService.IsSignedIn()) {
+            _logger.LogWarning("Jobs page blocked: user not signed in");
+            await ErrorPresenter.ShowWarningAsync(
+                "Sign In Required",
+                "Please sign in to view pipeline jobs."
+            ).ConfigureAwait(false);
+            return false;
         }
+
+        // Use IsAuthorizedAdminAsync to support Debug mode bypass
+        var isAuthorized = await _authService.IsAuthorizedAdminAsync().ConfigureAwait(false);
+        if (!isAuthorized) {
+            _logger.LogWarning("Jobs page blocked: user lacks admin permissions");
+            await ErrorPresenter.ShowWarningAsync(
+                "Access Denied",
+                "You do not have permission to view pipeline jobs."
+            ).ConfigureAwait(false);
+            return false;
+        }
+
+        return true;
     }
 
     private static bool IsRunningStatus(PipelineStatus status) {

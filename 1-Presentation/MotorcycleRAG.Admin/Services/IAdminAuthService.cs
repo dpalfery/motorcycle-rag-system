@@ -35,6 +35,12 @@ internal interface IAdminAuthService {
     Task<IEnumerable<string>> GetUserRolesAsync();
 
     /// <summary>
+    /// Checks if the user is authorized as an administrator.
+    /// In DEBUG mode, this may return true even without specific roles to facilitate development.
+    /// </summary>
+    Task<bool> IsAuthorizedAdminAsync();
+
+    /// <summary>
     /// Gets a value indicating whether the user is currently authenticated
     /// </summary>
     bool IsAuthenticated { get; }

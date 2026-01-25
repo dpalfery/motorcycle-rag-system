@@ -139,23 +139,16 @@ internal static class MauiProgram {
 
         // ========== Local Processing Services ==========
 
-        builder.Services.AddSingleton<PdfChunker>();
-        builder.Services.AddSingleton<CsvChunker>();
+        builder.Services.AddSingleton<PdfChunker>(_ => new PdfChunker());
+        builder.Services.AddSingleton<CsvChunker>(_ => new CsvChunker());
 
         // Optional: ONNX embedding service (requires model file in Resources/Raw/)
         // Only register if model is available - IngestionViewModel will use server-side
         // embedding processing as fallback if this service is not registered
-        // Note: We can't log here since DI container isn't built yet.
-        // The warning will be logged by OnnxEmbeddingServiceFactory when it tries to load the model.
-        try {
-            // Register factory method so DI container manages disposal
+        if (OnnxEmbeddingServiceFactory.IsModelAvailable())
+        {
             builder.Services.AddSingleton<OnnxEmbeddingService>(_ =>
                 OnnxEmbeddingServiceFactory.CreateFromAppResources());
-        }
-        catch (Exception) {
-            // Model not available - don't register the service
-            // IngestionViewModel will handle missing service gracefully
-            // We can't log here since logger isn't available yet
         }
 
         // ========== Pages (Transient - Fresh instance per navigation) ==========

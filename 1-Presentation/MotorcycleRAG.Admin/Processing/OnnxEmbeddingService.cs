@@ -302,5 +302,15 @@ internal static class OnnxEmbeddingServiceFactory
     {
         return new OnnxEmbeddingService(modelPath);
     }
+
+    /// <summary>
+    /// Checks if the default model file exists in app resources
+    /// </summary>
+    internal static bool IsModelAvailable()
+    {
+        var appPath = AppDomain.CurrentDomain.BaseDirectory;
+        var modelPath = Path.Combine(appPath, "Resources", "Raw", "embedding-model.onnx");
+        return File.Exists(modelPath);
+    }
 }
 

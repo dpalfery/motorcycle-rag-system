@@ -70,19 +70,6 @@ Examples include (but are not limited to): `status*`, `plan*`, `summary*`, `deta
 *   **Admin UI**: .NET MAUI for Windows (`1-Presentation/MotorcycleRAG.Admin`).
 *   **BFF**: Backend-for-Frontend pattern using YARP/ASP.NET Core (`1-Presentation/MotorcycleRag.WebUI.BFF`).
 
-# 7. Architecture & Folder Rules (`AGENTS.md`)
-
-The project strictly follows these layers. Dependencies must point **inward** (Presentation -> Application -> Domain <- Persistence).
-
-1.  **0-Base** (`MotorcycleRAG.Shared`): Cross-cutting concerns, shared config, utilities.
-2.  **1-Presentation**: API Controllers, WebUI, Admin App. Entry points only.
-3.  **2-Application**: Use cases, orchestration, agents, interfaces for infrastructure.
-4.  **3-Domain**: Pure business logic, entities, and repository interfaces. **No infrastructure dependencies.**
-5.  **4-Persistence**: Implementation of interfaces, Azure SDKs, DB context.
-6.  **5-Test**: Unit (`.UnitTests`), Integration (`.IntegrationTests`), and UI tests.
-7.  **6-Docs**: Documentation.
-8.  **7-Deployment**: IaC (Pulumi), Dockerfiles.
-
 # 8. **Model vs DTO (in this repo):**
 
 * **DTO (Data Transfer Object)**: a boundary/transport shape used to move data between layers or external systems. DTOs are data-only, serialization-friendly, and should not contain business rules/invariants.
@@ -98,6 +85,8 @@ The project strictly follows these layers. Dependencies must point **inward** (P
 *   **Secrets**: NEVER store secrets in code/config files. Use Environment Variables or Key Vault.
 *   **Validation**: Sanitize all inputs. Use parameterized SQL queries ONLY.
 *   **Authorization**: Explicitly authorize every action (e.g., `[Authorize(Policy = "DataAdmin")]`).
+*   **Client Isolation**: Admin endpoints must validate `azp` (Authorized Party) matches the Admin App Client ID.
+*   **Rate Limiting**: Enforce role-based rate limiting via `RateLimitPartition` in API.
 *   **Logging**: Redact sensitive data (PII, query text) from logs.
 
 # 9. Key Features & Requirements (`spec.md`)

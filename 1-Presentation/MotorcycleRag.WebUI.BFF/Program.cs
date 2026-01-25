@@ -68,7 +68,10 @@ builder.Services.AddAuthentication(options => {
     options.SaveTokens = true;
     options.Scope.Add("openid");
     options.Scope.Add("profile");
-    options.Scope.Add("api");
+    // Explicit API scopes required for backend access
+    options.Scope.Add("api://motorcyclerag-api/read");
+    options.Scope.Add("api://motorcyclerag-api/chat");
+    options.Scope.Add("offline_access"); // Request refresh token
 
     // Redirect hardening
     options.ProtocolValidator.RequireNonce = true;

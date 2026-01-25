@@ -21,6 +21,8 @@ This file adds **API-specific** reminders. For global rules (security, clean arc
 ## Security and observability gotchas
 - Never log raw query text/prompts/PII; prefer correlation/query IDs (see `spec.md` requirements FR-004b, FR-021).
 - Secrets must come from environment variables/user-secrets only (no connection strings/keys in config files).
+- **Client Isolation**: Admin endpoints must enforce `azp` matches Admin Client ID.
+- **Rate Limiting**: Use role-based limits (`Demo`, `Pro`, `Roadrunner`, `Admin`).
 - Authorize every admin action explicitly (Entra app roles like `Admin` / `Operator` / `Viewer`).
 
 ## Useful commands

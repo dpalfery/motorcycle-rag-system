@@ -64,11 +64,12 @@ internal static class MauiProgram {
             // Check if auth is configured via UI settings
             if (configService.IsAuthConfigured) {
                 logger.LogInformation("Using configured authentication settings. ClientId: {ClientId}", configService.AuthClientId);
-                return new AdminAuthService(
+                var msalLogger = sp.GetRequiredService<ILogger<MsalAdminAuthService>>();
+                return new MsalAdminAuthService(
                     clientId: configService.AuthClientId!,
                     authority: configService.AuthAuthority!,
                     scopes: new[] { configService.AuthScope! },
-                    logger: logger
+                    logger: msalLogger
                 );
             }
 
@@ -81,11 +82,14 @@ internal static class MauiProgram {
                 !string.IsNullOrEmpty(envAuthority) &&
                 !string.IsNullOrEmpty(envScope)) {
                 logger.LogInformation("Using environment variable authentication settings. Scope: {Scope}", envScope);
-                return new AdminAuthService(
+                
+                // Use Production MSAL implementation
+                var msalLogger = sp.GetRequiredService<ILogger<MsalAdminAuthService>>();
+                return new MsalAdminAuthService(
                     clientId: envClientId,
                     authority: envAuthority,
                     scopes: new[] { envScope },
-                    logger: logger
+                    logger: msalLogger
                 );
             }
 

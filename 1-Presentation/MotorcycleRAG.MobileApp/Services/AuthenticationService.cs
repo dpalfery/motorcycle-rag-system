@@ -39,10 +39,10 @@ public class AuthenticationService : IAuthenticationService
         }
 
         // Default scopes if not provided in config
-        _scopes = authSettings.GetSection("Scopes").Get<string[]>() ?? new[] { "User.Read" };
+        _scopes = authSettings.GetSection("Scopes").Get<string[]>() ?? new[] { "api://motorcyclerag-api/read", "api://motorcyclerag-api/chat" };
 
         var builder = PublicClientApplicationBuilder.Create(clientId)
-            .WithRedirectUri(redirectUri);
+            .WithRedirectUri(redirectUri ?? "msauth://com.companyname.motorcyclerag.mobileapp");
 
         if (!string.IsNullOrEmpty(tenantId))
         {
@@ -71,6 +71,7 @@ public class AuthenticationService : IAuthenticationService
             else
             {
                 result = await _pca.AcquireTokenInteractive(_scopes)
+                                    .WithUseEmbeddedWebView(false) // Use system browser per spec
                                     .ExecuteAsync();
             }
 

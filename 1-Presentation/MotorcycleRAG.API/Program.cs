@@ -14,6 +14,7 @@ using Swashbuckle.AspNetCore.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 namespace MotorcycleRAG.API;
 
@@ -201,6 +202,7 @@ public class Program {
             //   1. "admin_access" in the 'scp' (scope) claim
             //   2. An allowed value in the 'roles' claim (e.g., Admin, DataAdmin, ContentAdmin, SuperAdmin)
             builder.Services.AddAuthorization(options => {
+                // Local function to check for scopes
                 static bool HasScope(System.Security.Claims.ClaimsPrincipal user, string requiredScope) {
                     if (user == null) {
                         return false;
@@ -220,6 +222,7 @@ public class Program {
                     return false;
                 }
 
+                // Local function to check for roles
                 static bool HasAnyRole(System.Security.Claims.ClaimsPrincipal user, params string[] roles) {
                     if (user == null) {
                         return false;
@@ -232,36 +235,55 @@ public class Program {
                     return roleClaims.Any(role => roles.Any(allowed =>
                         string.Equals(role, allowed, StringComparison.OrdinalIgnoreCase)));
                 }
-                // Admin policy - requires BOTH admin_access scope AND Admin app role
+
+                // Helper to validate client isolation (azp claim)
+                static bool IsAuthorizedClient(System.Security.Claims.ClaimsPrincipal user, string expectedClientId) {
+                    if (user == null || string.IsNullOrEmpty(expectedClientId)) {
+                        return false;
+                    }
+                    // azp (Authorized Party) claim contains the client ID of the app that requested the token
+                    var azp = user.FindFirst("azp")?.Value;
+                    return string.Equals(azp, expectedClientId, StringComparison.OrdinalIgnoreCase);
+                }
+
+                // Get Admin Client ID from configuration for isolation checks
+                var adminClientId = builder.Configuration["AzureAd:AdminClientId"] 
+                                   ?? Environment.GetEnvironmentVariable("MCR_ADMIN_CLIENT_ID");
+
+                // Admin policy - requires BOTH admin_access scope AND Admin app role AND correct Client ID
                 options.AddPolicy("Admin", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireAssertion(ctx =>
                         HasScope(ctx.User, "admin_access") &&
-                        HasAnyRole(ctx.User, "Admin", "SuperAdmin"));
+                        HasAnyRole(ctx.User, "Admin", "SuperAdmin") &&
+                        IsAuthorizedClient(ctx.User, adminClientId!)); 
                 });
 
-                // DataAdmin policy - requires BOTH admin_access scope AND DataAdmin app role
+                // DataAdmin policy - requires BOTH admin_access scope AND DataAdmin app role AND correct Client ID
                 options.AddPolicy("DataAdmin", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireAssertion(ctx =>
                         HasScope(ctx.User, "admin_access") &&
-                        HasAnyRole(ctx.User, "DataAdmin", "Admin", "SuperAdmin"));
+                        HasAnyRole(ctx.User, "DataAdmin", "Admin", "SuperAdmin") &&
+                        IsAuthorizedClient(ctx.User, adminClientId!));
                 });
 
-                // ContentAdmin policy - requires BOTH admin_access scope AND ContentAdmin app role
+                // ContentAdmin policy - requires BOTH admin_access scope AND ContentAdmin app role AND correct Client ID
                 options.AddPolicy("ContentAdmin", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireAssertion(ctx =>
                         HasScope(ctx.User, "admin_access") &&
-                        HasAnyRole(ctx.User, "ContentAdmin", "Admin", "SuperAdmin"));
+                        HasAnyRole(ctx.User, "ContentAdmin", "Admin", "SuperAdmin") &&
+                        IsAuthorizedClient(ctx.User, adminClientId!));
                 });
 
-                // SuperAdmin policy - requires BOTH admin_access scope AND SuperAdmin app role
+                // SuperAdmin policy - requires BOTH admin_access scope AND SuperAdmin app role AND correct Client ID
                 options.AddPolicy("SuperAdmin", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireAssertion(ctx =>
                         HasScope(ctx.User, "admin_access") &&
-                        HasAnyRole(ctx.User, "SuperAdmin"));
+                        HasAnyRole(ctx.User, "SuperAdmin") &&
+                        IsAuthorizedClient(ctx.User, adminClientId!));
                 });
 
                 // User policy - requires User app role (no scope requirement for regular users)
@@ -290,10 +312,51 @@ public class Program {
                     rateLimiterOptions.QueueLimit = 50;
                 });
 
-                options.AddFixedWindowLimiter("authenticated", rateLimiterOptions => {
-                    rateLimiterOptions.Window = TimeSpan.FromMinutes(1);
-                    rateLimiterOptions.PermitLimit = 1000;
-                    rateLimiterOptions.QueueLimit = 100;
+                // Role-based rate limiting per user (using 'oid' claim as partition key)
+                options.AddPolicy("authenticated", context => {
+                    var user = context.User;
+                    
+                    // Default limits for unknown/unauthenticated users (though they shouldn't hit this policy)
+                    var limit = 50;
+                    var window = TimeSpan.FromHours(1);
+                    
+                    // We need to redefine role checking logic here because the local function 'HasAnyRole'
+                    // from AddAuthorization is not accessible in this scope.
+                    static bool HasAnyRoleLocal(System.Security.Claims.ClaimsPrincipal p, params string[] r) {
+                        if (p == null) return false;
+                        var roleClaims = p.FindAll(System.Security.Claims.ClaimTypes.Role)
+                            .Select(c => c.Value)
+                            .Concat(p.FindAll("roles").Select(c => c.Value));
+                        return roleClaims.Any(role => r.Any(allowed =>
+                            string.Equals(role, allowed, StringComparison.OrdinalIgnoreCase)));
+                    }
+
+                    if (user.Identity?.IsAuthenticated == true) {
+                        // Check for roles and assign limits based on spec
+                        // Roadrunner / Admin: Unlimited
+                        if (HasAnyRoleLocal(user, "Roadrunner", "Admin", "SuperAdmin", "DataAdmin", "ContentAdmin")) {
+                            limit = 100000; // Effectively unlimited for practical purposes
+                        }
+                        // ProUser: 500/hour
+                        else if (HasAnyRoleLocal(user, "ProUser")) {
+                            limit = 500;
+                        }
+                        // DemoUser / Default: 50/hour
+                        else {
+                            limit = 50;
+                        }
+                    }
+
+                    // Partition by user object ID (oid) to track individual usage
+                    // Fallback to "anonymous" if no oid found (shouldn't happen for authenticated)
+                    var partitionKey = user.FindFirst("oid")?.Value ?? "anonymous";
+
+                    return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions {
+                        PermitLimit = limit,
+                        Window = window,
+                        QueueLimit = 10,
+                        AutoReplenishment = true
+                    });
                 });
 
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

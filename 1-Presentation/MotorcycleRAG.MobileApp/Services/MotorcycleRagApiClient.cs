@@ -86,7 +86,7 @@ public class MotorcycleRagApiClient : IApiClient
         try
         {
             var response = await _retryPolicy.ExecuteAsync(() =>
-                _httpClient.GetAsync("/api/me"));
+                _httpClient.GetAsync(new Uri("/api/me", UriKind.Relative)));
 
             _logger.LogInformation("Received GetUserProfile Response. Status: {StatusCode}, CorrelationId: {CorrelationId}", response.StatusCode, correlationId);
 

@@ -19,7 +19,8 @@ This file is **Admin-app specific** context. Global rules (secrets, auth separat
 - Connectivity/resilience checks before/around HTTP calls
 
 ## Security and data handling
-- Store tokens only in secure storage (via settings abstraction).
+- Store tokens only in secure storage (implemented via MSAL Extensions w/ DPAPI).
+- **Client Isolation**: Ensure tokens include `azp` claim matching configured Client ID.
 - Avoid logging file paths, query text, or document content; keep logs to IDs + status.
 
 ## Useful commands

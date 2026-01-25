@@ -18,7 +18,8 @@ This file is **mobile-app specific** context. Global rules live in the root `AGE
 - Offline-friendly UX: allow viewing cached conversations offline; block new queries without connectivity
 
 ## Security and privacy
-- Tokens only in secure storage; no secrets in files.
+- Tokens only in secure storage (implemented via MSAL Extensions); no secrets in files.
+- **Auth**: Use System Browser (`UseEmbeddedWebView = false`) for authentication.
 - Treat conversation text as sensitive: avoid logging raw messages/questions.
 
 ## Useful commands

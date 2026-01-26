@@ -71,10 +71,10 @@ internal static class MauiProgram {
                 if (!scope.StartsWith("http", StringComparison.OrdinalIgnoreCase) && 
                     !scope.StartsWith("api://", StringComparison.OrdinalIgnoreCase)) {
                     
-                    var envScope = Environment.GetEnvironmentVariable("MCR_ADMIN_API_SCOPE");
-                    if (!string.IsNullOrEmpty(envScope)) {
-                        logger.LogWarning("Detected invalid short scope '{ShortScope}'. Overriding with environment variable: '{EnvScope}'", scope, envScope);
-                        scope = envScope;
+                    var fallbackEnvScope = Environment.GetEnvironmentVariable("MCR_ADMIN_API_SCOPE");
+                    if (!string.IsNullOrEmpty(fallbackEnvScope)) {
+                        logger.LogWarning("Detected invalid short scope '{ShortScope}'. Overriding with environment variable: '{EnvScope}'", scope, fallbackEnvScope);
+                        scope = fallbackEnvScope;
                     }
                 }
 

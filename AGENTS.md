@@ -16,9 +16,10 @@
     - Rule: Do not create agent-generated status/plan/summary/change-log files in the repository root (or other top-level folders) unless a tool strictly requires it. 
       - The docs/agent-notes/ folder is ignored by git.
       - Examples include (but are not limited to): *status*, *plan*, *summary*, detailed_changes*, build_output*, verification*.
-  5. git commands require approval
-  - Never run git commands without explicit approval except for non-destructive read-only commands (e.g., `git status`, `git diff`, `git log`).
-  - Never run destructive or history-changing commands without asking first (e.g., `git restore`, `git reset`, `git checkout`, `git clean`, `git commit`, `git rebase`, `git push`).
+  5. **git commands require approval**
+    - Don't ask to do commits, in most instance the human will do them manually after reviewing your work. this is an important part of the human in the loop process.
+    - Never run git commands without explicit approval except for non-destructive read-only commands (e.g., `git status`, `git diff`, `git log`).
+    - Never run destructive or history-changing commands without asking first (e.g., `git restore`, `git reset`, `git checkout`, `git clean`, `git commit`, `git rebase`, `git push`).
   6. Always select the most specialized mode or agent available:
     - Use **.NET Developer** for backend tasks instead of generic Code mode.  
     - Use **maui-dev** for maui tasks instead of generic Code mode.

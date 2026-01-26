@@ -40,7 +40,7 @@ public class MsalAdminAuthService : IAdminAuthService {
         // Build Public Client Application
         var builder = PublicClientApplicationBuilder.Create(_clientId)
             .WithAuthority(new Uri(_authority))
-            .WithRedirectUri($"msal{_clientId}://auth") // Uses the standard MSAL redirect URI format for native apps
+            .WithRedirectUri("http://localhost") // Recommended loopback URI for desktop apps
             .WithLogging(LogMsal, Microsoft.Identity.Client.LogLevel.Info, enablePiiLogging: false);
 
         _pca = builder.Build();
@@ -77,6 +77,11 @@ public class MsalAdminAuthService : IAdminAuthService {
                 _logger.LogInformation("No cached account found, acquiring token interactively...");
                 result = await pca.AcquireTokenInteractive(_scopes)
                     .WithUseEmbeddedWebView(false) // Use system browser
+                    // Note: MSAL.NET on Windows using WAM (Windows Account Manager) or Default Browser
+                    // works differently than direct SystemWebViewOptions configuration in older versions.
+                    // To support custom protocol redirect URI on Windows with System Browser,
+                    // we usually rely on proper registry/manifest configuration and let MSAL/OS handle the callback.
+                    // The "OpenWithShell" option is not available in standard SystemWebViewOptions.
                     .ExecuteAsync();
             }
 

@@ -52,14 +52,19 @@ public sealed class AuthorizationMiddleware
             ? string.Join(", ", context.User.FindAll("http://schemas.microsoft.com/identity/claims/scope").Select(c => c.Value))
             : "none";
 
+        var azp = context.User.Identity?.IsAuthenticated ?? false
+            ? context.User.FindFirst("azp")?.Value ?? "missing"
+            : "none";
+
         _logger.LogInformation(
-            "Authorization attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Path: {Path}, Method: {Method}",
+            "Authorization attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Azp: {Azp}, Path: {Path}, Method: {Method}",
             correlationId,
             userId,
             userRoles,
             rawRoleClaims,
             scopeClaims,
             altScopeClaims,
+            azp,
             context.Request.Path,
             context.Request.Method);
 
@@ -103,13 +108,14 @@ public sealed class AuthorizationMiddleware
         else if (statusCode == StatusCodes.Status403Forbidden)
         {
             _logger.LogWarning(
-                "Authorization failed - Forbidden - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Path: {Path}",
+                "Authorization failed - Forbidden - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Azp: {Azp}, Path: {Path}",
                 correlationId,
                 userId,
                 userRoles,
                 rawRoleClaims,
                 scopeClaims,
                 altScopeClaims,
+                azp,
                 context.Request.Path);
         }
         else if (statusCode is >= 200 and < 300)

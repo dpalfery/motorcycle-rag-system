@@ -34,7 +34,7 @@ public class PipelineStatusResponse
 [ApiController]
 [Route("api/pipeline-processing")]
 [Produces("application/json")]
-[Authorize(Policy = "DataAdmin")] // Require DataAdmin role for all processing operations
+[Authorize(Policy = "Admin")] // Require Admin policy for all processing operations
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056:Uri properties should not be strings", Justification = "DTOs for API")]
 public class PipelineProcessingController : ControllerBase

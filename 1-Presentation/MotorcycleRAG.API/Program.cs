@@ -208,9 +208,11 @@ public class Program {
                         return false;
                     }
 
-                    var scopeClaims = user.FindAll("scp")
-                        .Select(c => c.Value)
-                        .Concat(user.FindAll("http://schemas.microsoft.com/identity/claims/scope").Select(c => c.Value));
+                    // Log scope check for debugging
+                    var scpClaims = user.FindAll("scp").Select(c => c.Value);
+                    var schemaClaims = user.FindAll("http://schemas.microsoft.com/identity/claims/scope").Select(c => c.Value);
+                    
+                    var scopeClaims = scpClaims.Concat(schemaClaims);
 
                     foreach (var scopeClaim in scopeClaims) {
                         var scopes = scopeClaim.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -228,6 +230,7 @@ public class Program {
                         return false;
                     }
 
+                    // Check standard Role claim type AND "roles" claim type (common in Entra ID access tokens)
                     var roleClaims = user.FindAll(System.Security.Claims.ClaimTypes.Role)
                         .Select(c => c.Value)
                         .Concat(user.FindAll("roles").Select(c => c.Value));
@@ -250,40 +253,25 @@ public class Program {
                 var adminClientId = builder.Configuration["AzureAd:AdminClientId"] 
                                    ?? Environment.GetEnvironmentVariable("MCR_ADMIN_CLIENT_ID");
 
-                // Admin policy - requires BOTH admin_access scope AND Admin app role AND correct Client ID
+                // Admin policy - requires BOTH admin scope AND Admin app role AND correct Client ID
                 options.AddPolicy("Admin", policy => {
                     policy.RequireAuthenticatedUser();
                     policy.RequireAssertion(ctx =>
-                        HasScope(ctx.User, "admin_access") &&
-                        HasAnyRole(ctx.User, "Admin", "SuperAdmin") &&
-                        IsAuthorizedClient(ctx.User, adminClientId!)); 
-                });
-
-                // DataAdmin policy - requires BOTH admin_access scope AND DataAdmin app role AND correct Client ID
-                options.AddPolicy("DataAdmin", policy => {
-                    policy.RequireAuthenticatedUser();
-                    policy.RequireAssertion(ctx =>
-                        HasScope(ctx.User, "admin_access") &&
-                        HasAnyRole(ctx.User, "DataAdmin", "Admin", "SuperAdmin") &&
+                        HasScope(ctx.User, "admin") &&
+                        HasAnyRole(ctx.User, "Admin") &&
                         IsAuthorizedClient(ctx.User, adminClientId!));
                 });
 
-                // ContentAdmin policy - requires BOTH admin_access scope AND ContentAdmin app role AND correct Client ID
-                options.AddPolicy("ContentAdmin", policy => {
+                // Read policy - requires read scope
+                options.AddPolicy("Read", policy => {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireAssertion(ctx =>
-                        HasScope(ctx.User, "admin_access") &&
-                        HasAnyRole(ctx.User, "ContentAdmin", "Admin", "SuperAdmin") &&
-                        IsAuthorizedClient(ctx.User, adminClientId!));
+                    policy.RequireAssertion(ctx => HasScope(ctx.User, "read"));
                 });
 
-                // SuperAdmin policy - requires BOTH admin_access scope AND SuperAdmin app role AND correct Client ID
-                options.AddPolicy("SuperAdmin", policy => {
+                // Chat policy - requires chat scope
+                options.AddPolicy("Chat", policy => {
                     policy.RequireAuthenticatedUser();
-                    policy.RequireAssertion(ctx =>
-                        HasScope(ctx.User, "admin_access") &&
-                        HasAnyRole(ctx.User, "SuperAdmin") &&
-                        IsAuthorizedClient(ctx.User, adminClientId!));
+                    policy.RequireAssertion(ctx => HasScope(ctx.User, "chat"));
                 });
 
                 // User policy - requires User app role (no scope requirement for regular users)
@@ -298,7 +286,12 @@ public class Program {
                     policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Viewer");
                 });
 
-                // Default policy - requires any authenticated user
+                // Default policy - requires any authenticated user and defaults to denying anonymous access
+                // This "FallbackPolicy" ensures that every endpoint requires authentication unless marked [AllowAnonymous]
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
+
                 options.DefaultPolicy = new AuthorizationPolicyBuilder()
                     .RequireAuthenticatedUser()
                     .Build();
@@ -334,7 +327,7 @@ public class Program {
                     if (user.Identity?.IsAuthenticated == true) {
                         // Check for roles and assign limits based on spec
                         // Roadrunner / Admin: Unlimited
-                        if (HasAnyRoleLocal(user, "Roadrunner", "Admin", "SuperAdmin", "DataAdmin", "ContentAdmin")) {
+                        if (HasAnyRoleLocal(user, "Roadrunner", "Admin")) {
                             limit = 100000; // Effectively unlimited for practical purposes
                         }
                         // ProUser: 500/hour

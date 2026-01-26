@@ -11,7 +11,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/DataPipeline")]
 [Produces("application/json")]
-[Authorize(Policy = "DataAdmin")]
+[Authorize(Policy = "Admin")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class DataPipelineUploadController : ControllerBase
 {

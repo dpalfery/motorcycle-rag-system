@@ -17,7 +17,7 @@ namespace MotorcycleRAG.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/admin/mcp-tools")]
-[Authorize(Policy = "DataAdmin")]
+[Authorize(Policy = "Admin")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class McpAdminController : ControllerBase {
     private readonly IToolConfigurationService _configService;

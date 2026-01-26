@@ -175,6 +175,9 @@ internal partial class SettingsViewModel : ObservableObject {
 
         if (string.IsNullOrWhiteSpace(AuthScope)) {
             issues.Add("Scope required");
+        } else if (!AuthScope.StartsWith("http", StringComparison.OrdinalIgnoreCase) && 
+                   !AuthScope.StartsWith("api://", StringComparison.OrdinalIgnoreCase)) {
+            issues.Add("Scope must be a full URI (e.g., https://... or api://...)");
         }
 
         if (issues.Count > 0) {

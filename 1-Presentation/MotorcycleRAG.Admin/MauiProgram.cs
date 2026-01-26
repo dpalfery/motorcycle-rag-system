@@ -63,12 +63,27 @@ internal static class MauiProgram {
 
             // Check if auth is configured via UI settings
             if (configService.IsAuthConfigured) {
+                var scope = configService.AuthScope!;
+                
+                // Fix: Detect if scope is a short name (e.g. "admin_access") which causes AADSTS650053
+                // and fallback to environment variable or prepend standard prefix if possible.
+                // This handles the case where a user saved an invalid short scope in local settings.
+                if (!scope.StartsWith("http", StringComparison.OrdinalIgnoreCase) && 
+                    !scope.StartsWith("api://", StringComparison.OrdinalIgnoreCase)) {
+                    
+                    var envScope = Environment.GetEnvironmentVariable("MCR_ADMIN_API_SCOPE");
+                    if (!string.IsNullOrEmpty(envScope)) {
+                        logger.LogWarning("Detected invalid short scope '{ShortScope}'. Overriding with environment variable: '{EnvScope}'", scope, envScope);
+                        scope = envScope;
+                    }
+                }
+
                 logger.LogInformation("Using configured authentication settings. ClientId: {ClientId}", configService.AuthClientId);
                 var msalLogger = sp.GetRequiredService<ILogger<MsalAdminAuthService>>();
                 return new MsalAdminAuthService(
                     clientId: configService.AuthClientId!,
                     authority: configService.AuthAuthority!,
-                    scopes: new[] { configService.AuthScope! },
+                    scopes: new[] { scope },
                     logger: msalLogger
                 );
             }

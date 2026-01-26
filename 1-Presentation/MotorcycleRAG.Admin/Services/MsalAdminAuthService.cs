@@ -40,7 +40,7 @@ public class MsalAdminAuthService : IAdminAuthService {
         // Build Public Client Application
         var builder = PublicClientApplicationBuilder.Create(_clientId)
             .WithAuthority(new Uri(_authority))
-            .WithRedirectUri("http://localhost") // Recommended for desktop apps using system browser
+            .WithRedirectUri($"msal{_clientId}://auth") // Uses the standard MSAL redirect URI format for native apps
             .WithLogging(LogMsal, Microsoft.Identity.Client.LogLevel.Info, enablePiiLogging: false);
 
         _pca = builder.Build();

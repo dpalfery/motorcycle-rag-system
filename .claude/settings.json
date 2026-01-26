@@ -1,16 +1,4 @@
 {
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "powershell -Command \"Get-ChildItem -Filter 'tmpclaude-*-cwd' -File -Recurse | Remove-Item -Force -ErrorAction SilentlyContinue\""
-          }
-        ]
-      }
-    ]
-  },
   "statusLine": {
     "type": "command",
     "command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:\\git\\motorcycle-rag-system\\.claude\\statusline-command.ps1"

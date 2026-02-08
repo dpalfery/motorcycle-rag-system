@@ -154,7 +154,6 @@ namespace MotorcycleRAG.Infrastructure {
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
-                        Username = registryCredentials.Apply(c => c.Username!),
                         Username = registryCredentials.Apply(c => c.Username ?? ""),
                         PasswordSecretRef = "acr-password"
                     }
@@ -214,7 +213,6 @@ namespace MotorcycleRAG.Infrastructure {
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
-                        Username = registryCredentials.Apply(c => c.Username!),
                         Username = registryCredentials.Apply(c => c.Username ?? ""),
                         PasswordSecretRef = "acr-password"
                     }

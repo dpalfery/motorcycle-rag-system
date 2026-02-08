@@ -31,7 +31,17 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Fill this section by mapping the feature plan to each constitution principle in
+`.specify/memory/constitution.md`.
+
+Minimum gates:
+- Security (I): secrets handling, authz, validation, HTTPS, logging redaction
+- Clean Architecture (II): dependency direction, thin adapters, domain purity
+- Code Quality (III): zero warnings, one type per C# file, async I/O
+- Testing (IV): test plan + coverage expectations where applicable
+- Observability (V): logging, metrics/health, correlation/tracing
+- Resilience (VI): timeouts, retry/backoff, circuit breaking, rate limiting
+- Process (VII): approvals for dependencies/infra, hygiene, artifacts updated
 
 ## Project Structure
 

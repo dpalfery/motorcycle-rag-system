@@ -102,6 +102,19 @@
 
 ## Success Criteria *(mandatory)*
 
+## Constitution Alignment *(mandatory)*
+
+Describe how this feature complies with each principle in
+`.specify/memory/constitution.md`.
+
+- Security (I):
+- Clean Architecture (II):
+- Code Quality (III):
+- Testing (IV):
+- Observability (V):
+- Resilience (VI):
+- Process & Workflow (VII):
+
 <!--
   ACTION REQUIRED: Define measurable success criteria.
   These must be technology-agnostic and measurable.

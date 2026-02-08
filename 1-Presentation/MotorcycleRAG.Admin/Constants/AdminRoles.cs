@@ -7,10 +7,7 @@ namespace MotorcycleRAG.Admin.Constants;
 internal static class AdminRoles
 {
     /// <summary>Global admin role with full system access</summary>
-    internal const string Admin = "Admin";
-
-    /// <summary>Data administration role for ingestion and pipeline management</summary>
-    internal const string DataAdmin = "DataAdmin";
+    internal const string Admin = "mcr-api-admin";
 
     /// <summary>Content administration role for content configuration management</summary>
     internal const string ContentAdmin = "ContentAdmin";
@@ -22,7 +19,6 @@ internal static class AdminRoles
     internal static readonly IReadOnlyList<string> AllAdminRoles = new[]
     {
         Admin,
-        DataAdmin,
         ContentAdmin,
         SuperAdmin
     };

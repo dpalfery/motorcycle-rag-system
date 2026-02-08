@@ -32,7 +32,7 @@ public class WebSourceRegistryService {
             throw new UnauthorizedAccessException("User must be authenticated to add web sources");
         }
 
-        if (!_currentUserService.IsInRole("DataAdmin") && !_currentUserService.IsInRole("Admin")) {
+        if (!_currentUserService.IsInRole("mcr-api-admin")) {
             throw new UnauthorizedAccessException("User does not have permission to add web sources");
         }
 
@@ -69,7 +69,7 @@ public class WebSourceRegistryService {
             throw new UnauthorizedAccessException("User must be authenticated to update web sources");
         }
 
-        if (!_currentUserService.IsInRole("DataAdmin") && !_currentUserService.IsInRole("Admin")) {
+        if (!_currentUserService.IsInRole("mcr-api-admin")) {
             throw new UnauthorizedAccessException("User does not have permission to update web sources");
         }
 
@@ -105,7 +105,7 @@ public class WebSourceRegistryService {
             throw new UnauthorizedAccessException("User must be authenticated to remove web sources");
         }
 
-        if (!_currentUserService.IsInRole("DataAdmin") && !_currentUserService.IsInRole("Admin")) {
+        if (!_currentUserService.IsInRole("mcr-api-admin")) {
             throw new UnauthorizedAccessException("User does not have permission to remove web sources");
         }
 

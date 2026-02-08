@@ -117,7 +117,7 @@ The .NET MAUI Admin application for the Motorcycle RAG system has been implement
 **Status**: ✅ Complete  
 **Implementation**:
 - `AppShell.xaml.cs` - Tab visibility based on roles
-- Checks for Admin, DataAdmin, ContentAdmin, SuperAdmin roles
+- Checks for mcr-api-admin, ContentAdmin, SuperAdmin roles
 - Hides admin tabs for unauthorized users
 - Dynamic service provider resolution for DI-enabled pages
 

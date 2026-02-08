@@ -9,24 +9,13 @@ namespace MotorcycleRAG.IntegrationTests;
 internal static class TestWebApplicationFactoryExtensions
 {
     /// <summary>
-    /// Creates an HTTP client with test authentication for DataAdmin role
-    /// </summary>
-    public static HttpClient CreateDataAdminClient(this WebApplicationFactory<Program> factory)
-    {
-        ArgumentNullException.ThrowIfNull(factory);
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Test-Auth", "DataAdmin");
-        return client;
-    }
-
-    /// <summary>
-    /// Creates an HTTP client with test authentication for Admin role
+    /// Creates an HTTP client with test authentication for Admin role (mcr-api-admin)
     /// </summary>
     public static HttpClient CreateAdminClient(this WebApplicationFactory<Program> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
         var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Test-Auth", "Admin");
+        client.DefaultRequestHeaders.Add("X-Test-Auth", "mcr-api-admin");
         return client;
     }
 

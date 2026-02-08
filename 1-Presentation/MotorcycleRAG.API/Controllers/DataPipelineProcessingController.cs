@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -11,7 +11,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/DataPipeline")]
 [Produces("application/json")]
-[Authorize(Policy = "Admin")]
+[Authorize(Policy = "mcr-api-admin")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class DataPipelineProcessingController : ControllerBase
 {

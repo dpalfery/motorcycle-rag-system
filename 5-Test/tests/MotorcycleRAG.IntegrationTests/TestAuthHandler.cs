@@ -48,11 +48,18 @@ internal class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptio
             var trimmedRole = role.Trim();
             claims.Add(new Claim(ClaimTypes.Role, trimmedRole));
 
-            // Per Program.cs policies, admin-level roles also require the "admin_access" scope
-            if (trimmedRole.EndsWith("Admin", StringComparison.OrdinalIgnoreCase) &&
-                !claims.Any(c => c.Type == "scp" && c.Value == "admin_access"))
+            // Per Program.cs policies, admin-level roles also require the "admin" scope
+            if ((trimmedRole.Equals("mcr-api-admin", StringComparison.OrdinalIgnoreCase) || 
+                 trimmedRole.EndsWith("Admin", StringComparison.OrdinalIgnoreCase)) &&
+                !claims.Any(c => c.Type == "scp" && c.Value == "admin"))
             {
-                claims.Add(new Claim("scp", "admin_access"));
+                claims.Add(new Claim("scp", "admin"));
+                
+                // Also add azp (Authorized Party) claim for admin isolation checks
+                if (!claims.Any(c => c.Type == "azp"))
+                {
+                    claims.Add(new Claim("azp", "11111111-1111-1111-1111-111111111111"));
+                }
             }
         }
 

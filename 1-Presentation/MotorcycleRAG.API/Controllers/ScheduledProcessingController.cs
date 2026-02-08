@@ -13,7 +13,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/scheduled-processing")]
 [Produces("application/json")]
-[Authorize(Policy = "Admin")] // Require Admin policy for scheduled processing operations
+[Authorize(Policy = "mcr-api-admin")] // Require Admin policy for scheduled processing operations
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056:Uri properties should not be strings", Justification = "DTOs for API")]
 public class ScheduledProcessingController : ControllerBase

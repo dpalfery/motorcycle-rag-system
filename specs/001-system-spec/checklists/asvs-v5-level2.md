@@ -236,7 +236,7 @@
 - [x] V13.1.2: Verify API authentication and authorization are enforced.
   - Location: `1-Presentation/MotorcycleRAG.API/Program.cs` - Authentication and Authorization configuration
   - Implementation: JWT Bearer token validation, dual-issuer support (Entra ID + Entra External ID)
-  - Authorization Policies: Admin, DataAdmin, ContentAdmin, SuperAdmin roles with scope claims validation
+  - Authorization Policies: mcr-api-admin, ContentAdmin, SuperAdmin roles with scope claims validation
   - T102: Audit logging tracks all authentication attempts and security-relevant actions
 
 ### V13.2: Web Service Security
@@ -286,7 +286,7 @@ For each requirement, provide:
 
 - **V2.1.2**: Authentication enforced for all sensitive endpoints
   - Location: `1-Presentation/MotorcycleRAG.API/Program.cs` - Authorization policies and `[Authorize]` attributes
-  - Evidence: Admin policies (Admin, DataAdmin, ContentAdmin, SuperAdmin) with role claims validation
+  - Evidence: Admin policies (mcr-api-admin, ContentAdmin, SuperAdmin) with role claims validation
 
 - **V2.4.1**: Secure session token management
   - Location: `1-Presentation/MotorcycleRag.WebUI.BFF/Program.cs` - Cookie authentication with secure settings
@@ -303,7 +303,7 @@ For each requirement, provide:
 
 - **V4.3.1**: Role-Based Access Control implemented
   - Location: `1-Presentation/MotorcycleRAG.API/Program.cs` - Admin authorization policies
-  - Evidence: Admin, DataAdmin, ContentAdmin, SuperAdmin roles with claim-based validation
+  - Evidence: mcr-api-admin, ContentAdmin, SuperAdmin roles with claim-based validation
 
 #### V7: Error Handling and Logging
 - **V7.1.1**: Graceful error handling implemented

@@ -46,7 +46,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
-            mockUserService.Setup(s => s.IsInRole("Admin")).Returns(false);
+            mockUserService.Setup(s => s.IsInRole("mcr-api-admin")).Returns(false);
 
             using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
@@ -72,7 +72,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
-            mockUserService.Setup(s => s.IsInRole("Admin")).Returns(true);
+            mockUserService.Setup(s => s.IsInRole("mcr-api-admin")).Returns(true);
 
             var mockUserAdminService = new Mock<IUserAdminService>();
             mockUserAdminService
@@ -89,7 +89,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     services.AddSingleton(mockUserAdminService.Object);
                 });
             });
-            using var client = factory.CreateClientWithRoles("Admin");
+            using var client = factory.CreateClientWithRoles("mcr-api-admin");
 
             // Act
             using var content = new StringContent(
@@ -113,7 +113,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
-            mockUserService.Setup(s => s.IsInRole("Admin")).Returns(true);
+            mockUserService.Setup(s => s.IsInRole("mcr-api-admin")).Returns(true);
 
             var mockUserAdminService = new Mock<IUserAdminService>();
             mockUserAdminService
@@ -130,7 +130,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     services.AddSingleton(mockUserAdminService.Object);
                 });
             });
-            using var client = factory.CreateClientWithRoles("Admin");
+            using var client = factory.CreateClientWithRoles("mcr-api-admin");
 
             // Act
             using var content = new StringContent(
@@ -163,7 +163,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
-            mockUserService.Setup(s => s.IsInRole("Admin")).Returns(true);
+            mockUserService.Setup(s => s.IsInRole("mcr-api-admin")).Returns(true);
 
             var mockPlanRepository = new Mock<IPlanRepository>();
             mockPlanRepository
@@ -192,7 +192,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     services.AddSingleton(mockPlanRepository.Object);
                 });
             });
-            using var client = factory.CreateClientWithRoles("Admin");
+            using var client = factory.CreateClientWithRoles("mcr-api-admin");
 
             // Act
             var response = await client.GetAsync("/api/admin/plans");
@@ -211,7 +211,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
-            mockUserService.Setup(s => s.IsInRole("Admin")).Returns(true);
+            mockUserService.Setup(s => s.IsInRole("mcr-api-admin")).Returns(true);
 
             var mockPlanRepository = new Mock<IPlanRepository>();
             mockPlanRepository
@@ -224,7 +224,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     services.AddSingleton(mockPlanRepository.Object);
                 });
             });
-            using var client = factory.CreateClientWithRoles("Admin");
+            using var client = factory.CreateClientWithRoles("mcr-api-admin");
 
             // Act
             using var content = new StringContent(
@@ -242,7 +242,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
-            mockUserService.Setup(s => s.IsInRole("Admin")).Returns(true);
+            mockUserService.Setup(s => s.IsInRole("mcr-api-admin")).Returns(true);
 
             var mockPlanRepository = new Mock<IPlanRepository>();
             var existingPlan = new UserPlan {
@@ -264,7 +264,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     services.AddSingleton(mockPlanRepository.Object);
                 });
             });
-            using var client = factory.CreateClientWithRoles("Admin");
+            using var client = factory.CreateClientWithRoles("mcr-api-admin");
 
             // Act
             using var content = new StringContent(
@@ -283,7 +283,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             // Arrange
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
-            mockUserService.Setup(s => s.IsInRole("Admin")).Returns(true);
+            mockUserService.Setup(s => s.IsInRole("mcr-api-admin")).Returns(true);
 
             var mockPlanRepository = new Mock<IPlanRepository>();
             mockPlanRepository
@@ -304,7 +304,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                     services.AddSingleton(mockPlanRepository.Object);
                 });
             });
-            using var client = factory.CreateClientWithRoles("Admin");
+            using var client = factory.CreateClientWithRoles("mcr-api-admin");
 
             // Act
             var response = await client.DeleteAsync("/api/admin/plans/premium-plan");

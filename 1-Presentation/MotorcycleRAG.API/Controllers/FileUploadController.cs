@@ -34,7 +34,7 @@ public class BatchFileUploadResponse
 [ApiController]
 [Route("api/file-upload")]
 [Produces("application/json")]
-[Authorize(Policy = "Admin")] // Require Admin policy for all upload operations
+[Authorize(Policy = "mcr-api-admin")] // Require Admin policy for all upload operations
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056:Uri properties should not be strings", Justification = "DTOs for API")]
 public class FileUploadController : ControllerBase

@@ -177,39 +177,37 @@ namespace MotorcycleRAG.Infrastructure {
                         },
                         Env = commonEnvs,
                         Probes = new[]
-                        Probes = new[]
                         {
                             new ContainerAppProbeArgs
                             {
                                 HttpGet = new ContainerAppProbeHttpGetArgs { Path = "/health", Port = 8080 },
                                 Type = Pulumi.AzureNative.App.Type.Liveness
-                                Type = Pulumi.AzureNative.App.Type.Liveness
                             }
                         }
                     }
                 },
-                    Scale = new ScaleArgs
-                    {
-                        MinReplicas = 0,
-                        MaxReplicas = 10
-                    }
-                },
-                    Identity = new ManagedServiceIdentityArgs {
-                        Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
-                    }
-                });
+                Scale = new ScaleArgs
+                {
+                    MinReplicas = 0,
+                    MaxReplicas = 10
+                }
+            },
+            Identity = new ManagedServiceIdentityArgs {
+                Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+            }
+        });
 
-            // 9. UI Container App (BFF)
-            var uiApp = new ContainerApp($"{namePrefix}-ui", new ContainerAppArgs {
-                ResourceGroupName = resourceGroup.Name,
-                ManagedEnvironmentId = managedEnvironment.Id,
-                Configuration = new ConfigurationArgs {
-                    Ingress = new IngressArgs {
-                        External = true,
-                        TargetPort = 8080
-                    },
-                    Registries = new[]
-                    {
+        // 9. UI Container App (BFF)
+        var uiApp = new ContainerApp($"{namePrefix}-ui", new ContainerAppArgs {
+            ResourceGroupName = resourceGroup.Name,
+            ManagedEnvironmentId = managedEnvironment.Id,
+            Configuration = new ConfigurationArgs {
+                Ingress = new IngressArgs {
+                    External = true,
+                    TargetPort = 8080
+                },
+                Registries = new[]
+                {
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
@@ -217,14 +215,14 @@ namespace MotorcycleRAG.Infrastructure {
                         PasswordSecretRef = "acr-password"
                     }
                 },
-                    Secrets = new[]
-                    {
+                Secrets = new[]
+                {
                     new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
-                },
-                Template = new TemplateArgs {
-                    Containers = new[]
-                    {
+            },
+            Template = new TemplateArgs {
+                Containers = new[]
+                {
                     new ContainerArgs
                     {
                         Name = "ui",
@@ -239,29 +237,27 @@ namespace MotorcycleRAG.Infrastructure {
                             new EnvironmentVarArgs { Name = "API_URL", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") }
                         }).ToArray(),
                         Probes = new[]
-                        Probes = new[]
                         {
                             new ContainerAppProbeArgs
                             {
                                 HttpGet = new ContainerAppProbeHttpGetArgs { Path = "/health", Port = 8080 },
                                 Type = Pulumi.AzureNative.App.Type.Liveness
-                                Type = Pulumi.AzureNative.App.Type.Liveness
                             }
                         }
                     }
                 },
-                    Scale = new ScaleArgs
-                    {
-                        MinReplicas = 0,
-                        MaxReplicas = 10
-                    }
-                },
-                    Identity = new ManagedServiceIdentityArgs {
-                        Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
-                    }
-                });
+                Scale = new ScaleArgs
+                {
+                    MinReplicas = 0,
+                    MaxReplicas = 10
+                }
+            },
+            Identity = new ManagedServiceIdentityArgs {
+                Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+            }
+        });
 
-            // RBAC: Key Vault Secrets User for both apps
+        // RBAC: Key Vault Secrets User for both apps
             foreach (var app in new[] { apiApp, uiApp }) {
                 _ = new RoleAssignment($"{app.Name}-kv-role", new RoleAssignmentArgs {
                     PrincipalId = app.Identity.Apply(i => i!.PrincipalId),

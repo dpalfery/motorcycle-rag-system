@@ -39,7 +39,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task DataPipelineController_UploadEndpoint_RequiresDataAdminRole()
+    public async Task DataPipelineController_UploadEndpoint_RequiresAdminRole()
     {
         // Arrange
         var client = _factory.WithWebHostBuilder(builder =>
@@ -72,7 +72,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task DataPipelineController_StatusEndpoint_RequiresDataAdminRole()
+    public async Task DataPipelineController_StatusEndpoint_RequiresAdminRole()
     {
         // Arrange
         var client = _factory.CreateClient();
@@ -82,6 +82,21 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task WebSourcesController_GetAll_WithAdminRole_ReturnsSuccess()
+    {
+        // Arrange
+        var client = _factory.CreateAdminClient();
+
+        // Act
+        var response = await client.GetAsync("/api/admin/web-sources");
+
+        // Assert
+        // If the database is not set up, it might return 500, but it should NOT be 401 or 403
+        Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     // Additional tests would be added here to test with authenticated users and different roles

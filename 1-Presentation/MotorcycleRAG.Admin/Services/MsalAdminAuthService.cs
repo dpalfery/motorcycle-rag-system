@@ -38,10 +38,12 @@ public class MsalAdminAuthService : IAdminAuthService {
         if (_pca != null) return _pca;
 
         // Build Public Client Application
+#pragma warning disable S1075 // URIs should not be hardcoded
         var builder = PublicClientApplicationBuilder.Create(_clientId)
             .WithAuthority(new Uri(_authority))
             .WithRedirectUri("http://localhost") // Recommended loopback URI for desktop apps
             .WithLogging(LogMsal, Microsoft.Identity.Client.LogLevel.Info, enablePiiLogging: false);
+#pragma warning restore S1075 // URIs should not be hardcoded
 
         _pca = builder.Build();
 
@@ -59,7 +61,7 @@ public class MsalAdminAuthService : IAdminAuthService {
 
     public async Task<string?> GetAccessTokenAsync() {
         var pca = await GetPcaAsync();
-        
+
         // Refresh account status
         var accounts = await pca.GetAccountsAsync();
         _currentAccount = accounts.FirstOrDefault();
@@ -77,11 +79,11 @@ public class MsalAdminAuthService : IAdminAuthService {
                 _logger.LogInformation("No cached account found, acquiring token interactively...");
                 result = await pca.AcquireTokenInteractive(_scopes)
                     .WithUseEmbeddedWebView(false) // Use system browser
-                    // Note: MSAL.NET on Windows using WAM (Windows Account Manager) or Default Browser
-                    // works differently than direct SystemWebViewOptions configuration in older versions.
-                    // To support custom protocol redirect URI on Windows with System Browser,
-                    // we usually rely on proper registry/manifest configuration and let MSAL/OS handle the callback.
-                    // The "OpenWithShell" option is not available in standard SystemWebViewOptions.
+                                                   // Note: MSAL.NET on Windows using WAM (Windows Account Manager) or Default Browser
+                                                   // works differently than direct SystemWebViewOptions configuration in older versions.
+                                                   // To support custom protocol redirect URI on Windows with System Browser,
+                                                   // we usually rely on proper registry/manifest configuration and let MSAL/OS handle the callback.
+                                                   // The "OpenWithShell" option is not available in standard SystemWebViewOptions.
                     .ExecuteAsync();
             }
 
@@ -95,7 +97,7 @@ public class MsalAdminAuthService : IAdminAuthService {
                 var result = await pca.AcquireTokenInteractive(_scopes)
                     .WithUseEmbeddedWebView(false) // Use system browser
                     .ExecuteAsync();
-                
+
                 _currentAccount = result.Account;
                 return result.AccessToken;
             }
@@ -130,10 +132,10 @@ public class MsalAdminAuthService : IAdminAuthService {
         // For admin app logic, we rely on the API to enforce role permissions
         // This is a simplified implementation - in a real app we might decode the JWT or query Graph
         if (!IsSignedIn()) return Enumerable.Empty<string>();
-        
+
         // We assume if they can sign in to this app config, they are at least an Admin candidate
         // The API will reject them if they don't have the claim
-        return await Task.FromResult(new[] { "Admin" });
+        return await Task.FromResult(new[] { "mcr-api-admin" });
     }
 
     public async Task<bool> IsAuthorizedAdminAsync() {
@@ -156,7 +158,7 @@ public class MsalAdminAuthService : IAdminAuthService {
 
     private void LogMsal(Microsoft.Identity.Client.LogLevel level, string message, bool containsPii) {
         if (containsPii) return;
-        
+
         switch (level) {
             case Microsoft.Identity.Client.LogLevel.Error:
                 _logger.LogError("[MSAL] {Message}", message);

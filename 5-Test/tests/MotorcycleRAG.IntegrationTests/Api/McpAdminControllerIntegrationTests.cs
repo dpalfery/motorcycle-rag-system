@@ -46,7 +46,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task POST_CreateTool_MissingRequiredField_ReturnsBadRequest() {
             // Arrange
-            using var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("mcr-api-admin");
             var request = new CreateMcpToolRequest {
                 ToolId = "", // Empty required field
                 Name = "Test Tool",
@@ -73,7 +73,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task POST_CreateTool_InvalidJSON_ReturnsBadRequest() {
             // Arrange
-            using var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("mcr-api-admin");
             var request = new CreateMcpToolRequest {
                 ToolId = "test-tool",
                 Name = "Test Tool",
@@ -104,7 +104,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task PUT_UpdateTool_MissingToolId_ReturnsMethodNotAllowed() {
             // Arrange
-            using var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("mcr-api-admin");
             var request = new UpdateMcpToolRequest {
                 Name = "Updated Name"
             };
@@ -145,7 +145,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task DELETE_DeleteTool_NotFound_Returns404() {
             // Arrange
-            using var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("mcr-api-admin");
 
             // Act
             var response = await client.DeleteAsync($"{BaseUrl}/nonexistent-tool");
@@ -164,7 +164,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
         [Fact]
         public async Task POST_CreateTool_ExceedsMaxLength_ReturnsBadRequest() {
             // Arrange
-            using var client = _factory.CreateClientWithRoles("DataAdmin");
+            using var client = _factory.CreateClientWithRoles("mcr-api-admin");
             var veryLongString = new string('x', 300); // Exceeds 255 limit
 
             var request = new CreateMcpToolRequest {

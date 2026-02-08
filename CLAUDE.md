@@ -6,3 +6,5 @@ Generating these documents uses output tokens and costs money and bring no value
 If you are asked to generate a summary, findings, analysis, or any other document, please ask the user if they want you to generate it.
 
 If the user says yes, then generate the document.
+
+Whenever possible we want to use Teaming

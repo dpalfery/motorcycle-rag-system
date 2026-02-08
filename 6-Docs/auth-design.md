@@ -11,7 +11,7 @@
 ## 1. Scope
 
 This document defines:
-- Authentication flows for **Web+BFF**, **Mobile**, **Admin**
+- Authentication flows for **Web+BFF**, **Mobile**, **mcr-api-admin**
 - Authorization model enforced by **MotorcycleRAG.API**
 - Token handling and trust boundaries
 - Rate limiting strategy
@@ -25,7 +25,7 @@ This document defines:
 - **Tenant:** Single tenant
 - **User types:**
   - External users (social IdPs)
-  - Entra native users (Admins only)
+  - Entra native users (mcr-api-admins only)
 
 ---
 
@@ -37,7 +37,7 @@ This document defines:
 4. **No tokens are exposed to the browser**
 5. **Short‑lived access tokens + refresh tokens**
 6. **Per‑user rate limiting enforced at API**
-7. **Admin endpoints require both role AND client isolation**
+7. **mcr-api-admin endpoints require both role AND client isolation**
 
 ---
 
@@ -127,7 +127,7 @@ Defined on **MotorcycleRAG.API**:
 
 | Role | Description |
 |----|----|
-| Admin | Full access |
+| mcr-api-admin | Full access |
 | DemoUser | Read/chat with strict limits |
 | ProUser | Read/chat with moderate limits |
 | Roadrunner | Read/chat unlimited |
@@ -142,7 +142,7 @@ Roles appear in **access tokens** as `roles`.
 |----|----|
 | Read | `read` scope |
 | Chat | `chat` scope |
-| Admin | `admin` scope + `roles=Admin` + `azp=AdminClientId` |
+| mcr-api-admin | `admin` scope + `roles=mcr-api-admin` + `azp=AdminClientId` |
 
 *(Client Isolation implemented in `Program.cs` via `IsAuthorizedClient` check)*
 
@@ -150,10 +150,10 @@ Roles appear in **access tokens** as `roles`.
 
 ## 6. Client Isolation (Critical)
 
-Admin endpoints must validate:
+mcr-api-admin endpoints must validate:
 
 ```text
-roles contains "Admin"
+roles contains "mcr-api-admin"
 AND
 azp == <Admin App Client ID>
 ```
@@ -180,7 +180,7 @@ This prevents:
 | DemoUser | 50 | 200 |
 | ProUser | 500 | 5,000 |
 | Roadrunner | Unlimited | Unlimited |
-| Admin | Unlimited | Unlimited |
+| mcr-api-admin | Unlimited | Unlimited |
 
 *(Status: Implemented via `RateLimitPartition` in `Program.cs`)*
 
@@ -216,7 +216,7 @@ No UX impact.
 ## 10. Explicitly Forbidden
 
 - ❌ Using ID tokens for authorization
-- ❌ Device Code flow (Admin)
+- ❌ Device Code flow (mcr-api-admin)
 - ❌ Tokens in browser
 - ❌ Implicit flow
 - ❌ ROPC
@@ -230,7 +230,7 @@ No UX impact.
 | Web Auth | ASVS 3 |
 | API AuthZ | ASVS 3 |
 | Mobile | ASVS 2 |
-| Admin | ASVS 2+ |
+| mcr-api-admin | ASVS 2+ |
 | Overall | ASVS 2 |
 
 ---

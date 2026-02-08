@@ -85,7 +85,7 @@ Examples include (but are not limited to): `status*`, `plan*`, `summary*`, `deta
 
 *   **Secrets**: NEVER store secrets in code/config files. Use Environment Variables or Key Vault.
 *   **Validation**: Sanitize all inputs. Use parameterized SQL queries ONLY.
-*   **Authorization**: Explicitly authorize every action (e.g., `[Authorize(Policy = "DataAdmin")]`).
+*   **Authorization**: Explicitly authorize every action (e.g., `[Authorize(Policy = "mcr-api-admin")]`).
 *   **Client Isolation**: Admin endpoints must validate `azp` (Authorized Party) matches the Admin App Client ID.
 *   **Rate Limiting**: Enforce role-based rate limiting via `RateLimitPartition` in API.
 *   **Logging**: Redact sensitive data (PII, query text) from logs.

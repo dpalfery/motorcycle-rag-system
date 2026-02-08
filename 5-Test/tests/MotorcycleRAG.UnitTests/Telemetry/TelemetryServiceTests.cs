@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Persistence.Telemetry;
 using System.Collections.Concurrent;
 using FluentAssertions;
@@ -13,8 +13,7 @@ using FluentAssertions;
 
 namespace MotorcycleRAG.UnitTests.Telemetry;
 
-public class TelemetryServiceTests : IDisposable
-{
+public class TelemetryServiceTests : IDisposable {
     private readonly StubTelemetryChannel _channel;
     private readonly TelemetryConfiguration _aiConfig;
     private readonly TelemetryClient _client;
@@ -22,11 +21,9 @@ public class TelemetryServiceTests : IDisposable
     private readonly Mock<ILogger<TelemetryService>> _mockLogger;
     private readonly ITelemetryService _service;
 
-    public TelemetryServiceTests()
-    {
+    public TelemetryServiceTests() {
         _channel = new StubTelemetryChannel();
-        _aiConfig = new TelemetryConfiguration
-        {
+        _aiConfig = new TelemetryConfiguration {
             TelemetryChannel = _channel,
             ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000"
         };
@@ -42,8 +39,7 @@ public class TelemetryServiceTests : IDisposable
     }
 
     [Fact]
-    public void TrackQuery_ShouldSendTelemetryEvent()
-    {
+    public void TrackQuery_ShouldSendTelemetryEvent() {
         // Act
         _service.TrackQuery("query1", "tell me about bikes", TimeSpan.FromMilliseconds(123), 5, 0.002m);
 
@@ -57,8 +53,7 @@ public class TelemetryServiceTests : IDisposable
     }
 
     [Fact]
-    public void TrackDegradedMode_ShouldSendDegradedModeEvent()
-    {
+    public void TrackDegradedMode_ShouldSendDegradedModeEvent() {
         // Arrange
         var failedSources = new List<string> { "WebSearch", "PDFSearch" };
         var availableSources = new List<string> { "VectorSearch" };
@@ -81,32 +76,28 @@ public class TelemetryServiceTests : IDisposable
     }
 
     [Fact]
-    public void TrackDegradedMode_WithNullFailedSources_ShouldThrowArgumentNullException()
-    {
+    public void TrackDegradedMode_WithNullFailedSources_ShouldThrowArgumentNullException() {
         // Act & Assert
         var act = () => _service.TrackDegradedMode("corr-123", null!, new List<string> { "VectorSearch" }, TimeSpan.Zero, 0);
         act.Should().Throw<ArgumentNullException>();
     }
 
     [Fact]
-    public void TrackDegradedMode_WithNullAvailableSources_ShouldThrowArgumentNullException()
-    {
+    public void TrackDegradedMode_WithNullAvailableSources_ShouldThrowArgumentNullException() {
         // Act & Assert
         var act = () => _service.TrackDegradedMode("corr-123", new List<string> { "WebSearch" }, null!, TimeSpan.Zero, 0);
         act.Should().Throw<ArgumentNullException>();
     }
 
     [Fact]
-    public void TrackDegradedMode_WithEmptyCorrelationId_ShouldThrowArgumentException()
-    {
+    public void TrackDegradedMode_WithEmptyCorrelationId_ShouldThrowArgumentException() {
         // Act & Assert
         var act = () => _service.TrackDegradedMode(string.Empty, new List<string>(), new List<string>(), TimeSpan.Zero, 0);
         act.Should().Throw<ArgumentException>();
     }
 
     [Fact]
-    public void TrackSourceFailure_ShouldSendSourceFailureEvent()
-    {
+    public void TrackSourceFailure_ShouldSendSourceFailureEvent() {
         // Arrange
         var duration = TimeSpan.FromMilliseconds(250);
 
@@ -123,16 +114,14 @@ public class TelemetryServiceTests : IDisposable
     }
 
     [Fact]
-    public void TrackSourceFailure_WithEmptySourceName_ShouldThrowArgumentException()
-    {
+    public void TrackSourceFailure_WithEmptySourceName_ShouldThrowArgumentException() {
         // Act & Assert
         var act = () => _service.TrackSourceFailure("corr-456", string.Empty, "Error", TimeSpan.Zero);
         act.Should().Throw<ArgumentException>();
     }
 
     [Fact]
-    public void TrackSearchExecution_ShouldSendSearchExecutionEvent()
-    {
+    public void TrackSearchExecution_ShouldSendSearchExecutionEvent() {
         // Arrange
         var duration = TimeSpan.FromMilliseconds(1000);
 
@@ -153,16 +142,14 @@ public class TelemetryServiceTests : IDisposable
     }
 
     [Fact]
-    public void TrackSearchExecution_WithEmptyQueryId_ShouldThrowArgumentException()
-    {
+    public void TrackSearchExecution_WithEmptyQueryId_ShouldThrowArgumentException() {
         // Act & Assert
         var act = () => _service.TrackSearchExecution("corr-789", string.Empty, TimeSpan.Zero, 0, 0, 0, false);
         act.Should().Throw<ArgumentException>();
     }
 
     [Fact]
-    public void TrackSearchExecution_CalculatesSuccessRateCorrectly()
-    {
+    public void TrackSearchExecution_CalculatesSuccessRateCorrectly() {
         // Arrange
         var duration = TimeSpan.FromMilliseconds(500);
 
@@ -174,8 +161,7 @@ public class TelemetryServiceTests : IDisposable
         ev.Metrics["SourceSuccessRate"].Should().Be(100d);
     }
 
-    private sealed class StubTelemetryChannel : ITelemetryChannel
-    {
+    private sealed class StubTelemetryChannel : ITelemetryChannel {
         public ConcurrentBag<ITelemetry> Telemetries { get; } = new();
         public void Send(ITelemetry item) => Telemetries.Add(item);
         public void Flush() { }
@@ -186,16 +172,13 @@ public class TelemetryServiceTests : IDisposable
         }
     }
 
-    public void Dispose()
-    {
+    public void Dispose() {
         Dispose(true);
         GC.SuppressFinalize(this);
     }
 
-    protected virtual void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
+    protected virtual void Dispose(bool disposing) {
+        if (disposing) {
             _aiConfig?.Dispose();
             _channel?.Dispose();
         }

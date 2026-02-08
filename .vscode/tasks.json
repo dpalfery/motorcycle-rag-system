@@ -2,27 +2,20 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build: api",
+      "label": "build",
       "command": "dotnet",
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/1-Presentation/MotorcycleRAG.API/MotorcycleRAG.API.csproj",
-        "/p:Configuration=Debug"
+        "${workspaceFolder}/MotorcycleRAG.sln",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
       ],
-      "problemMatcher": "$msCompile"
-    },
-    {
-      "label": "build: admin",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
-        "/p:Configuration=Debug",
-        "/p:TargetFramework=net10.0-windows10.0.19041.0"
-      ],
-      "problemMatcher": "$msCompile"
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
     },
     {
       "label": "Git: Complete Push Workflow",

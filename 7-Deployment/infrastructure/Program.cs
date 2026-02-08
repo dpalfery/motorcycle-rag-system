@@ -1,3 +1,4 @@
+using System.Linq;
 using Pulumi;
 using Pulumi.AzureNative.Resources;
 using Pulumi.AzureNative.KeyVault;
@@ -21,17 +22,14 @@ using ManagedServiceIdentityArgs = Pulumi.AzureNative.App.Inputs.ManagedServiceI
 
 return await Pulumi.Deployment.RunAsync<MyStack>().ConfigureAwait(false);
 
-namespace MotorcycleRAG.Infrastructure
-{
+namespace MotorcycleRAG.Infrastructure {
 #pragma warning disable CA1506 // Avoid excessive class coupling
 #pragma warning disable S1200 // Pulumi stacks naturally have many dependencies; splitting would require major refactor
 #pragma warning disable S3059 // Pulumi requires public class for deployment
 #pragma warning disable CA1515 // Pulumi requires public class for deployment
-    public sealed class MyStack : Stack
-    {
+    public sealed class MyStack : Stack {
 #pragma warning disable S138 // Functions should not have too many lines of code
-        public MyStack()
-        {
+        public MyStack() {
             var cfg = new Pulumi.Config();
             var currentClientConfig = Output.Create(GetClientConfig.InvokeAsync());
 
@@ -46,19 +44,16 @@ namespace MotorcycleRAG.Infrastructure
             const string namePrefix = $"{org}-{workload}-{env}-{loc}";
 
             // 1. Resource Group
-            var resourceGroup = new ResourceGroup($"{namePrefix}-rg", new ResourceGroupArgs
-            {
+            var resourceGroup = new ResourceGroup($"{namePrefix}-rg", new ResourceGroupArgs {
                 Location = location,
             });
 
             // 2. Storage Account for AI services
             // Fix ambiguous reference for 'Kind' and 'MinimumTlsVersion' by fully qualifying with Pulumi.AzureNative.Storage
-            var storageAccount = new StorageAccount($"{org}{workload}{env}st01", new Pulumi.AzureNative.Storage.StorageAccountArgs
-            {
+            var storageAccount = new StorageAccount($"{org}{workload}{env}st01", new Pulumi.AzureNative.Storage.StorageAccountArgs {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
-                Sku = new Pulumi.AzureNative.Storage.Inputs.SkuArgs
-                {
+                Sku = new Pulumi.AzureNative.Storage.Inputs.SkuArgs {
                     Name = Pulumi.AzureNative.Storage.SkuName.Standard_LRS
                 },
                 Kind = Pulumi.AzureNative.Storage.Kind.StorageV2,
@@ -67,15 +62,12 @@ namespace MotorcycleRAG.Infrastructure
             });
 
             // 3. Key Vault
-            var keyVault = new Vault($"{namePrefix}-kv", new VaultArgs
-            {
+            var keyVault = new Vault($"{namePrefix}-kv", new VaultArgs {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
-                Properties = new VaultPropertiesArgs
-                {
+                Properties = new VaultPropertiesArgs {
                     TenantId = currentClientConfig.Apply(config => config.TenantId),
-                    Sku = new Pulumi.AzureNative.KeyVault.Inputs.SkuArgs
-                    {
+                    Sku = new Pulumi.AzureNative.KeyVault.Inputs.SkuArgs {
                         Family = SkuFamily.A,
                         Name = Pulumi.AzureNative.KeyVault.SkuName.Standard
                     },
@@ -87,58 +79,47 @@ namespace MotorcycleRAG.Infrastructure
             });
 
             // 4. Log Analytics Workspace
-            var logAnalytics = new Workspace($"{namePrefix}-log", new WorkspaceArgs
-            {
+            var logAnalytics = new Workspace($"{namePrefix}-log", new WorkspaceArgs {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
-                Sku = new WorkspaceSkuArgs
-                {
+                Sku = new WorkspaceSkuArgs {
                     Name = WorkspaceSkuNameEnum.PerGB2018
                 }
             });
 
             // 5. Azure AI Services
-            var aiServices = new Account($"{namePrefix}-cog01", new AccountArgs
-            {
+            var aiServices = new Account($"{namePrefix}-cog01", new AccountArgs {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
                 Kind = "AIServices",
-                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs
-                {
+                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
                     Name = "S0"
                 },
-                Properties = new AccountPropertiesArgs
-                {
+                Properties = new AccountPropertiesArgs {
                     CustomSubDomainName = $"{org}-{workload}-{env}-cog01",
                     PublicNetworkAccess = Pulumi.AzureNative.CognitiveServices.PublicNetworkAccess.Enabled
                 }
             });
 
             // 6. Azure Container Registry
-            var registry = new Registry($"{org}{workload}{env}acr", new RegistryArgs
-            {
+            var registry = new Registry($"{org}{workload}{env}acr", new RegistryArgs {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
-                Sku = new Pulumi.AzureNative.ContainerRegistry.Inputs.SkuArgs
-                {
+                Sku = new Pulumi.AzureNative.ContainerRegistry.Inputs.SkuArgs {
                     Name = Pulumi.AzureNative.ContainerRegistry.SkuName.Basic
                 },
                 AdminUserEnabled = true
             });
 
             // 7. Managed Environment (ACA Environment)
-            var managedEnvironment = new ManagedEnvironment($"{namePrefix}-env", new ManagedEnvironmentArgs
-            {
+            var managedEnvironment = new ManagedEnvironment($"{namePrefix}-env", new ManagedEnvironmentArgs {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
-                AppLogsConfiguration = new AppLogsConfigurationArgs
-                {
+                AppLogsConfiguration = new AppLogsConfigurationArgs {
                     Destination = "log-analytics",
-                    LogAnalyticsConfiguration = new LogAnalyticsConfigurationArgs
-                    {
+                    LogAnalyticsConfiguration = new LogAnalyticsConfigurationArgs {
                         CustomerId = logAnalytics.CustomerId,
-                        SharedKey = GetSharedKeys.Invoke(new GetSharedKeysInvokeArgs
-                        {
+                        SharedKey = GetSharedKeys.Invoke(new GetSharedKeysInvokeArgs {
                             ResourceGroupName = resourceGroup.Name,
                             WorkspaceName = logAnalytics.Name
                         }).Apply(keys => keys.PrimarySharedKey ?? "")
@@ -147,8 +128,7 @@ namespace MotorcycleRAG.Infrastructure
             });
 
             // Get Registry Credentials
-            var registryCredentials = ListRegistryCredentials.Invoke(new ListRegistryCredentialsInvokeArgs
-            {
+            var registryCredentials = ListRegistryCredentials.Invoke(new ListRegistryCredentialsInvokeArgs {
                 ResourceGroupName = resourceGroup.Name,
                 RegistryName = registry.Name
             });
@@ -161,14 +141,11 @@ namespace MotorcycleRAG.Infrastructure
         };
 
             // 8. API Container App
-            var apiApp = new ContainerApp($"{namePrefix}-api", new ContainerAppArgs
-            {
+            var apiApp = new ContainerApp($"{namePrefix}-api", new ContainerAppArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ManagedEnvironmentId = managedEnvironment.Id,
-                Configuration = new ConfigurationArgs
-                {
-                    Ingress = new IngressArgs
-                    {
+                Configuration = new ConfigurationArgs {
+                    Ingress = new IngressArgs {
                         External = true,
                         TargetPort = 8080 // Standard .NET 8/10 port
                     },
@@ -177,6 +154,7 @@ namespace MotorcycleRAG.Infrastructure
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
+                        Username = registryCredentials.Apply(c => c.Username!),
                         Username = registryCredentials.Apply(c => c.Username ?? ""),
                         PasswordSecretRef = "acr-password"
                     }
@@ -186,8 +164,7 @@ namespace MotorcycleRAG.Infrastructure
                     new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
                 },
-                Template = new TemplateArgs
-                {
+                Template = new TemplateArgs {
                     Containers = new[]
                     {
                     new ContainerArgs
@@ -201,10 +178,12 @@ namespace MotorcycleRAG.Infrastructure
                         },
                         Env = commonEnvs,
                         Probes = new[]
+                        Probes = new[]
                         {
                             new ContainerAppProbeArgs
                             {
                                 HttpGet = new ContainerAppProbeHttpGetArgs { Path = "/health", Port = 8080 },
+                                Type = Pulumi.AzureNative.App.Type.Liveness
                                 Type = Pulumi.AzureNative.App.Type.Liveness
                             }
                         }
@@ -216,21 +195,17 @@ namespace MotorcycleRAG.Infrastructure
                         MaxReplicas = 10
                     }
                 },
-                Identity = new ManagedServiceIdentityArgs
-                {
-                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
-                }
-            });
+                    Identity = new ManagedServiceIdentityArgs {
+                        Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+                    }
+                });
 
             // 9. UI Container App (BFF)
-            var uiApp = new ContainerApp($"{namePrefix}-ui", new ContainerAppArgs
-            {
+            var uiApp = new ContainerApp($"{namePrefix}-ui", new ContainerAppArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ManagedEnvironmentId = managedEnvironment.Id,
-                Configuration = new ConfigurationArgs
-                {
-                    Ingress = new IngressArgs
-                    {
+                Configuration = new ConfigurationArgs {
+                    Ingress = new IngressArgs {
                         External = true,
                         TargetPort = 8080
                     },
@@ -239,6 +214,7 @@ namespace MotorcycleRAG.Infrastructure
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
+                        Username = registryCredentials.Apply(c => c.Username!),
                         Username = registryCredentials.Apply(c => c.Username ?? ""),
                         PasswordSecretRef = "acr-password"
                     }
@@ -248,8 +224,7 @@ namespace MotorcycleRAG.Infrastructure
                     new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
                 },
-                Template = new TemplateArgs
-                {
+                Template = new TemplateArgs {
                     Containers = new[]
                     {
                     new ContainerArgs
@@ -266,10 +241,12 @@ namespace MotorcycleRAG.Infrastructure
                             new EnvironmentVarArgs { Name = "API_URL", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") }
                         }).ToArray(),
                         Probes = new[]
+                        Probes = new[]
                         {
                             new ContainerAppProbeArgs
                             {
                                 HttpGet = new ContainerAppProbeHttpGetArgs { Path = "/health", Port = 8080 },
+                                Type = Pulumi.AzureNative.App.Type.Liveness
                                 Type = Pulumi.AzureNative.App.Type.Liveness
                             }
                         }
@@ -281,17 +258,14 @@ namespace MotorcycleRAG.Infrastructure
                         MaxReplicas = 10
                     }
                 },
-                Identity = new ManagedServiceIdentityArgs
-                {
-                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
-                }
-            });
+                    Identity = new ManagedServiceIdentityArgs {
+                        Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+                    }
+                });
 
             // RBAC: Key Vault Secrets User for both apps
-            foreach (var app in new[] { apiApp, uiApp })
-            {
-                _ = new RoleAssignment($"{app.Name}-kv-role", new RoleAssignmentArgs
-                {
+            foreach (var app in new[] { apiApp, uiApp }) {
+                _ = new RoleAssignment($"{app.Name}-kv-role", new RoleAssignmentArgs {
                     PrincipalId = app.Identity.Apply(i => i!.PrincipalId),
                     RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6", // Key Vault Secrets User
                     Scope = keyVault.Id,

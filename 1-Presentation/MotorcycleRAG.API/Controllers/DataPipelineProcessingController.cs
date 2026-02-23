@@ -8,6 +8,13 @@ namespace MotorcycleRAG.API.Controllers;
 /// <summary>
 /// Backwards-compatible controller for legacy data pipeline processing and status routes.
 /// </summary>
+/// <remarks>
+/// This controller is a legacy backwards-compatible route (<c>api/DataPipeline/*</c>).
+/// New ingestion flows should use <see cref="IngestionJobsController"/> (<c>api/ingestion/*</c>).
+/// The <see cref="DataPipelineRequest"/> DTO accepted by <see cref="ProcessAsync"/> includes a
+/// <c>FilePath</c> property — callers MUST supply an opaque blob reference (e.g. an upload GUID
+/// or blob key), never a raw filesystem path, to avoid path traversal (CWE-22).
+/// </remarks>
 [ApiController]
 [Route("api/DataPipeline")]
 [Produces("application/json")]
@@ -30,6 +37,7 @@ public sealed class DataPipelineProcessingController : ControllerBase
     /// Process an uploaded file.
     /// Route: POST /api/DataPipeline/process
     /// </summary>
+    // SECURITY: Callers must pass an opaque blob key in request.FilePath, not a raw filesystem path. See DataPipelineRequest.FilePath documentation.
     [HttpPost("process")]
     [ProducesResponseType(typeof(PipelineExecutionResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -65,6 +73,7 @@ public sealed class DataPipelineProcessingController : ControllerBase
     /// Get pipeline execution status.
     /// Route: GET /api/DataPipeline/status/{executionId}
     /// </summary>
+    // NOTE: Legacy status polling. Prefer GET /api/ingestion/jobs/{jobId} for Fabric pipeline jobs.
     [HttpGet("status/{executionId}")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

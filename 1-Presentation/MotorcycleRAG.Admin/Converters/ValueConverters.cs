@@ -1,4 +1,4 @@
-#pragma warning disable CA1812 // Members are never instantiated - kept for potential future use
+﻿#pragma warning disable CA1812 // Members are never instantiated - kept for potential future use
 #pragma warning disable CA1852 // Types can be sealed but kept as-is
 
 using System.Globalization;
@@ -85,7 +85,7 @@ internal class HasValueConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException("HasValueConverter does not support two-way binding.");
     }
 }
 
@@ -121,7 +121,7 @@ internal class EnabledToColorConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException("EnabledToColorConverter does not support two-way binding.");
     }
 }
 
@@ -141,7 +141,7 @@ internal class StatusLabelConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException("StatusLabelConverter does not support two-way binding.");
     }
 }
 
@@ -174,7 +174,7 @@ internal class StatusColorConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException("StatusColorConverter does not support two-way binding.");
     }
 }
 

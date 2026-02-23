@@ -14,7 +14,8 @@ using Pulumi.AzureNative.App;
 using Pulumi.AzureNative.App.Inputs;
 using Pulumi.AzureNative.ContainerRegistry;
 using Pulumi.AzureNative.ContainerRegistry.Inputs;
-using System.Linq;
+using Pulumi.AzureNative.Search;
+using Pulumi.AzureNative.Sql;
 using MotorcycleRAG.Infrastructure;
 
 // Add this explicit using for App.Inputs to resolve ambiguity:
@@ -257,7 +258,94 @@ namespace MotorcycleRAG.Infrastructure {
             }
         });
 
-        // RBAC: Key Vault Secrets User for both apps
+            // 10. Azure AI Search
+            var searchService = new Pulumi.AzureNative.Search.Services($"{namePrefix}-search", new Pulumi.AzureNative.Search.ServicesArgs {
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                Sku = new Pulumi.AzureNative.Search.Inputs.SkuArgs { Name = "free" },
+                Properties = new Pulumi.AzureNative.Search.Inputs.SearchServicePropertiesArgs { HostingMode = "default" }
+            });
+
+            // 11. Azure SQL Server
+            var sqlServer = new Pulumi.AzureNative.Sql.Server($"{org}{workload}{env}sql01", new Pulumi.AzureNative.Sql.ServerArgs {
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                ServerName = $"{org}{workload}{env}sql01",
+                Properties = new Pulumi.AzureNative.Sql.Inputs.ServerPropertiesArgs {
+                    AdministratorLogin = "sqladmin",
+                    AdministratorLoginPassword = "TempPassword123!",
+                    Version = "12.0"
+                }
+            });
+
+            // 12. Azure SQL Database
+            var sqlDatabase = new Pulumi.AzureNative.Sql.Database($"{org}{workload}{env}sqldb01", new Pulumi.AzureNative.Sql.DatabaseArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ServerName = sqlServer.Name,
+                DatabaseName = $"{org}{workload}{env}sqldb01",
+                Location = location,
+                Sku = new Pulumi.AzureNative.Sql.Inputs.SkuArgs { Name = "Basic" }
+            });
+
+            // 13. Azure OpenAI
+            var openAIAccount = new Pulumi.AzureNative.CognitiveServices.Account($"{org}{workload}{env}oai01", new Pulumi.AzureNative.CognitiveServices.AccountArgs {
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                AccountName = $"{org}{workload}{env}oai01",
+                Kind = "OpenAI",
+                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs { Name = "S0" },
+                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.AccountPropertiesArgs {
+                    CustomSubDomainName = $"{org}-{workload}-{env}-oai01",
+                    PublicNetworkAccess = Pulumi.AzureNative.CognitiveServices.PublicNetworkAccess.Enabled
+                }
+            });
+
+            // 14. OpenAI Deployments
+            var gpt4oDeployment = new Pulumi.AzureNative.CognitiveServices.Deployment("gpt-4o", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
+                ResourceGroupName = resourceGroup.Name,
+                AccountName = openAIAccount.Name,
+                DeploymentName = "gpt-4o",
+                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
+                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.ModelArgs {
+                        Format = "OpenAI",
+                        Name = "gpt-4o",
+                        Version = "2024-05-13"
+                    },
+                    ScaleSettings = new Pulumi.AzureNative.CognitiveServices.Inputs.ScaleSettingsArgs {
+                        ScaleType = "Standard"
+                    }
+                }
+            });
+
+            var embeddingDeployment = new Pulumi.AzureNative.CognitiveServices.Deployment("text-embedding-3-large", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
+                ResourceGroupName = resourceGroup.Name,
+                AccountName = openAIAccount.Name,
+                DeploymentName = "text-embedding-3-large",
+                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
+                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.ModelArgs {
+                        Format = "OpenAI",
+                        Name = "text-embedding-3-large",
+                        Version = "1"
+                    },
+                    ScaleSettings = new Pulumi.AzureNative.CognitiveServices.Inputs.ScaleSettingsArgs {
+                        ScaleType = "Standard"
+                    }
+                }
+            });
+
+            // 15. Document Intelligence
+            var docIntel = new Pulumi.AzureNative.CognitiveServices.Account($"{namePrefix}-docintel", new Pulumi.AzureNative.CognitiveServices.AccountArgs {
+                ResourceGroupName = resourceGroup.Name,
+                Location = location,
+                AccountName = $"{namePrefix}-docintel",
+                Kind = "FormRecognizer",
+                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs { Name = "F0" },
+                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.AccountPropertiesArgs {
+                    CustomSubDomainName = $"{org}-{workload}-{env}-docintel",
+                    PublicNetworkAccess = Pulumi.AzureNative.CognitiveServices.PublicNetworkAccess.Enabled
+                }
+            });
+            // RBAC: Key Vault Secrets User for both apps
             foreach (var app in new[] { apiApp, uiApp }) {
                 _ = new RoleAssignment($"{app.Name}-kv-role", new RoleAssignmentArgs {
                     PrincipalId = app.Identity.Apply(i => i!.PrincipalId),
@@ -275,6 +363,11 @@ namespace MotorcycleRAG.Infrastructure {
             this.ApcUrl = uiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}");
             this.ApiUrl = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}");
             this.AcrLoginServer = registry.LoginServer;
+            this.SearchEndpoint = searchService.Properties.Apply(p => p.HostName != null ? $"https://{p.HostName}" : "");
+            this.SqlServerName = sqlServer.Name;
+            this.SqlDatabaseName = sqlDatabase.Name;
+            this.OpenAIEndpoint = openAIAccount.Properties.Apply(p => p.Endpoint);
+            this.DocumentIntelligenceEndpoint = docIntel.Properties.Apply(p => p.Endpoint);
         }
 #pragma warning restore S138 // Functions should not have too many lines of code
 #pragma warning restore S1200 // Pulumi stacks naturally have many dependencies; splitting would require major refactor
@@ -301,6 +394,20 @@ namespace MotorcycleRAG.Infrastructure {
 
         [Output("acrLoginServer")]
         public Output<string> AcrLoginServer { get; set; }
+        [Output("searchEndpoint")]
+        public Output<string> SearchEndpoint { get; set; }
+
+        [Output("sqlServerName")]
+        public Output<string> SqlServerName { get; set; }
+
+        [Output("sqlDatabaseName")]
+        public Output<string> SqlDatabaseName { get; set; }
+
+        [Output("openAIEndpoint")]
+        public Output<string> OpenAIEndpoint { get; set; }
+
+        [Output("documentIntelligenceEndpoint")]
+        public Output<string> DocumentIntelligenceEndpoint { get; set; }
     }
 #pragma warning restore CA1506 // Avoid excessive class coupling
 }

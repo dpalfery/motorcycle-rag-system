@@ -19,7 +19,7 @@ The Motorcycle RAG (Retrieval-Augmented Generation) System is an AI-powered info
 
 ### Key Features
 - **Multi-Source Intelligence**: Sequential search pattern (Vector DB → Web Augmentation → PDF Fallback)
-- **Intelligent Processing**: Multi-agent coordination using Semantic Kernel
+- **Intelligent Processing**: Multi-agent coordination using Microsoft Agent Framework
 - **Cost Optimization**: Uses GPT-4o-mini for standard operations, GPT-4o for complex planning
 - **Production Ready**: Deployed on Azure AI Foundry with comprehensive monitoring
 - **Scalable Architecture**: Handles 100+ concurrent users with sub-3-second response times
@@ -114,7 +114,7 @@ Main service coordinating query processing through the multi-agent system.
 - `GetHealthAsync()`: System health check
 
 #### AgentOrchestrator
-Coordinates multiple specialized agents using Semantic Kernel framework.
+Coordinates multiple specialized agents using Microsoft Agent Framework.
 
 **Agents:**
 - **QueryPlannerAgent**: Analyzes queries using GPT-4o

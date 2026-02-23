@@ -259,11 +259,11 @@ namespace MotorcycleRAG.Infrastructure {
         });
 
             // 10. Azure AI Search
-            var searchService = new Pulumi.AzureNative.Search.Services($"{namePrefix}-search", new Pulumi.AzureNative.Search.ServicesArgs {
+            var searchService = new Pulumi.AzureNative.Search.Service($"{namePrefix}-search", new Pulumi.AzureNative.Search.ServiceArgs {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
                 Sku = new Pulumi.AzureNative.Search.Inputs.SkuArgs { Name = "free" },
-                Properties = new Pulumi.AzureNative.Search.Inputs.SearchServicePropertiesArgs { HostingMode = "default" }
+                HostingMode = Pulumi.AzureNative.Search.HostingMode.Default
             });
 
             // 11. Azure SQL Server
@@ -271,11 +271,9 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
                 ServerName = $"{org}{workload}{env}sql01",
-                Properties = new Pulumi.AzureNative.Sql.Inputs.ServerPropertiesArgs {
-                    AdministratorLogin = "sqladmin",
-                    AdministratorLoginPassword = "TempPassword123!",
-                    Version = "12.0"
-                }
+                AdministratorLogin = "sqladmin",
+                AdministratorLoginPassword = "TempPassword123!",
+                Version = "12.0"
             });
 
             // 12. Azure SQL Database
@@ -306,12 +304,12 @@ namespace MotorcycleRAG.Infrastructure {
                 AccountName = openAIAccount.Name,
                 DeploymentName = "gpt-4o",
                 Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
-                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.ModelArgs {
+                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentModelArgs {
                         Format = "OpenAI",
                         Name = "gpt-4o",
                         Version = "2024-05-13"
                     },
-                    ScaleSettings = new Pulumi.AzureNative.CognitiveServices.Inputs.ScaleSettingsArgs {
+                    ScaleSettings = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentScaleSettingsArgs {
                         ScaleType = "Standard"
                     }
                 }
@@ -322,12 +320,12 @@ namespace MotorcycleRAG.Infrastructure {
                 AccountName = openAIAccount.Name,
                 DeploymentName = "text-embedding-3-large",
                 Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
-                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.ModelArgs {
+                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentModelArgs {
                         Format = "OpenAI",
                         Name = "text-embedding-3-large",
                         Version = "1"
                     },
-                    ScaleSettings = new Pulumi.AzureNative.CognitiveServices.Inputs.ScaleSettingsArgs {
+                    ScaleSettings = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentScaleSettingsArgs {
                         ScaleType = "Standard"
                     }
                 }
@@ -351,7 +349,7 @@ namespace MotorcycleRAG.Infrastructure {
                     PrincipalId = app.Identity.Apply(i => i!.PrincipalId),
                     RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6", // Key Vault Secrets User
                     Scope = keyVault.Id,
-                    PrincipalType = PrincipalType.ServicePrincipal
+                    PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
                 });
             }
 
@@ -363,7 +361,7 @@ namespace MotorcycleRAG.Infrastructure {
             this.ApcUrl = uiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}");
             this.ApiUrl = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}");
             this.AcrLoginServer = registry.LoginServer;
-            this.SearchEndpoint = searchService.Properties.Apply(p => p.HostName != null ? $"https://{p.HostName}" : "");
+            this.SearchEndpoint = searchService.Name.Apply(name => $"https://{name}.search.windows.net");
             this.SqlServerName = sqlServer.Name;
             this.SqlDatabaseName = sqlDatabase.Name;
             this.OpenAIEndpoint = openAIAccount.Properties.Apply(p => p.Endpoint);

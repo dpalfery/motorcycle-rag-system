@@ -14,7 +14,6 @@ env:
   NODE_VERSION: "20.x"
   PULUMI_STACK: "dev"
   PULUMI_WORK_DIR: "7-Deployment/infrastructure"
-  ACR_NAME: "mcrragenveusacr" # Update with your ACR name
 
 permissions:
   id-token: write
@@ -24,9 +23,11 @@ jobs:
   build-deploy:
     runs-on: ubuntu-latest
     steps:
+      # ── Source ──────────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ── Frontend build (no Azure deps, run early to fail fast) ─────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -43,11 +44,13 @@ jobs:
           mkdir -p 1-Presentation/MotorcycleRag.WebUI.BFF/wwwroot
           cp -r 1-Presentation/MotorcycleRag.WebUI/dist/* 1-Presentation/MotorcycleRag.WebUI.BFF/wwwroot/
 
+      # ── .NET (needed for Pulumi C# runtime) ────────────────────────
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      # ── Azure Auth ─────────────────────────────────────────────────
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -57,19 +60,7 @@ jobs:
         env:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
-      - name: ACR Login
-        run: az acr login --name ${{ env.ACR_NAME }}
-
-      - name: Build & Push Docker Images
-        run: |
-          # Build & Push API
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/motorcycle-rag-api:latest -f 7-Deployment/Dockerfile.api .
-          docker push ${{ env.ACR_NAME }}.azurecr.io/motorcycle-rag-api:latest
-
-          # Build & Push UI
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/MotorcycleRag.WebUI:latest -f 7-Deployment/Dockerfile.ui .
-          docker push ${{ env.ACR_NAME }}.azurecr.io/motorcycle-rag-ui:latest
-
+      # ── Pulumi Up (creates ACR and all infrastructure) ─────────────
       - name: Pulumi Up
         uses: pulumi/actions@v4
         with:
@@ -87,3 +78,59 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # ── Read Pulumi outputs into env vars ──────────────────────────
+      - name: Read Pulumi Outputs
+        run: |
+          cd ${{ env.PULUMI_WORK_DIR }}
+          ACR_LOGIN_SERVER=$(pulumi stack output acrLoginServer --stack ${{ env.PULUMI_STACK }})
+          RG=$(pulumi stack output resourceGroupName --stack ${{ env.PULUMI_STACK }})
+          API_APP=$(pulumi stack output apiAppName --stack ${{ env.PULUMI_STACK }})
+          UI_APP=$(pulumi stack output uiAppName --stack ${{ env.PULUMI_STACK }})
+          ACR_NAME="${ACR_LOGIN_SERVER%.azurecr.io}"
+
+          echo "ACR_LOGIN_SERVER=${ACR_LOGIN_SERVER}" >> "$GITHUB_ENV"
+          echo "ACR_NAME=${ACR_NAME}"                 >> "$GITHUB_ENV"
+          echo "RESOURCE_GROUP=${RG}"                 >> "$GITHUB_ENV"
+          echo "API_APP_NAME=${API_APP}"              >> "$GITHUB_ENV"
+          echo "UI_APP_NAME=${UI_APP}"                >> "$GITHUB_ENV"
+        env:
+          PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT_PULUMI }}
+          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY_PULUMI }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── ACR Login (ACR guaranteed to exist after Pulumi) ───────────
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      # ── Docker Build & Push ────────────────────────────────────────
+      - name: Build & Push Docker Images
+        run: |
+          API_IMAGE="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-api:latest"
+          UI_IMAGE="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-ui:latest"
+
+          docker build -t "${API_IMAGE}" -f 7-Deployment/Dockerfile.api .
+          docker push "${API_IMAGE}"
+
+          docker build -t "${UI_IMAGE}" -f 7-Deployment/Dockerfile.ui .
+          docker push "${UI_IMAGE}"
+
+      # ── Force new Container App revisions to pull fresh images ─────
+      - name: Update Container App Revisions
+        run: |
+          API_IMAGE="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-api:latest"
+          UI_IMAGE="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-ui:latest"
+
+          az containerapp update \
+            --name "${{ env.API_APP_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --image "${API_IMAGE}"
+
+          az containerapp update \
+            --name "${{ env.UI_APP_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --image "${UI_IMAGE}"

@@ -227,7 +227,7 @@ namespace MotorcycleRAG.Infrastructure {
                     new ContainerArgs
                     {
                         Name = "ui",
-                        Image = registry.LoginServer.Apply(s => $"{s}/MotorcycleRag.WebUI:latest"),
+                        Image = registry.LoginServer.Apply(s => $"{s}/motorcycle-rag-ui:latest"),
                         Resources = new ContainerResourcesArgs
                         {
                             Cpu = 0.25,
@@ -366,6 +366,9 @@ namespace MotorcycleRAG.Infrastructure {
             this.SqlDatabaseName = sqlDatabase.Name;
             this.OpenAIEndpoint = openAIAccount.Properties.Apply(p => p.Endpoint);
             this.DocumentIntelligenceEndpoint = docIntel.Properties.Apply(p => p.Endpoint);
+            this.ResourceGroupName = resourceGroup.Name;
+            this.ApiAppName = apiApp.Name;
+            this.UiAppName = uiApp.Name;
         }
 #pragma warning restore S138 // Functions should not have too many lines of code
 #pragma warning restore S1200 // Pulumi stacks naturally have many dependencies; splitting would require major refactor
@@ -406,6 +409,15 @@ namespace MotorcycleRAG.Infrastructure {
 
         [Output("documentIntelligenceEndpoint")]
         public Output<string> DocumentIntelligenceEndpoint { get; set; }
+
+        [Output("resourceGroupName")]
+        public Output<string> ResourceGroupName { get; set; }
+
+        [Output("apiAppName")]
+        public Output<string> ApiAppName { get; set; }
+
+        [Output("uiAppName")]
+        public Output<string> UiAppName { get; set; }
     }
 #pragma warning restore CA1506 // Avoid excessive class coupling
 }

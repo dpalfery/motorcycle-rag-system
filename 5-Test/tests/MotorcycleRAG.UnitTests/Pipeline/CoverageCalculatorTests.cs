@@ -1,7 +1,4 @@
-// TDD-RED: This file references CoverageCalculator which does not yet exist.
-// Tests will fail to compile until MotorcycleRAG.Application.Pipeline.CoverageCalculator is created.
-// See T020 for implementation.
-
+// T012 — Unit tests for CoverageCalculator.Calculate(IngestionJob).
 using FluentAssertions;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Domain.Entities;
@@ -10,15 +7,6 @@ using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Pipeline;
 
-/// <summary>
-/// T012 — Unit tests for CoverageCalculator.Calculate(IngestionJob).
-/// CoverageCalculator is a static class in MotorcycleRAG.Application.Pipeline
-/// that computes <see cref="MotorcycleRAG.Contracts.Models.DTOs.IngestionCoverageMetrics"/>
-/// from an <see cref="IngestionJob"/>'s page counts.
-///
-/// These tests FAIL TO COMPILE until CoverageCalculator is implemented (T020).
-/// This is the correct TDD-RED state: the tests define the expected behavior contract.
-/// </summary>
 public class CoverageCalculatorTests {
     [Fact]
     public void Calculate_WhenAllPagesViewable_Returns100Percent() {
@@ -41,6 +29,8 @@ public class CoverageCalculatorTests {
         // Assert
         metrics.Should().NotBeNull();
         metrics!.ViewablePagesPercent.Should().Be(100.0);
+        metrics.NativeTextPercent.Should().Be(80.0);
+        metrics.OcrTextPercent.Should().Be(20.0);
         metrics.SearchableTextPagesPercent.Should().Be(100.0);
         metrics.MissingPagesCount.Should().Be(0);
     }
@@ -67,6 +57,8 @@ public class CoverageCalculatorTests {
         metrics.Should().NotBeNull();
         metrics!.ViewablePagesPercent.Should().Be(99.0,
             "Math.Round(1188.0 / 1200.0 * 100, 2) == 99.0");
+        metrics.NativeTextPercent.Should().BeApproximately(66.67, 0.01);
+        metrics.OcrTextPercent.Should().Be(25.0);
         metrics.SearchableTextPagesPercent.Should().BeApproximately(91.67, 0.01,
             "Math.Round(1100.0 / 1200.0 * 100, 2) ≈ 91.67");
         metrics.MissingPagesCount.Should().Be(12);
@@ -93,6 +85,8 @@ public class CoverageCalculatorTests {
         // Assert
         metrics.Should().NotBeNull();
         metrics!.ViewablePagesPercent.Should().Be(0.0);
+        metrics.NativeTextPercent.Should().Be(0.0);
+        metrics.OcrTextPercent.Should().Be(0.0);
         metrics.SearchableTextPagesPercent.Should().Be(0.0);
         metrics.MissingPagesCount.Should().Be(0);
     }

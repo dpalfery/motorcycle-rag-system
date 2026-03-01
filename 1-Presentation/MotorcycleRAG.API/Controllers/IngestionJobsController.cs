@@ -35,10 +35,10 @@ public sealed class IngestionJobsController : ControllerBase {
         IngestionJobValidator validator,
         IBlobStorageService blobStorageService,
         ILogger<IngestionJobsController> logger) {
-        IIngestionJobService ingestionJobService,
-        IngestionJobValidator validator,
-        ILogger<IngestionJobsController> logger) {
         _ingestionJobService = ingestionJobService ?? throw new ArgumentNullException(nameof(ingestionJobService));
+        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+        _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

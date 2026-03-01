@@ -14,7 +14,7 @@ public static class CoverageCalculator {
     /// Returns null when <see cref="IngestionJob.TotalPages"/> is null or zero (coverage cannot be computed).
     /// </summary>
     public static IngestionCoverageMetrics? Calculate(IngestionJob job) {
-        if (job.TotalPages is null or 0)
+        if (job is null || job.TotalPages is null or 0)
             return null;
 
         var total = (double)job.TotalPages.Value;
@@ -32,6 +32,8 @@ public static class CoverageCalculator {
 
         return new IngestionCoverageMetrics {
             ViewablePagesPercent = Math.Round((job.PagesCapturedViewableCount ?? 0) / total * 100, 2),
+            NativeTextPercent = Math.Round((job.PagesWithNativeTextCount ?? 0) / total * 100, 2),
+            OcrTextPercent = Math.Round((job.PagesWithOcrTextCount ?? 0) / total * 100, 2),
             SearchableTextPagesPercent = Math.Round((job.PagesWithSearchableTextCount ?? 0) / total * 100, 2),
             MissingPagesCount = missingPagesCount
         };

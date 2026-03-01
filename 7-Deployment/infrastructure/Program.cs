@@ -303,6 +303,15 @@ namespace MotorcycleRAG.Infrastructure {
                 Version = "12.0"
             });
 
+            // Allow Azure services (Container Apps) to connect to SQL Server
+            _ = new Pulumi.AzureNative.Sql.FirewallRule("sql-allow-azure-services", new Pulumi.AzureNative.Sql.FirewallRuleArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ServerName = sqlServer.Name,
+                FirewallRuleName = "AllowAzureServices",
+                StartIpAddress = "0.0.0.0",
+                EndIpAddress = "0.0.0.0"
+            });
+
             // 14. Azure SQL Database
             var sqlDatabase = new Pulumi.AzureNative.Sql.Database($"{org}{workload}{env}sqldb01", new Pulumi.AzureNative.Sql.DatabaseArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -440,6 +449,13 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
                 KeyValueName = "AZURE_AI_SERVICES_ENDPOINT",
+                Value = aiServices.Properties.Apply(p => p.Endpoint ?? "")
+            });
+
+            _ = new KeyValue("appconfig-kv-foundry-endpoint", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:FoundryEndpoint",
                 Value = aiServices.Properties.Apply(p => p.Endpoint ?? "")
             });
 

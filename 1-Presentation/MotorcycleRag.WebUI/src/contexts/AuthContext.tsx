@@ -1,6 +1,5 @@
 
 import { useQuery } from '@tanstack/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { AuthContext } from './authContext';
 
 interface User {
@@ -39,8 +38,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const user = data || null;
 
+    const contextValue: AuthContextType = { user, isLoading, login, logout };
+
     return (
-        <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+        <AuthContext.Provider value={contextValue}>
             {children}
         </AuthContext.Provider>
     );

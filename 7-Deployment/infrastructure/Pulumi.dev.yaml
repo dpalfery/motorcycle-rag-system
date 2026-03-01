@@ -1,3 +1,5 @@
-encryptionsalt: v1:dibafY9/MHE=:v1:922rD+TEMsT/gRPr:QbiDJxGDNHhoPXZww5hF3vvGFxg8HQ==
+encryptionsalt: v1:auxcFHK16CE=:v1:aF2cXNHExw1TL74Q:ilxWJgApsAWdMx1RG7HV3tlqAxKZNg==
 config:
-  motorcycle-rag-infra:location: eastus
+  motorcycle-rag-infra:sqlAdminLogin: sqladmin
+  motorcycle-rag-infra:sqlAdminPassword:
+    secure: v1:qIrmdKoVpF8GLv0W:HzFh+tqGE+lUvl3Rlrn0kh8Jx4Ydz6M9sRu6sIUScBHbFNgDd/wD5w==

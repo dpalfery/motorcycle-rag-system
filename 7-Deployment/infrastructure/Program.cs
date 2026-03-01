@@ -271,8 +271,8 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
                 ServerName = $"{org}{workload}{env}sql01",
-                AdministratorLogin = "sqladmin",
-                AdministratorLoginPassword = "TempPassword123!",
+                AdministratorLogin = cfg.Require("sqlAdminLogin"),
+                AdministratorLoginPassword = cfg.RequireSecret("sqlAdminPassword"),
                 Version = "12.0"
             });
 
@@ -299,7 +299,7 @@ namespace MotorcycleRAG.Infrastructure {
             });
 
             // 14. OpenAI Deployments
-            var gpt4oDeployment = new Pulumi.AzureNative.CognitiveServices.Deployment("gpt-4o", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
+            _ = new Pulumi.AzureNative.CognitiveServices.Deployment("gpt-4o", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
                 ResourceGroupName = resourceGroup.Name,
                 AccountName = openAIAccount.Name,
                 DeploymentName = "gpt-4o",
@@ -315,7 +315,7 @@ namespace MotorcycleRAG.Infrastructure {
                 }
             });
 
-            var embeddingDeployment = new Pulumi.AzureNative.CognitiveServices.Deployment("text-embedding-3-large", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
+            _ = new Pulumi.AzureNative.CognitiveServices.Deployment("text-embedding-3-large", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
                 ResourceGroupName = resourceGroup.Name,
                 AccountName = openAIAccount.Name,
                 DeploymentName = "text-embedding-3-large",

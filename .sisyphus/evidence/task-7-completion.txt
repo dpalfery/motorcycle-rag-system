@@ -1,0 +1,44 @@
+TASK 7: Create ILocalPipelineService.cs Interface
+==================================================
+
+STATUS: ✓ COMPLETED SUCCESSFULLY
+
+FILE CREATED:
+  Location: 3-Domain/MotorcycleRAG.Contracts/Interfaces/ILocalPipelineService.cs
+  Size: 35 lines
+  Namespace: MotorcycleRAG.Contracts.Interfaces
+  Access: public interface
+
+INTERFACE DEFINITION:
+  - TriggerPipelineAsync(string uploadId, string documentType, string pipelineId, CancellationToken cancellationToken = default)
+    Returns: Task<string> (local job ID)
+  
+  - GetRunStatusAsync(string runId, string pipelineId, CancellationToken cancellationToken = default)
+    Returns: Task<string> (job status string)
+
+BUILD VERIFICATION:
+  ✓ MotorcycleRAG.Contracts project compiles with 0 warnings, 0 errors
+  ✓ ILocalPipelineService.cs is valid C# code
+  ✓ No compilation issues in Contracts layer
+  ✓ Interface ready for implementation in Persistence layer
+
+DESIGN NOTES:
+  - Mirrors IFabricPipelineService for seamless swapping in IngestionJobService
+  - Parameter naming adjusted: runId (not fabricRunId) for local mode clarity
+  - pipelineId parameter reserved for interface compatibility; ignored in local implementation
+  - XML documentation describes local processing context
+  - Follows Clean Architecture: Contracts layer contains interfaces only
+  - No external dependencies in interface definition
+
+COMPLETED CHECKLIST:
+  ☑ File created at correct path in worktree
+  ☑ Namespace is MotorcycleRAG.Contracts.Interfaces
+  ☑ TriggerPipelineAsync method present with matching signature
+  ☑ GetRunStatusAsync method present with matching signature
+  ☑ dotnet build with --warnaserror passes (Contracts project)
+  ☑ Evidence files created for verification
+
+NEXT STEPS:
+  - Implement ILocalPipelineService in Persistence layer
+  - Update IngestionJobService to accept both IFabricPipelineService and ILocalPipelineService
+  - Add local pipeline orchestration logic

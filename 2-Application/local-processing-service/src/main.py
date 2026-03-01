@@ -8,6 +8,11 @@ import os
 import sys
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()  # Load .env file if present — no-op when env vars already set (production)
+
+logger = logging.getLogger(__name__)
 
 # Add the src directory to Python path
 sys.path.append(str(Path(__file__).parent / "src"))
@@ -33,7 +38,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:5000").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -114,9 +119,12 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
             progress=0,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception("Unexpected error in /process/pdf")
         raise HTTPException(
-            status_code=500, detail=f"Failed to start PDF processing: {str(e)}"
+            status_code=500, detail="An unexpected error occurred"
         )
 
 
@@ -145,9 +153,12 @@ async def process_csv(request: ProcessCSVRequest, background_tasks: BackgroundTa
             progress=0,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception("Unexpected error in /process/csv")
         raise HTTPException(
-            status_code=500, detail=f"Failed to start CSV processing: {str(e)}"
+            status_code=500, detail="An unexpected error occurred"
         )
 
 
@@ -168,9 +179,12 @@ async def get_job_status(job_id: str):
 
         raise HTTPException(status_code=404, detail="Job not found")
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception("Unexpected error in /jobs/{job_id}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to get job status: {str(e)}"
+            status_code=500, detail="An unexpected error occurred"
         )
 
 

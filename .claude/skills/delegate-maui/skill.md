@@ -1,3 +1,8 @@
+---
+name: delegate-maui
+description: Forces delegation to the maui-dev agent for .NET MAUI tasks.
+---
+
 # MAUI Delegation Protocol
 
 **Trigger:**

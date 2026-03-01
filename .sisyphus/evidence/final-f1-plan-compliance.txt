@@ -1,0 +1,100 @@
+LOCAL DOCLING INGESTION — PLAN COMPLIANCE AUDIT
+Date: 2026-03-01
+Worktree: /d/motorcycle-rag-system-local-docling/
+Plan (read-only): /d/motorcycle-rag-system/.sisyphus/plans/local-docling-ingestion.md
+
+PLAN CHECKLIST (from plan):
+Must Have:
+- Docling HybridChunker max_tokens=512
+- Qwen3-Embedding-4B via Ollama producing exactly 1536-dim vectors (MRL)
+- JSON Lines output compatible with Azure AI Search indexer jsonLines
+- Chunk schema matches existing Azure AI Search index fields
+- Graph entity extraction producing GraphNode/GraphEdge-compatible JSON
+- ProcessingMode enum toggle (Local | Fabric) in IngestionOptions
+- DefaultAzureCredential for Azure Blob Storage authentication (no secrets in code)
+- Health endpoint verifying Ollama connectivity
+
+Must NOT Have:
+- NO hardcoded secrets
+- NO connection strings in source code (prefer DefaultAzureCredential)
+- NO deletion of Fabric code (Obsolete only)
+- NO changes to Azure AI Search index schema (1536 dims, same field names)
+- NO new NuGet/npm deps without listing (not checked in this audit)
+- NO CORS allow_origins=["*"]
+- NO SQL string concatenation (all SQL via IGraphRepository)
+- NO touching MAUI app code
+- NO over-abstraction (subjective; not checked via grep)
+- NO excessive comments/docstrings (subjective; not checked via grep)
+
+MUST HAVE CHECKS:
+[PASS] Docling HybridChunker max_tokens=512
+  Evidence: pdf_processor.py uses HybridChunker(..., max_tokens=512)
+  - /2-Application/local-processing-service/src/processors/pdf_processor.py:10,91
+
+[PASS] Qwen3-Embedding-4B 1536-dim validation
+  Evidence: default model qwen3-embedding:4b and _dims=1536; enforces len(vector)==1536 after truncation.
+  - /2-Application/local-processing-service/src/embeddings/ollama_embedder.py:29-31,52-60
+
+[PASS] JSON Lines output (AI Search jsonLines compatible)
+  Evidence: upload_jsonl builds "\n".join(json.dumps(r) for r in records) (newline-delimited objects, no array wrapper).
+  - /2-Application/local-processing-service/src/storage/blob_writer.py:83-93
+
+[PASS] Chunk schema matching AI Search index fields
+  Evidence: chunk records include documentType, sourceFile, chunkIndex, contentVector.
+  - /2-Application/local-processing-service/src/processors/pdf_processor.py:125-141
+
+[FAIL] Graph entity GraphNode/GraphEdge-compatible JSON
+  Evidence: .NET expects JSON array of docs where node items may include SourceDocumentId and edges use FromNodeId/ToNodeId/RelationshipType.
+  - /2-Application/MotorcycleRAG.Application/Pipeline/GraphEntityIngestionService.cs:69-75,171-208
+  Python graph_extractor outputs nodes with {id,name,type,description} and edges with {fromNodeId,toNodeId,relationshipType,...}; it does NOT emit sourceDocumentId at node level.
+  - /2-Application/local-processing-service/src/extraction/graph_extractor.py:13-28
+  Note: Matching is partial (edges align; nodes missing SourceDocumentId). This audit treats this as non-compliant to the "GraphNode/GraphEdge-compatible" requirement.
+
+[PASS] ProcessingMode enum Local|Fabric
+  Evidence: ProcessingMode enum defines Local and Fabric; IngestionOptions exposes Mode defaulting to Local.
+  - /0-Base/MotorcycleRAG.Core/Options/ProcessingMode.cs
+  - /0-Base/MotorcycleRAG.Core/Options/IngestionOptions.cs:13
+
+[PASS] DefaultAzureCredential for Blob Storage
+  Evidence: BlobWriter uses DefaultAzureCredential when AZURE_STORAGE_ACCOUNT_URL is set; no hardcoded connection strings.
+  - /2-Application/local-processing-service/src/storage/blob_writer.py:9,24-36
+
+[PASS] Health endpoint with Ollama connectivity check
+  Evidence: GET /health calls embedder.check_ollama_status() and returns status.
+  - /2-Application/local-processing-service/src/main.py:56-72
+  - /2-Application/local-processing-service/src/embeddings/ollama_embedder.py:89-103
+
+MUST NOT HAVE CHECKS:
+[CLEAN] No hardcoded secrets
+  Evidence: repo-wide grep found only "token" usages related to max_tokens; no passwords/api keys in plaintext.
+  - grep results: processors/pdf_processor.py:91 (max_tokens)
+
+[CLEAN] No connection strings in source
+  Evidence: only connection-string handling is via env var AZURE_STORAGE_CONNECTION_STRING (no embedded values).
+  - /2-Application/local-processing-service/src/storage/blob_writer.py:19-45
+  Note: plan guardrail is about secrets in source; env var fallback is present.
+
+[CLEAN] Fabric code Obsolete not deleted
+  Evidence: files exist and are marked [Obsolete].
+  - /4-Persistence/MotorcycleRAG.Persistence/ExternalServices/FabricPipelineService.cs:20
+  - /3-Domain/MotorcycleRAG.Contracts/Interfaces/IFabricPipelineService.cs:8
+
+[CLEAN] No CORS wildcard
+  Evidence: allow_origins reads ALLOWED_ORIGINS (default http://localhost:5000); no "*".
+  - /2-Application/local-processing-service/src/main.py:34-41
+
+[CLEAN] Search index schema unchanged
+  Evidence: MotorcycleIndexingService still uses VectorSearchDimensions = 1536.
+  - /4-Persistence/MotorcycleRAG.Persistence/Search/MotorcycleIndexingService.cs:225
+
+[CLEAN] No SQL string concatenation
+  Evidence: grep for common concatenation patterns in GraphEntityIngestionService returned no matches.
+
+[CLEAN] MAUI app untouched
+  Evidence: git log query for modifications under 6-MobileApp/* or MotorcycleRAG.App/* returned no results.
+
+OVERALL: FAIL (1 Must Have item failed)
+
+ISSUES FOUND:
+1) Graph extractor JSON is missing node.sourceDocumentId expected/used by GraphEntityIngestionService deserialization model.
+

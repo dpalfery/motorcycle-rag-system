@@ -1,3 +1,8 @@
+---
+name: dapper-sql
+description: Dapper / SQL Server persistence patterns (repositories, parameterized SQL, connection factory).
+---
+
 # Dapper / SQL Server Persistence Patterns
 
 **Trigger:**

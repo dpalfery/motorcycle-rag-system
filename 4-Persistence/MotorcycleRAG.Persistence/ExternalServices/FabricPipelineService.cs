@@ -16,6 +16,9 @@ namespace MotorcycleRAG.Persistence.ExternalServices;
 /// Fabric base URL is read from the MCR_API_FABRIC_WORKSPACE_ENDPOINT environment variable.
 /// Pipeline item IDs are read from MCR_API_FABRIC_PDF_PIPELINE_ID / MCR_API_FABRIC_CSV_PIPELINE_ID.
 /// </summary>
+#pragma warning disable S1133 // Intentionally kept as deprecated fallback
+[Obsolete("Use ILocalPipelineService and LocalPipelineService. FabricPipelineService is kept as a fallback for ProcessingMode.Fabric.", false)]
+#pragma warning restore S1133
 public sealed class FabricPipelineService : IFabricPipelineService
 {
     // Fabric REST API version and scope required for acquiring tokens.

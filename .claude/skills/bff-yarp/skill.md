@@ -1,3 +1,8 @@
+---
+name: bff-yarp
+description: BFF / YARP reverse proxy patterns for the WebUI BFF.
+---
+
 # BFF / YARP Reverse Proxy Patterns
 
 **Trigger:**

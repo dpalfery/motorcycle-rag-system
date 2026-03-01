@@ -1,3 +1,8 @@
+---
+name: azure-ai-rag
+description: Azure AI / RAG development patterns (Azure OpenAI, Azure AI Search, ingestion, and agent orchestration).
+---
+
 # Azure AI / RAG Development Patterns
 
 **Trigger:**

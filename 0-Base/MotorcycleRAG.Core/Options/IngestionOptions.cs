@@ -1,15 +1,23 @@
 namespace MotorcycleRAG.Core.Options;
 
 /// <summary>
-/// Configuration for Microsoft Fabric ingestion pipeline integration.
-/// Binds to the "FabricIngestion" section in configuration sources.
+/// Configuration for the ingestion pipeline. Binds to the "Ingestion" section.
 /// All values must be provided via environment variables — never hardcoded.
 /// </summary>
-#pragma warning disable S1133 // Intentionally kept as deprecated fallback
-[Obsolete("Use IngestionOptions with ProcessingMode.Fabric. FabricIngestionOptions kept as fallback.", false)]
-#pragma warning restore S1133
-public class FabricIngestionOptions
+public class IngestionOptions
 {
+    /// <summary>
+    /// Selects whether to use the local Python FastAPI service or the Microsoft Fabric pipeline.
+    /// Set via MCR_API_INGESTION_MODE environment variable.
+    /// </summary>
+    public ProcessingMode Mode { get; set; } = ProcessingMode.Local;
+
+    /// <summary>
+    /// The base URL of the local Python FastAPI document-processing service.
+    /// Set via MCR_API_INGESTION_LOCAL_ENDPOINT environment variable.
+    /// </summary>
+    public string LocalEndpoint { get; set; } = "http://localhost:8100";
+
     /// <summary>
     /// The Microsoft Fabric REST API workspace endpoint.
     /// Set via MCR_API_FABRIC_WORKSPACE_ENDPOINT environment variable.

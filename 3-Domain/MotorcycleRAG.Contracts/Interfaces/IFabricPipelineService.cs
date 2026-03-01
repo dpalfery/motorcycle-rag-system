@@ -4,6 +4,9 @@ namespace MotorcycleRAG.Contracts.Interfaces;
 /// Abstraction for triggering and monitoring Microsoft Fabric pipeline runs.
 /// Implemented in the Persistence layer; Application layer depends only on this interface.
 /// </summary>
+#pragma warning disable S1133 // Intentionally kept as deprecated fallback
+[Obsolete("Use ILocalPipelineService. IFabricPipelineService is kept as a fallback for ProcessingMode.Fabric.", false)]
+#pragma warning restore S1133
 public interface IFabricPipelineService
 {
     /// <summary>

@@ -35,13 +35,13 @@ namespace MotorcycleRAG.Infrastructure {
             var currentClientConfig = Output.Create(GetClientConfig.InvokeAsync());
 
             // General
-            var location = cfg.Get("location") ?? "eastus";
+            var location = cfg.Get("location") ?? "eastus2";
 
             // Naming convention: <org>-<workload>-<env>-<loc>-<resType>[<instance>]
             const string org = "mcr";           // motorcycle
             const string workload = "rag";      // rag system
             const string env = "dev";           // development
-            const string loc = "eus";           // east us
+            const string loc = "eus2";          // east us 2
             const string namePrefix = $"{org}-{workload}-{env}-{loc}";
 
             // 1. Resource Group
@@ -66,6 +66,7 @@ namespace MotorcycleRAG.Infrastructure {
             var keyVault = new Vault($"{namePrefix}-kv", new VaultArgs {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
+                VaultName = $"{org}{workload}{env}kv",
                 Properties = new VaultPropertiesArgs {
                     TenantId = currentClientConfig.Apply(config => config.TenantId),
                     Sku = new Pulumi.AzureNative.KeyVault.Inputs.SkuArgs {

@@ -93,7 +93,7 @@ namespace MotorcycleRAG.Infrastructure {
                 Location = location,
                 ConfigStoreName = $"{org}{workload}{env}appconfig",
                 Sku = new AppConfigInputs.SkuArgs { Name = "free" },
-                DisableLocalAuth = true,
+                DisableLocalAuth = false, // Local auth required for Pulumi ARM provider to manage key-values
                 SoftDeleteRetentionInDays = 0,
                 EnablePurgeProtection = false,
             });

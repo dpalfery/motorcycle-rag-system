@@ -12,21 +12,25 @@ namespace MotorcycleRAG.Application.Pipeline;
 /// <summary>
 /// Orchestrates the ingestion job lifecycle: creation, status retrieval, and cancellation.
 /// Delegates persistence to <see cref="IIngestionJobRepository"/> and pipeline triggering
-/// to <see cref="IFabricPipelineService"/>.
+/// to <see cref="IFabricPipelineService"/> or <see cref="ILocalPipelineService"/> based on
+/// the configured <see cref="ProcessingMode"/>.
 /// </summary>
 public sealed class IngestionJobService : IIngestionJobService {
     private readonly IIngestionJobRepository _repository;
     private readonly IFabricPipelineService _fabricPipeline;
-    private readonly FabricIngestionOptions _options;
+    private readonly ILocalPipelineService _localPipeline;
+    private readonly IngestionOptions _options;
     private readonly ILogger<IngestionJobService> _logger;
 
     public IngestionJobService(
         IIngestionJobRepository repository,
         IFabricPipelineService fabricPipeline,
-        IOptions<FabricIngestionOptions> options,
+        ILocalPipelineService localPipeline,
+        IOptions<IngestionOptions> options,
         ILogger<IngestionJobService> logger) {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _fabricPipeline = fabricPipeline ?? throw new ArgumentNullException(nameof(fabricPipeline));
+        _localPipeline = localPipeline ?? throw new ArgumentNullException(nameof(localPipeline));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -65,17 +69,25 @@ public sealed class IngestionJobService : IIngestionJobService {
             job.IngestionJobId,
             job.InputType);
 
-        string fabricRunId;
+        string runId;
         try {
-            fabricRunId = await _fabricPipeline.TriggerPipelineAsync(
-                request.UploadId,
-                request.DocumentType,
-                pipelineId,
-                ct).ConfigureAwait(false);
+            if (_options.Mode == ProcessingMode.Local) {
+                runId = await _localPipeline.TriggerPipelineAsync(
+                    request.UploadId,
+                    request.DocumentType,
+                    pipelineId,
+                    ct).ConfigureAwait(false);
+            } else {
+                runId = await _fabricPipeline.TriggerPipelineAsync(
+                    request.UploadId,
+                    request.DocumentType,
+                    pipelineId,
+                    ct).ConfigureAwait(false);
+            }
         } catch (Exception ex) {
             _logger.LogError(
                 ex,
-                "Failed to trigger Fabric pipeline for job {JobId}.",
+                "Failed to trigger pipeline for job {JobId}.",
                 job.IngestionJobId);
 
             await _repository.UpdateStatusAsync(
@@ -89,16 +101,17 @@ public sealed class IngestionJobService : IIngestionJobService {
             return MapToResponse(job);
         }
 
-        job.FabricRunId = fabricRunId;
+        job.FabricRunId = runId;
         job.Status = IngestionJobStatus.Processing;
         job.StartedAtUtc = DateTimeOffset.UtcNow;
 
         await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
 
         _logger.LogInformation(
-            "Fabric pipeline triggered for job {JobId} with run {FabricRunId}.",
+            "Pipeline triggered for job {JobId} with run {RunId} (mode: {Mode}).",
             job.IngestionJobId,
-            fabricRunId);
+            runId,
+            _options.Mode);
 
         return MapToResponse(job);
     }
@@ -151,7 +164,7 @@ public sealed class IngestionJobService : IIngestionJobService {
     }
 
     /// <summary>Maps a domain <see cref="IngestionJob"/> to its response DTO.</summary>
-    private static IngestionJobStatusResponse MapToResponse(IngestionJob job) {
+    private IngestionJobStatusResponse MapToResponse(IngestionJob job) {
         IReadOnlyList<int> missingPages = [];
         if (!string.IsNullOrEmpty(job.MissingPagesJson)) {
             try {
@@ -178,10 +191,8 @@ public sealed class IngestionJobService : IIngestionJobService {
             Coverage = CoverageCalculator.Calculate(job),
             WorkloadLimits = new IngestionWorkloadLimits {
                 MaxPages = job.TotalPages ?? 0,
-                // TODO: Source MaxInputBytes and MaxRuntimeMinutes from FabricIngestionOptions
-                // once the options class is wired into this service via IOptions<FabricIngestionOptions>.
-                MaxInputBytes = 0,
-                MaxRuntimeMinutes = 0
+                MaxInputBytes = _options.MaxInputBytes,
+                MaxRuntimeMinutes = _options.PipelineTimeoutMinutes
             },
             FailureReason = job.FailureReason,
             FabricRunId = job.FabricRunId

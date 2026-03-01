@@ -1,32 +1,26 @@
-FROM python:3.9-slim
+FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
     gcc \
     g++ \
     git \
     curl \
     wget \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install NVIDIA Container Toolkit
-RUN mkdir -p /etc/nvidia-container-runtime
-RUN echo '{"compute_library_version": "20201111"}' > /etc/nvidia-container-runtime/config.toml
+# Symlink python3 to python
+RUN ln -sf /usr/bin/python3 /usr/bin/python
 
-# Install NVIDIA driver
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    nvidia-driver-470 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install NVIDIA Container Toolkit
-RUN curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add - \
-    && distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
-    && curl -fsSL https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | tee /etc/apt/sources.list.d/nvidia-docker.list
-
-# Install Python dependencies
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Python dependencies via Poetry
+RUN pip install poetry
+COPY pyproject.toml poetry.lock* ./
+RUN poetry config virtualenvs.create false && poetry install --no-dev --no-interaction
 
 # Copy application code
 COPY . .

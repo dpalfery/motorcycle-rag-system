@@ -1,0 +1,6 @@
+83:    async def upload_jsonl(
+86:        """Upload *records* as newline-delimited JSON Lines (no array wrapper)."""
+90:        # Build JSON Lines: one JSON object per line, no array wrapper
+91:        jsonl_content = "\n".join(json.dumps(r) for r in records)
+92:        data = jsonl_content.encode("utf-8")
+106:        payload = json.dumps(data).encode("utf-8")

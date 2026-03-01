@@ -1,0 +1,11 @@
+ILocalPipelineService Interface Verification
+==============================================
+
+Line 7: public interface ILocalPipelineService
+Line 17:     Task<string> TriggerPipelineAsync(
+Line 26:     /// <param name="runId">The job ID returned by <see cref="TriggerPipelineAsync"/>.
+Line 30:     Task<string> GetRunStatusAsync(
+
+✓ Both required methods present with correct signatures
+✓ Method names match IFabricPipelineService pattern
+✓ Parameter names properly adapted for local mode (runId instead of fabricRunId)

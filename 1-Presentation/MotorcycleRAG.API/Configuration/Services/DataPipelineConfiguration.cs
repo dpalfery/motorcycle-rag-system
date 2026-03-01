@@ -4,6 +4,8 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Application.Pipeline.Audit;
 using MotorcycleRAG.Application.Services;
+using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Persistence.ExternalServices;
 
 namespace MotorcycleRAG.API.Configuration.Services;
 
@@ -22,6 +24,7 @@ internal static class DataPipelineConfiguration
         services.Configure<FileUploadConfiguration>(configuration.GetSection("FileUpload"));
         services.Configure<PipelineMonitoringConfiguration>(configuration.GetSection("PipelineMonitoring"));
         services.Configure<ScheduledProcessingConfiguration>(configuration.GetSection("ScheduledProcessing"));
+        services.Configure<IngestionOptions>(configuration.GetSection("Ingestion"));
 
         // Register pipeline services from Application layer
         services.AddScoped<IDataPipelineOrchestrator, MotorcycleRAG.Application.Pipeline.DataPipelineOrchestrator>();
@@ -31,6 +34,14 @@ internal static class DataPipelineConfiguration
 
         // Register ingestion job service for Fabric pipeline integration
         services.AddScoped<IIngestionJobService, MotorcycleRAG.Application.Pipeline.IngestionJobService>();
+
+        // Register local and Fabric pipeline services
+        services.AddScoped<ILocalPipelineService, MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>();
+        services.AddScoped<IFabricPipelineService, MotorcycleRAG.Persistence.ExternalServices.FabricPipelineService>();
+        services.AddScoped<IGraphEntityIngestionService, MotorcycleRAG.Application.Pipeline.GraphEntityIngestionService>();
+
+        // Register named HTTP client for local pipeline service
+        services.AddHttpClient(nameof(MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService));
 
         // Register Fabric pipeline services
         services.AddScoped<IManualPageQueryService, ManualPageQueryService>();

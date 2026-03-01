@@ -5,21 +5,21 @@ EXPOSE 8080
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy solution and project files
-COPY ["MotorcycleRAG.sln", "."]
+# Copy project files for restore
 COPY ["1-Presentation/MotorcycleRag.WebUI.BFF/MotorcycleRag.WebUI.BFF.csproj", "1-Presentation/MotorcycleRag.WebUI.BFF/"]
 COPY ["2-Application/MotorcycleRAG.Application/MotorcycleRAG.Application.csproj", "2-Application/MotorcycleRAG.Application/"]
 COPY ["3-Domain/MotorcycleRAG.Domain/MotorcycleRAG.Domain.csproj", "3-Domain/MotorcycleRAG.Domain/"]
 COPY ["3-Domain/MotorcycleRAG.Contracts/MotorcycleRAG.Contracts.csproj", "3-Domain/MotorcycleRAG.Contracts/"]
+COPY ["3-Domain/MotorcycleRAG.Contracts.Models/MotorcycleRAG.Contracts.Models.csproj", "3-Domain/MotorcycleRAG.Contracts.Models/"]
 COPY ["4-Persistence/MotorcycleRAG.Persistence/MotorcycleRAG.Persistence.csproj", "4-Persistence/MotorcycleRAG.Persistence/"]
+COPY ["0-Base/MotorcycleRAG.Core/MotorcycleRAG.Core.csproj", "0-Base/MotorcycleRAG.Core/"]
 
 # Restore dependencies
-RUN dotnet restore "MotorcycleRAG.sln"
+RUN dotnet restore "1-Presentation/MotorcycleRag.WebUI.BFF/MotorcycleRag.WebUI.BFF.csproj"
 
 # Copy everything else and build
 COPY . .
-WORKDIR "/src/1-Presentation/MotorcycleRag.WebUI.BFF"
-RUN dotnet publish "MotorcycleRag.WebUI.BFF.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "1-Presentation/MotorcycleRag.WebUI.BFF/MotorcycleRag.WebUI.BFF.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app

@@ -10,17 +10,16 @@ namespace MotorcycleRAG.Admin;
     "Design", "S3059:Types should not have members with visibility set higher than the type's visibility",
     Justification = "Internal class has public constructor required by MAUI DI framework")]
 internal partial class App : Application {
-    private readonly IServiceProvider _serviceProvider;
-
-    public App(IServiceProvider serviceProvider) {
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+    public App() {
         InitializeComponent();
-    }
-
-    protected override Window CreateWindow(IActivationState? activationState) {
-        // Resolve AppShell with all its dependencies
-        var appShell = _serviceProvider.GetRequiredService<AppShell>();
-        return new Window(appShell);
+        
+        // Configure services (DI setup needed)
+        // Configure services (DI setup needed)
+        var authService = new AdminAuthService(
+            clientId: "YOUR_CLIENT_ID",
+            authority: "https://login.microsoftonline.com/YOUR_TENANT_ID",
+            scopes: new[] { "api://YOUR_API_ID/.default" },
+            logger: null);
+        MainPage = new AppShell(authService, null, null, null);
     }
 }
-

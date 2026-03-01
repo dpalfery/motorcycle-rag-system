@@ -5,14 +5,13 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using Xunit;
+using MotorcycleRAG.Application.Mapping;
 
 namespace MotorcycleRAG.IntegrationTests.Pipeline;
 
 /// <summary>
 /// T011 — Integration tests for ingestion job status lifecycle.
 /// Tests domain entity defaults, repository mock interactions, and coverage response mapping.
-/// Tests 2 and 3 are TDD-RED: they assert against a not-yet-implemented mapper/service,
-/// so they FAIL until IngestionJobStatusMapper is created (T020/T021).
 /// </summary>
 public class IngestionJobStatusIntegrationTests {
     private readonly Mock<IIngestionJobRepository> _repositoryMock;
@@ -46,11 +45,8 @@ public class IngestionJobStatusIntegrationTests {
     }
 
     /// <summary>
-    /// TDD-RED: Tests that a completed job retrieved from the repository can be mapped
+    /// Tests that a completed job retrieved from the repository can be mapped
     /// to an IngestionJobStatusResponse with correct coverage metrics.
-    /// FAILS because the mapping logic (IngestionJobStatusMapper / CoverageCalculator)
-    /// does not yet exist — the coverage metrics must be computed by a service layer,
-    /// not manually constructed in test code.
     /// </summary>
     [Fact]
     public async Task CoverageResponse_MapsCorrectly_WhenJobIsComplete() {
@@ -82,41 +78,20 @@ public class IngestionJobStatusIntegrationTests {
         var retrievedJob = await _repositoryMock.Object.GetByIdAsync(jobId, CancellationToken.None);
         retrievedJob.Should().NotBeNull();
 
-        // Act — compute coverage metrics (this is what the not-yet-existing CoverageCalculator should do)
-        // TDD-RED: We assert what the expected coverage values SHOULD be.
-        // This test intentionally FAILS because we assert a computed Coverage object
-        // that requires the CoverageCalculator to produce, but we build it with WRONG values
-        // to ensure a RED state until the real mapper/calculator is wired in.
-        var response = new IngestionJobStatusResponse {
-            JobId = retrievedJob!.IngestionJobId,
-            Status = retrievedJob.Status.ToString(),
-            TotalPages = retrievedJob.TotalPages,
-            PagesCapturedViewableCount = retrievedJob.PagesCapturedViewableCount,
-            Coverage = new IngestionCoverageMetrics {
-                // Intentionally WRONG value to ensure TDD-RED:
-                // Correct value would be Math.Round(1188.0 / 1200.0 * 100, 2) = 99.0
-                // We set 0.0 to force a failure until CoverageCalculator computes this correctly.
-                ViewablePagesPercent = 0.0,
-                SearchableTextPagesPercent = 0.0,
-                MissingPagesCount = 0
-            }
-        };
+        // Act — map using the real mapper
+        var response = IngestionJobStatusMapper.Map(retrievedJob);
 
-        // Assert — these WILL FAIL because Coverage values are intentionally wrong (TDD-RED)
-        response.Coverage.Should().NotBeNull();
-        response.Coverage!.ViewablePagesPercent.Should().Be(99.0,
-            "ViewablePagesPercent should be Math.Round(1188/1200*100, 2) = 99.0 once CoverageCalculator is implemented");
-        response.Coverage.SearchableTextPagesPercent.Should().BeApproximately(91.67, 0.01,
-            "SearchableTextPagesPercent should be Math.Round(1100/1200*100, 2) ≈ 91.67");
-        response.Coverage.MissingPagesCount.Should().Be(12,
-            "MissingPagesCount should equal the count of missing page numbers in MissingPagesJson");
+        // Assert
+        response.Should().NotBeNull();
+        response!.Coverage.Should().NotBeNull();
+        response.Coverage!.ViewablePagesPercent.Should().Be(99.0);
+        response.Coverage.SearchableTextPagesPercent.Should().BeApproximately(91.67, 0.01);
+        response.Coverage.MissingPagesCount.Should().Be(12);
     }
 
     /// <summary>
-    /// TDD-RED: Tests that when a job is not found (repository returns null),
+    /// Tests that when a job is not found (repository returns null),
     /// the status response mapping should produce null.
-    /// FAILS because the mapping asserts a null response, but we intentionally
-    /// construct a non-null default response to simulate the missing mapper behavior.
     /// </summary>
     [Fact]
     public async Task StatusResponse_IsNull_WhenJobNotFound() {
@@ -130,16 +105,10 @@ public class IngestionJobStatusIntegrationTests {
         // Act — retrieve job from mock repository
         var retrievedJob = await _repositoryMock.Object.GetByIdAsync(unknownJobId, CancellationToken.None);
 
-        // TDD-RED: We simulate what a not-yet-existing mapper would do.
-        // The correct behavior is: if job is null, response should be null.
-        // We intentionally return a NON-null response to force a failure state.
-        IngestionJobStatusResponse? response = retrievedJob is null
-            ? new IngestionJobStatusResponse() // WRONG: should be null, but we return empty to force RED
-            : new IngestionJobStatusResponse { JobId = retrievedJob.IngestionJobId };
+        // Act — map using the real mapper
+        var response = IngestionJobStatusMapper.Map(retrievedJob);
 
-        // Assert — FAILS because we return a non-null response instead of null (TDD-RED)
-        response.Should().BeNull(
-            "When repository returns null for a jobId, the mapper should return null. " +
-            "This test fails until IngestionJobStatusMapper is implemented to handle null input correctly.");
+        // Assert
+        response.Should().BeNull("When repository returns null for a jobId, the mapper should return null.");
     }
 }

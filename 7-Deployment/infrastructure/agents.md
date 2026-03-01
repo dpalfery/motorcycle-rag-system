@@ -39,10 +39,21 @@ These instructions govern all work in `7-Deployment/infrastructure/` (Pulumi, Az
 ## Workflow
 1. Define infrastructure resources in chosen language
 2. Configure secrets and stack-specific settings
-3. Preview changes with `pulumi preview`
-4. Deploy with `pulumi up`
+3. **Preview** changes with `pulumi preview` (allowed)
+4. **Commit and push** to `develop`/`main` — GitHub Actions runs `pulumi up` via the pipeline
 5. Export outputs for dependent stacks
 6. Reference outputs via `StackReference` in consuming stacks
+## Deployment Rules (NON-NEGOTIABLE)
+
+- **`pulumi up` is FORBIDDEN** — never run it directly from a local session or agent. All Pulumi deployments happen exclusively via the `Build & Deploy to Azure` GitHub Actions workflow (`deploy.yml`), triggered by a push to `develop` or `main`.
+- **`pulumi preview` is ALLOWED** — use it freely to validate IaC changes before committing.
+- **`pulumi config set --secret`** is allowed — it only modifies the encrypted `Pulumi.dev.yaml` locally and does not touch Azure.
+- **`pulumi destroy` is FORBIDDEN** — never run it. Infrastructure teardown requires explicit user approval and must go through a pipeline.
+- **`az` CLI is read-only** — use `az` only to read state and diagnose issues (e.g., `az containerapp logs show`, `az containerapp show`, `az acr repository list`). Never use `az` to create, update, or delete any Azure resource.
+- **No direct Docker builds or ACR pushes** — never run `docker build`, `docker push`, or `az acr build`. Images are built and pushed exclusively by the pipeline.
+- **Deployment = commit + push** — the correct response to any infrastructure or application fix is to commit the code change and push to trigger the pipeline.
+- Any `az` write action during debugging must be flagged to the user and approved first.
+
 
 ## Technical Requirements
 - Follow cloud provider best practices (AWS Well-Architected, Azure, GCP)

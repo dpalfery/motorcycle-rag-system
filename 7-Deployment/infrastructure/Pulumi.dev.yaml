@@ -9,3 +9,7 @@ config:
     secure: v1:h/ucHcJXYCH6I7fY:SrFhzM4zOtB3J45yw+h46f5hwdBeRX/Mf2OSLK+pn53/uf4fAILHgw5PBFRZEwKvVIUpAw==
   motorcycle-rag-infra:adminClientId:
     secure: v1:6X36ojtKmruPtvjY:UJGgcPo16XupgS81HAlLE9nHPVcggtxu5U6tS5FEzBhLh28ZsBk455I+DywPNCRaMQHyVw==
+  motorcycle-rag-infra:deepinfraApiKey:
+    secure: v1:8/vGTpfkYHBilZ1+:5BVdfwaj+8EQw5YKXArvoi/52VoMBigp1Pju5gy72Tve1ZcKLOjCv52FH+trOBwU
+  motorcycle-rag-infra:bffClientSecret:
+    secure: v1:TGNxxY2Ful7WQlUC:krSH2obodJ8P90Xh9GDOOOqVNUWqK56MnxIfGaQKoMQciOzRYJRZk5cE2O8HhZm+T2DyO7vrPnI=

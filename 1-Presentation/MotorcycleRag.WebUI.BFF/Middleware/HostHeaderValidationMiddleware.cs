@@ -76,7 +76,7 @@ internal sealed class HostHeaderValidationMiddleware {
     /// </summary>
     /// <param name="context">HTTP context</param>
     /// <returns>Task</returns>
-    internal async Task InvokeAsync(HttpContext context) {
+    public async Task InvokeAsync(HttpContext context) {
         ArgumentNullException.ThrowIfNull(context);
 
         // Get the Host header value

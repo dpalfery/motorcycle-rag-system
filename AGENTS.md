@@ -5,6 +5,7 @@
 3. **Communication protocol** — Present options with trade-offs. Wait for user confirmation on architectural decisions.
 4. **No files in project root** — Agent-generated files (status, plan, summary, build output, etc.) go in `6-Docs/agent-notes/` (git-ignored).
 5. **Git commands require approval** — Only read-only (`git status`, `git diff`, `git log`) and staging (`git add`) are allowed without asking. Never run `git commit`, `git push`, `git reset`, `git restore`, `git checkout`, `git clean`, or `git rebase` without explicit approval. Don't ask to do commits — the human does them manually.
+6. **DevOps** all deployments go through github actions. no writes to azure except to debug and any changes should be approved by the user. We should have 100% automated deployment. Any action we do in azure needs to comply with the principal that we can delete the whole solution and rebuild with no manual intervention!
 
 # 2. Development Environment
 

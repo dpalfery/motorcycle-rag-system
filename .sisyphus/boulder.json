@@ -1,12 +1,12 @@
 {
-  "active_plan": null,
-  "started_at": "2026-03-01T09:07:46.255Z",
-  "completed_at": "2026-03-01T00:00:00.000Z",
+  "active_plan": "hybrid-embedding-pipeline",
+  "started_at": "2026-03-01T00:00:00.000Z",
+  "completed_at": null,
   "session_ids": [
     "ses_35758a491ffe2vHQkVYFHwQPbt"
   ],
-  "plan_name": "local-docling-ingestion",
-  "worktree_path": "D:/motorcycle-rag-system-local-docling",
+  "plan_name": "hybrid-embedding-pipeline",
+  "worktree_path": "D:/motorcycle-rag-system",
   "agent": "atlas",
-  "completion_note": "Plan at maximum achievable completion: 111/124 (89.5%). Remaining 13 items require live infrastructure (Ollama + Azure Blob Storage + Azure AI Search). All implementation work is complete. See .sisyphus/notepads/local-docling-ingestion/problems.md for full blocker details."
+  "completion_note": null
 }

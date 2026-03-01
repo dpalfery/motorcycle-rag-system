@@ -3,3 +3,9 @@ config:
   motorcycle-rag-infra:sqlAdminLogin: sqladmin
   motorcycle-rag-infra:sqlAdminPassword:
     secure: v1:NfakokezkjFDgc7m:CTcW3YNUNmE0Ppp3ioIWRvmaOO2Z18ApVi4OsmrQ14Tz/jPXb0xSxjT8xBhqWBs1
+  motorcycle-rag-infra:azureAdTenantId:
+    secure: v1:syveFKUDYSy5VFIA:NQh8e52EuZTUtUAwfpRqypMUSQ4nX2hFzSpsW5EcQXcHyVGpskD69XbmbKBj1VCCY6QAdQ==
+  motorcycle-rag-infra:azureAdClientId:
+    secure: v1:h/ucHcJXYCH6I7fY:SrFhzM4zOtB3J45yw+h46f5hwdBeRX/Mf2OSLK+pn53/uf4fAILHgw5PBFRZEwKvVIUpAw==
+  motorcycle-rag-infra:adminClientId:
+    secure: v1:6X36ojtKmruPtvjY:UJGgcPo16XupgS81HAlLE9nHPVcggtxu5U6tS5FEzBhLh28ZsBk455I+DywPNCRaMQHyVw==

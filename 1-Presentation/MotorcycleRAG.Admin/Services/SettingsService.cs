@@ -80,8 +80,7 @@ internal class SettingsService : ISettingsService
     {
         try
         {
-            SecureStorage.Remove(key);
-            await Task.CompletedTask;
+            await Task.Run(() => SecureStorage.Remove(key));
         }
         catch (Exception ex)
         {

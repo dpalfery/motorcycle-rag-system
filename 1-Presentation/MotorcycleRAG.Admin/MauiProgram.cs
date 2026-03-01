@@ -52,9 +52,9 @@ internal static class MauiProgram {
 
             // Ensure configuration is loaded from persistence before initializing auth
             // This is critical to respect user-saved settings over environment variables
-            try 
+            try
             {
-                Task.Run(() => configService.LoadConfigurationAsync()).Wait();
+                Task.Run(() => configService.LoadConfigurationAsync()).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {

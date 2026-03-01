@@ -8,7 +8,7 @@ namespace MotorcycleRAG.Core.Options;
 /// </summary>
 public class AzureAIOptions
 {
-    [Required, Url]
+    [Url]
     public string FoundryEndpoint { get; set; } = string.Empty;
 
     [Required, Url]

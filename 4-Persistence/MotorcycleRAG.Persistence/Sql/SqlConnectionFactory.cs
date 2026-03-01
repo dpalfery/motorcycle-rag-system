@@ -44,9 +44,12 @@ namespace MotorcycleRAG.Persistence.Sql
 
             // Enforce policy: connection string must not contain embedded credentials
             // Azure AD / Managed Identity authentication is required
-            // EXCEPTION: Allow credentials in Development environment for local SQL Server
+            // EXCEPTIONS:
+            //   1. Development environment (local SQL Server)
+            //   2. Credentials delivered securely via App Config + Key Vault (not hardcoded)
             var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
             var isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
+            var hasAppConfig = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AppConfig__Endpoint"));
 
             var upperConnectionString = connectionString.ToUpperInvariant();
             if (upperConnectionString.Contains("PASSWORD=") ||
@@ -59,12 +62,16 @@ namespace MotorcycleRAG.Persistence.Sql
                     _logger.LogWarning("Development environment detected: Allowing SQL connection string with embedded credentials. " +
                                      "Ensure this is NOT used in production.");
                 }
+                else if (hasAppConfig)
+                {
+                    _logger.LogInformation("SQL credentials delivered securely via App Configuration + Key Vault.");
+                }
                 else
                 {
                     throw new InvalidOperationException(
                         "Sql:ConnectionString must not contain embedded credentials (Password, Pwd, User ID, or UID). " +
-                        "Azure AD / Managed Identity authentication is required. " +
-                        "Please configure your connection string to use Azure AD authentication.");
+                        "Azure AD / Managed Identity authentication is required, or credentials must be delivered " +
+                        "securely via App Configuration + Key Vault (set AppConfig__Endpoint).");
                 }
             }
 

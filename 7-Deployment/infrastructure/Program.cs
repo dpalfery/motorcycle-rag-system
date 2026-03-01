@@ -35,13 +35,13 @@ namespace MotorcycleRAG.Infrastructure {
             var currentClientConfig = Output.Create(GetClientConfig.InvokeAsync());
 
             // General
-            var location = cfg.Get("location") ?? "eastus2";
+            var location = cfg.Get("location") ?? "centralus";
 
             // Naming convention: <org>-<workload>-<env>-<loc>-<resType>[<instance>]
             const string org = "mcr";           // motorcycle
             const string workload = "rag";      // rag system
             const string env = "dev";           // development
-            const string loc = "eus2";          // east us 2
+            const string loc = "cus";           // central us
             const string namePrefix = $"{org}-{workload}-{env}-{loc}";
 
             // 1. Resource Group

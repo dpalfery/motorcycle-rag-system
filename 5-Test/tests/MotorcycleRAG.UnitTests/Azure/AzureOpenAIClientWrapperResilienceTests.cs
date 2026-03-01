@@ -16,12 +16,14 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
     private readonly Mock<ILogger<AzureOpenAIClientWrapper>> _mockLogger;
     private readonly Mock<IResilienceService> _mockResilienceService;
     private readonly Mock<ICorrelationService> _mockCorrelationService;
+    private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
     private readonly AzureOpenAIClientWrapper _client;
 
     public AzureOpenAIClientWrapperResilienceTests() {
         _mockLogger = new Mock<ILogger<AzureOpenAIClientWrapper>>();
         _mockResilienceService = new Mock<IResilienceService>();
         _mockCorrelationService = new Mock<ICorrelationService>();
+        _mockHttpClientFactory = new Mock<IHttpClientFactory>();
 
         var config = new AzureAIOptions {
             OpenAIEndpoint = "https://test-openai.openai.azure.com/",
@@ -39,7 +41,8 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
             mockOptions.Object,
             _mockLogger.Object,
             _mockResilienceService.Object,
-            _mockCorrelationService.Object);
+            _mockCorrelationService.Object,
+            _mockHttpClientFactory.Object);
     }
 
     [Fact]
@@ -166,7 +169,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
         // Assert
         Assert.Equal(2, result.Length);
         Assert.All(result, embedding => {
-            Assert.Equal(1536, embedding.Length);
+            Assert.Equal(3584, embedding.Length);
             Assert.All(embedding, value => Assert.Equal(0f, value));
         });
     }
@@ -275,7 +278,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
                     }
                     catch {
                         // Return mock data if operation fails
-                        return new[] { new float[1536], new float[1536], new float[1536] };
+                        return new[] { new float[3584], new float[3584], new float[3584] };
                     }
                 });
 

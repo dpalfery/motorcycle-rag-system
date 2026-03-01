@@ -15,25 +15,33 @@ namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project &
 /// </summary>
 public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
 {
+    private static readonly string[] TokenScopes = ["https://cognitiveservices.azure.com/.default"];
+
     private readonly ILogger<AzureOpenAIClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly global::Azure.Core.TokenCredential _credential;
 
     public AzureOpenAIClientWrapper(
         IOptions<AzureAIOptions> config,
         ILogger<AzureOpenAIClientWrapper> logger,
         IResilienceService resilienceService,
-        ICorrelationService correlationService)
+        ICorrelationService correlationService,
+        IHttpClientFactory httpClientFactory)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(resilienceService);
         ArgumentNullException.ThrowIfNull(correlationService);
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
 
         var azureConfig = config.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger;
         _resilienceService = resilienceService;
         _correlationService = correlationService;
+        _httpClientFactory = httpClientFactory;
+        _credential = new DefaultAzureCredential();
 
         _logger.LogInformation("Azure OpenAI client initialized with endpoint: {Endpoint}",
             azureConfig.OpenAIEndpoint);
@@ -69,9 +77,46 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
                 });
 
                 _logger.LogDebug("Getting chat completion for deployment: {DeploymentName}", deploymentName);
-                await Task.Delay(100, cancellationToken);
-                _logger.LogDebug("Successfully retrieved chat completion");
-                return $"Chat completion response for: {prompt}";
+                // Read config from environment (never hardcoded)
+                var endpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT")
+                    ?? Environment.GetEnvironmentVariable("MCR_API_FOUNDRY_ENDPOINT")
+                    ?? throw new InvalidOperationException(
+                        "MCR_API_AZURE_FOUNDRY_ENDPOINT (or MCR_API_FOUNDRY_ENDPOINT) environment variable is not set");
+                var chatModel = string.IsNullOrWhiteSpace(deploymentName)
+                    ? (Environment.GetEnvironmentVariable("MCR_API_FOUNDRY_CHAT_MODEL")
+                        ?? throw new InvalidOperationException("MCR_API_FOUNDRY_CHAT_MODEL environment variable is not set"))
+                    : deploymentName;
+
+                var tokenRequestContext = new global::Azure.Core.TokenRequestContext(TokenScopes);
+                var tokenResult = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
+
+                // Build request
+                var requestBody = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    model = chatModel,
+                    messages = new[] { new { role = "user", content = prompt } }
+                });
+                var requestUri = new Uri($"{endpoint.TrimEnd('/')}/chat/completions?api-version=2024-05-01-preview");
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Post, requestUri);
+                httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer", tokenResult.Token);
+                httpRequest.Content = new StringContent(requestBody, System.Text.Encoding.UTF8, "application/json");
+
+                using var httpClient = _httpClientFactory.CreateClient("AzureFoundry");
+                using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = System.Text.Json.JsonDocument.Parse(responseJson);
+                var content = doc.RootElement
+                    .GetProperty("choices")[0]
+                    .GetProperty("message")
+                    .GetProperty("content")
+                    .GetString()
+                    ?? throw new InvalidOperationException("Empty content in Foundry chat completion response");
+
+                _logger.LogDebug("Successfully retrieved chat completion from Azure AI Foundry");
+                return content;
             },
             async () =>
             {
@@ -121,22 +166,58 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
                 _logger.LogDebug("Getting embeddings for deployment: {DeploymentName}, Text count: {TextCount}",
                     model, texts.Length);
 
-                await Task.Delay(100, cancellationToken);
+                // Read config from environment (never hardcoded)
+                var apiKey = Environment.GetEnvironmentVariable("DEEPINFRA_API_KEY")
+                    ?? throw new InvalidOperationException("DEEPINFRA_API_KEY environment variable is not set");
+                var baseUrl = Environment.GetEnvironmentVariable("DEEPINFRA_BASE_URL")
+                    ?? throw new InvalidOperationException("DEEPINFRA_BASE_URL environment variable is not set");
 
-                // Only for mock implementation
-#pragma warning disable CA5394
-                var embeddings = texts.Select(_ => 
-                    Enumerable.Range(0, 1536).Select(_ => (float)Random.Shared.NextDouble()).ToArray()
-                ).ToArray();
-#pragma warning restore CA5394
+                var effectiveModel = string.IsNullOrWhiteSpace(model)
+                    ? (Environment.GetEnvironmentVariable("DEEPINFRA_EMBEDDING_MODEL")
+                        ?? throw new InvalidOperationException("DEEPINFRA_EMBEDDING_MODEL environment variable is not set"))
+                    : model;
 
-                _logger.LogDebug("Successfully retrieved embeddings");
+                // Build request
+                var requestBody = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    model = effectiveModel,
+                    input = texts,
+                    encoding_format = "float"
+                });
+                var requestUri = new Uri($"{baseUrl.TrimEnd('/')}/embeddings");
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Post, requestUri);
+                httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                httpRequest.Content = new StringContent(requestBody, System.Text.Encoding.UTF8, "application/json");
+
+                using var httpClient = _httpClientFactory.CreateClient("DeepInfra");
+                using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = System.Text.Json.JsonDocument.Parse(responseJson);
+                var dataArray = doc.RootElement.GetProperty("data");
+
+                var embeddings = new float[texts.Length][];
+                for (int i = 0; i < texts.Length; i++)
+                {
+                    var embArray = dataArray[i].GetProperty("embedding");
+                    var floats = new float[embArray.GetArrayLength()];
+                    int j = 0;
+                    foreach (var val in embArray.EnumerateArray())
+                        floats[j++] = val.GetSingle();
+                    if (floats.Length != 3584)
+                        throw new InvalidOperationException(
+                            $"Expected 3584-dimensional embedding from DeepInfra, but got {floats.Length}");
+                    embeddings[i] = floats;
+                }
+
+                _logger.LogDebug("Successfully retrieved {Count} embeddings from DeepInfra", texts.Length);
                 return embeddings;
             },
             async () =>
             {
                 _logger.LogWarning("Using fallback embeddings for {TextCount} texts", texts.Length);
-                return texts.Select(_ => new float[1536]).ToArray();
+                return texts.Select(_ => new float[3584]).ToArray();
             },
             correlationId,
             cancellationToken);

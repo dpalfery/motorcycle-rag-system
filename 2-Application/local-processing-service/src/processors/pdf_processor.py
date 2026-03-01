@@ -10,9 +10,10 @@ from datetime import datetime, timezone
 from docling.chunking import HybridChunker
 from docling.document_converter import DocumentConverter
 
-from embeddings.ollama_embedder import OllamaEmbedder
+from typing import Any
 from extraction.graph_extractor import GraphExtractor
 from storage.blob_writer import BlobWriter
+from search.azure_search_uploader import AzureSearchDirectUploader
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class PDFProcessor:
     def __init__(
         self,
         blob_writer: BlobWriter,
-        embedder: OllamaEmbedder,
+        embedder: Any,
         graph_extractor: GraphExtractor,
     ):
         self._blob_writer = blob_writer
@@ -118,14 +119,24 @@ class PDFProcessor:
                 embedding = await self._embedder.generate_embedding(chunk.text)
                 now = datetime.now(timezone.utc).isoformat()
 
+                make = getattr(metadata, "make", "") or ""
+                model = getattr(metadata, "model", "") or ""
+                year_val = getattr(metadata, "year", 0) or 0
+                try:
+                    year = int(year_val)
+                except (TypeError, ValueError):
+                    year = 0
+
+                tags = [t for t in [make, model] if t]
+
                 record = {
-                    "id": str(uuid.uuid4()),
+                    "id": f"{upload_id}-pdf-{i}",
                     "title": headings[0] if headings else f"Chunk {i}",
                     "content": chunk.text,
                     "documentType": document_type,
-                    "make": metadata.make or "",
-                    "model": metadata.model or "",
-                    "year": metadata.year or 0,
+                    "make": make,
+                    "model": model,
+                    "year": year,
                     "sourceFile": upload_id,
                     "section": headings[0] if headings else "",
                     "pageNumber": page_no,
@@ -135,7 +146,7 @@ class PDFProcessor:
                     "sectionHeadings": headings,
                     "tableCaption": None,
                     "chunkIndex": i,
-                    "tags": [metadata.make, metadata.model] if metadata.make else [],
+                    "tags": tags,
                     "contentVector": embedding,
                     "createdAt": now,
                     "updatedAt": now,
@@ -152,8 +163,12 @@ class PDFProcessor:
             _jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
 
             await self._blob_writer.upload_jsonl(
-                "search-chunks", f"search-chunks/{upload_id}/chunks.jsonl", records
+                "search-chunks", f"{upload_id}/chunks.jsonl", records
             )
+
+            # Direct push to Azure AI Search (no-op if AZURE_SEARCH_ENDPOINT not set)
+            uploader = AzureSearchDirectUploader()
+            uploader.upload(records)
 
             # ---- Extract graph entities ----
             _jobs[job_id]["progress"] = 0.9

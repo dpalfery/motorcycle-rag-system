@@ -5,6 +5,7 @@ import uuid
 import os
 import io
 import logging
+from search.azure_search_uploader import AzureSearchDirectUploader
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -177,6 +178,10 @@ class CSVProcessor:
             await self.blob_writer.upload_jsonl(
                 "search-chunks", f"{upload_id}/chunks.jsonl", chunks
             )
+
+            # Direct push to Azure AI Search (no-op if AZURE_SEARCH_ENDPOINT not set)
+            uploader = AzureSearchDirectUploader()
+            uploader.upload(chunks)
 
             _jobs[job_id].update(
                 {

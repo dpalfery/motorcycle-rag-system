@@ -205,3 +205,68 @@ If migrating from older variable names (e.g., `ENTRA_CLIENT_ID`, `API_SCOPE`), f
 For Azure resource naming conventions (e.g., `mcr-rag-dev-eus2-rg`), see `azure-naming-standards.md`.
 
 For deployment procedures and GitHub Actions setup, see `deployment.md`.
+
+---
+
+## Local Processing Service (Python) — Hybrid Embedding Pipeline
+
+**Application**: `2-Application/local-processing-service`
+
+> These variables are read directly from the OS environment (or a local `.env` file, never committed).
+> See `.env.example` in the local-processing-service directory for a ready-to-copy template.
+
+### Embedding Backend
+
+| Variable | Default | Purpose | Required | Type |
+| --- | --- | --- | --- | --- |
+| `EMBEDDING_BACKEND` | `ollama` | Selects which embedder to use at ingestion time. Valid: `ollama` \| `foundry_local` \| `deepinfra`. | No | Non-Secret |
+
+### Ollama (Local GPU)
+
+| Variable | Default | Purpose | Required | Type |
+| --- | --- | --- | --- | --- |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Base URL of the local Ollama server. | No | Non-Secret |
+| `OLLAMA_MODEL` | `qwen3-embedding` | Ollama model name for embeddings. | No | Non-Secret |
+
+### Azure AI Foundry Local
+
+| Variable | Default | Purpose | Required | Type |
+| --- | --- | --- | --- | --- |
+| `AZURE_FOUNDRY_LOCAL_ENDPOINT` | `http://localhost:5272` | Base URL of the Azure AI Foundry Local OpenAI-compatible server. | No | Non-Secret |
+| `AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL` | `qwen3-embedding` | Model name loaded in Azure AI Foundry Local. | No | Non-Secret |
+
+### DeepInfra (Remote Query-Time Embeddings)
+
+| Variable | Example | Purpose | Required | Type |
+| --- | --- | --- | --- | --- |
+| `DEEPINFRA_API_KEY` | `xxxxxxxxxxxxx` | DeepInfra API key for Qwen3-Embedding-4B. | Yes (if backend=deepinfra) | Secret |
+| `DEEPINFRA_BASE_URL` | `https://api.deepinfra.com/v1/openai` | DeepInfra OpenAI-compatible endpoint. | Yes (if backend=deepinfra) | Non-Secret |
+| `DEEPINFRA_EMBEDDING_MODEL` | `Qwen/Qwen3-Embedding-4B` | DeepInfra embedding model name. | Yes (if backend=deepinfra) | Non-Secret |
+
+### Azure AI Search (Direct Upload)
+
+| Variable | Example | Purpose | Required | Type |
+| --- | --- | --- | --- | --- |
+| `AZURE_SEARCH_ENDPOINT` | `https://<service>.search.windows.net` | Azure AI Search service endpoint. | Yes (for indexing) | Non-Secret |
+| `AZURE_SEARCH_INDEX` | `motorcycle-index` | Target search index (must have 3584-dim vector field). | No | Non-Secret |
+| `AZURE_SEARCH_KEY` | `xxxxxxxxxxxxx` | Azure AI Search API key. Leave blank to use `DefaultAzureCredential`. | No | Secret |
+
+### .NET API — Azure AI Foundry Serverless (Chat)
+
+> These variables are read by `AzureOpenAIClientWrapper` in `4-Persistence/MotorcycleRAG.Persistence`.
+
+| Variable | Example | Purpose | Required | Type |
+| --- | --- | --- | --- | --- |
+| `MCR_API_FOUNDRY_ENDPOINT` | `https://<project>.services.ai.azure.com/models` | Azure AI Foundry serverless endpoint for chat completions. | Yes | Non-Secret |
+| `MCR_API_AZURE_FOUNDRY_ENDPOINT` | `https://my-foundry.cognitiveservices.azure.com` | Alternative/legacy name used by some components & tests. | No | Non-Secret |
+| `MCR_API_FOUNDRY_CHAT_MODEL` | `gpt-4o-mini` | Chat model deployment name on Azure AI Foundry (used when deploymentName param is blank). | Yes (unless passed as deploymentName) | Non-Secret |
+
+### .NET API — DeepInfra Embeddings
+
+> These variables are read by `AzureOpenAIClientWrapper` in `4-Persistence/MotorcycleRAG.Persistence`.
+
+| Variable | Example | Purpose | Required | Type |
+| --- | --- | --- | --- | --- |
+| `DEEPINFRA_API_KEY` | `xxxxxxxxxxxxx` | DeepInfra API key (shared with Python service). | Yes | Secret |
+| `DEEPINFRA_BASE_URL` | `https://api.deepinfra.com/v1/openai` | DeepInfra OpenAI-compatible endpoint. | Yes | Non-Secret |
+| `DEEPINFRA_EMBEDDING_MODEL` | `Qwen/Qwen3-Embedding-4B` | DeepInfra embedding model name (used when GetEmbeddingsAsync model param is blank). | Yes (unless passed as method arg) | Non-Secret |

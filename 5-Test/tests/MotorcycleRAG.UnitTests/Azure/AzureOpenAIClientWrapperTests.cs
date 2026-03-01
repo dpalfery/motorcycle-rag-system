@@ -16,6 +16,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     private readonly Mock<ILogger<AzureOpenAIClientWrapper>> _mockLogger;
     private readonly Mock<IResilienceService> _mockResilienceService;
     private readonly Mock<ICorrelationService> _mockCorrelationService;
+    private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
     private readonly AzureAIOptions _config;
     private readonly IOptions<AzureAIOptions> _options;
 
@@ -23,6 +24,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
         _mockLogger = new Mock<ILogger<AzureOpenAIClientWrapper>>();
         _mockResilienceService = new Mock<IResilienceService>();
         _mockCorrelationService = new Mock<ICorrelationService>();
+        _mockHttpClientFactory = new Mock<IHttpClientFactory>();
         _config = new AzureAIOptions {
             OpenAIEndpoint = "https://test-openai.openai.azure.com/",
             Models = new ModelOptions {
@@ -44,7 +46,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     [Fact]
     public void Constructor_WithValidConfiguration_ShouldInitializeSuccessfully() {
         // Act & Assert
-        var exception = Record.Exception(() => new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
+        var exception = Record.Exception(() => new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object));
         exception.Should().BeNull();
     }
 
@@ -52,7 +54,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     public void Constructor_WithNullConfiguration_ShouldThrowArgumentNullException() {
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new AzureOpenAIClientWrapper(null!, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object));
+            new AzureOpenAIClientWrapper(null!, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object));
         exception.ParamName.Should().Be("config");
     }
 
@@ -60,14 +62,14 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     public void Constructor_WithNullLogger_ShouldThrowArgumentNullException() {
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new AzureOpenAIClientWrapper(_options, null!, _mockResilienceService.Object, _mockCorrelationService.Object));
+            new AzureOpenAIClientWrapper(_options, null!, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object));
         exception.ParamName.Should().Be("logger");
     }
 
     [Fact]
     public void Constructor_ShouldLogInitializationMessage() {
         // Act
-        using var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
+        using var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object);
 
         // Assert
         _mockLogger.Verify(
@@ -149,7 +151,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     [Fact]
     public void Dispose_ShouldDisposeResourcesGracefully() {
         // Arrange
-        using var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object);
+        using var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object);
 
         // Act & Assert
         var exception = Record.Exception(() => client.Dispose());

@@ -140,8 +140,7 @@ public class AzureAIConfigurationValidatorTests {
     }
 
     [Theory]
-    [InlineData("", "AzureAI:FoundryEndpoint is required")]
-    [InlineData("invalid-uri", "AzureAI:FoundryEndpoint must be a valid URI")]
+    [InlineData("invalid-uri", "AzureAI:FoundryEndpoint must be a valid URI if provided")]
     public void Validate_WithInvalidFoundryEndpoint_ShouldReturnFailure(string endpoint, string expectedError) {
         // Arrange
         var config = CreateValidConfiguration();

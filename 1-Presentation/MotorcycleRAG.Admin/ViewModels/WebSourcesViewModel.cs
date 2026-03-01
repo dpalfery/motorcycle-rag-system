@@ -241,9 +241,10 @@ internal partial class WebSourcesViewModel : ObservableObject {
 
 
 
-            await EnsureAuthorizedAsync();
-
-
+            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+            if (!authorized) {
+                return;
+            }
 
             var newSource = new WebSource {
                 Name = NewSourceName,
@@ -379,7 +380,10 @@ internal partial class WebSourcesViewModel : ObservableObject {
 
 
 
-            await EnsureAuthorizedAsync();
+            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+            if (!authorized) {
+                return;
+            }
 
             await _apiClient.DeleteWebSourceAsync(sourceId);
 

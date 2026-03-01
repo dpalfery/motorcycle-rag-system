@@ -40,6 +40,8 @@ namespace MotorcycleRAG.Infrastructure {
             var azureAdTenantId = cfg.RequireSecret("azureAdTenantId");
             var azureAdClientId = cfg.RequireSecret("azureAdClientId");
             var adminClientId = cfg.RequireSecret("adminClientId");
+            var deepinfraApiKey = cfg.RequireSecret("deepinfraApiKey");
+            var bffClientSecret = cfg.RequireSecret("bffClientSecret");
 
             // General
             var location = cfg.Get("location") ?? "centralus";
@@ -245,7 +247,8 @@ namespace MotorcycleRAG.Infrastructure {
                 },
                 Secrets = new[]
                 {
-                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
+                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") },
+                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "bff-client-secret", Value = bffClientSecret }
                 }
             },
             Template = new TemplateArgs {
@@ -254,7 +257,7 @@ namespace MotorcycleRAG.Infrastructure {
                     new ContainerArgs
                     {
                         Name = "ui",
-                        Image = "mcr.microsoft.com/k8se/quickstart:latest",
+                        Image = Output.Format($"{registry.LoginServer}/motorcycle-rag-ui:latest"),
                         Resources = new ContainerResourcesArgs
                         {
                             Cpu = 0.25,
@@ -262,7 +265,9 @@ namespace MotorcycleRAG.Infrastructure {
                         },
                         Env = commonEnvs.Concat(new[]
                         {
-                            new EnvironmentVarArgs { Name = "API_URL", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") }
+                            new EnvironmentVarArgs { Name = "API_URL", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") },
+                            new EnvironmentVarArgs { Name = "AzureAd__ClientId", Value = "6b1ec527-ccdd-4d84-9b12-98e889cab6ca" },
+                            new EnvironmentVarArgs { Name = "AzureAd__ClientSecret", SecretRef = "bff-client-secret" }
                         }).ToArray(),
                         Probes = new[]
                         {
@@ -423,6 +428,20 @@ namespace MotorcycleRAG.Infrastructure {
                 Properties = new SecretPropertiesArgs { Value = sqlConnectionString }
             });
 
+            var kvSecretDeepinfraKey = new Secret("kv-secret-deepinfra-key", new Pulumi.AzureNative.KeyVault.SecretArgs {
+                ResourceGroupName = resourceGroup.Name,
+                VaultName = keyVault.Name,
+                SecretName = "DEEPINFRA-API-KEY",
+                Properties = new SecretPropertiesArgs { Value = deepinfraApiKey }
+            });
+
+            var kvSecretBffClientSecret = new Secret("kv-secret-bff-client-secret", new Pulumi.AzureNative.KeyVault.SecretArgs {
+                ResourceGroupName = resourceGroup.Name,
+                VaultName = keyVault.Name,
+                SecretName = "MCR-WEB-BFF-CLIENT-SECRET",
+                Properties = new SecretPropertiesArgs { Value = bffClientSecret }
+            });
+
             // App Config: Plain configuration values
             _ = new KeyValue("appconfig-kv-openai-endpoint", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -459,6 +478,20 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = aiServices.Properties.Apply(p => p.Endpoint ?? "")
             });
 
+            _ = new KeyValue("appconfig-kv-foundry-chat-endpoint", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "MCR_API_FOUNDRY_ENDPOINT",
+                Value = aiServices.Properties.Apply(p => p.Endpoint ?? "")
+            });
+
+            _ = new KeyValue("appconfig-kv-foundry-chat-model", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "MCR_API_FOUNDRY_CHAT_MODEL",
+                Value = "gpt-4o-mini"
+            });
+
             _ = new KeyValue("appconfig-kv-telemetry-enabled", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
@@ -492,6 +525,22 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = kvSecretClientId.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
             });
 
+            _ = new KeyValue("appconfig-kvref-azure-ad-tenant-id", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAd:TenantId",
+                ContentType = kvRefContentType,
+                Value = kvSecretTenantId.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-azure-ad-client-id", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAd:ClientId",
+                ContentType = kvRefContentType,
+                Value = kvSecretClientId.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
+            });
+
             _ = new KeyValue("appconfig-kvref-admin-client-id", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
@@ -514,6 +563,14 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "Sql:ConnectionString",
                 ContentType = kvRefContentType,
                 Value = kvSecretSqlConnStr.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-deepinfra-key", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "DEEPINFRA_API_KEY",
+                ContentType = kvRefContentType,
+                Value = kvSecretDeepinfraKey.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
             });
 
             // RBAC: Key Vault Secrets User for both apps

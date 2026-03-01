@@ -131,6 +131,12 @@ internal class ApiClient {
                 content,
                 cancellationToken)).ConfigureAwait(false);
 
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                throw new UnauthorizedAccessException(
+                    $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+            }
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<FileUploadResult>(_jsonOptions, cancellationToken).ConfigureAwait(false);
@@ -202,6 +208,12 @@ internal class ApiClient {
                 content,
                 cancellationToken)).ConfigureAwait(false);
 
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                throw new UnauthorizedAccessException(
+                    $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+            }
             response.EnsureSuccessStatusCode();
 
             var batchResult = await response.Content.ReadFromJsonAsync<BatchFileUploadResult>(_jsonOptions, cancellationToken).ConfigureAwait(false);
@@ -250,6 +262,12 @@ internal class ApiClient {
 
         var requestUri = new Uri("api/datapipeline/upload-constraints", UriKind.Relative);
         var response = await _httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<UploadConstraints>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -282,6 +300,12 @@ internal class ApiClient {
             null,
             cancellationToken)).ConfigureAwait(false);
 
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<ProcessingResult>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -306,6 +330,12 @@ internal class ApiClient {
 
         var requestUri = new Uri($"api/datapipeline/status/{Uri.EscapeDataString(executionId)}", UriKind.Relative);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<PipelineStatusResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -331,6 +361,12 @@ internal class ApiClient {
         var relativePath = $"api/datapipeline/metrics/{Uri.EscapeDataString(executionId)}";
         var uri = new Uri(_httpClient.BaseAddress!, relativePath);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<PipelineMetrics>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -357,6 +393,12 @@ internal class ApiClient {
         var uri = new Uri(_httpClient.BaseAddress!, relativePath);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
 
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<CancelPipelineResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -409,6 +451,12 @@ internal class ApiClient {
 
         var requestUri = new Uri(_httpClient.BaseAddress!, $"api/datapipeline/executions{queryString}");
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<List<PipelineExecution>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -441,6 +489,12 @@ internal class ApiClient {
 
         var uri = new Uri(_httpClient.BaseAddress!, "api/admin/mcp-tools");
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -477,6 +531,12 @@ internal class ApiClient {
                 request,
                 _jsonOptions,
                 cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -504,6 +564,12 @@ internal class ApiClient {
 
         var uri = new Uri(_httpClient.BaseAddress!, "api/admin/web-sources");
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<List<WebSource>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -529,6 +595,12 @@ internal class ApiClient {
 
         var response = await ExecuteWithResilienceAsync(() =>
             _httpClient.PostAsJsonAsync("api/admin/web-sources", source, _jsonOptions, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<WebSource>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -557,6 +629,12 @@ internal class ApiClient {
 
         var response = await ExecuteWithResilienceAsync(() =>
             _httpClient.PutAsJsonAsync($"api/admin/web-sources/{source.Id}", source, _jsonOptions, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<WebSource>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -584,6 +662,12 @@ internal class ApiClient {
         var relativePath = $"api/admin/web-sources/{sourceId}";
         var uri = new Uri(_httpClient.BaseAddress!, relativePath);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.DeleteAsync(uri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
     }
 
@@ -610,6 +694,12 @@ internal class ApiClient {
         var relativePath = $"api/users-admin{query}";
         var uri = new Uri(_httpClient.BaseAddress!, relativePath);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<List<UserDto>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -634,6 +724,12 @@ internal class ApiClient {
         var relativePath = $"api/users-admin/{userId}/enable";
         var uri = new Uri(_httpClient.BaseAddress!, relativePath);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
@@ -658,6 +754,12 @@ internal class ApiClient {
         var relativePath = $"api/users-admin/{userId}/disable";
         var uri = new Uri(_httpClient.BaseAddress!, relativePath);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)

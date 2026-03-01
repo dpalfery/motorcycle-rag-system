@@ -304,14 +304,15 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 AccountName = openAIAccount.Name,
                 DeploymentName = "gpt-4o",
+                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
+                    Name = "Standard",
+                    Capacity = 1
+                },
                 Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
                     Model = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentModelArgs {
                         Format = "OpenAI",
                         Name = "gpt-4o",
                         Version = "2024-05-13"
-                    },
-                    ScaleSettings = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentScaleSettingsArgs {
-                        ScaleType = "Standard"
                     }
                 }
             });
@@ -320,14 +321,15 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 AccountName = openAIAccount.Name,
                 DeploymentName = "text-embedding-3-large",
+                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
+                    Name = "Standard",
+                    Capacity = 1
+                },
                 Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
                     Model = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentModelArgs {
                         Format = "OpenAI",
                         Name = "text-embedding-3-large",
                         Version = "1"
-                    },
-                    ScaleSettings = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentScaleSettingsArgs {
-                        ScaleType = "Standard"
                     }
                 }
             });

@@ -59,11 +59,11 @@ builder.Services.AddAuthentication(options => {
     var authConfig = builder.Configuration.GetSection("AzureAd");
     options.Authority = $"{authConfig["Instance"]}{authConfig["TenantId"]}";
     options.ClientId = authConfig["ClientId"];
-    options.ClientSecret = Environment.GetEnvironmentVariable("MCR_BFF_CLIENT_SECRET")
+    options.ClientSecret = builder.Configuration["AzureAd:ClientSecret"]
         ?? throw new InvalidOperationException(
-            "MCR_BFF_CLIENT_SECRET environment variable is required but not set. " +
-            "Please set this to your BFF app registration client secret. " +
-            "For local development, use: dotnet user-secrets set \"MCR_BFF_CLIENT_SECRET\" \"your-secret\"");
+            "BFF Client Secret is not configured. " +
+            "For local development, use: dotnet user-secrets set \"AzureAd:ClientSecret\" \"your-secret\" " +
+            "--project 1-Presentation/MotorcycleRag.WebUI.BFF");
     options.ResponseType = "code";
     options.SaveTokens = true;
     options.Scope.Add("openid");

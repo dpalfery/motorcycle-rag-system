@@ -1,7 +1,7 @@
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
+using NBomber.Contracts.Stats;
 using Microsoft.Extensions.Configuration;
-using MotorcycleRAG.Contracts.Requests;
 using System.Text.Json;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
@@ -16,6 +16,7 @@ public class ConcurrentUserLoadTests
     private readonly IConfiguration _configuration;
     private readonly string _baseUrl;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly HttpClient _httpClient;
 
     public ConcurrentUserLoadTests()
     {
@@ -29,6 +30,7 @@ public class ConcurrentUserLoadTests
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
+        _httpClient = Http.CreateDefaultClient();
     }
 
     [Fact]
@@ -52,24 +54,20 @@ public class ConcurrentUserLoadTests
                 UserId = $"load-test-user-{context.ScenarioInfo.ThreadId}",
                 Context = new QueryContext
                 {
-                    SessionId = context.ScenarioInfo.InstanceId.ToString(),
+                    SessionId = context.ScenarioInfo.InstanceId,
                     Timestamp = DateTime.UtcNow
                 }
             };
 
-            var httpClient = HttpClientFactory.Create();
+            var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
+                          .WithJsonBody(request, _jsonOptions);
 
-            var response = await httpClient
-                .Request($"{_baseUrl}/api/motorcycle/query")
-                .WithJsonBody(request, _jsonOptions)
-                .PostAsync();
-
-            return response;
+            return await Http.Send(_httpClient, req);
         })
         .WithLoadSimulations(
-            Simulation.InjectPerSec(rate: 10, during: TimeSpan.FromMinutes(1)),
+            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromMinutes(1)),
             Simulation.KeepConstant(copies: 50, during: TimeSpan.FromMinutes(3)),
-            Simulation.InjectPerSec(rate: 20, during: TimeSpan.FromMinutes(1))
+            Simulation.Inject(rate: 20, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromMinutes(1))
         );
 
         var stats = NBomberRunner
@@ -79,12 +77,12 @@ public class ConcurrentUserLoadTests
             .Run();
 
         // Assert performance requirements
-        var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "simple_queries");
+        var scnStats = stats.ScenarioStats.First(x => x.ScenarioName == "simple_queries");
 
-        scnStats.Ok.Response.Mean.Should().BeLessThan(3000); // < 3 seconds average
-        scnStats.Ok.Response.Percentile95.Should().BeLessThan(5000); // < 5 seconds 95th percentile
+        scnStats.Ok.Latency.MeanMs.Should().BeLessThan(3000); // < 3 seconds average
+        scnStats.Ok.Latency.Percent95.Should().BeLessThan(5000); // < 5 seconds 95th percentile
         scnStats.AllOkCount.Should().BeGreaterThan(0);
-        scnStats.AllFailCount.Should().BeLessThan(scnStats.AllOkCount * 0.05); // < 5% failure rate
+        scnStats.AllFailCount.Should().BeLessThan((int)(scnStats.AllOkCount * 0.05)); // < 5% failure rate
     }
 
     [Fact]
@@ -114,19 +112,15 @@ public class ConcurrentUserLoadTests
                 }
             };
 
-            var httpClient = HttpClientFactory.Create();
+            var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
+                          .WithJsonBody(request, _jsonOptions);
 
-            var response = await httpClient
-                .Request($"{_baseUrl}/api/motorcycle/query")
-                .WithJsonBody(request, _jsonOptions)
-                .PostAsync();
-
-            return response;
+            return await Http.Send(_httpClient, req);
         })
         .WithLoadSimulations(
-            Simulation.InjectPerSec(rate: 5, during: TimeSpan.FromMinutes(2)),
+            Simulation.Inject(rate: 5, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromMinutes(2)),
             Simulation.KeepConstant(copies: 25, during: TimeSpan.FromMinutes(5)),
-            Simulation.InjectPerSec(rate: 10, during: TimeSpan.FromMinutes(1))
+            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromMinutes(1))
         );
 
         var stats = NBomberRunner
@@ -136,11 +130,11 @@ public class ConcurrentUserLoadTests
             .Run();
 
         // Assert performance requirements for complex queries
-        var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "complex_queries");
+        var scnStats = stats.ScenarioStats.First(x => x.ScenarioName == "complex_queries");
 
-        scnStats.Ok.Response.Mean.Should().BeLessThan(8000); // < 8 seconds average for complex queries
-        scnStats.Ok.Response.Percentile95.Should().BeLessThan(15000); // < 15 seconds 95th percentile
-        scnStats.AllFailCount.Should().BeLessThan(scnStats.AllOkCount * 0.1); // < 10% failure rate
+        scnStats.Ok.Latency.MeanMs.Should().BeLessThan(8000); // < 8 seconds average for complex queries
+        scnStats.Ok.Latency.Percent95.Should().BeLessThan(15000); // < 15 seconds 95th percentile
+        scnStats.AllFailCount.Should().BeLessThan((int)(scnStats.AllOkCount * 0.1)); // < 10% failure rate
     }
 
     [Fact]
@@ -162,11 +156,9 @@ public class ConcurrentUserLoadTests
                 UserId = $"mixed-simple-{context.ScenarioInfo.ThreadId}"
             };
 
-            var httpClient = HttpClientFactory.Create();
-            return await httpClient
-                .Request($"{_baseUrl}/api/motorcycle/query")
-                .WithJsonBody(request, _jsonOptions)
-                .PostAsync();
+            var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
+                          .WithJsonBody(request, _jsonOptions);
+            return await Http.Send(_httpClient, req);
         })
         .WithWeight(60) // 60% of traffic
         .WithLoadSimulations(
@@ -194,11 +186,9 @@ public class ConcurrentUserLoadTests
                 }
             };
 
-            var httpClient = HttpClientFactory.Create();
-            return await httpClient
-                .Request($"{_baseUrl}/api/motorcycle/query")
-                .WithJsonBody(request, _jsonOptions)
-                .PostAsync();
+            var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
+                          .WithJsonBody(request, _jsonOptions);
+            return await Http.Send(_httpClient, req);
         })
         .WithWeight(30) // 30% of traffic
         .WithLoadSimulations(
@@ -207,10 +197,8 @@ public class ConcurrentUserLoadTests
 
         var healthCheckScenario = Scenario.Create("health_checks", async context =>
         {
-            var httpClient = HttpClientFactory.Create();
-            return await httpClient
-                .Request($"{_baseUrl}/api/motorcycle/health")
-                .GetAsync();
+            var req = Http.CreateRequest("GET", $"{_baseUrl}/api/motorcycle/health");
+            return await Http.Send(_httpClient, req);
         })
         .WithWeight(10) // 10% of traffic
         .WithLoadSimulations(
@@ -224,14 +212,14 @@ public class ConcurrentUserLoadTests
             .Run();
 
         // Assert overall system performance
-        stats.AllScenarios.Should().AllSatisfy(scenario =>
+        stats.ScenarioStats.Should().AllSatisfy(scenario =>
         {
-            scenario.AllFailCount.Should().BeLessThan(scenario.AllOkCount * 0.05); // < 5% failure rate
+            scenario.AllFailCount.Should().BeLessThan((int)(scenario.AllOkCount * 0.05)); // < 5% failure rate
         });
 
         // Health checks should be very fast
-        var healthStats = stats.AllScenarios.First(x => x.ScenarioName == "health_checks");
-        healthStats.Ok.Response.Mean.Should().BeLessThan(500); // < 500ms for health checks
+        var healthStats = stats.ScenarioStats.First(x => x.ScenarioName == "health_checks");
+        healthStats.Ok.Latency.MeanMs.Should().BeLessThan(500); // < 500ms for health checks
     }
 
     [Fact]
@@ -245,17 +233,15 @@ public class ConcurrentUserLoadTests
                 UserId = $"spike-user-{context.ScenarioInfo.ThreadId}"
             };
 
-            var httpClient = HttpClientFactory.Create();
-            return await httpClient
-                .Request($"{_baseUrl}/api/motorcycle/query")
-                .WithJsonBody(request, _jsonOptions)
-                .PostAsync();
+            var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
+                          .WithJsonBody(request, _jsonOptions);
+            return await Http.Send(_httpClient, req);
         })
         .WithLoadSimulations(
             // Normal load
             Simulation.KeepConstant(copies: 10, during: TimeSpan.FromMinutes(2)),
             // Spike
-            Simulation.InjectPerSec(rate: 100, during: TimeSpan.FromSeconds(30)),
+            Simulation.Inject(rate: 100, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30)),
             // Recovery
             Simulation.KeepConstant(copies: 10, during: TimeSpan.FromMinutes(2))
         );
@@ -267,10 +253,10 @@ public class ConcurrentUserLoadTests
             .Run();
 
         // System should handle spikes gracefully
-        var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "spike_test");
+        var scnStats = stats.ScenarioStats.First(x => x.ScenarioName == "spike_test");
 
         // Allow higher failure rate during spike, but should recover
-        scnStats.AllFailCount.Should().BeLessThan(scnStats.AllOkCount * 0.15); // < 15% failure rate overall
+        scnStats.AllFailCount.Should().BeLessThan((int)(scnStats.AllOkCount * 0.15)); // < 15% failure rate overall
         scnStats.AllOkCount.Should().BeGreaterThan(0);
     }
 
@@ -295,11 +281,9 @@ public class ConcurrentUserLoadTests
                 UserId = $"stability-user-{context.ScenarioInfo.ThreadId}"
             };
 
-            var httpClient = HttpClientFactory.Create();
-            return await httpClient
-                .Request($"{_baseUrl}/api/motorcycle/query")
-                .WithJsonBody(request, _jsonOptions)
-                .PostAsync();
+            var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
+                          .WithJsonBody(request, _jsonOptions);
+            return await Http.Send(_httpClient, req);
         })
         .WithLoadSimulations(
             Simulation.KeepConstant(copies: 20, during: TimeSpan.FromMinutes(10))
@@ -312,10 +296,10 @@ public class ConcurrentUserLoadTests
             .Run();
 
         // Long-running stability requirements
-        var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "stability_test");
+        var scnStats = stats.ScenarioStats.First(x => x.ScenarioName == "stability_test");
 
-        scnStats.Ok.Response.Mean.Should().BeLessThan(4000); // < 4 seconds average
-        scnStats.AllFailCount.Should().BeLessThan(scnStats.AllOkCount * 0.02); // < 2% failure rate
+        scnStats.Ok.Latency.MeanMs.Should().BeLessThan(4000); // < 4 seconds average
+        scnStats.AllFailCount.Should().BeLessThan((int)(scnStats.AllOkCount * 0.02)); // < 2% failure rate
         scnStats.AllOkCount.Should().BeGreaterThan(1000); // Should handle significant volume
     }
 
@@ -330,11 +314,9 @@ public class ConcurrentUserLoadTests
                 UserId = $"resource-user-{context.ScenarioInfo.ThreadId}"
             };
 
-            var httpClient = HttpClientFactory.Create();
-            return await httpClient
-                .Request($"{_baseUrl}/api/motorcycle/query")
-                .WithJsonBody(request, _jsonOptions)
-                .PostAsync();
+            var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
+                          .WithJsonBody(request, _jsonOptions);
+            return await Http.Send(_httpClient, req);
         })
         .WithLoadSimulations(
             Simulation.KeepConstant(copies: 50, during: TimeSpan.FromMinutes(3))
@@ -347,14 +329,14 @@ public class ConcurrentUserLoadTests
             .Run();
 
         // Resource utilization assertions
-        var scnStats = stats.AllScenarios.First(x => x.ScenarioName == "resource_monitoring");
+        var scnStats = stats.ScenarioStats.First(x => x.ScenarioName == "resource_monitoring");
 
         // Verify throughput meets requirements
-        var throughputPerSecond = scnStats.AllOkCount / stats.TestDuration.TotalSeconds;
+        var throughputPerSecond = scnStats.AllOkCount / stats.Duration.TotalSeconds;
         throughputPerSecond.Should().BeGreaterThan(10); // At least 10 requests per second
 
         // Response time consistency
-        var responseTimeStdDev = scnStats.Ok.Response.StdDev;
+        var responseTimeStdDev = scnStats.Ok.Latency.StdDev;
         responseTimeStdDev.Should().BeLessThan(2000); // Response times should be consistent
     }
 }

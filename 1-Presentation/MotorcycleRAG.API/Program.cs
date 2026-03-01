@@ -91,9 +91,8 @@ public class Program {
         if (enableTelemetry && string.IsNullOrWhiteSpace(appInsightsConnectionString)) {
             throw new InvalidOperationException(
                 "Application Insights is enabled (EnableTelemetry=true) but ConnectionString is not configured. " +
-                "REQUIRED: Set the MCR_API_APPINSIGHTS_CONNECTION_STRING environment variable. " +
-                "No fallback to configuration files is permitted for security compliance. " +
-                "For development, use: dotnet user-secrets set \"MCR_API_APPINSIGHTS_CONNECTION_STRING\" \"your-connection-string\"");
+                "For local development, use: dotnet user-secrets set \"ConnectionStrings:ApplicationInsights\" \"your-connection-string\" " +
+                "--project 1-Presentation/MotorcycleRAG.API");
         }
 
         // Add Application Insights telemetry only if connection string is provided
@@ -252,10 +251,7 @@ public class Program {
                 }
 
                 // Get Admin Client ID from configuration for isolation checks
-                // Check AzureAd:AdminClientId, then user secrets key, then OS environment variable
-                var adminClientId = builder.Configuration["AzureAd:AdminClientId"]
-                                   ?? builder.Configuration["MCR_ADMIN_CLIENT_ID"]
-                                   ?? Environment.GetEnvironmentVariable("MCR_ADMIN_CLIENT_ID");
+                var adminClientId = builder.Configuration["AzureAd:AdminClientId"];
 
                 // Provide a dummy Client ID for testing environment if not set
                 if (string.IsNullOrEmpty(adminClientId) && builder.Environment.IsEnvironment("Testing")) {
@@ -495,49 +491,41 @@ public class Program {
     }
 
     /// <summary>
-    /// Validates and populates Azure AD configuration from secure sources.
-    /// Reads from: 1) Environment variables (production), 2) User Secrets (development).
-    /// No fallbacks to appsettings.json files are permitted for security compliance.
+    /// Validates and populates Azure AD configuration from IConfiguration.
+    /// Reads from: 1) User Secrets, 2) App Config, 3) appsettings.{Environment}.json (via standard .NET config system).
+    /// Derives JWT issuer URLs and audience values from TenantId and ClientId.
     /// </summary>
-    /// <param name="configuration">The application configuration</param>
+    /// <param name="configuration">The application configuration (includes merged appsettings, user secrets, env vars, App Config)</param>
     private static void ValidateAndPopulateAzureAdConfiguration(IConfiguration configuration) {
-        const string ConfigFilesLabel = nameof(configuration);
+        // Read from IConfiguration, which has already merged all sources in priority order:
+        // User Secrets > Environment Variables > App Config > appsettings.Development.json
+        var tenantId = configuration["AzureAd:TenantId"];
+        var clientId = configuration["AzureAd:ClientId"];
 
-        // SECURITY: Read from environment variables OR user secrets (both are secure)
-        // Priority: Environment variables > User Secrets > (fail - no appsettings.json fallback)
-        var tenantId = Environment.GetEnvironmentVariable("MCR_API_AZURE_AD_TENANT_ID") 
-                       ?? configuration["MCR_API_AZURE_AD_TENANT_ID"];
-        var clientId = Environment.GetEnvironmentVariable("MCR_API_AZURE_AD_CLIENT_ID") 
-                       ?? configuration["MCR_API_AZURE_AD_CLIENT_ID"];
-
-        // Fail fast if required secrets are missing
+        // Fail fast if required values are missing
         if (string.IsNullOrWhiteSpace(tenantId)) {
             throw new InvalidOperationException(
                 "Azure AD Tenant ID is not configured. " +
-                "REQUIRED: Set the MCR_API_AZURE_AD_TENANT_ID environment variable or user secret. " +
-                $"No fallback to {ConfigFilesLabel} files is permitted for security compliance. " +
-                $"For local development, use: dotnet user-secrets set \"MCR_API_AZURE_AD_TENANT_ID\" \"your-tenant-id\" --project 1-Presentation/MotorcycleRAG.API");
+                "Set AzureAd:TenantId in appsettings.Development.json or use: " +
+                "dotnet user-secrets set \"AzureAd:TenantId\" \"your-tenant-id\" --project 1-Presentation/MotorcycleRAG.API");
         }
 
         if (string.IsNullOrWhiteSpace(clientId)) {
             throw new InvalidOperationException(
                 "Azure AD Client ID is not configured. " +
-                "REQUIRED: Set the MCR_API_AZURE_AD_CLIENT_ID environment variable or user secret. " +
-                $"No fallback to {ConfigFilesLabel} files is permitted for security compliance. " +
-                $"For local development, use: dotnet user-secrets set \"MCR_API_AZURE_AD_CLIENT_ID\" \"your-client-id\" --project 1-Presentation/MotorcycleRAG.API");
+                "Set AzureAd:ClientId in appsettings.Development.json or use: " +
+                "dotnet user-secrets set \"AzureAd:ClientId\" \"your-client-id\" --project 1-Presentation/MotorcycleRAG.API");
         }
 
-        // Log secret sources for audit trail
+        // Log configuration source for audit trail
         using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
         var startupLogger = loggerFactory.CreateLogger("Program");
-        startupLogger.LogInformation("Azure AD configuration loaded from secure source (MCR_API_AZURE_AD_TENANT_ID, MCR_API_AZURE_AD_CLIENT_ID)");
+        startupLogger.LogInformation("Azure AD configuration loaded from AzureAd:TenantId and AzureAd:ClientId");
 
-        // Update configuration with environment values
+        // Derive JWT issuer URLs and audience from TenantId and ClientId
         var azureAdSection = new ConfigurationBuilder()
             .AddInMemoryCollection((IEnumerable<KeyValuePair<string, string?>>)new Dictionary<string, string?>
             {
-                { "AzureAd:TenantId", tenantId },
-                { "AzureAd:ClientId", clientId },
                 { "AzureAd:Audience", clientId }, // Audience typically matches ClientId
                 { "Authentication:Audience", clientId },
                 { "Jwt:ValidAudience", clientId },
@@ -547,36 +535,25 @@ public class Program {
             })
             .Build();
 
-        // Merge environment-based config into the existing configuration
+        // Merge derived config into the existing configuration
         foreach (var kvp in azureAdSection.AsEnumerable().Where(x => x.Value != null)) {
             ((IConfigurationBuilder)configuration).AddInMemoryCollection(new[] { kvp });
         }
     }
 
     /// <summary>
-    /// Validates and populates Azure AI service endpoints from secure sources.
-    /// Reads from: 1) Environment variables (production), 2) User Secrets (development).
+    /// Validates Azure AI service endpoints from IConfiguration.
+    /// Reads from: 1) User Secrets, 2) App Config, 3) appsettings.{Environment}.json (via standard .NET config system).
     /// Ensures endpoints are HTTPS URLs and not empty/placeholder values.
     /// OPTIONAL: Services can be configured later. App will run in degraded state if not configured.
     /// </summary>
-    /// <param name="configuration">The application configuration</param>
+    /// <param name="configuration">The application configuration (includes merged appsettings, user secrets, env vars, App Config)</param>
     private static void ValidateAndPopulateAzureAIConfiguration(IConfiguration configuration) {
-        // SECURITY: Read from multiple sources with priority:
-        // 1) Environment variables (MCR_API_* prefix - legacy/direct)
-        // 2) IConfiguration (App Config provides AzureAI:* keys, or user secrets)
-        // 3) null (degraded mode)
-        var openAIEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_OPENAI_ENDPOINT")
-                             ?? configuration["AzureAI:OpenAIEndpoint"]
-                             ?? configuration["MCR_API_AZURE_OPENAI_ENDPOINT"];
-        var searchEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_SEARCH_ENDPOINT")
-                             ?? configuration["AzureAI:SearchServiceEndpoint"]
-                             ?? configuration["MCR_API_AZURE_SEARCH_ENDPOINT"];
-        var documentIntelligenceEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-                                           ?? configuration["AzureAI:DocumentIntelligenceEndpoint"]
-                                           ?? configuration["MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"];
-        var foundryEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT")
-                              ?? configuration["AzureAI:FoundryEndpoint"]
-                              ?? configuration["MCR_API_AZURE_FOUNDRY_ENDPOINT"];
+        // Read from IConfiguration, which has already merged all sources in priority order
+        var openAIEndpoint = configuration["AzureAI:OpenAIEndpoint"];
+        var searchEndpoint = configuration["AzureAI:SearchServiceEndpoint"];
+        var documentIntelligenceEndpoint = configuration["AzureAI:DocumentIntelligenceEndpoint"];
+        var foundryEndpoint = configuration["AzureAI:FoundryEndpoint"];
 
         // Validate endpoints ONLY if they are provided (optional for degraded mode)
         ValidateEndpointIfProvided("OpenAI", openAIEndpoint, "AzureAI:OpenAIEndpoint");
@@ -602,31 +579,16 @@ public class Program {
             startupLogger.LogWarning(
                 "No Azure AI services configured. App running in degraded mode. " +
                 "Set AzureAI:OpenAIEndpoint, AzureAI:SearchServiceEndpoint, " +
-                "AzureAI:DocumentIntelligenceEndpoint, AzureAI:FoundryEndpoint via App Config or environment variables.");
-        }
-
-        // Only merge values that are not already in configuration (don't overwrite App Config values with nulls)
-        var overrides = new Dictionary<string, string?>();
-        if (!string.IsNullOrWhiteSpace(openAIEndpoint) && configuration["AzureAI:OpenAIEndpoint"] != openAIEndpoint)
-            overrides["AzureAI:OpenAIEndpoint"] = openAIEndpoint;
-        if (!string.IsNullOrWhiteSpace(searchEndpoint) && configuration["AzureAI:SearchServiceEndpoint"] != searchEndpoint)
-            overrides["AzureAI:SearchServiceEndpoint"] = searchEndpoint;
-        if (!string.IsNullOrWhiteSpace(documentIntelligenceEndpoint) && configuration["AzureAI:DocumentIntelligenceEndpoint"] != documentIntelligenceEndpoint)
-            overrides["AzureAI:DocumentIntelligenceEndpoint"] = documentIntelligenceEndpoint;
-        if (!string.IsNullOrWhiteSpace(foundryEndpoint) && configuration["AzureAI:FoundryEndpoint"] != foundryEndpoint)
-            overrides["AzureAI:FoundryEndpoint"] = foundryEndpoint;
-
-        if (overrides.Count > 0) {
-            ((IConfigurationBuilder)configuration).AddInMemoryCollection((IEnumerable<KeyValuePair<string, string?>>)overrides);
+                "AzureAI:DocumentIntelligenceEndpoint, AzureAI:FoundryEndpoint via user secrets or App Config.");
         }
     }
 
     /// <summary>
-    /// Validates a single Azure service endpoint from environment variables if provided.
+    /// Validates a single Azure service endpoint if provided.
     /// Ensures endpoint is a valid HTTPS URL (not a placeholder or example value).
     /// If not provided, the service will run in degraded mode.
     /// </summary>
-    private static void ValidateEndpointIfProvided(string serviceName, string? endpoint, string envVarName) {
+    private static void ValidateEndpointIfProvided(string serviceName, string? endpoint, string configKey) {
         // If not provided, skip validation - service will run in degraded mode
         if (string.IsNullOrWhiteSpace(endpoint)) {
             return;
@@ -643,7 +605,8 @@ public class Program {
             throw new InvalidOperationException(
                 $"Azure {serviceName} {EndpointLabel} MUST use HTTPS protocol for security. " +
                 $"Current {CurrentLabel}: {endpoint}. " +
-                $"Update the {envVarName} environment variable with a valid HTTPS URL.");
+                $"Update {configKey} in appsettings.Development.json or use: " +
+                $"dotnet user-secrets set \"{configKey}\" \"your-https-url\" --project 1-Presentation/MotorcycleRAG.API");
         }
 
         // Verify endpoint is a valid URI
@@ -651,7 +614,8 @@ public class Program {
             throw new InvalidOperationException(
                 $"Azure {serviceName} {EndpointLabel} is not a valid HTTPS URL. " +
                 $"Current {CurrentLabel}: {endpoint}. " +
-                $"Ensure the {envVarName} environment variable contains a properly formatted HTTPS URL.");
+                $"Ensure {configKey} contains a properly formatted HTTPS URL in appsettings.Development.json or " +
+                $"use: dotnet user-secrets set \"{configKey}\" \"your-https-url\" --project 1-Presentation/MotorcycleRAG.API");
         }
 
         // Warn if endpoint looks like a placeholder or example value
@@ -661,7 +625,8 @@ public class Program {
             throw new InvalidOperationException(
                 $"Azure {serviceName} {EndpointLabel} appears to be a placeholder or example value. " +
                 $"Current {CurrentLabel}: {endpoint}. " +
-                $"Set the {envVarName} environment variable to your actual Azure service {EndpointLabel} URL.");
+                $"Set {configKey} to your actual Azure service {EndpointLabel} URL in appsettings.Development.json or " +
+                $"use: dotnet user-secrets set \"{configKey}\" \"your-actual-url\" --project 1-Presentation/MotorcycleRAG.API");
         }
     }
 

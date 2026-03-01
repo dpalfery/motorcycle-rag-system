@@ -12,14 +12,17 @@ namespace MotorcycleRAG.Admin;
 internal partial class App : Application {
     public App() {
         InitializeComponent();
-        
-        // Configure services (DI setup needed)
-        // Configure services (DI setup needed)
-        var authService = new AdminAuthService(
-            clientId: "YOUR_CLIENT_ID",
-            authority: "https://login.microsoftonline.com/YOUR_TENANT_ID",
-            scopes: new[] { "api://YOUR_API_ID/.default" },
-            logger: null);
-        MainPage = new AppShell(authService, null, null, null);
+
+        // Get required services from DI container
+        // MauiProgram.cs has already configured all dependencies including
+        // IAdminAuthService, ISettingsService, IConfigurationStateService, and logging
+        var serviceProvider = IPlatformApplication.Current?.Services
+            ?? throw new InvalidOperationException("ServiceProvider not available during App construction");
+
+        var authService = serviceProvider.GetRequiredService<IAdminAuthService>();
+        var settingsService = serviceProvider.GetRequiredService<ISettingsService>();
+        var configService = serviceProvider.GetRequiredService<IConfigurationStateService>();
+
+        MainPage = new AppShell(authService, settingsService, configService, serviceProvider);
     }
 }

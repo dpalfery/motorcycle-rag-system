@@ -194,9 +194,17 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 **Projects:**
 
 * `MotorcycleRAG.Domain` → Concrete domain models and logic
-* `MotorcycleRAG.Contracts` → Shared interfaces that domain defines
+* `MotorcycleRAG.Contracts` → Interfaces only (abstractions owned by the domain)
+* `MotorcycleRAG.Contracts.Models` → Shared contract models/DTOs (data shapes) used across boundaries; no infrastructure dependencies
 
 **Clean Architecture Alignment:** Entities layer (innermost circle) - most stable, highest-level policies.
+
+**DTO Placement Rules:**
+* **Presentation DTOs** = API request/response models, UI models (transport).
+* **Application DTOs** = use case request/response (input/output models for use cases).
+* **Domain** = entities/value objects only. If it enforces business rules/invariants, it belongs here.
+* **`MotorcycleRAG.Contracts`** = interfaces only (repositories/services/factories). Never DTOs/models.
+* **`MotorcycleRAG.Contracts.Models`** = shared contract DTOs/models only (no interfaces, no implementations).
 
 ### **3a. Domain (Entities)**
 
@@ -259,6 +267,26 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 - All domain logic testable without any infrastructure
 
 > **Key Principle:** If you removed all outer layers (UI, DB, frameworks), your domain layer should still compile and contain all core business rules. This is the "screaming architecture" - the domain tells you what the system does.
+
+### **3c. Contracts.Models (Shared contract DTOs/models only)**
+
+**Purpose:** Shared data shapes used across boundaries (API/Application/Persistence) without introducing infrastructure dependencies into the core.
+
+**Project:** `MotorcycleRAG.Contracts.Models`
+
+**Contents:**
+* **DTOs / Models:** Simple data-only shapes for requests/responses between layers
+* **Enums (shared):** Shared enum types required by contract models
+
+**Dependencies:** Domain, Base (minimal)
+
+**Allowed:** Plain C# types (records/classes), nullable annotations, simple enums, Domain value objects/types only when necessary.
+
+**Forbidden (strict):**
+- Interfaces (those belong in `MotorcycleRAG.Contracts`)
+- Implementations (no services, no repositories, no factories)
+- Any infrastructure/framework dependencies (ASP.NET, EF Core, Azure SDKs, SQL clients, etc.)
+- Business logic (domain behavior stays in `MotorcycleRAG.Domain`)
 
 ---
 

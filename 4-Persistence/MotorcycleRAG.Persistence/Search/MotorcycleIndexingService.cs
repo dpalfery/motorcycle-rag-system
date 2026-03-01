@@ -222,7 +222,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
                 {
                     IsSearchable = true,
                     IsHidden = false,
-                    VectorSearchDimensions = 1536, // OpenAI text-embedding-3-large dimensions
+                    VectorSearchDimensions = 3584, // Qwen3-Embedding-4B native dimensions (no MRL truncation)
                     VectorSearchProfileName = "vector-config"
                 }
             },

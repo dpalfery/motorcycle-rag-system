@@ -17,6 +17,9 @@ pandas = "^2.1.0"
 pydantic = {extras = ["email"], version = "^2.5.0"}
 python-multipart = "^0.0.6"
 python-dotenv = "^1.0.0"
+azure-search-documents = "^11.4.0"
+openai = "^1.40.0"
+httpx = "^0.27.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
@@ -59,3 +62,4 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')", "asyncio: mark test as async"]
 asyncio_mode = "auto"
+pythonpath = ["src"]

@@ -103,28 +103,23 @@ public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
         ArgumentNullException.ThrowIfNull(options);
         var failures = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(options.FoundryEndpoint))
-            failures.Add("AzureAI:FoundryEndpoint is required");
+        // FoundryEndpoint is optional (app supports degraded mode without it)
+        if (!string.IsNullOrWhiteSpace(options.FoundryEndpoint) && !Uri.TryCreate(options.FoundryEndpoint, UriKind.Absolute, out _))
+            failures.Add("AzureAI:FoundryEndpoint must be a valid URI if provided");
 
         if (string.IsNullOrWhiteSpace(options.OpenAIEndpoint))
             failures.Add("AzureAI:OpenAIEndpoint is required");
+        else if (!Uri.TryCreate(options.OpenAIEndpoint, UriKind.Absolute, out _))
+            failures.Add("AzureAI:OpenAIEndpoint must be a valid URI");
 
         if (string.IsNullOrWhiteSpace(options.SearchServiceEndpoint))
             failures.Add("AzureAI:SearchServiceEndpoint is required");
+        else if (!Uri.TryCreate(options.SearchServiceEndpoint, UriKind.Absolute, out _))
+            failures.Add("AzureAI:SearchServiceEndpoint must be a valid URI");
 
         if (string.IsNullOrWhiteSpace(options.DocumentIntelligenceEndpoint))
             failures.Add("AzureAI:DocumentIntelligenceEndpoint is required");
-
-        if (!Uri.TryCreate(options.FoundryEndpoint, UriKind.Absolute, out _))
-            failures.Add("AzureAI:FoundryEndpoint must be a valid URI");
-
-        if (!Uri.TryCreate(options.OpenAIEndpoint, UriKind.Absolute, out _))
-            failures.Add("AzureAI:OpenAIEndpoint must be a valid URI");
-
-        if (!Uri.TryCreate(options.SearchServiceEndpoint, UriKind.Absolute, out _))
-            failures.Add("AzureAI:SearchServiceEndpoint must be a valid URI");
-
-        if (!Uri.TryCreate(options.DocumentIntelligenceEndpoint, UriKind.Absolute, out _))
+        else if (!Uri.TryCreate(options.DocumentIntelligenceEndpoint, UriKind.Absolute, out _))
             failures.Add("AzureAI:DocumentIntelligenceEndpoint must be a valid URI");
 
         if (options.Models.MaxTokens <= 0)

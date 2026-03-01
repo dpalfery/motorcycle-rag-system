@@ -226,17 +226,17 @@ internal partial class SettingsViewModel : ObservableObject {
         try {
             // Save API configuration - convert string to Uri
             Uri? apiUri = string.IsNullOrWhiteSpace(ApiBaseUrl) ? null : new Uri(ApiBaseUrl);
-            await _configService.SaveApiBaseUrlAsync(apiUri).ConfigureAwait(false);
+            await _configService.SaveApiBaseUrlAsync(apiUri);
 
             // Save auth configuration
             await _configService.SaveAuthConfigurationAsync(
                 AuthClientId,
                 AuthAuthority,
-                AuthScope).ConfigureAwait(false);
+                AuthScope);
 
             // Save embedding model path
             if (!string.IsNullOrWhiteSpace(EmbeddingModelPath)) {
-                await _configService.SaveEmbeddingModelPathAsync(EmbeddingModelPath).ConfigureAwait(false);
+                await _configService.SaveEmbeddingModelPathAsync(EmbeddingModelPath);
             }
 
             HasUnsavedChanges = false;
@@ -280,7 +280,7 @@ internal partial class SettingsViewModel : ObservableObject {
             using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             var healthUrl = new Uri(ApiBaseUrl.TrimEnd('/') + "/health");
 
-            var response = await httpClient.GetAsync(healthUrl).ConfigureAwait(false);
+            var response = await httpClient.GetAsync(healthUrl);
 
             if (response.IsSuccessStatusCode) {
                 ApiTestResult = "Connection successful!";
@@ -321,7 +321,7 @@ internal partial class SettingsViewModel : ObservableObject {
                     { DevicePlatform.WinUI, OnnxFileExtensionsWinUI },
                     { DevicePlatform.macOS, OnnxFileExtensionsMacOS }
                 })
-            }).ConfigureAwait(false);
+            });
 
             if (result != null) {
                 EmbeddingModelPath = result.FullPath;
@@ -339,14 +339,14 @@ internal partial class SettingsViewModel : ObservableObject {
     private async Task ResetSettingsAsync() {
         var confirmed = await ShowConfirmationAsync(
             "Reset Settings",
-            "Are you sure you want to clear all settings? This action cannot be undone.").ConfigureAwait(false);
+            "Are you sure you want to clear all settings? This action cannot be undone.");
 
         if (!confirmed) {
             return;
         }
 
         try {
-            await _configService.ClearConfigurationAsync().ConfigureAwait(false);
+            await _configService.ClearConfigurationAsync();
 
             // Reset local properties
             ApiBaseUrl = string.Empty;
@@ -369,7 +369,7 @@ internal partial class SettingsViewModel : ObservableObject {
     private static async Task<bool> ShowConfirmationAsync(string title, string message) {
         var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
         if (window?.Page != null) {
-            return await window.Page.DisplayAlertAsync(title, message, "Yes", "No").ConfigureAwait(false);
+            return await window.Page.DisplayAlertAsync(title, message, "Yes", "No");
         }
         return false;
     }

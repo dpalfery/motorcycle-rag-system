@@ -2,10 +2,15 @@ namespace MotorcycleRAG.Core.Options
 {
     /// <summary>
     /// SQL configuration options
-    /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
     /// </summary>
     public class SqlOptions
     {
+        /// <summary>
+        /// SQL Server connection string.
+        /// Populated from IConfiguration (App Config + Key Vault in Azure, user-secrets in dev).
+        /// </summary>
+        public string ConnectionString { get; set; } = string.Empty;
+
         /// <summary>
         /// Command timeout in seconds
         /// </summary>

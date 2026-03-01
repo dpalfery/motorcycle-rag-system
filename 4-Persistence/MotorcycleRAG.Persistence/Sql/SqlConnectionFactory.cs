@@ -12,7 +12,7 @@ namespace MotorcycleRAG.Persistence.Sql
 {
     /// <summary>
     /// Factory for creating SQL database connections
-    /// Connection string is retrieved from MCR_API_SQL_CONNECTION_STRING environment variable
+    /// Connection string is retrieved from IOptions<SqlOptions> (Sql:ConnectionString configuration key)
     /// </summary>
     public class SqlConnectionFactory : ISqlConnectionFactory
     {
@@ -33,12 +33,13 @@ namespace MotorcycleRAG.Persistence.Sql
             _sqlOptions = sqlOptions.Value ?? throw new ArgumentNullException(nameof(sqlOptions));
             _logger = logger;
 
-            var connectionString = Environment.GetEnvironmentVariable("MCR_API_SQL_CONNECTION_STRING");
+            var connectionString = _sqlOptions.ConnectionString;
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new InvalidOperationException(
-                    "MCR_API_SQL_CONNECTION_STRING environment variable is required but not set. " +
-                    "Please set this environment variable before starting the application.");
+                    "SQL connection string is not configured in Sql:ConnectionString. " +
+                    "In Azure, this is provided via App Configuration + Key Vault. " +
+                    "For local development, use: dotnet user-secrets set \"Sql:ConnectionString\" \"your-connection-string\"");
             }
 
             // Enforce policy: connection string must not contain embedded credentials
@@ -61,7 +62,7 @@ namespace MotorcycleRAG.Persistence.Sql
                 else
                 {
                     throw new InvalidOperationException(
-                        "MCR_API_SQL_CONNECTION_STRING must not contain embedded credentials (Password, Pwd, User ID, or UID). " +
+                        "Sql:ConnectionString must not contain embedded credentials (Password, Pwd, User ID, or UID). " +
                         "Azure AD / Managed Identity authentication is required. " +
                         "Please configure your connection string to use Azure AD authentication.");
                 }

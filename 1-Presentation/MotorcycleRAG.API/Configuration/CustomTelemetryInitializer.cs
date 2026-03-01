@@ -10,7 +10,7 @@ internal class CustomTelemetryInitializer : ITelemetryInitializer
 {
     private readonly IConfiguration _configuration;
 
-    internal CustomTelemetryInitializer(IConfiguration configuration)
+    public CustomTelemetryInitializer(IConfiguration configuration)
     {
         _configuration = configuration;
     }

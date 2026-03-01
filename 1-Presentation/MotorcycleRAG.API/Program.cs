@@ -561,27 +561,33 @@ public class Program {
     /// </summary>
     /// <param name="configuration">The application configuration</param>
     private static void ValidateAndPopulateAzureAIConfiguration(IConfiguration configuration) {
-        // SECURITY: Read from environment variables OR user secrets (both are secure)
-        // Priority: Environment variables > User Secrets > null (degraded mode)
+        // SECURITY: Read from multiple sources with priority:
+        // 1) Environment variables (MCR_API_* prefix - legacy/direct)
+        // 2) IConfiguration (App Config provides AzureAI:* keys, or user secrets)
+        // 3) null (degraded mode)
         var openAIEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_OPENAI_ENDPOINT")
+                             ?? configuration["AzureAI:OpenAIEndpoint"]
                              ?? configuration["MCR_API_AZURE_OPENAI_ENDPOINT"];
         var searchEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_SEARCH_ENDPOINT")
+                             ?? configuration["AzureAI:SearchServiceEndpoint"]
                              ?? configuration["MCR_API_AZURE_SEARCH_ENDPOINT"];
         var documentIntelligenceEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+                                           ?? configuration["AzureAI:DocumentIntelligenceEndpoint"]
                                            ?? configuration["MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"];
         var foundryEndpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT")
+                              ?? configuration["AzureAI:FoundryEndpoint"]
                               ?? configuration["MCR_API_AZURE_FOUNDRY_ENDPOINT"];
 
         // Validate endpoints ONLY if they are provided (optional for degraded mode)
-        ValidateEndpointIfProvided("OpenAI", openAIEndpoint, "MCR_API_AZURE_OPENAI_ENDPOINT");
-        ValidateEndpointIfProvided("Search", searchEndpoint, "MCR_API_AZURE_SEARCH_ENDPOINT");
-        ValidateEndpointIfProvided("Document Intelligence", documentIntelligenceEndpoint, "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT");
-        ValidateEndpointIfProvided("Foundry", foundryEndpoint, "MCR_API_AZURE_FOUNDRY_ENDPOINT");
+        ValidateEndpointIfProvided("OpenAI", openAIEndpoint, "AzureAI:OpenAIEndpoint");
+        ValidateEndpointIfProvided("Search", searchEndpoint, "AzureAI:SearchServiceEndpoint");
+        ValidateEndpointIfProvided("Document Intelligence", documentIntelligenceEndpoint, "AzureAI:DocumentIntelligenceEndpoint");
+        ValidateEndpointIfProvided("Foundry", foundryEndpoint, "AzureAI:FoundryEndpoint");
 
         // Log configuration status for audit trail
         using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
         var startupLogger = loggerFactory.CreateLogger("Program");
-        
+
         var configuredServices = new List<string>();
         if (!string.IsNullOrWhiteSpace(openAIEndpoint)) configuredServices.Add("OpenAI");
         if (!string.IsNullOrWhiteSpace(searchEndpoint)) configuredServices.Add("Search");
@@ -595,26 +601,23 @@ public class Program {
         } else {
             startupLogger.LogWarning(
                 "No Azure AI services configured. App running in degraded mode. " +
-                "Set MCR_API_AZURE_OPENAI_ENDPOINT, MCR_API_AZURE_SEARCH_ENDPOINT, " +
-                "MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT, MCR_API_AZURE_FOUNDRY_ENDPOINT to enable features.");
+                "Set AzureAI:OpenAIEndpoint, AzureAI:SearchServiceEndpoint, " +
+                "AzureAI:DocumentIntelligenceEndpoint, AzureAI:FoundryEndpoint via App Config or environment variables.");
         }
 
-        // Update configuration with environment values (environment variables ONLY)
-        var azureAIConfig = new Dictionary<string, string?>
-        {
-            { "AzureAI:OpenAIEndpoint", openAIEndpoint },
-            { "AzureAI:SearchServiceEndpoint", searchEndpoint },
-            { "AzureAI:DocumentIntelligenceEndpoint", documentIntelligenceEndpoint },
-            { "AzureAI:FoundryEndpoint", foundryEndpoint }
-        };
+        // Only merge values that are not already in configuration (don't overwrite App Config values with nulls)
+        var overrides = new Dictionary<string, string?>();
+        if (!string.IsNullOrWhiteSpace(openAIEndpoint) && configuration["AzureAI:OpenAIEndpoint"] != openAIEndpoint)
+            overrides["AzureAI:OpenAIEndpoint"] = openAIEndpoint;
+        if (!string.IsNullOrWhiteSpace(searchEndpoint) && configuration["AzureAI:SearchServiceEndpoint"] != searchEndpoint)
+            overrides["AzureAI:SearchServiceEndpoint"] = searchEndpoint;
+        if (!string.IsNullOrWhiteSpace(documentIntelligenceEndpoint) && configuration["AzureAI:DocumentIntelligenceEndpoint"] != documentIntelligenceEndpoint)
+            overrides["AzureAI:DocumentIntelligenceEndpoint"] = documentIntelligenceEndpoint;
+        if (!string.IsNullOrWhiteSpace(foundryEndpoint) && configuration["AzureAI:FoundryEndpoint"] != foundryEndpoint)
+            overrides["AzureAI:FoundryEndpoint"] = foundryEndpoint;
 
-        var azureAISection = new ConfigurationBuilder()
-            .AddInMemoryCollection((IEnumerable<KeyValuePair<string, string?>>)azureAIConfig)
-            .Build();
-
-        // Merge environment-based config into the existing configuration
-        foreach (var kvp in azureAISection.AsEnumerable().Where(x => x.Value != null)) {
-            ((IConfigurationBuilder)configuration).AddInMemoryCollection(new[] { kvp });
+        if (overrides.Count > 0) {
+            ((IConfigurationBuilder)configuration).AddInMemoryCollection((IEnumerable<KeyValuePair<string, string?>>)overrides);
         }
     }
 

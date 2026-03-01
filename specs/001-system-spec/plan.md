@@ -5,7 +5,7 @@
 
 ## Summary
 
-The Motorcycle RAG System is a multi-agent RAG (Retrieval-Augmented Generation) system built on Azure AI Foundry platform for intelligent motorcycle information retrieval. It uses a sequential search pattern across heterogeneous data sources including CSV specifications, PDF manuals, and trusted web sources. The system implements Clean Architecture with .NET 10.0, Semantic Kernel for agent orchestration, and Azure AI services for search, document processing, and AI models.
+The Motorcycle RAG System is a multi-agent RAG (Retrieval-Augmented Generation) system built on Azure AI Foundry platform for intelligent motorcycle information retrieval. It uses a sequential search pattern across heterogeneous data sources including CSV specifications, PDF manuals, and trusted web sources. The system implements Clean Architecture with .NET 10.0, Microsoft Agent Framework for agent orchestration, and Azure AI services for search, document processing, and AI models.
 
 **Primary Requirement**: Provide a unified, intelligent search experience that returns accurate, well-sourced answers to motorcycle-related questions with traceable citations.
 
@@ -23,7 +23,7 @@ The Motorcycle RAG System is a multi-agent RAG (Retrieval-Augmented Generation) 
 ## Technical Context
 
 **Language/Version**: C# 13 / .NET 10.0
-**Primary Dependencies**: ASP.NET Core Web API, .NET MAUI, Azure AI Foundry (Azure OpenAI, Azure AI Search, Azure Document Intelligence), Semantic Kernel, .NET MAUI Community Toolkit (`CommunityToolkit.Maui`), Polly, Serilog
+**Primary Dependencies**: ASP.NET Core Web API, .NET MAUI, Azure AI Foundry (Azure OpenAI, Azure AI Search, Azure Document Intelligence), Microsoft Agent Framework, .NET MAUI Community Toolkit (`CommunityToolkit.Maui`), Polly, Serilog
 **Storage**: Azure AI Search (vector store), Azure SQL Database (user/usage/metadata), Azure App Configuration (MCP config), Azure Key Vault (secrets)
 **Testing**: xUnit, Moq, Playwright (E2E UI tests)
 **Target Platform**:

@@ -90,6 +90,11 @@ public class ResilienceService : IResilienceService
         await ExecuteAsync(policyKey, async () => { await operation(); return true; }, fallback != null ? async () => { await fallback(); return true; } : null, correlationId, cancellationToken);
     }
 
+    // Implements IResilienceService.ExecuteAsync<T>(Func<CancellationToken, Task<T>>, string, CancellationToken)
+    // Delegates to the unified ExecuteAsync, passing ct into the lambda.
+    public Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> operation, string operationName, CancellationToken ct = default)
+        => ExecuteAsync(operationName, () => operation(ct), correlationId: operationName, cancellationToken: ct);
+
     // Backwards-compatible simple wrappers required by interface
     public Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> operation, string operationName)
         => ExecuteAsync("RetryOnly", operation, correlationId: operationName);

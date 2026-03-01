@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Pipeline;
+using MotorcycleRAG.Application.Pipeline.Audit;
 using MotorcycleRAG.Application.Services;
 
 namespace MotorcycleRAG.API.Configuration.Services;
@@ -27,6 +28,15 @@ internal static class DataPipelineConfiguration
         services.AddScoped<IFileUploadService, MotorcycleRAG.Application.Pipeline.FileUploadService>();
         services.AddSingleton<IPipelineMonitoringService, MotorcycleRAG.Application.Pipeline.PipelineMonitoringService>();
         services.AddSingleton<IScheduledPipelineService, MotorcycleRAG.Application.Pipeline.ScheduledPipelineService>();
+
+        // Register ingestion job service for Fabric pipeline integration
+        services.AddScoped<IIngestionJobService, MotorcycleRAG.Application.Pipeline.IngestionJobService>();
+
+        // Register Fabric pipeline services
+        services.AddScoped<IManualPageQueryService, ManualPageQueryService>();
+        services.AddScoped<SpecsIngestionService>();
+        services.AddScoped<ManualBikeLinker>();
+        services.AddScoped<IIngestionAuditLogger, IngestionAuditLogger>();
 
         // Register scheduled service as a hosted service
         // ScheduledPipelineService extends BackgroundService which implements IHostedService

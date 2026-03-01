@@ -9,8 +9,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Persistence.Resilience;
 using MotorcycleRAG.Core.Options;
+
 
 namespace MotorcycleRAG.Persistence.Azure.Search;
 

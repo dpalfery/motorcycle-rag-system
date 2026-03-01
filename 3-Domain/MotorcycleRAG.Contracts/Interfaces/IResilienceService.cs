@@ -34,4 +34,10 @@ public interface IResilienceService
         Func<Task>? fallback = null,
         string? correlationId = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Executes an operation with resilience (retry + circuit breaker), passing cancellation to the operation.
+    /// Used by Persistence services that need to forward the CancellationToken into the lambda.
+    /// </summary>
+    Task<T> ExecuteAsync<T>(Func<CancellationToken, Task<T>> operation, string operationName, CancellationToken ct = default);
 }

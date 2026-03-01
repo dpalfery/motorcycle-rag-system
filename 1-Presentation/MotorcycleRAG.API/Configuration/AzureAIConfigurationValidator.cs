@@ -12,10 +12,8 @@ internal class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
     {
         var failures = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(options.FoundryEndpoint))
-            failures.Add("AzureAI:FoundryEndpoint is required");
-        else if (!Uri.TryCreate(options.FoundryEndpoint, UriKind.Absolute, out _))
-            failures.Add("AzureAI:FoundryEndpoint must be a valid URL");
+        if (!string.IsNullOrWhiteSpace(options.FoundryEndpoint) && !Uri.TryCreate(options.FoundryEndpoint, UriKind.Absolute, out _))
+            failures.Add("AzureAI:FoundryEndpoint must be a valid URL if provided");
 
         if (string.IsNullOrWhiteSpace(options.OpenAIEndpoint))
             failures.Add("AzureAI:OpenAIEndpoint is required");

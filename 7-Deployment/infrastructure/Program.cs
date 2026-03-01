@@ -268,7 +268,8 @@ namespace MotorcycleRAG.Infrastructure {
                             new EnvironmentVarArgs { Name = "API_URL", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") },
                             new EnvironmentVarArgs { Name = "AzureAd__ClientId", Value = "6b1ec527-ccdd-4d84-9b12-98e889cab6ca" },
                             new EnvironmentVarArgs { Name = "AzureAd__ClientSecret", SecretRef = "bff-client-secret" },
-                            new EnvironmentVarArgs { Name = "AzureAd__TenantId", Value = "0f8f8a52-f135-43af-af88-e0b54ca9ff91" }
+                            new EnvironmentVarArgs { Name = "AzureAd__TenantId", Value = "0f8f8a52-f135-43af-af88-e0b54ca9ff91" },
+                            new EnvironmentVarArgs { Name = "ASPNETCORE_HTTP_PORTS", Value = "8080" }
                         }).ToArray(),
                         Probes = new[]
                         {

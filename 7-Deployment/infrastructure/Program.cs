@@ -347,14 +347,18 @@ namespace MotorcycleRAG.Infrastructure {
                 }
             });
             // RBAC: Key Vault Secrets User for both apps
-            foreach (var app in new[] { apiApp, uiApp }) {
-                _ = new RoleAssignment($"{app.Name}-kv-role", new RoleAssignmentArgs {
-                    PrincipalId = app.Identity.Apply(i => i!.PrincipalId),
-                    RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6", // Key Vault Secrets User
-                    Scope = keyVault.Id,
-                    PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
-                });
-            }
+            _ = new RoleAssignment($"{namePrefix}-api-kv-role", new RoleAssignmentArgs {
+                PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6", // Key Vault Secrets User
+                Scope = keyVault.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
+            _ = new RoleAssignment($"{namePrefix}-ui-kv-role", new RoleAssignmentArgs {
+                PrincipalId = uiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/4633458b-17de-408a-b874-0445c86b69e6", // Key Vault Secrets User
+                Scope = keyVault.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
 
             // Outputs
             this.AiServicesEndpoint = aiServices.Properties.Apply(p => p.Endpoint ?? "");

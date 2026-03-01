@@ -94,6 +94,8 @@ namespace MotorcycleRAG.Infrastructure {
                 ConfigStoreName = $"{org}{workload}{env}appconfig",
                 Sku = new AppConfigInputs.SkuArgs { Name = "free" },
                 DisableLocalAuth = true,
+                SoftDeleteRetentionInDays = 0,
+                EnablePurgeProtection = false,
             });
 
             // 4. Log Analytics Workspace

@@ -110,27 +110,33 @@ jobs:
       # ── Docker Build & Push ────────────────────────────────────────
       - name: Build & Push Docker Images
         run: |
-          API_IMAGE="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-api:latest"
-          UI_IMAGE="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-ui:latest"
+          SHA_TAG="${{ github.sha }}"
+          API_IMAGE_LATEST="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-api:latest"
+          API_IMAGE_SHA="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-api:${SHA_TAG}"
+          UI_IMAGE_LATEST="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-ui:latest"
+          UI_IMAGE_SHA="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-ui:${SHA_TAG}"
 
-          docker build -t "${API_IMAGE}" -f 7-Deployment/Dockerfile.api .
-          docker push "${API_IMAGE}"
+          docker build -t "${API_IMAGE_LATEST}" -t "${API_IMAGE_SHA}" -f 7-Deployment/Dockerfile.api .
+          docker push "${API_IMAGE_LATEST}"
+          docker push "${API_IMAGE_SHA}"
 
-          docker build -t "${UI_IMAGE}" -f 7-Deployment/Dockerfile.ui .
-          docker push "${UI_IMAGE}"
+          docker build -t "${UI_IMAGE_LATEST}" -t "${UI_IMAGE_SHA}" -f 7-Deployment/Dockerfile.ui .
+          docker push "${UI_IMAGE_LATEST}"
+          docker push "${UI_IMAGE_SHA}"
 
       # ── Force new Container App revisions to pull fresh images ─────
       - name: Update Container App Revisions
         run: |
-          API_IMAGE="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-api:latest"
-          UI_IMAGE="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-ui:latest"
+          SHA_TAG="${{ github.sha }}"
+          API_IMAGE_SHA="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-api:${SHA_TAG}"
+          UI_IMAGE_SHA="${{ env.ACR_LOGIN_SERVER }}/motorcycle-rag-ui:${SHA_TAG}"
 
           az containerapp update \
             --name "${{ env.API_APP_NAME }}" \
             --resource-group "${{ env.RESOURCE_GROUP }}" \
-            --image "${API_IMAGE}"
+            --image "${API_IMAGE_SHA}"
 
           az containerapp update \
             --name "${{ env.UI_APP_NAME }}" \
             --resource-group "${{ env.RESOURCE_GROUP }}" \
-            --image "${UI_IMAGE}"
+            --image "${UI_IMAGE_SHA}"

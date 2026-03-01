@@ -305,7 +305,7 @@ namespace MotorcycleRAG.Infrastructure {
                 AccountName = openAIAccount.Name,
                 DeploymentName = "gpt-4o",
                 Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
-                    Name = "Standard",
+                    Name = "GlobalStandard",
                     Capacity = 1
                 },
                 Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
@@ -322,7 +322,7 @@ namespace MotorcycleRAG.Infrastructure {
                 AccountName = openAIAccount.Name,
                 DeploymentName = "text-embedding-3-large",
                 Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
-                    Name = "Standard",
+                    Name = "GlobalStandard",
                     Capacity = 1
                 },
                 Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {

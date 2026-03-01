@@ -1,5 +1,4 @@
-encryptionsalt: v1:auxcFHK16CE=:v1:aF2cXNHExw1TL74Q:ilxWJgApsAWdMx1RG7HV3tlqAxKZNg==
 config:
   motorcycle-rag-infra:sqlAdminLogin: sqladmin
   motorcycle-rag-infra:sqlAdminPassword:
-    secure: v1:qIrmdKoVpF8GLv0W:HzFh+tqGE+lUvl3Rlrn0kh8Jx4Ydz6M9sRu6sIUScBHbFNgDd/wD5w==
+    secure: AAABAEdJWK6KJaX5snh6OoDoWz4KIJibSwl2fGae/k5ACakmbGzECgfi/Kv7mzSANmFih4ZAfR02DVlW/EwSqw==

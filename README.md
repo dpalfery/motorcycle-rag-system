@@ -27,7 +27,7 @@ This system implements a multi-agent architecture to orchestrate intelligent sea
 
 ## Microsoft Agent Framework Integration
 
-The system leverages the **Microsoft Agent Framework** built on Semantic Kernel to orchestrate multi-agent collaboration and tool-based communication for intelligent search operations.
+The system leverages the **Microsoft Agent Framework** to orchestrate multi-agent collaboration and tool-based communication for intelligent search operations.
 
 ### Architecture Components
 
@@ -540,7 +540,7 @@ Operations:
 
 - **Platform**: Azure AI Foundry (unified AI services platform)
 - **Framework**: ASP.NET Core Web API (.NET 10.0)
-- **Agent Framework**: Microsoft Agent Framework (multi-agent orchestration with Semantic Kernel)
+- **Agent Framework**: Microsoft Agent Framework (multi-agent orchestration)
 - **AI Services**: Azure OpenAI (GPT-4o, GPT-4o-mini, GPT-4 Vision, text-embedding-3-large)
 - **Search**: Azure AI Search (hybrid vector/keyword with semantic ranking)
 - **Document Processing**: Azure Document Intelligence (Layout model for OCR and PDF processing)

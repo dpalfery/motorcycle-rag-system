@@ -18,7 +18,7 @@ Good fits here:
 
 Not a fit here:
 - Anything that encodes business rules/invariants (belongs in `3-Domain`)
-- Any I/O (HTTP/DB/files/Azure SDKs/Semantic Kernel)
+- Any I/O (HTTP/DB/files/Azure SDKs/Microsoft Agent Framework)
 - Anything that forces extra packages onto consumers
 
 ## Dependency boundaries (strict)

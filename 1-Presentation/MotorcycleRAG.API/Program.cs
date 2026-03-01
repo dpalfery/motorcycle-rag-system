@@ -305,6 +305,14 @@ public class Program {
                     policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Viewer");
                 });
 
+                // Manuals view policy - allows User, Viewer, and admin roles to view manual pages
+                // See AuthorizationPolicyNames.ManualsView for the constant.
+                options.AddPolicy(MotorcycleRAG.API.Configuration.AuthorizationPolicyNames.ManualsView, policy => {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireAssertion(ctx =>
+                        HasAnyRole(ctx.User, "User", "Viewer", "mcr-api-admin"));
+                });
+
                 // Default policy - requires any authenticated user and defaults to denying anonymous access
                 // This "FallbackPolicy" ensures that every endpoint requires authentication unless marked [AllowAnonymous]
                 options.FallbackPolicy = new AuthorizationPolicyBuilder()
@@ -366,6 +374,29 @@ public class Program {
                     return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions {
                         PermitLimit = limit,
                         Window = window,
+                        QueueLimit = 10,
+                        AutoReplenishment = true
+                    });
+                });
+
+
+                // Admin-only ingestion endpoints: Admin-tier limits (effectively unlimited)
+                options.AddPolicy("ingestion-jobs", context => {
+                    var partitionKey = context.User.FindFirst("oid")?.Value ?? "anonymous";
+                    return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions {
+                        PermitLimit = 100_000,
+                        Window = TimeSpan.FromHours(1),
+                        QueueLimit = 10,
+                        AutoReplenishment = true
+                    });
+                });
+
+                // Manual page viewing: Pro-tier limits (500/hour)
+                options.AddPolicy("manuals-view", context => {
+                    var partitionKey = context.User.FindFirst("oid")?.Value ?? "anonymous";
+                    return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions {
+                        PermitLimit = 500,
+                        Window = TimeSpan.FromHours(1),
                         QueueLimit = 10,
                         AutoReplenishment = true
                     });

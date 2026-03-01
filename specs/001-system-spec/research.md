@@ -13,7 +13,7 @@ This document summarizes research findings for standardizing the Motorcycle RAG 
 - **Shell.TitleView** using built-in controls provides a consistent header with profile/login area
 - **Responsive design** patterns support collapsible flyout on mobile devices
 - **Local processing** capabilities are achievable with ONNX Runtime and PDF/CSV libraries
-- **Azure AI Foundry** integration patterns are well-established with Semantic Kernel
+- **Azure AI Foundry** integration patterns are well-established with Microsoft Agent Framework
 
 ## 1. .NET MAUI Community Toolkit Research
 
@@ -563,69 +563,32 @@ public class AzureSearchClientWrapper : ISearchClient
 }
 ```
 
-### 4.3 Semantic Kernel Agent Orchestration
+### 4.3 Microsoft Agent Framework Orchestration
 
-**Package**: `Microsoft.SemanticKernel`  
-**Version**: 1.0.0
+**Package**: `Microsoft.Agents.BotBuilder` or relevant Agent Framework packages
+**Version**: Latest
 
 ```csharp
 // Services/AgentOrchestrator.cs
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Agents;
+using Microsoft.Agents.Protocols.Primitives;
+using Microsoft.Agents.BotBuilder;
 
 public class AgentOrchestrator
 {
-    private readonly Kernel _kernel;
     private readonly QueryPlannerAgent _queryPlanner;
     private readonly VectorSearchAgent _vectorSearch;
     private readonly WebSearchAgent _webSearch;
     
-    public AgentOrchestrator(Kernel kernel, 
+    public AgentOrchestrator(
         QueryPlannerAgent queryPlanner,
         VectorSearchAgent vectorSearch,
         WebSearchAgent webSearch)
     {
-        _kernel = kernel;
         _queryPlanner = queryPlanner;
         _vectorSearch = vectorSearch;
         _webSearch = webSearch;
     }
-    
-    public async Task<QueryResponse> ExecuteQueryAsync(string query, 
-        CancellationToken cancellationToken = default)
-    {
-        // Step 1: Plan search strategy
-        var plan = await _queryPlanner.PlanAsync(query, cancellationToken);
-        
-        var results = new List<SearchResult>();
-        
-        // Step 2: Execute vector search
-        if (plan.UseVectorSearch)
-        {
-            var vectorResults = await _vectorSearch.SearchAsync(
-                plan.VectorQuery, cancellationToken);
-            results.AddRange(vectorResults);
-        }
-        
-        // Step 3: Augment with web search if needed
-        if (plan.UseWebSearch && results.Count < plan.MinimumResults)
-        {
-            var webResults = await _webSearch.SearchAsync(
-                plan.WebQuery, cancellationToken);
-            results.AddRange(webResults);
-        }
-        
-        // Step 4: Generate answer with citations
-        var answer = await GenerateAnswerAsync(query, results, cancellationToken);
-        
-        return new QueryResponse
-        {
-            Answer = answer.Answer,
-            Sources = results,
-            QueryId = plan.QueryId,
-            Metrics = answer.Metrics
-        };
-    }
+    // ... agent orchestration code using Microsoft Agent Framework
 }
 ```
 
@@ -989,19 +952,19 @@ public class TelemetryService
 
 ### 9.4 Azure AI Foundry Integration
 
-**Recommendation**: Use Azure AI Foundry services with Semantic Kernel for agent orchestration.
+**Recommendation**: Use Azure AI Foundry services with Microsoft Agent Framework for agent orchestration.
 
 **Rationale**:
 - Unified AI service platform
 - Scalable and managed infrastructure
 - Built-in observability and monitoring
-- Semantic Kernel provides agent orchestration framework
+- Microsoft Agent Framework provides multi-agent orchestration
 
 **Services**:
 - **Azure OpenAI**: GPT-4o (planning), GPT-4o-mini (completion), text-embedding-3-large
 - **Azure AI Search**: Hybrid vector/keyword search with semantic ranking
 - **Azure Document Intelligence**: PDF OCR and document understanding
-- **Semantic Kernel**: Agent orchestration and prompt engineering
+- **Microsoft Agent Framework**: Agent orchestration and prompt engineering
 
 ### 9.5 Authentication & Authorization
 
@@ -1029,7 +992,7 @@ public class TelemetryService
 - CommunityToolkit.Maui (GitHub): https://github.com/CommunityToolkit/Maui
 - .NET MAUI Documentation: https://learn.microsoft.com/dotnet/maui/
 - Azure AI Foundry: https://azure.microsoft.com/products/ai-foundry
-- Semantic Kernel: https://learn.microsoft.com/semantic-kernel/
+- Microsoft Agent Framework: https://github.com/microsoft/agent-framework
 - MSAL.NET: https://learn.microsoft.com/entra/msal/dotnet/
 - Polly: https://github.com/App-vNext/Polly
 - ONNX Runtime: https://onnxruntime.ai/

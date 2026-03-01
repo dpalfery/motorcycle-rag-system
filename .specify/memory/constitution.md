@@ -16,6 +16,9 @@ Sync Impact Report
 # Motorcycle RAG System Constitution
 
 ## Core Principles
+### First principals: 
+- we build all phases here, no shortcuts, no what should I do first and procrastinate till tommoroww bullshit. we do the whole thing at enterprise quality and completion.
+- Don't stub it, don't mark it as todo. Do it now, do it right, do it all.
 
 ### I. Security (NON-NEGOTIABLE)
 The system MUST meet OWASP ASVS Level 2 expectations.
@@ -95,6 +98,7 @@ Rationale: the project is security- and architecture-sensitive; process prevents
 ## Additional Constraints
 
 - **Primary stack**: .NET 10 (C# 13) backend, React (Vite) Web UI, .NET MAUI (Windows-first) Admin app.
+- **Infrastructure as Code (IaC)**: All infrastructure MUST be provisioned using Pulumi. Do not use Bicep, ARM templates, or Terraform.
 - **Secrets management**: environment variables and/or Key Vault only; never commit `.env`-style secrets.
 - **Data access**: parameterized SQL only; no dynamic SQL built from untrusted input.
 - **Architecture**: keep DTOs/contract shapes in `MotorcycleRAG.Contracts.Models`; Domain enforces invariants.
@@ -121,4 +125,4 @@ Rationale: the project is security- and architecture-sensitive; process prevents
   - PATCH: clarifications, wording, and non-semantic refinements.
 - Compliance review expectation: plans and reviews MUST explicitly check for constitution compliance.
 
-**Version**: 1.0.0 | **Ratified**: 2026-02-08 | **Last Amended**: 2026-02-08
+**Version**: 1.1.0 | **Ratified**: 2026-02-08 | **Last Amended**: 2026-02-22

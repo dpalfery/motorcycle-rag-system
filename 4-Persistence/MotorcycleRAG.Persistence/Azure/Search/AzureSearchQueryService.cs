@@ -6,8 +6,8 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Enums;
-using MotorcycleRAG.Persistence.Resilience;
 using MotorcycleRAG.Core.Options;
+
 
 namespace MotorcycleRAG.Persistence.Azure.Search;
 

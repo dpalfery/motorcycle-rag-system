@@ -1,187 +1,82 @@
-using System.Collections.ObjectModel;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json;
 using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Domain.Entities;
 
 /// <summary>
-/// Represents an ingestion job for tracking data ingestion operations
+/// Represents a Microsoft Fabric pipeline ingestion job.
+/// Tracks the full lifecycle of a single ingestion operation from upload to completion.
+/// Supports FR-009 (trigger ingestion), FR-010 (status), FR-010a (coverage reporting).
 /// </summary>
-public class IngestionJob {
-    [Required]
-    public long Id { get; set; }
+public class IngestionJob
+{
+    /// <summary>Primary key — GUID assigned at creation time.</summary>
+    public Guid IngestionJobId { get; set; } = Guid.NewGuid();
 
-    [Required]
-    [StringLength(128)]
-    public string JobId { get; set; } = string.Empty;
+    /// <summary>UTC timestamp when the job record was created (upload accepted).</summary>
+    public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
-    [Required]
-    public IngestionJobType JobType { get; set; }
+    /// <summary>UTC timestamp when the Fabric pipeline run actually started. Null until pipeline starts.</summary>
+    public DateTimeOffset? StartedAtUtc { get; set; }
 
-    [Required]
-    public IngestionJobStatus Status { get; set; }
+    /// <summary>UTC timestamp when the job reached a terminal state (Completed, Failed, Cancelled).</summary>
+    public DateTimeOffset? CompletedAtUtc { get; set; }
 
-    [Required]
-    [StringLength(500)]
-    public string SourceFilePath { get; set; } = string.Empty;
+    /// <summary>Entra ID subject (oid) of the user who initiated the job. Never logged raw.</summary>
+    public string? CreatedBySubject { get; set; }
 
-    [StringLength(500)]
-    public string? SourceFileName { get; set; }
+    /// <summary>Current job lifecycle status.</summary>
+    public IngestionJobStatus Status { get; set; } = IngestionJobStatus.Queued;
 
-    public DateTime StartTime { get; set; } = DateTime.UtcNow;
+    /// <summary>Human-readable failure description. Populated only on terminal failure.</summary>
+    public string? FailureReason { get; set; }
 
-    public DateTime? EndTime { get; set; }
-
-    public TimeSpan Duration => EndTime?.Subtract(StartTime) ?? TimeSpan.Zero;
-
-    [StringLength(128)]
-    public string? UserId { get; set; }
-
-    [StringLength(256)]
-    public string? UserEmail { get; set; }
+    /// <summary>Type of ingestion input (PDFManual, StructuredSpecification, etc.).</summary>
+    public IngestionJobType InputType { get; set; }
 
     /// <summary>
-    /// Total number of records/documents processed
+    /// Opaque reference to the uploaded blob (blob key or upload GUID).
+    /// Never a filesystem path. Format: manuals/{guid}/upload/{filename} or uploads/{guid}.
     /// </summary>
-    public int TotalRecordsProcessed { get; set; }
+    public string InputRef { get; set; } = string.Empty;
+
+    /// <summary>Compute provider used. Defaults to "MicrosoftFabric".</summary>
+    public string ComputeProvider { get; set; } = "MicrosoftFabric";
+
+    /// <summary>Microsoft Fabric pipeline run ID for status polling and audit. Null until pipeline is triggered.</summary>
+    public string? FabricRunId { get; set; }
 
     /// <summary>
-    /// Number of records successfully indexed
+    /// GUID of the MotorcycleManual document produced by this job.
+    /// Populated only when InputType is PDFManual and job reaches Completed/PartiallyCompleted.
     /// </summary>
-    public int RecordsIndexed { get; set; }
+    public Guid? ManualDocumentId { get; set; }
+
+    // --- Coverage fields (populated by Fabric pipeline upon completion) ---
+
+    /// <summary>Total pages in the ingested PDF. Null for non-PDF jobs or until pipeline reports.</summary>
+    public int? TotalPages { get; set; }
+
+    /// <summary>Pages that were captured as viewable (rendered PNG). Null until pipeline reports.</summary>
+    public int? PagesCapturedViewableCount { get; set; }
+
+    /// <summary>Pages with searchable text (OCR or native). Null until pipeline reports.</summary>
+    public int? PagesWithSearchableTextCount { get; set; }
+
+    /// <summary>Pages processed via OCR. Null until pipeline reports.</summary>
+    public int? PagesWithOcrTextCount { get; set; }
+
+    /// <summary>Pages with native embedded text (no OCR needed). Null until pipeline reports.</summary>
+    public int? PagesWithNativeTextCount { get; set; }
 
     /// <summary>
-    /// Number of records that failed processing
+    /// JSON array of missing page numbers (pages that could not be rendered or extracted).
+    /// Stored as JSON for SQL persistence; deserialize before use.
     /// </summary>
-    public int RecordsFailed { get; set; }
+    public string? MissingPagesJson { get; set; }
 
     /// <summary>
-    /// Number of records with warnings
-    /// </summary>
-    public int RecordsWithWarnings { get; set; }
-
-    /// <summary>
-    /// JSON serialized metrics dictionary
+    /// JSON object with extended pipeline metrics (timing, token counts, etc.).
+    /// Stored as JSON for SQL persistence; deserialize before use.
     /// </summary>
     public string? MetricsJson { get; set; }
-
-    /// <summary>
-    /// JSON serialized errors list
-    /// </summary>
-    public string? ErrorsJson { get; set; }
-
-    /// <summary>
-    /// Error message if job failed
-    /// </summary>
-    [StringLength(2000)]
-    public string? ErrorMessage { get; set; }
-
-    /// <summary>
-    /// Additional metadata as JSON
-    /// </summary>
-    public string? MetadataJson { get; set; }
-
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    public DateTime? UpdatedAt { get; set; }
-
-    // Cached deserialized collections to avoid per-access JSON deserialization
-    // These are lazy-initialized and invalidated when the underlying JSON changes
-    private Dictionary<string, object>? _cachedMetrics;
-    private Collection<string>? _cachedErrors;
-    private Dictionary<string, object>? _cachedMetadata;
-    private string? _lastMetricsJson;
-    private string? _lastErrorsJson;
-    private string? _lastMetadataJson;
-
-    /// <summary>
-    /// Gets the metrics as a dictionary (read-only, cached from MetricsJson)
-    /// </summary>
-    public Dictionary<string, object> Metrics {
-        get {
-            // Return cached value if JSON hasn't changed
-            if (_cachedMetrics != null && _lastMetricsJson == MetricsJson) {
-                return _cachedMetrics;
-            }
-
-            // Deserialize and cache
-            var result = new Dictionary<string, object>();
-            if (!string.IsNullOrWhiteSpace(MetricsJson)) {
-                try {
-                    var jsonDoc = JsonDocument.Parse(MetricsJson);
-                    foreach (var prop in jsonDoc.RootElement.EnumerateObject()) {
-                        result[prop.Name] = prop.Value.ToString();
-                    }
-                }
-                catch (JsonException) {
-                    // If JSON is invalid, return empty dictionary
-                }
-                _lastMetricsJson = MetricsJson;
-            }
-
-            _cachedMetrics = result;
-            return _cachedMetrics;
-        }
-    }
-
-    /// <summary>
-    /// Gets the errors as a collection (read-only, cached from ErrorsJson)
-    /// </summary>
-    public Collection<string> Errors {
-        get {
-            // Return cached value if JSON hasn't changed
-            if (_cachedErrors != null && _lastErrorsJson == ErrorsJson) {
-                return _cachedErrors;
-            }
-
-            // Deserialize and cache
-            var result = new Collection<string>();
-            if (!string.IsNullOrWhiteSpace(ErrorsJson)) {
-                try {
-                    var jsonDoc = JsonDocument.Parse(ErrorsJson);
-                    foreach (var element in jsonDoc.RootElement.EnumerateArray()) {
-                        result.Add(element.GetString() ?? string.Empty);
-                    }
-                }
-                catch (JsonException) {
-                    // If JSON is invalid, return empty collection
-                }
-                _lastErrorsJson = ErrorsJson;
-            }
-
-            _cachedErrors = result;
-            return _cachedErrors;
-        }
-    }
-
-    /// <summary>
-    /// Gets the metadata as a dictionary (read-only, cached from MetadataJson)
-    /// </summary>
-    public Dictionary<string, object> Metadata {
-        get {
-            // Return cached value if JSON hasn't changed
-            if (_cachedMetadata != null && _lastMetadataJson == MetadataJson) {
-                return _cachedMetadata;
-            }
-
-            // Deserialize and cache
-            var result = new Dictionary<string, object>();
-            if (!string.IsNullOrWhiteSpace(MetadataJson)) {
-                try {
-                    var jsonDoc = JsonDocument.Parse(MetadataJson);
-                    foreach (var prop in jsonDoc.RootElement.EnumerateObject()) {
-                        result[prop.Name] = prop.Value.ToString();
-                    }
-                }
-                catch (JsonException) {
-                    // If JSON is invalid, return empty dictionary
-                }
-                _lastMetadataJson = MetadataJson;
-            }
-
-            _cachedMetadata = result;
-            return _cachedMetadata;
-        }
-    }
 }

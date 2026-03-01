@@ -18,7 +18,7 @@
       - Examples include (but are not limited to): *status*, *plan*, *summary*, detailed_changes*, build_output*, verification*.
   5. **git commands require approval**
     - Don't ask to do commits, in most instance the human will do them manually after reviewing your work. this is an important part of the human in the loop process.
-    - Never run git commands without explicit approval except for non-destructive read-only commands (e.g., `git status`, `git diff`, `git log`).
+    - Never run git commands without explicit approval except for non-destructive read-only commands (e.g., `git status`, `git diff`, `git log`) and staging commands (e.g., `git add`).
     - Never run destructive or history-changing commands without asking first (e.g., `git restore`, `git reset`, `git checkout`, `git clean`, `git commit`, `git rebase`, `git push`).
   6. Always select the most specialized mode or agent available:
     - Use **.NET Developer** for backend tasks instead of generic Code mode.  
@@ -61,7 +61,7 @@ Examples include (but are not limited to): `status*`, `plan*`, `summary*`, `deta
 *   **Framework**: .NET 10.0 (ASP.NET Core Web API)
 *   **Language**: C# 13
 *   **Architecture**: Clean Architecture + DDD (8 Layers)
-*   **AI/RAG**: Semantic Kernel, Azure OpenAI (GPT-4o, text-embedding-3-large), Azure AI Search.
+*   **AI/RAG**: Microsoft Agent Framework, Azure OpenAI (GPT-4o, text-embedding-3-large), Azure AI Search.
 *   **Data**: SQL Server (Dapper), Azure Blob Storage.
 *   **Identity**: Microsoft Entra External ID / B2C (OIDC).
 
@@ -416,7 +416,7 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 **Forbidden (strict):**
 - Interfaces (those belong in `MotorcycleRAG.Contracts`)
 - Implementations (no services, no repositories, no factories)
-- Any infrastructure/framework dependencies (ASP.NET, EF Core, Azure SDKs, SQL clients, Semantic Kernel, etc.)
+- Any infrastructure/framework dependencies (ASP.NET, EF Core, Azure SDKs, SQL clients, Microsoft Agent Framework, etc.)
 - Business logic (keep these as data shapes; domain behavior stays in `MotorcycleRAG.Domain`)
 
 **Rule of thumb:** If a type needs behavior/invariants, it is likely a Domain entity/value object, not a Contracts.Models DTO.
@@ -538,7 +538,7 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 * **Docker:**
   *Folder:* `docker/`
   *Files:* `Dockerfile`, `docker-compose.yml`
-* **Azure Bicep/Terraform:**
+* **Pulumi:**
   *Folder:* `infrastructure/`
 * **CI/CD Pipelines:**
   *Folder:* `.github/workflows/` or `azure-pipelines.yml`

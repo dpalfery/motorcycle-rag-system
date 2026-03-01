@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.Sql.Repositories;
@@ -35,7 +36,9 @@ public static class ServiceCollectionExtensions {
         services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
 
         // Register SQL repositories
-        //services.AddScoped<IIngestionJobRepository, IngestionJobRepository>(); not yet implemented
+        services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();
+        services.AddScoped<IGraphRepository, SqlGraphRepository>();
+        services.AddScoped<IBikeModelRepository, BikeModelRepository>();
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUsageRepository, UsageRepository>();

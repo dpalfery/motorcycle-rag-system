@@ -9,7 +9,8 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.Resilience;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Search;
-
+using MotorcycleRAG.Persistence.Telemetry;
+using MotorcycleRAG.Persistence.Azure.Blob;
 using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Persistence.Azure;
@@ -36,6 +37,10 @@ public static class ServiceCollectionExtensions {
             configuration.GetSection("ApplicationInsights"));
         services.Configure<ResilienceOptions>(
             configuration.GetSection("Resilience"));
+        services.Configure<FabricIngestionOptions>(
+            configuration.GetSection("FabricIngestion"));
+        services.Configure<BlobStorageOptions>(
+            configuration.GetSection("BlobStorage"));
 
         // Validate configuration on startup
         services.AddSingleton<IValidateOptions<AzureAIOptions>, AzureAIConfigurationValidator>();
@@ -45,6 +50,13 @@ public static class ServiceCollectionExtensions {
         // Register resilience services as singletons
         services.AddSingleton<IResilienceService, MotorcycleRAG.Persistence.Resilience.ResilienceService>();
         services.AddSingleton<ICorrelationService, MotorcycleRAG.Persistence.Resilience.CorrelationService>();
+
+        // Register telemetry and budget monitoring services
+        services.AddSingleton<ITelemetryService, TelemetryService>();
+        services.AddSingleton<IBudgetMonitorService, BudgetMonitorService>();
+
+        // Register blob-backed asset store
+        services.AddScoped<IManualPageAssetStore, BlobManualPageAssetStore>();
 
         // Register Azure service clients (scope aligns with dependencies)
         services.AddSingleton<IAzureOpenAIClient, MotorcycleRAG.Persistence.Azure.AzureOpenAIClientWrapper>();

@@ -1,6 +1,7 @@
 #pragma warning disable CA1506 // Avoid excessive class coupling
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.HttpOverrides;
 using MotorcycleRag.WebUI.BFF.Middleware;
 using Yarp.ReverseProxy.Transforms;
 
@@ -45,9 +46,9 @@ builder.Services.AddAuthentication(options => {
 })
 .AddCookie(options => {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     options.Cookie.SameSite = SameSiteMode.Strict;
-    options.Cookie.Name = "__Host-MotorcycleRAG";
+    options.Cookie.Name = "MotorcycleRAG"; // No __Host- prefix: ACA terminates TLS at edge; container receives plain HTTP
     options.Cookie.Path = "/";
     options.Cookie.IsEssential = true;
     options.ExpireTimeSpan = TimeSpan.FromHours(1);
@@ -94,7 +95,14 @@ builder.Services.AddAuthentication(options => {
 var app = builder.Build();
 
 // Pipeline - Security-first approach
-// 1. HTTPS enforcement
+
+// 0. Forwarded Headers - MUST be first so all subsequent middleware sees the correct
+//    scheme/host as set by the Azure Container Apps edge proxy (X-Forwarded-Proto etc.)
+app.UseForwardedHeaders(new ForwardedHeadersOptions {
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+// 1. HTTPS enforcement (no-op when running behind TLS-terminating proxy on HTTP)
 app.UseHttpsRedirection();
 
 // 2. HSTS (HTTP Strict Transport Security) - force HTTPS for 1 year
@@ -194,4 +202,16 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Motorcycl
 
 // Fallback to React (SPA)
 app.MapFallbackToFile("index.html");
+
 #pragma warning restore CA1506 // Avoid excessive class coupling
+
+try
+{
+    await app.RunAsync().ConfigureAwait(false);
+}
+catch (Exception ex)
+{
+    // Surface any startup exception to stderr so it appears in container logs
+    await Console.Error.WriteLineAsync($"FATAL STARTUP ERROR: {ex}").ConfigureAwait(false);
+    throw;
+}

@@ -171,7 +171,7 @@ namespace MotorcycleRAG.Infrastructure {
                     new ContainerArgs
                     {
                         Name = "api",
-                        Image = registry.LoginServer.Apply(s => $"{s}/motorcycle-rag-api:latest"),
+                        Image = "mcr.microsoft.com/k8se/quickstart:latest",
                         Resources = new ContainerResourcesArgs
                         {
                             Cpu = 0.25,
@@ -228,7 +228,7 @@ namespace MotorcycleRAG.Infrastructure {
                     new ContainerArgs
                     {
                         Name = "ui",
-                        Image = registry.LoginServer.Apply(s => $"{s}/motorcycle-rag-ui:latest"),
+                        Image = "mcr.microsoft.com/k8se/quickstart:latest",
                         Resources = new ContainerResourcesArgs
                         {
                             Cpu = 0.25,
@@ -300,7 +300,7 @@ namespace MotorcycleRAG.Infrastructure {
             });
 
             // 14. OpenAI Deployments
-            _ = new Pulumi.AzureNative.CognitiveServices.Deployment("gpt-4o", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
+            var gpt4oDeployment = new Pulumi.AzureNative.CognitiveServices.Deployment("gpt-4o", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
                 ResourceGroupName = resourceGroup.Name,
                 AccountName = openAIAccount.Name,
                 DeploymentName = "gpt-4o",
@@ -332,7 +332,7 @@ namespace MotorcycleRAG.Infrastructure {
                         Version = "1"
                     }
                 }
-            });
+            }, new Pulumi.CustomResourceOptions { DependsOn = { gpt4oDeployment } });
 
             // 15. Document Intelligence
             var docIntel = new Pulumi.AzureNative.CognitiveServices.Account($"{namePrefix}-docintel", new Pulumi.AzureNative.CognitiveServices.AccountArgs {

@@ -1,0 +1,60 @@
+[tool.poetry]
+name = "motorcycle-rag-local-processing"
+version = "0.1.0"
+description = "Local processing service for motorcycle RAG system using Docling and Ollama"
+authors = ["MotorcycleRAG Team"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.104.0"
+uvicorn = {extras = ["standard"], version = "^0.24.0"}
+docling = "^1.0.0"
+docling-core = {extras = ["chunking"], version = "^1.0.0"}
+ollama = "^0.3.0"
+azure-storage-blob = "^12.21.1"
+azure-identity = "^1.18.0"
+pandas = "^2.1.0"
+pydantic = {extras = ["email"], version = "^2.5.0"}
+python-multipart = "^0.0.6"
+python-dotenv = "^1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.21.0"
+black = "^23.0.0"
+isort = "^5.12.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]

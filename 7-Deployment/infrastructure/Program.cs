@@ -528,6 +528,14 @@ namespace MotorcycleRAG.Infrastructure {
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
 
+            // AllowedHosts for HostHeaderValidationMiddleware (depends on Container App FQDNs)
+            _ = new KeyValue("appconfig-kv-allowed-hosts", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AllowedHosts",
+                Value = Output.Format($"localhost;127.0.0.1;::1;{apiApp.Configuration.Apply(c => c!.Ingress!.Fqdn)};{uiApp.Configuration.Apply(c => c!.Ingress!.Fqdn)}")
+            });
+
             // Outputs
             this.AiServicesEndpoint = aiServices.Properties.Apply(p => p.Endpoint ?? "");
             this.KeyVaultUri = Output.Format($"https://{keyVault.Name}.vault.azure.net");

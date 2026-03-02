@@ -46,8 +46,8 @@ builder.Services.AddAuthentication(options => {
 })
 .AddCookie(options => {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.Name = "MotorcycleRAG"; // No __Host- prefix: ACA terminates TLS at edge; container receives plain HTTP
     options.Cookie.Path = "/";
     options.Cookie.IsEssential = true;
@@ -103,6 +103,12 @@ builder.Services.AddAuthentication(options => {
             return Task.CompletedTask;
         }
     };
+    // OIDC correlation + nonce cookies must survive the cross-site Entra redirect callback.
+    // Browser drops SameSite=Strict/Lax cookies on cross-site POST/redirect; SameSite=None allows them.
+    options.NonceCookie.SameSite = SameSiteMode.None;
+    options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.CorrelationCookie.SameSite = SameSiteMode.None;
+    options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
 });
 
 var app = builder.Build();

@@ -86,6 +86,17 @@ internal sealed class HostHeaderValidationMiddleware {
     public async Task InvokeAsync(HttpContext context) {
         ArgumentNullException.ThrowIfNull(context);
 
+        // Health check endpoints must bypass Host header validation.
+        // ACA liveness/readiness probes use internal IPs (e.g. 100.100.0.218) as Host,
+        // which would otherwise be rejected and cause container restarts.
+        if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
+        {
+#pragma warning disable CA1848
+            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", context.Request.Path);
+#pragma warning restore CA1848
+            await _next(context).ConfigureAwait(false);
+            return;
+        }
         // Get the Host header value
         if (!context.Request.Headers.TryGetValue("Host", out var hostHeader))
         {

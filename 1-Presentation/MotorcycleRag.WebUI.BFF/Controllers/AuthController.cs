@@ -10,7 +10,7 @@ namespace MotorcycleRag.WebUI.BFF.Controllers;
 #pragma warning disable S3059 // Public methods required for ASP.NET Core controller routing
 [ApiController]
 [Route("auth")]
-internal sealed class AuthController : ControllerBase {
+public sealed class AuthController : ControllerBase {
 #pragma warning restore S3059
 #pragma warning restore CA1812
     [HttpGet("login")]

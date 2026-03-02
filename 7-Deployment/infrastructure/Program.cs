@@ -211,7 +211,11 @@ namespace MotorcycleRAG.Infrastructure {
                             new ContainerAppProbeArgs
                             {
                                 HttpGet = new ContainerAppProbeHttpGetArgs { Path = "/health", Port = 8080 },
-                                Type = Pulumi.AzureNative.App.Type.Liveness
+                                Type = Pulumi.AzureNative.App.Type.Liveness,
+                                TimeoutSeconds = 30,
+                                InitialDelaySeconds = 15,
+                                PeriodSeconds = 60,
+                                FailureThreshold = 3
                             }
                         }
                     }
@@ -278,7 +282,11 @@ namespace MotorcycleRAG.Infrastructure {
                             new ContainerAppProbeArgs
                             {
                                 HttpGet = new ContainerAppProbeHttpGetArgs { Path = "/health", Port = 8080 },
-                                Type = Pulumi.AzureNative.App.Type.Liveness
+                                Type = Pulumi.AzureNative.App.Type.Liveness,
+                                TimeoutSeconds = 30,
+                                InitialDelaySeconds = 15,
+                                PeriodSeconds = 60,
+                                FailureThreshold = 3
                             }
                         }
                     }

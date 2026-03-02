@@ -168,7 +168,9 @@ if (isAppConfigEnabled) {
 // 0. Forwarded Headers - MUST be first so all subsequent middleware sees the correct
 //    scheme/host as set by the Azure Container Apps edge proxy (X-Forwarded-Proto etc.)
 app.UseForwardedHeaders(new ForwardedHeadersOptions {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    KnownIPNetworks = { },  // Clear default — trust all proxy IPs (safe: ACA controls inbound headers)
+    KnownProxies = { }     // Clear default — ACA edge IP is dynamic, cannot be hardcoded
 });
 
 // 1. HTTPS enforcement (no-op when running behind TLS-terminating proxy on HTTP)

@@ -90,6 +90,19 @@ builder.Services.AddAuthentication(options => {
     options.TokenValidationParameters.ValidateIssuerSigningKey = true;
     options.TokenValidationParameters.RequireExpirationTime = true;
     options.TokenValidationParameters.RequireSignedTokens = true;
+
+    // ACA terminates TLS at the edge; the container receives plain http:// requests.
+    // The OIDC middleware constructs redirect_uri before ForwardedHeaders runs, so we
+    // must force https:// here to satisfy Entra ID's registered reply URL.
+    options.Events = new OpenIdConnectEvents
+    {
+        OnRedirectToIdentityProvider = context =>
+        {
+            context.ProtocolMessage.RedirectUri = context.ProtocolMessage.RedirectUri
+                .Replace("http://", "https://", StringComparison.OrdinalIgnoreCase);
+            return Task.CompletedTask;
+        }
+    };
 });
 
 var app = builder.Build();

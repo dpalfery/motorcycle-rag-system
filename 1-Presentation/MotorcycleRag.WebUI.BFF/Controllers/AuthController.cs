@@ -36,6 +36,7 @@ public sealed class AuthController : ControllerBase {
                 user = User.Identity.Name ?? "User"
             });
         }
-        return Unauthorized(new { authenticated = false });
+        // Return 200 (not 401) - this is a polling endpoint, not a protected resource
+        return Ok(new { authenticated = false });
     }
 }

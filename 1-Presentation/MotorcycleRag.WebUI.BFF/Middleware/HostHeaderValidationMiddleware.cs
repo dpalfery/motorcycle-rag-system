@@ -22,6 +22,7 @@ internal sealed class HostHeaderValidationMiddleware {
     private readonly RequestDelegate _next;
     private readonly ILogger<HostHeaderValidationMiddleware> _logger;
     private readonly HashSet<string> _allowedHosts;
+    private readonly bool _allowAll;
 #pragma warning disable S4055 // Log messages are inline strings; ResourceManager would be overkill for middleware
     private const string ErrorMessage =
         "HostHeaderValidationMiddleware configuration error: AllowedHosts is empty. " +
@@ -47,15 +48,19 @@ internal sealed class HostHeaderValidationMiddleware {
 
         // Parse AllowedHosts from configuration
         var allowedHostsConfig = configuration["AllowedHosts"] ?? "localhost";
-        _allowedHosts = new HashSet<string>(
-            allowedHostsConfig
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(h => h.Trim().ToUpperInvariant()),
-            StringComparer.OrdinalIgnoreCase
-        );
+        _allowAll = allowedHostsConfig.Trim() == "*";
+        _allowedHosts = _allowAll
+            ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(
+                allowedHostsConfig
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(h => h.Trim().ToUpperInvariant()),
+                StringComparer.OrdinalIgnoreCase
+            );
 
         // Fail fast if AllowedHosts is empty - this indicates a misconfiguration
-        if (_allowedHosts.Count == 0)
+        // (Skip the check when _allowAll is true - empty HashSet is intentional in that case)
+        if (!_allowAll && _allowedHosts.Count == 0)
         {
 #pragma warning disable CA1848 // Log message is a constant string, not expensive
             _logger.LogError(ErrorMessage);
@@ -224,6 +229,11 @@ internal sealed class HostHeaderValidationMiddleware {
     private bool IsHostAllowed(string hostname) {
         if (string.IsNullOrWhiteSpace(hostname)) {
             return false;
+        }
+
+        // '*' in AllowedHosts means allow all hosts (matches ASP.NET Core HostFilteringMiddleware semantics)
+        if (_allowAll) {
+            return true;
         }
 
         // HashSet uses StringComparer.OrdinalIgnoreCase, so Contains handles case-insensitive comparison

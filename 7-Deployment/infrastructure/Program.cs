@@ -613,6 +613,30 @@ namespace MotorcycleRAG.Infrastructure {
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
 
+            // Blob container for BFF DataProtection key persistence
+            var dpBlobContainer = new BlobContainer($"{namePrefix}-dp-keys-container", new BlobContainerArgs {
+                ResourceGroupName = resourceGroup.Name,
+                AccountName = storageAccount.Name,
+                ContainerName = "dataprotection-keys",
+                PublicAccess = PublicAccess.None,
+            });
+
+            // RBAC: Storage Blob Data Contributor for BFF to persist DataProtection keys
+            _ = new RoleAssignment($"{namePrefix}-ui-storage-dp-role", new RoleAssignmentArgs {
+                PrincipalId = uiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/ba92f5b4-2d11-453d-a403-e96b0029c9fe", // Storage Blob Data Contributor
+                Scope = dpBlobContainer.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
+
+            // App Config: BFF DataProtection blob URI
+            _ = new KeyValue("appconfig-kv-dp-blob-uri", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "DataProtection:BlobUri",
+                Value = Output.Format($"https://{storageAccount.Name}.blob.core.windows.net/dataprotection-keys/bff-keys.xml")
+            });
+
             // AllowedHosts for HostHeaderValidationMiddleware (depends on Container App FQDNs)
             _ = new KeyValue("appconfig-kv-allowed-hosts", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,

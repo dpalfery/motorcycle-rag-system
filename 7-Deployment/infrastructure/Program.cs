@@ -581,6 +581,12 @@ namespace MotorcycleRAG.Infrastructure {
                 Scope = keyVault.Id,
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
+            _ = new RoleAssignment($"{namePrefix}-pulumi-sp-kv-officer-role", new RoleAssignmentArgs {
+                PrincipalId = "6e42ecfc-2f4a-4c08-b518-5aec4fffd355", // Pulumi service principal OID
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/b86a8fe4-44ce-4948-aee5-eccb2c155cd7", // Key Vault Secrets Officer
+                Scope = keyVault.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
 
             // RBAC: App Configuration Data Reader for both apps
             _ = new RoleAssignment($"{namePrefix}-api-appconfig-role", new RoleAssignmentArgs {

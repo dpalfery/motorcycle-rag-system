@@ -5,8 +5,35 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using MotorcycleRag.WebUI.BFF.Middleware;
 using Yarp.ReverseProxy.Transforms;
+using Azure.Identity;
+using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add Azure App Configuration & Key Vault
+var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
+if (!string.IsNullOrEmpty(appConfigEndpoint)) {
+    var credential = new DefaultAzureCredential();
+    builder.Configuration.AddAzureAppConfiguration(options => {
+        options.Connect(new Uri(appConfigEndpoint), credential)
+               // Load all non-labelled keys
+               .Select(KeyFilter.Any)
+               // Load environment-specific labelled keys (e.g. Development, Production)
+               .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
+               // Configure Key Vault integration
+               .ConfigureKeyVault(kv => kv.SetCredential(credential))
+               // Configure refresh with sentinel key for live configuration updates
+               .ConfigureRefresh(refreshOptions => {
+                   // When the sentinel key changes, refresh all cached configuration values
+                   refreshOptions.Register("Settings:Sentinel", refreshAll: true)
+                   .SetRefreshInterval(TimeSpan.FromSeconds(30));
+               });
+    });
+}
+var isAppConfigEnabled = !string.IsNullOrEmpty(builder.Configuration["AppConfig:Endpoint"]);
+if (isAppConfigEnabled) {
+    builder.Services.AddAzureAppConfiguration();
+}
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -129,6 +156,10 @@ else
 }
 
 var app = builder.Build();
+
+if (isAppConfigEnabled) {
+    app.UseAzureAppConfiguration();
+}
 
 // Pipeline - Security-first approach
 

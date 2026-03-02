@@ -26,8 +26,8 @@ internal sealed class HostHeaderValidationMiddleware {
 #pragma warning disable S4055 // Log messages are inline strings; ResourceManager would be overkill for middleware
     private const string ErrorMessage =
         "HostHeaderValidationMiddleware configuration error: AllowedHosts is empty. " +
-        "Configure 'AllowedHosts' in appsettings.json with a comma-separated list of allowed hostnames. " +
-        "Example: 'AllowedHosts': 'localhost,ui.example.com,ui-staging.example.com'";
+        "Configure 'AllowedHosts' in appsettings.json with a semicolon or comma-separated list of allowed hostnames. " +
+        "Example: 'AllowedHosts': 'localhost;127.0.0.1;::1;ui.example.com;ui-staging.example.com'";
 
     /// <summary>
     /// Initializes a new instance of the HostHeaderValidationMiddleware
@@ -53,7 +53,7 @@ internal sealed class HostHeaderValidationMiddleware {
             ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(
                 allowedHostsConfig
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries)
                     .Select(h => h.Trim().ToUpperInvariant()),
                 StringComparer.OrdinalIgnoreCase
             );

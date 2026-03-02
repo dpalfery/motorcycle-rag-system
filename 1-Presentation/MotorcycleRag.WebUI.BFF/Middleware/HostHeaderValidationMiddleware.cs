@@ -15,7 +15,9 @@ namespace MotorcycleRag.WebUI.BFF.Middleware;
 /// Prevents Host Header Injection attacks (OWASP A07:2021 - Cross-Site Request Forgery).
 /// </summary>
 #pragma warning disable CA1812 // Instantiated by ASP.NET Core middleware pipeline via reflection
+#pragma warning disable S3059 // Public constructor required by ASP.NET Core ActivatorUtilities for UseMiddleware<T>()
 internal sealed class HostHeaderValidationMiddleware {
+#pragma warning restore S3059
 #pragma warning restore CA1812
     private readonly RequestDelegate _next;
     private readonly ILogger<HostHeaderValidationMiddleware> _logger;
@@ -32,7 +34,7 @@ internal sealed class HostHeaderValidationMiddleware {
     /// <param name="next">Next middleware in the pipeline</param>
     /// <param name="logger">Logger</param>
     /// <param name="configuration">Application configuration</param>
-    internal HostHeaderValidationMiddleware(
+    public HostHeaderValidationMiddleware(
         RequestDelegate next,
         ILogger<HostHeaderValidationMiddleware> logger,
         IConfiguration configuration) {

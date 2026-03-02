@@ -58,6 +58,8 @@ public class Program {
                 options.Connect(new Uri(appConfigEndpoint), credential)
                        // Load all non-labelled keys
                        .Select(KeyFilter.Any)
+                       // Load API-specific labelled keys (overrides unlabelled keys for API)
+                       .Select(KeyFilter.Any, "api")
                        // Load environment-specific labelled keys (e.g. Development, Production)
                        .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
                        // Configure Key Vault integration

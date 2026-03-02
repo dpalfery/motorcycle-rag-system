@@ -18,6 +18,8 @@ if (!string.IsNullOrEmpty(appConfigEndpoint)) {
         options.Connect(new Uri(appConfigEndpoint), credential)
                // Load all non-labelled keys
                .Select(KeyFilter.Any)
+               // Load BFF-specific labelled keys (overrides unlabelled keys for BFF)
+               .Select(KeyFilter.Any, "bff")
                // Load environment-specific labelled keys (e.g. Development, Production)
                .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
                // Configure Key Vault integration

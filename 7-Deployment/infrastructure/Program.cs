@@ -40,6 +40,7 @@ namespace MotorcycleRAG.Infrastructure {
             var azureAdTenantId = cfg.RequireSecret("azureAdTenantId");
             var azureAdClientId = cfg.RequireSecret("azureAdClientId");
             var adminClientId = cfg.RequireSecret("adminClientId");
+            var bffClientId = cfg.Require("bffClientId");
             var deepinfraApiKey = cfg.RequireSecret("deepinfraApiKey");
             var bffClientSecret = cfg.RequireSecret("bffClientSecret");
 
@@ -251,8 +252,7 @@ namespace MotorcycleRAG.Infrastructure {
                 },
                 Secrets = new[]
                 {
-                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") },
-                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "bff-client-secret", Value = bffClientSecret }
+                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
             },
             Template = new TemplateArgs {
@@ -270,12 +270,8 @@ namespace MotorcycleRAG.Infrastructure {
                         Env = commonEnvs.Concat(new[]
                         {
                             new EnvironmentVarArgs { Name = "API_URL", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") },
-                            new EnvironmentVarArgs { Name = "AzureAd__ClientId", Value = "03415674-de3a-4269-aebe-f21c116835b8" },
-                            new EnvironmentVarArgs { Name = "AzureAd__ClientSecret", SecretRef = "bff-client-secret" },
-                            new EnvironmentVarArgs { Name = "AzureAd__TenantId", Value = "0f8f8a52-f135-43af-af88-e0b54ca9ff91" },
                             new EnvironmentVarArgs { Name = "ASPNETCORE_HTTP_PORTS", Value = "8080" },
                             new EnvironmentVarArgs { Name = "ReverseProxy__Clusters__api-cluster__Destinations__destination1__Address", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") },
-                            new EnvironmentVarArgs { Name = "AllowedHosts", Value = "*" },
                         }).ToArray(),
                         Probes = new[]
                         {
@@ -400,26 +396,8 @@ namespace MotorcycleRAG.Infrastructure {
             });
 
             // Key Vault Secrets for App Config KV references
-            var kvSecretTenantId = new Secret("kv-secret-tenant-id", new Pulumi.AzureNative.KeyVault.SecretArgs {
-                ResourceGroupName = resourceGroup.Name,
-                VaultName = keyVault.Name,
-                SecretName = "MCR-API-AZURE-AD-TENANT-ID",
-                Properties = new SecretPropertiesArgs { Value = azureAdTenantId }
-            });
-
-            var kvSecretClientId = new Secret("kv-secret-client-id", new Pulumi.AzureNative.KeyVault.SecretArgs {
-                ResourceGroupName = resourceGroup.Name,
-                VaultName = keyVault.Name,
-                SecretName = "MCR-API-AZURE-AD-CLIENT-ID",
-                Properties = new SecretPropertiesArgs { Value = azureAdClientId }
-            });
-
-            var kvSecretAdminClientId = new Secret("kv-secret-admin-client-id", new Pulumi.AzureNative.KeyVault.SecretArgs {
-                ResourceGroupName = resourceGroup.Name,
-                VaultName = keyVault.Name,
-                SecretName = "MCR-ADMIN-CLIENT-ID",
-                Properties = new SecretPropertiesArgs { Value = adminClientId }
-            });
+            // NOTE: tenantId, clientId, and adminClientId are not secrets — they are stored as plain
+            // labelled App Config values (api/bff labels) rather than Key Vault references.
 
             var kvSecretAppInsightsConnStr = new Secret("kv-secret-appinsights-connstr", new Pulumi.AzureNative.KeyVault.SecretArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -521,44 +499,49 @@ namespace MotorcycleRAG.Infrastructure {
             // Key Vault references (content type tells App Config to resolve from KV)
             const string kvRefContentType = "application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8";
 
-            _ = new KeyValue("appconfig-kvref-tenant-id", new KeyValueArgs {
+            // Labelled App Config entries: API
+            _ = new KeyValue("appconfig-kv-api-tenant-id", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "MCR_API_AZURE_AD_TENANT_ID",
-                ContentType = kvRefContentType,
-                Value = kvSecretTenantId.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
+                KeyValueName = "AzureAd:TenantId$api",
+                Value = azureAdTenantId
             });
 
-            _ = new KeyValue("appconfig-kvref-client-id", new KeyValueArgs {
+            _ = new KeyValue("appconfig-kv-api-client-id", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "MCR_API_AZURE_AD_CLIENT_ID",
-                ContentType = kvRefContentType,
-                Value = kvSecretClientId.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
+                KeyValueName = "AzureAd:ClientId$api",
+                Value = azureAdClientId
             });
 
-            _ = new KeyValue("appconfig-kvref-azure-ad-tenant-id", new KeyValueArgs {
+            _ = new KeyValue("appconfig-kv-api-admin-client-id", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "AzureAd:TenantId",
-                ContentType = kvRefContentType,
-                Value = kvSecretTenantId.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
+                KeyValueName = "AzureAd:AdminClientId$api",
+                Value = adminClientId
             });
 
-            _ = new KeyValue("appconfig-kvref-azure-ad-client-id", new KeyValueArgs {
+            // Labelled App Config entries: BFF
+            _ = new KeyValue("appconfig-kv-bff-tenant-id", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "AzureAd:ClientId",
-                ContentType = kvRefContentType,
-                Value = kvSecretClientId.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
+                KeyValueName = "AzureAd:TenantId$bff",
+                Value = azureAdTenantId
             });
 
-            _ = new KeyValue("appconfig-kvref-admin-client-id", new KeyValueArgs {
+            _ = new KeyValue("appconfig-kv-bff-client-id", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "MCR_ADMIN_CLIENT_ID",
+                KeyValueName = "AzureAd:ClientId$bff",
+                Value = bffClientId
+            });
+
+            _ = new KeyValue("appconfig-kv-bff-client-secret", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAd:ClientSecret$bff",
                 ContentType = kvRefContentType,
-                Value = kvSecretAdminClientId.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
+                Value = kvSecretBffClientSecret.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}") 
             });
 
             _ = new KeyValue("appconfig-kvref-appinsights-connstr", new KeyValueArgs {

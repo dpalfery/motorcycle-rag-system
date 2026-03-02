@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.DataProtection;
 using MotorcycleRag.WebUI.BFF.Middleware;
 using Yarp.ReverseProxy.Transforms;
 
@@ -110,6 +111,22 @@ builder.Services.AddAuthentication(options => {
     options.CorrelationCookie.SameSite = SameSiteMode.None;
     options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
 });
+
+// DataProtection: persist keys to Azure Blob Storage for container resilience
+var dpBlobUri = builder.Configuration["DataProtection:BlobUri"];
+if (!string.IsNullOrEmpty(dpBlobUri))
+{
+    builder.Services.AddDataProtection()
+        .SetApplicationName("MotorcycleRag.WebUI.BFF")
+        .PersistKeysToAzureBlobStorage(new Uri(dpBlobUri), new Azure.Identity.DefaultAzureCredential());
+}
+else
+{
+    // Ephemeral keys — sessions will not survive container restarts
+    // Set DataProtection:BlobUri in App Config or environment to fix
+    builder.Services.AddDataProtection()
+        .SetApplicationName("MotorcycleRag.WebUI.BFF");
+}
 
 var app = builder.Build();
 

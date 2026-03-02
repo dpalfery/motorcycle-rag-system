@@ -1,9 +1,13 @@
 
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { Bike } from 'lucide-react';
 
 export default function LoginPage() {
-    const { login } = useAuth();
+    const { user, isLoading, login } = useAuth();
+
+    if (isLoading) return <div className="h-screen w-full flex items-center justify-center bg-background"><div className="text-gray-400">Loading...</div></div>;
+    if (user?.authenticated) return <Navigate to="/" replace />;
 
     return (
         <div className="h-screen w-full flex items-center justify-center bg-background">

@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         queryKey: ['auth-me'],
         queryFn: async () => {
             const res = await fetch('/auth/me');
-            if (!res.ok) throw new Error('Not authenticated');
+            if (!res.ok) return null; // Gracefully handle unexpected errors
             return res.json() as Promise<User>;
         },
         retry: false,
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.location.href = '/';
     };
 
-    const user = data || null;
+    const user = data?.authenticated !== false ? (data ?? null) : null;
 
     const contextValue: AuthContextType = { user, isLoading, login, logout };
 

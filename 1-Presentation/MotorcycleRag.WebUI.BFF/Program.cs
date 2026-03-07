@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.ApplicationInsights.DataContracts;
 using MotorcycleRag.WebUI.BFF.Middleware;
 using MotorcycleRag.WebUI.BFF.HealthChecks;
 using MotorcycleRag.WebUI.BFF.Extensions;
@@ -15,6 +16,21 @@ using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Bootstrap TelemetryClient — MUST be initialised before App Config loads so that
+// App Config failures, MSI errors, and other pre-DI startup exceptions are captured.
+// ConnectionStrings__ApplicationInsights is injected directly as a container env var
+// by Pulumi (not via App Config) for exactly this reason.
+var bootstrapAiConnectionString =
+    builder.Configuration.GetConnectionString("ApplicationInsights")
+    ?? builder.Configuration["ApplicationInsights:ConnectionString"];
+
+TelemetryClient? bootstrapTelemetry = null;
+if (!string.IsNullOrEmpty(bootstrapAiConnectionString))
+{
+    var bootstrapTelemetryConfig = new TelemetryConfiguration { ConnectionString = bootstrapAiConnectionString };
+    bootstrapTelemetry = new TelemetryClient(bootstrapTelemetryConfig);
+}
 
 // Add Azure App Configuration & Key Vault
 var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
@@ -156,6 +172,16 @@ builder.Services.AddAuthentication(options => {
         {
             context.ProtocolMessage.RedirectUri = context.ProtocolMessage.RedirectUri
                 .Replace("http://", "https://", StringComparison.OrdinalIgnoreCase);
+            return Task.CompletedTask;
+        },
+        // Handle OIDC remote failures (e.g. correlation state cookie lost mid-deployment,
+        // stale nonce, cancelled login) gracefully instead of letting the exception
+        // propagate unhandled and crash the container.
+        OnRemoteFailure = context =>
+        {
+            context.HandleResponse();
+            // Redirect to sign-in with a hint — the user can retry cleanly.
+            context.Response.Redirect("/signin?error=auth_failed");
             return Task.CompletedTask;
         }
     };
@@ -342,5 +368,20 @@ catch (Exception ex)
 {
     // Surface any startup exception to stderr so it appears in container logs
     await Console.Error.WriteLineAsync($"FATAL STARTUP ERROR: {ex}").ConfigureAwait(false);
+
+    // Track the fatal exception via the bootstrap TelemetryClient so it reaches
+    // App Insights even if the DI-managed telemetry pipeline never started.
+    if (bootstrapTelemetry is not null)
+    {
+        bootstrapTelemetry.TrackException(ex, new Dictionary<string, string>
+        {
+            ["source"] = "bootstrap",
+            ["severity"] = "fatal"
+        });
+        bootstrapTelemetry.Flush();
+        // Give the background sender a moment to dispatch the telemetry before the process exits.
+        await Task.Delay(2000).ConfigureAwait(false);
+    }
+
     throw;
 }

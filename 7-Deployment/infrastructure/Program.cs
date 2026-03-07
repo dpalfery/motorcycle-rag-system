@@ -166,9 +166,14 @@ namespace MotorcycleRAG.Infrastructure {
             });
 
             // Define generic settings for ACA
+            // ConnectionStrings__ApplicationInsights is injected directly (not via App Config / Key Vault)
+            // so that the bootstrap TelemetryClient can capture App Config load failures and other
+            // pre-DI startup exceptions. The App Insights connection string is not a credential for
+            // reading data — it only allows sending telemetry — so env-var injection is acceptable.
             var commonEnvs = new[]
             {
-                new EnvironmentVarArgs { Name = "AppConfig__Endpoint", Value = appConfig.Endpoint }
+                new EnvironmentVarArgs { Name = "AppConfig__Endpoint", Value = appConfig.Endpoint },
+                new EnvironmentVarArgs { Name = "ConnectionStrings__ApplicationInsights", Value = appInsights.ConnectionString }
             };
 
             // 10. API Container App

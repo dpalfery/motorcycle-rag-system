@@ -228,10 +228,12 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions {
     KnownProxies = { }     // Clear default — ACA edge IP is dynamic, cannot be hardcoded
 });
 
-// 1. HTTPS enforcement (no-op when running behind TLS-terminating proxy on HTTP)
-app.UseHttpsRedirection();
+// 1. HTTPS enforcement is intentionally omitted: ACA terminates TLS at the edge
+//    and the container only receives plain HTTP on port 8080. Calling UseHttpsRedirection()
+//    here causes a 500 when no HTTPS port is configured (e.g. health probes, any request
+//    where X-Forwarded-Proto is absent). ACA's ingress enforces HTTPS externally.
 
-// 2. HSTS (HTTP Strict Transport Security) - force HTTPS for 1 year
+// 2. HSTS (HTTP Strict Transport Security) - instructs browsers to always use HTTPS
 app.UseHsts();
 
 // 3. Host Header Validation MUST be early to prevent injection attacks

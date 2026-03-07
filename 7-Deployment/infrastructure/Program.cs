@@ -41,6 +41,7 @@ namespace MotorcycleRAG.Infrastructure {
             var azureAdClientId = cfg.RequireSecret("azureAdClientId");
             var adminClientId = cfg.RequireSecret("adminClientId");
             var bffClientId = cfg.Require("bffClientId");
+            var bffCiamInstance = cfg.Require("bffCiamInstance"); // e.g. https://palfery.ciamlogin.com/
             var deepinfraApiKey = cfg.RequireSecret("deepinfraApiKey");
             var bffClientSecret = cfg.RequireSecret("bffClientSecret");
 
@@ -527,6 +528,13 @@ namespace MotorcycleRAG.Infrastructure {
             });
 
             // Labelled App Config entries: BFF
+            _ = new KeyValue("appconfig-kv-bff-ciam-instance", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAd:Instance$bff",
+                Value = bffCiamInstance
+            });
+
             _ = new KeyValue("appconfig-kv-bff-tenant-id", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,

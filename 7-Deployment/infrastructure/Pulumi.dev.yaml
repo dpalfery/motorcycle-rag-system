@@ -14,3 +14,4 @@ config:
   motorcycle-rag-infra:bffClientSecret:
     secure: v1:TGNxxY2Ful7WQlUC:krSH2obodJ8P90Xh9GDOOOqVNUWqK56MnxIfGaQKoMQciOzRYJRZk5cE2O8HhZm+T2DyO7vrPnI=
   motorcycle-rag-infra:bffClientId: 03415674-de3a-4269-aebe-f21c116835b8
+  motorcycle-rag-infra:bffCiamInstance: https://palfery.ciamlogin.com/

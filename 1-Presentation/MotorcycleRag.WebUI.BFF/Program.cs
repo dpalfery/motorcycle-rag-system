@@ -1,6 +1,7 @@
 #pragma warning disable CA1506 // Avoid excessive class coupling
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
@@ -75,6 +76,17 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// Disable the built-in HostFilteringMiddleware (auto-registered by HostFilteringStartupFilter
+// from WebHost.ConfigureWebDefaults). It rejects requests whose Host header is not in the
+// AllowedHosts list — including ACA liveness probe requests that use an internal pod IP
+// (e.g. Host: 100.100.1.33:8080) — before any user middleware can run.
+// Our custom HostHeaderValidationMiddleware handles host validation with the required
+// /health path exemption for ACA liveness probes.
+builder.Services.PostConfigure<HostFilteringOptions>(options =>
+{
+    options.AllowedHosts = ["*"];
+});
 
 // CORS - Allow requests from the frontend SPA
 builder.Services.AddCors(options => {

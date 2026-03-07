@@ -3,10 +3,16 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Logging;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using MotorcycleRag.WebUI.BFF.Middleware;
+using MotorcycleRag.WebUI.BFF.HealthChecks;
+using MotorcycleRag.WebUI.BFF.Extensions;
 using Yarp.ReverseProxy.Transforms;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,6 +59,26 @@ builder.Services.AddCors(options => {
             .SetPreflightMaxAge(TimeSpan.FromMinutes(5));  // Cache preflight for 5 minutes
     });
 });
+
+// Application Insights - Enable telemetry if connection string is configured
+var appInsightsConnectionString = builder.Configuration.GetConnectionString("ApplicationInsights")
+    ?? builder.Configuration["ApplicationInsights:ConnectionString"];
+
+if (!string.IsNullOrEmpty(appInsightsConnectionString))
+{
+    builder.Services.AddApplicationInsightsTelemetry(options =>
+    {
+        options.ConnectionString = appInsightsConnectionString;
+        options.EnableQuickPulseMetricStream = true;
+    });
+}
+
+// Health Checks
+builder.Services.AddHealthChecks()
+    .AddCheck<DataProtectionHealthCheck>("data_protection_blob");
+
+// Data Protection Monitoring
+builder.Services.AddDataProtectionMonitoring();
 
 // YARP
 builder.Services.AddReverseProxy()
@@ -142,7 +168,9 @@ builder.Services.AddAuthentication(options => {
 });
 
 // DataProtection: persist keys to Azure Blob Storage for container resilience
+// Reads from App Config (DataProtection:BlobUri)
 var dpBlobUri = builder.Configuration["DataProtection:BlobUri"];
+
 if (!string.IsNullOrEmpty(dpBlobUri))
 {
     builder.Services.AddDataProtection()
@@ -152,12 +180,39 @@ if (!string.IsNullOrEmpty(dpBlobUri))
 else
 {
     // Ephemeral keys — sessions will not survive container restarts
-    // Set DataProtection:BlobUri in App Config or environment to fix
+    // Set DataProtection:BlobUri in App Config to fix
     builder.Services.AddDataProtection()
         .SetApplicationName("MotorcycleRag.WebUI.BFF");
+    
+    // Fail fast in production if blob URI is not configured
+    if (builder.Environment.IsProduction())
+    {
+        throw new InvalidOperationException(
+            "DataProtection:BlobUri is required in production. " +
+            "Configure 'DataProtection:BlobUri' in App Configuration to persist encryption keys. " +
+            "Example: https://<storage-account>.blob.core.windows.net/<container>/keys.xml");
+    }
 }
 
 var app = builder.Build();
+
+// Get the application logger and telemetry client for Data Protection monitoring
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+var monitoringService = app.Services.GetService<DataProtectionMonitoringService>();
+
+if (!string.IsNullOrEmpty(dpBlobUri))
+{
+    logger.LogInformation("Data Protection keys persisted to Azure Blob Storage: {BlobUri}", dpBlobUri);
+    
+    // Track key initialization event
+    monitoringService?.TrackKeysInitialized(dpBlobUri);
+}
+else if (!builder.Environment.IsProduction())
+{
+    logger.LogWarning(
+        "Data Protection is using ephemeral keys - sessions will NOT survive container restarts. " +
+        "Set 'DataProtection:BlobUri' in App Config to enable persistent key storage.");
+}
 
 if (isAppConfigEnabled) {
     app.UseAzureAppConfiguration();
@@ -269,7 +324,8 @@ app.MapControllers();
 // YARP Endpoints
 app.MapReverseProxy();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "MotorcycleRag.WebUI.BFF" }));
+// Health Check endpoint
+app.MapHealthChecks("/health");
 
 // Fallback to React (SPA)
 app.MapFallbackToFile("index.html");

@@ -3,7 +3,8 @@
   "started_at": "2026-03-01T00:00:00.000Z",
   "completed_at": null,
   "session_ids": [
-    "ses_35758a491ffe2vHQkVYFHwQPbt"
+    "ses_35758a491ffe2vHQkVYFHwQPbt",
+    "ses_34ff535e7ffeZfcH0feuIoEFAI"
   ],
   "plan_name": "hybrid-embedding-pipeline",
   "worktree_path": "D:/motorcycle-rag-system",

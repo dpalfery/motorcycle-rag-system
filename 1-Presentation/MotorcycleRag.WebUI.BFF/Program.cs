@@ -59,6 +59,20 @@ if (isAppConfigEnabled) {
     builder.Services.AddAzureAppConfiguration();
 }
 
+// ForwardedHeaders — trust all proxies so Request.IsHttps = true inside the container.
+// ACA terminates TLS at the edge; the container receives plain HTTP on port 8080.
+// Without this, Request.IsHttps is false, which causes browsers to silently drop the
+// OIDC correlation cookie (Set-Cookie with Secure flag on a perceived-HTTP response).
+// Using Configure<ForwardedHeadersOptions> + .Clear() is the Microsoft-recommended approach:
+// it mutates the existing default list instances rather than replacing them, which reliably
+// removes the loopback-only restriction across all .NET versions.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();  // Remove loopback-only default; trust all proxy IPs
+    options.KnownProxies.Clear();   // ACA edge IP is dynamic, cannot be hardcoded
+});
+
 // Add services to the container.
 builder.Services.AddControllers();
 
@@ -246,13 +260,15 @@ if (isAppConfigEnabled) {
 
 // Pipeline - Security-first approach
 
-// 0. Forwarded Headers - MUST be first so all subsequent middleware sees the correct
-//    scheme/host as set by the Azure Container Apps edge proxy (X-Forwarded-Proto etc.)
-app.UseForwardedHeaders(new ForwardedHeadersOptions {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-    KnownIPNetworks = { },  // Clear default — trust all proxy IPs (safe: ACA controls inbound headers)
-    KnownProxies = { }     // Clear default — ACA edge IP is dynamic, cannot be hardcoded
-});
+// 0. Forwarded Headers — MUST be first so all subsequent middleware sees the correct
+//    scheme/host as set by the Azure Container Apps edge proxy (X-Forwarded-Proto etc.).
+//    Options are registered as a service (builder.Services.Configure above) and .Clear()
+//    is called on the existing list instances — this is the Microsoft-recommended pattern.
+//    Using inline ForwardedHeadersOptions with collection-expression initialiser syntax
+//    (e.g. KnownIPNetworks = { }) creates a fresh empty list but does NOT call .Clear() on
+//    the default instance, which means the loopback-only restriction can survive in some
+//    .NET versions and cause Request.IsHttps to remain false inside the container.
+app.UseForwardedHeaders();
 
 // 1. HTTPS enforcement is intentionally omitted: ACA terminates TLS at the edge
 //    and the container only receives plain HTTP on port 8080. Calling UseHttpsRedirection()

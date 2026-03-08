@@ -180,9 +180,11 @@ builder.Services.AddAuthentication(options => {
     // API falls back to its own auth policy (service-to-service or anonymous for public routes).
 
     // Redirect hardening
+    // RequireNonce: validated by the OIDC handler via the nonce cookie (Data Protected).
+    // RequireState / RequireStateValidation are intentionally omitted: the handler never
+    // populates OpenIdConnectProtocolValidationContext.State, so setting RequireStateValidation=true
+    // always throws IDX21329. State security is enforced by the correlation cookie + PKCE + Data Protection.
     options.ProtocolValidator.RequireNonce = true;
-    options.ProtocolValidator.RequireState = true;
-    options.ProtocolValidator.RequireStateValidation = true;
 
     // PKCE protection
     options.UsePkce = true;

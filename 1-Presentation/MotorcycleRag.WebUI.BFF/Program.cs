@@ -156,7 +156,12 @@ builder.Services.AddAuthentication(options => {
 })
 .AddOpenIdConnect(options => {
     var authConfig = builder.Configuration.GetSection("AzureAd");
-    options.Authority = $"{authConfig["Instance"]}{authConfig["TenantId"]}";
+    // CIAM (Entra External ID) discovery document at /v2.0/.well-known/openid-configuration
+    // returns issuer "https://{tenantId}.ciamlogin.com/{tenantId}/v2.0".
+    // Without /v2.0, the v1 discovery doc returns an issuer without the /v2.0 suffix,
+    // which does NOT match the actual iss claim in CIAM-issued tokens → IDX10205 issuer
+    // validation failure → OnRemoteFailure → redirect loop.
+    options.Authority = $"{authConfig["Instance"]}{authConfig["TenantId"]}/v2.0";
     options.ClientId = authConfig["ClientId"];
     options.ClientSecret = builder.Configuration["AzureAd:ClientSecret"]
         ?? throw new InvalidOperationException(
@@ -167,10 +172,12 @@ builder.Services.AddAuthentication(options => {
     options.SaveTokens = true;
     options.Scope.Add("openid");
     options.Scope.Add("profile");
-    // Explicit API scopes required for backend access
-    options.Scope.Add("api://motorcyclerag-api/read");
-    options.Scope.Add("api://motorcyclerag-api/chat");
     options.Scope.Add("offline_access"); // Request refresh token
+    // Note: API resource scopes (api://motorcyclerag-api/read, chat) are NOT requested here.
+    // Those scopes must be registered as an exposed API in the CIAM tenant before CIAM can
+    // issue access tokens containing them. The YARP proxy forwards requests with whatever
+    // access_token is in the session; if absent, it omits the Authorization header and the
+    // API falls back to its own auth policy (service-to-service or anonymous for public routes).
 
     // Redirect hardening
     options.ProtocolValidator.RequireNonce = true;

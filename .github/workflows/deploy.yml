@@ -67,7 +67,7 @@ jobs:
           command: up
           stack-name: ${{ env.PULUMI_STACK }}
           work-dir: ${{ env.PULUMI_WORK_DIR }}
-          refresh: true
+          refresh: false
         env:
           PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
           PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}

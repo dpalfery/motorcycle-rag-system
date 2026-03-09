@@ -7,6 +7,7 @@ using MotorcycleRAG.API.Services;
 using MotorcycleRAG.Application.Extensions;
 using Microsoft.ApplicationInsights.Extensibility;
 using Azure.Identity;
+using Azure.Core;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -53,7 +54,13 @@ public class Program {
         // Add Azure App Configuration & Key Vault
         var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
         if (!string.IsNullOrEmpty(appConfigEndpoint)) {
-            var credential = new DefaultAzureCredential();
+            // Use ManagedIdentityCredential in non-development environments so cold-start auth
+            // goes directly to the IMDS endpoint instead of cycling through DefaultAzureCredential's
+            // full provider chain (WorkloadIdentity → EnvironmentCredential → VisualStudio → …),
+            // which adds several seconds and can exceed the App Configuration startup timeout.
+            TokenCredential credential = builder.Environment.IsDevelopment()
+                ? new DefaultAzureCredential()
+                : new ManagedIdentityCredential();
             builder.Configuration.AddAzureAppConfiguration(options => {
                 options.Connect(new Uri(appConfigEndpoint), credential)
                        // Load all non-labelled keys

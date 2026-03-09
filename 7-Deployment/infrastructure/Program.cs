@@ -229,7 +229,7 @@ namespace MotorcycleRAG.Infrastructure {
                 },
                 Scale = new ScaleArgs
                 {
-                    MinReplicas = 0,
+                    MinReplicas = 1,
                     MaxReplicas = 10
                 }
             },

@@ -42,6 +42,9 @@ export default function ChatInterface() {
         setInput('');
         setIsLoading(true);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         try {
             const response = await fetch('/api/motorcycles/query', {
                 method: 'POST',
@@ -51,9 +54,11 @@ export default function ChatInterface() {
                     preferences: {},
                     userId: "user", // TODO: Get from AuthContext
                     context: {}
-                })
+                }),
+                signal: controller.signal
             });
 
+            clearTimeout(timeoutId);
             if (!response.ok) throw new Error('Failed to get response');
 
             const data = await response.json();
@@ -69,11 +74,15 @@ export default function ChatInterface() {
             };
             setMessages(prev => [...prev, aiMsg]);
         } catch (error) {
+            clearTimeout(timeoutId);
             console.error('Chat error:', error);
+            const isTimeout = error instanceof DOMException && error.name === 'AbortError';
             const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: "I'm sorry, I encountered an error connecting to the motorcycle database. Please try again later.",
+                content: isTimeout
+                    ? "The request timed out. The server is taking too long to respond — please try again."
+                    : "I'm sorry, I encountered an error connecting to the motorcycle database. Please try again later.",
                 timestamp: new Date()
             };
             setMessages(prev => [...prev, errorMsg]);

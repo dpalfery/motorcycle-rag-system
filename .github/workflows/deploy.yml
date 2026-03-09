@@ -111,14 +111,24 @@ jobs:
       # ── Run DB schema migrations (idempotent IF NOT EXISTS guards) ──
       - name: Run Database Schema Migrations
         run: |
-          # Install sqlcmd (Microsoft SQL tools for Ubuntu)
-          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-          curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
-          sudo apt-get update -q
-          sudo ACCEPT_EULA=Y apt-get install -y -q mssql-tools18 unixodbc-dev
-          export PATH="$PATH:/opt/mssql-tools18/bin"
+          # ubuntu-latest runners ship mssql-tools18; use it directly.
+          # Fall back to mssql-tools (older path) if 18 is absent.
+          SQLCMD=""
+          for candidate in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do
+            if [ -x "$candidate" ]; then SQLCMD="$candidate"; break; fi
+          done
+          if [ -z "$SQLCMD" ]; then
+            echo "sqlcmd not found; installing mssql-tools18..."
+            curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+              | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+            curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list \
+              | sudo tee /etc/apt/sources.list.d/mssql-release.list
+            sudo apt-get update -q
+            sudo ACCEPT_EULA=Y apt-get install -y -q mssql-tools18 unixodbc-dev
+            SQLCMD="/opt/mssql-tools18/bin/sqlcmd"
+          fi
 
-          sqlcmd \
+          "$SQLCMD" \
             -S "${{ env.SQL_SERVER }}.database.windows.net,1433" \
             -d "${{ env.SQL_DATABASE }}" \
             -U "${{ secrets.SQL_ADMIN_LOGIN }}" \

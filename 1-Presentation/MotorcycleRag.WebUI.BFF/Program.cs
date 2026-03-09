@@ -173,11 +173,10 @@ builder.Services.AddAuthentication(options => {
     options.Scope.Add("openid");
     options.Scope.Add("profile");
     options.Scope.Add("offline_access"); // Request refresh token
-    // Note: API resource scopes (api://motorcyclerag-api/read, chat) are NOT requested here.
-    // Those scopes must be registered as an exposed API in the CIAM tenant before CIAM can
-    // issue access tokens containing them. The YARP proxy forwards requests with whatever
-    // access_token is in the session; if absent, it omits the Authorization header and the
-    // API falls back to its own auth policy (service-to-service or anonymous for public routes).
+    // API scopes: the BFF is pre-authorized in the API app registration so no user consent prompt is shown.
+    // CIAM will issue a v2 access token with audience=api://motorcyclerag-api and the correct CIAM issuer.
+    options.Scope.Add("api://motorcyclerag-api/read");
+    options.Scope.Add("api://motorcyclerag-api/chat");
 
     // Redirect hardening
     // RequireNonce: validated by the OIDC handler via the nonce cookie (Data Protected).

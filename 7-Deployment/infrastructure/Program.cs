@@ -527,6 +527,17 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = adminClientId
             });
 
+            // CIAM External ID issuer for API JWT validation.
+            // Pattern: https://{tenantId}.ciamlogin.com/{tenantId}/v2.0 (from CIAM discovery document).
+            // Required so the API accepts tokens issued by CIAM (External ID) in addition to workforce Entra ID.
+            _ = new KeyValue("appconfig-kv-api-external-id-issuer", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "Authentication:Issuers:ExternalId",
+                Value = azureAdTenantId.Apply(tid =>
+                    $"https://{tid}.ciamlogin.com/{tid}/v2.0")
+            });
+
             // Labelled App Config entries: BFF
             _ = new KeyValue("appconfig-kv-bff-ciam-instance", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,

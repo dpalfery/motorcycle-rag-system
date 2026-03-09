@@ -12,6 +12,7 @@ using MotorcycleRag.WebUI.BFF.Middleware;
 using MotorcycleRag.WebUI.BFF.HealthChecks;
 using MotorcycleRag.WebUI.BFF.Extensions;
 using Yarp.ReverseProxy.Transforms;
+using Azure.Core;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -36,29 +37,52 @@ if (!string.IsNullOrEmpty(bootstrapAiConnectionString))
 // Add Azure App Configuration & Key Vault
 var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
 if (!string.IsNullOrEmpty(appConfigEndpoint)) {
-    var credential = new DefaultAzureCredential();
-    // Wait for external network egress to App Config to be ready.
-    // On Container Apps cold starts, DNS/TCP to external services lags behind IMDS.
-    // Test TCP before calling AddAzureAppConfiguration to avoid startup crash.
-    var appConfigUri = new Uri(appConfigEndpoint);
-    var appConfigHost = appConfigUri.Host;
-    for (var attempt = 1; attempt <= 15; attempt++) {
-        try {
-            using var tcp = new System.Net.Sockets.TcpClient();
-            var connectTask = tcp.ConnectAsync(appConfigHost, 443);
-            if (await Task.WhenAny(connectTask, Task.Delay(5000)) == connectTask) {
-                await connectTask;
-                Console.WriteLine($"App Config TCP connectivity confirmed on attempt {attempt}.");
+    // Use ManagedIdentityCredential in non-development environments so cold-start auth
+    // goes directly to the IMDS endpoint instead of cycling through DefaultAzureCredential's
+    // full provider chain, which adds seconds and can exceed the App Configuration startup timeout.
+    TokenCredential credential = builder.Environment.IsDevelopment()
+        ? new DefaultAzureCredential()
+        : new ManagedIdentityCredential();
+
+    // Pre-warm the managed identity token before loading App Config.
+    // On Container Apps cold starts, the IMDS endpoint may not be ready immediately.
+    if (!builder.Environment.IsDevelopment()) {
+        var tokenCtx = new TokenRequestContext(["https://azconfig.io/.default"]);
+        for (var attempt = 1; attempt <= 10; attempt++) {
+            try {
+                await credential.GetTokenAsync(tokenCtx, CancellationToken.None);
+                Console.WriteLine($"Managed identity token acquired on attempt {attempt}.");
                 break;
             }
-            if (attempt < 15) {
-                Console.WriteLine($"App Config TCP timed out (attempt {attempt}/15). Retrying in 2s...");
-                await Task.Delay(TimeSpan.FromSeconds(2));
+            catch (Exception ex) when (attempt < 10) {
+                Console.WriteLine($"IMDS not ready (attempt {attempt}/10): {ex.Message}. Retrying in 3s...");
+                await Task.Delay(TimeSpan.FromSeconds(3));
             }
         }
-        catch (Exception ex) when (attempt < 15) {
-            Console.WriteLine($"App Config TCP failed (attempt {attempt}/15): {ex.Message}. Retrying in 2s...");
-            await Task.Delay(TimeSpan.FromSeconds(2));
+
+        // Wait for external network egress to App Config to be ready.
+        // On Container Apps cold starts, DNS/TCP to external services lags behind IMDS.
+        // Test TCP before calling AddAzureAppConfiguration to avoid startup crash.
+        var appConfigUri = new Uri(appConfigEndpoint);
+        var appConfigHost = appConfigUri.Host;
+        for (var attempt = 1; attempt <= 15; attempt++) {
+            try {
+                using var tcp = new System.Net.Sockets.TcpClient();
+                var connectTask = tcp.ConnectAsync(appConfigHost, 443);
+                if (await Task.WhenAny(connectTask, Task.Delay(5000)) == connectTask) {
+                    await connectTask;
+                    Console.WriteLine($"App Config TCP connectivity confirmed on attempt {attempt}.");
+                    break;
+                }
+                if (attempt < 15) {
+                    Console.WriteLine($"App Config TCP timed out (attempt {attempt}/15). Retrying in 2s...");
+                    await Task.Delay(TimeSpan.FromSeconds(2));
+                }
+            }
+            catch (Exception ex) when (attempt < 15) {
+                Console.WriteLine($"App Config TCP failed (attempt {attempt}/15): {ex.Message}. Retrying in 2s...");
+                await Task.Delay(TimeSpan.FromSeconds(2));
+            }
         }
     }
     builder.Configuration.AddAzureAppConfiguration(options => {

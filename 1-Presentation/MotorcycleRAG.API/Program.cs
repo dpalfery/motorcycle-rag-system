@@ -78,6 +78,31 @@ public class Program {
                         await Task.Delay(TimeSpan.FromSeconds(3));
                     }
                 }
+
+                // Wait for external network egress to App Config to be ready.
+                // On Container Apps cold starts (MinReplicas=0), DNS/TCP to external services
+                // lags behind IMDS. Test TCP before calling AddAzureAppConfiguration to avoid startup crash.
+                var appConfigUri = new Uri(appConfigEndpoint);
+                var appConfigHost = appConfigUri.Host;
+                for (var attempt = 1; attempt <= 15; attempt++) {
+                    try {
+                        using var tcp = new System.Net.Sockets.TcpClient();
+                        var connectTask = tcp.ConnectAsync(appConfigHost, 443);
+                        if (await Task.WhenAny(connectTask, Task.Delay(5000)) == connectTask) {
+                            await connectTask;
+                            Console.WriteLine($"App Config TCP connectivity confirmed on attempt {attempt}.");
+                            break;
+                        }
+                        if (attempt < 15) {
+                            Console.WriteLine($"App Config TCP timed out (attempt {attempt}/15). Retrying in 2s...");
+                            await Task.Delay(TimeSpan.FromSeconds(2));
+                        }
+                    }
+                    catch (Exception ex) when (attempt < 15) {
+                        Console.WriteLine($"App Config TCP failed (attempt {attempt}/15): {ex.Message}. Retrying in 2s...");
+                        await Task.Delay(TimeSpan.FromSeconds(2));
+                    }
+                }
             }
 
             builder.Configuration.AddAzureAppConfiguration(options => {

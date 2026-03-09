@@ -75,6 +75,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IConnectionPoolService, ConnectionPoolService>();
 
         // Configure HTTP clients with optimized settings
+        // NOTE: Resilience policies (retry + circuit breaker) are applied in the Presentation layer
+        // at API startup time via Polly.Extensions.Http (Program.cs and Configuration/*.cs)
         services.AddHttpClient("AzureOpenAI", client =>
         {
             client.Timeout = TimeSpan.FromMinutes(5);

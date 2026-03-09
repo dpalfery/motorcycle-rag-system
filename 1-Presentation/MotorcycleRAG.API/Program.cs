@@ -61,6 +61,25 @@ public class Program {
             TokenCredential credential = builder.Environment.IsDevelopment()
                 ? new DefaultAzureCredential()
                 : new ManagedIdentityCredential();
+
+            // Pre-warm the managed identity token before loading App Config.
+            // On Container Apps cold starts (scale from zero), the IMDS endpoint may not be
+            // ready immediately. Retry token acquisition until IMDS responds or give up.
+            if (!builder.Environment.IsDevelopment()) {
+                var tokenCtx = new TokenRequestContext(["https://azconfig.io/.default"]);
+                for (var attempt = 1; attempt <= 10; attempt++) {
+                    try {
+                        await credential.GetTokenAsync(tokenCtx, CancellationToken.None);
+                        Console.WriteLine($"Managed identity token acquired on attempt {attempt}.");
+                        break;
+                    }
+                    catch (Exception ex) when (attempt < 10) {
+                        Console.WriteLine($"IMDS not ready (attempt {attempt}/10): {ex.Message}. Retrying in 3s...");
+                        await Task.Delay(TimeSpan.FromSeconds(3));
+                    }
+                }
+            }
+
             builder.Configuration.AddAzureAppConfiguration(options => {
                 options.Connect(new Uri(appConfigEndpoint), credential)
                        // Load all non-labelled keys

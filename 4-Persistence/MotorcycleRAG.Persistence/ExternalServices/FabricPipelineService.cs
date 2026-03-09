@@ -97,7 +97,7 @@ public sealed class FabricPipelineService : IFabricPipelineService
 
         await SetBearerTokenAsync(request, cancellationToken);
 
-        using var client = _httpClientFactory.CreateClient(nameof(FabricPipelineService));
+        using var client = _httpClientFactory.CreateClient("FabricPipelineService");
         using var response = await client.SendAsync(request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -148,7 +148,7 @@ public sealed class FabricPipelineService : IFabricPipelineService
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         await SetBearerTokenAsync(request, cancellationToken);
 
-        using var client = _httpClientFactory.CreateClient(nameof(FabricPipelineService));
+        using var client = _httpClientFactory.CreateClient("FabricPipelineService");
         using var response = await client.SendAsync(request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)

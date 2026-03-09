@@ -12,6 +12,7 @@ using MotorcycleRAG.Persistence.Search;
 using MotorcycleRAG.Persistence.Telemetry;
 using MotorcycleRAG.Persistence.Azure.Blob;
 using MotorcycleRAG.Core.Options;
+using Polly;
 
 namespace MotorcycleRAG.Persistence.Azure;
 
@@ -86,11 +87,29 @@ public static class ServiceCollectionExtensions {
         services.AddScoped<IMotorcycleIndexingService, MotorcycleIndexingService>();
 
         // Configure HTTP clients for external services
+        // NOTE: Resilience policies (retry + circuit breaker) are applied in the Presentation layer
+        // at API startup time via Polly.Extensions.Http (Program.cs and Configuration/*.cs)
         services.AddHttpClient();
 
         // Register SQL persistence services
         services.AddSqlPersistenceServices(configuration);
 
+        return services;
+    }
+
+    public static IServiceCollection AddPipelineHttpClients(this IServiceCollection services) {
+        services.AddTransient<HttpResilienceDelegatingHandler>();
+        services.AddHttpClient("LocalPipelineService")
+            .AddHttpMessageHandler<HttpResilienceDelegatingHandler>();
+        services.AddHttpClient("FabricPipelineService")
+            .AddHttpMessageHandler<HttpResilienceDelegatingHandler>();
+        return services;
+    }
+
+    public static IServiceCollection AddWebSearchHttpClient(this IServiceCollection services) {
+        services.AddTransient<HttpResilienceDelegatingHandler>();
+        services.AddHttpClient("WebSearchAgent")
+            .AddHttpMessageHandler<HttpResilienceDelegatingHandler>();
         return services;
     }
 }

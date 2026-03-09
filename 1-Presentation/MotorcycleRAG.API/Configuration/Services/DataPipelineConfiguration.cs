@@ -6,6 +6,7 @@ using MotorcycleRAG.Application.Pipeline.Audit;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Persistence.ExternalServices;
+using MotorcycleRAG.Persistence.Azure;
 
 namespace MotorcycleRAG.API.Configuration.Services;
 
@@ -40,8 +41,9 @@ internal static class DataPipelineConfiguration
         services.AddScoped<IFabricPipelineService, MotorcycleRAG.Persistence.ExternalServices.FabricPipelineService>();
         services.AddScoped<IGraphEntityIngestionService, MotorcycleRAG.Application.Pipeline.GraphEntityIngestionService>();
 
-        // Register named HTTP client for local pipeline service
-        services.AddHttpClient(nameof(MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService));
+        // Register named HTTP clients for pipeline services with resilience policies
+        // (configured in MotorcycleRAG.Persistence.Azure.ServiceCollectionExtensions.AddPipelineHttpClients)
+        services.AddPipelineHttpClients();
 
         // Register Fabric pipeline services
         services.AddScoped<IManualPageQueryService, ManualPageQueryService>();

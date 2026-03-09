@@ -3,6 +3,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Application.Services.Web;
+using MotorcycleRAG.Persistence.Azure;
 
 namespace MotorcycleRAG.API.Configuration.Services;
 
@@ -46,9 +47,13 @@ internal static class SearchAgentsConfiguration
         services.AddScoped<WebSourceValidator>();
         services.AddScoped<WebSearchTermEnhancer>();
 
+        // Register named HTTP client for WebSearchAgent with resilience policies
+        // (configured in MotorcycleRAG.Persistence.Azure.ServiceCollectionExtensions.AddWebSearchHttpClient)
+        services.AddWebSearchHttpClient();
+
         // Register WebSearchAgent with extracted services
         services.AddScoped<ISearchAgent>(provider => {
-            var httpClient = provider.GetRequiredService<HttpClient>();
+            var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient("WebSearchAgent");
             var logger = provider.GetRequiredService<ILogger<WebSearchAgent>>();
 
             // Inject extracted services

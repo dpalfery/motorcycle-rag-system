@@ -5,7 +5,8 @@ using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
+using Polly; 
 
 
 namespace MotorcycleRAG.Persistence.Sql
@@ -19,6 +20,11 @@ namespace MotorcycleRAG.Persistence.Sql
         private readonly string _connectionString;
         private readonly SqlOptions _sqlOptions;
         private readonly ILogger<SqlConnectionFactory> _logger;
+        private static readonly IAsyncPolicy _sqlRetryPolicy = Policy
+            .Handle<SqlException>(ex =>
+                ex.Number is 4060 or 40197 or 40501 or 40613 or 49918 or 49919 or 49920 or 4221 or 18456 or 18470)
+            .Or<TimeoutException>()
+            .WaitAndRetryAsync(3, attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)));
 
         /// <summary>
         /// Initializes a new instance of the SqlConnectionFactory
@@ -125,7 +131,11 @@ namespace MotorcycleRAG.Persistence.Sql
             var connection = await CreateConnectionAsync();
             try
             {
-                await ((SqlConnection)connection).OpenAsync();
+                // Retry on Azure SQL transient errors (4060, 40197, 40501, etc.)
+                await _sqlRetryPolicy.ExecuteAsync(async () =>
+                {
+                    await ((SqlConnection)connection).OpenAsync();
+                });
                 _logger.LogDebug("Opened SQL connection");
                 return connection;
             }

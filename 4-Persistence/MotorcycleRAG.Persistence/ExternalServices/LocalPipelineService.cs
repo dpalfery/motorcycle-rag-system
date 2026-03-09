@@ -71,7 +71,7 @@ public sealed class LocalPipelineService : ILocalPipelineService
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
 
-        using var client = _httpClientFactory.CreateClient(nameof(LocalPipelineService));
+        using var client = _httpClientFactory.CreateClient("LocalPipelineService");
         using var response = await client.SendAsync(request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -118,7 +118,7 @@ public sealed class LocalPipelineService : ILocalPipelineService
 
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
-        using var client = _httpClientFactory.CreateClient(nameof(LocalPipelineService));
+        using var client = _httpClientFactory.CreateClient("LocalPipelineService");
         using var response = await client.SendAsync(request, cancellationToken);
 
         if (!response.IsSuccessStatusCode)

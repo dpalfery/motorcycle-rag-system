@@ -37,10 +37,12 @@ internal static class PersistenceConfiguration
         services.AddScoped<IWebSourceRepository, WebSourceRepository>();
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<IWebScrapeRunRepository, WebScrapeRunRepository>();
+        services.AddScoped<IPlanRepository, PlanRepository>();
 
         // Register application services
         services.AddScoped<WebSourceRegistryService>();
         services.AddScoped<IWebScrapeOrchestrator, WebScrapeOrchestrator>();
+        services.AddScoped<IPlanPolicyService, PlanPolicyService>();
 
         // MCP Tool Configuration
         services.AddScoped<IToolConfigurationRepository, ToolConfigurationRepository>();

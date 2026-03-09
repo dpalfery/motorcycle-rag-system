@@ -1,19 +1,6 @@
 -- Motorcycle RAG System - SQL Schema
--- This script creates the core database tables for the Motorcycle RAG System
-
-USE [MotorcycleRAG];
-GO
-
--- Check if database exists, create if not
-IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'MotorcycleRAG')
-BEGIN
-    CREATE DATABASE [MotorcycleRAG];
-END
-GO
-
--- Use the database
-USE [MotorcycleRAG];
-GO
+-- This script creates the core database tables for the Motorcycle RAG System.
+-- Connect to the target database before running (no USE/CREATE DATABASE - supports Azure SQL).
 
 -- Create Users table
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Users')

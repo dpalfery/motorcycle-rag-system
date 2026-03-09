@@ -88,11 +88,16 @@ jobs:
           UI_APP=$(pulumi stack output uiAppName --stack ${{ env.PULUMI_STACK }})
           ACR_NAME="${ACR_LOGIN_SERVER%.azurecr.io}"
 
+          SQL_SERVER=$(pulumi stack output sqlServerName --stack ${{ env.PULUMI_STACK }})
+          SQL_DATABASE=$(pulumi stack output sqlDatabaseName --stack ${{ env.PULUMI_STACK }})
+
           echo "ACR_LOGIN_SERVER=${ACR_LOGIN_SERVER}" >> "$GITHUB_ENV"
           echo "ACR_NAME=${ACR_NAME}"                 >> "$GITHUB_ENV"
           echo "RESOURCE_GROUP=${RG}"                 >> "$GITHUB_ENV"
           echo "API_APP_NAME=${API_APP}"              >> "$GITHUB_ENV"
           echo "UI_APP_NAME=${UI_APP}"                >> "$GITHUB_ENV"
+          echo "SQL_SERVER=${SQL_SERVER}"             >> "$GITHUB_ENV"
+          echo "SQL_DATABASE=${SQL_DATABASE}"         >> "$GITHUB_ENV"
         env:
           PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
           PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
@@ -102,6 +107,28 @@ jobs:
           ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── Run DB schema migrations (idempotent IF NOT EXISTS guards) ──
+      - name: Run Database Schema Migrations
+        run: |
+          # Install sqlcmd (Microsoft SQL tools for Ubuntu)
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update -q
+          sudo ACCEPT_EULA=Y apt-get install -y -q mssql-tools18 unixodbc-dev
+          export PATH="$PATH:/opt/mssql-tools18/bin"
+
+          sqlcmd \
+            -S "${{ env.SQL_SERVER }}.database.windows.net,1433" \
+            -d "${{ env.SQL_DATABASE }}" \
+            -U "${{ secrets.SQL_ADMIN_LOGIN }}" \
+            -P "${{ secrets.SQL_ADMIN_PASSWORD }}" \
+            -N -C \
+            -i "4-Persistence/MotorcycleRAG.Persistence/Sql/schema.sql" \
+            -b
+        env:
+          SQL_ADMIN_LOGIN: ${{ secrets.SQL_ADMIN_LOGIN }}
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
 
       # ── ACR Login (ACR guaranteed to exist after Pulumi) ───────────
       - name: ACR Login

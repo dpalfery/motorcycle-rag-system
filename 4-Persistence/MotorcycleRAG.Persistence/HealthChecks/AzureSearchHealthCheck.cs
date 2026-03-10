@@ -10,12 +10,12 @@ namespace MotorcycleRAG.Persistence.HealthChecks;
 /// </summary>
 public class AzureSearchHealthCheck : IHealthCheck
 {
-    private readonly AzureAIOptions _options;
+    private readonly AzureFoundryOptions _options;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AzureSearchHealthCheck> _logger;
 
     public AzureSearchHealthCheck(
-        IOptions<AzureAIOptions> options,
+        IOptions<AzureFoundryOptions> options,
         IHttpClientFactory httpClientFactory,
         ILogger<AzureSearchHealthCheck> logger)
     {

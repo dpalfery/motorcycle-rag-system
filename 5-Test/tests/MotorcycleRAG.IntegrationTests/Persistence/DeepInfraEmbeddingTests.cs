@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -15,7 +16,7 @@ using Xunit;
 namespace MotorcycleRAG.IntegrationTests.Persistence;
 
 /// <summary>
-/// Integration tests that verify the real AzureOpenAIClientWrapper → DeepInfra HTTP path
+/// Integration tests that verify the real AzureFoundryClientWrapper → DeepInfra HTTP path
 /// for embedding generation. Skipped by default; requires a real DEEPINFRA_API_KEY and network.
 /// </summary>
 [Trait("Category", "Integration")]
@@ -62,22 +63,25 @@ public class DeepInfraEmbeddingTests : IDisposable
             .Setup(c => c.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
             .Returns(_loggingScope);
 
-        // Minimal valid AzureAIOptions
-        var options = Options.Create(new AzureAIOptions
+        // Minimal valid AzureFoundryOptions
+        var options = Options.Create(new AzureFoundryOptions
         {
-            OpenAIEndpoint = "https://not-used-for-deepinfra.example.com/",
+            FoundryEndpoint = "https://not-used-for-deepinfra.example.com/",
             SearchServiceEndpoint = "https://not-used.example.com/",
             DocumentIntelligenceEndpoint = "https://not-used.example.com/",
             Models = new ModelOptions(),
             Retry = new RetryOptions()
         });
 
-        using var sut = new AzureOpenAIClientWrapper(
+        var configMock = new Mock<IConfiguration>();
+
+        using var sut = new AzureFoundryClientWrapper(
             options,
-            NullLogger<AzureOpenAIClientWrapper>.Instance,
+            NullLogger<AzureFoundryClientWrapper>.Instance,
             resilienceMock.Object,
             correlationMock.Object,
-            httpClientFactory.Object);
+            httpClientFactory.Object,
+            configMock.Object);
 
         // Act
         var result = await sut.GetEmbeddingsAsync(

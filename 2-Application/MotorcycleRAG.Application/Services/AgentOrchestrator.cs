@@ -18,7 +18,7 @@ namespace MotorcycleRAG.Application.Services;
 public sealed class AgentOrchestrator : IAgentOrchestrator
 {
     private readonly IReadOnlyList<ISearchAgent> _agents;
-    private readonly IAzureOpenAIClient _openAIClient;
+    private readonly IAzureFoundryClient _openAIClient;
     private readonly ILogger<AgentOrchestrator> _logger;
     private readonly AgentFrameworkAdapter _frameworkAdapter;
     private readonly AgentState _executionState;

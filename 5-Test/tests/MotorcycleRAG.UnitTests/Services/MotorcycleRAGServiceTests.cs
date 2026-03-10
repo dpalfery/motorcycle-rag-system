@@ -18,7 +18,7 @@ public class MotorcycleRagServiceTests {
     private readonly Mock<ITelemetryService> _mockTelemetry;
     private readonly Mock<IQueryCacheService> _mockCacheService;
     private readonly Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>> _mockCacheConfig;
-    private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
+    private readonly Mock<IAzureFoundryClient> _mockOpenAIClient;
     private readonly MotorcycleRagService _service;
 
     public MotorcycleRagServiceTests() {
@@ -27,7 +27,7 @@ public class MotorcycleRagServiceTests {
         _mockTelemetry = new Mock<ITelemetryService>();
         _mockCacheService = new Mock<IQueryCacheService>();
         _mockCacheConfig = new Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>>();
-        _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
+        _mockOpenAIClient = new Mock<IAzureFoundryClient>();
         _mockCacheConfig.Setup(x => x.Value).Returns(new CacheConfiguration { EnableCaching = true, DefaultExpiration = TimeSpan.FromMinutes(5) });
 
         // Set up OpenAI client mock to return empty JSON array for factual claims

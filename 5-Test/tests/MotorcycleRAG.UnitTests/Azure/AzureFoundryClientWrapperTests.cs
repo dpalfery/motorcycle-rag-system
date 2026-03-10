@@ -1,5 +1,6 @@
 using Azure;
 using Azure.AI.OpenAI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -12,21 +13,23 @@ using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
-public class AzureOpenAIClientWrapperTests : IDisposable {
-    private readonly Mock<ILogger<AzureOpenAIClientWrapper>> _mockLogger;
+public class AzureFoundryClientWrapperTests : IDisposable {
+    private readonly Mock<ILogger<AzureFoundryClientWrapper>> _mockLogger;
     private readonly Mock<IResilienceService> _mockResilienceService;
     private readonly Mock<ICorrelationService> _mockCorrelationService;
     private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
-    private readonly AzureAIOptions _config;
-    private readonly IOptions<AzureAIOptions> _options;
+    private readonly Mock<IConfiguration> _mockConfiguration;
+    private readonly AzureFoundryOptions _config;
+    private readonly IOptions<AzureFoundryOptions> _options;
 
-    public AzureOpenAIClientWrapperTests() {
-        _mockLogger = new Mock<ILogger<AzureOpenAIClientWrapper>>();
+    public AzureFoundryClientWrapperTests() {
+        _mockLogger = new Mock<ILogger<AzureFoundryClientWrapper>>();
         _mockResilienceService = new Mock<IResilienceService>();
         _mockCorrelationService = new Mock<ICorrelationService>();
         _mockHttpClientFactory = new Mock<IHttpClientFactory>();
-        _config = new AzureAIOptions {
-            OpenAIEndpoint = "https://test-openai.openai.azure.com/",
+        _mockConfiguration = new Mock<IConfiguration>();
+        _config = new AzureFoundryOptions {
+            FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
             Models = new ModelOptions {
                 ChatModel = "gpt-4o-mini",
                 EmbeddingModel = "text-embedding-3-large",
@@ -46,7 +49,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     [Fact]
     public void Constructor_WithValidConfiguration_ShouldInitializeSuccessfully() {
         // Act & Assert
-        var exception = Record.Exception(() => new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object));
+        var exception = Record.Exception(() => new AzureFoundryClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object, _mockConfiguration.Object));
         exception.Should().BeNull();
     }
 
@@ -54,7 +57,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     public void Constructor_WithNullConfiguration_ShouldThrowArgumentNullException() {
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new AzureOpenAIClientWrapper(null!, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object));
+            new AzureFoundryClientWrapper(null!, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object, _mockConfiguration.Object));
         exception.ParamName.Should().Be("config");
     }
 
@@ -62,21 +65,21 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     public void Constructor_WithNullLogger_ShouldThrowArgumentNullException() {
         // Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new AzureOpenAIClientWrapper(_options, null!, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object));
+            new AzureFoundryClientWrapper(_options, null!, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object, _mockConfiguration.Object));
         exception.ParamName.Should().Be("logger");
     }
 
     [Fact]
     public void Constructor_ShouldLogInitializationMessage() {
         // Act
-        using var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object);
+        using var client = new AzureFoundryClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object, _mockConfiguration.Object);
 
         // Assert
         _mockLogger.Verify(
             x => x.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Azure OpenAI client initialized")),
+                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Azure Foundry client initialized")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
@@ -151,7 +154,7 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
     [Fact]
     public void Dispose_ShouldDisposeResourcesGracefully() {
         // Arrange
-        using var client = new AzureOpenAIClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object);
+        using var client = new AzureFoundryClientWrapper(_options, _mockLogger.Object, _mockResilienceService.Object, _mockCorrelationService.Object, _mockHttpClientFactory.Object, _mockConfiguration.Object);
 
         // Act & Assert
         var exception = Record.Exception(() => client.Dispose());
@@ -188,28 +191,28 @@ public class AzureOpenAIClientWrapperTests : IDisposable {
 }
 
 /// <summary>
-/// Integration tests for AzureOpenAIClientWrapper that require actual Azure services
+/// Integration tests for AzureFoundryClientWrapper that require actual Azure services
 /// These tests are marked as integration tests and can be run separately
 /// </summary>
 [Trait("Category", "Integration")]
-public class AzureOpenAIClientWrapperIntegrationTests {
-    [Fact(Skip = "Integration test - requires actual Azure OpenAI service")]
+public class AzureFoundryClientWrapperIntegrationTests {
+    [Fact(Skip = "Integration test - requires actual Azure Foundry service")]
     public async Task GetChatCompletionsAsync_WithValidRequest_ShouldReturnResponse() {
-        // This test would require actual Azure OpenAI credentials and endpoint
+        // This test would require actual Azure Foundry credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;
     }
 
-    [Fact(Skip = "Integration test - requires actual Azure OpenAI service")]
+    [Fact(Skip = "Integration test - requires actual Azure Foundry service")]
     public async Task GetEmbeddingsAsync_WithValidRequest_ShouldReturnEmbeddings() {
-        // This test would require actual Azure OpenAI credentials and endpoint
+        // This test would require actual Azure Foundry credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;
     }
 
-    [Fact(Skip = "Integration test - requires actual Azure OpenAI service")]
+    [Fact(Skip = "Integration test - requires actual Azure Foundry service")]
     public async Task IsHealthyAsync_WithValidService_ShouldReturnTrue() {
-        // This test would require actual Azure OpenAI credentials and endpoint
+        // This test would require actual Azure Foundry credentials and endpoint
         // It's skipped by default but can be enabled for integration testing
         await Task.CompletedTask;
     }

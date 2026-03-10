@@ -18,13 +18,13 @@ internal static class AzureAIServiceConfiguration
     /// </summary>
     internal static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // Configure Azure AI settings with validation
-        services.Configure<AzureAIOptions>(configuration.GetSection("AzureAI"));
+        // Configure Azure Foundry settings with validation
+        services.Configure<AzureFoundryOptions>(configuration.GetSection("AzureAI"));
         services.Configure<SearchOptions>(configuration.GetSection("Search"));
         services.Configure<TelemetryOptions>(configuration.GetSection("ApplicationInsights"));
 
         // Add options validation
-        services.AddSingleton<IValidateOptions<AzureAIOptions>, AzureAIConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<AzureFoundryOptions>, AzureFoundryConfigurationValidator>();
         services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
         services.AddSingleton<IValidateOptions<TelemetryOptions>, TelemetryConfigurationValidator>();
 
@@ -42,12 +42,9 @@ internal static class AzureAIServiceConfiguration
         // Add dependency-specific health checks
         builder.AddCheck<AzureSearchHealthCheck>("azure_ai_search");
 
-        builder.AddCheck<AzureOpenAIHealthCheck>("azure_openai");
+        builder.AddCheck<AzureFoundryHealthCheck>("azure_foundry");
 
         builder.AddCheck<DocumentIntelligenceHealthCheck>("azure_document_intelligence");
-
-        // Add foundry health check
-        builder.AddCheck<AzureFoundryHealthCheck>("azure_foundry");
 
         return builder;
     }

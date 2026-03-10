@@ -19,7 +19,7 @@ public class DocumentIntelligenceClientWrapper : IDocumentIntelligenceClient, ID
     private readonly ILogger<DocumentIntelligenceClientWrapper> _logger;
 
     public DocumentIntelligenceClientWrapper(
-        IOptions<AzureAIOptions> config,
+        IOptions<AzureFoundryOptions> config,
         ILogger<DocumentIntelligenceClientWrapper> logger) {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(logger);

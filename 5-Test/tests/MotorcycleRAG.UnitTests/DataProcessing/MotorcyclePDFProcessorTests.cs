@@ -19,15 +19,15 @@ namespace MotorcycleRAG.UnitTests.DataProcessing;
 /// </summary>
 public class MotorcyclePDFProcessorTests {
     private readonly Mock<IDocumentIntelligenceClient> _mockDocumentClient;
-    private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
+    private readonly Mock<IAzureFoundryClient> _mockOpenAIClient;
     private readonly Mock<IAzureSearchClient> _mockSearchClient;
     private readonly IOptions<PDFProcessingConfiguration> _configOptions;
-    private readonly IOptions<AzureAIOptions> _azureConfigOptions;
+    private readonly IOptions<AzureFoundryOptions> _azureConfigOptions;
     private readonly MotorcyclePdfProcessor _processor;
 
     public MotorcyclePDFProcessorTests() {
         _mockDocumentClient = new Mock<IDocumentIntelligenceClient>();
-        _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
+        _mockOpenAIClient = new Mock<IAzureFoundryClient>();
         _mockSearchClient = new Mock<IAzureSearchClient>();
 
         var config = new PDFProcessingConfiguration {
@@ -42,7 +42,7 @@ public class MotorcyclePDFProcessorTests {
         };
         _configOptions = Options.Create(config);
 
-        var azureConfig = new AzureAIOptions {
+        var azureConfig = new AzureFoundryOptions {
             Models = new ModelOptions {
                 EmbeddingModel = "text-embedding-3-large",
                 VisionModel = "gpt-4-vision"

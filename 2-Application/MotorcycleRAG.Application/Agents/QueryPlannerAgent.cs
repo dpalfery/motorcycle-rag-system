@@ -7,13 +7,13 @@ using MotorcycleRAG.Core.Options;
 namespace MotorcycleRAG.Application.Agents;
 
 public class QueryPlannerAgent : IQueryPlannerAgent {
-    private readonly IAzureOpenAIClient _openAIClient;
+    private readonly IAzureFoundryClient _openAIClient;
     private readonly ILogger<QueryPlannerAgent> _logger;
-    private readonly AzureAIOptions _aiOptions;
+    private readonly AzureFoundryOptions _aiOptions;
 
     public QueryPlannerAgent(
-        IAzureOpenAIClient openAIClient,
-        IOptions<AzureAIOptions> aiOptions,
+        IAzureFoundryClient openAIClient,
+        IOptions<AzureFoundryOptions> aiOptions,
         ILogger<QueryPlannerAgent> logger) {
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

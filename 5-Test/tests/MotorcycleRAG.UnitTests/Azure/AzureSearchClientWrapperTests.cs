@@ -14,9 +14,9 @@ public class AzureSearchClientWrapperTests : IDisposable {
     private readonly Mock<IAzureSearchQueryService> _mockQueryService;
     private readonly Mock<IAzureSearchDocumentService> _mockDocumentService;
     private readonly Mock<IAzureSearchHealthService> _mockHealthService;
-    private readonly AzureAIOptions _azureConfig;
+    private readonly AzureFoundryOptions _azureConfig;
     private readonly SearchOptions _searchConfig;
-    private readonly IOptions<AzureAIOptions> _azureOptions;
+    private readonly IOptions<AzureFoundryOptions> _azureOptions;
     private readonly IOptions<SearchOptions> _searchOptions;
 
     public AzureSearchClientWrapperTests() {
@@ -57,7 +57,7 @@ public class AzureSearchClientWrapperTests : IDisposable {
             .Setup(x => x.CreateOrUpdateIndexAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
-        _azureConfig = new AzureAIOptions {
+        _azureConfig = new AzureFoundryOptions {
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
             Retry = new RetryOptions {
                 MaxRetries = 3,

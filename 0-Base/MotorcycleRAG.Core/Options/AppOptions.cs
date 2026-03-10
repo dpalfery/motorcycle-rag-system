@@ -14,10 +14,10 @@ public class AppOptions
     public ConnectionStringsOptions ConnectionStrings { get; set; } = new();
 
     /// <summary>
-    /// Azure AI / Cognitive Services configuration.
+    /// Azure Foundry / Cognitive Services configuration.
     /// </summary>
     [Required]
-    public AzureAIOptions AzureAI { get; set; } = new();
+    public AzureFoundryOptions AzureAI { get; set; } = new();
 
     /// <summary>
     /// Search service configuration.

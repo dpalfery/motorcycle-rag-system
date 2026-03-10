@@ -17,7 +17,6 @@ public class ServiceCollectionExtensionsTests {
         var configurationBuilder = new ConfigurationBuilder();
         configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?> {
             ["AzureAI:FoundryEndpoint"] = "https://test-foundry.cognitiveservices.azure.com/",
-            ["AzureAI:OpenAIEndpoint"] = "https://test-openai.openai.azure.com/",
             ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
             ["AzureAI:DocumentIntelligenceEndpoint"] = "https://test-document-intelligence.cognitiveservices.azure.com/",
             ["AzureAI:Models:ChatModel"] = "gpt-4o-mini",
@@ -43,6 +42,7 @@ public class ServiceCollectionExtensionsTests {
         });
         _configuration = configurationBuilder.Build();
         _services = new ServiceCollection();
+        _services.AddSingleton<IConfiguration>(_configuration);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class ServiceCollectionExtensionsTests {
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
-        serviceProvider.GetService<IAzureOpenAIClient>().Should().NotBeNull();
+        serviceProvider.GetService<IAzureFoundryClient>().Should().NotBeNull();
     }
 
     [Fact]
@@ -62,9 +62,9 @@ public class ServiceCollectionExtensionsTests {
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
-        var azureConfig = serviceProvider.GetService<IOptions<AzureAIOptions>>();
+        var azureConfig = serviceProvider.GetService<IOptions<AzureFoundryOptions>>();
         azureConfig.Should().NotBeNull();
-        azureConfig!.Value.OpenAIEndpoint.Should().Be("https://test-openai.openai.azure.com/");
+        azureConfig!.Value.FoundryEndpoint.Should().Be("https://test-foundry.cognitiveservices.azure.com/");
 
         var searchConfig = serviceProvider.GetService<IOptions<SearchOptions>>();
         searchConfig.Should().NotBeNull();
@@ -82,8 +82,8 @@ public class ServiceCollectionExtensionsTests {
         var serviceProvider = _services.BuildServiceProvider();
 
         // Assert
-        var client1 = serviceProvider.GetService<IAzureOpenAIClient>();
-        var client2 = serviceProvider.GetService<IAzureOpenAIClient>();
+        var client1 = serviceProvider.GetService<IAzureFoundryClient>();
+        var client2 = serviceProvider.GetService<IAzureFoundryClient>();
 
         client1.Should().BeSameAs(client2);
     }
@@ -100,19 +100,18 @@ public class ServiceCollectionExtensionsTests {
     }
 }
 
-public class AzureAIConfigurationValidatorTests {
-    private readonly AzureAIConfigurationValidator _validator;
+public class AzureFoundryConfigurationValidatorTests {
+    private readonly AzureFoundryConfigurationValidator _validator;
 
-    public AzureAIConfigurationValidatorTests() {
-        _validator = new AzureAIConfigurationValidator();
+    public AzureFoundryConfigurationValidatorTests() {
+        _validator = new AzureFoundryConfigurationValidator();
     }
 
     [Fact]
     public void Validate_WithValidConfiguration_ShouldReturnSuccess() {
         // Arrange
-        var config = new AzureAIOptions {
+        var config = new AzureFoundryOptions {
             FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
-            OpenAIEndpoint = "https://test-openai.openai.azure.com/",
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
             DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
             Models = new ModelOptions {
@@ -154,21 +153,6 @@ public class AzureAIConfigurationValidatorTests {
         result.Failures.Should().Contain(expectedError);
     }
 
-    [Theory]
-    [InlineData("", "AzureAI:OpenAIEndpoint is required")]
-    [InlineData("invalid-uri", "AzureAI:OpenAIEndpoint must be a valid URI")]
-    public void Validate_WithInvalidOpenAIEndpoint_ShouldReturnFailure(string endpoint, string expectedError) {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.OpenAIEndpoint = endpoint;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(expectedError);
-    }
 
     [Theory]
     [InlineData(0, "AzureAI:Models:MaxTokens must be greater than 0")]
@@ -218,10 +202,9 @@ public class AzureAIConfigurationValidatorTests {
         result.Failures.Should().Contain(expectedError);
     }
 
-    private static AzureAIOptions CreateValidConfiguration() {
-        return new AzureAIOptions {
+    private static AzureFoundryOptions CreateValidConfiguration() {
+        return new AzureFoundryOptions {
             FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
-            OpenAIEndpoint = "https://test-openai.openai.azure.com/",
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
             DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
             Models = new ModelOptions {

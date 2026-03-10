@@ -6,19 +6,14 @@ namespace MotorcycleRAG.API.Configuration;
 /// <summary>
 /// Validator for Azure AI configuration
 /// </summary>
-internal class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions>
+internal class AzureAIConfigurationValidator : IValidateOptions<AzureFoundryOptions>
 {
-    ValidateOptionsResult IValidateOptions<AzureAIOptions>.Validate(string? name, AzureAIOptions options)
+    ValidateOptionsResult IValidateOptions<AzureFoundryOptions>.Validate(string? name, AzureFoundryOptions options)
     {
         var failures = new List<string>();
 
         if (!string.IsNullOrWhiteSpace(options.FoundryEndpoint) && !Uri.TryCreate(options.FoundryEndpoint, UriKind.Absolute, out _))
             failures.Add("AzureAI:FoundryEndpoint must be a valid URL if provided");
-
-        if (string.IsNullOrWhiteSpace(options.OpenAIEndpoint))
-            failures.Add("AzureAI:OpenAIEndpoint is required");
-        else if (!Uri.TryCreate(options.OpenAIEndpoint, UriKind.Absolute, out _))
-            failures.Add("AzureAI:OpenAIEndpoint must be a valid URL");
 
         if (string.IsNullOrWhiteSpace(options.SearchServiceEndpoint))
             failures.Add("AzureAI:SearchServiceEndpoint is required");

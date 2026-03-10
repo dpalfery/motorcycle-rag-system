@@ -10,12 +10,12 @@ namespace MotorcycleRAG.UnitTests.Azure;
 
 public class DocumentIntelligenceClientWrapperTests : IDisposable {
     private readonly Mock<ILogger<DocumentIntelligenceClientWrapper>> _mockLogger;
-    private readonly AzureAIOptions _config;
-    private readonly IOptions<AzureAIOptions> _options;
+    private readonly AzureFoundryOptions _config;
+    private readonly IOptions<AzureFoundryOptions> _options;
 
     public DocumentIntelligenceClientWrapperTests() {
         _mockLogger = new Mock<ILogger<DocumentIntelligenceClientWrapper>>();
-        _config = new AzureAIOptions {
+        _config = new AzureFoundryOptions {
             DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
             Retry = new RetryOptions {
                 MaxRetries = 3,

@@ -10,12 +10,12 @@ namespace MotorcycleRAG.Persistence.HealthChecks;
 /// </summary>
 public class AzureOpenAIHealthCheck : IHealthCheck
 {
-    private readonly AzureAIOptions _options;
+    private readonly AzureFoundryOptions _options;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AzureOpenAIHealthCheck> _logger;
 
     public AzureOpenAIHealthCheck(
-        IOptions<AzureAIOptions> options,
+        IOptions<AzureFoundryOptions> options,
         IHttpClientFactory httpClientFactory,
         ILogger<AzureOpenAIHealthCheck> logger)
     {
@@ -28,12 +28,12 @@ public class AzureOpenAIHealthCheck : IHealthCheck
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(_options.OpenAIEndpoint))
+            if (string.IsNullOrWhiteSpace(_options.FoundryEndpoint))
             {
-                return HealthCheckResult.Unhealthy("Azure OpenAI endpoint is not configured");
+                return HealthCheckResult.Unhealthy("Azure Foundry endpoint is not configured");
             }
 
-            if (!Uri.TryCreate(_options.OpenAIEndpoint, UriKind.Absolute, out var uri))
+            if (!Uri.TryCreate(_options.FoundryEndpoint, UriKind.Absolute, out var uri))
             {
                 return HealthCheckResult.Unhealthy("Azure OpenAI endpoint is not a valid URL");
             }
@@ -49,27 +49,27 @@ public class AzureOpenAIHealthCheck : IHealthCheck
                     var response = await httpClient.SendAsync(request, cancellationToken);
                     if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.Forbidden)
                     {
-                        _logger.LogWarning("Azure OpenAI endpoint returned status code {StatusCode}", response.StatusCode);
-                        return HealthCheckResult.Degraded($"Azure OpenAI endpoint returned {response.StatusCode}");
+                        _logger.LogWarning("Azure Foundry endpoint returned status code {StatusCode}", response.StatusCode);
+                        return HealthCheckResult.Degraded($"Azure Foundry endpoint returned {response.StatusCode}");
                     }
                 }
             }
 
             var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
-            _logger.LogInformation("Azure OpenAI health check passed in {Duration}ms", duration);
-            
-            return HealthCheckResult.Healthy("Azure OpenAI is healthy", 
+            _logger.LogInformation("Azure Foundry health check passed in {Duration}ms", duration);
+
+            return HealthCheckResult.Healthy("Azure Foundry is healthy",
                 new Dictionary<string, object> { { "response_time_ms", duration } });
         }
         catch (OperationCanceledException ex)
         {
-            _logger.LogWarning(ex, "Azure OpenAI health check timed out");
-            return HealthCheckResult.Unhealthy("Azure OpenAI health check timed out");
+            _logger.LogWarning(ex, "Azure Foundry health check timed out");
+            return HealthCheckResult.Unhealthy("Azure Foundry health check timed out");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Azure OpenAI health check failed");
-            return HealthCheckResult.Unhealthy($"Azure OpenAI health check failed: {ex.Message}", ex);
+            _logger.LogError(ex, "Azure Foundry health check failed");
+            return HealthCheckResult.Unhealthy($"Azure Foundry health check failed: {ex.Message}", ex);
         }
     }
 }

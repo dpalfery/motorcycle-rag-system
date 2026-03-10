@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -12,37 +13,39 @@ using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Azure;
 
-public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
-    private readonly Mock<ILogger<AzureOpenAIClientWrapper>> _mockLogger;
+public class AzureFoundryClientWrapperResilienceTests : IDisposable {
+    private readonly Mock<ILogger<AzureFoundryClientWrapper>> _mockLogger;
     private readonly Mock<IResilienceService> _mockResilienceService;
     private readonly Mock<ICorrelationService> _mockCorrelationService;
     private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
-    private readonly AzureOpenAIClientWrapper _client;
+    private readonly Mock<IConfiguration> _mockConfiguration;
+    private readonly AzureFoundryClientWrapper _client;
 
-    public AzureOpenAIClientWrapperResilienceTests() {
-        _mockLogger = new Mock<ILogger<AzureOpenAIClientWrapper>>();
+    public AzureFoundryClientWrapperResilienceTests() {
+        _mockLogger = new Mock<ILogger<AzureFoundryClientWrapper>>();
         _mockResilienceService = new Mock<IResilienceService>();
         _mockCorrelationService = new Mock<ICorrelationService>();
         _mockHttpClientFactory = new Mock<IHttpClientFactory>();
+        _mockConfiguration = new Mock<IConfiguration>();
 
-        var config = new AzureAIOptions {
-            OpenAIEndpoint = "https://test-openai.openai.azure.com/",
-            FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
+        var config = new AzureFoundryOptions {
+                        FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
             SearchServiceEndpoint = "https://test-search.search.windows.net/",
             DocumentIntelligenceEndpoint = "https://test-docint.cognitiveservices.azure.com/",
             Models = new ModelOptions(),
             Retry = new RetryOptions()
         };
 
-        var mockOptions = new Mock<IOptions<AzureAIOptions>>();
+        var mockOptions = new Mock<IOptions<AzureFoundryOptions>>();
         mockOptions.Setup(x => x.Value).Returns(config);
 
-        _client = new AzureOpenAIClientWrapper(
+        _client = new AzureFoundryClientWrapper(
             mockOptions.Object,
             _mockLogger.Object,
             _mockResilienceService.Object,
             _mockCorrelationService.Object,
-            _mockHttpClientFactory.Object);
+            _mockHttpClientFactory.Object,
+            _mockConfiguration.Object);
     }
 
     [Fact]
@@ -57,7 +60,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
 
         _mockResilienceService
             .Setup(x => x.ExecuteAsync(
-                "AzureOpenAI",
+                "AzureFoundry",
                 It.IsAny<Func<Task<string>>>(),
                 It.IsAny<Func<Task<string>>>(),
                 correlationId,
@@ -71,7 +74,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
         Assert.Equal(expectedResponse, result);
         _mockResilienceService.Verify(
             x => x.ExecuteAsync(
-                "AzureOpenAI",
+                "AzureFoundry",
                 It.IsAny<Func<Task<string>>>(),
                 It.IsAny<Func<Task<string>>>(),
                 correlationId,
@@ -91,7 +94,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
 
         _mockResilienceService
             .Setup(x => x.ExecuteAsync(
-                "AzureOpenAI",
+                "AzureFoundry",
                 It.IsAny<Func<Task<string>>>(),
                 It.IsAny<Func<Task<string>>>(),
                 correlationId,
@@ -126,7 +129,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
 
         _mockResilienceService
             .Setup(x => x.ExecuteAsync(
-                "AzureOpenAI",
+                "AzureFoundry",
                 It.IsAny<Func<Task<float[][]>>>(),
                 It.IsAny<Func<Task<float[][]>>>(),
                 correlationId,
@@ -152,7 +155,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
 
         _mockResilienceService
             .Setup(x => x.ExecuteAsync(
-                "AzureOpenAI",
+                "AzureFoundry",
                 It.IsAny<Func<Task<float[][]>>>(),
                 It.IsAny<Func<Task<float[][]>>>(),
                 correlationId,
@@ -187,7 +190,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
 
         _mockResilienceService
             .Setup(x => x.ExecuteAsync(
-                "AzureOpenAI",
+                "AzureFoundry",
                 It.IsAny<Func<Task<float[][]>>>(),
                 It.IsAny<Func<Task<float[][]>>>(),
                 correlationId,
@@ -218,7 +221,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
 
         _mockResilienceService
             .Setup(x => x.ExecuteAsync(
-                "AzureOpenAI",
+                "AzureFoundry",
                 It.IsAny<Func<Task<string>>>(),
                 It.IsAny<Func<Task<string>>>(),
                 correlationId,
@@ -265,7 +268,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
 
         _mockResilienceService
             .Setup(x => x.ExecuteAsync(
-                "AzureOpenAI",
+                "AzureFoundry",
                 It.IsAny<Func<Task<float[][]>>>(),
                 It.IsAny<Func<Task<float[][]>>>(),
                 correlationId,
@@ -309,7 +312,7 @@ public class AzureOpenAIClientWrapperResilienceTests : IDisposable {
 
         _mockResilienceService
             .Setup(x => x.ExecuteAsync(
-                "AzureOpenAI",
+                "AzureFoundry",
                 It.IsAny<Func<Task<string>>>(),
                 It.IsAny<Func<Task<string>>>(),
                 correlationId,

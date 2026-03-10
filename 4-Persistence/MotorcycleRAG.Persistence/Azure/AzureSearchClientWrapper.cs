@@ -28,7 +28,7 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
     private readonly IAzureSearchHealthService _healthService;
 
     public AzureSearchClientWrapper(
-        IOptions<AzureAIOptions> azureConfig,
+        IOptions<AzureFoundryOptions> azureConfig,
         IOptions<Core.Options.SearchOptions> searchConfig,
         ILogger<AzureSearchClientWrapper> logger,
         IAzureSearchQueryService queryService,

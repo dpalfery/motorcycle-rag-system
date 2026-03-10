@@ -17,19 +17,19 @@ namespace MotorcycleRAG.Persistence.DataProcessing;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Split this class into smaller and more specialized ones", Justification = "Complex processor requires multiple service integrations")]
 public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
     private readonly IDocumentIntelligenceClient _documentClient;
-    private readonly IAzureOpenAIClient _openAIClient;
+    private readonly IAzureFoundryClient _openAIClient;
     private readonly IAzureSearchClient _searchClient;
     private readonly PDFProcessingConfiguration _config;
-    private readonly AzureAIOptions _azureConfig;
+    private readonly AzureFoundryOptions _azureConfig;
     private readonly ILogger<MotorcyclePdfProcessor> _logger;
     private static readonly char[] SentenceEndCharacters = { '.', '!', '?' };
 
     public MotorcyclePdfProcessor(
         IDocumentIntelligenceClient documentClient,
-        IAzureOpenAIClient openAIClient,
+        IAzureFoundryClient openAIClient,
         IAzureSearchClient searchClient,
         IOptions<PDFProcessingConfiguration> config,
-        IOptions<AzureAIOptions> azureConfig,
+        IOptions<AzureFoundryOptions> azureConfig,
         ILogger<MotorcyclePdfProcessor> logger) {
         ArgumentNullException.ThrowIfNull(documentClient);
         ArgumentNullException.ThrowIfNull(openAIClient);

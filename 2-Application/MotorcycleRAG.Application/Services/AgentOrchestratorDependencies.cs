@@ -9,13 +9,13 @@ namespace MotorcycleRAG.Application.Services;
 /// </summary>
 public sealed class AgentOrchestratorDependencies
 {
-    public IAzureOpenAIClient OpenAIClient { get; }
+    public IAzureFoundryClient OpenAIClient { get; }
     public McpToolManager McpToolManager { get; }
     public DegradedModeTracker DegradedModeTracker { get; }
     public SearchResultFusionService ResultFusionService { get; }
 
     public AgentOrchestratorDependencies(
-        IAzureOpenAIClient openAIClient,
+        IAzureFoundryClient openAIClient,
         McpToolManager mcpToolManager,
         DegradedModeTracker degradedModeTracker,
         SearchResultFusionService resultFusionService)

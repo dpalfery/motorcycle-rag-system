@@ -26,7 +26,7 @@ namespace MotorcycleRAG.UnitTests.Agents;
 public class WebSearchAgentTests : IDisposable {
     private readonly Mock<HttpMessageHandler> _mockHttpHandler;
     private readonly HttpClient _httpClient;
-    private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
+    private readonly Mock<IAzureFoundryClient> _mockOpenAIClient;
     private readonly Mock<ILogger<WebSearchAgent>> _mockLogger;
     private readonly Mock<ILogger<WebSearchRateLimiter>> _mockRateLimiterLogger;
     private readonly Mock<ILogger<WebSearchCache>> _mockCacheLogger;
@@ -39,7 +39,7 @@ public class WebSearchAgentTests : IDisposable {
     public WebSearchAgentTests() {
         _mockHttpHandler = new Mock<HttpMessageHandler>();
         _httpClient = new HttpClient(_mockHttpHandler.Object);
-        _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
+        _mockOpenAIClient = new Mock<IAzureFoundryClient>();
         _mockLogger = new Mock<ILogger<WebSearchAgent>>();
         _mockRateLimiterLogger = new Mock<ILogger<WebSearchRateLimiter>>();
         _mockCacheLogger = new Mock<ILogger<WebSearchCache>>();

@@ -11,12 +11,12 @@ namespace MotorcycleRAG.Persistence.HealthChecks;
 public class AzureFoundryHealthCheck : IHealthCheck
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly AzureAIOptions _options;
+    private readonly AzureFoundryOptions _options;
     private readonly ILogger<AzureFoundryHealthCheck> _logger;
 
     public AzureFoundryHealthCheck(
         IHttpClientFactory httpClientFactory,
-        IOptions<AzureAIOptions> options,
+        IOptions<AzureFoundryOptions> options,
         ILogger<AzureFoundryHealthCheck> logger)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));

@@ -26,7 +26,7 @@ namespace MotorcycleRAG.IntegrationTests.PdfProcessing;
 /// 
 /// What's MOCKED (external dependencies):
 /// - IDocumentIntelligenceClient - returns deterministic DocumentAnalysisResult
-/// - IAzureOpenAIClient - returns mock embeddings
+/// - IAzureFoundryClient - returns mock embeddings
 /// - IAzureSearchClient - mocks Azure Search upload
 /// </summary>
 public class MotorcycleManualCitationComponentTests {
@@ -34,7 +34,7 @@ public class MotorcycleManualCitationComponentTests {
     public async Task PdfProcessingToCitationMapping_FullFlow_PreservesLocatorMetadata() {
         // Arrange
         var mockDocumentClient = new Mock<IDocumentIntelligenceClient>();
-        var mockOpenAIClient = new Mock<IAzureOpenAIClient>();
+        var mockOpenAIClient = new Mock<IAzureFoundryClient>();
         var mockSearchClient = new Mock<IAzureSearchClient>();
         var mockLogger = new Mock<ILogger<MotorcyclePdfProcessor>>();
         var mockIndexingLogger = new Mock<ILogger<MotorcycleIndexingService>>();
@@ -90,7 +90,7 @@ public class MotorcycleManualCitationComponentTests {
             PreserveStructure = true
         });
 
-        var azureConfig = Options.Create(new AzureAIOptions {
+        var azureConfig = Options.Create(new AzureFoundryOptions {
             Models = new ModelOptions {
                 EmbeddingModel = "text-embedding-3-large",
                 VisionModel = "gpt-4-vision"
@@ -244,7 +244,7 @@ public class MotorcycleManualCitationComponentTests {
     public async Task PdfProcessing_WithMultiPageTable_CreatesCorrectPageRangeLocator() {
         // Arrange
         var mockDocumentClient = new Mock<IDocumentIntelligenceClient>();
-        var mockOpenAIClient = new Mock<IAzureOpenAIClient>();
+        var mockOpenAIClient = new Mock<IAzureFoundryClient>();
         var mockSearchClient = new Mock<IAzureSearchClient>();
         var mockLogger = new Mock<ILogger<MotorcyclePdfProcessor>>();
 
@@ -276,7 +276,7 @@ public class MotorcycleManualCitationComponentTests {
             PreserveStructure = true
         });
 
-        var azureConfig = Options.Create(new AzureAIOptions {
+        var azureConfig = Options.Create(new AzureFoundryOptions {
             Models = new ModelOptions {
                 EmbeddingModel = "text-embedding-3-large",
                 VisionModel = "gpt-4-vision"
@@ -327,7 +327,7 @@ public class MotorcycleManualCitationComponentTests {
     public async Task PdfProcessing_WithSectionHierarchy_CreatesCorrectSectionLevelLocator() {
         // Arrange
         var mockDocumentClient = new Mock<IDocumentIntelligenceClient>();
-        var mockOpenAIClient = new Mock<IAzureOpenAIClient>();
+        var mockOpenAIClient = new Mock<IAzureFoundryClient>();
         var mockSearchClient = new Mock<IAzureSearchClient>();
         var mockLogger = new Mock<ILogger<MotorcyclePdfProcessor>>();
 
@@ -359,7 +359,7 @@ public class MotorcycleManualCitationComponentTests {
             PreserveStructure = true
         });
 
-        var azureConfig = Options.Create(new AzureAIOptions {
+        var azureConfig = Options.Create(new AzureFoundryOptions {
             Models = new ModelOptions {
                 EmbeddingModel = "text-embedding-3-large",
                 VisionModel = "gpt-4-vision"

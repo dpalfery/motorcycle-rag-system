@@ -11,11 +11,11 @@ namespace MotorcycleRAG.Application.Services.Citations;
 /// </summary>
 public class ClaimCitationService
 {
-    private readonly IAzureOpenAIClient _openAIClient;
+    private readonly IAzureFoundryClient _openAIClient;
     private readonly ILogger<ClaimCitationService> _logger;
 
     public ClaimCitationService(
-        IAzureOpenAIClient openAIClient,
+        IAzureFoundryClient openAIClient,
         ILogger<ClaimCitationService> logger)
     {
         ArgumentNullException.ThrowIfNull(openAIClient);

@@ -340,55 +340,7 @@ namespace MotorcycleRAG.Infrastructure {
                 Sku = new Pulumi.AzureNative.Sql.Inputs.SkuArgs { Name = "Basic" }
             });
 
-            // 15. Azure OpenAI
-            var openAIAccount = new Pulumi.AzureNative.CognitiveServices.Account($"{org}{workload}{env}oai01", new Pulumi.AzureNative.CognitiveServices.AccountArgs {
-                ResourceGroupName = resourceGroup.Name,
-                Location = location,
-                AccountName = $"{org}{workload}{env}oai01",
-                Kind = "OpenAI",
-                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs { Name = "S0" },
-                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.AccountPropertiesArgs {
-                    CustomSubDomainName = $"{org}-{workload}-{env}-oai01",
-                    PublicNetworkAccess = Pulumi.AzureNative.CognitiveServices.PublicNetworkAccess.Enabled
-                }
-            });
-
-            // 16. OpenAI Deployments
-            var gpt4oDeployment = new Pulumi.AzureNative.CognitiveServices.Deployment("gpt-4o", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
-                ResourceGroupName = resourceGroup.Name,
-                AccountName = openAIAccount.Name,
-                DeploymentName = "gpt-4o",
-                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
-                    Name = "GlobalStandard",
-                    Capacity = 1
-                },
-                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
-                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentModelArgs {
-                        Format = "OpenAI",
-                        Name = "gpt-4o",
-                        Version = "2024-05-13"
-                    }
-                }
-            });
-
-            _ = new Pulumi.AzureNative.CognitiveServices.Deployment("text-embedding-3-large", new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
-                ResourceGroupName = resourceGroup.Name,
-                AccountName = openAIAccount.Name,
-                DeploymentName = "text-embedding-3-large",
-                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
-                    Name = "GlobalStandard",
-                    Capacity = 1
-                },
-                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
-                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentModelArgs {
-                        Format = "OpenAI",
-                        Name = "text-embedding-3-large",
-                        Version = "1"
-                    }
-                }
-            }, new Pulumi.CustomResourceOptions { DependsOn = { gpt4oDeployment } });
-
-            // 17. Document Intelligence
+            // 15. Document Intelligence
             var docIntel = new Pulumi.AzureNative.CognitiveServices.Account($"{namePrefix}-docintel", new Pulumi.AzureNative.CognitiveServices.AccountArgs {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
@@ -439,13 +391,6 @@ namespace MotorcycleRAG.Infrastructure {
             });
 
             // App Config: Plain configuration values
-            _ = new KeyValue("appconfig-kv-openai-endpoint", new KeyValueArgs {
-                ResourceGroupName = resourceGroup.Name,
-                ConfigStoreName = appConfig.Name,
-                KeyValueName = "AzureAI:OpenAIEndpoint",
-                Value = openAIAccount.Properties.Apply(p => p.Endpoint ?? "")
-            });
-
             _ = new KeyValue("appconfig-kv-search-endpoint", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
@@ -471,13 +416,6 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
                 KeyValueName = "AzureAI:FoundryEndpoint",
-                Value = aiServices.Properties.Apply(p => p.Endpoint ?? "")
-            });
-
-            _ = new KeyValue("appconfig-kv-foundry-chat-endpoint", new KeyValueArgs {
-                ResourceGroupName = resourceGroup.Name,
-                ConfigStoreName = appConfig.Name,
-                KeyValueName = "MCR_API_FOUNDRY_ENDPOINT",
                 Value = aiServices.Properties.Apply(p => p.Endpoint ?? "")
             });
 
@@ -634,6 +572,22 @@ namespace MotorcycleRAG.Infrastructure {
                 PublicAccess = PublicAccess.None,
             });
 
+            // RBAC: Search Index Data Contributor for API (query + index documents)
+            _ = new RoleAssignment($"{namePrefix}-api-search-role", new RoleAssignmentArgs {
+                PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/8ebe5a00-799e-43f5-93ac-243d3dce84a7", // Search Index Data Contributor
+                Scope = searchService.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
+
+            // RBAC: Cognitive Services User for API (Azure AI Foundry chat completions + Document Intelligence)
+            _ = new RoleAssignment($"{namePrefix}-api-aiservices-role", new RoleAssignmentArgs {
+                PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/a97b65f3-24c7-4388-baec-2e87135dc908", // Cognitive Services User
+                Scope = aiServices.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
+
             // RBAC: Storage Blob Data Contributor for BFF to persist DataProtection keys
             _ = new RoleAssignment($"{namePrefix}-ui-storage-dp-role", new RoleAssignmentArgs {
                 PrincipalId = uiApp.Identity.Apply(i => i!.PrincipalId),
@@ -669,7 +623,6 @@ namespace MotorcycleRAG.Infrastructure {
             this.SearchEndpoint = searchService.Name.Apply(name => $"https://{name}.search.windows.net");
             this.SqlServerName = sqlServer.Name;
             this.SqlDatabaseName = sqlDatabase.Name;
-            this.OpenAIEndpoint = openAIAccount.Properties.Apply(p => p.Endpoint);
             this.DocumentIntelligenceEndpoint = docIntel.Properties.Apply(p => p.Endpoint);
             this.AppInsightsConnectionString = appInsights.ConnectionString;
             this.ResourceGroupName = resourceGroup.Name;
@@ -710,9 +663,6 @@ namespace MotorcycleRAG.Infrastructure {
 
         [Output("sqlDatabaseName")]
         public Output<string> SqlDatabaseName { get; set; }
-
-        [Output("openAIEndpoint")]
-        public Output<string> OpenAIEndpoint { get; set; }
 
         [Output("documentIntelligenceEndpoint")]
         public Output<string> DocumentIntelligenceEndpoint { get; set; }

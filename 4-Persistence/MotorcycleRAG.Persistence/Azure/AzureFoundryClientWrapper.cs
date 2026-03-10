@@ -1,50 +1,55 @@
 using Azure;
-using Azure.AI.OpenAI;
 using Azure.Identity;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using Polly;
-using MotorcycleRAG.Core.Options; 
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project & tests
 
 /// <summary>
-/// Azure OpenAI client wrapper with retry policies and authentication
+/// Azure Foundry client wrapper with retry policies and authentication
 /// </summary>
-public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
+public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
 {
     private static readonly string[] TokenScopes = ["https://cognitiveservices.azure.com/.default"];
 
-    private readonly ILogger<AzureOpenAIClientWrapper> _logger;
+    private readonly ILogger<AzureFoundryClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
     private readonly global::Azure.Core.TokenCredential _credential;
+    private readonly AzureFoundryOptions _azureConfig;
 
-    public AzureOpenAIClientWrapper(
-        IOptions<AzureAIOptions> config,
-        ILogger<AzureOpenAIClientWrapper> logger,
+    public AzureFoundryClientWrapper(
+        IOptions<AzureFoundryOptions> config,
+        ILogger<AzureFoundryClientWrapper> logger,
         IResilienceService resilienceService,
         ICorrelationService correlationService,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(resilienceService);
         ArgumentNullException.ThrowIfNull(correlationService);
         ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(configuration);
 
-        var azureConfig = config.Value ?? throw new ArgumentNullException(nameof(config));
+        _azureConfig = config.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger;
         _resilienceService = resilienceService;
         _correlationService = correlationService;
         _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
         _credential = new DefaultAzureCredential();
 
-        _logger.LogInformation("Azure OpenAI client initialized with endpoint: {Endpoint}",
-            azureConfig.OpenAIEndpoint);
+        _logger.LogInformation("Azure Foundry client initialized with endpoint: {Endpoint}",
+            _azureConfig.FoundryEndpoint);
     }
 
     // Convenience overloads (tests call these)
@@ -67,7 +72,7 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         var correlationId = _correlationService.GetOrCreateCorrelationId();
 
         return await _resilienceService.ExecuteAsync(
-            "AzureOpenAI",
+            "AzureFoundry",
             async () =>
             {
                 using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
@@ -77,15 +82,22 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
                 });
 
                 _logger.LogDebug("Getting chat completion for deployment: {DeploymentName}", deploymentName);
-                // Read config from environment (never hardcoded)
-                var endpoint = Environment.GetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT")
-                    ?? Environment.GetEnvironmentVariable("MCR_API_FOUNDRY_ENDPOINT")
-                    ?? throw new InvalidOperationException(
-                        "MCR_API_AZURE_FOUNDRY_ENDPOINT (or MCR_API_FOUNDRY_ENDPOINT) environment variable is not set");
+                // Read config from options
+                var endpoint = _azureConfig.FoundryEndpoint;
+                if (string.IsNullOrWhiteSpace(endpoint))
+                {
+                    throw new InvalidOperationException(
+                        "FoundryEndpoint is not configured in AzureFoundryOptions");
+                }
+
                 var chatModel = string.IsNullOrWhiteSpace(deploymentName)
-                    ? (Environment.GetEnvironmentVariable("MCR_API_FOUNDRY_CHAT_MODEL")
-                        ?? throw new InvalidOperationException("MCR_API_FOUNDRY_CHAT_MODEL environment variable is not set"))
+                    ? _azureConfig.Models.ChatModel
                     : deploymentName;
+
+                if (string.IsNullOrWhiteSpace(chatModel))
+                {
+                    throw new InvalidOperationException("ChatModel is not configured in AzureFoundryOptions");
+                }
 
                 var tokenRequestContext = new global::Azure.Core.TokenRequestContext(TokenScopes);
                 var tokenResult = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
@@ -151,9 +163,9 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         CancellationToken cancellationToken)
     {
         var correlationId = _correlationService.GetOrCreateCorrelationId();
-        
+
         return await _resilienceService.ExecuteAsync(
-            "AzureOpenAI",
+            "AzureFoundry",
             async () =>
             {
                 using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
@@ -166,16 +178,28 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
                 _logger.LogDebug("Getting embeddings for deployment: {DeploymentName}, Text count: {TextCount}",
                     model, texts.Length);
 
-                // Read config from environment (never hardcoded)
-                var apiKey = Environment.GetEnvironmentVariable("DEEPINFRA_API_KEY")
-                    ?? throw new InvalidOperationException("DEEPINFRA_API_KEY environment variable is not set");
-                var baseUrl = Environment.GetEnvironmentVariable("DEEPINFRA_BASE_URL")
-                    ?? throw new InvalidOperationException("DEEPINFRA_BASE_URL environment variable is not set");
+                // Read config from configuration (never hardcoded)
+                var apiKey = _configuration["DEEPINFRA_API_KEY"];
+                var baseUrl = _configuration["DEEPINFRA_BASE_URL"];
+                var embeddingModel = _configuration["DEEPINFRA_EMBEDDING_MODEL"];
+
+                if (string.IsNullOrWhiteSpace(apiKey))
+                {
+                    throw new InvalidOperationException("DEEPINFRA_API_KEY is not configured");
+                }
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                {
+                    throw new InvalidOperationException("DEEPINFRA_BASE_URL is not configured");
+                }
 
                 var effectiveModel = string.IsNullOrWhiteSpace(model)
-                    ? (Environment.GetEnvironmentVariable("DEEPINFRA_EMBEDDING_MODEL")
-                        ?? throw new InvalidOperationException("DEEPINFRA_EMBEDDING_MODEL environment variable is not set"))
+                    ? embeddingModel
                     : model;
+
+                if (string.IsNullOrWhiteSpace(effectiveModel))
+                {
+                    throw new InvalidOperationException("DEEPINFRA_EMBEDDING_MODEL is not configured");
+                }
 
                 // Build request
                 var requestBody = System.Text.Json.JsonSerializer.Serialize(new
@@ -241,7 +265,7 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(ex, "Azure OpenAI multimodal request failed: {ErrorCode} - {Message}",
+            _logger.LogError(ex, "Azure Foundry multimodal request failed: {ErrorCode} - {Message}",
                 ex.ErrorCode, ex.Message);
             throw new InvalidOperationException($"Failed to process multimodal content for deployment {model}: {ex.Message}", ex);
         }
@@ -266,7 +290,7 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Azure OpenAI health check failed");
+            _logger.LogWarning(ex, "Azure Foundry health check failed");
             return false;
         }
     }
@@ -276,7 +300,7 @@ public class AzureOpenAIClientWrapper : IAzureOpenAIClient, IDisposable
     protected virtual void Dispose(bool disposing)
     {
         if (_disposed) return;
-        // No managed or unmanaged resources to release because AzureOpenAIClient is not IDisposable.
+        // No managed or unmanaged resources to release because AzureFoundryClientWrapper is not IDisposable.
         _disposed = true;
     }
 

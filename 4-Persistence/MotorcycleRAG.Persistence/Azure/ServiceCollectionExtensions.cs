@@ -3,6 +3,7 @@ using AzureSearchClient = Azure.Search.Documents.SearchClient;
 using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -30,7 +31,7 @@ public static class ServiceCollectionExtensions {
         ArgumentNullException.ThrowIfNull(configuration);
 
         // Configure options from appsettings
-        services.Configure<AzureAIOptions>(
+        services.Configure<AzureFoundryOptions>(
             configuration.GetSection("AzureAI"));
         services.Configure<SearchOptions>(
             configuration.GetSection("Search"));
@@ -44,7 +45,7 @@ public static class ServiceCollectionExtensions {
             configuration.GetSection("BlobStorage"));
 
         // Validate configuration on startup
-        services.AddSingleton<IValidateOptions<AzureAIOptions>, AzureAIConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<AzureFoundryOptions>, AzureFoundryConfigurationValidator>();
         services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
         services.AddSingleton<IValidateOptions<ResilienceOptions>, ResilienceConfigurationValidator>();
 
@@ -60,7 +61,17 @@ public static class ServiceCollectionExtensions {
         services.AddScoped<IManualPageAssetStore, BlobManualPageAssetStore>();
 
         // Register Azure service clients (scope aligns with dependencies)
-        services.AddSingleton<IAzureOpenAIClient, MotorcycleRAG.Persistence.Azure.AzureOpenAIClientWrapper>();
+        services.AddSingleton<IAzureFoundryClient>(serviceProvider => {
+            var options = serviceProvider.GetRequiredService<IOptions<AzureFoundryOptions>>();
+            var logger = serviceProvider.GetRequiredService<ILogger<MotorcycleRAG.Persistence.Azure.AzureFoundryClientWrapper>>();
+            var resilience = serviceProvider.GetRequiredService<IResilienceService>();
+            var correlation = serviceProvider.GetRequiredService<ICorrelationService>();
+            var httpFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+            var config = serviceProvider.GetRequiredService<IConfiguration>();
+
+            return new MotorcycleRAG.Persistence.Azure.AzureFoundryClientWrapper(
+                options, logger, resilience, correlation, httpFactory, config);
+        });
         services.AddScoped<IAzureSearchClient, MotorcycleRAG.Persistence.Azure.AzureSearchClientWrapper>();
         services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
         
@@ -71,13 +82,13 @@ public static class ServiceCollectionExtensions {
 
         // Register SearchIndexClient for direct Azure Search operations
         services.AddSingleton<SearchIndexClient>(serviceProvider => {
-            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIOptions>>().Value;
+            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureFoundryOptions>>().Value;
             var credential = new DefaultAzureCredential();
             return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), credential);
         });
 
         services.AddSingleton<AzureSearchClient>(serviceProvider => {
-            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureAIOptions>>().Value;
+            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureFoundryOptions>>().Value;
             var searchConfig = serviceProvider.GetRequiredService<IOptions<SearchOptions>>().Value;
             var credential = new DefaultAzureCredential();
             return new AzureSearchClient(new Uri(azureConfig.SearchServiceEndpoint), searchConfig.IndexName, credential);
@@ -115,21 +126,16 @@ public static class ServiceCollectionExtensions {
 }
 
 /// <summary>
-/// Validates Azure AI configuration on startup
+/// Validates Azure Foundry configuration on startup
 /// </summary>
-public class AzureAIConfigurationValidator : IValidateOptions<AzureAIOptions> {
-    public ValidateOptionsResult Validate(string? name, AzureAIOptions options) {
+public class AzureFoundryConfigurationValidator : IValidateOptions<AzureFoundryOptions> {
+    public ValidateOptionsResult Validate(string? name, AzureFoundryOptions options) {
         ArgumentNullException.ThrowIfNull(options);
         var failures = new List<string>();
 
         // FoundryEndpoint is optional (app supports degraded mode without it)
         if (!string.IsNullOrWhiteSpace(options.FoundryEndpoint) && !Uri.TryCreate(options.FoundryEndpoint, UriKind.Absolute, out _))
             failures.Add("AzureAI:FoundryEndpoint must be a valid URI if provided");
-
-        if (string.IsNullOrWhiteSpace(options.OpenAIEndpoint))
-            failures.Add("AzureAI:OpenAIEndpoint is required");
-        else if (!Uri.TryCreate(options.OpenAIEndpoint, UriKind.Absolute, out _))
-            failures.Add("AzureAI:OpenAIEndpoint must be a valid URI");
 
         if (string.IsNullOrWhiteSpace(options.SearchServiceEndpoint))
             failures.Add("AzureAI:SearchServiceEndpoint is required");

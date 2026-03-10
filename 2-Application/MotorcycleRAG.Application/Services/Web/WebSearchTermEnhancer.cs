@@ -11,12 +11,12 @@ namespace MotorcycleRAG.Application.Services.Web;
 /// </summary>
 public class WebSearchTermEnhancer
 {
-    private readonly IAzureOpenAIClient _openAIClient;
+    private readonly IAzureFoundryClient _openAIClient;
     private readonly string _modelName;
     private readonly ILogger<WebSearchTermEnhancer> _logger;
 
     public WebSearchTermEnhancer(
-        IAzureOpenAIClient openAIClient,
+        IAzureFoundryClient openAIClient,
         IOptions<WebSearchOptions> options,
         ILogger<WebSearchTermEnhancer> logger)
         : this(
@@ -27,7 +27,7 @@ public class WebSearchTermEnhancer
     }
 
     public WebSearchTermEnhancer(
-        IAzureOpenAIClient openAIClient,
+        IAzureFoundryClient openAIClient,
         string modelName,
         ILogger<WebSearchTermEnhancer> logger)
     {

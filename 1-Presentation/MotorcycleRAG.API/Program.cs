@@ -613,13 +613,11 @@ public class Program {
     /// <param name="configuration">The application configuration (includes merged appsettings, user secrets, env vars, App Config)</param>
     private static void ValidateAndPopulateAzureAIConfiguration(IConfiguration configuration) {
         // Read from IConfiguration, which has already merged all sources in priority order
-        var openAIEndpoint = configuration["AzureAI:OpenAIEndpoint"];
         var searchEndpoint = configuration["AzureAI:SearchServiceEndpoint"];
         var documentIntelligenceEndpoint = configuration["AzureAI:DocumentIntelligenceEndpoint"];
         var foundryEndpoint = configuration["AzureAI:FoundryEndpoint"];
 
         // Validate endpoints ONLY if they are provided (optional for degraded mode)
-        ValidateEndpointIfProvided("OpenAI", openAIEndpoint, "AzureAI:OpenAIEndpoint");
         ValidateEndpointIfProvided("Search", searchEndpoint, "AzureAI:SearchServiceEndpoint");
         ValidateEndpointIfProvided("Document Intelligence", documentIntelligenceEndpoint, "AzureAI:DocumentIntelligenceEndpoint");
         ValidateEndpointIfProvided("Foundry", foundryEndpoint, "AzureAI:FoundryEndpoint");
@@ -629,7 +627,6 @@ public class Program {
         var startupLogger = loggerFactory.CreateLogger("Program");
 
         var configuredServices = new List<string>();
-        if (!string.IsNullOrWhiteSpace(openAIEndpoint)) configuredServices.Add("OpenAI");
         if (!string.IsNullOrWhiteSpace(searchEndpoint)) configuredServices.Add("Search");
         if (!string.IsNullOrWhiteSpace(documentIntelligenceEndpoint)) configuredServices.Add("Document Intelligence");
         if (!string.IsNullOrWhiteSpace(foundryEndpoint)) configuredServices.Add("Foundry");
@@ -641,7 +638,7 @@ public class Program {
         } else {
             startupLogger.LogWarning(
                 "No Azure AI services configured. App running in degraded mode. " +
-                "Set AzureAI:OpenAIEndpoint, AzureAI:SearchServiceEndpoint, " +
+                "Set AzureAI:SearchServiceEndpoint, " +
                 "AzureAI:DocumentIntelligenceEndpoint, AzureAI:FoundryEndpoint via user secrets or App Config.");
         }
     }

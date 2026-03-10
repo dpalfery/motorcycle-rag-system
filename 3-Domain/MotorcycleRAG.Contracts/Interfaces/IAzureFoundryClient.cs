@@ -5,26 +5,26 @@ using System.Threading;
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
-/// Interface for Azure OpenAI client operations (cancellation required)
+/// Interface for Azure Foundry client operations (cancellation required)
 /// </summary>
-public interface IAzureOpenAIClient {
+public interface IAzureFoundryClient {
     /// <summary>
-    /// Gets chat completion from Azure OpenAI
+    /// Gets chat completion from Azure Foundry
     /// </summary>
     Task<string> GetChatCompletionAsync(string deploymentName, string prompt, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Gets embeddings (single text convenience) from Azure OpenAI
+    /// Gets embeddings (single text convenience) from Azure Foundry
     /// </summary>
     Task<float[]> GetEmbeddingsAsync(string model, string text, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Gets a single embedding from Azure OpenAI
+    /// Gets a single embedding from Azure Foundry
     /// </summary>
     Task<float[]> GetEmbeddingAsync(string model, string text, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Gets multiple embeddings from Azure OpenAI
+    /// Gets multiple embeddings from Azure Foundry
     /// </summary>
     Task<float[][]> GetEmbeddingsAsync(string model, string[] texts, CancellationToken cancellationToken);
 

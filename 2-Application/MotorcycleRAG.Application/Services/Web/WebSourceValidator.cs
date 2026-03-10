@@ -13,14 +13,14 @@ namespace MotorcycleRAG.Application.Services.Web;
 /// </summary>
 public class WebSourceValidator
 {
-    private readonly IAzureOpenAIClient _openAIClient;
+    private readonly IAzureFoundryClient _openAIClient;
     private readonly IWebTrustPolicyStore? _trustPolicyStore;
     private readonly float _minCredibilityScore;
     private readonly string _validationModel;
     private readonly ILogger<WebSourceValidator> _logger;
 
     public WebSourceValidator(
-        IAzureOpenAIClient openAIClient,
+        IAzureFoundryClient openAIClient,
         IWebTrustPolicyStore? trustPolicyStore,
         IOptions<WebSearchOptions> options,
         ILogger<WebSourceValidator> logger)
@@ -34,7 +34,7 @@ public class WebSourceValidator
     }
 
     public WebSourceValidator(
-        IAzureOpenAIClient openAIClient,
+        IAzureFoundryClient openAIClient,
         IWebTrustPolicyStore? trustPolicyStore,
         float minCredibilityScore,
         string validationModel,

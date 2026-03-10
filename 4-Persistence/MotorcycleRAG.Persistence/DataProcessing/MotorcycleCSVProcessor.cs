@@ -18,13 +18,13 @@ namespace MotorcycleRAG.Persistence.DataProcessing;
 /// and embedding generation using text-embedding-3-large model
 /// </summary>
 public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
-    private readonly IAzureOpenAIClient _openAIClient;
+    private readonly IAzureFoundryClient _openAIClient;
     private readonly IAzureSearchClient _searchClient;
     private readonly ILogger<MotorcycleCsvProcessor> _logger;
     private readonly CSVProcessingConfiguration _configuration;
 
     public MotorcycleCsvProcessor(
-        IAzureOpenAIClient openAIClient,
+        IAzureFoundryClient openAIClient,
         IAzureSearchClient searchClient,
         ILogger<MotorcycleCsvProcessor> logger)
         : this(openAIClient, searchClient, logger, null)
@@ -32,7 +32,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
     }
 
     public MotorcycleCsvProcessor(
-        IAzureOpenAIClient openAIClient,
+        IAzureFoundryClient openAIClient,
         IAzureSearchClient searchClient,
         ILogger<MotorcycleCsvProcessor> logger,
         CSVProcessingConfiguration? configuration) {

@@ -15,14 +15,14 @@ namespace MotorcycleRAG.UnitTests.Agents;
 /// </summary>
 public class VectorSearchAgentTests : IDisposable {
     private readonly Mock<IAzureSearchClient> _mockSearchClient;
-    private readonly Mock<IAzureOpenAIClient> _mockOpenAIClient;
+    private readonly Mock<IAzureFoundryClient> _mockOpenAIClient;
     private readonly Mock<ILogger<VectorSearchAgent>> _mockLogger;
     private readonly IOptions<SearchOptions> _searchConfig;
     private readonly VectorSearchAgent _vectorSearchAgent;
 
     public VectorSearchAgentTests() {
         _mockSearchClient = new Mock<IAzureSearchClient>();
-        _mockOpenAIClient = new Mock<IAzureOpenAIClient>();
+        _mockOpenAIClient = new Mock<IAzureFoundryClient>();
         _mockLogger = new Mock<ILogger<VectorSearchAgent>>();
 
         _searchConfig = Options.Create(new SearchOptions {

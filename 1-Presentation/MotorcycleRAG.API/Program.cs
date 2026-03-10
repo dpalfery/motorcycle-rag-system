@@ -161,6 +161,16 @@ public class Program {
             builder.Services.AddSingleton<Microsoft.ApplicationInsights.Extensibility.ITelemetryInitializer, CustomTelemetryInitializer>();
         }
 
+        // Disable the built-in HostFilteringMiddleware (auto-registered by WebHost.ConfigureWebDefaults).
+        // It reads AllowedHosts from IConfiguration as a raw string and cannot parse the comma-separated
+        // FQDN list supplied by App Config — treating the whole string as one host entry, which never
+        // matches any real Host header and returns 400 for every proxied request.
+        // Our custom HostHeaderValidationMiddleware handles validation correctly with the /health exemption.
+        builder.Services.PostConfigure<Microsoft.AspNetCore.HostFiltering.HostFilteringOptions>(options =>
+        {
+            options.AllowedHosts = ["*"];
+        });
+
         // Add services to the container
         // Rate limiting is applied globally via MapControllers().RequireRateLimiting("authenticated")
         builder.Services.AddControllers();

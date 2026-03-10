@@ -33,6 +33,7 @@ internal static class CoreServicesConfiguration
         services.AddScoped<AgentOrchestratorDependencies>();
 
         services.AddScoped<IUsageTrackingService, UsageTrackingService>();
+        services.AddScoped<IUserAdminService, UserAdminService>();
         services.AddScoped<SearchResultFusionService>();
         services.AddScoped<MotorcycleRAG.Application.Services.Telemetry.DegradedModeTracker>();
         services.AddScoped<MotorcycleRAG.Application.Services.Mcp.McpToolManager>();

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Application.Pipeline.Audit;
+using MotorcycleRAG.Application.Pipeline.Validators;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Persistence.ExternalServices;
@@ -50,6 +51,7 @@ internal static class DataPipelineConfiguration
         services.AddScoped<SpecsIngestionService>();
         services.AddScoped<ManualBikeLinker>();
         services.AddScoped<IIngestionAuditLogger, IngestionAuditLogger>();
+        services.AddScoped<IngestionJobValidator>();
 
         // Register scheduled service as a hosted service
         // ScheduledPipelineService extends BackgroundService which implements IHostedService

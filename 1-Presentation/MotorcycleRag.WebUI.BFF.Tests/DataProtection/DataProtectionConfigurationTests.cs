@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace MotorcycleRag.WebUI.BFF.Tests.DataProtection;
@@ -174,7 +175,12 @@ public class DataProtectionTestWebApplicationFactory : WebApplicationFactory<Pro
                 ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
                 ["AzureAd:TenantId"] = "test-tenant-id",
                 ["AzureAd:ClientId"] = "test-client-id",
-                ["AzureAd:ClientSecret"] = "test-secret"
+                ["AzureAd:ClientSecret"] = "test-secret",
+                // Override the appsettings.json placeholder value so bootstrap telemetry guard skips init
+                ["ConnectionStrings:ApplicationInsights"] = "",
+                ["ApplicationInsights:ConnectionString"] = "",
+                ["ApplicationInsights:EnableTelemetry"] = "false",
+                ["Cors:AllowedOrigins"] = "https://localhost",
             };
 
             if (!string.IsNullOrEmpty(_blobUri))
@@ -183,6 +189,15 @@ public class DataProtectionTestWebApplicationFactory : WebApplicationFactory<Pro
             }
 
             config.AddInMemoryCollection(configDict);
+        });
+
+        // Register a no-op TelemetryClient so DataProtectionMonitoringService can be activated
+        // without a real Application Insights connection string in tests.
+        builder.ConfigureServices(services =>
+        {
+            var noopConfig = new Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration();
+            noopConfig.TelemetryChannel = new Microsoft.ApplicationInsights.Channel.InMemoryChannel();
+            services.AddSingleton(new Microsoft.ApplicationInsights.TelemetryClient(noopConfig));
         });
     }
 }

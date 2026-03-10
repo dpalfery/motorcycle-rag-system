@@ -68,8 +68,10 @@ namespace MotorcycleRAG.Application.Services {
                 return recordedUsage;
             }
             catch (Exception ex) {
+                // Usage recording is non-critical telemetry — log and continue.
+                // Never propagate to the caller; a tracking failure must not kill the response.
                 _logger.LogError(ex, "Failed to record usage for user {UserId} on {Endpoint}", userId, endpoint);
-                throw new InvalidOperationException($"Failed to record usage for user {userId} on {nameof(endpoint)} {endpoint}", ex);
+                return usage;
             }
         }
 

@@ -66,6 +66,16 @@ public sealed class HostHeaderValidationMiddleware
     {
         ArgumentNullException.ThrowIfNull(context);
 
+        // Health check endpoints must bypass Host header validation.
+        // ACA liveness/readiness probes use internal IPs (e.g. 100.100.0.218) as Host,
+        // which are not in the allowlist and would cause probe failures → replica kills.
+        if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", context.Request.Path);
+            await _next(context);
+            return;
+        }
+
         // Get the Host header value
         if (!context.Request.Headers.TryGetValue("Host", out var hostHeader))
         {

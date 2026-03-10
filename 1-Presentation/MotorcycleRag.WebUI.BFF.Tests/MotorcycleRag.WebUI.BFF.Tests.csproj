@@ -26,6 +26,7 @@
     <PackageReference Include="FluentAssertions" Version="8.8.0" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.24.1" />
     <PackageReference Include="Azure.Identity" Version="1.18.0" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.2" />
   </ItemGroup>
 
   <ItemGroup>

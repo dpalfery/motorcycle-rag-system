@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
-using HtmlAgilityPack;
 using System.Text.RegularExpressions;
 
 namespace MotorcycleRAG.Application.Agents;

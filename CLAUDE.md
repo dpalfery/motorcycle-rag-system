@@ -1,4 +1,4 @@
-@AGENTS.md
+﻿@AGENTS.md
 
 Don't generate summary, findings, analysis documents unless explicitly asked for. 
 Generating these documents uses output tokens and costs money and bring no value to the user/customer. 

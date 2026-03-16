@@ -1,18 +1,13 @@
-using MotorcycleRAG.Contracts.Models.DTOs;
 using System.Threading;
 
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
-/// Interface for Azure Foundry client operations (cancellation required)
+/// Interface for Azure Foundry client operations.
+/// Chat completions are intentionally excluded — all LLM reasoning runs in Foundry Agent Service.
 /// </summary>
 public interface IAzureFoundryClient {
-    /// <summary>
-    /// Gets chat completion from Azure Foundry
-    /// </summary>
-    Task<string> GetChatCompletionAsync(string deploymentName, string prompt, CancellationToken cancellationToken);
-
     /// <summary>
     /// Gets embeddings (single text convenience) from Azure Foundry
     /// </summary>

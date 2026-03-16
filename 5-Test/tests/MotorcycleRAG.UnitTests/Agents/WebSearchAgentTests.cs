@@ -26,7 +26,6 @@ namespace MotorcycleRAG.UnitTests.Agents;
 public class WebSearchAgentTests : IDisposable {
     private readonly Mock<HttpMessageHandler> _mockHttpHandler;
     private readonly HttpClient _httpClient;
-    private readonly Mock<IAzureFoundryClient> _mockOpenAIClient;
     private readonly Mock<ILogger<WebSearchAgent>> _mockLogger;
     private readonly Mock<ILogger<WebSearchRateLimiter>> _mockRateLimiterLogger;
     private readonly Mock<ILogger<WebSearchCache>> _mockCacheLogger;
@@ -39,7 +38,6 @@ public class WebSearchAgentTests : IDisposable {
     public WebSearchAgentTests() {
         _mockHttpHandler = new Mock<HttpMessageHandler>();
         _httpClient = new HttpClient(_mockHttpHandler.Object);
-        _mockOpenAIClient = new Mock<IAzureFoundryClient>();
         _mockLogger = new Mock<ILogger<WebSearchAgent>>();
         _mockRateLimiterLogger = new Mock<ILogger<WebSearchRateLimiter>>();
         _mockCacheLogger = new Mock<ILogger<WebSearchCache>>();
@@ -81,15 +79,11 @@ public class WebSearchAgentTests : IDisposable {
         var extractor = new WebExtractor(_mockExtractorLogger.Object);
 
         var termEnhancer = new WebSearchTermEnhancer(
-            _mockOpenAIClient.Object,
-            options.SearchTermModel,
             _mockEnhancerLogger.Object);
 
         var validator = new WebSourceValidator(
-            _mockOpenAIClient.Object,
             null, // No trust policy store for basic tests
             options.MinCredibilityScore,
-            options.ValidationModel,
             _mockValidatorLogger.Object);
 
         var services = new WebSearchAgentServices(
@@ -121,8 +115,8 @@ public class WebSearchAgentTests : IDisposable {
         using var rateLimiter = new WebSearchRateLimiter(3, 100, _mockRateLimiterLogger.Object);
         var cache = new WebSearchCache(TimeSpan.FromMinutes(15), 100, _mockCacheLogger.Object);
         var extractor = new WebExtractor(_mockExtractorLogger.Object);
-        var termEnhancer = new WebSearchTermEnhancer(_mockOpenAIClient.Object, "gpt-4o-mini", _mockEnhancerLogger.Object);
-        var validator = new WebSourceValidator(_mockOpenAIClient.Object, null, 0.6f, "gpt-4o-mini", _mockValidatorLogger.Object);
+        var termEnhancer = new WebSearchTermEnhancer(_mockEnhancerLogger.Object);
+        var validator = new WebSourceValidator(null, 0.6f, _mockValidatorLogger.Object);
         var services = new WebSearchAgentServices(rateLimiter, cache, extractor, termEnhancer, validator);
 
         // Act & Assert - WebSearchAgent constructor
@@ -170,7 +164,6 @@ public class WebSearchAgentTests : IDisposable {
         var searchOptions = CreateDefaultSearchOptions();
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await _webSearchAgent.SearchAsync(query, searchOptions);
@@ -193,7 +186,6 @@ public class WebSearchAgentTests : IDisposable {
         var searchOptions = CreateDefaultSearchOptions();
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         var startTime = DateTime.UtcNow;
 
@@ -221,7 +213,6 @@ public class WebSearchAgentTests : IDisposable {
         };
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act - First search to populate cache
         var firstResults = await _webSearchAgent.SearchAsync(query, searchParameters);
@@ -246,7 +237,6 @@ public class WebSearchAgentTests : IDisposable {
         };
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await _webSearchAgent.SearchAsync(query, searchParameters);
@@ -267,7 +257,6 @@ public class WebSearchAgentTests : IDisposable {
         };
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await _webSearchAgent.SearchAsync(query, searchParameters);
@@ -287,7 +276,6 @@ public class WebSearchAgentTests : IDisposable {
         };
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await _webSearchAgent.SearchAsync(query, searchParameters);
@@ -310,7 +298,6 @@ public class WebSearchAgentTests : IDisposable {
         var searchOptions = CreateDefaultSearchOptions();
 
         SetupMockHttpClientFailure();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await _webSearchAgent.SearchAsync(query, searchOptions);
@@ -327,7 +314,6 @@ public class WebSearchAgentTests : IDisposable {
         var searchOptions = CreateDefaultSearchOptions();
 
         SetupMockHttpClient();
-        SetupMockOpenAIClientFailure();
 
         // Act & Assert
         // Should not throw an exception even when OpenAI fails
@@ -348,7 +334,6 @@ public class WebSearchAgentTests : IDisposable {
         var searchOptions = CreateDefaultSearchOptions();
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await _webSearchAgent.SearchAsync(query, searchOptions);
@@ -370,7 +355,6 @@ public class WebSearchAgentTests : IDisposable {
         var searchOptions = CreateDefaultSearchOptions();
 
         SetupMockHttpClient();
-        SetupMockOpenAIClientWithValidation();
 
         // Act
         var results = await _webSearchAgent.SearchAsync(query, searchOptions);
@@ -426,15 +410,11 @@ public class WebSearchAgentTests : IDisposable {
         var extractor = new WebExtractor(_mockExtractorLogger.Object);
 
         var termEnhancer = new WebSearchTermEnhancer(
-            _mockOpenAIClient.Object,
-            _webSearchConfig.Value.SearchTermModel,
             _mockEnhancerLogger.Object);
 
         var validator = new WebSourceValidator(
-            _mockOpenAIClient.Object,
             trustPolicyStore,
             _webSearchConfig.Value.MinCredibilityScore,
-            _webSearchConfig.Value.ValidationModel,
             _mockValidatorLogger.Object);
 
         // WebSearchAgent takes ownership of disposable dependencies
@@ -471,7 +451,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -500,7 +479,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -527,7 +505,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act - With trust policy store configured, unknown domains should be filtered
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -561,7 +538,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -593,7 +569,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -625,7 +600,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -648,7 +622,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(null);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -692,7 +665,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -726,7 +698,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -764,7 +735,6 @@ public class WebSearchAgentTests : IDisposable {
         using var webSearchAgent = CreateWebSearchAgentWithTrustStore(mockTrustStore.Object);
 
         SetupMockHttpClient();
-        SetupMockOpenAIClient();
 
         // Act
         var results = await webSearchAgent.SearchAsync(query, searchOptions);
@@ -817,54 +787,6 @@ public class WebSearchAgentTests : IDisposable {
     private void SetupMockHttpClientFailure() {
         _mockHttpHandler.SetupAnyRequest()
             .ReturnsResponse(HttpStatusCode.NotFound);
-    }
-
-    private void SetupMockOpenAIClient() {
-        // Setup search term generation
-        _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"),
-            It.IsAny<string>(),
-            It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
-            .ReturnsAsync("Honda CBR1000RR specifications\nHonda CBR performance\nCBR1000RR engine specs");
-
-        // Setup content validation with simple response
-        _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"),
-            It.Is<string>(prompt => prompt.Contains("Analyze this motorcycle-related content")),
-            It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
-            .ReturnsAsync("{\"qualityScore\": 0.8, \"isValid\": true, \"reasoning\": \"Good technical content\"}");
-    }
-
-    private void SetupMockOpenAIClientWithValidation() {
-        // Setup search term generation
-        _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"),
-            It.IsAny<string>(),
-            It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
-            .ReturnsAsync("Triumph Street Triple specifications\nTriumph performance data\nStreet Triple engine specs");
-
-        // Setup content validation with high quality response
-        _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"),
-            It.Is<string>(prompt => prompt.Contains("Analyze this motorcycle-related content")),
-            It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
-            .ReturnsAsync("{\"qualityScore\": 0.9, \"isValid\": true, \"reasoning\": \"Excellent technical specifications\"}");
-    }
-
-    private void SetupMockOpenAIClientFailure() {
-        // Setup failure for search term generation only
-        _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"),
-            It.Is<string>(prompt => prompt.Contains("Generate 3-5 specific search terms")),
-            It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
-            .ThrowsAsync(new InvalidOperationException("OpenAI service unavailable"));
-
-        // Setup success for content validation
-        _mockOpenAIClient.Setup(x => x.GetChatCompletionAsync(
-            It.Is<string>(s => s == "gpt-4o-mini"),
-            It.Is<string>(prompt => prompt.Contains("Analyze this motorcycle-related content")),
-            It.Is<CancellationToken>(ct => ct == CancellationToken.None)))
-            .ReturnsAsync("{\"qualityScore\": 0.8, \"isValid\": true, \"reasoning\": \"Good technical content\"}");
     }
 
     #endregion

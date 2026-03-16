@@ -18,7 +18,6 @@ public class MotorcycleRagServiceTests {
     private readonly Mock<ITelemetryService> _mockTelemetry;
     private readonly Mock<IQueryCacheService> _mockCacheService;
     private readonly Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>> _mockCacheConfig;
-    private readonly Mock<IAzureFoundryClient> _mockOpenAIClient;
     private readonly MotorcycleRagService _service;
 
     public MotorcycleRagServiceTests() {
@@ -27,12 +26,7 @@ public class MotorcycleRagServiceTests {
         _mockTelemetry = new Mock<ITelemetryService>();
         _mockCacheService = new Mock<IQueryCacheService>();
         _mockCacheConfig = new Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>>();
-        _mockOpenAIClient = new Mock<IAzureFoundryClient>();
         _mockCacheConfig.Setup(x => x.Value).Returns(new CacheConfiguration { EnableCaching = true, DefaultExpiration = TimeSpan.FromMinutes(5) });
-
-        // Set up OpenAI client mock to return empty JSON array for factual claims
-        _mockOpenAIClient.Setup(o => o.GetChatCompletionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                        .ReturnsAsync("[]");
 
         // Create real instances of the 4 new services required by MotorcycleRagService
         var mockCitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.Citations.ClaimCitationService>>();
@@ -40,7 +34,6 @@ public class MotorcycleRagServiceTests {
         var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
 
         var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
-            _mockOpenAIClient.Object,
             mockCitationLogger.Object);
         var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
             mockRefinementLogger.Object);
@@ -73,7 +66,7 @@ public class MotorcycleRagServiceTests {
         var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
 
         var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
-            _mockOpenAIClient.Object, mockCitationLogger.Object);
+            mockCitationLogger.Object);
         var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
             mockRefinementLogger.Object);
         var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
@@ -102,7 +95,7 @@ public class MotorcycleRagServiceTests {
         var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
 
         var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
-            _mockOpenAIClient.Object, mockCitationLogger.Object);
+            mockCitationLogger.Object);
         var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
             mockRefinementLogger.Object);
         var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
@@ -131,7 +124,7 @@ public class MotorcycleRagServiceTests {
         var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
 
         var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
-            _mockOpenAIClient.Object, mockCitationLogger.Object);
+            mockCitationLogger.Object);
         var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
             mockRefinementLogger.Object);
         var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(

@@ -16,14 +16,14 @@
 
 **Purpose**: Add approved NuGet packages, create new DTO types, extend options config. No logic, no interfaces — pure structural setup. Everything in this phase can be done in parallel once packages are added.
 
-- [ ] T001 Add `Azure.AI.Agents.Persistent` 1.2.0-beta.2 to `4-Persistence/MotorcycleRAG.Persistence/MotorcycleRAG.Persistence.csproj`
-- [ ] T002 Add `Azure.AI.Projects` 1.1.0 to `4-Persistence/MotorcycleRAG.Persistence/MotorcycleRAG.Persistence.csproj`
-- [ ] T003 Add `Microsoft.Agents.AI.AzureAI.Persistent` 1.0.0-preview to `2-Application/MotorcycleRAG.Application/MotorcycleRAG.Application.csproj`
-- [ ] T004 [P] Create `AgentRunState` enum in `3-Domain/MotorcycleRAG.Contracts.Models/DTOs/AgentRunState.cs` — values: Queued, InProgress, RequiresAction, Completed, Failed, Cancelled, Expired
-- [ ] T005 [P] Create `AgentToolCall` record in `3-Domain/MotorcycleRAG.Contracts.Models/DTOs/AgentToolCall.cs` — properties: `string CallId`, `string FunctionName`, `string ArgumentsJson`
-- [ ] T006 [P] Create `AgentRunStatus` record in `3-Domain/MotorcycleRAG.Contracts.Models/DTOs/AgentRunStatus.cs` — properties: `string RunId`, `AgentRunState State`, `IReadOnlyList<AgentToolCall>? RequiredToolCalls`
-- [ ] T007 [P] Create `AgentToolOutput` record in `3-Domain/MotorcycleRAG.Contracts.Models/DTOs/AgentToolOutput.cs` — properties: `string CallId`, `string Output`
-- [ ] T008 [P] Add four agent ID properties to `0-Base/MotorcycleRAG.Core/Options/AzureFoundryOptions.cs`: `OrchestratorAgentId`, `VectorSearchAgentId`, `WebSearchAgentId`, `PDFSearchAgentId` — all `string`, no default values, env-var backed
+- [X] T001 Add `Azure.AI.Agents.Persistent` 1.2.0-beta.2 to `4-Persistence/MotorcycleRAG.Persistence/MotorcycleRAG.Persistence.csproj`
+- [X] T002 Add `Azure.AI.Projects` 1.1.0 to `4-Persistence/MotorcycleRAG.Persistence/MotorcycleRAG.Persistence.csproj`
+- [X] T003 Add `Microsoft.Agents.AI.AzureAI.Persistent` 1.0.0-preview to `2-Application/MotorcycleRAG.Application/MotorcycleRAG.Application.csproj`
+- [X] T004 [P] Create `AgentRunState` enum in `3-Domain/MotorcycleRAG.Contracts.Models/DTOs/AgentRunState.cs` — values: Queued, InProgress, RequiresAction, Completed, Failed, Cancelled, Expired
+- [X] T005 [P] Create `AgentToolCall` record in `3-Domain/MotorcycleRAG.Contracts.Models/DTOs/AgentToolCall.cs` — properties: `string CallId`, `string FunctionName`, `string ArgumentsJson`
+- [X] T006 [P] Create `AgentRunStatus` record in `3-Domain/MotorcycleRAG.Contracts.Models/DTOs/AgentRunStatus.cs` — properties: `string RunId`, `AgentRunState State`, `IReadOnlyList<AgentToolCall>? RequiredToolCalls`
+- [X] T007 [P] Create `AgentToolOutput` record in `3-Domain/MotorcycleRAG.Contracts.Models/DTOs/AgentToolOutput.cs` — properties: `string CallId`, `string Output`
+- [X] T008 [P] Add four agent ID properties to `0-Base/MotorcycleRAG.Core/Options/AzureFoundryOptions.cs`: `OrchestratorAgentId`, `VectorSearchAgentId`, `WebSearchAgentId`, `PDFSearchAgentId` — all `string`, no default values, env-var backed
 
 **Checkpoint**: Packages referenced, DTOs exist, options extended — project builds.
 
@@ -35,14 +35,14 @@
 
 **⚠️ CRITICAL**: No user story work begins until this phase is complete.
 
-- [ ] T009 Create `IFoundryAgentRunner` interface in `3-Domain/MotorcycleRAG.Contracts/Interfaces/IFoundryAgentRunner.cs` — methods: `CreateThreadAsync`, `AddUserMessageAsync`, `CreateRunAsync`, `GetRunStatusAsync`, `SubmitToolOutputsAsync`, `GetLastAssistantMessageAsync`, `DeleteThreadAsync` — all returning Task with CancellationToken, using DTOs from T004–T007
-- [ ] T010 [P] Create `ITrustedSourcesLoader` interface in `3-Domain/MotorcycleRAG.Contracts/Interfaces/ITrustedSourcesLoader.cs` — single method: `Task<TrustedSourceOptions[]> LoadAsync(CancellationToken ct = default)`
-- [ ] T011 Remove `GetChatCompletionAsync` from `3-Domain/MotorcycleRAG.Contracts/Interfaces/IAzureFoundryClient.cs` — retain all `GetEmbeddingsAsync` and `ProcessMultimodalContentAsync` overloads only
-- [ ] T012 Remove `GetChatCompletionAsync` implementation from `4-Persistence/MotorcycleRAG.Persistence/Azure/AzureFoundryClientWrapper.cs` — remove the method body, the convenience overload, and all HTTP request/response parsing code for chat completions; retain embeddings and multimodal
-- [ ] T013 [P] Delete `2-Application/MotorcycleRAG.Application/Agents/AgentFrameworkAdapter.cs` — this file is replaced by `FoundryToolDispatcher` in Phase 3
-- [ ] T014 [P] Delete `2-Application/MotorcycleRAG.Application/Agents/ToolDefinitions.cs` — tool schemas now live in Foundry agent definitions provisioned by the pipeline
-- [ ] T015 Remove `ExecuteSequentialRetrievalPolicyAsync`, `ExecuteAgentSearchWithMetricsAsync`, `UpdateQueryContextMetrics`, and `BuildSearchOptions` from `2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs` — leave the class shell and constructor intact; mark `ExecuteSequentialSearchAsync` as `throw new NotImplementedException()` temporarily
-- [ ] T016 [P] Update `1-Presentation/MotorcycleRAG.API/Configuration/Services/SearchAgentsConfiguration.cs` — remove any registration of `AgentFrameworkAdapter`, `AgentFrameworkAdapterFactory`, or `ToolDefinitions`; update using directives accordingly
+- [X] T009 Create `IFoundryAgentRunner` interface in `3-Domain/MotorcycleRAG.Contracts/Interfaces/IFoundryAgentRunner.cs` — methods: `CreateThreadAsync`, `AddUserMessageAsync`, `CreateRunAsync`, `GetRunStatusAsync`, `SubmitToolOutputsAsync`, `GetLastAssistantMessageAsync`, `DeleteThreadAsync` — all returning Task with CancellationToken, using DTOs from T004–T007
+- [X] T010 [P] Create `ITrustedSourcesLoader` interface in `3-Domain/MotorcycleRAG.Contracts/Interfaces/ITrustedSourcesLoader.cs` — single method: `Task<TrustedSourceOptions[]> LoadAsync(CancellationToken ct = default)`
+- [X] T011 Remove `GetChatCompletionAsync` from `3-Domain/MotorcycleRAG.Contracts/Interfaces/IAzureFoundryClient.cs` — retain all `GetEmbeddingsAsync` and `ProcessMultimodalContentAsync` overloads only
+- [X] T012 Remove `GetChatCompletionAsync` implementation from `4-Persistence/MotorcycleRAG.Persistence/Azure/AzureFoundryClientWrapper.cs` — remove the method body, the convenience overload, and all HTTP request/response parsing code for chat completions; retain embeddings and multimodal
+- [X] T013 [P] Delete `2-Application/MotorcycleRAG.Application/Agents/AgentFrameworkAdapter.cs` — this file is replaced by `FoundryToolDispatcher` in Phase 3
+- [X] T014 [P] Delete `2-Application/MotorcycleRAG.Application/Agents/ToolDefinitions.cs` — tool schemas now live in Foundry agent definitions provisioned by the pipeline
+- [X] T015 Remove `ExecuteSequentialRetrievalPolicyAsync`, `ExecuteAgentSearchWithMetricsAsync`, `UpdateQueryContextMetrics`, and `BuildSearchOptions` from `2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs` — leave the class shell and constructor intact; mark `ExecuteSequentialSearchAsync` as `throw new NotImplementedException()` temporarily
+- [X] T016 [P] Update `1-Presentation/MotorcycleRAG.API/Configuration/Services/SearchAgentsConfiguration.cs` — remove any registration of `AgentFrameworkAdapter`, `AgentFrameworkAdapterFactory`, or `ToolDefinitions`; update using directives accordingly
 
 **Checkpoint**: Solution builds cleanly (zero warnings, NotImplementedException is acceptable at this stage). Old pipeline fully removed. New interfaces defined.
 

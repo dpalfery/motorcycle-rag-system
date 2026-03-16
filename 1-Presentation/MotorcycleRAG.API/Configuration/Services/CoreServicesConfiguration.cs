@@ -21,7 +21,7 @@ internal static class CoreServicesConfiguration
     {
         // Register core service interfaces to concrete implementations in Application layer
         services.AddScoped<IMotorcycleRagService, MotorcycleRAG.Application.Services.MotorcycleRagService>();
-        services.AddScoped<IAgentOrchestrator, MotorcycleRAG.Application.Services.AgentOrchestrator>();
+        // IAgentOrchestrator is registered in SearchAgentsConfiguration with full Foundry dispatcher wiring
 
         // Register extracted services for MotorcycleRagService
                 services.AddScoped<ClaimCitationService>();

@@ -22,25 +22,29 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     private readonly IFoundryAgentRunner _runner;
     private readonly FoundryToolDispatcher _dispatcher;
     private readonly AzureFoundryOptions _options;
+    private readonly ICorrelationService _correlationService;
 
     public AgentOrchestrator(
         IEnumerable<ISearchAgent> agents,
         ILogger<AgentOrchestrator> logger,
         IFoundryAgentRunner runner,
         FoundryToolDispatcher dispatcher,
-        IOptions<AzureFoundryOptions> options)
+        IOptions<AzureFoundryOptions> options,
+        ICorrelationService correlationService)
     {
         ArgumentNullException.ThrowIfNull(agents);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(dispatcher);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(correlationService);
 
         _agents = agents.ToList();
         _logger = logger;
         _runner = runner;
         _dispatcher = dispatcher;
         _options = options.Value;
+        _correlationService = correlationService;
     }
 
     /// <inheritdoc />
@@ -70,7 +74,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
 
         var threadId = await _runner.CreateThreadAsync();
 
-        using var scope = _logger.BeginScope(new Dictionary<string, object>
+        using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
         {
             ["ThreadId"] = threadId,
             ["SessionId"] = context.SessionId ?? "none"

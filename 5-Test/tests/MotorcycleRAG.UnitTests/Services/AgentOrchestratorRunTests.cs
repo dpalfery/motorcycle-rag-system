@@ -16,6 +16,7 @@ public class AgentOrchestratorRunTests
     private readonly Mock<ILogger<AgentOrchestrator>> _mockLogger = new();
     private readonly Mock<ILogger<FoundryToolDispatcher>> _mockDispatcherLogger = new();
     private readonly Mock<IOptions<AzureFoundryOptions>> _mockOptions = new();
+    private readonly Mock<ICorrelationService> _mockCorrelation = new();
 
     private const string ThreadId = "thread-abc";
     private const string RunId = "run-xyz";
@@ -35,13 +36,22 @@ public class AgentOrchestratorRunTests
 
     private AgentOrchestrator CreateOrchestrator()
     {
+        _mockCorrelation
+            .Setup(c => c.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
+            .Returns(new MockDisposable());
         var dispatcher = new FoundryToolDispatcher(_mockDispatcherLogger.Object);
         return new AgentOrchestrator(
             [],
             _mockLogger.Object,
             _mockRunner.Object,
             dispatcher,
-            _mockOptions.Object);
+            _mockOptions.Object,
+            _mockCorrelation.Object);
+    }
+
+    private sealed class MockDisposable : IDisposable
+    {
+        public void Dispose() { }
     }
 
     [Fact]

@@ -65,6 +65,10 @@ public sealed class SubAgentToolHandlers
             IncludeMetadata = true
         });
 
+        _logger.LogInformation(
+            "execute_azure_search completed: query={Query} resultCount={ResultCount}",
+            query, results.Length);
+
         var payload = results.Select(r => new
         {
             id = r.Id,
@@ -107,9 +111,14 @@ public sealed class SubAgentToolHandlers
             };
             var extracted = extractor.ExtractSearchResults(html, searchTerm, source);
             var content = string.Join("\n\n", extracted.Select(r => r.Content));
+            var truncated = content[..Math.Min(content.Length, 2000)];
+
+            _logger.LogInformation(
+                "fetch_web_content completed: url={Url} contentLength={ContentLength}",
+                url, truncated.Length);
 
             return new AgentToolOutput(call.CallId,
-                JsonSerializer.Serialize(new { url, content = content[..Math.Min(content.Length, 2000)] }));
+                JsonSerializer.Serialize(new { url, content = truncated }));
         }
         catch (Exception ex)
         {
@@ -156,6 +165,10 @@ public sealed class SubAgentToolHandlers
         _logger.LogDebug("get_trusted_sources: loading from DB");
         var sources = await _trustedSourcesLoader.LoadAsync(ct);
 
+        _logger.LogInformation(
+            "get_trusted_sources completed: sourceCount={SourceCount}",
+            sources.Length);
+
         var payload = sources.Select(s => new
         {
             name = s.Name,
@@ -187,6 +200,10 @@ public sealed class SubAgentToolHandlers
             EnableCaching = true,
             IncludeMetadata = true
         });
+
+        _logger.LogInformation(
+            "search_pdf_index completed: query={Query} resultCount={ResultCount}",
+            query, results.Length);
 
         var payload = results.Select(r => new
         {

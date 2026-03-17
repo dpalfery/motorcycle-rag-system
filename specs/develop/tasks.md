@@ -113,11 +113,11 @@
 
 **Purpose**: Observability hardening, configuration validation, cleanup, and end-to-end verification against quickstart.md.
 
-- [ ] T039 [P] Add correlation between Foundry thread ID and HTTP request correlation ID in `2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs` — log `ThreadId` and `RunId` using `ICorrelationService.CreateLoggingScope` so Foundry run IDs appear in every log line for that request
-- [ ] T040 [P] Add structured logging to `OrchestratorToolHandlers` and `SubAgentToolHandlers` in `2-Application/MotorcycleRAG.Application/Agents/Orchestration/` — log tool name, sub-run ID, sub-run state transitions, and result size on every dispatch; use structured placeholders (no string concatenation)
-- [ ] T041 [P] Update `DegradedModeTracker` in `2-Application/MotorcycleRAG.Application/Services/Telemetry/DegradedModeTracker.cs` — adapt to new architecture: track which Foundry sub-runs failed (returned error tool output) rather than which `ISearchAgent` instances failed; preserve existing telemetry schema
-- [ ] T042 [P] Remove `VectorSearchAgent`, `WebSearchAgent`, `PDFSearchAgent`, `QueryPlannerAgent` classes from `2-Application/MotorcycleRAG.Application/Agents/` — these are replaced by Foundry-hosted agents; their tool execution logic has moved to `SubAgentToolHandlers`; confirm no remaining references before deletion
-- [ ] T043 Validate all scenarios in `specs/develop/quickstart.md` — submit test queries, confirm log output matches expected patterns, confirm Foundry portal shows correct run history, confirm trusted source added via Admin UI is picked up on next query
+- [X] T039 [P] Add correlation between Foundry thread ID and HTTP request correlation ID in `2-Application/MotorcycleRAG.Application/Services/AgentOrchestrator.cs` — log `ThreadId` and `RunId` using `ICorrelationService.CreateLoggingScope` so Foundry run IDs appear in every log line for that request
+- [X] T040 [P] Add structured logging to `OrchestratorToolHandlers` and `SubAgentToolHandlers` in `2-Application/MotorcycleRAG.Application/Agents/Orchestration/` — log tool name, sub-run ID, sub-run state transitions, and result size on every dispatch; use structured placeholders (no string concatenation)
+- [X] T041 [P] Update `DegradedModeTracker` in `2-Application/MotorcycleRAG.Application/Services/Telemetry/DegradedModeTracker.cs` — adapt to new architecture: track which Foundry sub-runs failed (returned error tool output) rather than which `ISearchAgent` instances failed; preserve existing telemetry schema
+- [X] T042 [P] Remove `VectorSearchAgent`, `WebSearchAgent`, `PDFSearchAgent`, `QueryPlannerAgent` classes from `2-Application/MotorcycleRAG.Application/Agents/` — these are replaced by Foundry-hosted agents; their tool execution logic has moved to `SubAgentToolHandlers`; confirm no remaining references before deletion
+- [X] T043 Validate all scenarios in `specs/develop/quickstart.md` — submit test queries, confirm log output matches expected patterns, confirm Foundry portal shows correct run history, confirm trusted source added via Admin UI is picked up on next query
 
 ---
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MotorcycleRAG.Application.Services.Telemetry;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
@@ -22,22 +23,26 @@ public sealed class OrchestratorToolHandlers
     private readonly FoundryToolDispatcher _subAgentDispatcher;
     private readonly AzureFoundryOptions _options;
     private readonly ILogger<OrchestratorToolHandlers> _logger;
+    private readonly DegradedModeTracker _degradedModeTracker;
 
     public OrchestratorToolHandlers(
         IFoundryAgentRunner runner,
         FoundryToolDispatcher subAgentDispatcher,
         IOptions<AzureFoundryOptions> options,
-        ILogger<OrchestratorToolHandlers> logger)
+        ILogger<OrchestratorToolHandlers> logger,
+        DegradedModeTracker degradedModeTracker)
     {
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(subAgentDispatcher);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(degradedModeTracker);
 
         _runner = runner;
         _subAgentDispatcher = subAgentDispatcher;
         _options = options.Value;
         _logger = logger;
+        _degradedModeTracker = degradedModeTracker;
     }
 
     /// <summary>
@@ -118,17 +123,20 @@ public sealed class OrchestratorToolHandlers
 
             if (status.State != AgentRunState.Completed)
             {
+                var errorMsg = $"Sub-agent run ended with state {status.State}";
                 _logger.LogWarning(
                     "Sub-agent run ended in non-completed state {State} (tool={Tool}, subRunId={RunId})",
                     status.State, toolName, status.RunId);
+                _degradedModeTracker.TrackFoundrySubRunResult(toolName, succeeded: false, errorMessage: errorMsg);
                 return new AgentToolOutput(call.CallId,
-                    JsonSerializer.Serialize(new { error = $"Sub-agent run ended with state {status.State}" }));
+                    JsonSerializer.Serialize(new { error = errorMsg }));
             }
 
             var answer = await _runner.GetLastAssistantMessageAsync(threadId, ct);
             _logger.LogInformation(
                 "Sub-agent run completed: tool={Tool} subRunId={RunId} answerLength={Length}",
                 toolName, status.RunId, answer.Length);
+            _degradedModeTracker.TrackFoundrySubRunResult(toolName, succeeded: true, resultSize: answer.Length);
 
             return new AgentToolOutput(call.CallId,
                 JsonSerializer.Serialize(new { result = answer }));

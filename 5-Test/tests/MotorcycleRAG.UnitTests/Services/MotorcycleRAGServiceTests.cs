@@ -6,6 +6,7 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Application.Caching;
 using Xunit;
+using System.Linq;
 
 namespace MotorcycleRAG.UnitTests.Services;
 
@@ -18,7 +19,6 @@ public class MotorcycleRagServiceTests {
     private readonly Mock<ITelemetryService> _mockTelemetry;
     private readonly Mock<IQueryCacheService> _mockCacheService;
     private readonly Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>> _mockCacheConfig;
-    private readonly Mock<IAzureFoundryClient> _mockOpenAIClient;
     private readonly MotorcycleRagService _service;
 
     public MotorcycleRagServiceTests() {
@@ -27,12 +27,7 @@ public class MotorcycleRagServiceTests {
         _mockTelemetry = new Mock<ITelemetryService>();
         _mockCacheService = new Mock<IQueryCacheService>();
         _mockCacheConfig = new Mock<Microsoft.Extensions.Options.IOptions<CacheConfiguration>>();
-        _mockOpenAIClient = new Mock<IAzureFoundryClient>();
         _mockCacheConfig.Setup(x => x.Value).Returns(new CacheConfiguration { EnableCaching = true, DefaultExpiration = TimeSpan.FromMinutes(5) });
-
-        // Set up OpenAI client mock to return empty JSON array for factual claims
-        _mockOpenAIClient.Setup(o => o.GetChatCompletionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                        .ReturnsAsync("[]");
 
         // Create real instances of the 4 new services required by MotorcycleRagService
         var mockCitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.Citations.ClaimCitationService>>();
@@ -40,7 +35,6 @@ public class MotorcycleRagServiceTests {
         var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
 
         var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
-            _mockOpenAIClient.Object,
             mockCitationLogger.Object);
         var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
             mockRefinementLogger.Object);
@@ -73,7 +67,7 @@ public class MotorcycleRagServiceTests {
         var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
 
         var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
-            _mockOpenAIClient.Object, mockCitationLogger.Object);
+            mockCitationLogger.Object);
         var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
             mockRefinementLogger.Object);
         var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
@@ -102,7 +96,7 @@ public class MotorcycleRagServiceTests {
         var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
 
         var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
-            _mockOpenAIClient.Object, mockCitationLogger.Object);
+            mockCitationLogger.Object);
         var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
             mockRefinementLogger.Object);
         var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
@@ -131,7 +125,7 @@ public class MotorcycleRagServiceTests {
         var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
 
         var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
-            _mockOpenAIClient.Object, mockCitationLogger.Object);
+            mockCitationLogger.Object);
         var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
             mockRefinementLogger.Object);
         var limitationAnalyzer = new MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer(
@@ -175,28 +169,26 @@ public class MotorcycleRagServiceTests {
 
     [Fact]
     public async Task QueryAsync_ShouldReturnResponse_WhenValidRequest() {
-        // Arrange
+        // Arrange — answer is embedded in the FoundryAnswer result returned by the orchestrator
         var results = new[]
         {
             new SearchResult
             {
-                Id = "1",
-                Content = "Test content",
-                RelevanceScore = 0.9f,
+                Id = "run-1",
+                Content = "Final answer",
+                RelevanceScore = 1.0f,
                 Source = new SearchSource
                 {
-                    AgentType = SearchAgentType.VectorSearch,
-                    SourceName = "Test",
-                    DocumentId = "doc1"
-                }
+                    AgentType = SearchAgentType.QueryPlanner,
+                    SourceName = "Azure AI Foundry OrchestratorAgent",
+                    DocumentId = "thread-1"
+                },
+                Metadata = new Dictionary<string, object> { ["FoundryAnswer"] = true }
             }
         };
 
         _mockOrchestrator.Setup(o => o.ExecuteSequentialSearchAsync(It.IsAny<string>(), It.IsAny<SearchContext>()))
                           .ReturnsAsync(results);
-
-        _mockOrchestrator.Setup(o => o.GenerateResponseAsync(results, It.IsAny<string>()))
-                          .ReturnsAsync("Final answer");
 
         var request = new MotorcycleQueryRequest { Query = "Tell me about the Honda CBR1000RR" };
 
@@ -207,13 +199,12 @@ public class MotorcycleRagServiceTests {
         Assert.NotNull(response);
         // Response should contain the final answer (may have limitation messages prepended)
         Assert.Contains("Final answer", response.Response);
-        Assert.Equal(results.Length, response.Sources.Length);
-        Assert.Equal(results.Length, response.Metrics.ResultsFound);
+        Assert.Equal(0, response.Sources.Length); // FoundryAnswer result is stripped from sources
+        Assert.Equal(0, response.Metrics.ResultsFound); // FoundryAnswer result is stripped from sources
         Assert.False(string.IsNullOrWhiteSpace(response.QueryId));
 
         _mockOrchestrator.Verify(o => o.ExecuteSequentialSearchAsync(request.Query, It.IsAny<SearchContext>()), Times.Once);
-        _mockOrchestrator.Verify(o => o.GenerateResponseAsync(results, request.Query), Times.Once);
-        _mockTelemetry.Verify(t => t.TrackQuery(It.IsAny<string>(), request.Query, It.IsAny<TimeSpan>(), results.Length, It.IsAny<decimal>()), Times.Once);
+        _mockTelemetry.Verify(t => t.TrackQuery(It.IsAny<string>(), request.Query, It.IsAny<TimeSpan>(), 0, It.IsAny<decimal>()), Times.Once);
     }
 
     #endregion
@@ -267,11 +258,24 @@ public class MotorcycleRagServiceTests {
             }
         };
 
-        _mockOrchestrator.Setup(o => o.ExecuteSequentialSearchAsync(It.IsAny<string>(), It.IsAny<SearchContext>()))
-                          .ReturnsAsync(results);
+        var foundryResult = new SearchResult
+        {
+            Id = "run-1",
+            Content = "The Honda CBR1000RR has a 1000cc inline-4 engine producing 200 horsepower. [1]",
+            RelevanceScore = 1.0f,
+            Source = new SearchSource
+            {
+                AgentType = SearchAgentType.QueryPlanner,
+                SourceName = "Azure AI Foundry OrchestratorAgent",
+                DocumentId = "thread-1"
+            },
+            Metadata = new Dictionary<string, object> { ["FoundryAnswer"] = true }
+        };
 
-        _mockOrchestrator.Setup(o => o.GenerateResponseAsync(results, It.IsAny<string>()))
-                          .ReturnsAsync("The Honda CBR1000RR has a 1000cc inline-4 engine producing 200 horsepower. [1]");
+        var allResults = results.Concat(new[] { foundryResult }).ToArray();
+
+        _mockOrchestrator.Setup(o => o.ExecuteSequentialSearchAsync(It.IsAny<string>(), It.IsAny<SearchContext>()))
+                          .ReturnsAsync(allResults);
 
         var request = new MotorcycleQueryRequest { Query = "Tell me about the Honda CBR1000RR" };
 
@@ -281,13 +285,12 @@ public class MotorcycleRagServiceTests {
         // Assert
         Assert.NotNull(response);
         Assert.Contains("[1]", response.Response); // Verify citation marker is present
-        Assert.Equal(results.Length, response.Sources.Length);
+        Assert.Equal(results.Length, response.Sources.Length); // FoundryAnswer result stripped from sources
         Assert.All(response.Sources, s => Assert.NotNull(s.Source.Citation)); // All sources have citations
         Assert.False(string.IsNullOrWhiteSpace(response.QueryId));
         Assert.NotEqual(DateTime.MinValue, response.GeneratedAt);
 
         _mockOrchestrator.Verify(o => o.ExecuteSequentialSearchAsync(request.Query, It.IsAny<SearchContext>()), Times.Once);
-        _mockOrchestrator.Verify(o => o.GenerateResponseAsync(results, request.Query), Times.Once);
         _mockTelemetry.Verify(t => t.TrackQuery(It.IsAny<string>(), request.Query, It.IsAny<TimeSpan>(), results.Length, It.IsAny<decimal>()), Times.Once);
     }
 
@@ -298,9 +301,6 @@ public class MotorcycleRagServiceTests {
 
         _mockOrchestrator.Setup(o => o.ExecuteSequentialSearchAsync(It.IsAny<string>(), It.IsAny<SearchContext>()))
                           .ReturnsAsync(emptyResults);
-
-        _mockOrchestrator.Setup(o => o.GenerateResponseAsync(emptyResults, It.IsAny<string>()))
-                          .ReturnsAsync(string.Empty); // Empty response triggers no-results handling
 
         var request = new MotorcycleQueryRequest { Query = "Tell me about some random topic" };
 
@@ -317,7 +317,6 @@ public class MotorcycleRagServiceTests {
         Assert.False(string.IsNullOrWhiteSpace(response.QueryId));
 
         _mockOrchestrator.Verify(o => o.ExecuteSequentialSearchAsync(request.Query, It.IsAny<SearchContext>()), Times.Once);
-        _mockOrchestrator.Verify(o => o.GenerateResponseAsync(emptyResults, request.Query), Times.Once);
     }
 
     [Fact]
@@ -327,29 +326,21 @@ public class MotorcycleRagServiceTests {
         {
             new SearchResult
             {
-                Id = "1",
-                Content = "Test content",
-                RelevanceScore = 0.9f,
+                Id = "run-1",
+                Content = "Test answer",
+                RelevanceScore = 1.0f,
                 Source = new SearchSource
                 {
-                    AgentType = SearchAgentType.VectorSearch,
-                    SourceName = "Test",
-                    DocumentId = "doc1",
-                    Citation = new Citation
-                    {
-                        SourceType = CitationSourceType.Dataset,
-                        SourceName = "Test Source",
-                        Verified = true
-                    }
-                }
+                    AgentType = SearchAgentType.QueryPlanner,
+                    SourceName = "Azure AI Foundry OrchestratorAgent",
+                    DocumentId = "thread-1"
+                },
+                Metadata = new Dictionary<string, object> { ["FoundryAnswer"] = true }
             }
         };
 
         _mockOrchestrator.Setup(o => o.ExecuteSequentialSearchAsync(It.IsAny<string>(), It.IsAny<SearchContext>()))
                           .ReturnsAsync(results);
-
-        _mockOrchestrator.Setup(o => o.GenerateResponseAsync(results, It.IsAny<string>()))
-                          .ReturnsAsync("Test answer");
 
         var request = new MotorcycleQueryRequest { Query = "Test query" };
 
@@ -366,7 +357,7 @@ public class MotorcycleRagServiceTests {
         Assert.NotNull(response.Metrics);
         // Note: TotalDuration may be very small but should be set
         Assert.True(response.Metrics.TotalDuration >= TimeSpan.Zero);
-        Assert.Equal(results.Length, response.Metrics.ResultsFound);
+        Assert.Equal(0, response.Metrics.ResultsFound); // FoundryAnswer result is stripped from sources
         Assert.NotEqual(DateTime.MinValue, response.GeneratedAt);
 
         // Verify metrics include all expected fields

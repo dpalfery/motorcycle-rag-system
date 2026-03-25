@@ -333,7 +333,7 @@ public class BatchProcessingPerformanceValidationTests
         result.Errors.Should().NotBeEmpty();
         result.Errors.Should().AllSatisfy(error =>
         {
-            error.Exception.Should().NotBeNull();
+            error.ExceptionMessage.Should().NotBeNullOrEmpty();
             error.ErrorMessage.Should().NotBeNullOrEmpty();
         });
     }

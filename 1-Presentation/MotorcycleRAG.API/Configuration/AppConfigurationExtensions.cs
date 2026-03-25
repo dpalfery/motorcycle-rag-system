@@ -7,7 +7,7 @@ namespace MotorcycleRAG.API.Configuration;
 /// <summary>
 /// Extension methods for <see cref="WebApplicationBuilder"/> to configure Azure App Configuration and Key Vault.
 /// </summary>
-internal static class AppConfigurationExtensions
+public static class AppConfigurationExtensions
 {
     public static WebApplicationBuilder AddAzureAppConfigurationWithKeyVault(this WebApplicationBuilder builder)
     {
@@ -44,9 +44,12 @@ internal static class AppConfigurationExtensions
             builder.Services.AddAzureAppConfiguration();
         }
 
-        // Validate and derive configuration values
-        builder.Configuration.WithDerivedAzureAdValues();
-        builder.Configuration.WithValidatedAzureAIEndpoints();
+        // Validate and derive configuration values (when config is built to IConfigurationRoot)
+        if (builder.Configuration is IConfigurationRoot configRoot)
+        {
+            configRoot.WithDerivedAzureAdValues();
+            configRoot.WithValidatedAzureAIEndpoints();
+        }
 
         return builder;
     }
@@ -104,19 +107,14 @@ internal static class AppConfigurationExtensions
     /// Validates and populates Azure AD configuration defaults.
     /// Derives JWT issuer URLs and audience values from TenantId and ClientId.
     /// </summary>
-    internal static IConfiguration WithDerivedAzureAdValues(this IConfiguration configuration)
+    public static IConfigurationRoot WithDerivedAzureAdValues(this IConfigurationRoot configuration)
     {
         var tenantId = configuration["AzureAd:TenantId"];
         var clientId = configuration["AzureAd:ClientId"];
 
         if (string.IsNullOrWhiteSpace(tenantId))
         {
-            throw new InvalidOperationException("Azure AD Tenant ID is not configured.");
-        }
-
-        if (string.IsNullOrWhiteSpace(clientId))
-        {
-            throw new InvalidOperationException("Azure AD Client ID is not configured.");
+            throw new InvalidOperationException("AzureAd Tenant ID is not configured");
         }
 
         var derivedConfig = new Dictionary<string, string?>
@@ -129,35 +127,23 @@ internal static class AppConfigurationExtensions
             { "Authentication:Issuers:Workforce", $"https://login.microsoftonline.com/{tenantId}/v2.0" }
         };
 
-        // We use a separate ConfigurationBuilder for the derived values to merge them back
-        var derivedSource = new ConfigurationBuilder()
-            .AddInMemoryCollection(derivedConfig)
-            .Build();
-
-        foreach (var kvp in derivedSource.AsEnumerable().Where(x => x.Value != null))
+        // Set values on all providers that support it (especially MemoryConfigurationProvider)
+        foreach (var kvp in derivedConfig.Where(x => x.Value != null))
         {
-            // Note: Since IConfiguration doesn't directly support adding memory collections once built,
-            // we rely on the specific configuration implementation if possible, or assume it's a 
-            // ConfigurationBuilder session. In the context of WebApplicationBuilder.Configuration,
-            // it's a ConfigurationManager which supports IConfigurationBuilder.
-            if (configuration is IConfigurationBuilder cb)
+            foreach (var provider in configuration.Providers)
             {
-                cb.AddInMemoryCollection(new[] { kvp });
-            }
-            else
-            {
-                // Fallback for when we only have the raw IConfiguration (like in unit tests)
-                configuration[kvp.Key] = kvp.Value;
+                provider.Set(kvp.Key, kvp.Value!);
             }
         }
 
+        configuration.Reload();
         return configuration;
     }
 
     /// <summary>
     /// Validates Azure AI service endpoints.
     /// </summary>
-    internal static IConfiguration WithValidatedAzureAIEndpoints(this IConfiguration configuration)
+    public static IConfigurationRoot WithValidatedAzureAIEndpoints(this IConfigurationRoot configuration)
     {
         var searchEndpoint = configuration["AzureAI:SearchServiceEndpoint"];
         var documentIntelligenceEndpoint = configuration["AzureAI:DocumentIntelligenceEndpoint"];

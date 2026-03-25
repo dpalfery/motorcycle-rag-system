@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Interfaces;
 
 namespace MotorcycleRAG.Application.Services.Web;
 

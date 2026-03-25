@@ -10,7 +10,7 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for rate limiting services.
 /// </summary>
-internal static class RateLimitingServiceConfiguration
+public static class RateLimitingServiceConfiguration
 {
     public static IServiceCollection AddMotorcycleRagRateLimiting(this IServiceCollection services)
     {
@@ -80,7 +80,7 @@ internal static class RateLimitingServiceConfiguration
     /// </summary>
     /// <param name="user">The claims principal.</param>
     /// <returns>The number of permitted requests per hour.</returns>
-    internal static int GetRateLimitForUser(ClaimsPrincipal user)
+    public static int GetRateLimitForUser(ClaimsPrincipal user)
     {
         if (user?.Identity?.IsAuthenticated != true)
         {

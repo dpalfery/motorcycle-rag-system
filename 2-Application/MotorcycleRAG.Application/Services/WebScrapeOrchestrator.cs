@@ -11,6 +11,7 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Domain.ValueObjects;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Application.Services;
 

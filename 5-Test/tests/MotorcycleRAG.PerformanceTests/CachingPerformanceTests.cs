@@ -65,9 +65,10 @@ public class CachingPerformanceTests
                     Id = "honda-cbr600rr-specs",
                     Content = "Honda CBR600RR specifications: 599cc inline-4 engine, 118hp @ 14,000rpm, 64.5Nm torque, 194kg dry weight",
                     RelevanceScore = 0.95f,
-                    Source = new SearchResultSource
+                    Source = new SearchSource
                     {
-                        Type = SearchSource.VectorDatabase,
+                        AgentType = SearchAgentType.VectorSearch,
+                        SourceName = "Vector Database",
                         DocumentId = "motorcycle-specs-001"
                     }
                 }
@@ -105,8 +106,7 @@ public class CachingPerformanceTests
     public async Task CacheSetAndGet()
     {
         await _cacheService.SetAsync(_cacheKey, _testResponse, TimeSpan.FromMinutes(30));
-        var result = await _cacheService.GetAsync(_cacheKey);
-        return result;
+        await _cacheService.GetAsync(_cacheKey);
     }
 
     [Benchmark]
@@ -328,21 +328,3 @@ public class CachingPerformanceValidationTests
     }
 }
 
-/// <summary>
-/// Program entry point for running benchmarks.
-/// </summary>
-public class Program
-{
-    public static void Main(string[] args)
-    {
-        if (args.Length > 0 && args[0] == "benchmark")
-        {
-            BenchmarkRunner.Run<CachingPerformanceTests>();
-        }
-        else
-        {
-            Console.WriteLine("Run with 'benchmark' argument to execute performance benchmarks.");
-            Console.WriteLine("Otherwise, run as normal unit tests.");
-        }
-    }
-}

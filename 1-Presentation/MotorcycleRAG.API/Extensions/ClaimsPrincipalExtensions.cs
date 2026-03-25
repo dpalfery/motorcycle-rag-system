@@ -5,7 +5,7 @@ namespace MotorcycleRAG.API.Extensions;
 /// <summary>
 /// Extension methods for <see cref="ClaimsPrincipal"/> to facilitate authorization checks.
 /// </summary>
-internal static class ClaimsPrincipalExtensions
+public static class ClaimsPrincipalExtensions
 {
     /// <summary>
     /// Checks if the user has the required scope.

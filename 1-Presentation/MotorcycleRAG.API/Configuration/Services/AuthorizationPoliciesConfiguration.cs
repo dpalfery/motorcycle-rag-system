@@ -11,7 +11,7 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for authorization policies.
 /// </summary>
-internal static class AuthorizationPoliciesConfiguration
+public static class AuthorizationPoliciesConfiguration
 {
     public static IServiceCollection AddMotorcycleRagAuthorization(
         this IServiceCollection services, 

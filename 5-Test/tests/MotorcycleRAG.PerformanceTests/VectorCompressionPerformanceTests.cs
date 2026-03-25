@@ -207,7 +207,7 @@ public class VectorCompressionPerformanceValidationTests
         if (vectors.Length >= 100)
         {
             batchStopwatch.ElapsedMilliseconds.Should().BeLessThanOrEqualTo(
-                individualStopwatch.ElapsedMilliseconds * 1.2, // Allow 20% overhead
+                (long)(individualStopwatch.ElapsedMilliseconds * 1.2), // Allow 20% overhead
                 "Batch compression should be competitive with individual compression");
         }
     }

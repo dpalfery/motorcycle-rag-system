@@ -21,4 +21,9 @@ public class AzureFoundryOptions
     public ModelOptions Models { get; set; } = new();
 
     public RetryOptions Retry { get; set; } = new();
+
+    public string OrchestratorAgentId { get; set; } = string.Empty;
+    public string VectorSearchAgentId { get; set; } = string.Empty;
+    public string WebSearchAgentId { get; set; } = string.Empty;
+    public string PDFSearchAgentId { get; set; } = string.Empty;
 }

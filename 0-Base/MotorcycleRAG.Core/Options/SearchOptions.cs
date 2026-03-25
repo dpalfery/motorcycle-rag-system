@@ -24,4 +24,10 @@ public class SearchOptions
     public bool EnableHybridSearch { get; set; } = true;
 
     public bool EnableSemanticRanking { get; set; } = true;
+
+    public int MaxResults { get; set; } = DefaultMaxSearchResults;
+
+    public bool EnableCaching { get; set; } = true;
+
+    public bool IncludeMetadata { get; set; } = true;
 }

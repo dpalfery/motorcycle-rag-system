@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.IntegrationTests;
 using System.Diagnostics;
 using Xunit;
 
@@ -52,7 +53,7 @@ public class SystemPerformanceTests : IClassFixture<TestWebApplicationFactory>, 
         Assert.NotNull(response.Metrics);
 
         // Verify metrics are tracked
-        Assert.True(response.Metrics.ResponseTime.TotalMilliseconds > 0);
+        Assert.True(response.Metrics.TotalDuration.TotalMilliseconds > 0);
     }
 
     [Fact]

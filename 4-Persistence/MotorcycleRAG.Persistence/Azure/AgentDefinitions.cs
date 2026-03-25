@@ -125,126 +125,94 @@ public static class AgentDefinitions
 
     public static readonly ToolDefinition[] OrchestratorTools =
     [
-        new FunctionToolDefinition("vector_search")
+        new FunctionToolDefinition("vector_search", "Searches the internal motorcycle knowledge base (indexed manuals, specs, reviews).", BinaryData.FromObjectAsJson(new
         {
-            Description = "Searches the internal motorcycle knowledge base (indexed manuals, specs, reviews).",
-            Parameters = BinaryData.FromObjectAsJson(new
+            type = "object",
+            properties = new
             {
-                type = "object",
-                properties = new
-                {
-                    query = new { type = "string", description = "The search query" },
-                    max_results = new { type = "integer", description = "Maximum number of results to return", @default = 10 }
-                },
-                required = new[] { "query" }
-            })
-        },
-        new FunctionToolDefinition("web_search")
+                query = new { type = "string", description = "The search query" },
+                max_results = new { type = "integer", description = "Maximum number of results to return", @default = 10 }
+            },
+            required = new[] { "query" }
+        })),
+        new FunctionToolDefinition("web_search", "Searches trusted motorcycle websites for current, broad, or opinion-based information.", BinaryData.FromObjectAsJson(new
         {
-            Description = "Searches trusted motorcycle websites for current, broad, or opinion-based information.",
-            Parameters = BinaryData.FromObjectAsJson(new
+            type = "object",
+            properties = new
             {
-                type = "object",
-                properties = new
-                {
-                    query = new { type = "string", description = "The search query" },
-                    max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
-                },
-                required = new[] { "query" }
-            })
-        },
-        new FunctionToolDefinition("pdf_search")
+                query = new { type = "string", description = "The search query" },
+                max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
+            },
+            required = new[] { "query" }
+        })),
+        new FunctionToolDefinition("pdf_search", "Searches technical motorcycle manuals stored as PDFs.", BinaryData.FromObjectAsJson(new
         {
-            Description = "Searches technical motorcycle manuals stored as PDFs.",
-            Parameters = BinaryData.FromObjectAsJson(new
+            type = "object",
+            properties = new
             {
-                type = "object",
-                properties = new
-                {
-                    query = new { type = "string", description = "The technical search query" },
-                    max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
-                },
-                required = new[] { "query" }
-            })
-        }
+                query = new { type = "string", description = "The technical search query" },
+                max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
+            },
+            required = new[] { "query" }
+        }))
     ];
 
     public static readonly ToolDefinition[] VectorSearchTools =
     [
-        new FunctionToolDefinition("execute_azure_search")
+        new FunctionToolDefinition("execute_azure_search", "Executes a query against the Azure AI Search index for the motorcycle knowledge base.", BinaryData.FromObjectAsJson(new
         {
-            Description = "Executes a query against the Azure AI Search index for the motorcycle knowledge base.",
-            Parameters = BinaryData.FromObjectAsJson(new
+            type = "object",
+            properties = new
             {
-                type = "object",
-                properties = new
-                {
-                    query = new { type = "string", description = "The search query" },
-                    max_results = new { type = "integer", description = "Maximum number of results to return", @default = 10 }
-                },
-                required = new[] { "query" }
-            })
-        }
+                query = new { type = "string", description = "The search query" },
+                max_results = new { type = "integer", description = "Maximum number of results to return", @default = 10 }
+            },
+            required = new[] { "query" }
+        }))
     ];
 
     public static readonly ToolDefinition[] WebSearchTools =
     [
-        new FunctionToolDefinition("get_trusted_sources")
+        new FunctionToolDefinition("get_trusted_sources", "Retrieves the list of trusted motorcycle websites configured by the admin.", BinaryData.FromObjectAsJson(new
         {
-            Description = "Retrieves the list of trusted motorcycle websites configured by the admin.",
-            Parameters = BinaryData.FromObjectAsJson(new
-            {
-                type = "object",
-                properties = new { },
-                required = Array.Empty<string>()
-            })
-        },
-        new FunctionToolDefinition("fetch_web_content")
+            type = "object",
+            properties = new { },
+            required = Array.Empty<string>()
+        })),
+        new FunctionToolDefinition("fetch_web_content", "Fetches and extracts content from a source URL using a search term.", BinaryData.FromObjectAsJson(new
         {
-            Description = "Fetches and extracts content from a source URL using a search term.",
-            Parameters = BinaryData.FromObjectAsJson(new
+            type = "object",
+            properties = new
             {
-                type = "object",
-                properties = new
-                {
-                    url = new { type = "string", description = "The URL to fetch content from" },
-                    search_term = new { type = "string", description = "The search term to use for content extraction" }
-                },
-                required = new[] { "url", "search_term" }
-            })
-        },
-        new FunctionToolDefinition("score_content")
+                url = new { type = "string", description = "The URL to fetch content from" },
+                search_term = new { type = "string", description = "The search term to use for content extraction" }
+            },
+            required = new[] { "url", "search_term" }
+        })),
+        new FunctionToolDefinition("score_content", "Scores content quality and applies trust weighting based on source tier.", BinaryData.FromObjectAsJson(new
         {
-            Description = "Scores content quality and applies trust weighting based on source tier.",
-            Parameters = BinaryData.FromObjectAsJson(new
+            type = "object",
+            properties = new
             {
-                type = "object",
-                properties = new
-                {
-                    content = new { type = "string", description = "The content to score" },
-                    source_url = new { type = "string", description = "The URL of the source" },
-                    trust_tier = new { type = "integer", description = "Trust tier of the source (1=highest, 5=lowest)" }
-                },
-                required = new[] { "content", "source_url", "trust_tier" }
-            })
-        }
+                content = new { type = "string", description = "The content to score" },
+                source_url = new { type = "string", description = "The URL of the source" },
+                trust_tier = new { type = "integer", description = "Trust tier of the source (1=highest, 5=lowest)" }
+            },
+            required = new[] { "content", "source_url", "trust_tier" }
+        }))
     ];
 
     public static readonly ToolDefinition[] PDFSearchTools =
     [
-        new FunctionToolDefinition("search_pdf_index")
+        new FunctionToolDefinition("search_pdf_index", "Searches the indexed PDF motorcycle manuals.", BinaryData.FromObjectAsJson(new
         {
-            Description = "Searches the indexed PDF motorcycle manuals.",
-            Parameters = BinaryData.FromObjectAsJson(new
+            type = "object",
+            properties = new
             {
-                type = "object",
-                properties = new
-                {
-                    query = new { type = "string", description = "The technical search query" },
-                    max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
-                },
-                required = new[] { "query" }
-            })
-        }
+                query = new { type = "string", description = "The technical search query" },
+                max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
+            },
+            required = new[] { "query" }
+        }))
     ];
 }

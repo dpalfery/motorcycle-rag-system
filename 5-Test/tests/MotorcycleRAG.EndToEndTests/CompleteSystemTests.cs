@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.IntegrationTests;
 using Xunit;
 
 namespace MotorcycleRAG.EndToEndTests;
@@ -49,7 +50,8 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         };
 
         // Act - Upload CSV file
-        var uploadResult = await _fileUploadService.UploadFileAsync(file, uploadOptions);
+        var metadata = new FileMetadata { FileName = file.FileName, ContentType = file.ContentType };
+        var uploadResult = await _fileUploadService.UploadFileAsync(file.OpenReadStream(), metadata, uploadOptions);
         Assert.True(uploadResult.IsValid, $"Upload failed: {string.Join(", ", uploadResult.ValidationResult.Errors)}");
 
         // Act - Process CSV through pipeline
@@ -104,7 +106,8 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         };
 
         // Act - Upload PDF file
-        var uploadResult = await _fileUploadService.UploadFileAsync(file, uploadOptions);
+        var metadata = new FileMetadata { FileName = file.FileName, ContentType = file.ContentType };
+        var uploadResult = await _fileUploadService.UploadFileAsync(file.OpenReadStream(), metadata, uploadOptions);
         Assert.True(uploadResult.IsValid, $"Upload failed: {string.Join(", ", uploadResult.ValidationResult.Errors)}");
 
         // Act - Process PDF through pipeline
@@ -168,7 +171,8 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         };
 
         // Act - Batch upload
-        var batchUploadResult = await _fileUploadService.UploadFilesAsync(files, uploadOptions);
+        var fileStreams = files.Select(f => (f.OpenReadStream(), new FileMetadata { FileName = f.FileName, ContentType = f.ContentType })).AsEnumerable();
+        var batchUploadResult = await _fileUploadService.UploadFilesAsync(fileStreams, uploadOptions);
 
         // Assert uploads
         Assert.Equal(3, batchUploadResult.TotalFiles);
@@ -218,8 +222,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
 
         // Assert - RAG service should be healthy or degraded (not unhealthy)
         Assert.NotNull(ragHealth);
-        Assert.True(ragHealth.Status == HealthCheckStatus.Healthy ||
-                   ragHealth.Status == HealthCheckStatus.Degraded);
+        Assert.True(ragHealth.IsHealthy);
 
         // Additional health checks can be added here for other components
     }
@@ -238,8 +241,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
             UserId = "test-user",
             Context = new QueryContext
             {
-                MaxResults = 10,
-                IncludeMetadata = true
+                SessionId = Guid.NewGuid().ToString()
             }
         };
 
@@ -253,7 +255,7 @@ public class CompleteSystemTests : IClassFixture<TestWebApplicationFactory>, IDi
         Assert.NotNull(response.Metrics);
 
         // Response time should be reasonable
-        Assert.True(response.Metrics.ResponseTime < TimeSpan.FromSeconds(30));
+        Assert.True(response.Metrics.TotalDuration < TimeSpan.FromSeconds(30));
     }
 
     [Fact]

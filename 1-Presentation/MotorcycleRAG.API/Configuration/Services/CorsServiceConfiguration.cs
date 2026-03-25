@@ -6,7 +6,7 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for Cross-Origin Resource Sharing (CORS).
 /// </summary>
-internal static class CorsServiceConfiguration
+public static class CorsServiceConfiguration
 {
     public static IServiceCollection AddRestrictedCors(
         this IServiceCollection services, 

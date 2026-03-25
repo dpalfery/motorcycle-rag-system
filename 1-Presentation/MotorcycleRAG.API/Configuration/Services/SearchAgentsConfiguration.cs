@@ -34,7 +34,7 @@ internal static class SearchAgentsConfiguration
         services.AddScoped<OrchestratorToolHandlers>(sp =>
         {
             var runner = sp.GetRequiredService<IFoundryAgentRunner>();
-            var subAgentDispatcher = new FoundryToolDispatcher();
+            var subAgentDispatcher = new FoundryToolDispatcher(sp.GetRequiredService<ILogger<FoundryToolDispatcher>>());
             var subAgentHandlers = sp.GetRequiredService<SubAgentToolHandlers>();
             subAgentHandlers.RegisterOn(subAgentDispatcher);
 

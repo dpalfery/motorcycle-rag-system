@@ -98,7 +98,7 @@ public sealed class SubAgentToolHandlers
             using var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; MotorcycleRAGBot/1.0)");
             httpClient.Timeout = TimeSpan.FromSeconds(10);
-            var html = await httpClient.GetStringAsync(url, ct);
+            var html = await httpClient.GetStringAsync(new Uri(url), ct);
 
             var extractor = new WebContentExtractor(_logger);
             var source = new TrustedSourceOptions

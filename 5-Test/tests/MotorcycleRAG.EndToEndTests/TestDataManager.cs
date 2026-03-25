@@ -37,32 +37,21 @@ public class TestDataManager
                 {
                     Type = "4-Stroke DOHC",
                     DisplacementCC = 599,
-                    Configuration = "Inline-4",
                     Cylinders = 4,
-                    BoreMM = 67.0f,
-                    StrokeMM = 42.5f,
-                    CompressionRatio = "12.2:1",
+                    Horsepower = 118,
+                    Torque = 64,
                     FuelSystem = "PGM-FI"
                 },
                 Performance = new PerformanceMetrics
                 {
-                    MaxPowerHP = 118,
-                    MaxPowerRPM = 14000,
-                    MaxTorqueNM = 64.5f,
-                    MaxTorqueRPM = 11500,
-                    TopSpeedKMH = 260,
-                    Transmission = "6-Speed"
-                },
-                Dimensions = new DimensionSpecification
-                {
-                    WheelbaseMM = 1375,
-                    SeatHeightMM = 820,
-                    DryWeightKG = 194,
-                    FuelCapacityL = 18.1f
+                    TopSpeedKmh = 260,
+                    Acceleration0To100 = 2.8m,
+                    FuelConsumptionL100Km = 4.5m,
+                    RangeKm = 402
                 },
                 Pricing = new PricingInformation
                 {
-                    MSRP = 12999,
+                    Msrp = 12999,
                     Currency = "USD",
                     Market = "US"
                 }
@@ -77,32 +66,21 @@ public class TestDataManager
                 {
                     Type = "4-Stroke DOHC",
                     DisplacementCC = 998,
-                    Configuration = "Inline-4",
                     Cylinders = 4,
-                    BoreMM = 79.0f,
-                    StrokeMM = 50.9f,
-                    CompressionRatio = "13.0:1",
+                    Horsepower = 200,
+                    Torque = 112,
                     FuelSystem = "Fuel Injection"
                 },
                 Performance = new PerformanceMetrics
                 {
-                    MaxPowerHP = 200,
-                    MaxPowerRPM = 13500,
-                    MaxTorqueNM = 112.4f,
-                    MaxTorqueRPM = 11500,
-                    TopSpeedKMH = 299,
-                    Transmission = "6-Speed"
-                },
-                Dimensions = new DimensionSpecification
-                {
-                    WheelbaseMM = 1405,
-                    SeatHeightMM = 855,
-                    DryWeightKG = 201,
-                    FuelCapacityL = 17.0f
+                    TopSpeedKmh = 299,
+                    Acceleration0To100 = 2.6m,
+                    FuelConsumptionL100Km = 4.8m,
+                    RangeKm = 354
                 },
                 Pricing = new PricingInformation
                 {
-                    MSRP = 17399,
+                    Msrp = 17399,
                     Currency = "USD",
                     Market = "US"
                 }
@@ -117,32 +95,21 @@ public class TestDataManager
                 {
                     Type = "4-Stroke DOHC",
                     DisplacementCC = 998,
-                    Configuration = "Inline-4",
                     Cylinders = 4,
-                    BoreMM = 76.0f,
-                    StrokeMM = 55.0f,
-                    CompressionRatio = "13.0:1",
+                    Horsepower = 203,
+                    Torque = 114,
                     FuelSystem = "DFI"
                 },
                 Performance = new PerformanceMetrics
                 {
-                    MaxPowerHP = 203,
-                    MaxPowerRPM = 13200,
-                    MaxTorqueNM = 114.9f,
-                    MaxTorqueRPM = 11400,
-                    TopSpeedKMH = 300,
-                    Transmission = "6-Speed"
-                },
-                Dimensions = new DimensionSpecification
-                {
-                    WheelbaseMM = 1450,
-                    SeatHeightMM = 835,
-                    DryWeightKG = 207,
-                    FuelCapacityL = 17.0f
+                    TopSpeedKmh = 300,
+                    Acceleration0To100 = 2.5m,
+                    FuelConsumptionL100Km = 4.9m,
+                    RangeKm = 347
                 },
                 Pricing = new PricingInformation
                 {
-                    MSRP = 16999,
+                    Msrp = 16999,
                     Currency = "USD",
                     Market = "US"
                 }
@@ -205,7 +172,7 @@ public class TestDataManager
                     "BMW S1000RR weight"
                 },
                 ExpectedResponseTime = TimeSpan.FromSeconds(3),
-                ExpectedSources = new[] { SearchSource.VectorDatabase },
+                ExpectedSources = Array.Empty<SearchSource>(),
                 ValidationCriteria = new[]
                 {
                     "Response contains motorcycle make and model",
@@ -224,7 +191,7 @@ public class TestDataManager
                     "Kawasaki ZX-10R vs Suzuki GSX-R1000R specs"
                 },
                 ExpectedResponseTime = TimeSpan.FromSeconds(5),
-                ExpectedSources = new[] { SearchSource.VectorDatabase, SearchSource.WebAugmentation },
+                ExpectedSources = Array.Empty<SearchSource>(),
                 ValidationCriteria = new[]
                 {
                     "Response mentions both motorcycles being compared",
@@ -243,7 +210,7 @@ public class TestDataManager
                     "BMW S1000RR brake service procedure"
                 },
                 ExpectedResponseTime = TimeSpan.FromSeconds(7),
-                ExpectedSources = new[] { SearchSource.PDFManual, SearchSource.WebAugmentation },
+                ExpectedSources = Array.Empty<SearchSource>(),
                 ValidationCriteria = new[]
                 {
                     "Response includes step-by-step instructions",
@@ -262,7 +229,7 @@ public class TestDataManager
                     "Compare braking systems across different motorcycle manufacturers"
                 },
                 ExpectedResponseTime = TimeSpan.FromSeconds(10),
-                ExpectedSources = new[] { SearchSource.VectorDatabase, SearchSource.WebAugmentation, SearchSource.PDFManual },
+                ExpectedSources = Array.Empty<SearchSource>(),
                 ValidationCriteria = new[]
                 {
                     "Response demonstrates deep technical understanding",

@@ -50,7 +50,6 @@ public class MotorcycleManualCitationComponentTests {
         var mockLimitationLogger = new Mock<ILogger<MotorcycleRAG.Application.Services.ResponseProcessing.ResponseLimitationAnalyzer>>();
 
         var citationService = new MotorcycleRAG.Application.Services.Citations.ClaimCitationService(
-            mockOpenAIClient.Object,
             mockCitationLogger.Object);
         var refinementService = new MotorcycleRAG.Application.Services.QueryProcessing.QueryRefinementService(
             mockRefinementLogger.Object);

@@ -40,8 +40,7 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
     public async Task<string> CreateThreadAsync(CancellationToken ct = default)
     {
         _logger.LogDebug("Creating Foundry thread");
-        var thread = await _agentsClient.Threads.CreateThreadAsync(
-            new AgentThreadCreationOptions(), ct);
+        var thread = await _agentsClient.Threads.CreateThreadAsync(cancellationToken: ct);
         _logger.LogDebug("Created Foundry thread {ThreadId}", thread.Value.Id);
         return thread.Value.Id;
     }
@@ -67,10 +66,7 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
         ArgumentException.ThrowIfNullOrWhiteSpace(agentId);
 
         _logger.LogDebug("Creating run on thread {ThreadId} for agent {AgentId}", threadId, agentId);
-        var run = await _agentsClient.Runs.CreateRunAsync(
-            threadId,
-            new CreateRunOptions(agentId),
-            ct);
+        var run = await _agentsClient.Runs.CreateRunAsync(threadId, agentId, cancellationToken: ct);
 
         return await PollUntilTerminalOrRequiresActionAsync(threadId, run.Value, ct);
     }
@@ -105,7 +101,7 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
             toolOutputList.Count, runId, threadId);
 
         var run = await _agentsClient.Runs.SubmitToolOutputsToRunAsync(
-            threadId, runId, toolOutputList, ct);
+            threadId, runId, toolOutputList, cancellationToken: ct);
 
         return await PollUntilTerminalOrRequiresActionAsync(threadId, run.Value, ct);
     }
@@ -178,24 +174,31 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
 
     private static AgentRunStatus MapToAgentRunStatus(ThreadRun run)
     {
-        var state = run.Status switch
-        {
-            RunStatus.Queued => AgentRunState.Queued,
-            RunStatus.InProgress => AgentRunState.InProgress,
-            RunStatus.RequiresAction => AgentRunState.RequiresAction,
-            RunStatus.Completed => AgentRunState.Completed,
-            RunStatus.Failed => AgentRunState.Failed,
-            RunStatus.Cancelled => AgentRunState.Cancelled,
-            RunStatus.Expired => AgentRunState.Expired,
-            _ => AgentRunState.Failed
-        };
+        AgentRunState state;
+        if (run.Status == RunStatus.Queued)
+            state = AgentRunState.Queued;
+        else if (run.Status == RunStatus.InProgress)
+            state = AgentRunState.InProgress;
+        else if (run.Status == RunStatus.RequiresAction)
+            state = AgentRunState.RequiresAction;
+        else if (run.Status == RunStatus.Completed)
+            state = AgentRunState.Completed;
+        else if (run.Status == RunStatus.Failed)
+            state = AgentRunState.Failed;
+        else if (run.Status == RunStatus.Cancelled)
+            state = AgentRunState.Cancelled;
+        else if (run.Status == RunStatus.Expired)
+            state = AgentRunState.Expired;
+        else
+            state = AgentRunState.Failed;
 
         IReadOnlyList<AgentToolCall>? toolCalls = null;
 
         if (state == AgentRunState.RequiresAction && run.RequiredAction is SubmitToolOutputsAction submitAction)
         {
             toolCalls = submitAction.ToolCalls
-                .Select(tc => new AgentToolCall(tc.Id, tc.FunctionName, tc.FunctionArguments))
+                .OfType<RequiredFunctionToolCall>()
+                .Select(tc => new AgentToolCall(tc.Id, tc.Name, tc.Arguments))
                 .ToList()
                 .AsReadOnly();
         }

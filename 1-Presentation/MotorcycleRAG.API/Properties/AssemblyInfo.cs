@@ -1,5 +1,6 @@
-[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("MotorcycleRAG.IntegrationTests")]
-[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("MotorcycleRAG.UnitTests")]
-[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("MotorcycleRAG.EndToEndTests")]
-[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("MotorcycleRAG.PerformanceTests")]
+using System.Runtime.CompilerServices;
 
+[assembly: InternalsVisibleTo("MotorcycleRAG.UnitTests")]
+[assembly: InternalsVisibleTo("MotorcycleRAG.IntegrationTests")]
+[assembly: InternalsVisibleTo("MotorcycleRAG.EndToEndTests")]
+[assembly: InternalsVisibleTo("MotorcycleRAG.PerformanceTests")]

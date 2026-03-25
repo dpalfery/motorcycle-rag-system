@@ -96,8 +96,15 @@ jobs:
           echo "RESOURCE_GROUP=${RG}"                 >> "$GITHUB_ENV"
           echo "API_APP_NAME=${API_APP}"              >> "$GITHUB_ENV"
           echo "UI_APP_NAME=${UI_APP}"                >> "$GITHUB_ENV"
+          FOUNDRY_ENDPOINT=$(pulumi stack output aiServicesEndpoint --stack ${{ env.PULUMI_STACK }})
+          KEY_VAULT_URI=$(pulumi stack output keyVaultUri --stack ${{ env.PULUMI_STACK }})
+          KEY_VAULT_NAME="${KEY_VAULT_URI#https://}"
+          KEY_VAULT_NAME="${KEY_VAULT_NAME%.vault.azure.net/}"
+
           echo "SQL_SERVER=${SQL_SERVER}"             >> "$GITHUB_ENV"
           echo "SQL_DATABASE=${SQL_DATABASE}"         >> "$GITHUB_ENV"
+          echo "FOUNDRY_ENDPOINT=${FOUNDRY_ENDPOINT}" >> "$GITHUB_ENV"
+          echo "KEY_VAULT_NAME=${KEY_VAULT_NAME}"     >> "$GITHUB_ENV"
         env:
           PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
           PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
@@ -177,3 +184,23 @@ jobs:
             --name "${{ env.UI_APP_NAME }}" \
             --resource-group "${{ env.RESOURCE_GROUP }}" \
             --image "${UI_IMAGE_SHA}"
+
+      # ── Provision Foundry Agents ────────────────────────────────────
+      - name: Provision Foundry Agents
+        id: provision-agents
+        run: |
+          AGENT_IDS_JSON=$(dotnet run --project 7-Deployment/AgentProvisioning -- 2>/dev/null | tail -n 1)
+          echo "ORCHESTRATOR_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -r '.orchestratorAgentId')" >> "$GITHUB_ENV"
+          echo "VECTORSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -r '.vectorSearchAgentId')" >> "$GITHUB_ENV"
+          echo "WEBSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -r '.webSearchAgentId')"       >> "$GITHUB_ENV"
+          echo "PDFSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -r '.pdfSearchAgentId')"       >> "$GITHUB_ENV"
+        env:
+          AZURE_FOUNDRY_ENDPOINT: ${{ env.FOUNDRY_ENDPOINT }}
+
+      # ── Write Agent IDs to Key Vault ────────────────────────────────
+      - name: Write Agent IDs to Key Vault
+        run: |
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-ORCHESTRATOR-AGENT-ID" --value "${{ env.ORCHESTRATOR_AGENT_ID }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-VECTORSEARCH-AGENT-ID" --value "${{ env.VECTORSEARCH_AGENT_ID }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-WEBSEARCH-AGENT-ID"    --value "${{ env.WEBSEARCH_AGENT_ID }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-PDFSEARCH-AGENT-ID"    --value "${{ env.PDFSEARCH_AGENT_ID }}"

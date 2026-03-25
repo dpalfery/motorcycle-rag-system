@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using System.Collections.ObjectModel;
 
 namespace MotorcycleRAG.Application.Services.Telemetry;
 
@@ -59,6 +60,48 @@ public class DegradedModeTracker
                 successfulSources.Select(s => new { s.AgentType, s.ResultsCount }).ToList();
         }
     }
+
+    /// <summary>
+    /// Tracks the result of a single Foundry sub-agent run (vector_search, web_search, pdf_search).
+    /// Preserves the existing telemetry schema by mapping tool names to <see cref="SearchAgentType"/>.
+    /// </summary>
+    public void TrackFoundrySubRunResult(string toolName, bool succeeded, string? errorMessage = null, int resultSize = 0)
+    {
+        var agentType = MapToolNameToAgentType(toolName);
+        var status = new SourceExecutionStatus
+        {
+            AgentType = agentType,
+            Succeeded = succeeded,
+            ResultsCount = resultSize,
+            ErrorMessage = errorMessage
+        };
+
+        if (!succeeded)
+        {
+            _logger.LogWarning(
+                "Foundry sub-run degraded: tool={Tool} agentType={AgentType} error={Error}",
+                toolName, agentType, errorMessage);
+        }
+        else
+        {
+            _logger.LogDebug(
+                "Foundry sub-run succeeded: tool={Tool} agentType={AgentType} resultSize={ResultSize}",
+                toolName, agentType, resultSize);
+        }
+
+        TrackSearchExecution(
+            new ReadOnlyCollection<SourceExecutionStatus>([status]),
+            TimeSpan.Zero,
+            resultSize);
+    }
+
+    private static SearchAgentType MapToolNameToAgentType(string toolName) => toolName switch
+    {
+        "vector_search" => SearchAgentType.VectorSearch,
+        "web_search" => SearchAgentType.WebSearch,
+        "pdf_search" => SearchAgentType.PDFSearch,
+        _ => SearchAgentType.VectorSearch
+    };
 
     private SearchPatternMetrics CreateMetrics(Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)> metrics)
     {

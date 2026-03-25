@@ -53,8 +53,6 @@ public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
     }
 
     // Convenience overloads (tests call these)
-    public Task<string> GetChatCompletionAsync(string deploymentName, string prompt) =>
-        GetChatCompletionAsync(deploymentName, prompt, CancellationToken.None);
     public Task<float[]> GetEmbeddingAsync(string deploymentName, string text) =>
         GetEmbeddingAsync(deploymentName, text, CancellationToken.None);
     public Task<float[]> GetEmbeddingsAsync(string deploymentName, string text) =>
@@ -63,81 +61,6 @@ public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
         GetEmbeddingsAsync(deploymentName, texts, CancellationToken.None);
     public Task<string> ProcessMultimodalContentAsync(string deploymentName, string textPrompt, byte[] imageData, string imageContentType) =>
         ProcessMultimodalContentAsync(deploymentName, textPrompt, imageData, imageContentType, CancellationToken.None);
-
-    public async Task<string> GetChatCompletionAsync(
-        string deploymentName,
-        string prompt,
-        CancellationToken cancellationToken)
-    {
-        var correlationId = _correlationService.GetOrCreateCorrelationId();
-
-        return await _resilienceService.ExecuteAsync(
-            "AzureFoundry",
-            async () =>
-            {
-                using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
-                {
-                    ["Operation"] = "GetChatCompletion",
-                    ["DeploymentName"] = deploymentName
-                });
-
-                _logger.LogDebug("Getting chat completion for deployment: {DeploymentName}", deploymentName);
-                // Read config from options
-                var endpoint = _azureConfig.FoundryEndpoint;
-                if (string.IsNullOrWhiteSpace(endpoint))
-                {
-                    throw new InvalidOperationException(
-                        "FoundryEndpoint is not configured in AzureFoundryOptions");
-                }
-
-                var chatModel = string.IsNullOrWhiteSpace(deploymentName)
-                    ? _azureConfig.Models.ChatModel
-                    : deploymentName;
-
-                if (string.IsNullOrWhiteSpace(chatModel))
-                {
-                    throw new InvalidOperationException("ChatModel is not configured in AzureFoundryOptions");
-                }
-
-                var tokenRequestContext = new global::Azure.Core.TokenRequestContext(TokenScopes);
-                var tokenResult = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
-
-                // Build request
-                var requestBody = System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    model = chatModel,
-                    messages = new[] { new { role = "user", content = prompt } }
-                });
-                var requestUri = new Uri($"{endpoint.TrimEnd('/')}/chat/completions?api-version=2024-05-01-preview");
-                using var httpRequest = new HttpRequestMessage(HttpMethod.Post, requestUri);
-                httpRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
-                    "Bearer", tokenResult.Token);
-                httpRequest.Content = new StringContent(requestBody, System.Text.Encoding.UTF8, "application/json");
-
-                using var httpClient = _httpClientFactory.CreateClient("AzureFoundry");
-                using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
-                response.EnsureSuccessStatusCode();
-
-                var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-                using var doc = System.Text.Json.JsonDocument.Parse(responseJson);
-                var content = doc.RootElement
-                    .GetProperty("choices")[0]
-                    .GetProperty("message")
-                    .GetProperty("content")
-                    .GetString()
-                    ?? throw new InvalidOperationException("Empty content in Foundry chat completion response");
-
-                _logger.LogDebug("Successfully retrieved chat completion from Azure AI Foundry");
-                return content;
-            },
-            async () =>
-            {
-                _logger.LogWarning("Using fallback response for chat completion");
-                return "Fallback response: Unable to process request at this time. Please try again later.";
-            },
-            correlationId,
-            cancellationToken);
-    }
 
     public async Task<float[]> GetEmbeddingAsync(
         string model,

@@ -1,6 +1,4 @@
-﻿using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Contracts.Interfaces;
+﻿using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Enums;
 
@@ -11,17 +9,11 @@ namespace MotorcycleRAG.Application.Services.Citations;
 /// </summary>
 public class ClaimCitationService
 {
-    private readonly IAzureFoundryClient _openAIClient;
     private readonly ILogger<ClaimCitationService> _logger;
 
-    public ClaimCitationService(
-        IAzureFoundryClient openAIClient,
-        ILogger<ClaimCitationService> logger)
+    public ClaimCitationService(ILogger<ClaimCitationService> logger)
     {
-        ArgumentNullException.ThrowIfNull(openAIClient);
         ArgumentNullException.ThrowIfNull(logger);
-
-        _openAIClient = openAIClient;
         _logger = logger;
     }
 
@@ -76,47 +68,10 @@ public class ClaimCitationService
         }
     }
 
-    private async Task<string[]> IdentifyFactualClaimsAsync(string answer, CancellationToken cancellationToken)
+    private Task<string[]> IdentifyFactualClaimsAsync(string answer, CancellationToken cancellationToken)
     {
-        try
-        {
-            var prompt = $"""
-Analyze the following answer and extract all factual claims that require citation.
-Return only the factual statements as a JSON array of strings.
-Do not include opinions, qualifiers, or introductory phrases.
-
-Answer to analyze:
-{answer}
-
-Factual claims (JSON array):
-""";
-
-            var claimsJson = await _openAIClient.GetChatCompletionAsync("gpt-4o-mini", prompt, cancellationToken);
-
-            if (string.IsNullOrWhiteSpace(claimsJson))
-                return Array.Empty<string>();
-
-            // Simple JSON parsing (in production, use proper JSON parser)
-            if (claimsJson.StartsWith('[') && claimsJson.EndsWith(']'))
-            {
-                var claims = claimsJson
-                    .Trim(TrimChars)
-                    .Split(JsonArraySeparators, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(c => c.Trim('"', ' ', '\\'))
-                    .Where(c => !string.IsNullOrWhiteSpace(c))
-                    .ToArray();
-
-                return claims;
-            }
-
-            // Fallback: extract sentences that look like facts
-            return ExtractFactLikeSentences(answer);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to identify factual claims using AI, falling back to simple extraction");
-            return ExtractFactLikeSentences(answer);
-        }
+        // AI-based claim extraction removed; factual claims are now identified using heuristics.
+        return Task.FromResult(ExtractFactLikeSentences(answer));
     }
 
     private List<ClaimEvidence> MapClaimsToEvidence(string[] claims, SearchResult[] results)

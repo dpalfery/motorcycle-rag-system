@@ -63,14 +63,11 @@ public sealed class MotorcycleRagService : IMotorcycleRagService
             return cachedResponse;
         }
 
-        // 2. Execute orchestrated search
-        var results = await ExecuteSearchAsync(request);
+        // 2. Execute orchestrated search — answer is embedded in the returned results
+        var (results, answer) = await ExecuteSearchWithAnswerAsync(request);
 
-        // 3. Generate initial response
-        var answer = await _orchestrator.GenerateResponseAsync(results, request.Query);
-
-        // 4. Handle no-results (delegated)
-        if (results.Length == 0 || string.IsNullOrWhiteSpace(answer))
+        // 3. Handle no-results (delegated) — skip if Foundry returned an answer
+        if (string.IsNullOrWhiteSpace(answer))
         {
             answer = _dependencies.RefinementService.GenerateNoResultsResponse(request.Query);
         }
@@ -112,7 +109,7 @@ public sealed class MotorcycleRagService : IMotorcycleRagService
         return cachedResponse;
     }
 
-    private Task<SearchResult[]> ExecuteSearchAsync(MotorcycleQueryRequest request)
+    private async Task<(SearchResult[] Results, string Answer)> ExecuteSearchWithAnswerAsync(MotorcycleQueryRequest request)
     {
         var context = new SearchContext
         {
@@ -121,7 +118,20 @@ public sealed class MotorcycleRagService : IMotorcycleRagService
             QueryContext = request.Context ?? new QueryContext()
         };
 
-        return _orchestrator.ExecuteSequentialSearchAsync(request.Query, context);
+        var results = await _orchestrator.ExecuteSequentialSearchAsync(request.Query, context);
+
+        // Extract the Foundry synthesized answer from the result marked with FoundryAnswer
+        var foundryResult = Array.Find(results,
+            r => r.Metadata.TryGetValue("FoundryAnswer", out var v) && v is true);
+
+        var answer = foundryResult?.Content ?? string.Empty;
+
+        // Strip the synthetic FoundryAnswer result from the sources list if present
+        var sources = foundryResult != null
+            ? results.Where(r => r != foundryResult).ToArray()
+            : results;
+
+        return (sources, answer);
     }
 
     private async Task<MotorcycleQueryResponse> FinalizeResponseAsync(

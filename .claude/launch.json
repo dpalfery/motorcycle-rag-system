@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "WebUI (Vite/React)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "1-Presentation/MotorcycleRag.WebUI",
+      "port": 5173
+    },
+    {
+      "name": "WebUI BFF (.NET)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "1-Presentation/MotorcycleRag.WebUI.BFF"],
+      "port": 5001
+    },
+    {
+      "name": "API (.NET)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "1-Presentation/MotorcycleRAG.API"],
+      "port": 7215
+    }
+  ]
+}

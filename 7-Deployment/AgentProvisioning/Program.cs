@@ -87,7 +87,7 @@ try
         pdfSearchAgentId = agentIds.PDFSearchAgentId
     };
 
-    Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine(JsonSerializer.Serialize(output));
 
     Environment.Exit(0);
 }

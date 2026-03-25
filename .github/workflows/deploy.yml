@@ -99,6 +99,7 @@ jobs:
           FOUNDRY_ENDPOINT=$(pulumi stack output aiServicesEndpoint --stack ${{ env.PULUMI_STACK }})
           KEY_VAULT_URI=$(pulumi stack output keyVaultUri --stack ${{ env.PULUMI_STACK }})
           KEY_VAULT_NAME="${KEY_VAULT_URI#https://}"
+          KEY_VAULT_NAME="${KEY_VAULT_NAME%.vault.azure.net}"
           KEY_VAULT_NAME="${KEY_VAULT_NAME%.vault.azure.net/}"
 
           echo "SQL_SERVER=${SQL_SERVER}"             >> "$GITHUB_ENV"
@@ -189,17 +190,36 @@ jobs:
       - name: Provision Foundry Agents
         id: provision-agents
         run: |
-          AGENT_IDS_JSON=$(dotnet run --project 7-Deployment/AgentProvisioning -- 2>/dev/null | tail -n 1)
-          echo "ORCHESTRATOR_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -r '.orchestratorAgentId')" >> "$GITHUB_ENV"
-          echo "VECTORSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -r '.vectorSearchAgentId')" >> "$GITHUB_ENV"
-          echo "WEBSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -r '.webSearchAgentId')"       >> "$GITHUB_ENV"
-          echo "PDFSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -r '.pdfSearchAgentId')"       >> "$GITHUB_ENV"
+          set -euo pipefail
+          AGENT_IDS_JSON=$(dotnet run --project 7-Deployment/AgentProvisioning -- | tail -n 1)
+
+          ORCHESTRATOR_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.orchestratorAgentId')
+          VECTORSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.vectorSearchAgentId')
+          WEBSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.webSearchAgentId')
+          PDFSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.pdfSearchAgentId')
+
+          for agent_id in \
+            "${ORCHESTRATOR_AGENT_ID}" \
+            "${VECTORSEARCH_AGENT_ID}" \
+            "${WEBSEARCH_AGENT_ID}" \
+            "${PDFSEARCH_AGENT_ID}"; do
+            if [ -z "${agent_id}" ] || [ "${agent_id}" = "null" ]; then
+              echo "Agent provisioning returned an empty agent ID"
+              exit 1
+            fi
+          done
+
+          echo "ORCHESTRATOR_AGENT_ID=${ORCHESTRATOR_AGENT_ID}" >> "$GITHUB_ENV"
+          echo "VECTORSEARCH_AGENT_ID=${VECTORSEARCH_AGENT_ID}" >> "$GITHUB_ENV"
+          echo "WEBSEARCH_AGENT_ID=${WEBSEARCH_AGENT_ID}"       >> "$GITHUB_ENV"
+          echo "PDFSEARCH_AGENT_ID=${PDFSEARCH_AGENT_ID}"       >> "$GITHUB_ENV"
         env:
           AZURE_FOUNDRY_ENDPOINT: ${{ env.FOUNDRY_ENDPOINT }}
 
       # ── Write Agent IDs to Key Vault ────────────────────────────────
       - name: Write Agent IDs to Key Vault
         run: |
+          set -euo pipefail
           az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-ORCHESTRATOR-AGENT-ID" --value "${{ env.ORCHESTRATOR_AGENT_ID }}"
           az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-VECTORSEARCH-AGENT-ID" --value "${{ env.VECTORSEARCH_AGENT_ID }}"
           az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-WEBSEARCH-AGENT-ID"    --value "${{ env.WEBSEARCH_AGENT_ID }}"

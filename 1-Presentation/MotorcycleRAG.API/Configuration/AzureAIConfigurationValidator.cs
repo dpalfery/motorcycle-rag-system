@@ -38,6 +38,20 @@ internal class AzureAIConfigurationValidator : IValidateOptions<AzureFoundryOpti
                 failures.Add("AzureAI:Models:Temperature must be between 0 and 2");
         }
 
+        // Foundry agent IDs — written by the deploy pipeline to Key Vault
+        // and injected via environment config at runtime. Fail-fast on startup if missing.
+        if (string.IsNullOrWhiteSpace(options.OrchestratorAgentId))
+            failures.Add("AzureAI:OrchestratorAgentId is required (written by deploy pipeline to Key Vault)");
+
+        if (string.IsNullOrWhiteSpace(options.VectorSearchAgentId))
+            failures.Add("AzureAI:VectorSearchAgentId is required (written by deploy pipeline to Key Vault)");
+
+        if (string.IsNullOrWhiteSpace(options.WebSearchAgentId))
+            failures.Add("AzureAI:WebSearchAgentId is required (written by deploy pipeline to Key Vault)");
+
+        if (string.IsNullOrWhiteSpace(options.PDFSearchAgentId))
+            failures.Add("AzureAI:PDFSearchAgentId is required (written by deploy pipeline to Key Vault)");
+
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;

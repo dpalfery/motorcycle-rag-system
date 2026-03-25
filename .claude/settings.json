@@ -1,6 +1,6 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File d:\\git\\motorcycle-rag-system\\.claude\\statusline-command.ps1"
+    "command": "pwsh -File .claude/statusline-command.ps1"
   }
 }

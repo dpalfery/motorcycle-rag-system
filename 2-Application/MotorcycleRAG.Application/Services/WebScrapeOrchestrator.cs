@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
@@ -21,7 +20,7 @@ namespace MotorcycleRAG.Application.Services;
 /// </summary>
 public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     private readonly IWebScrapeRunRepository _webScrapeRunRepository;
-    private readonly ISearchAgent _webSearchAgent;
+    private readonly IAzureSearchClient _searchClient;
     private readonly IMotorcycleIndexingService _indexingService;
     private readonly IWebSourceRepository _webSourceRepository;
     private readonly ILogger<WebScrapeOrchestrator> _logger;
@@ -40,12 +39,12 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
 
     public WebScrapeOrchestrator(
         IWebScrapeRunRepository webScrapeRunRepository,
-        ISearchAgent webSearchAgent,
+        IAzureSearchClient searchClient,
         IMotorcycleIndexingService indexingService,
         IWebSourceRepository webSourceRepository,
         ILogger<WebScrapeOrchestrator> logger) {
         _webScrapeRunRepository = webScrapeRunRepository ?? throw new ArgumentNullException(nameof(webScrapeRunRepository));
-        _webSearchAgent = webSearchAgent ?? throw new ArgumentNullException(nameof(webSearchAgent));
+        _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
         _indexingService = indexingService ?? throw new ArgumentNullException(nameof(indexingService));
         _webSourceRepository = webSourceRepository ?? throw new ArgumentNullException(nameof(webSourceRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -348,11 +347,10 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             // Generate search terms to extract content from the web source
             var searchTerms = GenerateSearchTermsForSource(webSource);
 
-            // Execute web search for each term to extract content
+            // Execute search for each term to extract content from the Azure search index
             var searchResults = new List<SearchResult>();
-            var searchParams = new SearchParameters {
+            var searchOptions = new SearchOptions {
                 MaxResults = 10,
-                MinRelevanceScore = 0.5f,
                 EnableCaching = false
             };
 
@@ -360,10 +358,10 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 try {
-                    _logger.LogDebug("Executing web search for term: {SearchTerm} from source {SourceUrl}",
+                    _logger.LogDebug("Executing search for term: {SearchTerm} from source {SourceUrl}",
                         searchTerm, webSource.Url);
 
-                    var termResults = await _webSearchAgent.SearchAsync(searchTerm, searchParams);
+                    var termResults = await _searchClient.SearchAsync(searchTerm, searchOptions);
 
                     // Filter results to only include content from the target web source
                     var sourceSpecificResults = termResults

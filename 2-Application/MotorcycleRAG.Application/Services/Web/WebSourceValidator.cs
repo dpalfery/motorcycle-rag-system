@@ -1,7 +1,5 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -9,49 +7,39 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 namespace MotorcycleRAG.Application.Services.Web;
 
 /// <summary>
-/// Validates web sources using trust policies and AI-based credibility checks
+/// Validates web sources using trust policies and credibility checks.
+/// AI-based content quality validation removed; scoring is now handled by Foundry-hosted agents.
 /// </summary>
 public class WebSourceValidator
 {
-    private readonly IAzureFoundryClient _openAIClient;
     private readonly IWebTrustPolicyStore? _trustPolicyStore;
     private readonly float _minCredibilityScore;
-    private readonly string _validationModel;
     private readonly ILogger<WebSourceValidator> _logger;
 
     public WebSourceValidator(
-        IAzureFoundryClient openAIClient,
         IWebTrustPolicyStore? trustPolicyStore,
         IOptions<WebSearchOptions> options,
         ILogger<WebSourceValidator> logger)
         : this(
-            openAIClient,
             trustPolicyStore,
             (options ?? throw new ArgumentNullException(nameof(options))).Value.MinCredibilityScore,
-            options.Value.ValidationModel,
             logger)
     {
     }
 
     public WebSourceValidator(
-        IAzureFoundryClient openAIClient,
         IWebTrustPolicyStore? trustPolicyStore,
         float minCredibilityScore,
-        string validationModel,
         ILogger<WebSourceValidator> logger)
     {
-        ArgumentNullException.ThrowIfNull(openAIClient);
-        ArgumentException.ThrowIfNullOrWhiteSpace(validationModel);
         ArgumentNullException.ThrowIfNull(logger);
         if (minCredibilityScore is < 0 or > 1)
         {
             throw new ArgumentOutOfRangeException(nameof(minCredibilityScore), minCredibilityScore, "minCredibilityScore must be between 0 and 1");
         }
 
-        _openAIClient = openAIClient;
         _trustPolicyStore = trustPolicyStore;
         _minCredibilityScore = minCredibilityScore;
-        _validationModel = validationModel;
         _logger = logger;
     }
 
@@ -186,32 +174,10 @@ public class WebSourceValidator
         return (true, policy.Tier, null);
     }
 
-    private async Task<ContentValidation> ValidateContentQualityAsync(string content, CancellationToken cancellationToken)
+    private Task<ContentValidation> ValidateContentQualityAsync(string content, CancellationToken cancellationToken)
     {
-        try
-        {
-            var prompt = $@"
-Analyze this motorcycle-related content for quality and accuracy:
-
-Content: {content.AsSpan(0, Math.Min(content.Length, 300)).ToString()}
-
-Rate content on a scale of 0.0 to 1.0. Respond with only JSON:
-{{
-  ""qualityScore"": 0.0-1.0,
-  ""isValid"": true/false,
-  ""reasoning"": ""brief explanation""
-}}
-";
-
-            var response = await _openAIClient.GetChatCompletionAsync(_validationModel, prompt, cancellationToken);
-            var validation = JsonSerializer.Deserialize<ContentValidation>(response);
-            return validation ?? new ContentValidation { IsValid = true, QualityScore = 0.7f };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "AI validation failed, assuming valid");
-            return new ContentValidation { IsValid = true, QualityScore = 0.7f };
-        }
+        // Content quality scoring is now handled by Foundry-hosted agents (score_content tool).
+        return Task.FromResult(new ContentValidation { IsValid = true, QualityScore = 0.7f });
     }
 
 #pragma warning disable S4040 // Use ToLowerInvariant for culture-invariant host normalization

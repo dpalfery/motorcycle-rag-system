@@ -1,8 +1,9 @@
 ﻿using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Application.Agents;
+using MotorcycleRAG.Application.Agents.Orchestration;
+using MotorcycleRAG.Application.Services.Telemetry;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Application.Services.Web;
+using MotorcycleRAG.Application.Services.TrustedSources;
 using MotorcycleRAG.Persistence.Azure;
 
 namespace MotorcycleRAG.API.Configuration.Services;
@@ -20,64 +21,47 @@ internal static class SearchAgentsConfiguration
         // Configure search options
         services.Configure<SearchOptions>(configuration.GetSection("Search"));
 
-        // Register search agent implementations from Application layer
-        services.AddScoped<ISearchAgent, MotorcycleRAG.Application.Agents.VectorSearchAgent>();
+        // Register trusted sources loader (loads WebSource from DB for WebSearchAgent sub-agent)
+        services.AddScoped<ITrustedSourcesLoader, DatabaseTrustedSourcesLoader>();
 
-        // Register Web search services (extracted from WebSearchAgent)
-        services.AddSingleton<WebSearchRateLimiter>(sp =>
+        // Register Foundry tool dispatcher and handlers (scoped: one set per HTTP request)
+        services.AddScoped<FoundryToolDispatcher>();
+
+        services.AddScoped<SubAgentToolHandlers>();
+
+        services.AddScoped<DegradedModeTracker>();
+
+        services.AddScoped<OrchestratorToolHandlers>(sp =>
         {
-            var config = sp.GetRequiredService<IOptions<WebSearchOptions>>().Value;
-            var logger = sp.GetRequiredService<ILogger<WebSearchRateLimiter>>();
-            return new WebSearchRateLimiter(
-                config.MaxConcurrentRequests,
-                config.MinRequestIntervalMs,
-                logger);
+            var runner = sp.GetRequiredService<IFoundryAgentRunner>();
+            var subAgentDispatcher = new FoundryToolDispatcher();
+            var subAgentHandlers = sp.GetRequiredService<SubAgentToolHandlers>();
+            subAgentHandlers.RegisterOn(subAgentDispatcher);
+
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureFoundryOptions>>();
+            var logger = sp.GetRequiredService<ILogger<OrchestratorToolHandlers>>();
+            var degradedModeTracker = sp.GetRequiredService<DegradedModeTracker>();
+            return new OrchestratorToolHandlers(runner, subAgentDispatcher, options, logger, degradedModeTracker);
         });
 
-        services.AddSingleton<WebSearchCache>(sp =>
+        // Wire up the main orchestrator dispatcher with orchestrator tool handlers
+        services.AddScoped<MotorcycleRAG.Application.Services.AgentOrchestrator>(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<WebSearchCache>>();
-            return new WebSearchCache(
-                TimeSpan.FromHours(1),
-                maxCacheSize: 100,
-                logger);
+            var agents = sp.GetServices<ISearchAgent>();
+            var logger = sp.GetRequiredService<ILogger<MotorcycleRAG.Application.Services.AgentOrchestrator>>();
+            var runner = sp.GetRequiredService<IFoundryAgentRunner>();
+            var orchestratorHandlers = sp.GetRequiredService<OrchestratorToolHandlers>();
+
+            var mainDispatcher = sp.GetRequiredService<FoundryToolDispatcher>();
+            orchestratorHandlers.RegisterOn(mainDispatcher);
+
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureFoundryOptions>>();
+            var correlationService = sp.GetRequiredService<ICorrelationService>();
+            return new MotorcycleRAG.Application.Services.AgentOrchestrator(agents, logger, runner, mainDispatcher, options, correlationService);
         });
 
-        services.AddScoped<MotorcycleRAG.Application.Services.Web.WebContentExtractor>();
-        services.AddScoped<WebSourceValidator>();
-        services.AddScoped<WebSearchTermEnhancer>();
-
-        // Register named HTTP client for WebSearchAgent with resilience policies
-        // (configured in MotorcycleRAG.Persistence.Azure.ServiceCollectionExtensions.AddWebSearchHttpClient)
-        services.AddWebSearchHttpClient();
-
-        // Register WebSearchAgent with extracted services
-        services.AddScoped<ISearchAgent>(provider => {
-            var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient("WebSearchAgent");
-            var logger = provider.GetRequiredService<ILogger<WebSearchAgent>>();
-
-            // Inject extracted services
-            var rateLimiter = provider.GetRequiredService<WebSearchRateLimiter>();
-            var cache = provider.GetRequiredService<WebSearchCache>();
-            var contentExtractor = provider.GetRequiredService<MotorcycleRAG.Application.Services.Web.WebContentExtractor>();
-            var validator = provider.GetRequiredService<WebSourceValidator>();
-            var termEnhancer = provider.GetRequiredService<WebSearchTermEnhancer>();
-
-            var agentServices = new WebSearchAgentServices(
-                rateLimiter,
-                cache,
-                contentExtractor,
-                termEnhancer,
-                validator);
-
-            return new MotorcycleRAG.Application.Agents.WebSearchAgent(
-                httpClient,
-                provider.GetRequiredService<IOptions<WebSearchOptions>>(),
-                logger,
-                agentServices);
-        });
-
-        services.AddScoped<IQueryPlannerAgent, MotorcycleRAG.Application.Agents.QueryPlannerAgent>();
+        services.AddScoped<IAgentOrchestrator>(sp =>
+            sp.GetRequiredService<MotorcycleRAG.Application.Services.AgentOrchestrator>());
 
         return services;
     }

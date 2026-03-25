@@ -31,6 +31,9 @@ internal static class AzureAIServiceConfiguration
         // Register Azure service clients (now implemented in Infrastructure layer)
         services.AddAzureServices(configuration);
 
+        // Register Foundry agent runner (drives thread/run lifecycle with Azure AI Agents Persistent SDK)
+        services.AddScoped<IFoundryAgentRunner, MotorcycleRAG.Persistence.Azure.FoundryAgentRunner>();
+
         return services;
     }
 

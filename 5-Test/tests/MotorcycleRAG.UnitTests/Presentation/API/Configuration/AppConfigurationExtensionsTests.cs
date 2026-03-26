@@ -35,6 +35,32 @@ public class AppConfigurationExtensionsTests
     }
 
     [Fact]
+    public void WithDerivedAzureAdValues_ConfiguredAudience_PreservesConfiguredAudience()
+    {
+        // Arrange
+        var tenantId = "tenant-123";
+        var clientId = "client-456";
+        var audience = "api://motorcyclerag-api";
+        var inMemoryConfig = new Dictionary<string, string?>
+        {
+            { "AzureAd:TenantId", tenantId },
+            { "AzureAd:ClientId", clientId },
+            { "Authentication:Audience", audience }
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemoryConfig)
+            .Build();
+
+        // Act
+        configuration.WithDerivedAzureAdValues();
+
+        // Assert
+        configuration["AzureAd:Audience"].Should().Be(audience);
+        configuration["Authentication:Audience"].Should().Be(audience);
+        configuration["Jwt:ValidAudience"].Should().Be(audience);
+    }
+
+    [Fact]
     public void WithDerivedAzureAdValues_MissingTenantId_ThrowsInvalidOperationException()
     {
         // Arrange

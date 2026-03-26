@@ -111,17 +111,22 @@ public static class AppConfigurationExtensions
     {
         var tenantId = configuration["AzureAd:TenantId"];
         var clientId = configuration["AzureAd:ClientId"];
+        var configuredAudience = configuration["Authentication:Audience"] ?? configuration["AzureAd:Audience"];
 
         if (string.IsNullOrWhiteSpace(tenantId))
         {
             throw new InvalidOperationException("AzureAd Tenant ID is not configured");
         }
 
+        var effectiveAudience = string.IsNullOrWhiteSpace(configuredAudience)
+            ? clientId
+            : configuredAudience;
+
         var derivedConfig = new Dictionary<string, string?>
         {
-            { "AzureAd:Audience", clientId },
-            { "Authentication:Audience", clientId },
-            { "Jwt:ValidAudience", clientId },
+            { "AzureAd:Audience", effectiveAudience },
+            { "Authentication:Audience", effectiveAudience },
+            { "Jwt:ValidAudience", effectiveAudience },
             { "Jwt:ValidIssuer", $"https://login.microsoftonline.com/{tenantId}/v2.0" },
             { "Jwt:IssuerSigningKeyUrl", $"https://login.microsoftonline.com/{tenantId}/discovery/v2.0/keys" },
             { "Authentication:Issuers:Workforce", $"https://login.microsoftonline.com/{tenantId}/v2.0" }

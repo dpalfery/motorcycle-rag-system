@@ -64,17 +64,18 @@ internal static class MauiProgram {
             // Check if auth is configured via UI settings
             if (configService.IsAuthConfigured) {
                 var scope = configService.AuthScope!;
-                
-                // Fix: Detect if scope is a short name (e.g. "admin_access") which causes AADSTS650053
-                // and fallback to environment variable or prepend standard prefix if possible.
-                // This handles the case where a user saved an invalid short scope in local settings.
-                if (!scope.StartsWith("http", StringComparison.OrdinalIgnoreCase) && 
+
+                // Normalize legacy or overly broad scopes to the API's required admin scope.
+                scope = NormalizeAdminScope(scope, logger);
+
+                // Detect short names (e.g. "admin_access") which are never valid Entra scopes
+                // and fall back to the environment variable if available.
+                if (!scope.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
                     !scope.StartsWith("api://", StringComparison.OrdinalIgnoreCase)) {
-                    
                     var fallbackEnvScope = Environment.GetEnvironmentVariable("MCR_ADMIN_API_SCOPE");
                     if (!string.IsNullOrEmpty(fallbackEnvScope)) {
                         logger.LogWarning("Detected invalid short scope '{ShortScope}'. Overriding with environment variable: '{EnvScope}'", scope, fallbackEnvScope);
-                        scope = fallbackEnvScope;
+                        scope = NormalizeAdminScope(fallbackEnvScope, logger);
                     }
                 }
 
@@ -96,6 +97,7 @@ internal static class MauiProgram {
             if (!string.IsNullOrEmpty(envClientId) &&
                 !string.IsNullOrEmpty(envAuthority) &&
                 !string.IsNullOrEmpty(envScope)) {
+                envScope = NormalizeAdminScope(envScope, logger);
                 logger.LogInformation("Using environment variable authentication settings. Scope: {Scope}", envScope);
                 
                 // Use Production MSAL implementation
@@ -200,5 +202,39 @@ internal static class MauiProgram {
         builder.Services.AddTransient<App>();
 
         return builder.Build();
+    }
+
+    private static string NormalizeAdminScope(string scope, ILogger logger)
+    {
+        if (string.IsNullOrWhiteSpace(scope))
+        {
+            return scope;
+        }
+
+        static string ReplaceSuffix(string value, string suffix) =>
+            value[..^suffix.Length] + "/admin";
+
+        if (scope.EndsWith("/access_as_user", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalized = ReplaceSuffix(scope, "/access_as_user");
+            logger.LogWarning("Normalizing legacy admin scope '{OriginalScope}' to '{NormalizedScope}'", scope, normalized);
+            return normalized;
+        }
+
+        if (scope.EndsWith("/.default", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalized = ReplaceSuffix(scope, "/.default");
+            logger.LogWarning("Normalizing broad admin scope '{OriginalScope}' to '{NormalizedScope}'", scope, normalized);
+            return normalized;
+        }
+
+        if (scope.EndsWith("/admin_access", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalized = ReplaceSuffix(scope, "/admin_access");
+            logger.LogWarning("Normalizing legacy admin scope '{OriginalScope}' to '{NormalizedScope}'", scope, normalized);
+            return normalized;
+        }
+
+        return scope;
     }
 }

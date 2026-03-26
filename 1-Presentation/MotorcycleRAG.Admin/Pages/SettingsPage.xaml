@@ -109,7 +109,7 @@
                            FontAttributes="Bold"
                            Margin="0,10,0,0" />
                     <Entry Text="{Binding AuthScope}"
-                           Placeholder="api://your-api-client-id/access_as_user" />
+                           Placeholder="api://your-api-client-id/admin" />
 
                     <!-- Validation Message -->
                     <Label Text="{Binding AuthValidationMessage}"

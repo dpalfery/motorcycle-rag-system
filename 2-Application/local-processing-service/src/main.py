@@ -168,7 +168,7 @@ async def process_csv(request: ProcessCSVRequest, background_tasks: BackgroundTa
 # Bike graph CSV processing endpoint
 @app.post("/process/bike-graph", response_model=ProcessingStatusResponse)
 async def process_bike_graph(request: ProcessBikeGraphRequest, background_tasks: BackgroundTasks):
-    """Process a local motorcycle spec CSV into graph nodes and edges.
+    """Process a motorcycle spec CSV into graph nodes and edges.
 
     No LLM or embeddings are used — processing is entirely local and deterministic.
     The resulting nodes/edges JSON is written to blob storage and consumed by
@@ -177,21 +177,27 @@ async def process_bike_graph(request: ProcessBikeGraphRequest, background_tasks:
     try:
         if not request.upload_id:
             raise HTTPException(status_code=400, detail="upload_id is required")
-        if not request.local_file_path:
-            raise HTTPException(status_code=400, detail="local_file_path is required")
 
-        file_path = Path(request.local_file_path).resolve()
-        if not file_path.is_file():
+        file_path = None
+        if request.local_file_path:
+            file_path = Path(request.local_file_path).resolve()
+            if not file_path.is_file():
+                raise HTTPException(
+                    status_code=400,
+                    detail="local_file_path does not point to an existing file",
+                )
+            if file_path.suffix.lower() != ".csv":
+                raise HTTPException(status_code=400, detail="Only .csv files are supported")
+        elif not request.blob_container:
             raise HTTPException(
                 status_code=400,
-                detail="local_file_path does not point to an existing file",
+                detail="Either blob_container or local_file_path is required",
             )
-        if file_path.suffix.lower() != ".csv":
-            raise HTTPException(status_code=400, detail="Only .csv files are supported")
 
         job_id = await bike_graph_processor.process_async(
             upload_id=request.upload_id,
-            local_file_path=str(file_path),
+            blob_container=request.blob_container,
+            local_file_path=str(file_path) if file_path else None,
         )
 
         return ProcessingStatusResponse(

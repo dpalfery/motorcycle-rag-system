@@ -6,6 +6,7 @@ namespace MotorcycleRAG.Domain.Enums;
 public enum IngestionJobType
 {
     StructuredSpecification,
+    BikeGraph,
     PDFManual,
     WebContent,
     Batch,

@@ -241,6 +241,41 @@ public class IngestionJobRepository : IIngestionJobRepository
     }
 
     /// <inheritdoc/>
+    public async Task<IngestionJob?> GetLatestByInputAsync(
+        string inputRef,
+        IngestionJobType inputType,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputRef);
+
+        const string sql = @"
+            SELECT TOP 1
+                [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                [ComputeProvider], [FabricRunId], [ManualDocumentId],
+                [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
+                [PagesWithOcrTextCount], [PagesWithNativeTextCount],
+                [MissingPagesJson], [MetricsJson]
+            FROM [dbo].[IngestionJobs]
+            WHERE [InputRef] = @InputRef
+              AND [InputType] = @InputType
+            ORDER BY [CreatedAtUtc] DESC;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
+                new CommandDefinition(sql, new { InputRef = inputRef, InputType = (int)inputType }, cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get latest ingestion job by input ref {InputRef} and type {InputType}", inputRef, inputType);
+            throw new InvalidOperationException("Failed to get latest ingestion job by input ref and type", ex);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<IngestionJob>> GetRecentAsync(
         int maxCount,
         CancellationToken cancellationToken = default)

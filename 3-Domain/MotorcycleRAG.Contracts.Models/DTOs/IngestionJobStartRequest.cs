@@ -13,7 +13,7 @@ public sealed record IngestionJobStartRequest
     public string UploadId { get; init; } = string.Empty;
 
     /// <summary>
-    /// Type of document: "manual-pdf" or "spec-dataset".
+    /// Type of document: "manual-pdf", "spec-dataset", or "bike-graph".
     /// </summary>
     public string DocumentType { get; init; } = string.Empty;
 

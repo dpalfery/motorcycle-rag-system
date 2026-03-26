@@ -49,6 +49,7 @@ public static class IngestionJobStatusMapper
             StartedAtUtc = job.StartedAtUtc,
             CompletedAtUtc = job.CompletedAtUtc,
             InputType = job.InputType.ToString(),
+            InputRef = job.InputRef,
             ManualDocumentId = job.ManualDocumentId,
             TotalPages = job.TotalPages,
             PagesCapturedViewableCount = job.PagesCapturedViewableCount,

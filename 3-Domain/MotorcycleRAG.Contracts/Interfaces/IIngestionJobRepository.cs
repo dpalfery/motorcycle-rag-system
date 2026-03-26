@@ -33,6 +33,14 @@ public interface IIngestionJobRepository
     Task<IngestionJob?> GetLatestByInputRefAsync(string inputRef, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the most recent job for a given input reference and workflow type.
+    /// </summary>
+    Task<IngestionJob?> GetLatestByInputAsync(
+        string inputRef,
+        IngestionJobType inputType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns the most recent ingestion jobs across all inputs.
     /// </summary>
     Task<IReadOnlyList<IngestionJob>> GetRecentAsync(

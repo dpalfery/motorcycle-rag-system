@@ -11,17 +11,19 @@ Graph structure produced:
   - GraphEdge HAS_ENGINE_TYPE      — bike -> engine type
 
 Output is written to blob storage at:
-  graph-entities/{upload_id}/entities.json
+  raw-uploads/graph-entities/{upload_id}/entities.json
 
 in the format consumed by GraphEntityIngestionService:
   [{"nodes": [...], "edges": [...]}]
 """
 
 import asyncio
+import io
 import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -78,7 +80,7 @@ def _build_description(row: pd.Series, lower_col_map: dict[str, str]) -> str:
 
 
 class BikeGraphProcessor:
-    """Converts a local motorcycle spec CSV to graph nodes/edges without LLM or embeddings."""
+    """Converts a motorcycle spec CSV to graph nodes/edges without LLM or embeddings."""
 
     def __init__(self, blob_writer) -> None:
         self.blob_writer = blob_writer
@@ -87,8 +89,16 @@ class BikeGraphProcessor:
     # Public API
     # ------------------------------------------------------------------
 
-    async def process_async(self, upload_id: str, local_file_path: str) -> str:
-        """Start background processing. Returns a job_id immediately."""
+    async def process_async(
+        self,
+        upload_id: str,
+        blob_container: Optional[str] = None,
+        local_file_path: Optional[str] = None,
+    ) -> str:
+        """Start background processing from blob storage or a local CSV path."""
+        if not blob_container and not local_file_path:
+            raise ValueError("Either blob_container or local_file_path is required")
+
         job_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         _jobs[job_id] = {
@@ -100,7 +110,7 @@ class BikeGraphProcessor:
             "updated_at": now,
         }
         asyncio.create_task(
-            self._process_background(job_id, upload_id, local_file_path)
+            self._process_background(job_id, upload_id, blob_container, local_file_path)
         )
         return job_id
 
@@ -112,17 +122,29 @@ class BikeGraphProcessor:
     # ------------------------------------------------------------------
 
     async def _process_background(
-        self, job_id: str, upload_id: str, local_file_path: str
+        self,
+        job_id: str,
+        upload_id: str,
+        blob_container: Optional[str],
+        local_file_path: Optional[str],
     ) -> None:
         try:
-            nodes, edges = await asyncio.to_thread(
-                self._build_graph, upload_id, local_file_path
-            )
+            if local_file_path:
+                nodes, edges = await asyncio.to_thread(
+                    self._build_graph, upload_id, local_file_path
+                )
+            else:
+                csv_bytes = await self.blob_writer.download_blob(
+                    blob_container, f"{upload_id}.csv"
+                )
+                nodes, edges = await asyncio.to_thread(
+                    self._build_graph_from_bytes, upload_id, csv_bytes
+                )
 
             payload = [{"nodes": nodes, "edges": edges}]
             await self.blob_writer.upload_json(
-                "graph-entities",
-                f"{upload_id}/entities.json",
+                "raw-uploads",
+                f"graph-entities/{upload_id}/entities.json",
                 payload,
             )
 
@@ -162,6 +184,17 @@ class BikeGraphProcessor:
         self, upload_id: str, local_file_path: str
     ) -> tuple[list[dict], list[dict]]:
         df = pd.read_csv(local_file_path)
+        return self._build_graph_from_dataframe(upload_id, df)
+
+    def _build_graph_from_bytes(
+        self, upload_id: str, csv_bytes: bytes
+    ) -> tuple[list[dict], list[dict]]:
+        df = pd.read_csv(io.BytesIO(csv_bytes))
+        return self._build_graph_from_dataframe(upload_id, df)
+
+    def _build_graph_from_dataframe(
+        self, upload_id: str, df: pd.DataFrame
+    ) -> tuple[list[dict], list[dict]]:
         if df.empty:
             raise ValueError("CSV file is empty")
 

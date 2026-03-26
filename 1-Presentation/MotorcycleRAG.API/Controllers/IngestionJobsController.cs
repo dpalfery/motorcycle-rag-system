@@ -8,7 +8,7 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 namespace MotorcycleRAG.API.Controllers;
 
 /// <summary>
-/// Manages Fabric ingestion pipeline jobs: upload, start, and status polling.
+/// Manages ingestion pipeline jobs: upload, start, and status polling.
 /// </summary>
 /// <remarks>
 /// All endpoints require the <c>mcr-api-admin</c> policy (admin scope + role + client isolation).
@@ -70,7 +70,7 @@ public sealed class IngestionJobsController : ControllerBase {
         if (!IsAllowedDocumentType(documentType)) {
             return BadRequest(new ProblemDetails {
                 Title = "Invalid document type",
-                Detail = "documentType must be 'manual-pdf' or 'spec-dataset'.",
+                Detail = "documentType must be 'manual-pdf', 'spec-dataset', or 'bike-graph'.",
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -197,5 +197,6 @@ public sealed class IngestionJobsController : ControllerBase {
     /// <summary>Returns true when the document type is on the allowlist.</summary>
     private static bool IsAllowedDocumentType(string documentType) =>
         string.Equals(documentType, "manual-pdf", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(documentType, "spec-dataset", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(documentType, "spec-dataset", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(documentType, "bike-graph", StringComparison.OrdinalIgnoreCase);
 }

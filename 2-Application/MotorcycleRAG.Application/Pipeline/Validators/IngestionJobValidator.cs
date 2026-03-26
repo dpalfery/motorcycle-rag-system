@@ -12,7 +12,8 @@ public sealed class IngestionJobValidator {
     private static readonly HashSet<string> AllowedDocumentTypes = new(OrdinalIgnoreCase)
     {
         "manual-pdf",
-        "spec-dataset"
+        "spec-dataset",
+        "bike-graph"
     };
 
     /// <summary>
@@ -53,7 +54,7 @@ public sealed class IngestionJobValidator {
         }
 
         if (!AllowedDocumentTypes.Contains(documentType)) {
-            errors.Add("DocumentType must be 'manual-pdf' or 'spec-dataset'.");
+            errors.Add("DocumentType must be 'manual-pdf', 'spec-dataset', or 'bike-graph'.");
         }
     }
 

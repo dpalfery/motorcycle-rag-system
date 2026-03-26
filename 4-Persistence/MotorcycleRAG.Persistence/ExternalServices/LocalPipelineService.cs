@@ -50,21 +50,26 @@ public sealed class LocalPipelineService : ILocalPipelineService
             "Triggering local pipeline for document type {DocumentType}",
             documentType);
 
-        var endpoint = documentType switch
-        {
+        var endpoint = documentType switch {
             "manual-pdf" => $"{_config.LocalEndpoint.TrimEnd('/')}/process/pdf",
             "spec-dataset" => $"{_config.LocalEndpoint.TrimEnd('/')}/process/csv",
+            "bike-graph" => $"{_config.LocalEndpoint.TrimEnd('/')}/process/bike-graph",
             _ => throw new ArgumentException(
-                $"Unsupported document type: '{documentType}'. Expected 'manual-pdf' or 'spec-dataset'.",
+                $"Unsupported document type: '{documentType}'. Expected 'manual-pdf', 'spec-dataset', or 'bike-graph'.",
                 nameof(documentType))
         };
 
-        var body = JsonSerializer.Serialize(new
-        {
-            upload_id = uploadId,
-            document_type = documentType,
-            blob_container = "raw-uploads"
-        });
+        var body = documentType switch {
+            "bike-graph" => JsonSerializer.Serialize(new {
+                upload_id = uploadId,
+                blob_container = "raw-uploads"
+            }),
+            _ => JsonSerializer.Serialize(new {
+                upload_id = uploadId,
+                document_type = documentType,
+                blob_container = "raw-uploads"
+            })
+        };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {

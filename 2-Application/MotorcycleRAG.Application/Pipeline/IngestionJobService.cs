@@ -11,17 +11,18 @@ namespace MotorcycleRAG.Application.Pipeline;
 
 /// <summary>
 /// Orchestrates the ingestion job lifecycle: creation, status retrieval, and cancellation.
-/// Delegates persistence to <see cref="IIngestionJobRepository"/> and pipeline triggering
-/// to <see cref="IFabricPipelineService"/> or <see cref="ILocalPipelineService"/> based on
-/// the configured <see cref="ProcessingMode"/>.
+/// Delegates persistence to <see cref="IIngestionJobRepository"/> and runtime execution
+/// to the configured <see cref="ILocalPipelineService"/> implementation.
 /// </summary>
 public sealed class IngestionJobService : IIngestionJobService {
     private const string PdfSourceFileName = "source.pdf";
+    private const string GraphEntitiesPrefix = "graph-entities";
 
     private readonly IIngestionJobRepository _repository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly BlobStorageOptions _blobStorageOptions;
     private readonly ILocalPipelineService _pipelineService;
+    private readonly IGraphEntityIngestionService _graphEntityIngestionService;
     private readonly IngestionOptions _options;
     private readonly ILogger<IngestionJobService> _logger;
 
@@ -29,12 +30,14 @@ public sealed class IngestionJobService : IIngestionJobService {
         IIngestionJobRepository repository,
         IBlobStorageService blobStorageService,
         ILocalPipelineService pipelineService,
+        IGraphEntityIngestionService graphEntityIngestionService,
         IOptions<BlobStorageOptions> blobStorageOptions,
         IOptions<IngestionOptions> options,
         ILogger<IngestionJobService> logger) {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
         _pipelineService = pipelineService ?? throw new ArgumentNullException(nameof(pipelineService));
+        _graphEntityIngestionService = graphEntityIngestionService ?? throw new ArgumentNullException(nameof(graphEntityIngestionService));
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -61,14 +64,22 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         var pendingFiles = new List<PendingStorageFileDto>(candidates.Count);
         foreach (var candidate in candidates.Values) {
-            var latestJob = await _repository.GetLatestByInputRefAsync(candidate.UploadId, ct).ConfigureAwait(false);
-            if (!ShouldIncludeAsPending(latestJob)) {
+            var primaryJobType = GetPrimaryInputType(candidate.DocumentType);
+            var latestJob = await _repository.GetLatestByInputAsync(candidate.UploadId, primaryJobType, ct).ConfigureAwait(false);
+            IngestionJob? latestGraphJob = null;
+            if (SupportsGraphImport(candidate.DocumentType)) {
+                latestGraphJob = await _repository.GetLatestByInputAsync(candidate.UploadId, IngestionJobType.BikeGraph, ct).ConfigureAwait(false);
+            }
+
+            if (!ShouldIncludeAsPending(candidate.DocumentType, latestJob, latestGraphJob)) {
                 continue;
             }
 
             pendingFiles.Add(candidate with {
                 LastKnownJobStatus = latestJob?.Status.ToString(),
-                FailureReason = latestJob?.FailureReason
+                FailureReason = latestJob?.FailureReason,
+                GraphImportStatus = latestGraphJob?.Status.ToString(),
+                GraphImportFailureReason = latestGraphJob?.FailureReason
             });
         }
 
@@ -87,7 +98,12 @@ public sealed class IngestionJobService : IIngestionJobService {
         }
 
         var jobs = await _repository.GetRecentAsync(maxCount, ct).ConfigureAwait(false);
-        return jobs.Select(MapToResponse).ToArray();
+        var refreshedJobs = new List<IngestionJob>(jobs.Count);
+        foreach (var job in jobs) {
+            refreshedJobs.Add(await RefreshJobStatusAsync(job, ct).ConfigureAwait(false));
+        }
+
+        return refreshedJobs.Select(MapToResponse).ToArray();
     }
 
     /// <inheritdoc />
@@ -98,23 +114,15 @@ public sealed class IngestionJobService : IIngestionJobService {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-        var inputType = request.DocumentType switch {
-            "manual-pdf" => IngestionJobType.PDFManual,
-            "spec-dataset" => IngestionJobType.StructuredSpecification,
-            _ => throw new ArgumentException($"Unsupported document type: '{request.DocumentType}'.", nameof(request))
-        };
-
-        var pipelineId = inputType switch {
-            IngestionJobType.PDFManual => _options.PdfPipelineId,
-            IngestionJobType.StructuredSpecification => _options.CsvPipelineId,
-            _ => throw new InvalidOperationException($"No pipeline configured for input type '{inputType}'.")
-        };
+        var inputType = MapDocumentType(request.DocumentType);
+        var pipelineId = GetPipelineId(inputType);
 
         var job = new IngestionJob {
             InputType = inputType,
             InputRef = request.UploadId,
             CreatedBySubject = userId,
-            Status = IngestionJobStatus.Queued
+            Status = IngestionJobStatus.Queued,
+            ComputeProvider = _options.Mode == ProcessingMode.Local ? "LocalProcessingService" : "MicrosoftFabric"
         };
 
         job = await _repository.CreateAsync(job, ct).ConfigureAwait(false);
@@ -175,6 +183,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         if (job is null)
             return null;
 
+        job = await RefreshJobStatusAsync(job, ct).ConfigureAwait(false);
         return MapToResponse(job);
     }
 
@@ -249,11 +258,146 @@ public sealed class IngestionJobService : IIngestionJobService {
         };
     }
 
-    private static bool ShouldIncludeAsPending(IngestionJob? job) {
+    private async Task<IngestionJob> RefreshJobStatusAsync(IngestionJob job, CancellationToken ct) {
+        ArgumentNullException.ThrowIfNull(job);
+
+        if (!CanRefreshStatus(job)) {
+            return job;
+        }
+
+        string externalStatus;
+        try {
+            externalStatus = await _pipelineService.GetRunStatusAsync(
+                job.FabricRunId!,
+                GetPipelineId(job.InputType),
+                ct).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex) {
+            _logger.LogWarning(ex, "Failed to refresh ingestion job {JobId} from the pipeline service.", job.IngestionJobId);
+            return job;
+        }
+
+        var refreshedStatus = MapPipelineStatus(externalStatus, job.Status);
+
+        if (job.InputType == IngestionJobType.BikeGraph && refreshedStatus == IngestionJobStatus.Completed) {
+            try {
+                await EnsureGraphArtifactsExistAsync(job.InputRef, ct).ConfigureAwait(false);
+                await _graphEntityIngestionService.IngestAsync(job.InputRef, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Graph import failed for ingestion job {JobId}.", job.IngestionJobId);
+                job.Status = IngestionJobStatus.Failed;
+                job.FailureReason = "Graph import failed after local bike graph processing completed.";
+                job.CompletedAtUtc ??= DateTimeOffset.UtcNow;
+                await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
+                return job;
+            }
+        }
+
+        if (job.Status == refreshedStatus && (!IsTerminalStatus(refreshedStatus) || job.CompletedAtUtc.HasValue)) {
+            return job;
+        }
+
+        job.Status = refreshedStatus;
+        if (IsTerminalStatus(refreshedStatus)) {
+            job.CompletedAtUtc ??= DateTimeOffset.UtcNow;
+        }
+        else {
+            job.CompletedAtUtc = null;
+        }
+
+        if (refreshedStatus == IngestionJobStatus.Failed && string.IsNullOrWhiteSpace(job.FailureReason)) {
+            job.FailureReason = $"Pipeline reported status '{externalStatus}'.";
+        }
+        else if (refreshedStatus is not IngestionJobStatus.Failed and not IngestionJobStatus.Cancelled) {
+            job.FailureReason = null;
+        }
+
+        await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
+        return job;
+    }
+
+    private async Task EnsureGraphArtifactsExistAsync(string uploadId, CancellationToken ct) {
+        var blobPath = $"{GraphEntitiesPrefix}/{uploadId}/entities.json";
+        var exists = await _blobStorageService.ExistsAsync(_blobStorageOptions.RawUploadsContainer, blobPath, ct).ConfigureAwait(false);
+        if (!exists) {
+            throw new InvalidOperationException($"Expected graph entities blob '{blobPath}' was not found.");
+        }
+    }
+
+    private bool CanRefreshStatus(IngestionJob job) =>
+        !string.IsNullOrWhiteSpace(job.FabricRunId) && !IsTerminalStatus(job.Status);
+
+    private IngestionJobType MapDocumentType(string documentType) => documentType switch {
+        "manual-pdf" => IngestionJobType.PDFManual,
+        "spec-dataset" => IngestionJobType.StructuredSpecification,
+        "bike-graph" => IngestionJobType.BikeGraph,
+        _ => throw new ArgumentException($"Unsupported document type: '{documentType}'.", nameof(documentType))
+    };
+
+    private string GetPipelineId(IngestionJobType inputType) => inputType switch {
+        IngestionJobType.PDFManual => _options.PdfPipelineId,
+        IngestionJobType.StructuredSpecification => _options.CsvPipelineId,
+        IngestionJobType.BikeGraph => string.Empty,
+        _ => throw new InvalidOperationException($"No pipeline configured for input type '{inputType}'.")
+    };
+
+    private static IngestionJobType GetPrimaryInputType(string documentType) => documentType switch {
+        "manual-pdf" => IngestionJobType.PDFManual,
+        "spec-dataset" => IngestionJobType.StructuredSpecification,
+        _ => throw new ArgumentException($"Unsupported pending document type '{documentType}'.", nameof(documentType))
+    };
+
+    private static IngestionJobStatus MapPipelineStatus(string externalStatus, IngestionJobStatus fallbackStatus) {
+        if (string.IsNullOrWhiteSpace(externalStatus)) {
+            return fallbackStatus;
+        }
+
+        return externalStatus.Trim() switch {
+            var status when status.Equals("queued", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Queued,
+            var status when status.Equals("processing", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
+            var status when status.Equals("running", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
+            var status when status.Equals("inprogress", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
+            var status when status.Equals("in_progress", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
+            var status when status.Equals("indexing", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Indexing,
+            var status when status.Equals("completed", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Completed,
+            var status when status.Equals("succeeded", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Completed,
+            var status when status.Equals("success", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Completed,
+            var status when status.Equals("failed", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Failed,
+            var status when status.Equals("error", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Failed,
+            var status when status.Equals("cancelled", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Cancelled,
+            var status when status.Equals("canceled", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Cancelled,
+            var status when status.Equals("partiallycompleted", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.PartiallyCompleted,
+            var status when status.Equals("partially_completed", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.PartiallyCompleted,
+            _ => fallbackStatus
+        };
+    }
+
+    private static bool IsTerminalStatus(IngestionJobStatus status) =>
+        status is IngestionJobStatus.Completed
+            or IngestionJobStatus.Failed
+            or IngestionJobStatus.Cancelled
+            or IngestionJobStatus.PartiallyCompleted;
+
+    private static bool ShouldIncludeAsPending(
+        string documentType,
+        IngestionJob? primaryJob,
+        IngestionJob? graphJob) {
+        if (SupportsGraphImport(documentType)) {
+            return HasPendingWorkflow(primaryJob) || HasPendingWorkflow(graphJob);
+        }
+
+        return HasPendingWorkflow(primaryJob);
+    }
+
+    private static bool HasPendingWorkflow(IngestionJob? job) {
         return job is null
                || job.Status is IngestionJobStatus.Failed
                or IngestionJobStatus.Cancelled;
     }
+
+    private static bool SupportsGraphImport(string documentType) =>
+        string.Equals(documentType, "spec-dataset", StringComparison.OrdinalIgnoreCase);
 
     private static bool TryCreatePendingStorageFile(
         BlobObjectDescriptor blob,

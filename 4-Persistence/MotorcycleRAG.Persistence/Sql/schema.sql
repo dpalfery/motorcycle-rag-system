@@ -1,3 +1,8 @@
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
 -- Motorcycle RAG System - SQL Schema
 -- This script creates the core database tables for the Motorcycle RAG System.
 -- Connect to the target database before running (no USE/CREATE DATABASE - supports Azure SQL).

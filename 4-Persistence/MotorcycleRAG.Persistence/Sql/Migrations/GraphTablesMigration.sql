@@ -1,3 +1,8 @@
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
 -- =============================================================================
 -- Migration: Graph RAG Tables for Motorcycle Manual Relationship Extraction
 -- Target: SQL Server 2017+ (requires Graph Database feature)

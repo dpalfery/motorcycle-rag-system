@@ -90,7 +90,7 @@ React WebUI (SPA) → BFF (YARP + Auth) → Backend API
 
 ### OIDC Setup (Program.cs)
 - **Scheme**: Cookie authentication + OpenID Connect (Azure AD / Entra External ID)
-- **Scopes**: `api://motorcyclerag-api/read`, `api://motorcyclerag-api/chat`
+- **Scopes**: Prefer `api://<api-client-id>/read` and `api://<api-client-id>/chat` in new configs. Older environments may still expose equivalent `api://motorcyclerag-api/*` URIs.
 - **Client Secret**: Retrieved from environment variable `MCR_BFF_CLIENT_SECRET`
 - **Token Storage**: Server-side in encrypted cookies (never exposed to browser)
 

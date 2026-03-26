@@ -15,6 +15,12 @@ public class BlobStorageOptions
     public string AccountEndpoint { get; set; } = string.Empty;
 
     /// <summary>
+    /// Container for raw ingestion inputs awaiting processing.
+    /// Defaults to "raw-uploads".
+    /// </summary>
+    public string RawUploadsContainer { get; set; } = "raw-uploads";
+
+    /// <summary>
     /// Container for uploaded PDF manuals awaiting Fabric processing.
     /// Defaults to "manuals".
     /// </summary>

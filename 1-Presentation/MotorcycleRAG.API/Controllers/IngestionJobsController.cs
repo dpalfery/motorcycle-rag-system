@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.RateLimiting;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Application.Pipeline.Validators;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Contracts.Interfaces;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -25,19 +24,15 @@ public sealed class IngestionJobsController : ControllerBase {
     private readonly IIngestionJobService _ingestionJobService;
     private readonly IngestionJobValidator _validator;
     private readonly ILogger<IngestionJobsController> _logger;
-
-    private readonly IBlobStorageService _blobStorageService;
     /// <summary>Maximum upload size in bytes (2 GB).</summary>
     private const long MaxFileSizeBytes = 2L * 1024 * 1024 * 1024;
 
     public IngestionJobsController(
         IIngestionJobService ingestionJobService,
         IngestionJobValidator validator,
-        IBlobStorageService blobStorageService,
         ILogger<IngestionJobsController> logger) {
         _ingestionJobService = ingestionJobService ?? throw new ArgumentNullException(nameof(ingestionJobService));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
-        _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -136,6 +131,40 @@ public sealed class IngestionJobsController : ControllerBase {
 
         var result = await _ingestionJobService.StartJobAsync(request, userId, ct).ConfigureAwait(false);
         return Accepted(result);
+    }
+
+    /// <summary>
+    /// Lists recent ingestion jobs for the admin status view.
+    /// Route: GET /api/ingestion/jobs?top=50
+    /// </summary>
+    [HttpGet("jobs")]
+    [ProducesResponseType(typeof(IReadOnlyList<IngestionJobStatusResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<IngestionJobStatusResponse>>> GetRecentJobsAsync(
+        [FromQuery] int top = 50,
+        CancellationToken ct = default) {
+        if (top <= 0 || top > 200) {
+            return BadRequest(new ProblemDetails {
+                Title = "Invalid top value",
+                Detail = "top must be between 1 and 200.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var result = await _ingestionJobService.GetRecentIngestionJobsAsync(top, ct).ConfigureAwait(false);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Lists blob-backed source files that have not completed ingestion yet.
+    /// Route: GET /api/ingestion/jobs/pending-files
+    /// </summary>
+    [HttpGet("jobs/pending-files")]
+    [ProducesResponseType(typeof(IReadOnlyList<PendingStorageFileDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<PendingStorageFileDto>>> GetPendingFilesAsync(
+        CancellationToken ct) {
+        var result = await _ingestionJobService.GetPendingStorageFilesAsync(ct).ConfigureAwait(false);
+        return Ok(result);
     }
 
     /// <summary>

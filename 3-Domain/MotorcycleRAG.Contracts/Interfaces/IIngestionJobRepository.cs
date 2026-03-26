@@ -33,6 +33,13 @@ public interface IIngestionJobRepository
     Task<IngestionJob?> GetLatestByInputRefAsync(string inputRef, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the most recent ingestion jobs across all inputs.
+    /// </summary>
+    Task<IReadOnlyList<IngestionJob>> GetRecentAsync(
+        int maxCount,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns all jobs for a given manual document ID (most recent first).
     /// </summary>
     Task<IReadOnlyList<IngestionJob>> GetByManualDocumentIdAsync(

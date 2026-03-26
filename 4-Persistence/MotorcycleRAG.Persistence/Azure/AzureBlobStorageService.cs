@@ -1,9 +1,11 @@
+using Azure;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Persistence.Azure;
@@ -88,6 +90,40 @@ public class AzureBlobStorageService : IBlobStorageService
         var blobClient = containerClient.GetBlobClient(blobName);
         var response = await blobClient.ExistsAsync(cancellationToken);
         return response.Value;
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<BlobObjectDescriptor>> ListAsync(
+        string containerName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(containerName);
+
+        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        var blobs = new List<BlobObjectDescriptor>();
+
+        try
+        {
+            await foreach (var blob in containerClient.GetBlobsAsync(cancellationToken: cancellationToken))
+            {
+                blobs.Add(new BlobObjectDescriptor
+                {
+                    Name = blob.Name,
+                    ContentType = blob.Properties.ContentType,
+                    SizeBytes = blob.Properties.ContentLength ?? 0L,
+                    LastModifiedUtc = blob.Properties.LastModified
+                });
+            }
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            _logger.LogInformation(
+                "Blob container {Container} was not found while listing pending files.",
+                containerName);
+            return Array.Empty<BlobObjectDescriptor>();
+        }
+
+        return blobs;
     }
 
     /// <inheritdoc/>

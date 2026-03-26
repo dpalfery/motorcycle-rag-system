@@ -14,7 +14,7 @@ This file is **BFF-specific** context. For global rules (security, clean archite
 ## Security and auth boundaries
 - Prefer server-side session management (HTTP-only cookies) and PKCE/OIDC flows.
 - Do not forward client secrets to the browser; secrets stay in server environment variables.
-- **Scopes**: Explicitly request `api://motorcyclerag-api/read` and `chat`.
+- **Scopes**: Explicitly request the API's delegated read/chat scopes. Prefer `api://<api-client-id>/read` and `api://<api-client-id>/chat` for new configs; older environments may still expose the equivalent `api://motorcyclerag-api/*` URIs.
 - Keep token/claims handling consistent with the system spec:
 	- Customers: Entra External ID / B2C
 	- Admins: Entra ID workforce (admin UI is MAUI)

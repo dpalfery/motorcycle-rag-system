@@ -7,6 +7,15 @@ namespace MotorcycleRAG.Application.Pipeline;
 /// creation, status retrieval, and cancellation.
 /// </summary>
 public interface IIngestionJobService {
+    /// <summary>Lists source blobs that have not completed ingestion yet.</summary>
+    Task<IReadOnlyList<PendingStorageFileDto>> GetPendingStorageFilesAsync(
+        CancellationToken ct = default);
+
+    /// <summary>Lists recent ingestion jobs for status/history views.</summary>
+    Task<IReadOnlyList<IngestionJobStatusResponse>> GetRecentIngestionJobsAsync(
+        int maxCount = 50,
+        CancellationToken ct = default);
+
     /// <summary>Creates a new ingestion job, persists it, and triggers the Fabric pipeline.</summary>
     Task<IngestionJobStatusResponse> StartJobAsync(
         IngestionJobStartRequest request,

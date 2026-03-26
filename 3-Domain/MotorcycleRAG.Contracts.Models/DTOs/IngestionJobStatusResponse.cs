@@ -12,6 +12,7 @@ public sealed record IngestionJobStatusResponse
     public DateTimeOffset? StartedAtUtc { get; init; }
     public DateTimeOffset? CompletedAtUtc { get; init; }
     public string InputType { get; init; } = string.Empty;
+    public string InputRef { get; init; } = string.Empty;
     public Guid? ManualDocumentId { get; init; }
     public int? TotalPages { get; init; }
     public int? PagesCapturedViewableCount { get; init; }

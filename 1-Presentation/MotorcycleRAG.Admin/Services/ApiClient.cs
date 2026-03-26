@@ -463,6 +463,76 @@ internal class ApiClient {
                ?? new List<PipelineExecution>();
     }
 
+    /// <summary>
+    /// Gets blob-backed source files that have not completed ingestion yet.
+    /// </summary>
+    internal async Task<List<PendingStorageFileDto>> GetPendingStorageFilesAsync(CancellationToken cancellationToken)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var requestUri = new Uri(_httpClient.BaseAddress!, "api/ingestion/jobs/pending-files");
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<List<PendingStorageFileDto>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+               ?? new List<PendingStorageFileDto>();
+    }
+
+    /// <summary>
+    /// Gets recent ingestion jobs for the admin status view.
+    /// </summary>
+    internal async Task<List<IngestionJobStatusResponse>> GetIngestionJobsAsync(int top, CancellationToken cancellationToken)
+    {
+        if (top <= 0)
+            throw new ArgumentOutOfRangeException(nameof(top), "top must be greater than zero.");
+
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var requestUri = new Uri(_httpClient.BaseAddress!, $"api/ingestion/jobs?top={top}");
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<List<IngestionJobStatusResponse>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+               ?? new List<IngestionJobStatusResponse>();
+    }
+
+    /// <summary>
+    /// Starts an ingestion job for a blob-backed source file.
+    /// </summary>
+    internal async Task<IngestionJobStatusResponse> StartIngestionJobAsync(
+        IngestionJobStartRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var response = await ExecuteWithResilienceAsync(() =>
+            _httpClient.PostAsJsonAsync("api/ingestion/jobs", request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<IngestionJobStatusResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+               ?? throw new InvalidOperationException("Failed to deserialize ingestion job response");
+    }
+
     private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action)
     {
         return await _retryPolicy.WrapAsync(_circuitBreaker).ExecuteAsync(action).ConfigureAwait(false);

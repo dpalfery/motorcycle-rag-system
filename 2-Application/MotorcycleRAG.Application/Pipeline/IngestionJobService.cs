@@ -16,20 +16,78 @@ namespace MotorcycleRAG.Application.Pipeline;
 /// the configured <see cref="ProcessingMode"/>.
 /// </summary>
 public sealed class IngestionJobService : IIngestionJobService {
+    private const string PdfSourceFileName = "source.pdf";
+
     private readonly IIngestionJobRepository _repository;
+    private readonly IBlobStorageService _blobStorageService;
+    private readonly BlobStorageOptions _blobStorageOptions;
     private readonly ILocalPipelineService _pipelineService;
     private readonly IngestionOptions _options;
     private readonly ILogger<IngestionJobService> _logger;
 
     public IngestionJobService(
         IIngestionJobRepository repository,
+        IBlobStorageService blobStorageService,
         ILocalPipelineService pipelineService,
+        IOptions<BlobStorageOptions> blobStorageOptions,
         IOptions<IngestionOptions> options,
         ILogger<IngestionJobService> logger) {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
         _pipelineService = pipelineService ?? throw new ArgumentNullException(nameof(pipelineService));
+        _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<PendingStorageFileDto>> GetPendingStorageFilesAsync(
+        CancellationToken ct = default) {
+        var sourceBlobs = await _blobStorageService.ListAsync(_blobStorageOptions.RawUploadsContainer, ct)
+            .ConfigureAwait(false);
+
+        var candidates = new Dictionary<string, PendingStorageFileDto>(StringComparer.OrdinalIgnoreCase);
+        foreach (var blob in sourceBlobs) {
+            if (!TryCreatePendingStorageFile(blob, out var pendingFile)) {
+                continue;
+            }
+
+            var dedupeKey = $"{pendingFile.DocumentType}:{pendingFile.UploadId}";
+            if (!candidates.TryGetValue(dedupeKey, out var existing)
+                || pendingFile.LastModifiedUtc > existing.LastModifiedUtc) {
+                candidates[dedupeKey] = pendingFile;
+            }
+        }
+
+        var pendingFiles = new List<PendingStorageFileDto>(candidates.Count);
+        foreach (var candidate in candidates.Values) {
+            var latestJob = await _repository.GetLatestByInputRefAsync(candidate.UploadId, ct).ConfigureAwait(false);
+            if (!ShouldIncludeAsPending(latestJob)) {
+                continue;
+            }
+
+            pendingFiles.Add(candidate with {
+                LastKnownJobStatus = latestJob?.Status.ToString(),
+                FailureReason = latestJob?.FailureReason
+            });
+        }
+
+        return pendingFiles
+            .OrderByDescending(file => file.LastModifiedUtc)
+            .ThenBy(file => file.BlobName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<IngestionJobStatusResponse>> GetRecentIngestionJobsAsync(
+        int maxCount = 50,
+        CancellationToken ct = default) {
+        if (maxCount <= 0) {
+            throw new ArgumentOutOfRangeException(nameof(maxCount), "maxCount must be greater than zero.");
+        }
+
+        var jobs = await _repository.GetRecentAsync(maxCount, ct).ConfigureAwait(false);
+        return jobs.Select(MapToResponse).ToArray();
     }
 
     /// <inheritdoc />
@@ -172,6 +230,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             StartedAtUtc = job.StartedAtUtc,
             CompletedAtUtc = job.CompletedAtUtc,
             InputType = job.InputType.ToString(),
+            InputRef = job.InputRef,
             ManualDocumentId = job.ManualDocumentId,
             TotalPages = job.TotalPages,
             PagesCapturedViewableCount = job.PagesCapturedViewableCount,
@@ -188,5 +247,57 @@ public sealed class IngestionJobService : IIngestionJobService {
             FailureReason = job.FailureReason,
             FabricRunId = job.FabricRunId
         };
+    }
+
+    private static bool ShouldIncludeAsPending(IngestionJob? job) {
+        return job is null
+               || job.Status is IngestionJobStatus.Failed
+               or IngestionJobStatus.Cancelled;
+    }
+
+    private static bool TryCreatePendingStorageFile(
+        BlobObjectDescriptor blob,
+        out PendingStorageFileDto pendingFile) {
+        pendingFile = default!;
+
+        if (string.IsNullOrWhiteSpace(blob.Name) || !blob.LastModifiedUtc.HasValue) {
+            return false;
+        }
+
+        var normalizedBlobName = blob.Name.Replace('\\', '/').Trim('/');
+        if (string.IsNullOrWhiteSpace(normalizedBlobName)) {
+            return false;
+        }
+
+        var segments = normalizedBlobName.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 2
+            && string.Equals(segments[1], PdfSourceFileName, StringComparison.OrdinalIgnoreCase)) {
+            pendingFile = new PendingStorageFileDto {
+                UploadId = segments[0],
+                BlobName = normalizedBlobName,
+                DocumentType = "manual-pdf",
+                SizeBytes = blob.SizeBytes,
+                LastModifiedUtc = blob.LastModifiedUtc.Value
+            };
+            return true;
+        }
+
+        if (segments.Length == 1 && normalizedBlobName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) {
+            var uploadId = Path.GetFileNameWithoutExtension(normalizedBlobName);
+            if (string.IsNullOrWhiteSpace(uploadId)) {
+                return false;
+            }
+
+            pendingFile = new PendingStorageFileDto {
+                UploadId = uploadId,
+                BlobName = normalizedBlobName,
+                DocumentType = "spec-dataset",
+                SizeBytes = blob.SizeBytes,
+                LastModifiedUtc = blob.LastModifiedUtc.Value
+            };
+            return true;
+        }
+
+        return false;
     }
 }

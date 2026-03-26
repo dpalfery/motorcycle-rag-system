@@ -8,10 +8,9 @@
              Title="Pipeline Jobs">
 
     <Grid RowDefinitions="Auto,*" Padding="20">
-        
-        <!-- Header with Refresh Button -->
+
         <HorizontalStackLayout Grid.Row="0" Spacing="10" Margin="0,0,0,15">
-            <Label Text="Pipeline Executions"
+            <Label Text="Pipeline Jobs"
                    FontSize="24"
                    FontAttributes="Bold"
                    VerticalOptions="Center"
@@ -25,131 +24,325 @@
                     HorizontalOptions="End" />
         </HorizontalStackLayout>
 
-        <!-- Jobs List -->
         <ScrollView Grid.Row="1">
-            <CollectionView ItemsSource="{Binding Jobs}"
-                            SelectionMode="Single">
-                <CollectionView.EmptyView>
-                    <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10" Padding="20">
-                        <Label Text="No pipeline executions found" 
-                               FontSize="16" 
-                               HorizontalOptions="Center" />
-                        <Label Text="Configure authentication to load jobs from the API" 
-                               FontSize="12" 
-                               TextColor="Gray" 
-                               HorizontalOptions="Center" />
-                    </VerticalStackLayout>
-                </CollectionView.EmptyView>
-                <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="viewmodels:JobViewModel">
-                        <Frame BorderColor="LightGray" 
-                               Margin="0,5" 
-                               Padding="15"
-                               CornerRadius="8">
-                            <Grid RowDefinitions="Auto,Auto,Auto,Auto" 
-                                  ColumnDefinitions="*,Auto">
-                                
-                                <!-- Execution ID and Status -->
-                                <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="5">
-                                    <Label Text="{Binding ExecutionId}" 
-                                           FontAttributes="Bold" 
-                                           FontSize="14" />
-                                    
-                                    <HorizontalStackLayout Spacing="10">
-                                        <Label Text="{Binding PipelineType}" 
-                                               FontSize="12" 
-                                               TextColor="Gray" />
-                                        <Label Text="|" 
-                                               FontSize="12" 
-                                               TextColor="Gray" />
-                                        <Label Text="{Binding Status}" 
-                                               FontSize="12"
-                                               FontAttributes="Bold" />
-                                    </HorizontalStackLayout>
-                                </VerticalStackLayout>
+            <VerticalStackLayout Spacing="18">
 
-                                <!-- Cancel Button (visible only for running jobs) -->
-                                <Button Grid.Row="0" Grid.Column="1"
-                                        Text="Cancel"
-                                        Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CancelJobCommand}"
-                                        CommandParameter="{Binding ExecutionId}"
-                                        BackgroundColor="Red"
-                                        TextColor="White"
-                                        FontSize="11"
-                                        Padding="10,5"
-                                        IsVisible="{Binding IsRunning}" />
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Pending Storage Files"
+                           FontSize="20"
+                           FontAttributes="Bold" />
+                    <Label Text="Blob-backed files appear here until they finish ingestion. Use Process to queue a new ingestion run."
+                           FontSize="12"
+                           TextColor="Gray" />
 
-                                <!-- Timestamps -->
-                                <VerticalStackLayout Grid.Row="1" Grid.ColumnSpan="2" Spacing="3" Margin="0,10,0,0">
-                                    <Label FontSize="11" TextColor="Gray">
-                                        <Label.Text>
-                                            <MultiBinding StringFormat="Started: {0:g}">
-                                                <Binding Path="StartTime" />
-                                            </MultiBinding>
-                                        </Label.Text>
-                                    </Label>
-                                    
-                                    <Label FontSize="11" TextColor="Gray"
-                                           IsVisible="{Binding EndTime, Converter={StaticResource HasValueConverter}}">
-                                        <Label.Text>
-                                            <MultiBinding StringFormat="Ended: {0:g}">
-                                                <Binding Path="EndTime" />
-                                            </MultiBinding>
-                                        </Label.Text>
-                                    </Label>
-                                </VerticalStackLayout>
-
-                                <!-- Created By -->
-                                <Label Grid.Row="2" Grid.ColumnSpan="2" 
-                                       Text="{Binding CreatedBy, StringFormat='Created by: {0}'}" 
-                                       FontSize="10" 
+                    <CollectionView ItemsSource="{Binding PendingStorageFiles}"
+                                    SelectionMode="None">
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="8" Padding="20">
+                                <Label Text="No pending storage files found"
+                                       FontSize="16"
+                                       HorizontalOptions="Center" />
+                                <Label Text="Files already queued or completed will not show here."
+                                       FontSize="12"
                                        TextColor="Gray"
-                                       Margin="0,5,0,0" />
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="viewmodels:PendingStorageFileViewModel">
+                                <Frame BorderColor="LightGray"
+                                       Margin="0,5"
+                                       Padding="15"
+                                       CornerRadius="8">
+                                    <Grid RowDefinitions="Auto,Auto,Auto"
+                                          ColumnDefinitions="*,Auto">
 
-                                <!-- Errors and Warnings -->
-                                <VerticalStackLayout Grid.Row="3" Grid.ColumnSpan="2" Spacing="5" Margin="0,10,0,0"
-                                                     IsVisible="{Binding HasErrors}">
-                                    <Label Text="Errors:" 
-                                           FontSize="11" 
-                                           TextColor="Red" 
-                                           FontAttributes="Bold" />
-                                    
-                                    <CollectionView ItemsSource="{Binding Errors}">
-                                        <CollectionView.ItemTemplate>
-                                            <DataTemplate>
-                                                <Label Text="{Binding .}" 
-                                                       FontSize="10" 
-                                                       TextColor="Red" 
-                                                       Margin="10,0,0,2" />
-                                            </DataTemplate>
-                                        </CollectionView.ItemTemplate>
-                                    </CollectionView>
-                                </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="5">
+                                            <Label Text="{Binding BlobName}"
+                                                   FontAttributes="Bold"
+                                                   FontSize="14" />
 
-                                <VerticalStackLayout Grid.Row="3" Grid.ColumnSpan="2" Spacing="5" Margin="0,5,0,0"
-                                                     IsVisible="{Binding HasWarnings}">
-                                    <Label Text="Warnings:" 
-                                           FontSize="11" 
-                                           TextColor="Orange" 
-                                           FontAttributes="Bold" />
-                                    
-                                    <CollectionView ItemsSource="{Binding Warnings}">
-                                        <CollectionView.ItemTemplate>
-                                            <DataTemplate>
-                                                <Label Text="{Binding .}" 
-                                                       FontSize="10" 
-                                                       TextColor="Orange" 
-                                                       Margin="10,0,0,2" />
-                                            </DataTemplate>
-                                        </CollectionView.ItemTemplate>
-                                    </CollectionView>
-                                </VerticalStackLayout>
+                                            <HorizontalStackLayout Spacing="10">
+                                                <Label Text="{Binding DocumentTypeLabel}"
+                                                       FontSize="12"
+                                                       TextColor="Gray" />
+                                                <Label Text="|"
+                                                       FontSize="12"
+                                                       TextColor="Gray" />
+                                                <Label Text="{Binding DisplayStatus}"
+                                                       FontSize="12"
+                                                       FontAttributes="Bold" />
+                                            </HorizontalStackLayout>
+                                        </VerticalStackLayout>
 
-                            </Grid>
-                        </Frame>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
+                                        <Button Grid.Row="0" Grid.Column="1"
+                                                Text="{Binding ProcessButtonText}"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ProcessPendingStorageFileCommand}"
+                                                CommandParameter="{Binding .}"
+                                                BackgroundColor="{StaticResource Primary}"
+                                                TextColor="White"
+                                                FontSize="11"
+                                                Padding="10,5"
+                                                IsEnabled="{Binding IsProcessing, Converter={StaticResource InverseBoolConverter}}" />
+
+                                        <VerticalStackLayout Grid.Row="1" Grid.ColumnSpan="2" Spacing="3" Margin="0,10,0,0">
+                                            <Label Text="{Binding UploadId, StringFormat='Upload ID: {0}'}"
+                                                   FontSize="11"
+                                                   TextColor="Gray" />
+                                            <Label Text="{Binding SizeLabel, StringFormat='Size: {0}'}"
+                                                   FontSize="11"
+                                                   TextColor="Gray" />
+                                            <Label FontSize="11" TextColor="Gray">
+                                                <Label.Text>
+                                                    <MultiBinding StringFormat="Last modified: {0:g}">
+                                                        <Binding Path="LastModifiedUtc" />
+                                                    </MultiBinding>
+                                                </Label.Text>
+                                            </Label>
+                                        </VerticalStackLayout>
+
+                                        <Label Grid.Row="2" Grid.ColumnSpan="2"
+                                               Text="{Binding FailureReason, StringFormat='Last failure: {0}'}"
+                                               FontSize="11"
+                                               TextColor="Orange"
+                                               Margin="0,8,0,0"
+                                               IsVisible="{Binding HasFailureReason}" />
+                                    </Grid>
+                                </Frame>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Ingestion Jobs"
+                           FontSize="20"
+                           FontAttributes="Bold" />
+                    <Label Text="Queued and recent storage ingestion runs appear here with their current status."
+                           FontSize="12"
+                           TextColor="Gray" />
+
+                    <CollectionView ItemsSource="{Binding IngestionJobs}"
+                                    SelectionMode="None">
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="8" Padding="20">
+                                <Label Text="No ingestion jobs found"
+                                       FontSize="16"
+                                       HorizontalOptions="Center" />
+                                <Label Text="Queue a pending storage file to create an ingestion job."
+                                       FontSize="12"
+                                       TextColor="Gray"
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="viewmodels:IngestionJobHistoryViewModel">
+                                <Frame BorderColor="LightGray"
+                                       Margin="0,5"
+                                       Padding="15"
+                                       CornerRadius="8">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                                          ColumnDefinitions="*">
+
+                                        <VerticalStackLayout Grid.Row="0" Spacing="5">
+                                            <Label Text="{Binding JobId}"
+                                                   FontAttributes="Bold"
+                                                   FontSize="14" />
+
+                                            <HorizontalStackLayout Spacing="10">
+                                                <Label Text="{Binding InputTypeLabel}"
+                                                       FontSize="12"
+                                                       TextColor="Gray" />
+                                                <Label Text="|"
+                                                       FontSize="12"
+                                                       TextColor="Gray" />
+                                                <Label Text="{Binding Status}"
+                                                       FontSize="12"
+                                                       FontAttributes="Bold" />
+                                            </HorizontalStackLayout>
+                                        </VerticalStackLayout>
+
+                                        <VerticalStackLayout Grid.Row="1" Spacing="3" Margin="0,10,0,0">
+                                            <Label Text="{Binding InputRef, StringFormat='Input: {0}'}"
+                                                   FontSize="11"
+                                                   TextColor="Gray" />
+
+                                            <Label FontSize="11" TextColor="Gray">
+                                                <Label.Text>
+                                                    <MultiBinding StringFormat="Created: {0:g}">
+                                                        <Binding Path="CreatedAtUtc" />
+                                                    </MultiBinding>
+                                                </Label.Text>
+                                            </Label>
+
+                                            <Label FontSize="11" TextColor="Gray"
+                                                   IsVisible="{Binding StartedAtUtc, Converter={StaticResource HasValueConverter}}">
+                                                <Label.Text>
+                                                    <MultiBinding StringFormat="Started: {0:g}">
+                                                        <Binding Path="StartedAtUtc" />
+                                                    </MultiBinding>
+                                                </Label.Text>
+                                            </Label>
+
+                                            <Label FontSize="11" TextColor="Gray"
+                                                   IsVisible="{Binding CompletedAtUtc, Converter={StaticResource HasValueConverter}}">
+                                                <Label.Text>
+                                                    <MultiBinding StringFormat="Completed: {0:g}">
+                                                        <Binding Path="CompletedAtUtc" />
+                                                    </MultiBinding>
+                                                </Label.Text>
+                                            </Label>
+                                        </VerticalStackLayout>
+
+                                        <Label Grid.Row="2"
+                                               Text="{Binding FabricRunId, StringFormat='Fabric run: {0}'}"
+                                               FontSize="11"
+                                               TextColor="Gray"
+                                               Margin="0,8,0,0"
+                                               IsVisible="{Binding HasFabricRunId}" />
+
+                                        <Label Grid.Row="3"
+                                               Text="{Binding FailureReason, StringFormat='Failure: {0}'}"
+                                               FontSize="11"
+                                               TextColor="Red"
+                                               Margin="0,8,0,0"
+                                               IsVisible="{Binding HasFailureReason}" />
+                                    </Grid>
+                                </Frame>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Pipeline Executions"
+                           FontSize="20"
+                           FontAttributes="Bold" />
+                    <Label Text="This legacy execution feed remains available for existing pipeline runs."
+                           FontSize="12"
+                           TextColor="Gray" />
+
+                    <CollectionView ItemsSource="{Binding Jobs}"
+                                    SelectionMode="None">
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10" Padding="20">
+                                <Label Text="No pipeline executions found"
+                                       FontSize="16"
+                                       HorizontalOptions="Center" />
+                                <Label Text="Configure authentication to load jobs from the API"
+                                       FontSize="12"
+                                       TextColor="Gray"
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="viewmodels:JobViewModel">
+                                <Frame BorderColor="LightGray"
+                                       Margin="0,5"
+                                       Padding="15"
+                                       CornerRadius="8">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                                          ColumnDefinitions="*,Auto">
+
+                                        <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="5">
+                                            <Label Text="{Binding ExecutionId}"
+                                                   FontAttributes="Bold"
+                                                   FontSize="14" />
+
+                                            <HorizontalStackLayout Spacing="10">
+                                                <Label Text="{Binding PipelineType}"
+                                                       FontSize="12"
+                                                       TextColor="Gray" />
+                                                <Label Text="|"
+                                                       FontSize="12"
+                                                       TextColor="Gray" />
+                                                <Label Text="{Binding Status}"
+                                                       FontSize="12"
+                                                       FontAttributes="Bold" />
+                                            </HorizontalStackLayout>
+                                        </VerticalStackLayout>
+
+                                        <Button Grid.Row="0" Grid.Column="1"
+                                                Text="Cancel"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CancelJobCommand}"
+                                                CommandParameter="{Binding ExecutionId}"
+                                                BackgroundColor="Red"
+                                                TextColor="White"
+                                                FontSize="11"
+                                                Padding="10,5"
+                                                IsVisible="{Binding IsRunning}" />
+
+                                        <VerticalStackLayout Grid.Row="1" Grid.ColumnSpan="2" Spacing="3" Margin="0,10,0,0">
+                                            <Label FontSize="11" TextColor="Gray">
+                                                <Label.Text>
+                                                    <MultiBinding StringFormat="Started: {0:g}">
+                                                        <Binding Path="StartTime" />
+                                                    </MultiBinding>
+                                                </Label.Text>
+                                            </Label>
+
+                                            <Label FontSize="11" TextColor="Gray"
+                                                   IsVisible="{Binding EndTime, Converter={StaticResource HasValueConverter}}">
+                                                <Label.Text>
+                                                    <MultiBinding StringFormat="Ended: {0:g}">
+                                                        <Binding Path="EndTime" />
+                                                    </MultiBinding>
+                                                </Label.Text>
+                                            </Label>
+                                        </VerticalStackLayout>
+
+                                        <Label Grid.Row="2" Grid.ColumnSpan="2"
+                                               Text="{Binding CreatedBy, StringFormat='Created by: {0}'}"
+                                               FontSize="10"
+                                               TextColor="Gray"
+                                               Margin="0,5,0,0" />
+
+                                        <VerticalStackLayout Grid.Row="3" Grid.ColumnSpan="2" Spacing="5" Margin="0,10,0,0"
+                                                             IsVisible="{Binding HasErrors}">
+                                            <Label Text="Errors:"
+                                                   FontSize="11"
+                                                   TextColor="Red"
+                                                   FontAttributes="Bold" />
+
+                                            <CollectionView ItemsSource="{Binding Errors}"
+                                                            SelectionMode="None">
+                                                <CollectionView.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <Label Text="{Binding .}"
+                                                               FontSize="10"
+                                                               TextColor="Red"
+                                                               Margin="10,0,0,2" />
+                                                    </DataTemplate>
+                                                </CollectionView.ItemTemplate>
+                                            </CollectionView>
+                                        </VerticalStackLayout>
+
+                                        <VerticalStackLayout Grid.Row="3" Grid.ColumnSpan="2" Spacing="5" Margin="0,5,0,0"
+                                                             IsVisible="{Binding HasWarnings}">
+                                            <Label Text="Warnings:"
+                                                   FontSize="11"
+                                                   TextColor="Orange"
+                                                   FontAttributes="Bold" />
+
+                                            <CollectionView ItemsSource="{Binding Warnings}"
+                                                            SelectionMode="None">
+                                                <CollectionView.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <Label Text="{Binding .}"
+                                                               FontSize="10"
+                                                               TextColor="Orange"
+                                                               Margin="10,0,0,2" />
+                                                    </DataTemplate>
+                                                </CollectionView.ItemTemplate>
+                                            </CollectionView>
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </Frame>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
         </ScrollView>
 
     </Grid>

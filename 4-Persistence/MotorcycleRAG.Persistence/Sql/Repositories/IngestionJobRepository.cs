@@ -241,6 +241,40 @@ public class IngestionJobRepository : IIngestionJobRepository
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<IngestionJob>> GetRecentAsync(
+        int maxCount,
+        CancellationToken cancellationToken = default)
+    {
+        if (maxCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxCount), "maxCount must be greater than zero.");
+
+        const string sql = @"
+            SELECT TOP (@MaxCount)
+                [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                [ComputeProvider], [FabricRunId], [ManualDocumentId],
+                [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
+                [PagesWithOcrTextCount], [PagesWithNativeTextCount],
+                [MissingPagesJson], [MetricsJson]
+            FROM [dbo].[IngestionJobs]
+            ORDER BY [CreatedAtUtc] DESC;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var results = await connection.QueryAsync<IngestionJob>(
+                new CommandDefinition(sql, new { MaxCount = maxCount }, cancellationToken: cancellationToken));
+            return results.ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get recent ingestion jobs");
+            throw new InvalidOperationException("Failed to get recent ingestion jobs", ex);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<IngestionJob>> GetByManualDocumentIdAsync(
         Guid manualDocumentId,
         CancellationToken cancellationToken = default)

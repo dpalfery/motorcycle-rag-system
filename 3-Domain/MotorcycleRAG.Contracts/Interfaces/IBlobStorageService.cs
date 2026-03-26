@@ -1,6 +1,7 @@
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
@@ -18,6 +19,13 @@ public interface IBlobStorageService
         string blobName,
         Stream content,
         string contentType,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists blobs in the specified container.
+    /// </summary>
+    Task<IReadOnlyList<BlobObjectDescriptor>> ListAsync(
+        string containerName,
         CancellationToken cancellationToken = default);
 
     /// <summary>

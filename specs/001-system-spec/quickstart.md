@@ -329,20 +329,22 @@ dotnet build MotorcycleRAG.Admin.csproj -t:Run -f net10.0-windows10.0.19041.0
 
 ### Authentication
 
-The MAUI admin app uses Entra ID authentication with device code flow:
+The MAUI admin app uses Entra ID authentication with authorization code + PKCE via the system browser:
 
 ```bash
 # Set required environment variables for authentication
 $env:MAUI_AUTH_AUTHORITY="https://login.microsoftonline.com/<tenant-id>"
 $env:MAUI_AUTH_CLIENT_ID="<maui-admin-client-id>"
-$env:MAUI_AUTH_REDIRECT_URI="msalmauiadmin:/auth"
-$env:MAUI_AUTH_SCOPES="api://<api-client-id>/.default"
+$env:MAUI_AUTH_REDIRECT_URI="http://localhost"
+$env:MAUI_AUTH_SCOPES="api://<api-client-id>/admin"
 ```
 
 Where:
 - `<tenant-id>`: Your Azure Tenant ID
 - `<maui-admin-client-id>`: Client ID of the MAUI Admin app registration
 - `<api-client-id>`: Client ID of the API resource app registration
+
+Use the workforce tenant that issues the admin token, and request the explicit admin scope. Do not use `/.default` or legacy `admin_access` scopes for the admin app.
 
 ### Configuration
 
@@ -540,7 +542,7 @@ The mobile app uses Entra External ID / B2C authentication with social sign-in:
 $env:MOBILE_AUTH_AUTHORITY="https://<tenant-name>.b2clogin.com"
 $env:MOBILE_AUTH_CLIENT_ID="<mobile-client-id>"
 $env:MOBILE_AUTH_REDIRECT_URI="msamobile:/auth"
-$env:MOBILE_AUTH_SCOPES="openid profile email api://<api-client-id>/.default"
+$env:MOBILE_AUTH_SCOPES="openid profile email api://<api-client-id>/read api://<api-client-id>/chat"
 ```
 
 Where:
@@ -767,8 +769,8 @@ For the MAUI admin app, set these environment variables:
 # Authentication
 MAUI_AUTH_AUTHORITY="https://login.microsoftonline.com/<tenant-id>"
 MAUI_AUTH_CLIENT_ID="<redacted>"
-MAUI_AUTH_REDIRECT_URI="msalmauiadmin:/auth"
-MAUI_AUTH_SCOPES="api://<api-client-id>/.default"
+MAUI_AUTH_REDIRECT_URI="http://localhost"
+MAUI_AUTH_SCOPES="api://<api-client-id>/admin"
 
 # API Configuration
 MAUI_API_BASE_URL="http://localhost:5028"
@@ -784,7 +786,7 @@ For the MAUI mobile app, set these environment variables:
 MOBILE_AUTH_AUTHORITY="https://<tenant-name>.b2clogin.com"
 MOBILE_AUTH_CLIENT_ID="<redacted>"
 MOBILE_AUTH_REDIRECT_URI="msamobile:/auth"
-MOBILE_AUTH_SCOPES="openid profile email api://<api-client-id>/.default"
+MOBILE_AUTH_SCOPES="openid profile email api://<api-client-id>/read api://<api-client-id>/chat"
 
 # API Configuration
 MOBILE_API_BASE_URL="http://localhost:5028"

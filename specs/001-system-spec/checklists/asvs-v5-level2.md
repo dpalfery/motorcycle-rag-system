@@ -548,7 +548,7 @@ For each requirement, provide:
 
 #### Security Controls
 - **JWT Authentication**: Microsoft.Identity.Web integration with dual-issuer support (Entra ID + Entra External ID)
-- **Authorization Policies**: Role-based policies with Entra ID app roles, scope claim validation (admin_access)
+- **Authorization Policies**: Role-based policies with Entra ID app roles, explicit `admin` scope validation, and `azp` client isolation for admin endpoints
 - **Exception Handling**: ProblemDetails middleware with structured responses, no sensitive info exposure
 - **Telemetry Redaction**: Regex-based patterns for SQL queries, connection strings, API keys, secrets
 - **Security Headers**: CSP, HSTS, XSS protection, frame options, permissions policy

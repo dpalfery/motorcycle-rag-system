@@ -42,6 +42,15 @@ class ProcessCSVRequest(BaseModel):
     )
 
 
+class ProcessBikeGraphRequest(BaseModel):
+    upload_id: str = Field(
+        ..., description="UUID used as the import batch identifier and sourceDocumentId for all created nodes"
+    )
+    local_file_path: str = Field(
+        ..., description="Absolute path to the motorcycle spec CSV file on the local machine"
+    )
+
+
 class Chunk(BaseModel):
     id: str = Field(..., description="Unique chunk identifier")
     title: str = Field(..., description="Chunk title")

@@ -19,12 +19,14 @@ sys.path.append(str(Path(__file__).parent / "src"))
 
 from processors.pdf_processor import PDFProcessor
 from processors.csv_processor import CSVProcessor
+from processors.bike_graph_processor import BikeGraphProcessor
 from embeddings.ollama_embedder import OllamaEmbedder
 from extraction.graph_extractor import GraphExtractor
 from storage.blob_writer import BlobWriter
 from models.schemas import (
     ProcessPDFRequest,
     ProcessCSVRequest,
+    ProcessBikeGraphRequest,
     ProcessingStatusResponse,
 )
 
@@ -55,6 +57,7 @@ pdf_processor = PDFProcessor(
 )
 
 csv_processor = CSVProcessor(blob_writer=blob_writer, embedder=embedder)
+bike_graph_processor = BikeGraphProcessor(blob_writer=blob_writer)
 
 
 # Health check endpoint
@@ -162,6 +165,49 @@ async def process_csv(request: ProcessCSVRequest, background_tasks: BackgroundTa
         )
 
 
+# Bike graph CSV processing endpoint
+@app.post("/process/bike-graph", response_model=ProcessingStatusResponse)
+async def process_bike_graph(request: ProcessBikeGraphRequest, background_tasks: BackgroundTasks):
+    """Process a local motorcycle spec CSV into graph nodes and edges.
+
+    No LLM or embeddings are used — processing is entirely local and deterministic.
+    The resulting nodes/edges JSON is written to blob storage and consumed by
+    GraphEntityIngestionService on the C# API side.
+    """
+    try:
+        if not request.upload_id:
+            raise HTTPException(status_code=400, detail="upload_id is required")
+        if not request.local_file_path:
+            raise HTTPException(status_code=400, detail="local_file_path is required")
+
+        file_path = Path(request.local_file_path).resolve()
+        if not file_path.is_file():
+            raise HTTPException(
+                status_code=400,
+                detail="local_file_path does not point to an existing file",
+            )
+        if file_path.suffix.lower() != ".csv":
+            raise HTTPException(status_code=400, detail="Only .csv files are supported")
+
+        job_id = await bike_graph_processor.process_async(
+            upload_id=request.upload_id,
+            local_file_path=str(file_path),
+        )
+
+        return ProcessingStatusResponse(
+            job_id=job_id,
+            status="processing",
+            message="Bike graph processing started in background",
+            progress=0,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Unexpected error in /process/bike-graph")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
+
 # Job status endpoint
 @app.get("/jobs/{job_id}")
 async def get_job_status(job_id: str):
@@ -176,6 +222,11 @@ async def get_job_status(job_id: str):
         csv_status = await csv_processor.get_job_status(job_id)
         if csv_status:
             return csv_status
+
+        # Check bike graph processor status
+        bike_graph_status = await bike_graph_processor.get_job_status(job_id)
+        if bike_graph_status:
+            return bike_graph_status
 
         raise HTTPException(status_code=404, detail="Job not found")
 

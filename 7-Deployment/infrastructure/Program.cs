@@ -123,7 +123,7 @@ namespace MotorcycleRAG.Infrastructure {
 
             // 6. Azure AI Services
             var aiServicesAccountName = $"{namePrefix}-cog01";
-            var aiServicesSubdomain = $"{org}-{workload}-{env}-cog01";
+            var aiServicesSubdomain = resourceGroup.Name.Apply(rgName => $"{org}-{workload}-{env}-cog01-{rgName[^8..]}");
             var aiServicesEndpoint = Output.Format($"https://{aiServicesSubdomain}.cognitiveservices.azure.com/");
             var aiServices = new Pulumi.AzureNative.Resources.Resource(aiServicesAccountName, new Pulumi.AzureNative.Resources.ResourceArgs {
                 ResourceGroupName = resourceGroup.Name,

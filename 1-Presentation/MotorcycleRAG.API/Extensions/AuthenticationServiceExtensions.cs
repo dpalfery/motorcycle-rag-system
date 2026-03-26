@@ -202,13 +202,20 @@ internal static class AuthenticationServiceExtensions
             validIssuers.Add(externalIdIssuer);
         }
 
+        // Accept both the raw GUID and the api:// URI form because Azure AD v2.0 tokens
+        // issued for an api:// scope carry aud = "api://{clientId}", not the bare GUID.
+        var rawGuid = audience.StartsWith("api://", StringComparison.OrdinalIgnoreCase)
+            ? audience["api://".Length..]
+            : audience;
+        var validAudiences = new[] { rawGuid, $"api://{rawGuid}" };
+
         // Configure token validation
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidIssuers = validIssuers,
             ValidateAudience = true,
-            ValidAudience = audience,
+            ValidAudiences = validAudiences,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromSeconds(300), // 5 minutes for clock skew
             ValidateIssuerSigningKey = true,

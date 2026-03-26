@@ -419,8 +419,6 @@ public class ClaimCitationService
     }
 
     // Constants and helper fields
-    private static readonly string[] JsonArraySeparators = { "\",\"" };
-    private static readonly char[] TrimChars = { '[', ']', ' ', '\\', '"' };
     private static readonly char[] KeyTermSeparators = { ' ', '.', ',', ';', ':', '(', ')', '[', ']', '{', '}', '\\', '/', '-', '_' };
     private static readonly char[] WordSplitSeparators = { ' ' };
     private static readonly char[] CleanTrimChars = { '.', ',', ';', ':', '!', '?' };

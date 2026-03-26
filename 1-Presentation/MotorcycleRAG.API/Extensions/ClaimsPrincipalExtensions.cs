@@ -5,7 +5,7 @@ namespace MotorcycleRAG.API.Extensions;
 /// <summary>
 /// Extension methods for <see cref="ClaimsPrincipal"/> to facilitate authorization checks.
 /// </summary>
-public static class ClaimsPrincipalExtensions
+    internal static class ClaimsPrincipalExtensions
 {
     /// <summary>
     /// Checks if the user has the required scope.
@@ -13,7 +13,7 @@ public static class ClaimsPrincipalExtensions
     /// <param name="user">The claims principal.</param>
     /// <param name="requiredScope">The required scope.</param>
     /// <returns>True if the user has the scope, otherwise false.</returns>
-    public static bool HasScope(this ClaimsPrincipal user, string requiredScope)
+    internal static bool HasScope(this ClaimsPrincipal user, string requiredScope)
     {
         if (user == null)
         {
@@ -44,7 +44,7 @@ public static class ClaimsPrincipalExtensions
     /// <param name="user">The claims principal.</param>
     /// <param name="roles">The allowed roles.</param>
     /// <returns>True if the user has any of the roles, otherwise false.</returns>
-    public static bool HasAnyRole(this ClaimsPrincipal user, params string[] roles)
+    internal static bool HasAnyRole(this ClaimsPrincipal user, params string[] roles)
     {
         if (user == null)
         {
@@ -66,7 +66,7 @@ public static class ClaimsPrincipalExtensions
     /// <param name="user">The claims principal.</param>
     /// <param name="expectedClientId">The expected client ID.</param>
     /// <returns>True if the client ID matches, otherwise false.</returns>
-    public static bool IsAuthorizedClient(this ClaimsPrincipal user, string expectedClientId)
+    internal static bool IsAuthorizedClient(this ClaimsPrincipal user, string expectedClientId)
     {
         if (user == null || string.IsNullOrEmpty(expectedClientId))
         {

@@ -96,7 +96,7 @@ jobs:
           echo "RESOURCE_GROUP=${RG}"                 >> "$GITHUB_ENV"
           echo "API_APP_NAME=${API_APP}"              >> "$GITHUB_ENV"
           echo "UI_APP_NAME=${UI_APP}"                >> "$GITHUB_ENV"
-          FOUNDRY_ENDPOINT=$(pulumi stack output aiServicesEndpoint --stack ${{ env.PULUMI_STACK }})
+          FOUNDRY_ENDPOINT=$(pulumi stack output foundryProjectEndpoint --stack ${{ env.PULUMI_STACK }})
           KEY_VAULT_URI=$(pulumi stack output keyVaultUri --stack ${{ env.PULUMI_STACK }})
           KEY_VAULT_NAME="${KEY_VAULT_URI#https://}"
           KEY_VAULT_NAME="${KEY_VAULT_NAME%.vault.azure.net}"

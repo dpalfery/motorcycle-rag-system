@@ -17,20 +17,17 @@ namespace MotorcycleRAG.Application.Pipeline;
 /// </summary>
 public sealed class IngestionJobService : IIngestionJobService {
     private readonly IIngestionJobRepository _repository;
-    private readonly IFabricPipelineService _fabricPipeline;
-    private readonly ILocalPipelineService _localPipeline;
+    private readonly ILocalPipelineService _pipelineService;
     private readonly IngestionOptions _options;
     private readonly ILogger<IngestionJobService> _logger;
 
     public IngestionJobService(
         IIngestionJobRepository repository,
-        IFabricPipelineService fabricPipeline,
-        ILocalPipelineService localPipeline,
+        ILocalPipelineService pipelineService,
         IOptions<IngestionOptions> options,
         ILogger<IngestionJobService> logger) {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-        _fabricPipeline = fabricPipeline ?? throw new ArgumentNullException(nameof(fabricPipeline));
-        _localPipeline = localPipeline ?? throw new ArgumentNullException(nameof(localPipeline));
+        _pipelineService = pipelineService ?? throw new ArgumentNullException(nameof(pipelineService));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -71,19 +68,11 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         string runId;
         try {
-            if (_options.Mode == ProcessingMode.Local) {
-                runId = await _localPipeline.TriggerPipelineAsync(
-                    request.UploadId,
-                    request.DocumentType,
-                    pipelineId,
-                    ct).ConfigureAwait(false);
-            } else {
-                runId = await _fabricPipeline.TriggerPipelineAsync(
-                    request.UploadId,
-                    request.DocumentType,
-                    pipelineId,
-                    ct).ConfigureAwait(false);
-            }
+            runId = await _pipelineService.TriggerPipelineAsync(
+                request.UploadId,
+                request.DocumentType,
+                pipelineId,
+                ct).ConfigureAwait(false);
         } catch (Exception ex) {
             _logger.LogError(
                 ex,

@@ -39,8 +39,8 @@ public static class ServiceCollectionExtensions {
             configuration.GetSection("ApplicationInsights"));
         services.Configure<ResilienceOptions>(
             configuration.GetSection("Resilience"));
-        services.Configure<FabricIngestionOptions>(
-            configuration.GetSection("FabricIngestion"));
+        services.Configure<IngestionOptions>(
+            configuration.GetSection("Ingestion"));
         services.Configure<BlobStorageOptions>(
             configuration.GetSection("BlobStorage"));
 

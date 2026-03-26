@@ -15,8 +15,6 @@ namespace MotorcycleRAG.Persistence.Azure; // Fixed namespace to match project &
 /// </summary>
 public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
 {
-    private static readonly string[] TokenScopes = ["https://cognitiveservices.azure.com/.default"];
-
     private readonly ILogger<AzureFoundryClientWrapper> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;

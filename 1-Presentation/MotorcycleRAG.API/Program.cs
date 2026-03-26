@@ -20,6 +20,10 @@ namespace MotorcycleRAG.API;
     "Maintainability",
     "CA1506:Avoid excessive class coupling",
     Justification = "Composition root inherently has high coupling")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Minor",
+    "S1118:Utility classes should not have public constructors",
+    Justification = "Program must be instantiable for WebApplicationFactory-based tests.")]
 public class Program
 {
     public static async Task Main(string[] args)

@@ -39,9 +39,6 @@ public sealed class IngestionJobsController : ControllerBase {
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
-        _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>

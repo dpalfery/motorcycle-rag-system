@@ -1,3 +1,29 @@
+root = true
+
+# Repository-wide editorconfig to reduce style/noise diagnostics.
+# We disable non-substantive style, naming and formatting checks so CI focuses
+# on runtime-safety and security analyzers (CA*, CS*).
+
+[*.{cs}]
+# Turn off general style and naming categories
+dotnet_analyzer_diagnostic.category-Style.severity = none
+dotnet_analyzer_diagnostic.category-Naming.severity = none
+dotnet_analyzer_diagnostic.category-Formatting.severity = none
+dotnet_analyzer_diagnostic.category-Documentation.severity = none
+
+# Explicitly silence common Sonar / style rule IDs that are considered noise
+# (line length, naming visibility, unused parameter style hints, etc.).
+dotnet_diagnostic.S103.severity = none
+dotnet_diagnostic.S3059.severity = none
+dotnet_diagnostic.S1227.severity = none
+dotnet_diagnostic.S2302.severity = none
+dotnet_diagnostic.S1172.severity = none
+dotnet_diagnostic.S2360.severity = none
+dotnet_diagnostic.S1200.severity = none
+dotnet_diagnostic.S4487.severity = none
+
+# Keep CA (Code Analysis) rules enabled to catch potential runtime issues
+# (e.g. CA1062, CA1502) — do not disable CA* rules here.
 # EditorConfig is awesome: https://EditorConfig.org
 # top-most EditorConfig file
 root = true

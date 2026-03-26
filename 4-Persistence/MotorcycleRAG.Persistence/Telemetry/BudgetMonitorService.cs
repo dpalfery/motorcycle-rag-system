@@ -7,7 +7,7 @@ namespace MotorcycleRAG.Persistence.Telemetry;
 
 /// <summary>
 /// In-memory implementation of <see cref="IBudgetMonitorService"/> that tracks monthly Azure spend
-/// and enforces the limit configured in <see cref="FabricIngestionOptions.MonthlyBudgetLimit"/>.
+/// and enforces the limit configured in <see cref="IngestionOptions.MonthlyBudgetLimit"/>.
 /// Thread-safe: all mutations are serialised through <see cref="_lock"/>.
 /// Resets automatically when the calendar month rolls over.
 /// </summary>
@@ -17,7 +17,7 @@ public sealed class BudgetMonitorService : IBudgetMonitorService
     // Fields
     // -------------------------------------------------------------------------
 
-    private readonly FabricIngestionOptions _options;
+    private readonly IngestionOptions _options;
     private readonly ILogger<BudgetMonitorService> _logger;
     /// <summary>Guards all reads and writes to <see cref="_monthlySpend"/> and <see cref="_trackingMonth"/>.</summary>
     private readonly object _lock = new();
@@ -38,10 +38,10 @@ public sealed class BudgetMonitorService : IBudgetMonitorService
     /// <summary>
     /// Initialises a new instance of <see cref="BudgetMonitorService"/>.
     /// </summary>
-    /// <param name="options">Fabric ingestion options (provides <c>MonthlyBudgetLimit</c>).</param>
+    /// <param name="options">Ingestion options (provides <c>MonthlyBudgetLimit</c>).</param>
     /// <param name="logger">Structured logger. Never logs raw user-supplied values.</param>
     public BudgetMonitorService(
-        IOptions<FabricIngestionOptions> options,
+        IOptions<IngestionOptions> options,
         ILogger<BudgetMonitorService> logger)
     {
         ArgumentNullException.ThrowIfNull(options);

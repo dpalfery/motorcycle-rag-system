@@ -134,6 +134,29 @@ namespace MotorcycleRAG.Infrastructure {
                 }
             });
 
+            const string foundryProjectName = "motorcycle-rag";
+            var foundryProject = new Project($"{namePrefix}-foundry-project", new ProjectArgs {
+                ResourceGroupName = resourceGroup.Name,
+                AccountName = aiServices.Name,
+                Location = location,
+                ProjectName = foundryProjectName,
+                Properties = new ProjectPropertiesArgs {
+                    DisplayName = "Motorcycle RAG",
+                    Description = "Azure AI Foundry project for the Motorcycle RAG system."
+                }
+            });
+
+            var foundryProjectEndpoint = Output.Tuple(aiServices.Name, foundryProject.Properties).Apply(values =>
+            {
+                var (accountName, projectProperties) = values;
+                if (projectProperties.Endpoints is not null && projectProperties.Endpoints.Count > 0)
+                {
+                    return projectProperties.Endpoints.Values.First();
+                }
+
+                return $"https://{accountName}.services.ai.azure.com/api/projects/{foundryProjectName}";
+            });
+
             // 8. Azure Container Registry
             var registry = new Registry($"{org}{workload}{env}acr", new RegistryArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -416,7 +439,7 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
                 KeyValueName = "AzureAI:FoundryEndpoint",
-                Value = aiServices.Properties.Apply(p => p.Endpoint ?? "")
+                Value = foundryProjectEndpoint
             });
 
             _ = new KeyValue("appconfig-kv-foundry-chat-model", new KeyValueArgs {
@@ -648,6 +671,7 @@ namespace MotorcycleRAG.Infrastructure {
 
             // Outputs
             this.AiServicesEndpoint = aiServices.Properties.Apply(p => p.Endpoint ?? "");
+            this.FoundryProjectEndpoint = foundryProjectEndpoint;
             this.KeyVaultUri = Output.Format($"https://{keyVault.Name}.vault.azure.net");
             this.StorageAccountName = storageAccount.Name;
             this.LogAnalyticsWorkspaceName = logAnalytics.Name;
@@ -671,6 +695,9 @@ namespace MotorcycleRAG.Infrastructure {
 
         [Output("aiServicesEndpoint")]
         public Output<string> AiServicesEndpoint { get; set; }
+
+        [Output("foundryProjectEndpoint")]
+        public Output<string> FoundryProjectEndpoint { get; set; }
 
         [Output("keyVaultUri")]
         public Output<string> KeyVaultUri { get; set; }

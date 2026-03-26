@@ -19,7 +19,7 @@ namespace MotorcycleRAG.Persistence.ExternalServices;
 #pragma warning disable S1133 // Intentionally kept as deprecated fallback
 [Obsolete("Use ILocalPipelineService and LocalPipelineService. FabricPipelineService is kept as a fallback for ProcessingMode.Fabric.", false)]
 #pragma warning restore S1133
-public sealed class FabricPipelineService : IFabricPipelineService
+public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipelineService
 {
     // Fabric REST API version and scope required for acquiring tokens.
     private const string FabricApiVersion = "v1";

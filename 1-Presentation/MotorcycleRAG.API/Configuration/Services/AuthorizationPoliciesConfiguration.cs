@@ -1,3 +1,4 @@
+using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -11,13 +12,16 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for authorization policies.
 /// </summary>
-public static class AuthorizationPoliciesConfiguration
+internal static class AuthorizationPoliciesConfiguration
 {
-    public static IServiceCollection AddMotorcycleRagAuthorization(
-        this IServiceCollection services, 
-        IConfiguration configuration, 
+    internal static IServiceCollection AddMotorcycleRagAuthorization(
+        this IServiceCollection services,
+        IConfiguration configuration,
         IWebHostEnvironment env)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(env);
         // Get Admin Client ID from configuration for isolation checks
         var adminClientId = configuration["AzureAd:AdminClientId"];
 

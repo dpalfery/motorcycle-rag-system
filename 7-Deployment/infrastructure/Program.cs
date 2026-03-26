@@ -48,6 +48,7 @@ namespace MotorcycleRAG.Infrastructure {
 
             // General
             var location = cfg.Get("location") ?? "centralus";
+            var foundryLocation = cfg.Get("foundryLocation") ?? "eastus2";
 
             // Naming convention: <org>-<workload>-<env>-<loc>-<resType>[<instance>]
             const string org = "mcr";           // motorcycle
@@ -55,6 +56,10 @@ namespace MotorcycleRAG.Infrastructure {
             const string env = "dev";           // development
             const string loc = "cus";           // central us
             const string namePrefix = $"{org}-{workload}-{env}-{loc}";
+            var foundryLoc = string.Equals(foundryLocation, "eastus2", StringComparison.OrdinalIgnoreCase)
+                ? "eus2"
+                : foundryLocation.Replace(" ", string.Empty).ToLowerInvariant();
+            var foundryNamePrefix = $"{org}-{workload}-{env}-{foundryLoc}";
 
             // 1. Resource Group
             var resourceGroup = new ResourceGroup($"{namePrefix}-rg", new ResourceGroupArgs {
@@ -147,11 +152,35 @@ namespace MotorcycleRAG.Infrastructure {
                 }
             });
 
-            const string foundryProjectName = "motorcycle-rag";
-            var foundryProject = new Project($"{namePrefix}-foundry-project", new ProjectArgs {
+            var foundryAiAccountName = $"{foundryNamePrefix}-cog01";
+            var foundryAiSubdomain = resourceGroup.Name.Apply(rgName => $"{org}-{workload}-{env}-foundry-{foundryLoc}-{rgName[^8..]}");
+            var foundryAiServices = new Pulumi.AzureNative.Resources.Resource(foundryAiAccountName, new Pulumi.AzureNative.Resources.ResourceArgs {
                 ResourceGroupName = resourceGroup.Name,
-                AccountName = aiServices.Name,
-                Location = location,
+                ResourceProviderNamespace = "Microsoft.CognitiveServices",
+                ResourceType = "accounts",
+                ResourceName = foundryAiAccountName,
+                ParentResourcePath = "",
+                ApiVersion = "2025-06-01",
+                Location = foundryLocation,
+                Kind = "AIServices",
+                Identity = new Pulumi.AzureNative.Resources.Inputs.IdentityArgs {
+                    Type = Pulumi.AzureNative.Resources.ResourceIdentityType.SystemAssigned
+                },
+                Sku = new Pulumi.AzureNative.Resources.Inputs.SkuArgs {
+                    Name = "S0"
+                },
+                Properties = new Dictionary<string, object?> {
+                    ["allowProjectManagement"] = true,
+                    ["customSubDomainName"] = foundryAiSubdomain,
+                    ["publicNetworkAccess"] = "Enabled"
+                }
+            });
+
+            const string foundryProjectName = "motorcycle-rag";
+            var foundryProject = new Project($"{foundryNamePrefix}-foundry-project", new ProjectArgs {
+                ResourceGroupName = resourceGroup.Name,
+                AccountName = foundryAiServices.Name,
+                Location = foundryLocation,
                 ProjectName = foundryProjectName,
                 Identity = new Pulumi.AzureNative.CognitiveServices.Inputs.IdentityArgs {
                     Type = Pulumi.AzureNative.CognitiveServices.ResourceIdentityType.SystemAssigned
@@ -161,10 +190,10 @@ namespace MotorcycleRAG.Infrastructure {
                     Description = "Azure AI Foundry project for the Motorcycle RAG system."
                 }
             }, new CustomResourceOptions {
-                DependsOn = new[] { aiServices }
+                DependsOn = new[] { foundryAiServices }
             });
 
-            var foundryProjectEndpoint = Output.Tuple(aiServices.Name, foundryProject.Properties).Apply(values =>
+            var foundryProjectEndpoint = Output.Tuple(foundryAiServices.Name, foundryProject.Properties).Apply(values =>
             {
                 var accountName = values.Item1;
                 var projectProperties = values.Item2;
@@ -660,7 +689,7 @@ namespace MotorcycleRAG.Infrastructure {
             _ = new RoleAssignment($"{namePrefix}-api-aiservices-role", new RoleAssignmentArgs {
                 PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
                 RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/a97b65f3-24c7-4388-baec-2e87135dc908", // Cognitive Services User
-                Scope = aiServices.Id,
+                Scope = foundryAiServices.Id,
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
 

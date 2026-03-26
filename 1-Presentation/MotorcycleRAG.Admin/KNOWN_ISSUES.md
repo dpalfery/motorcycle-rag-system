@@ -39,7 +39,7 @@ public App()
     var authService = new AdminAuthService(
         clientId: "YOUR_CLIENT_ID",
         authority: "https://login.microsoftonline.com/YOUR_TENANT_ID",
-        scopes: new[] { "api://YOUR_API_ID/.default" }
+        scopes: new[] { "api://YOUR_API_ID/admin" }
     );
     
     MainPage = new AppShell(authService);
@@ -131,7 +131,7 @@ The app requires the following configuration:
   },
   "Api": {
     "BaseUrl": "https://your-api.azurewebsites.net",
-    "Scopes": ["api://YOUR_API_ID/.default"]
+    "Scopes": ["api://YOUR_API_ID/admin"]
   }
 }
 ```

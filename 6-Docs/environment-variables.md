@@ -81,8 +81,10 @@ MCR_<APP>_<VARIABLE>
 | Variable | Example | Purpose | Required | Type |
 | --- | --- | --- | --- | --- |
 | `MCR_ADMIN_CLIENT_ID` | `00000000-0000-0000-0000-000000000000` | Admin app's Entra ID client ID. | Yes | Secret |
-| `MCR_ADMIN_AUTHORITY` | `https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000` | Entra ID authority URL. | Yes | Non-Secret |
-| `MCR_ADMIN_API_SCOPE` | `api://00000000-0000-0000-0000-000000000000/.default` | API scope for token requests. | Yes | Non-Secret |
+| `MCR_ADMIN_AUTHORITY` | `https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000` | Workforce tenant authority URL used by the admin app. | Yes | Non-Secret |
+| `MCR_ADMIN_API_SCOPE` | `api://00000000-0000-0000-0000-000000000000/admin` | Explicit admin scope for token requests. | Yes | Non-Secret |
+
+Use the tenant that issues the API's admin tokens, and request the explicit admin scope URI. Do not use `/.default` or legacy `admin_access` scope names for the MAUI admin app.
 
 ### API Connectivity
 | Variable | Example | Purpose | Required | Type |
@@ -144,8 +146,8 @@ dotnet user-secrets set "MCR_API_AZURE_OPENAI_API_KEY" "your-key" --project 1-Pr
 
 # For the Admin app
 dotnet user-secrets set "MCR_ADMIN_CLIENT_ID" "your-admin-client-id" --project 1-Presentation/MotorcycleRAG.Admin
-dotnet user-secrets set "MCR_ADMIN_AUTHORITY" "https://..." --project 1-Presentation/MotorcycleRAG.Admin
-# ... etc
+dotnet user-secrets set "MCR_ADMIN_AUTHORITY" "https://login.microsoftonline.com/your-tenant-id" --project 1-Presentation/MotorcycleRAG.Admin
+dotnet user-secrets set "MCR_ADMIN_API_SCOPE" "api://your-api-client-id/admin" --project 1-Presentation/MotorcycleRAG.Admin
 ```
 
 User secrets are stored in platform-specific secure locations:

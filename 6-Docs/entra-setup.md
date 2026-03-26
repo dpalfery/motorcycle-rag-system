@@ -24,9 +24,10 @@
 - Supported account types: This tenant only
 
 ### Expose an API
-- Application ID URI:
+- Application ID URIs:
 ```
 api://motorcyclerag-api
+api://<API_CLIENT_ID>
 ```
 
 ### Scopes
@@ -108,7 +109,7 @@ msal<MOBILE_CLIENT_ID>://auth
 
 ### Redirect URI
 ```
-msal<ADMIN_CLIENT_ID>://auth
+http://localhost
 ```
 
 ### Authentication
@@ -120,6 +121,8 @@ msal<ADMIN_CLIENT_ID>://auth
   - `read`
   - `chat`
   - `admin`
+
+Desktop admin clients should request the explicit admin scope URI `api://<API_CLIENT_ID>/admin`.
 
 ✅ Grant admin consent
 

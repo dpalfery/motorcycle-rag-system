@@ -175,9 +175,17 @@ internal partial class SettingsViewModel : ObservableObject {
 
         if (string.IsNullOrWhiteSpace(AuthScope)) {
             issues.Add("Scope required");
-        } else if (!AuthScope.StartsWith("http", StringComparison.OrdinalIgnoreCase) && 
-                   !AuthScope.StartsWith("api://", StringComparison.OrdinalIgnoreCase)) {
-            issues.Add("Scope must be a full URI (e.g., https://... or api://...)");
+        }
+        else if (AuthScope.EndsWith("/.default", StringComparison.OrdinalIgnoreCase)) {
+            issues.Add("Use an explicit admin scope, for example api://<api-client-id>/admin, not /.default");
+        }
+        else if (AuthScope.EndsWith("/admin_access", StringComparison.OrdinalIgnoreCase) ||
+                 AuthScope.EndsWith("/access_as_user", StringComparison.OrdinalIgnoreCase)) {
+            issues.Add("Legacy scope suffixes are not supported. Use api://<api-client-id>/admin");
+        }
+        else if (!AuthScope.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
+                 !AuthScope.StartsWith("api://", StringComparison.OrdinalIgnoreCase)) {
+            issues.Add("Scope must be a full URI, for example api://<api-client-id>/admin");
         }
 
         if (issues.Count > 0) {

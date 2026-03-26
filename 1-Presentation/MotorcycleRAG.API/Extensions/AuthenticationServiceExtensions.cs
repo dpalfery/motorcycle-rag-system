@@ -185,6 +185,8 @@ internal class SigningKeyCache
 /// </summary>
 internal static class AuthenticationServiceExtensions
 {
+    private const string NamedApplicationIdUri = "api://motorcyclerag-api";
+
     /// <summary>
     /// Configures JWT bearer options for dual-issuer authentication.
     /// </summary>
@@ -193,7 +195,7 @@ internal static class AuthenticationServiceExtensions
         SigningKeyCache keyCache,
         string workforceIssuer,
         string? externalIdIssuer,
-        string audience)
+        IReadOnlyCollection<string> validAudiences)
     {
         // Build the list of valid issuers
         var validIssuers = new List<string> { workforceIssuer };
@@ -201,13 +203,6 @@ internal static class AuthenticationServiceExtensions
         {
             validIssuers.Add(externalIdIssuer);
         }
-
-        // Accept both the raw GUID and the api:// URI form because Azure AD v2.0 tokens
-        // issued for an api:// scope carry aud = "api://{clientId}", not the bare GUID.
-        var rawGuid = audience.StartsWith("api://", StringComparison.OrdinalIgnoreCase)
-            ? audience["api://".Length..]
-            : audience;
-        var validAudiences = new[] { rawGuid, $"api://{rawGuid}" };
 
         // Configure token validation
         options.TokenValidationParameters = new TokenValidationParameters
@@ -274,6 +269,55 @@ internal static class AuthenticationServiceExtensions
         };
     }
 
+    private static IReadOnlyCollection<string> BuildValidAudiences(
+        IConfiguration configuration,
+        string audience)
+    {
+        var validAudiences = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        AddAudienceAlias(validAudiences, audience);
+        AddAudienceAlias(validAudiences, configuration["AzureAd:ClientId"]);
+
+        // MotorcycleRAG currently exposes both the GUID-based and named Application ID URIs.
+        // Keep trusting the named URI so older admin tokens minted for api://motorcyclerag-api
+        // continue to validate while the client configuration is being cleaned up.
+        AddAudienceAlias(validAudiences, NamedApplicationIdUri);
+
+        foreach (var configuredAudience in configuration.GetSection("Authentication:AdditionalAudiences").GetChildren())
+        {
+            AddAudienceAlias(validAudiences, configuredAudience.Value);
+        }
+
+        return validAudiences.ToArray();
+    }
+
+    private static void AddAudienceAlias(ISet<string> audiences, string? audience)
+    {
+        if (string.IsNullOrWhiteSpace(audience))
+        {
+            return;
+        }
+
+        var trimmedAudience = audience.Trim();
+        audiences.Add(trimmedAudience);
+
+        if (trimmedAudience.StartsWith("api://", StringComparison.OrdinalIgnoreCase))
+        {
+            var resourceId = trimmedAudience["api://".Length..];
+            if (Guid.TryParse(resourceId, out _))
+            {
+                audiences.Add(resourceId);
+            }
+
+            return;
+        }
+
+        if (Guid.TryParse(trimmedAudience, out _))
+        {
+            audiences.Add($"api://{trimmedAudience}");
+        }
+    }
+
     /// <summary>
     /// Adds dual-issuer JWT bearer authentication supporting both Entra ID and Entra External ID/B2C.
     /// </summary>
@@ -315,10 +359,13 @@ internal static class AuthenticationServiceExtensions
             logger.LogInformation("External ID issuer configured for dual-issuer JWT authentication");
         }
 
+        var validAudiences = BuildValidAudiences(configuration, audience);
+
         logger.LogInformation(
-            "Configuring dual-issuer JWT authentication. Workforce: {WorkforceIssuer}, ExternalId: {ExternalIdIssuer}",
+            "Configuring dual-issuer JWT authentication. Workforce: {WorkforceIssuer}, ExternalId: {ExternalIdIssuer}, ValidAudiences: {ValidAudiences}",
             workforceIssuer,
-            externalIdIssuer ?? "<not configured>");
+            externalIdIssuer ?? "<not configured>",
+            validAudiences);
 
         // Register HttpClient for the signing key cache
         authenticationBuilder.Services.AddHttpClient("SigningKeyCache")
@@ -339,7 +386,7 @@ internal static class AuthenticationServiceExtensions
         authenticationBuilder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
             .Configure<SigningKeyCache>((options, keyCache) =>
             {
-                ConfigureJwtBearerOptions(options, keyCache, workforceIssuer, externalIdIssuer, audience);
+                ConfigureJwtBearerOptions(options, keyCache, workforceIssuer, externalIdIssuer, validAudiences);
             });
 
         // Register JWT bearer handler with configured options

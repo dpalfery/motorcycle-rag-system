@@ -8,7 +8,7 @@ namespace MotorcycleRAG.Admin.Tests.Services;
 
 public class AdminAuthServiceTests
 {
-    private static readonly string[] DefaultScopes = ["api://test/.default"];
+    private static readonly string[] DefaultScopes = ["api://test/admin"];
     // Test that reproduces the bug: passing null logger throws ArgumentNullException
     [Fact]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()

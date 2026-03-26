@@ -102,6 +102,10 @@ Authorization: Bearer <access_token>
 - Tokens cached using MSAL secure storage (Implemented via `MsalCacheHelper`)
 - No device code flow
 - No ID token authorization
+- Authority must target the workforce tenant: `https://login.microsoftonline.com/<tenant-id>`
+- Desktop redirect URI: `http://localhost`
+- Request the explicit admin scope: `api://<API_CLIENT_ID>/admin`
+- Do not use `/.default` or legacy `admin_access` scope names
 
 ---
 
@@ -118,6 +122,8 @@ api://motorcyclerag-api/read
 api://motorcyclerag-api/chat
 api://motorcyclerag-api/admin
 ```
+
+The API app registration may expose both `api://motorcyclerag-api` and `api://<API_CLIENT_ID>` as identifier URIs. For the desktop admin app, prefer requesting `api://<API_CLIENT_ID>/admin` so the token audience always matches the GUID-based API registration.
 
 ---
 

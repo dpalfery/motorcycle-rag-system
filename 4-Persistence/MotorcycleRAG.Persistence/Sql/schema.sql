@@ -420,4 +420,82 @@ BEGIN
 END
 GO
 
+-- =============================================================================
+-- BikeModels table
+-- =============================================================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables WHERE name = N'BikeModels'
+)
+BEGIN
+    CREATE TABLE [dbo].[BikeModels] (
+        [Id]           UNIQUEIDENTIFIER NOT NULL DEFAULT NEWSEQUENTIALID(),
+        [Make]         NVARCHAR(256)    NOT NULL,
+        [Model]        NVARCHAR(512)    NOT NULL,
+        [Year]         INT              NOT NULL,
+        [Aliases]      NVARCHAR(MAX)        NULL,
+        [CreatedAtUtc] DATETIME2(7)     NOT NULL DEFAULT SYSUTCDATETIME(),
+        [UpdatedAtUtc] DATETIME2(7)         NULL
+    );
+
+    ALTER TABLE [dbo].[BikeModels]
+        ADD CONSTRAINT [PK_BikeModels] PRIMARY KEY CLUSTERED ([Id]);
+
+    CREATE UNIQUE NONCLUSTERED INDEX [UQ_BikeModels_Make_Model_Year]
+        ON [dbo].[BikeModels] ([Make], [Model], [Year]);
+
+    CREATE NONCLUSTERED INDEX [IX_BikeModels_Make_Model_Year]
+        ON [dbo].[BikeModels] ([Make], [Model], [Year]);
+END;
+GO
+
+-- =============================================================================
+-- Graph RAG tables (SQL Server 2017+ Graph feature required)
+-- =============================================================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables WHERE name = N'GraphNode' AND is_node = 1
+)
+BEGIN
+    CREATE TABLE [dbo].[GraphNode] (
+        [Id]               UNIQUEIDENTIFIER NOT NULL DEFAULT NEWSEQUENTIALID(),
+        [Name]             NVARCHAR(512)    NOT NULL,
+        [Type]             NVARCHAR(128)    NOT NULL,
+        [Description]      NVARCHAR(MAX)        NULL,
+        [SourceDocumentId] UNIQUEIDENTIFIER     NULL,
+        [CreatedAtUtc]     DATETIME2(7)     NOT NULL DEFAULT SYSUTCDATETIME(),
+        [UpdatedAtUtc]     DATETIME2(7)         NULL
+    ) AS NODE;
+
+    ALTER TABLE [dbo].[GraphNode]
+        ADD CONSTRAINT [PK_GraphNode] PRIMARY KEY CLUSTERED ([Id]);
+
+    CREATE NONCLUSTERED INDEX [IX_GraphNode_SourceDocumentId]
+        ON [dbo].[GraphNode] ([SourceDocumentId])
+        WHERE [SourceDocumentId] IS NOT NULL;
+
+    CREATE NONCLUSTERED INDEX [IX_GraphNode_Type]
+        ON [dbo].[GraphNode] ([Type]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.tables WHERE name = N'GraphEdge' AND is_edge = 1
+)
+BEGIN
+    CREATE TABLE [dbo].[GraphEdge] (
+        [FromNodeId]       UNIQUEIDENTIFIER NOT NULL,
+        [ToNodeId]         UNIQUEIDENTIFIER NOT NULL,
+        [RelationshipType] NVARCHAR(256)    NOT NULL,
+        [Weight]           FLOAT            NOT NULL DEFAULT 1.0,
+        [Context]          NVARCHAR(MAX)        NULL,
+        [CreatedAtUtc]     DATETIME2(7)     NOT NULL DEFAULT SYSUTCDATETIME()
+    ) AS EDGE;
+
+    CREATE NONCLUSTERED INDEX [IX_GraphEdge_RelationshipType]
+        ON [dbo].[GraphEdge] ([RelationshipType]);
+
+    CREATE NONCLUSTERED INDEX [IX_GraphEdge_FromTo_RelationshipType]
+        ON [dbo].[GraphEdge] ([FromNodeId], [ToNodeId], [RelationshipType]);
+END;
+GO
+
 PRINT 'Motorcycle RAG System database schema created successfully!';

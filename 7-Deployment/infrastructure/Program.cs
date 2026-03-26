@@ -150,7 +150,7 @@ namespace MotorcycleRAG.Infrastructure {
             const string foundryProjectName = "motorcycle-rag";
             var foundryProject = new Project($"{namePrefix}-foundry-project", new ProjectArgs {
                 ResourceGroupName = resourceGroup.Name,
-                AccountName = aiServicesAccountName,
+                AccountName = aiServices.Name,
                 Location = location,
                 ProjectName = foundryProjectName,
                 Identity = new Pulumi.AzureNative.CognitiveServices.Inputs.IdentityArgs {
@@ -160,6 +160,8 @@ namespace MotorcycleRAG.Infrastructure {
                     DisplayName = "Motorcycle RAG",
                     Description = "Azure AI Foundry project for the Motorcycle RAG system."
                 }
+            }, new CustomResourceOptions {
+                DependsOn = new[] { aiServices }
             });
 
             var foundryProjectEndpoint = Output.Tuple(aiServices.Name, foundryProject.Properties).Apply(values =>

@@ -24,10 +24,8 @@ namespace MotorcycleRAG.API;
     "Minor",
     "S1118:Utility classes should not have public constructors",
     Justification = "Program must be instantiable for WebApplicationFactory-based tests.")]
-public class Program
-{
-    public static async Task Main(string[] args)
-    {
+public class Program {
+    public static async Task Main(string[] args) {
         var builder = WebApplication.CreateBuilder(args);
         var configuration = builder.Configuration;
 
@@ -40,7 +38,7 @@ public class Program
 
         // 3. MVC & Core Services
         builder.Services.AddControllers();
-        
+
         // Enforce maximum request body size (50MB) for security and DoS mitigation
         builder.WebHost.ConfigureKestrel(options => {
             options.Limits.MaxRequestBodySize = 50 * 1024 * 1024;
@@ -58,10 +56,9 @@ public class Program
         // 4. API Documentation & Connectivity
         builder.Services.AddApiDocumentation();
         builder.Services.AddRestrictedCors(configuration);
-        
+
         // Disable built-in HostFilter in favor of custom HostHeaderValidationMiddleware
-        builder.Services.PostConfigure<Microsoft.AspNetCore.HostFiltering.HostFilteringOptions>(options =>
-        {
+        builder.Services.PostConfigure<Microsoft.AspNetCore.HostFiltering.HostFilteringOptions>(options => {
             options.AllowedHosts = ["*"];
         });
 
@@ -78,7 +75,7 @@ public class Program
 
         // 6. Authentication & Authorization
         var authenticationBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
-        
+
         // Use a separate logger for startup auth configuration to avoid early BuildServiceProvider
         using var startupLoggerFactory = LoggerFactory.Create(b => b.AddConsole());
         var startupLogger = startupLoggerFactory.CreateLogger("Program");
@@ -91,7 +88,7 @@ public class Program
         var app = builder.Build();
 
         app.UseMotorcycleRagMiddleware();
-        
+
         await app.PreWarmJwtSigningKeysAsync();
         await app.RunAsync();
     }

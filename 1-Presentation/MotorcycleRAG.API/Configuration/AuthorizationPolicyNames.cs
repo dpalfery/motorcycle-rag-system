@@ -4,8 +4,7 @@ namespace MotorcycleRAG.API.Configuration;
 /// Centralised constants for ASP.NET Core authorization policy names used across this API.
 /// Using constants avoids magic strings and ensures compile-time safety when referencing policies.
 /// </summary>
-internal static class AuthorizationPolicyNames
-{
+internal static class AuthorizationPolicyNames {
     /// <summary>
     /// Policy for content administrators: requires admin scope, mcr-api-admin role, and correct azp claim.
     /// </summary>

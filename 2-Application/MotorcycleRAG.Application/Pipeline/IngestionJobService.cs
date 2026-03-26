@@ -73,7 +73,8 @@ public sealed class IngestionJobService : IIngestionJobService {
                 request.DocumentType,
                 pipelineId,
                 ct).ConfigureAwait(false);
-        } catch (Exception ex) {
+        }
+        catch (Exception ex) {
             _logger.LogError(
                 ex,
                 "Failed to trigger pipeline for job {JobId}.",
@@ -158,7 +159,8 @@ public sealed class IngestionJobService : IIngestionJobService {
         if (!string.IsNullOrEmpty(job.MissingPagesJson)) {
             try {
                 missingPages = JsonSerializer.Deserialize<int[]>(job.MissingPagesJson) ?? [];
-            } catch (JsonException) {
+            }
+            catch (JsonException) {
                 // Malformed JSON — return empty list rather than throwing.
             }
         }

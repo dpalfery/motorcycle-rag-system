@@ -14,13 +14,11 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for data pipeline services
 /// </summary>
-internal static class DataPipelineConfiguration
-{
+internal static class DataPipelineConfiguration {
     /// <summary>
     /// Configure data pipeline services
     /// </summary>
-    internal static IServiceCollection AddDataPipelineServices(this IServiceCollection services, IConfiguration configuration)
-    {
+    internal static IServiceCollection AddDataPipelineServices(this IServiceCollection services, IConfiguration configuration) {
         // Configure pipeline settings
         services.Configure<PipelineConfiguration>(configuration.GetSection("Pipeline"));
         services.Configure<FileUploadConfiguration>(configuration.GetSection("FileUpload"));
@@ -45,11 +43,9 @@ internal static class DataPipelineConfiguration
 
         // Register a single ILocalPipelineService that delegates to the appropriate
         // concrete implementation based on configured ProcessingMode.
-        services.AddScoped<ILocalPipelineService>(serviceProvider =>
-        {
+        services.AddScoped<ILocalPipelineService>(serviceProvider => {
             var opts = serviceProvider.GetRequiredService<IOptions<IngestionOptions>>().Value;
-            if (opts.Mode == MotorcycleRAG.Core.Options.ProcessingMode.Local)
-            {
+            if (opts.Mode == MotorcycleRAG.Core.Options.ProcessingMode.Local) {
                 return serviceProvider.GetRequiredService<MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>();
             }
 
@@ -84,8 +80,7 @@ internal static class DataPipelineConfiguration
     /// <summary>
     /// Configure health checks for pipeline services
     /// </summary>
-    internal static IHealthChecksBuilder AddDataPipelineHealthChecks(this IHealthChecksBuilder builder, IConfiguration configuration)
-    {
+    internal static IHealthChecksBuilder AddDataPipelineHealthChecks(this IHealthChecksBuilder builder, IConfiguration configuration) {
         // Add pipeline health checks
         builder.AddCheck("data_pipeline", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Data pipeline is running"));
 

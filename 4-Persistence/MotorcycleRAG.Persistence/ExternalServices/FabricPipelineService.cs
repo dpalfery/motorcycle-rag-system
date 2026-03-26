@@ -19,8 +19,7 @@ namespace MotorcycleRAG.Persistence.ExternalServices;
 #pragma warning disable S1133 // Intentionally kept as deprecated fallback
 [Obsolete("Use ILocalPipelineService and LocalPipelineService. FabricPipelineService is kept as a fallback for ProcessingMode.Fabric.", false)]
 #pragma warning restore S1133
-public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipelineService
-{
+public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipelineService {
     // Fabric REST API version and scope required for acquiring tokens.
     private const string FabricApiVersion = "v1";
     private const string FabricTokenScope = "https://api.fabric.microsoft.com/.default";
@@ -34,8 +33,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         IHttpClientFactory httpClientFactory,
         IOptions<FabricIngestionOptions> config,
         ILogger<FabricPipelineService> logger)
-        : this(httpClientFactory, config, new DefaultAzureCredential(), logger)
-    {
+        : this(httpClientFactory, config, new DefaultAzureCredential(), logger) {
     }
 
     // Internal constructor to allow injecting a test credential in unit tests.
@@ -43,8 +41,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         IHttpClientFactory httpClientFactory,
         IOptions<FabricIngestionOptions> config,
         TokenCredential credential,
-        ILogger<FabricPipelineService> logger)
-    {
+        ILogger<FabricPipelineService> logger) {
         ArgumentNullException.ThrowIfNull(httpClientFactory);
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(credential);
@@ -66,8 +63,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         string uploadId,
         string documentType,
         string pipelineId,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
         ArgumentException.ThrowIfNullOrWhiteSpace(documentType);
         ArgumentException.ThrowIfNullOrWhiteSpace(pipelineId);
@@ -76,12 +72,9 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
             "Triggering Fabric pipeline {PipelineId} for document type {DocumentType}",
             pipelineId, documentType);
 
-        var body = JsonSerializer.Serialize(new
-        {
-            executionData = new
-            {
-                parameters = new
-                {
+        var body = JsonSerializer.Serialize(new {
+            executionData = new {
+                parameters = new {
                     uploadId,
                     documentType
                 }
@@ -90,8 +83,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
 
         var url = $"{_config.WorkspaceEndpoint.TrimEnd('/')}/pipelines/{pipelineId}/jobs/instances?api-version={FabricApiVersion}";
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
 
@@ -100,8 +92,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         using var client = _httpClientFactory.CreateClient("FabricPipelineService");
         using var response = await client.SendAsync(request, cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
-        {
+        if (!response.IsSuccessStatusCode) {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogError(
                 "Fabric pipeline trigger failed for pipeline {PipelineId}. Status: {StatusCode}",
@@ -113,8 +104,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         // Fabric responds with 202 and a Location header pointing to the run instance.
         // The run ID is the last segment of that URL.
         var location = response.Headers.Location?.ToString();
-        if (string.IsNullOrWhiteSpace(location))
-        {
+        if (string.IsNullOrWhiteSpace(location)) {
             _logger.LogError("Fabric pipeline trigger returned no Location header for pipeline {PipelineId}", pipelineId);
             throw new InvalidOperationException(
                 $"Fabric pipeline trigger for '{pipelineId}' returned no Location header.");
@@ -138,8 +128,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
     public async Task<string> GetRunStatusAsync(
         string fabricRunId,
         string pipelineId,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         ArgumentException.ThrowIfNullOrWhiteSpace(fabricRunId);
         ArgumentException.ThrowIfNullOrWhiteSpace(pipelineId);
 
@@ -151,8 +140,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         using var client = _httpClientFactory.CreateClient("FabricPipelineService");
         using var response = await client.SendAsync(request, cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
-        {
+        if (!response.IsSuccessStatusCode) {
             _logger.LogWarning(
                 "Fabric status check failed for run {FabricRunId}. Status: {StatusCode}",
                 fabricRunId, (int)response.StatusCode);
@@ -172,8 +160,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         return "Unknown";
     }
 
-    private async Task SetBearerTokenAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-    {
+    private async Task SetBearerTokenAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
         var tokenRequestContext = new TokenRequestContext([FabricTokenScope]);
         var accessToken = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);

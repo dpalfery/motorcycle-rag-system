@@ -125,6 +125,9 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
                 Kind = "AIServices",
+                Identity = new Pulumi.AzureNative.CognitiveServices.Inputs.IdentityArgs {
+                    Type = Pulumi.AzureNative.CognitiveServices.ResourceIdentityType.SystemAssigned
+                },
                 Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
                     Name = "S0"
                 },

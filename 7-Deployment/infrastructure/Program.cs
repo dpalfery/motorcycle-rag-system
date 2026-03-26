@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Pulumi;
 using Pulumi.AzureNative.Resources;
@@ -121,28 +122,39 @@ namespace MotorcycleRAG.Infrastructure {
             });
 
             // 6. Azure AI Services
-            var aiServices = new Account($"{namePrefix}-cog01", new AccountArgs {
+            var aiServicesAccountName = $"{namePrefix}-cog01";
+            var aiServicesSubdomain = $"{org}-{workload}-{env}-cog01";
+            var aiServicesEndpoint = Output.Format($"https://{aiServicesSubdomain}.cognitiveservices.azure.com/");
+            var aiServices = new Pulumi.AzureNative.Resources.Resource(aiServicesAccountName, new Pulumi.AzureNative.Resources.ResourceArgs {
                 ResourceGroupName = resourceGroup.Name,
+                ResourceProviderNamespace = "Microsoft.CognitiveServices",
+                ResourceType = "accounts",
+                ResourceName = aiServicesAccountName,
+                ApiVersion = "2025-06-01",
                 Location = location,
                 Kind = "AIServices",
-                Identity = new Pulumi.AzureNative.CognitiveServices.Inputs.IdentityArgs {
-                    Type = Pulumi.AzureNative.CognitiveServices.ResourceIdentityType.SystemAssigned
+                Identity = new Pulumi.AzureNative.Resources.Inputs.IdentityArgs {
+                    Type = Pulumi.AzureNative.Resources.ResourceIdentityType.SystemAssigned
                 },
-                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
+                Sku = new Pulumi.AzureNative.Resources.Inputs.SkuArgs {
                     Name = "S0"
                 },
-                Properties = new AccountPropertiesArgs {
-                    CustomSubDomainName = $"{org}-{workload}-{env}-cog01",
-                    PublicNetworkAccess = Pulumi.AzureNative.CognitiveServices.PublicNetworkAccess.Enabled
+                Properties = new Dictionary<string, object?> {
+                    ["allowProjectManagement"] = true,
+                    ["customSubDomainName"] = aiServicesSubdomain,
+                    ["publicNetworkAccess"] = "Enabled"
                 }
             });
 
             const string foundryProjectName = "motorcycle-rag";
             var foundryProject = new Project($"{namePrefix}-foundry-project", new ProjectArgs {
                 ResourceGroupName = resourceGroup.Name,
-                AccountName = aiServices.Name,
+                AccountName = aiServicesAccountName,
                 Location = location,
                 ProjectName = foundryProjectName,
+                Identity = new Pulumi.AzureNative.CognitiveServices.Inputs.IdentityArgs {
+                    Type = Pulumi.AzureNative.CognitiveServices.ResourceIdentityType.SystemAssigned
+                },
                 Properties = new ProjectPropertiesArgs {
                     DisplayName = "Motorcycle RAG",
                     Description = "Azure AI Foundry project for the Motorcycle RAG system."
@@ -151,7 +163,8 @@ namespace MotorcycleRAG.Infrastructure {
 
             var foundryProjectEndpoint = Output.Tuple(aiServices.Name, foundryProject.Properties).Apply(values =>
             {
-                var (accountName, projectProperties) = values;
+                var accountName = values.Item1;
+                var projectProperties = values.Item2;
                 if (projectProperties.Endpoints is not null && projectProperties.Endpoints.Count > 0)
                 {
                     return projectProperties.Endpoints.Values.First();
@@ -435,7 +448,7 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
                 KeyValueName = "AZURE_AI_SERVICES_ENDPOINT",
-                Value = aiServices.Properties.Apply(p => p.Endpoint ?? "")
+                Value = aiServicesEndpoint
             });
 
             _ = new KeyValue("appconfig-kv-foundry-endpoint", new KeyValueArgs {
@@ -673,7 +686,7 @@ namespace MotorcycleRAG.Infrastructure {
             });
 
             // Outputs
-            this.AiServicesEndpoint = aiServices.Properties.Apply(p => p.Endpoint ?? "");
+            this.AiServicesEndpoint = aiServicesEndpoint;
             this.FoundryProjectEndpoint = foundryProjectEndpoint;
             this.KeyVaultUri = Output.Format($"https://{keyVault.Name}.vault.azure.net");
             this.StorageAccountName = storageAccount.Name;

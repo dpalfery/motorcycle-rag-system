@@ -42,6 +42,8 @@ IF NOT EXISTS (
 )
 BEGIN
     CREATE TABLE [dbo].[GraphEdge] (
+        [FromNodeId]       UNIQUEIDENTIFIER NOT NULL,
+        [ToNodeId]         UNIQUEIDENTIFIER NOT NULL,
         [RelationshipType] NVARCHAR(256)    NOT NULL,
         [Weight]           FLOAT            NOT NULL DEFAULT 1.0,
         [Context]          NVARCHAR(MAX)        NULL,
@@ -51,5 +53,9 @@ BEGIN
     -- Index on relationship type for graph traversal filtering
     CREATE NONCLUSTERED INDEX [IX_GraphEdge_RelationshipType]
         ON [dbo].[GraphEdge] ([RelationshipType]);
+
+    -- Index to support deduplication check on (FromNodeId, ToNodeId, RelationshipType)
+    CREATE NONCLUSTERED INDEX [IX_GraphEdge_FromTo_RelationshipType]
+        ON [dbo].[GraphEdge] ([FromNodeId], [ToNodeId], [RelationshipType]);
 END;
 GO

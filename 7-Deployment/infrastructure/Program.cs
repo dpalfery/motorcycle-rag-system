@@ -530,6 +530,40 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = kvSecretDeepinfraKey.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
             });
 
+            // Foundry agent IDs are written by the deploy pipeline into Key Vault after provisioning.
+            // App Configuration resolves these versionless secret URIs at runtime for the API.
+            _ = new KeyValue("appconfig-kvref-orchestrator-agent-id", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:OrchestratorAgentId",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-ORCHESTRATOR-AGENT-ID\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-vectorsearch-agent-id", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:VectorSearchAgentId",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-VECTORSEARCH-AGENT-ID\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-websearch-agent-id", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:WebSearchAgentId",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-WEBSEARCH-AGENT-ID\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-pdfsearch-agent-id", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:PDFSearchAgentId",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-PDFSEARCH-AGENT-ID\"}}")
+            });
+
             // RBAC: Key Vault Secrets User for both apps
             _ = new RoleAssignment($"{namePrefix}-api-kv-role", new RoleAssignmentArgs {
                 PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),

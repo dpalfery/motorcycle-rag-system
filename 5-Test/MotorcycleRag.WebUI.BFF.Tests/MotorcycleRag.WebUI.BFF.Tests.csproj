@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MotorcycleRag.WebUI.BFF\MotorcycleRag.WebUI.BFF.csproj" />
+    <ProjectReference Include="..\..\1-Presentation\MotorcycleRag.WebUI.BFF\MotorcycleRag.WebUI.BFF.csproj" />
   </ItemGroup>
 
   <ItemGroup>

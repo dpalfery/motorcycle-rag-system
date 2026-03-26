@@ -19,9 +19,13 @@ internal static class AzureAIServiceConfiguration
     internal static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration)
     {
         // Configure Azure Foundry settings with validation
-        services.Configure<AzureFoundryOptions>(configuration.GetSection("AzureAI"));
-        services.Configure<SearchOptions>(configuration.GetSection("Search"));
-        services.Configure<TelemetryOptions>(configuration.GetSection("ApplicationInsights"));
+        services.AddOptions<AzureFoundryOptions>()
+            .Bind(configuration.GetSection("AzureAI"))
+            .ValidateOnStart();
+        services.AddOptions<SearchOptions>()
+            .Bind(configuration.GetSection("Search"));
+        services.AddOptions<TelemetryOptions>()
+            .Bind(configuration.GetSection("ApplicationInsights"));
 
         // Add options validation
         services.AddSingleton<IValidateOptions<AzureFoundryOptions>, AzureFoundryConfigurationValidator>();

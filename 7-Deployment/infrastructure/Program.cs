@@ -130,6 +130,7 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceProviderNamespace = "Microsoft.CognitiveServices",
                 ResourceType = "accounts",
                 ResourceName = aiServicesAccountName,
+                ParentResourcePath = "",
                 ApiVersion = "2025-06-01",
                 Location = location,
                 Kind = "AIServices",

@@ -533,6 +533,58 @@ internal class ApiClient {
                ?? throw new InvalidOperationException("Failed to deserialize ingestion job response");
     }
 
+    /// <summary>
+    /// Uploads a local ingestion source file to the API-managed raw storage area.
+    /// </summary>
+    internal async Task<IngestionUploadResponse> UploadIngestionSourceAsync(
+        string filePath,
+        string documentType,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+        if (string.IsNullOrWhiteSpace(documentType))
+            throw new ArgumentException("Document type cannot be null or empty.", nameof(documentType));
+
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        try
+        {
+            using var fileStream = File.OpenRead(filePath);
+            using var content = new MultipartFormDataContent();
+            using var streamContent = new StreamContent(fileStream);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(GetContentType(filePath));
+            content.Add(streamContent, "file", Path.GetFileName(filePath));
+
+            var requestUri = new Uri(
+                _httpClient.BaseAddress!,
+                $"api/ingestion/jobs/upload?documentType={Uri.EscapeDataString(documentType)}");
+
+            var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
+                requestUri,
+                content,
+                cancellationToken)).ConfigureAwait(false);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                throw new UnauthorizedAccessException(
+                    $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            return await response.Content.ReadFromJsonAsync<IngestionUploadResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+                   ?? throw new InvalidOperationException("Failed to deserialize ingestion upload response");
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP request failed uploading ingestion source {FileName}. Status: {StatusCode}",
+                Path.GetFileName(filePath), ex.StatusCode);
+            throw;
+        }
+    }
+
     private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action)
     {
         return await _retryPolicy.WrapAsync(_circuitBreaker).ExecuteAsync(action).ConfigureAwait(false);

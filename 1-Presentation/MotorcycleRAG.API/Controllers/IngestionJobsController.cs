@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using MotorcycleRAG.Application.Pipeline;
+using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Pipeline.Validators;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Options;
+using Microsoft.Extensions.Options;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -21,8 +24,11 @@ namespace MotorcycleRAG.API.Controllers;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 [EnableRateLimiting("ingestion-jobs")]
 public sealed class IngestionJobsController : ControllerBase {
+    private const string PdfSourceFileName = "source.pdf";
     private readonly IIngestionJobService _ingestionJobService;
     private readonly IngestionJobValidator _validator;
+    private readonly IBlobStorageService _blobStorageService;
+    private readonly BlobStorageOptions _blobStorageOptions;
     private readonly ILogger<IngestionJobsController> _logger;
     /// <summary>Maximum upload size in bytes (2 GB).</summary>
     private const long MaxFileSizeBytes = 2L * 1024 * 1024 * 1024;
@@ -30,9 +36,13 @@ public sealed class IngestionJobsController : ControllerBase {
     public IngestionJobsController(
         IIngestionJobService ingestionJobService,
         IngestionJobValidator validator,
+        IBlobStorageService blobStorageService,
+        IOptions<BlobStorageOptions> blobStorageOptions,
         ILogger<IngestionJobsController> logger) {
         _ingestionJobService = ingestionJobService ?? throw new ArgumentNullException(nameof(ingestionJobService));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+        _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
+        _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -47,10 +57,12 @@ public sealed class IngestionJobsController : ControllerBase {
     [HttpPost("jobs/upload")]
     [ProducesResponseType(typeof(IngestionUploadResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     [RequestSizeLimit(MaxFileSizeBytes)]
-    public IActionResult Upload(
+    public async Task<IActionResult> UploadAsync(
         IFormFile? file,
-        [FromQuery] string documentType = "manual-pdf") {
+        [FromQuery] string documentType = "manual-pdf",
+        CancellationToken ct = default) {
         if (file is null || file.Length == 0) {
             return BadRequest(new ProblemDetails {
                 Title = "File is required",
@@ -75,19 +87,51 @@ public sealed class IngestionJobsController : ControllerBase {
             });
         }
 
-        var uploadId = Guid.NewGuid().ToString();
+        if (!HasExpectedExtension(file.FileName, documentType)) {
+            return BadRequest(new ProblemDetails {
+                Title = "Invalid file type",
+                Detail = $"documentType '{documentType}' requires a {GetExpectedExtension(documentType)} file.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
 
-        _logger.LogInformation(
-            "Upload accepted. UploadId={UploadId}, DocumentType={DocumentType}, SizeBytes={SizeBytes}.",
-            uploadId,
-            documentType,
-            file.Length);
+        var uploadId = Guid.NewGuid().ToString();
+        var blobName = BuildBlobName(uploadId, documentType);
+
+        try {
+            await using var stream = file.OpenReadStream();
+            await _blobStorageService.UploadAsync(
+                _blobStorageOptions.RawUploadsContainer,
+                blobName,
+                stream,
+                GetContentType(file.ContentType, documentType),
+                ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Upload accepted. UploadId={UploadId}, DocumentType={DocumentType}, SizeBytes={SizeBytes}.",
+                uploadId,
+                documentType,
+                file.Length);
+        }
+        catch (Exception ex) {
+            _logger.LogError(
+                ex,
+                "Failed to upload ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
+                uploadId,
+                documentType);
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
+                Title = "Upload failed",
+                Detail = "The ingestion source could not be stored.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
 
         var response = new IngestionUploadResponse {
             UploadId = uploadId,
-            FileName = file.FileName,
+            FileName = Path.GetFileName(file.FileName),
             DocumentType = documentType,
-            Status = "pending-ingestion"
+            Status = "uploaded"
         };
 
         return Accepted(response);
@@ -199,4 +243,29 @@ public sealed class IngestionJobsController : ControllerBase {
         string.Equals(documentType, "manual-pdf", StringComparison.OrdinalIgnoreCase)
         || string.Equals(documentType, "spec-dataset", StringComparison.OrdinalIgnoreCase)
         || string.Equals(documentType, "bike-graph", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasExpectedExtension(string fileName, string documentType) =>
+        string.Equals(
+            Path.GetExtension(fileName),
+            GetExpectedExtension(documentType),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static string GetExpectedExtension(string documentType) =>
+        string.Equals(documentType, "manual-pdf", StringComparison.OrdinalIgnoreCase) ? ".pdf" : ".csv";
+
+    private static string BuildBlobName(string uploadId, string documentType) =>
+        string.Equals(documentType, "manual-pdf", StringComparison.OrdinalIgnoreCase)
+            ? $"{uploadId}/{PdfSourceFileName}"
+            : $"{uploadId}.csv";
+
+    private static string GetContentType(string? incomingContentType, string documentType) {
+        if (!string.IsNullOrWhiteSpace(incomingContentType)
+            && !string.Equals(incomingContentType, "application/octet-stream", StringComparison.OrdinalIgnoreCase)) {
+            return incomingContentType;
+        }
+
+        return string.Equals(documentType, "manual-pdf", StringComparison.OrdinalIgnoreCase)
+            ? "application/pdf"
+            : "text/csv";
+    }
 }

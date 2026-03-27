@@ -18,6 +18,9 @@ namespace MotorcycleRAG.Admin.ViewModels;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "Internal patterns")]
 internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private const int RecentIngestionJobCount = 50;
+    private const long LocalGraphMaxFileSizeBytes = 2L * 1024 * 1024 * 1024;
+    private static readonly string[] CsvExtensions = [".csv"];
+    private static readonly string[] CsvMimeTypes = ["csv"];
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly IConfigurationStateService _configService;
@@ -25,6 +28,9 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private readonly System.Timers.Timer _pollTimer;
     private bool _isLoading;
     private bool _isPolling;
+    private bool _isStartingLocalGraphJob;
+    private string _selectedLocalGraphFilePath = string.Empty;
+    private string _localGraphStatusMessage = string.Empty;
 
     public JobsViewModel(
         ApiClient apiClient,
@@ -50,6 +56,8 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             async pendingFile => await ProcessPendingStorageFileAsync(pendingFile).ConfigureAwait(false));
         ProcessPendingStorageFileAsGraphCommand = new Command<PendingStorageFileViewModel>(
             async pendingFile => await ProcessPendingStorageFileAsync(pendingFile, "bike-graph").ConfigureAwait(false));
+        SelectLocalGraphFileCommand = new Command(async () => await SelectLocalGraphFileAsync());
+        StartLocalGraphJobCommand = new Command(async () => await StartLocalGraphJobAsync());
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
@@ -67,9 +75,61 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             if (_isLoading != value) {
                 _isLoading = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsLoading)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSelectLocalGraphFile)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalGraphJob)));
             }
         }
     }
+
+    public bool IsStartingLocalGraphJob {
+        get => _isStartingLocalGraphJob;
+        private set {
+            if (_isStartingLocalGraphJob == value) {
+                return;
+            }
+
+            _isStartingLocalGraphJob = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsStartingLocalGraphJob)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSelectLocalGraphFile)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalGraphJob)));
+        }
+    }
+
+    public string SelectedLocalGraphFilePath {
+        get => _selectedLocalGraphFilePath;
+        private set {
+            if (string.Equals(_selectedLocalGraphFilePath, value, StringComparison.Ordinal)) {
+                return;
+            }
+
+            _selectedLocalGraphFilePath = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedLocalGraphFilePath)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSelectedLocalGraphFile)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalGraphJob)));
+        }
+    }
+
+    public string LocalGraphStatusMessage {
+        get => _localGraphStatusMessage;
+        private set {
+            if (string.Equals(_localGraphStatusMessage, value, StringComparison.Ordinal)) {
+                return;
+            }
+
+            _localGraphStatusMessage = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalGraphStatusMessage)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasLocalGraphStatusMessage)));
+        }
+    }
+
+    public bool HasSelectedLocalGraphFile => !string.IsNullOrWhiteSpace(SelectedLocalGraphFilePath);
+
+    public bool HasLocalGraphStatusMessage => !string.IsNullOrWhiteSpace(LocalGraphStatusMessage);
+
+    public bool CanSelectLocalGraphFile => !IsLoading && !IsStartingLocalGraphJob;
+
+    public bool CanStartLocalGraphJob =>
+        !IsLoading && !IsStartingLocalGraphJob && !string.IsNullOrWhiteSpace(SelectedLocalGraphFilePath);
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
     public ICommand LoadJobsCommand { get; }
@@ -82,6 +142,12 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
     public ICommand ProcessPendingStorageFileAsGraphCommand { get; }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
+    public ICommand SelectLocalGraphFileCommand { get; }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
+    public ICommand StartLocalGraphJobCommand { get; }
 
     public async Task InitializeAsync() {
         var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
@@ -280,6 +346,120 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         await ProcessPendingStorageFileAsync(pendingFile, pendingFile?.DocumentType ?? string.Empty).ConfigureAwait(false);
     }
 
+    private async Task SelectLocalGraphFileAsync() {
+        if (IsStartingLocalGraphJob) {
+            return;
+        }
+
+        try {
+            var result = await FilePicker.PickAsync(new PickOptions {
+                PickerTitle = "Select a CSV file for graph import",
+                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+                {
+                    { DevicePlatform.WinUI, CsvExtensions },
+                    { DevicePlatform.macOS, CsvMimeTypes }
+                })
+            });
+
+            if (result is null) {
+                return;
+            }
+
+            ValidateLocalGraphFile(result.FullPath);
+            SelectedLocalGraphFilePath = result.FullPath;
+            LocalGraphStatusMessage = $"Selected CSV: {Path.GetFileName(result.FullPath)}";
+        }
+        catch (Exception ex) {
+            await ErrorPresenter.ShowErrorAsync(
+                "File Selection Error",
+                ErrorPresenter.SanitizeErrorMessage(ex.Message));
+            _logger.LogWarning(ex, "Failed to select a local CSV for graph import.");
+        }
+    }
+
+    private async Task StartLocalGraphJobAsync() {
+        if (IsStartingLocalGraphJob || string.IsNullOrWhiteSpace(SelectedLocalGraphFilePath)) {
+            return;
+        }
+
+        var authorized = await EnsureAuthorizedAsync();
+        if (!authorized) {
+            return;
+        }
+
+        try {
+            ValidateLocalGraphFile(SelectedLocalGraphFilePath);
+        }
+        catch (Exception ex) {
+            await ErrorPresenter.ShowErrorAsync(
+                "Invalid CSV",
+                ErrorPresenter.SanitizeErrorMessage(ex.Message));
+            return;
+        }
+
+        IsStartingLocalGraphJob = true;
+        var selectedPath = SelectedLocalGraphFilePath;
+        var fileName = Path.GetFileName(selectedPath);
+        LocalGraphStatusMessage = $"Uploading {fileName} to raw storage...";
+
+        try {
+            var upload = await _apiClient.UploadIngestionSourceAsync(
+                selectedPath,
+                "bike-graph",
+                default);
+
+            LocalGraphStatusMessage = $"Queued graph import for {fileName}...";
+
+            var result = await _apiClient.StartIngestionJobAsync(new IngestionJobStartRequest {
+                UploadId = upload.UploadId,
+                DocumentType = "bike-graph",
+                Configuration = null
+            }, default);
+
+            SelectedLocalGraphFilePath = string.Empty;
+            LocalGraphStatusMessage = $"Graph import queued with job {result.JobId}.";
+
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+            if (window?.Page != null) {
+                await window.Page.DisplayAlertAsync(
+                    "Graph Import Queued",
+                    $"Uploaded {fileName} and queued graph import as job {result.JobId}.",
+                    "OK");
+            }
+
+            await LoadJobsAsync();
+        }
+        catch (UnauthorizedAccessException ex) {
+            await ErrorPresenter.ShowWarningAsync(
+                "Access Denied",
+                "You do not have permission to upload a CSV and start a graph import.");
+            _logger.LogWarning(ex, "User not authorized to upload and queue local graph import for {FileName}", fileName);
+        }
+        catch (HttpRequestException ex) {
+            var message = ex.StatusCode == HttpStatusCode.BadRequest
+                ? "The API rejected the CSV upload or graph import request. Check that the selected file is a valid CSV and the API is running in the expected mode."
+                : "Failed to upload the CSV or queue the graph import job.";
+
+            await ErrorPresenter.ShowErrorAsync("Graph Import Failed", message);
+            LocalGraphStatusMessage = "Graph import failed before the job could be queued.";
+            _logger.LogWarning(ex, "Failed to upload and queue local graph import for {FileName}", fileName);
+        }
+        catch (OperationCanceledException ex) {
+            LocalGraphStatusMessage = "Graph import request timed out.";
+            _logger.LogWarning(ex, "Timed out uploading and queueing local graph import for {FileName}", fileName);
+        }
+        catch (Exception ex) {
+            LocalGraphStatusMessage = "Graph import failed before the job could be queued.";
+            await ErrorPresenter.ShowErrorAsync(
+                "Graph Import Failed",
+                ErrorPresenter.SanitizeErrorMessage(ex.Message));
+            _logger.LogError(ex, "Unexpected failure uploading and queueing local graph import for {FileName}", fileName);
+        }
+        finally {
+            IsStartingLocalGraphJob = false;
+        }
+    }
+
     private async Task ProcessPendingStorageFileAsync(PendingStorageFileViewModel? pendingFile, string workflowDocumentType) {
         if (pendingFile is null || pendingFile.IsProcessing) {
             return;
@@ -396,6 +576,29 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             ExtractGraphRelationships = true,
             OcrEnabled = true
         };
+    }
+
+    private static void ValidateLocalGraphFile(string filePath) {
+        if (string.IsNullOrWhiteSpace(filePath)) {
+            throw new InvalidOperationException("Choose a CSV file before starting a graph import.");
+        }
+
+        if (!File.Exists(filePath)) {
+            throw new FileNotFoundException("The selected CSV file no longer exists.", filePath);
+        }
+
+        if (!string.Equals(Path.GetExtension(filePath), ".csv", StringComparison.OrdinalIgnoreCase)) {
+            throw new InvalidOperationException("Only CSV files can be used for graph import.");
+        }
+
+        var fileInfo = new FileInfo(filePath);
+        if (fileInfo.Length == 0) {
+            throw new InvalidOperationException("The selected CSV file is empty.");
+        }
+
+        if (fileInfo.Length > LocalGraphMaxFileSizeBytes) {
+            throw new InvalidOperationException("The selected CSV exceeds the 2 GB graph import limit.");
+        }
     }
 
     public void Dispose() {

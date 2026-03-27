@@ -28,10 +28,49 @@
             <VerticalStackLayout Spacing="18">
 
                 <VerticalStackLayout Spacing="6">
+                    <Label Text="Start Local Graph Job"
+                           FontSize="20"
+                           FontAttributes="Bold" />
+                    <Frame BorderColor="LightGray"
+                           Padding="15"
+                           CornerRadius="8">
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="Choose a local CSV, upload it to raw storage, and immediately queue a bike graph import."
+                                   FontSize="12"
+                                   TextColor="Gray" />
+
+                            <HorizontalStackLayout Spacing="10">
+                                <Button Text="Choose CSV"
+                                        Command="{Binding SelectLocalGraphFileCommand}"
+                                        BackgroundColor="{StaticResource Primary}"
+                                        TextColor="White"
+                                        IsEnabled="{Binding CanSelectLocalGraphFile}" />
+
+                                <Button Text="Upload + Graph Import"
+                                        Command="{Binding StartLocalGraphJobCommand}"
+                                        BackgroundColor="DarkSlateBlue"
+                                        TextColor="White"
+                                        IsEnabled="{Binding CanStartLocalGraphJob}" />
+                            </HorizontalStackLayout>
+
+                            <Label Text="{Binding SelectedLocalGraphFilePath}"
+                                   FontSize="11"
+                                   LineBreakMode="MiddleTruncation"
+                                   IsVisible="{Binding HasSelectedLocalGraphFile}" />
+
+                            <Label Text="{Binding LocalGraphStatusMessage}"
+                                   FontSize="11"
+                                   TextColor="Gray"
+                                   IsVisible="{Binding HasLocalGraphStatusMessage}" />
+                        </VerticalStackLayout>
+                    </Frame>
+                </VerticalStackLayout>
+
+                <VerticalStackLayout Spacing="6">
                     <Label Text="Pending Storage Files"
                            FontSize="20"
                            FontAttributes="Bold" />
-                    <Label Text="Blob-backed files appear here while search ingestion or graph import is still outstanding."
+                    <Label Text="Blob-backed files appear here while search ingestion or graph import is still outstanding, including CSVs uploaded from the local graph picker."
                            FontSize="12"
                            TextColor="Gray" />
 

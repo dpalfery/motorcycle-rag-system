@@ -145,4 +145,43 @@ public class AppConfigurationExtensionsTests
         act.Should().Throw<InvalidOperationException>()
            .WithMessage("*appears to be a placeholder*");
     }
+
+    [Fact]
+    public void WithDerivedBlobStorageValues_MissingAccountEndpoint_DerivesFromDataProtectionBlobUri()
+    {
+        // Arrange
+        var inMemoryConfig = new Dictionary<string, string?>
+        {
+            { "DataProtection:BlobUri", "https://mcrragdevst0125c2ea3c.blob.core.windows.net/dataprotection-keys/bff-keys.xml" }
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemoryConfig)
+            .Build();
+
+        // Act
+        configuration.WithDerivedBlobStorageValues();
+
+        // Assert
+        configuration["BlobStorage:AccountEndpoint"].Should().Be("https://mcrragdevst0125c2ea3c.blob.core.windows.net");
+    }
+
+    [Fact]
+    public void WithDerivedBlobStorageValues_ExistingAccountEndpoint_PreservesConfiguredValue()
+    {
+        // Arrange
+        var inMemoryConfig = new Dictionary<string, string?>
+        {
+            { "BlobStorage:AccountEndpoint", "https://configured.blob.core.windows.net" },
+            { "DataProtection:BlobUri", "https://derived.blob.core.windows.net/dataprotection-keys/bff-keys.xml" }
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(inMemoryConfig)
+            .Build();
+
+        // Act
+        configuration.WithDerivedBlobStorageValues();
+
+        // Assert
+        configuration["BlobStorage:AccountEndpoint"].Should().Be("https://configured.blob.core.windows.net");
+    }
 }

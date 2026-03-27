@@ -8,6 +8,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
 internal partial class LandingViewModel : ObservableObject
 {
     private readonly IAdminAuthService _authService;
+    private readonly IApiWarmupService _apiWarmupService;
     private readonly IConfigurationStateService _configurationStateService;
     private readonly IAppFlowCoordinator _appFlowCoordinator;
     private readonly ILogger<LandingViewModel> _logger;
@@ -29,11 +30,13 @@ internal partial class LandingViewModel : ObservableObject
 
     public LandingViewModel(
         IAdminAuthService authService,
+        IApiWarmupService apiWarmupService,
         IConfigurationStateService configurationStateService,
         IAppFlowCoordinator appFlowCoordinator,
         ILogger<LandingViewModel> logger)
     {
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _apiWarmupService = apiWarmupService ?? throw new ArgumentNullException(nameof(apiWarmupService));
         _configurationStateService = configurationStateService ?? throw new ArgumentNullException(nameof(configurationStateService));
         _appFlowCoordinator = appFlowCoordinator ?? throw new ArgumentNullException(nameof(appFlowCoordinator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -55,8 +58,9 @@ internal partial class LandingViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        await _configurationStateService.LoadConfigurationAsync().ConfigureAwait(false);
+        await _configurationStateService.LoadConfigurationAsync();
         RefreshState();
+        _ = WarmUpApiAsync();
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -80,7 +84,7 @@ internal partial class LandingViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSignIn))]
     private async Task SignInAsync()
     {
-        await InitializeAsync().ConfigureAwait(false);
+        await InitializeAsync();
 
         if (!IsAuthConfigured)
         {
@@ -95,7 +99,7 @@ internal partial class LandingViewModel : ObservableObject
 
         try
         {
-            var signedIn = IsSignedIn || await _authService.SignInAsync().ConfigureAwait(false);
+            var signedIn = IsSignedIn || await _authService.SignInAsync();
             RefreshState();
 
             if (!signedIn)
@@ -105,7 +109,7 @@ internal partial class LandingViewModel : ObservableObject
             }
 
             StatusMessage = "Sign-in complete.";
-            await _appFlowCoordinator.ShowShellAsync().ConfigureAwait(false);
+            await _appFlowCoordinator.ShowShellAsync();
         }
         catch (Exception ex)
         {
@@ -123,8 +127,8 @@ internal partial class LandingViewModel : ObservableObject
     [RelayCommand]
     private async Task OpenSettingsAsync()
     {
-        await _appFlowCoordinator.OpenSettingsAsync().ConfigureAwait(false);
-        await InitializeAsync().ConfigureAwait(false);
+        await _appFlowCoordinator.OpenSettingsAsync();
+        await InitializeAsync();
     }
 
     private void RefreshState()
@@ -138,6 +142,18 @@ internal partial class LandingViewModel : ObservableObject
             StatusMessage = IsSignedIn
                 ? "Continue into the admin workspace when you are ready."
                 : "Use Sign In to open the admin workspace.";
+        }
+    }
+
+    private async Task WarmUpApiAsync()
+    {
+        try
+        {
+            await _apiWarmupService.WarmUpAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "API warm-up failed during landing-page initialization.");
         }
     }
 }

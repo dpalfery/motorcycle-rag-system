@@ -206,6 +206,7 @@ public sealed class IngestionJobsController : ControllerBase {
     [HttpGet("jobs")]
     [ProducesResponseType(typeof(IReadOnlyList<IngestionJobStatusResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IReadOnlyList<IngestionJobStatusResponse>>> GetRecentJobsAsync(
         [FromQuery] int top = 50,
         CancellationToken ct = default) {
@@ -217,8 +218,18 @@ public sealed class IngestionJobsController : ControllerBase {
             });
         }
 
-        var result = await _ingestionJobService.GetRecentIngestionJobsAsync(top, ct).ConfigureAwait(false);
-        return Ok(result);
+        try {
+            var result = await _ingestionJobService.GetRecentIngestionJobsAsync(top, ct).ConfigureAwait(false);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) {
+            _logger.LogError(ex, "Failed to load recent ingestion jobs.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
+                Title = "Failed to load ingestion jobs",
+                Detail = "The server could not load recent ingestion jobs.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
     }
 
     /// <summary>
@@ -227,10 +238,21 @@ public sealed class IngestionJobsController : ControllerBase {
     /// </summary>
     [HttpGet("jobs/pending-files")]
     [ProducesResponseType(typeof(IReadOnlyList<PendingStorageFileDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IReadOnlyList<PendingStorageFileDto>>> GetPendingFilesAsync(
         CancellationToken ct) {
-        var result = await _ingestionJobService.GetPendingStorageFilesAsync(ct).ConfigureAwait(false);
-        return Ok(result);
+        try {
+            var result = await _ingestionJobService.GetPendingStorageFilesAsync(ct).ConfigureAwait(false);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) {
+            _logger.LogError(ex, "Failed to load pending storage files.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
+                Title = "Failed to load pending storage files",
+                Detail = "The server could not load pending storage files.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
     }
 
     /// <summary>

@@ -49,6 +49,7 @@ public static class AppConfigurationExtensions
         {
             configRoot.WithDerivedAzureAdValues();
             configRoot.WithValidatedAzureAIEndpoints();
+            configRoot.WithDerivedBlobStorageValues();
         }
 
         return builder;
@@ -158,6 +159,39 @@ public static class AppConfigurationExtensions
         ValidateEndpointIfProvided("Document Intelligence", documentIntelligenceEndpoint, "AzureAI:DocumentIntelligenceEndpoint");
         ValidateEndpointIfProvided("Foundry", foundryEndpoint, "AzureAI:FoundryEndpoint");
 
+        return configuration;
+    }
+
+    /// <summary>
+    /// Derives Blob Storage account endpoint from the configured Data Protection blob URI
+    /// when the explicit BlobStorage:AccountEndpoint setting is not present.
+    /// </summary>
+    public static IConfigurationRoot WithDerivedBlobStorageValues(this IConfigurationRoot configuration)
+    {
+        var configuredAccountEndpoint = configuration["BlobStorage:AccountEndpoint"];
+        if (!string.IsNullOrWhiteSpace(configuredAccountEndpoint))
+        {
+            return configuration;
+        }
+
+        var dataProtectionBlobUri = configuration["DataProtection:BlobUri"];
+        if (string.IsNullOrWhiteSpace(dataProtectionBlobUri))
+        {
+            return configuration;
+        }
+
+        if (!Uri.TryCreate(dataProtectionBlobUri, UriKind.Absolute, out var blobUri))
+        {
+            return configuration;
+        }
+
+        var derivedAccountEndpoint = blobUri.GetLeftPart(UriPartial.Authority);
+        foreach (var provider in configuration.Providers)
+        {
+            provider.Set("BlobStorage:AccountEndpoint", derivedAccountEndpoint);
+        }
+
+        configuration.Reload();
         return configuration;
     }
 

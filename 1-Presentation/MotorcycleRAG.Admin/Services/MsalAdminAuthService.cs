@@ -11,14 +11,18 @@ namespace MotorcycleRAG.Admin.Services;
 /// Implements secure token caching and system browser authentication
 /// </summary>
 public class MsalAdminAuthService : IAdminAuthService {
+    private static readonly TimeSpan AccessTokenRefreshSkew = TimeSpan.FromMinutes(5);
     private readonly string _clientId;
     private readonly string _authority;
     private readonly string[] _scopes;
     private readonly ILogger<MsalAdminAuthService> _logger;
+    private readonly SemaphoreSlim _tokenRefreshSemaphore = new(1, 1);
     private IPublicClientApplication? _pca;
     private const string CacheFileName = "msal_cache.dat";
     private readonly string _cacheDirectory;
     private IAccount? _currentAccount;
+    private string? _cachedAccessToken;
+    private DateTimeOffset _cachedAccessTokenExpiresAtUtc = DateTimeOffset.MinValue;
 
     public MsalAdminAuthService(
         string clientId,
@@ -42,7 +46,7 @@ public class MsalAdminAuthService : IAdminAuthService {
         var builder = PublicClientApplicationBuilder.Create(_clientId)
             .WithAuthority(new Uri(_authority))
             .WithRedirectUri("http://localhost") // Recommended loopback URI for desktop apps
-            .WithLogging(LogMsal, Microsoft.Identity.Client.LogLevel.Info, enablePiiLogging: false);
+            .WithLogging(LogMsal, Microsoft.Identity.Client.LogLevel.Warning, enablePiiLogging: false);
 #pragma warning restore S1075 // URIs should not be hardcoded
 
         _pca = builder.Build();
@@ -60,55 +64,71 @@ public class MsalAdminAuthService : IAdminAuthService {
     }
 
     public async Task<string?> GetAccessTokenAsync() {
-        var pca = await GetPcaAsync();
-
-        // Refresh account status
-        var accounts = await pca.GetAccountsAsync();
-        _currentAccount = accounts.FirstOrDefault();
-
-        try {
-            AuthenticationResult result;
-            if (_currentAccount != null) {
-                // Try silent acquisition first
-                _logger.LogInformation("Acquiring token silently...");
-                result = await pca.AcquireTokenSilent(_scopes, _currentAccount)
-                    .ExecuteAsync();
-            }
-            else {
-                // Force interactive login if no account found
-                _logger.LogInformation("No cached account found, acquiring token interactively...");
-                result = await pca.AcquireTokenInteractive(_scopes)
-                    .WithUseEmbeddedWebView(false) // Use system browser
-                                                   // Note: MSAL.NET on Windows using WAM (Windows Account Manager) or Default Browser
-                                                   // works differently than direct SystemWebViewOptions configuration in older versions.
-                                                   // To support custom protocol redirect URI on Windows with System Browser,
-                                                   // we usually rely on proper registry/manifest configuration and let MSAL/OS handle the callback.
-                                                   // The "OpenWithShell" option is not available in standard SystemWebViewOptions.
-                    .ExecuteAsync();
-            }
-
-            _currentAccount = result.Account;
-            return result.AccessToken;
+        if (HasUsableCachedAccessToken()) {
+            return _cachedAccessToken;
         }
-        catch (MsalUiRequiredException) {
-            // Silent acquisition failed, try interactive
+
+        await _tokenRefreshSemaphore.WaitAsync();
+        try {
+            if (HasUsableCachedAccessToken()) {
+                return _cachedAccessToken;
+            }
+
+            var pca = await GetPcaAsync();
+
+            // Refresh account status
+            var accounts = await pca.GetAccountsAsync();
+            _currentAccount = accounts.FirstOrDefault();
+
             try {
+                AuthenticationResult result;
+                if (_currentAccount != null) {
+                    // Try silent acquisition first
+                    _logger.LogDebug("Acquiring token silently...");
+                    result = await pca.AcquireTokenSilent(_scopes, _currentAccount)
+                        .ExecuteAsync();
+                }
+                else {
+                    // Force interactive login if no account found
+                    _logger.LogInformation("No cached account found, acquiring token interactively...");
+                    result = await pca.AcquireTokenInteractive(_scopes)
+                        .WithUseEmbeddedWebView(false) // Use system browser
+                                                       // Note: MSAL.NET on Windows using WAM (Windows Account Manager) or Default Browser
+                                                       // works differently than direct SystemWebViewOptions configuration in older versions.
+                                                       // To support custom protocol redirect URI on Windows with System Browser,
+                                                       // we usually rely on proper registry/manifest configuration and let MSAL/OS handle the callback.
+                                                       // The "OpenWithShell" option is not available in standard SystemWebViewOptions.
+                        .ExecuteAsync();
+                }
+
+                _currentAccount = result.Account;
+                CacheAccessToken(result);
+                return result.AccessToken;
+            }
+            catch (MsalUiRequiredException) {
+                // Silent acquisition failed, try interactive
                 _logger.LogInformation("Silent acquisition failed, acquiring token interactively...");
                 var result = await pca.AcquireTokenInteractive(_scopes)
                     .WithUseEmbeddedWebView(false) // Use system browser
                     .ExecuteAsync();
 
                 _currentAccount = result.Account;
+                CacheAccessToken(result);
                 return result.AccessToken;
             }
             catch (Exception ex) {
+                ClearCachedAccessToken();
                 _logger.LogError(ex, "Interactive authentication failed");
                 return null;
             }
         }
         catch (Exception ex) {
+            ClearCachedAccessToken();
             _logger.LogError(ex, "Authentication failed");
             return null;
+        }
+        finally {
+            _tokenRefreshSemaphore.Release();
         }
     }
 
@@ -168,6 +188,7 @@ public class MsalAdminAuthService : IAdminAuthService {
         foreach (var account in accounts) {
             await pca.RemoveAsync(account);
         }
+        ClearCachedAccessToken();
         _currentAccount = null;
         _logger.LogInformation("User logged out");
     }
@@ -183,14 +204,28 @@ public class MsalAdminAuthService : IAdminAuthService {
                 _logger.LogWarning("[MSAL] {Message}", message);
                 break;
             case Microsoft.Identity.Client.LogLevel.Info:
-                _logger.LogInformation("[MSAL] {Message}", message);
+                _logger.LogDebug("[MSAL] {Message}", message);
                 break;
             case Microsoft.Identity.Client.LogLevel.Verbose:
-                _logger.LogDebug("[MSAL] {Message}", message);
+                _logger.LogTrace("[MSAL] {Message}", message);
                 break;
             default:
                 _logger.LogTrace("[MSAL] {Message}", message);
                 break;
         }
+    }
+
+    private bool HasUsableCachedAccessToken() =>
+        !string.IsNullOrWhiteSpace(_cachedAccessToken)
+        && _cachedAccessTokenExpiresAtUtc > DateTimeOffset.UtcNow.Add(AccessTokenRefreshSkew);
+
+    private void CacheAccessToken(AuthenticationResult result) {
+        _cachedAccessToken = result.AccessToken;
+        _cachedAccessTokenExpiresAtUtc = result.ExpiresOn;
+    }
+
+    private void ClearCachedAccessToken() {
+        _cachedAccessToken = null;
+        _cachedAccessTokenExpiresAtUtc = DateTimeOffset.MinValue;
     }
 }

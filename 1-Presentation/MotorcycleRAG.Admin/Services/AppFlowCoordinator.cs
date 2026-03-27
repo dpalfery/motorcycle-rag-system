@@ -14,37 +14,46 @@ internal sealed class AppFlowCoordinator : IAppFlowCoordinator
 
     public void ShowLandingPage()
     {
-        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-        if (window == null)
+        MainThread.BeginInvokeOnMainThread(() =>
         {
-            return;
-        }
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+            if (window == null)
+            {
+                return;
+            }
 
-        window.Page = CreateLandingRootPage();
+            window.Page = CreateLandingRootPage();
+        });
     }
 
     public async Task ShowShellAsync()
     {
-        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-        if (window == null)
-        {
-            return;
-        }
-
         var shell = _serviceProvider.GetRequiredService<AppShell>();
-        await shell.RefreshAuthStateAsync().ConfigureAwait(false);
-        window.Page = shell;
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+            if (window == null)
+            {
+                return;
+            }
+
+            await shell.RefreshAuthStateAsync();
+            window.Page = shell;
+        });
     }
 
     public async Task OpenSettingsAsync()
     {
-        var navigationPage = Application.Current?.Windows is { Count: > 0 } windows
-            ? windows[0].Page as NavigationPage
-            : null;
-
-        if (navigationPage != null)
+        await MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            await navigationPage.Navigation.PushAsync(_serviceProvider.GetRequiredService<Pages.SettingsPage>()).ConfigureAwait(false);
-        }
+            var navigationPage = Application.Current?.Windows is { Count: > 0 } windows
+                ? windows[0].Page as NavigationPage
+                : null;
+
+            if (navigationPage != null)
+            {
+                await navigationPage.Navigation.PushAsync(_serviceProvider.GetRequiredService<Pages.SettingsPage>());
+            }
+        });
     }
 }

@@ -16,6 +16,6 @@ internal partial class LandingPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await _viewModel.InitializeAsync().ConfigureAwait(false);
+        await _viewModel.InitializeAsync();
     }
 }

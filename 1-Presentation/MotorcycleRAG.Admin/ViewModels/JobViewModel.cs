@@ -46,6 +46,8 @@ internal sealed class JobViewModel : INotifyPropertyChanged {
 
     public bool HasWarnings => Warnings.Count > 0;
 
+    public bool HasCreatedBy => !string.IsNullOrWhiteSpace(CreatedBy);
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
     public event PropertyChangedEventHandler? PropertyChanged;
 }

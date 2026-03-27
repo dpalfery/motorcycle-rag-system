@@ -45,6 +45,10 @@ internal static class MauiProgram {
         builder.Services.AddSingleton<IConfigurationStateService, ConfigurationStateService>();
         builder.Services.AddSingleton<IAppFlowCoordinator, AppFlowCoordinator>();
         builder.Services.AddSingleton<ILocalProcessorService, LocalProcessorService>();
+        builder.Services.AddHttpClient(ApiWarmupService.HttpClientName, client => {
+            client.Timeout = TimeSpan.FromSeconds(95);
+        });
+        builder.Services.AddSingleton<IApiWarmupService, ApiWarmupService>();
 
         // Authentication Service - reacts to saved settings rather than locking config at startup
         builder.Services.AddSingleton<IAdminAuthService, ConfigurableAdminAuthService>();

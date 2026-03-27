@@ -335,6 +335,29 @@ public partial class DataPipelineOrchestrator : IDataPipelineOrchestrator
             metrics.ExecutionsByStatus[kvp.Key] = kvp.Value;
         }
 
+        foreach (var execution in relevantExecutions
+                     .OrderByDescending(e => e.StartTime)
+                     .Take(50))
+        {
+            metrics.RecentExecutions.Add(new PipelineExecutionSummary
+            {
+                ExecutionId = execution.ExecutionId,
+                FileName = execution.Metrics.TryGetValue("OriginalFileName", out var originalFileName)
+                    ? originalFileName?.ToString() ?? string.Empty
+                    : string.Empty,
+                FileType = execution.Metrics.TryGetValue("FileExtension", out var fileExtension)
+                           && string.Equals(fileExtension?.ToString(), ".pdf", StringComparison.OrdinalIgnoreCase)
+                    ? FileType.PDF
+                    : FileType.CSV,
+                Status = execution.Status,
+                StartTime = execution.StartTime,
+                Duration = execution.Duration,
+                DocumentsProcessed = execution.ProcessedData?.Documents.Count ?? 0,
+                DocumentsIndexed = execution.IndexingResult?.DocumentsIndexed ?? 0,
+                ErrorMessage = execution.Errors.FirstOrDefault() ?? string.Empty
+            });
+        }
+
         return Task.FromResult(metrics);
     }
 

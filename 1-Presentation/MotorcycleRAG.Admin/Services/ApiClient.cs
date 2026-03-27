@@ -389,7 +389,7 @@ internal class ApiClient {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var relativePath = $"api/datapipeline/cancel/{Uri.EscapeDataString(executionId)}";
+        var relativePath = $"api/pipeline-processing/cancel/{Uri.EscapeDataString(executionId)}";
         var uri = new Uri(_httpClient.BaseAddress!, relativePath);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
 
@@ -432,24 +432,7 @@ internal class ApiClient {
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var query = new System.Collections.Generic.List<string>();
-
-        if (status.HasValue)
-        {
-            query.Add($"status={Uri.EscapeDataString(status.Value.ToString())}");
-        }
-        if (startTime.HasValue)
-        {
-            query.Add($"startTime={Uri.EscapeDataString(startTime.Value.ToString("O"))}");
-        }
-        if (endTime.HasValue)
-        {
-            query.Add($"endTime={Uri.EscapeDataString(endTime.Value.ToString("O"))}");
-        }
-
-        var queryString = query.Count > 0 ? "?" + string.Join("&", query) : string.Empty;
-
-        var requestUri = new Uri(_httpClient.BaseAddress!, $"api/datapipeline/executions{queryString}");
+        var requestUri = new Uri(_httpClient.BaseAddress!, "api/pipeline-processing/metrics/168");
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
             response.StatusCode == System.Net.HttpStatusCode.Forbidden)
@@ -459,8 +442,30 @@ internal class ApiClient {
         }
         response.EnsureSuccessStatusCode();
 
-        return await response.Content.ReadFromJsonAsync<List<PipelineExecution>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
-               ?? new List<PipelineExecution>();
+        var metrics = await response.Content.ReadFromJsonAsync<PipelineMetrics>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+                      ?? new PipelineMetrics();
+
+        IEnumerable<PipelineExecutionSummary> executions = metrics.RecentExecutions;
+
+        if (status.HasValue)
+        {
+            executions = executions.Where(execution => execution.Status == status.Value);
+        }
+
+        if (startTime.HasValue)
+        {
+            executions = executions.Where(execution => execution.StartTime >= startTime.Value);
+        }
+
+        if (endTime.HasValue)
+        {
+            executions = executions.Where(execution => execution.StartTime <= endTime.Value);
+        }
+
+        return executions
+            .OrderByDescending(execution => execution.StartTime)
+            .Select(MapPipelineExecution)
+            .ToList();
     }
 
     /// <summary>
@@ -927,6 +932,24 @@ internal class ApiClient {
 
         if (!Guid.TryParse(executionId, out _))
             throw new ArgumentException($"Invalid execution ID format. Expected valid GUID, got: {executionId}", nameof(executionId));
+    }
+
+    private static PipelineExecution MapPipelineExecution(PipelineExecutionSummary executionSummary) {
+        var execution = new PipelineExecution {
+            ExecutionId = executionSummary.ExecutionId,
+            PipelineType = executionSummary.FileType.ToString(),
+            Status = executionSummary.Status,
+            StartTime = executionSummary.StartTime,
+            EndTime = executionSummary.Duration > TimeSpan.Zero
+                ? executionSummary.StartTime.Add(executionSummary.Duration)
+                : null
+        };
+
+        if (!string.IsNullOrWhiteSpace(executionSummary.ErrorMessage)) {
+            execution.Errors.Add(executionSummary.ErrorMessage);
+        }
+
+        return execution;
     }
 
     /// <summary>

@@ -105,6 +105,42 @@ public sealed class IngestionJobsControllerTests
         accepted.Value.Should().BeEquivalentTo(expected);
     }
 
+    [Fact]
+    public async Task GetRecentJobsAsync_WhenServiceThrowsInvalidOperation_ReturnsInternalServerError()
+    {
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.GetRecentIngestionJobsAsync(25, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("storage unavailable"));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.GetRecentJobsAsync(25, CancellationToken.None);
+
+        var statusCode = result.Result.Should().BeOfType<ObjectResult>().Subject;
+        statusCode.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        statusCode.Value.Should().BeOfType<ProblemDetails>()
+            .Which.Title.Should().Be("Failed to load ingestion jobs");
+    }
+
+    [Fact]
+    public async Task GetPendingFilesAsync_WhenServiceThrowsInvalidOperation_ReturnsInternalServerError()
+    {
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.GetPendingStorageFilesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("storage unavailable"));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.GetPendingFilesAsync(CancellationToken.None);
+
+        var statusCode = result.Result.Should().BeOfType<ObjectResult>().Subject;
+        statusCode.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        statusCode.Value.Should().BeOfType<ProblemDetails>()
+            .Which.Title.Should().Be("Failed to load pending storage files");
+    }
+
     private static IngestionJobsController CreateController(
         IBlobStorageService blobStorageService,
         IIngestionJobService? ingestionJobService = null)

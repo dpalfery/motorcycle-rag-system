@@ -55,6 +55,8 @@ class CSVProcessor:
         now = datetime.now(timezone.utc).isoformat()
         _jobs[job_id] = {
             "job_id": job_id,
+            "upload_id": upload_id,
+            "document_type": "spec-dataset",
             "status": "processing",
             "message": "CSV processing started",
             "progress": 0.0,
@@ -68,6 +70,9 @@ class CSVProcessor:
 
     async def get_job_status(self, job_id: str) -> dict | None:
         return _jobs.get(job_id)
+
+    async def list_jobs(self) -> list[dict]:
+        return list(_jobs.values())
 
     async def _process_background(
         self, job_id: str, upload_id: str, blob_container: str, metadata

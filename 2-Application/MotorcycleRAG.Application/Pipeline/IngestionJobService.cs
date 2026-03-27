@@ -188,6 +188,45 @@ public sealed class IngestionJobService : IIngestionJobService {
     }
 
     /// <inheritdoc />
+    public async Task<IngestionJobStatusResponse> ImportGraphArtifactsAsync(
+        GraphImportStartRequest request,
+        string userId,
+        CancellationToken ct = default) {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.UploadId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
+        var job = new IngestionJob {
+            InputType = IngestionJobType.BikeGraph,
+            InputRef = request.UploadId,
+            CreatedBySubject = userId,
+            Status = IngestionJobStatus.Processing,
+            StartedAtUtc = DateTimeOffset.UtcNow,
+            ComputeProvider = "AdminLocalProcessor"
+        };
+
+        job = await _repository.CreateAsync(job, ct).ConfigureAwait(false);
+
+        try {
+            await EnsureGraphArtifactsExistAsync(request.UploadId, ct).ConfigureAwait(false);
+            await _graphEntityIngestionService.IngestAsync(request.UploadId, ct).ConfigureAwait(false);
+
+            job.Status = IngestionJobStatus.Completed;
+            job.CompletedAtUtc = DateTimeOffset.UtcNow;
+            job.FailureReason = null;
+        }
+        catch (Exception ex) {
+            _logger.LogError(ex, "Graph import failed for upload {UploadId}.", request.UploadId);
+            job.Status = IngestionJobStatus.Failed;
+            job.CompletedAtUtc = DateTimeOffset.UtcNow;
+            job.FailureReason = "Graph import failed.";
+        }
+
+        await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
+        return MapToResponse(job);
+    }
+
+    /// <inheritdoc />
     public async Task CancelJobAsync(
         Guid jobId,
         string userId,

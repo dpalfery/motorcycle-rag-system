@@ -39,6 +39,8 @@ class PDFProcessor:
         now = datetime.now(timezone.utc).isoformat()
         _jobs[job_id] = {
             "job_id": job_id,
+            "upload_id": upload_id,
+            "document_type": document_type,
             "status": "processing",
             "progress": 0.0,
             "message": "PDF processing started",
@@ -56,6 +58,9 @@ class PDFProcessor:
     async def get_job_status(self, job_id: str) -> dict | None:
         """Returns job dict from _jobs or None if not found."""
         return _jobs.get(job_id)
+
+    async def list_jobs(self) -> list[dict]:
+        return list(_jobs.values())
 
     async def _process_pdf(
         self,

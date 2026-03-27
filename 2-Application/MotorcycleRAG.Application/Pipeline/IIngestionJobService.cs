@@ -22,6 +22,12 @@ public interface IIngestionJobService {
         string userId,
         CancellationToken ct = default);
 
+    /// <summary>Imports an already-processed graph artifact into the graph database and records job history.</summary>
+    Task<IngestionJobStatusResponse> ImportGraphArtifactsAsync(
+        GraphImportStartRequest request,
+        string userId,
+        CancellationToken ct = default);
+
     /// <summary>Retrieves the current status of an ingestion job including coverage metrics.</summary>
     Task<IngestionJobStatusResponse?> GetJobStatusAsync(
         Guid jobId,

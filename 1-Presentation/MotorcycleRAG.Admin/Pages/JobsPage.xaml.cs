@@ -27,13 +27,13 @@ internal partial class JobsPage : ContentPage {
             await _viewModel.InitializeAsync();
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Failed to initialize Jobs page");
-            await Utilities.ErrorPresenter.ShowErrorAsync(
-                "Initialization Error",
-                "Failed to load pipeline jobs. Please check Settings to ensure API and authentication are configured."
-            );
+                _logger.LogError(ex, "Failed to initialize Jobs page");
+                await Utilities.ErrorPresenter.ShowErrorAsync(
+                    "Initialization Error",
+                    "Failed to load the jobs page. Check Settings for API and local processor configuration."
+                );
+            }
         }
-    }
 
     protected override void OnDisappearing() {
         base.OnDisappearing();

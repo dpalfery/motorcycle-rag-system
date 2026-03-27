@@ -178,6 +178,28 @@ public sealed class IngestionJobsController : ControllerBase {
     }
 
     /// <summary>
+    /// Imports graph entities that were already produced by the local processor and uploaded to blob storage.
+    /// Route: POST /api/ingestion/jobs/graph-import
+    /// </summary>
+    [HttpPost("jobs/graph-import")]
+    [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ImportGraphAsync(
+        [FromBody] GraphImportStartRequest? request,
+        CancellationToken ct) {
+        if (request is null || string.IsNullOrWhiteSpace(request.UploadId)) {
+            return BadRequest(new ProblemDetails {
+                Title = "uploadId is required",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+        var result = await _ingestionJobService.ImportGraphArtifactsAsync(request, userId, ct).ConfigureAwait(false);
+        return Accepted(result);
+    }
+
+    /// <summary>
     /// Lists recent ingestion jobs for the admin status view.
     /// Route: GET /api/ingestion/jobs?top=50
     /// </summary>

@@ -17,6 +17,7 @@ internal partial class AppShell : Shell {
     private readonly IAdminAuthService _authService;
     private readonly ISettingsService _settingsService;
     private readonly IConfigurationStateService _configService;
+    private readonly IAppFlowCoordinator _appFlowCoordinator;
 
     internal AppShell(IAdminAuthService authService, ISettingsService settingsService, IConfigurationStateService configService, IServiceProvider serviceProvider)
     {
@@ -24,7 +25,8 @@ internal partial class AppShell : Shell {
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
-        _ = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _appFlowCoordinator = serviceProvider?.GetRequiredService<IAppFlowCoordinator>()
+            ?? throw new ArgumentNullException(nameof(serviceProvider));
 
         // Register routes for navigation
         RegisterRoutes();
@@ -73,13 +75,16 @@ internal partial class AppShell : Shell {
                 await _settingsService.RemoveSecureAsync("auth_token");
                 await _settingsService.RemoveSecureAsync("auth_refresh_token");
 
-                // Navigate back to main page or splash
-                await Shell.Current.GoToAsync("//");
+                _appFlowCoordinator.ShowLandingPage();
             }
             else
             {
                 // Sign in
-                await _authService.SignInAsync();
+                var signedIn = await _authService.SignInAsync();
+                if (!signedIn)
+                {
+                    return;
+                }
             }
             
             await UpdateUIAsync();
@@ -119,6 +124,8 @@ internal partial class AppShell : Shell {
             }
         });
     }
+
+    internal Task RefreshAuthStateAsync() => UpdateUIAsync();
 }
 
 

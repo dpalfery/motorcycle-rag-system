@@ -48,6 +48,26 @@ internal interface IConfigurationStateService
     string? EmbeddingModelPath { get; }
 
     /// <summary>
+    /// Gets the configured local processor endpoint, or the in-app default if none was saved.
+    /// </summary>
+    Uri? LocalProcessorEndpoint { get; }
+
+    /// <summary>
+    /// Gets the configured local processor working directory, or the discovered default if available.
+    /// </summary>
+    string? LocalProcessorWorkingDirectory { get; }
+
+    /// <summary>
+    /// Gets the configured local processor start command, or the in-app default if none was saved.
+    /// </summary>
+    string? LocalProcessorStartCommand { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the local processor can be started from the admin app.
+    /// </summary>
+    bool IsLocalProcessorConfigured { get; }
+
+    /// <summary>
     /// Loads configuration values from settings storage.
     /// Should be called during app startup.
     /// </summary>
@@ -72,6 +92,14 @@ internal interface IConfigurationStateService
     /// </summary>
     /// <param name="path">The path to the ONNX embedding model</param>
     Task SaveEmbeddingModelPathAsync(string path);
+
+    /// <summary>
+    /// Saves local processor startup configuration to settings.
+    /// </summary>
+    /// <param name="endpoint">The local processor endpoint.</param>
+    /// <param name="workingDirectory">The local processor working directory.</param>
+    /// <param name="startCommand">The command used to start the processor.</param>
+    Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand);
 
     /// <summary>
     /// Clears all configuration settings.

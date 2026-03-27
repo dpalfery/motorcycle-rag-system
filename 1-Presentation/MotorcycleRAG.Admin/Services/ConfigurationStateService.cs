@@ -23,6 +23,9 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     private string? _authAuthority;
     private string? _authScope;
     private string? _embeddingModelPath;
+    private Uri? _localProcessorEndpoint;
+    private string? _localProcessorWorkingDirectory;
+    private string? _localProcessorStartCommand;
 
     /// <inheritdoc/>
     public bool IsConfigured => IsApiConfigured && IsAuthConfigured;
@@ -52,6 +55,24 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     public string? EmbeddingModelPath => _embeddingModelPath;
 
     /// <inheritdoc/>
+    public Uri? LocalProcessorEndpoint => _localProcessorEndpoint;
+
+    /// <inheritdoc/>
+    public string? LocalProcessorWorkingDirectory => _localProcessorWorkingDirectory;
+
+    /// <inheritdoc/>
+    public string? LocalProcessorStartCommand => _localProcessorStartCommand;
+
+    /// <inheritdoc/>
+    public bool IsLocalProcessorConfigured =>
+        !string.IsNullOrWhiteSpace(_localProcessorWorkingDirectory) &&
+        Directory.Exists(_localProcessorWorkingDirectory) &&
+        File.Exists(Path.Combine(_localProcessorWorkingDirectory, "src", "main.py")) &&
+        _localProcessorEndpoint is not null &&
+        IsValidLocalProcessorEndpoint(_localProcessorEndpoint) &&
+        !string.IsNullOrWhiteSpace(_localProcessorStartCommand);
+
+    /// <inheritdoc/>
     public event EventHandler? ConfigurationChanged;
 
     public ConfigurationStateService(
@@ -74,6 +95,9 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
             _authAuthority = await _settingsService.GetAsync(SettingsKeys.AuthAuthority).ConfigureAwait(false);
             _authScope = await _settingsService.GetAsync(SettingsKeys.AuthScope).ConfigureAwait(false);
             _embeddingModelPath = await _settingsService.GetAsync(SettingsKeys.EmbeddingModelPath).ConfigureAwait(false);
+            var localProcessorEndpointString = await _settingsService.GetAsync(SettingsKeys.LocalProcessorEndpoint).ConfigureAwait(false);
+            _localProcessorWorkingDirectory = await _settingsService.GetAsync(SettingsKeys.LocalProcessorWorkingDirectory).ConfigureAwait(false);
+            _localProcessorStartCommand = await _settingsService.GetAsync(SettingsKeys.LocalProcessorStartCommand).ConfigureAwait(false);
 
             // Load secure setting (client ID)
             _authClientId = await _settingsService.GetSecureAsync(SettingsKeys.AuthClientId).ConfigureAwait(false);
@@ -82,17 +106,24 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
             _apiBaseUrl = !string.IsNullOrWhiteSpace(apiBaseUrlString) && Uri.TryCreate(apiBaseUrlString, UriKind.Absolute, out var parsedUri)
                 ? parsedUri
                 : null;
+            _localProcessorEndpoint = !string.IsNullOrWhiteSpace(localProcessorEndpointString)
+                && Uri.TryCreate(localProcessorEndpointString, UriKind.Absolute, out var parsedLocalProcessorUri)
+                    ? parsedLocalProcessorUri
+                    : new Uri(LocalProcessorDefaults.DefaultEndpoint);
 
             // Convert empty strings to null for cleaner checks
             _authAuthority = NullIfEmpty(_authAuthority);
             _authScope = NullIfEmpty(_authScope);
             _authClientId = NullIfEmpty(_authClientId);
             _embeddingModelPath = NullIfEmpty(_embeddingModelPath);
+            _localProcessorWorkingDirectory = NullIfEmpty(_localProcessorWorkingDirectory) ?? LocalProcessorDefaults.TryFindWorkingDirectory();
+            _localProcessorStartCommand = NullIfEmpty(_localProcessorStartCommand) ?? LocalProcessorDefaults.DefaultStartCommand;
 
             _logger.LogInformation(
-                "Configuration loaded. IsApiConfigured: {IsApi}, IsAuthConfigured: {IsAuth}",
+                "Configuration loaded. IsApiConfigured: {IsApi}, IsAuthConfigured: {IsAuth}, IsLocalProcessorConfigured: {IsLocalProcessor}",
                 IsApiConfigured,
-                IsAuthConfigured);
+                IsAuthConfigured,
+                IsLocalProcessorConfigured);
         }
         catch (Exception ex)
         {
@@ -156,6 +187,31 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     }
 
     /// <inheritdoc/>
+    public async Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand)
+    {
+        if (endpoint != null && !IsValidLocalProcessorEndpoint(endpoint))
+        {
+            throw new ArgumentException("Invalid local processor endpoint.", nameof(endpoint));
+        }
+
+        if (!string.IsNullOrWhiteSpace(workingDirectory) && !Directory.Exists(workingDirectory))
+        {
+            throw new DirectoryNotFoundException($"The local processor directory '{workingDirectory}' was not found.");
+        }
+
+        await _settingsService.SetAsync(SettingsKeys.LocalProcessorEndpoint, endpoint?.ToString() ?? string.Empty).ConfigureAwait(false);
+        await _settingsService.SetAsync(SettingsKeys.LocalProcessorWorkingDirectory, workingDirectory ?? string.Empty).ConfigureAwait(false);
+        await _settingsService.SetAsync(SettingsKeys.LocalProcessorStartCommand, startCommand ?? string.Empty).ConfigureAwait(false);
+
+        _localProcessorEndpoint = endpoint ?? new Uri(LocalProcessorDefaults.DefaultEndpoint);
+        _localProcessorWorkingDirectory = NullIfEmpty(workingDirectory);
+        _localProcessorStartCommand = NullIfEmpty(startCommand) ?? LocalProcessorDefaults.DefaultStartCommand;
+
+        _logger.LogInformation("Local processor configuration saved. IsLocalProcessorConfigured: {IsConfigured}", IsLocalProcessorConfigured);
+        OnConfigurationChanged();
+    }
+
+    /// <inheritdoc/>
     public async Task ClearConfigurationAsync()
     {
         await _settingsService.RemoveAsync(SettingsKeys.ApiBaseUrl).ConfigureAwait(false);
@@ -163,12 +219,18 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
         await _settingsService.RemoveAsync(SettingsKeys.AuthAuthority).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.AuthScope).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.EmbeddingModelPath).ConfigureAwait(false);
+        await _settingsService.RemoveAsync(SettingsKeys.LocalProcessorEndpoint).ConfigureAwait(false);
+        await _settingsService.RemoveAsync(SettingsKeys.LocalProcessorWorkingDirectory).ConfigureAwait(false);
+        await _settingsService.RemoveAsync(SettingsKeys.LocalProcessorStartCommand).ConfigureAwait(false);
 
         _apiBaseUrl = null;
         _authClientId = null;
         _authAuthority = null;
         _authScope = null;
         _embeddingModelPath = null;
+        _localProcessorEndpoint = new Uri(LocalProcessorDefaults.DefaultEndpoint);
+        _localProcessorWorkingDirectory = LocalProcessorDefaults.TryFindWorkingDirectory();
+        _localProcessorStartCommand = LocalProcessorDefaults.DefaultStartCommand;
 
         _logger.LogInformation("Configuration cleared");
         OnConfigurationChanged();
@@ -181,6 +243,17 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     private static bool IsValidApiUrl(Uri uri)
     {
         // Allow HTTP only for localhost development
+        if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsValidLocalProcessorEndpoint(Uri uri)
+    {
         if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
         {
             return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||

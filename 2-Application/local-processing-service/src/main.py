@@ -1,12 +1,13 @@
 # FastAPI Application for Motorcycle RAG Local Processing Service
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 import sys
 import logging
+import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -59,6 +60,37 @@ pdf_processor = PDFProcessor(
 csv_processor = CSVProcessor(blob_writer=blob_writer, embedder=embedder)
 bike_graph_processor = BikeGraphProcessor(blob_writer=blob_writer)
 
+shutdown_requested = False
+uvicorn_server: uvicorn.Server | None = None
+
+
+async def _list_all_jobs() -> list[dict]:
+    jobs: list[dict] = []
+    jobs.extend(await pdf_processor.list_jobs())
+    jobs.extend(await csv_processor.list_jobs())
+    jobs.extend(await bike_graph_processor.list_jobs())
+    jobs.sort(key=lambda job: job.get("created_at", ""), reverse=True)
+    return jobs
+
+
+async def _count_active_jobs() -> int:
+    active_statuses = {"queued", "processing", "running", "inprogress"}
+    jobs = await _list_all_jobs()
+    return sum(
+        1
+        for job in jobs
+        if str(job.get("status", "")).strip().lower() in active_statuses
+    )
+
+
+async def _wait_for_graceful_shutdown() -> None:
+    global uvicorn_server
+    while await _count_active_jobs() > 0:
+        await asyncio.sleep(1)
+
+    if uvicorn_server is not None:
+        uvicorn_server.should_exit = True
+
 
 # Health check endpoint
 @app.get("/health")
@@ -68,9 +100,18 @@ async def health_check():
         # Test Ollama connectivity
         ollama_status = await embedder.check_ollama_status()
 
+        active_jobs = await _count_active_jobs()
         return JSONResponse(
             content={
                 "status": "healthy",
+                "accepting_work": not shutdown_requested,
+                "shutdown_requested": shutdown_requested,
+                "active_jobs": active_jobs,
+                "message": (
+                    "Shutdown requested - waiting for active jobs to finish"
+                    if shutdown_requested
+                    else "Processor ready"
+                ),
                 "services": {
                     "ollama": ollama_status,
                     "blob_storage": blob_writer.is_connected(),
@@ -83,6 +124,10 @@ async def health_check():
         return JSONResponse(
             content={
                 "status": "unhealthy",
+                "accepting_work": not shutdown_requested,
+                "shutdown_requested": shutdown_requested,
+                "active_jobs": 0,
+                "message": "Processor health check failed",
                 "error": str(e),
                 "services": {
                     "ollama": "unknown",
@@ -99,6 +144,11 @@ async def health_check():
 async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTasks):
     """Process a PDF document from Azure Blob Storage"""
     try:
+        if shutdown_requested:
+            raise HTTPException(
+                status_code=409,
+                detail="Processor is shutting down and not accepting new work",
+            )
         # Validate request
         if not request.upload_id:
             raise HTTPException(status_code=400, detail="upload_id is required")
@@ -136,6 +186,11 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
 async def process_csv(request: ProcessCSVRequest, background_tasks: BackgroundTasks):
     """Process a CSV document from Azure Blob Storage"""
     try:
+        if shutdown_requested:
+            raise HTTPException(
+                status_code=409,
+                detail="Processor is shutting down and not accepting new work",
+            )
         # Validate request
         if not request.upload_id:
             raise HTTPException(status_code=400, detail="upload_id is required")
@@ -175,6 +230,11 @@ async def process_bike_graph(request: ProcessBikeGraphRequest, background_tasks:
     GraphEntityIngestionService on the C# API side.
     """
     try:
+        if shutdown_requested:
+            raise HTTPException(
+                status_code=409,
+                detail="Processor is shutting down and not accepting new work",
+            )
         if not request.upload_id:
             raise HTTPException(status_code=400, detail="upload_id is required")
 
@@ -214,6 +274,13 @@ async def process_bike_graph(request: ProcessBikeGraphRequest, background_tasks:
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
+# Job list endpoint
+@app.get("/jobs")
+async def list_jobs():
+    """List known processing jobs across all processors."""
+    return await _list_all_jobs()
+
+
 # Job status endpoint
 @app.get("/jobs/{job_id}")
 async def get_job_status(job_id: str):
@@ -245,6 +312,20 @@ async def get_job_status(job_id: str):
         )
 
 
+@app.post("/control/shutdown")
+async def shutdown():
+    """Stop accepting work and shut down once active jobs have drained."""
+    global shutdown_requested
+    shutdown_requested = True
+    active_jobs = await _count_active_jobs()
+    asyncio.create_task(_wait_for_graceful_shutdown())
+    return {
+        "status": "stopping",
+        "message": "Shutdown requested. Waiting for active jobs to finish.",
+        "active_jobs": active_jobs,
+    }
+
+
 # Main entry point
 if __name__ == "__main__":
     # Configure logging
@@ -257,4 +338,6 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8100))
 
     # Run the FastAPI app
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True, log_level="info")
+    config = uvicorn.Config(app, host="0.0.0.0", port=port, reload=False, log_level="info")
+    uvicorn_server = uvicorn.Server(config)
+    uvicorn_server.run()

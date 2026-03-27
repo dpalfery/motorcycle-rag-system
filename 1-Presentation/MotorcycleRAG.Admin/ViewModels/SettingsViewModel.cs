@@ -64,6 +64,21 @@ internal partial class SettingsViewModel : ObservableObject {
     [ObservableProperty]
     private string _embeddingModelPath = string.Empty;
 
+    [ObservableProperty]
+    private string _localProcessorEndpoint = string.Empty;
+
+    [ObservableProperty]
+    private string _localProcessorWorkingDirectory = string.Empty;
+
+    [ObservableProperty]
+    private string _localProcessorStartCommand = string.Empty;
+
+    [ObservableProperty]
+    private bool _isLocalProcessorValid;
+
+    [ObservableProperty]
+    private string _localProcessorValidationMessage = string.Empty;
+
     // ========== General State ==========
 
     [ObservableProperty]
@@ -96,9 +111,13 @@ internal partial class SettingsViewModel : ObservableObject {
         AuthAuthority = _configService.AuthAuthority ?? string.Empty;
         AuthScope = _configService.AuthScope ?? string.Empty;
         EmbeddingModelPath = _configService.EmbeddingModelPath ?? string.Empty;
+        LocalProcessorEndpoint = _configService.LocalProcessorEndpoint?.ToString() ?? LocalProcessorDefaults.DefaultEndpoint;
+        LocalProcessorWorkingDirectory = _configService.LocalProcessorWorkingDirectory ?? string.Empty;
+        LocalProcessorStartCommand = _configService.LocalProcessorStartCommand ?? LocalProcessorDefaults.DefaultStartCommand;
 
         ValidateApiUrl();
         ValidateAuthSettings();
+        ValidateLocalProcessorSettings();
         HasUnsavedChanges = false;
     }
 
@@ -126,6 +145,18 @@ internal partial class SettingsViewModel : ObservableObject {
     }
 
     partial void OnEmbeddingModelPathChanged(string value) {
+        HasUnsavedChanges = true;
+        SaveSettingsCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnLocalProcessorEndpointChanged(string value) => OnLocalProcessorSettingChanged();
+
+    partial void OnLocalProcessorWorkingDirectoryChanged(string value) => OnLocalProcessorSettingChanged();
+
+    partial void OnLocalProcessorStartCommandChanged(string value) => OnLocalProcessorSettingChanged();
+
+    private void OnLocalProcessorSettingChanged() {
+        ValidateLocalProcessorSettings();
         HasUnsavedChanges = true;
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
@@ -183,8 +214,7 @@ internal partial class SettingsViewModel : ObservableObject {
                  AuthScope.EndsWith("/access_as_user", StringComparison.OrdinalIgnoreCase)) {
             issues.Add("Legacy scope suffixes are not supported. Use api://<api-client-id>/admin");
         }
-        else if (!AuthScope.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
-                 !AuthScope.StartsWith("api://", StringComparison.OrdinalIgnoreCase)) {
+        else if (!AdminAuthConfigurationHelper.IsSupportedScope(AuthScope)) {
             issues.Add("Scope must be a full URI, for example api://<api-client-id>/admin");
         }
 
@@ -195,6 +225,44 @@ internal partial class SettingsViewModel : ObservableObject {
         else {
             IsAuthValid = true;
             AuthValidationMessage = "Valid";
+        }
+    }
+
+    private void ValidateLocalProcessorSettings() {
+        var issues = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(LocalProcessorEndpoint)) {
+            issues.Add("Endpoint required");
+        }
+        else if (!Uri.TryCreate(LocalProcessorEndpoint, UriKind.Absolute, out var endpointUri)) {
+            issues.Add("Invalid endpoint URL");
+        }
+        else if (!endpointUri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) &&
+                 !endpointUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)) {
+            issues.Add("Endpoint must use HTTP or HTTPS");
+        }
+
+        if (string.IsNullOrWhiteSpace(LocalProcessorWorkingDirectory)) {
+            issues.Add("Working directory required");
+        }
+        else if (!Directory.Exists(LocalProcessorWorkingDirectory)) {
+            issues.Add("Working directory not found");
+        }
+        else if (!File.Exists(Path.Combine(LocalProcessorWorkingDirectory, "src", "main.py"))) {
+            issues.Add("src/main.py not found in working directory");
+        }
+
+        if (string.IsNullOrWhiteSpace(LocalProcessorStartCommand)) {
+            issues.Add("Start command required");
+        }
+
+        if (issues.Count > 0) {
+            IsLocalProcessorValid = false;
+            LocalProcessorValidationMessage = string.Join(", ", issues);
+        }
+        else {
+            IsLocalProcessorValid = true;
+            LocalProcessorValidationMessage = "Valid";
         }
     }
 
@@ -214,6 +282,11 @@ internal partial class SettingsViewModel : ObservableObject {
         if (!IsAuthValid) {
             hasValidationErrors = true;
             errorMessages.Add($"Auth: {AuthValidationMessage}");
+        }
+
+        if (!IsLocalProcessorValid) {
+            hasValidationErrors = true;
+            errorMessages.Add($"Local Processor: {LocalProcessorValidationMessage}");
         }
 
         if (hasValidationErrors) {
@@ -247,14 +320,19 @@ internal partial class SettingsViewModel : ObservableObject {
                 await _configService.SaveEmbeddingModelPathAsync(EmbeddingModelPath);
             }
 
+            await _configService.SaveLocalProcessorConfigurationAsync(
+                string.IsNullOrWhiteSpace(LocalProcessorEndpoint) ? null : new Uri(LocalProcessorEndpoint),
+                LocalProcessorWorkingDirectory,
+                LocalProcessorStartCommand);
+
             HasUnsavedChanges = false;
-            StatusMessage = "Settings saved successfully. Restart the app for changes to take effect.";
+            StatusMessage = "Settings saved successfully.";
             _logger.LogInformation("Settings saved successfully");
             
             // Show success alert to ensure user knows it worked
              var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
             if (window?.Page != null) {
-                await window.Page.DisplayAlertAsync("Success", "Settings saved successfully. Please restart the app.", "OK");
+                await window.Page.DisplayAlertAsync("Success", "Settings saved successfully.", "OK");
             }
         }
         catch (Exception ex) {
@@ -362,9 +440,12 @@ internal partial class SettingsViewModel : ObservableObject {
             AuthAuthority = string.Empty;
             AuthScope = string.Empty;
             EmbeddingModelPath = string.Empty;
+            LocalProcessorEndpoint = LocalProcessorDefaults.DefaultEndpoint;
+            LocalProcessorWorkingDirectory = LocalProcessorDefaults.TryFindWorkingDirectory() ?? string.Empty;
+            LocalProcessorStartCommand = LocalProcessorDefaults.DefaultStartCommand;
 
             HasUnsavedChanges = false;
-            StatusMessage = "Settings cleared. Restart the app for changes to take effect.";
+            StatusMessage = "Settings cleared.";
             _logger.LogInformation("Settings cleared");
         }
         catch (Exception ex) {

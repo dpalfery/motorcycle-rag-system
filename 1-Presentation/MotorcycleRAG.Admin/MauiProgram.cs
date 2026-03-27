@@ -43,76 +43,11 @@ internal static class MauiProgram {
 
         // Configuration State Service - tracks app configuration state
         builder.Services.AddSingleton<IConfigurationStateService, ConfigurationStateService>();
+        builder.Services.AddSingleton<IAppFlowCoordinator, AppFlowCoordinator>();
+        builder.Services.AddSingleton<ILocalProcessorService, LocalProcessorService>();
 
-        // Authentication Service - uses ConfigurationStateService to determine if configured
-        builder.Services.AddSingleton<IAdminAuthService>(sp => {
-            var configService = sp.GetRequiredService<IConfigurationStateService>();
-            var logger = sp.GetRequiredService<ILogger<AdminAuthService>>();
-            var demoLogger = sp.GetRequiredService<ILogger<DemoAdminAuthService>>();
-
-            // Ensure configuration is loaded from persistence before initializing auth
-            // This is critical to respect user-saved settings over environment variables
-            try
-            {
-                Task.Run(() => configService.LoadConfigurationAsync()).GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to load configuration during startup");
-            }
-
-            // Check if auth is configured via UI settings
-            if (configService.IsAuthConfigured) {
-                var scope = configService.AuthScope!;
-
-                // Normalize legacy or overly broad scopes to the API's required admin scope.
-                scope = NormalizeAdminScope(scope, logger);
-
-                // Detect short names (e.g. "admin_access") which are never valid Entra scopes
-                // and fall back to the environment variable if available.
-                if (!scope.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
-                    !scope.StartsWith("api://", StringComparison.OrdinalIgnoreCase)) {
-                    var fallbackEnvScope = Environment.GetEnvironmentVariable("MCR_ADMIN_API_SCOPE");
-                    if (!string.IsNullOrEmpty(fallbackEnvScope)) {
-                        logger.LogWarning("Detected invalid short scope '{ShortScope}'. Overriding with environment variable: '{EnvScope}'", scope, fallbackEnvScope);
-                        scope = NormalizeAdminScope(fallbackEnvScope, logger);
-                    }
-                }
-
-                logger.LogInformation("Using configured authentication settings. ClientId: {ClientId}", configService.AuthClientId);
-                var msalLogger = sp.GetRequiredService<ILogger<MsalAdminAuthService>>();
-                return new MsalAdminAuthService(
-                    clientId: configService.AuthClientId!,
-                    authority: configService.AuthAuthority!,
-                    scopes: new[] { scope },
-                    logger: msalLogger
-                );
-            }
-
-            // Fall back to environment variables for backward compatibility
-            var envClientId = Environment.GetEnvironmentVariable("MCR_ADMIN_CLIENT_ID");
-            var envAuthority = Environment.GetEnvironmentVariable("MCR_ADMIN_AUTHORITY");
-            var envScope = Environment.GetEnvironmentVariable("MCR_ADMIN_API_SCOPE");
-
-            if (!string.IsNullOrEmpty(envClientId) &&
-                !string.IsNullOrEmpty(envAuthority) &&
-                !string.IsNullOrEmpty(envScope)) {
-                envScope = NormalizeAdminScope(envScope, logger);
-                logger.LogInformation("Using environment variable authentication settings. Scope: {Scope}", envScope);
-                
-                // Use Production MSAL implementation
-                var msalLogger = sp.GetRequiredService<ILogger<MsalAdminAuthService>>();
-                return new MsalAdminAuthService(
-                    clientId: envClientId,
-                    authority: envAuthority,
-                    scopes: new[] { envScope },
-                    logger: msalLogger
-                );
-            }
-
-            // No configuration available - use demo service
-            return new DemoAdminAuthService(demoLogger);
-        });
+        // Authentication Service - reacts to saved settings rather than locking config at startup
+        builder.Services.AddSingleton<IAdminAuthService, ConfigurableAdminAuthService>();
 
         // ========== HTTP Client with Resilience Policies ==========
 
@@ -124,16 +59,8 @@ internal static class MauiProgram {
                 var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
                 var logger = loggerFactory.CreateLogger("MauiProgram.HttpClient");
 
-                // Try UI-configured API URL first
+                // API settings come only from values persisted through the app's Settings page.
                 Uri? apiUri = configService.ApiBaseUrl;
-
-                // Fall back to environment variable
-                if (apiUri == null) {
-                    var envUrl = Environment.GetEnvironmentVariable("MCR_ADMIN_API_BASE_URL");
-                    if (!string.IsNullOrEmpty(envUrl) && Uri.TryCreate(envUrl, UriKind.Absolute, out var parsedUri)) {
-                        apiUri = parsedUri;
-                    }
-                }
 
                 // If we have a URL, validate and configure it
                 if (apiUri != null) {
@@ -143,7 +70,7 @@ internal static class MauiProgram {
 
                     if (!isLocalhost && !apiUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)) {
                         logger.LogWarning(
-                            "MCR_ADMIN_API_BASE_URL must use HTTPS for non-localhost URLs. API calls will fail until configured correctly.");
+                            "Saved API base URL must use HTTPS for non-localhost URLs. API calls will fail until corrected in Settings.");
                     }
                     else {
                         client.BaseAddress = apiUri;
@@ -151,7 +78,7 @@ internal static class MauiProgram {
                     }
                 }
                 else {
-                    logger.LogWarning("API base URL not configured. Go to Settings to configure.");
+                    logger.LogWarning("API base URL not configured. Open Settings to configure it.");
                 }
 
                 client.Timeout = TimeSpan.FromSeconds(30);
@@ -175,6 +102,7 @@ internal static class MauiProgram {
         // ========== Pages (Transient - Fresh instance per navigation) ==========
 
         builder.Services.AddTransient<DashboardPage>();
+        builder.Services.AddTransient<LandingPage>();
         builder.Services.AddTransient<UploadPage>();
         builder.Services.AddTransient<JobsPage>();
         builder.Services.AddTransient<WebSourcesPage>();
@@ -184,6 +112,7 @@ internal static class MauiProgram {
         // ========== ViewModels (Transient - Fresh instance per navigation) ==========
 
         builder.Services.AddTransient<DashboardViewModel>();
+        builder.Services.AddTransient<LandingViewModel>();
         builder.Services.AddTransient<IngestionViewModel>();
         builder.Services.AddTransient<JobsViewModel>();
         builder.Services.AddTransient<WebSourcesViewModel>();
@@ -202,39 +131,5 @@ internal static class MauiProgram {
         builder.Services.AddTransient<App>();
 
         return builder.Build();
-    }
-
-    private static string NormalizeAdminScope(string scope, ILogger logger)
-    {
-        if (string.IsNullOrWhiteSpace(scope))
-        {
-            return scope;
-        }
-
-        static string ReplaceSuffix(string value, string suffix) =>
-            value[..^suffix.Length] + "/admin";
-
-        if (scope.EndsWith("/access_as_user", StringComparison.OrdinalIgnoreCase))
-        {
-            var normalized = ReplaceSuffix(scope, "/access_as_user");
-            logger.LogWarning("Normalizing legacy admin scope '{OriginalScope}' to '{NormalizedScope}'", scope, normalized);
-            return normalized;
-        }
-
-        if (scope.EndsWith("/.default", StringComparison.OrdinalIgnoreCase))
-        {
-            var normalized = ReplaceSuffix(scope, "/.default");
-            logger.LogWarning("Normalizing broad admin scope '{OriginalScope}' to '{NormalizedScope}'", scope, normalized);
-            return normalized;
-        }
-
-        if (scope.EndsWith("/admin_access", StringComparison.OrdinalIgnoreCase))
-        {
-            var normalized = ReplaceSuffix(scope, "/admin_access");
-            logger.LogWarning("Normalizing legacy admin scope '{OriginalScope}' to '{NormalizedScope}'", scope, normalized);
-            return normalized;
-        }
-
-        return scope;
     }
 }

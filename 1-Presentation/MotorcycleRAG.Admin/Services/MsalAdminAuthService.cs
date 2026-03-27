@@ -118,14 +118,30 @@ public class MsalAdminAuthService : IAdminAuthService {
     }
 
     public bool IsSignedIn() {
-        // Sync check is best effort based on last known state
-        // For accurate state, use async checks
+        if (_currentAccount != null)
+        {
+            return true;
+        }
+
+        try {
+            var pca = GetPcaAsync().GetAwaiter().GetResult();
+            _currentAccount = pca.GetAccountsAsync().GetAwaiter().GetResult().FirstOrDefault();
+        }
+        catch (Exception ex) {
+            _logger.LogDebug(ex, "Failed to inspect cached MSAL account state.");
+        }
+
         return _currentAccount != null;
     }
 
     public bool IsAuthenticated => IsSignedIn();
 
-    public string? UserDisplayName => _currentAccount?.Username;
+    public string? UserDisplayName {
+        get {
+            _ = IsSignedIn();
+            return _currentAccount?.Username;
+        }
+    }
 
     public async Task<IEnumerable<string>> GetUserRolesAsync() {
         // MSAL access tokens don't directly expose roles in the public API easily without decoding

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -77,10 +78,39 @@ public sealed class IngestionJobsControllerTests
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    private static IngestionJobsController CreateController(IBlobStorageService blobStorageService)
+    [Fact]
+    public async Task ImportGraphAsync_WithUploadId_ReturnsAccepted()
     {
-        return new IngestionJobsController(
-            Mock.Of<IIngestionJobService>(),
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        var expected = new IngestionJobStatusResponse {
+            JobId = Guid.NewGuid(),
+            Status = "Completed",
+            InputType = "BikeGraph",
+            InputRef = "upload-123",
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        ingestionJobs
+            .Setup(service => service.ImportGraphArtifactsAsync(
+                It.Is<GraphImportStartRequest>(request => request.UploadId == "upload-123"),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.ImportGraphAsync(new GraphImportStartRequest { UploadId = "upload-123" }, CancellationToken.None);
+
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(expected);
+    }
+
+    private static IngestionJobsController CreateController(
+        IBlobStorageService blobStorageService,
+        IIngestionJobService? ingestionJobService = null)
+    {
+        var controller = new IngestionJobsController(
+            ingestionJobService ?? Mock.Of<IIngestionJobService>(),
             new IngestionJobValidator(),
             blobStorageService,
             Options.Create(new BlobStorageOptions
@@ -89,6 +119,14 @@ public sealed class IngestionJobsControllerTests
                 RawUploadsContainer = "raw-uploads"
             }),
             NullLogger<IngestionJobsController>.Instance);
+
+        controller.ControllerContext = new ControllerContext {
+            HttpContext = new DefaultHttpContext {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "test-user")]))
+            }
+        };
+
+        return controller;
     }
 
     private static IFormFile CreateFormFile(Stream stream, string fileName, string contentType)

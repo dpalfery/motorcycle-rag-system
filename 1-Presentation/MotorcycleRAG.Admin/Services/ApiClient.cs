@@ -534,6 +534,32 @@ internal class ApiClient {
     }
 
     /// <summary>
+    /// Imports graph entities that were already produced by the local processor.
+    /// </summary>
+    internal async Task<IngestionJobStatusResponse> ImportGraphArtifactsAsync(
+        GraphImportStartRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var response = await ExecuteWithResilienceAsync(() =>
+            _httpClient.PostAsJsonAsync("api/ingestion/jobs/graph-import", request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<IngestionJobStatusResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+               ?? throw new InvalidOperationException("Failed to deserialize graph import response");
+    }
+
+    /// <summary>
     /// Uploads a local ingestion source file to the API-managed raw storage area.
     /// </summary>
     internal async Task<IngestionUploadResponse> UploadIngestionSourceAsync(

@@ -10,6 +10,8 @@ namespace MotorcycleRAG.Admin;
     "Design", "S3059:Types should not have members with visibility set higher than the type's visibility",
     Justification = "Internal class has public constructor required by MAUI DI framework")]
 internal partial class App : Application {
+    private readonly IAppFlowCoordinator _appFlowCoordinator;
+
     public App() {
         InitializeComponent();
 
@@ -22,7 +24,15 @@ internal partial class App : Application {
         var authService = serviceProvider.GetRequiredService<IAdminAuthService>();
         var settingsService = serviceProvider.GetRequiredService<ISettingsService>();
         var configService = serviceProvider.GetRequiredService<IConfigurationStateService>();
+        _ = authService;
+        _ = settingsService;
+        _ = configService;
 
-        MainPage = new AppShell(authService, settingsService, configService, serviceProvider);
+        _appFlowCoordinator = serviceProvider.GetRequiredService<IAppFlowCoordinator>();
+    }
+
+    protected override Window CreateWindow(IActivationState? activationState)
+    {
+        return new Window(_appFlowCoordinator.CreateLandingRootPage());
     }
 }

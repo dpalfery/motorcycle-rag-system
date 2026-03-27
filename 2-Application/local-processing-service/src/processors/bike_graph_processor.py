@@ -103,6 +103,8 @@ class BikeGraphProcessor:
         now = datetime.now(timezone.utc).isoformat()
         _jobs[job_id] = {
             "job_id": job_id,
+            "upload_id": upload_id,
+            "document_type": "bike-graph",
             "status": "processing",
             "message": "Bike graph processing started",
             "progress": 0.0,
@@ -116,6 +118,9 @@ class BikeGraphProcessor:
 
     async def get_job_status(self, job_id: str) -> dict | None:
         return _jobs.get(job_id)
+
+    async def list_jobs(self) -> list[dict]:
+        return list(_jobs.values())
 
     # ------------------------------------------------------------------
     # Background processing

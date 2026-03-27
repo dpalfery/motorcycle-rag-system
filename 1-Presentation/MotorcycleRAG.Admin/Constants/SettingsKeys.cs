@@ -41,4 +41,22 @@ internal static class SettingsKeys
     /// Stored in regular preferences (not sensitive).
     /// </summary>
     internal const string DefaultUploadPath = "config_default_upload_path";
+
+    /// <summary>
+    /// Local processor HTTP endpoint for the Python processing service.
+    /// Stored in regular preferences (not sensitive).
+    /// </summary>
+    internal const string LocalProcessorEndpoint = "config_local_processor_endpoint";
+
+    /// <summary>
+    /// Working directory used to start the local Python processing service.
+    /// Stored in regular preferences (not sensitive).
+    /// </summary>
+    internal const string LocalProcessorWorkingDirectory = "config_local_processor_working_directory";
+
+    /// <summary>
+    /// Command used to start the local Python processing service.
+    /// Stored in regular preferences (not sensitive).
+    /// </summary>
+    internal const string LocalProcessorStartCommand = "config_local_processor_start_command";
 }

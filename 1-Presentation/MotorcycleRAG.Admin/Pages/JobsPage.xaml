@@ -28,16 +28,55 @@
             <VerticalStackLayout Spacing="18">
 
                 <VerticalStackLayout Spacing="6">
-                    <Label Text="Start Local Graph Job"
+                    <Label Text="Local Processor"
                            FontSize="20"
                            FontAttributes="Bold" />
                     <Frame BorderColor="LightGray"
                            Padding="15"
                            CornerRadius="8">
-                        <VerticalStackLayout Spacing="10">
-                            <Label Text="Choose a local CSV, upload it to raw storage, and immediately queue a bike graph import."
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="Start, stop, and monitor the Python processor that runs on this machine. Local graph jobs keep the raw CSV on this device and only upload the processed graph artifact."
                                    FontSize="12"
                                    TextColor="Gray" />
+
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto"
+                                  ColumnSpacing="10">
+                                <VerticalStackLayout Grid.Column="0"
+                                                     Spacing="3">
+                                    <Label Text="{Binding LocalProcessorStateLabel}"
+                                           FontSize="14"
+                                           FontAttributes="Bold" />
+                                    <Label Text="{Binding LocalProcessorStatusMessage}"
+                                           FontSize="11"
+                                           TextColor="Gray" />
+                                </VerticalStackLayout>
+
+                                <Button Grid.Column="1"
+                                        Text="Start"
+                                        Command="{Binding StartLocalProcessorCommand}"
+                                        BackgroundColor="{StaticResource Secondary}"
+                                        TextColor="White"
+                                        IsEnabled="{Binding CanStartLocalProcessor}" />
+
+                                <Button Grid.Column="2"
+                                        Text="Stop"
+                                        Command="{Binding StopLocalProcessorCommand}"
+                                        BackgroundColor="#B05D5D"
+                                        TextColor="White"
+                                        IsEnabled="{Binding CanStopLocalProcessor}" />
+
+                                <ActivityIndicator Grid.Column="3"
+                                                   IsRunning="{Binding IsStartingLocalProcessor}"
+                                                   IsVisible="{Binding IsStartingLocalProcessor}"
+                                                   VerticalOptions="Center" />
+                            </Grid>
+
+                            <BoxView HeightRequest="1"
+                                     Opacity="0.2" />
+
+                            <Label Text="Start Local Graph Job"
+                                   FontSize="16"
+                                   FontAttributes="Bold" />
 
                             <HorizontalStackLayout Spacing="10">
                                 <Button Text="Choose CSV"
@@ -46,11 +85,15 @@
                                         TextColor="White"
                                         IsEnabled="{Binding CanSelectLocalGraphFile}" />
 
-                                <Button Text="Upload + Graph Import"
+                                <Button Text="Start Local Graph Job"
                                         Command="{Binding StartLocalGraphJobCommand}"
                                         BackgroundColor="DarkSlateBlue"
                                         TextColor="White"
                                         IsEnabled="{Binding CanStartLocalGraphJob}" />
+
+                                <ActivityIndicator IsRunning="{Binding IsStartingLocalGraphJob}"
+                                                   IsVisible="{Binding IsStartingLocalGraphJob}"
+                                                   VerticalOptions="Center" />
                             </HorizontalStackLayout>
 
                             <Label Text="{Binding SelectedLocalGraphFilePath}"
@@ -67,10 +110,112 @@
                 </VerticalStackLayout>
 
                 <VerticalStackLayout Spacing="6">
+                    <Label Text="Local Processor Jobs"
+                           FontSize="20"
+                           FontAttributes="Bold" />
+                    <Label Text="Local graph processing runs appear here while the processor is working on files from this machine. Use Import To Graph after a local bike-graph run completes."
+                           FontSize="12"
+                           TextColor="Gray" />
+
+                    <CollectionView ItemsSource="{Binding LocalProcessorJobs}"
+                                    SelectionMode="None">
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="8" Padding="20">
+                                <Label Text="No local processor jobs found"
+                                       FontSize="16"
+                                       HorizontalOptions="Center" />
+                                <Label Text="Start the local processor and run a local graph job to see status here."
+                                       FontSize="12"
+                                       TextColor="Gray"
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="viewmodels:LocalProcessorJobViewModel">
+                                <Frame BorderColor="LightGray"
+                                       Margin="0,5"
+                                       Padding="15"
+                                       CornerRadius="8">
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                                          ColumnDefinitions="*,Auto">
+                                        <VerticalStackLayout Grid.Row="0"
+                                                             Grid.Column="0"
+                                                             Spacing="5">
+                                            <Label Text="{Binding JobId}"
+                                                   FontAttributes="Bold"
+                                                   FontSize="14" />
+                                            <HorizontalStackLayout Spacing="10">
+                                                <Label Text="{Binding DocumentTypeLabel}"
+                                                       FontSize="12"
+                                                       TextColor="Gray" />
+                                                <Label Text="|"
+                                                       FontSize="12"
+                                                       TextColor="Gray" />
+                                                <Label Text="{Binding Status}"
+                                                       FontSize="12"
+                                                       FontAttributes="Bold" />
+                                                <Label Text="{Binding ProgressLabel}"
+                                                       FontSize="12"
+                                                       TextColor="Gray" />
+                                            </HorizontalStackLayout>
+                                        </VerticalStackLayout>
+
+                                        <VerticalStackLayout Grid.Row="0"
+                                                             Grid.Column="1"
+                                                             Spacing="6">
+                                            <Button Text="{Binding ImportButtonText}"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ImportLocalProcessorJobCommand}"
+                                                    CommandParameter="{Binding .}"
+                                                    BackgroundColor="{StaticResource Tertiary}"
+                                                    TextColor="White"
+                                                    FontSize="11"
+                                                    Padding="10,5"
+                                                    IsEnabled="{Binding CanImportProcessedGraph}" />
+                                        </VerticalStackLayout>
+
+                                        <VerticalStackLayout Grid.Row="1"
+                                                             Grid.ColumnSpan="2"
+                                                             Spacing="3"
+                                                             Margin="0,10,0,0">
+                                            <Label Text="{Binding UploadId, StringFormat='Upload ID: {0}'}"
+                                                   FontSize="11"
+                                                   TextColor="Gray" />
+                                            <Label Text="{Binding Message}"
+                                                   FontSize="11"
+                                                   TextColor="Gray" />
+                                            <Label Text="{Binding GraphMetricsLabel}"
+                                                   FontSize="11"
+                                                   TextColor="Gray"
+                                                   IsVisible="{Binding HasGraphMetrics}" />
+                                        </VerticalStackLayout>
+
+                                        <Label Grid.Row="2"
+                                               Grid.ColumnSpan="2"
+                                               Text="{Binding GraphImportStatus, StringFormat='Graph import: {0}'}"
+                                               FontSize="11"
+                                               TextColor="Gray"
+                                               Margin="0,8,0,0"
+                                               IsVisible="{Binding HasGraphImportStatus}" />
+
+                                        <Label Grid.Row="3"
+                                               Grid.ColumnSpan="2"
+                                               Text="{Binding GraphImportFailureReason, StringFormat='Last import failure: {0}'}"
+                                               FontSize="11"
+                                               TextColor="Orange"
+                                               Margin="0,8,0,0"
+                                               IsVisible="{Binding HasGraphImportFailureReason}" />
+                                    </Grid>
+                                </Frame>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+
+                <VerticalStackLayout Spacing="6">
                     <Label Text="Pending Storage Files"
                            FontSize="20"
                            FontAttributes="Bold" />
-                    <Label Text="Blob-backed files appear here while search ingestion or graph import is still outstanding, including CSVs uploaded from the local graph picker."
+                    <Label Text="Blob-backed source files appear here while search ingestion or graph import is still outstanding."
                            FontSize="12"
                            TextColor="Gray" />
 

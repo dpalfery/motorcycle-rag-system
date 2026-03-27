@@ -95,6 +95,7 @@ internal sealed class IngestionJobHistoryViewModel : INotifyPropertyChanged {
     public string InputTypeLabel => InputType switch {
         "PDFManual" => "Manual PDF",
         "StructuredSpecification" => "Specification CSV",
+        "BikeGraph" => "Bike Graph Import",
         _ => InputType
     };
 

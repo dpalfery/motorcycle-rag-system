@@ -11,191 +11,241 @@ using MotorcycleRAG.Domain.Enums;
 namespace MotorcycleRAG.UnitTests.Pipeline;
 
 /// <summary>
-/// Unit tests for <see cref="IngestionJobService"/> dual-mode branching.
-/// Verifies that <see cref="ProcessingMode.Local"/> routes to the local pipeline
-/// and <see cref="ProcessingMode.Fabric"/> routes to the Fabric pipeline.
+/// Unit tests for <see cref="IngestionJobService"/>.
+/// Verifies job creation plus refresh of local-processing statuses into persisted history.
 /// </summary>
 public sealed class IngestionJobServiceDualModeTests {
-    private readonly Mock<IIngestionJobRepository> _repository;
-    private readonly Mock<IFabricPipelineService> _fabricPipeline;
-    private readonly Mock<ILocalPipelineService> _localPipeline;
-    private readonly Mock<ILogger<IngestionJobService>> _logger;
-
     private const string TestUserId = "test-user-oid";
     private const string TestRunId = "run-12345";
 
+    private readonly Mock<IIngestionJobRepository> _repository;
+    private readonly Mock<IBlobStorageService> _blobStorage;
+    private readonly Mock<ILocalPipelineService> _pipelineService;
+    private readonly Mock<IGraphEntityIngestionService> _graphEntityIngestionService;
+    private readonly Mock<ILogger<IngestionJobService>> _logger;
+
     public IngestionJobServiceDualModeTests() {
         _repository = new Mock<IIngestionJobRepository>();
-        _fabricPipeline = new Mock<IFabricPipelineService>();
-        _localPipeline = new Mock<ILocalPipelineService>();
+        _blobStorage = new Mock<IBlobStorageService>();
+        _pipelineService = new Mock<ILocalPipelineService>();
+        _graphEntityIngestionService = new Mock<IGraphEntityIngestionService>();
         _logger = new Mock<ILogger<IngestionJobService>>();
 
-        // Default repository setup: CreateAsync returns the entity with an ID.
         _repository
             .Setup(r => r.CreateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IngestionJob job, CancellationToken _) => job);
 
-        // Default repository setup: UpdateAsync completes without error.
         _repository
             .Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
     }
 
-    #region Constructor null checks
-
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenRepositoryIsNull() {
-        var opts = Options.Create(new IngestionOptions());
-        var act = () => new IngestionJobService(
-            null!, _fabricPipeline.Object, _localPipeline.Object, opts, _logger.Object);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("repository");
+        var sut = () => new IngestionJobService(
+            null!,
+            _blobStorage.Object,
+            _pipelineService.Object,
+            _graphEntityIngestionService.Object,
+            CreateBlobOptions(),
+            CreateIngestionOptions(),
+            _logger.Object);
+
+        sut.Should().Throw<ArgumentNullException>().WithParameterName("repository");
     }
 
     [Fact]
-    public void Constructor_ShouldThrowArgumentNullException_WhenFabricPipelineIsNull() {
-        var opts = Options.Create(new IngestionOptions());
-        var act = () => new IngestionJobService(
-            _repository.Object, null!, _localPipeline.Object, opts, _logger.Object);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("fabricPipeline");
+    public void Constructor_ShouldThrowArgumentNullException_WhenBlobStorageServiceIsNull() {
+        var sut = () => new IngestionJobService(
+            _repository.Object,
+            null!,
+            _pipelineService.Object,
+            _graphEntityIngestionService.Object,
+            CreateBlobOptions(),
+            CreateIngestionOptions(),
+            _logger.Object);
+
+        sut.Should().Throw<ArgumentNullException>().WithParameterName("blobStorageService");
     }
 
     [Fact]
-    public void Constructor_ShouldThrowArgumentNullException_WhenLocalPipelineIsNull() {
-        var opts = Options.Create(new IngestionOptions());
-        var act = () => new IngestionJobService(
-            _repository.Object, _fabricPipeline.Object, null!, opts, _logger.Object);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("localPipeline");
+    public void Constructor_ShouldThrowArgumentNullException_WhenPipelineServiceIsNull() {
+        var sut = () => new IngestionJobService(
+            _repository.Object,
+            _blobStorage.Object,
+            null!,
+            _graphEntityIngestionService.Object,
+            CreateBlobOptions(),
+            CreateIngestionOptions(),
+            _logger.Object);
+
+        sut.Should().Throw<ArgumentNullException>().WithParameterName("pipelineService");
     }
 
     [Fact]
-    public void Constructor_ShouldThrowArgumentNullException_WhenOptionsIsNull() {
-        var act = () => new IngestionJobService(
-            _repository.Object, _fabricPipeline.Object, _localPipeline.Object, null!, _logger.Object);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+    public void Constructor_ShouldThrowArgumentNullException_WhenGraphEntityIngestionServiceIsNull() {
+        var sut = () => new IngestionJobService(
+            _repository.Object,
+            _blobStorage.Object,
+            _pipelineService.Object,
+            null!,
+            CreateBlobOptions(),
+            CreateIngestionOptions(),
+            _logger.Object);
+
+        sut.Should().Throw<ArgumentNullException>().WithParameterName("graphEntityIngestionService");
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrowArgumentNullException_WhenBlobStorageOptionsAreNull() {
+        var sut = () => new IngestionJobService(
+            _repository.Object,
+            _blobStorage.Object,
+            _pipelineService.Object,
+            _graphEntityIngestionService.Object,
+            null!,
+            CreateIngestionOptions(),
+            _logger.Object);
+
+        sut.Should().Throw<ArgumentNullException>().WithParameterName("blobStorageOptions");
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrowArgumentNullException_WhenIngestionOptionsAreNull() {
+        var sut = () => new IngestionJobService(
+            _repository.Object,
+            _blobStorage.Object,
+            _pipelineService.Object,
+            _graphEntityIngestionService.Object,
+            CreateBlobOptions(),
+            null!,
+            _logger.Object);
+
+        sut.Should().Throw<ArgumentNullException>().WithParameterName("options");
     }
 
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull() {
-        var opts = Options.Create(new IngestionOptions());
-        var act = () => new IngestionJobService(
-            _repository.Object, _fabricPipeline.Object, _localPipeline.Object, opts, null!);
-        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        var sut = () => new IngestionJobService(
+            _repository.Object,
+            _blobStorage.Object,
+            _pipelineService.Object,
+            _graphEntityIngestionService.Object,
+            CreateBlobOptions(),
+            CreateIngestionOptions(),
+            null!);
+
+        sut.Should().Throw<ArgumentNullException>().WithParameterName("logger");
     }
 
-    #endregion
-
-    #region Dual-mode branching: StartJobAsync
-
     [Fact]
-    public async Task ProcessingMode_Local_ShouldCallLocalPipeline() {
-        // Arrange
-        _localPipeline
+    public async Task StartJobAsync_ShouldTriggerPipelineAndReturnProcessingResponse() {
+        _pipelineService
             .Setup(p => p.TriggerPipelineAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                "upload-abc",
+                "manual-pdf",
+                "pdf-pipeline-id",
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestRunId);
 
-        var sut = CreateSut(ProcessingMode.Local);
+        var sut = CreateSut();
         var request = new IngestionJobStartRequest {
             UploadId = "upload-abc",
             DocumentType = "manual-pdf"
         };
 
-        // Act
         var response = await sut.StartJobAsync(request, TestUserId);
 
-        // Assert
-        response.Should().NotBeNull();
         response.FabricRunId.Should().Be(TestRunId);
         response.Status.Should().Be(IngestionJobStatus.Processing.ToString());
-
-        _localPipeline.Verify(
-            p => p.TriggerPipelineAsync("upload-abc", "manual-pdf", It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-
-        _fabricPipeline.Verify(
-            p => p.TriggerPipelineAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+        _pipelineService.VerifyAll();
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task ProcessingMode_Fabric_ShouldCallFabricPipeline() {
-        // Arrange
-        _fabricPipeline
-            .Setup(p => p.TriggerPipelineAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(TestRunId);
-
-        var sut = CreateSut(ProcessingMode.Fabric);
-        var request = new IngestionJobStartRequest {
-            UploadId = "upload-xyz",
-            DocumentType = "spec-dataset"
-        };
-
-        // Act
-        var response = await sut.StartJobAsync(request, TestUserId);
-
-        // Assert
-        response.Should().NotBeNull();
-        response.FabricRunId.Should().Be(TestRunId);
-        response.Status.Should().Be(IngestionJobStatus.Processing.ToString());
-
-        _fabricPipeline.Verify(
-            p => p.TriggerPipelineAsync("upload-xyz", "spec-dataset", It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-
-        _localPipeline.Verify(
-            p => p.TriggerPipelineAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    #endregion
-
-    #region GetJobStatusAsync
-
-    [Fact]
-    public async Task GetJobStatus_Local_ShouldReturnStatusFromRepository() {
-        // Arrange — repository returns a completed job.
+    public async Task GetJobStatusAsync_ShouldRefreshActiveJobStatusFromPipelineService() {
         var jobId = Guid.NewGuid();
         var job = new IngestionJob {
             IngestionJobId = jobId,
-            Status = IngestionJobStatus.Completed,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "upload-abc"
+            Status = IngestionJobStatus.Processing,
+            InputType = IngestionJobType.StructuredSpecification,
+            InputRef = "upload-abc",
+            FabricRunId = TestRunId
         };
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
 
-        var sut = CreateSut(ProcessingMode.Local);
+        _pipelineService
+            .Setup(p => p.GetRunStatusAsync(TestRunId, "csv-pipeline-id", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("completed");
 
-        // Act
+        var sut = CreateSut();
+
         var response = await sut.GetJobStatusAsync(jobId, TestUserId);
 
-        // Assert
         response.Should().NotBeNull();
         response!.Status.Should().Be(IngestionJobStatus.Completed.ToString());
-        response.JobId.Should().Be(jobId);
+        response.CompletedAtUtc.Should().NotBeNull();
+        _repository.Verify(r => r.UpdateAsync(It.Is<IngestionJob>(j =>
+            j.IngestionJobId == jobId &&
+            j.Status == IngestionJobStatus.Completed &&
+            j.CompletedAtUtc.HasValue), It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    #endregion
+    [Fact]
+    public async Task GetJobStatusAsync_BikeGraphCompletion_ShouldImportGraphEntitiesBeforeCompleting() {
+        var jobId = Guid.NewGuid();
+        var job = new IngestionJob {
+            IngestionJobId = jobId,
+            Status = IngestionJobStatus.Processing,
+            InputType = IngestionJobType.BikeGraph,
+            InputRef = "upload-graph-001",
+            FabricRunId = TestRunId
+        };
 
-    #region Helpers
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
 
-    private IngestionJobService CreateSut(ProcessingMode mode) {
-        var opts = Options.Create(new IngestionOptions {
-            Mode = mode,
-            PdfPipelineId = "pdf-pipeline-id",
-            CsvPipelineId = "csv-pipeline-id"
-        });
+        _pipelineService
+            .Setup(p => p.GetRunStatusAsync(TestRunId, string.Empty, It.IsAny<CancellationToken>()))
+            .ReturnsAsync("completed");
 
+        _blobStorage
+            .Setup(b => b.ExistsAsync("raw-uploads", "graph-entities/upload-graph-001/entities.json", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var sut = CreateSut();
+
+        var response = await sut.GetJobStatusAsync(jobId, TestUserId);
+
+        response.Should().NotBeNull();
+        response!.Status.Should().Be(IngestionJobStatus.Completed.ToString());
+        _graphEntityIngestionService.Verify(g => g.IngestAsync("upload-graph-001", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    private IngestionJobService CreateSut() {
         return new IngestionJobService(
             _repository.Object,
-            _fabricPipeline.Object,
-            _localPipeline.Object,
-            opts,
+            _blobStorage.Object,
+            _pipelineService.Object,
+            _graphEntityIngestionService.Object,
+            CreateBlobOptions(),
+            CreateIngestionOptions(),
             _logger.Object);
     }
 
-    #endregion
+    private static IOptions<BlobStorageOptions> CreateBlobOptions() =>
+        Options.Create(new BlobStorageOptions {
+            RawUploadsContainer = "raw-uploads"
+        });
+
+    private static IOptions<IngestionOptions> CreateIngestionOptions() =>
+        Options.Create(new IngestionOptions {
+            Mode = ProcessingMode.Local,
+            PdfPipelineId = "pdf-pipeline-id",
+            CsvPipelineId = "csv-pipeline-id"
+        });
 }

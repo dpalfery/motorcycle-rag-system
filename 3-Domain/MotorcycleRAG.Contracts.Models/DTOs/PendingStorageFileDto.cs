@@ -12,4 +12,6 @@ public sealed record PendingStorageFileDto
     public DateTimeOffset LastModifiedUtc { get; init; }
     public string? LastKnownJobStatus { get; init; }
     public string? FailureReason { get; init; }
+    public string? GraphImportStatus { get; init; }
+    public string? GraphImportFailureReason { get; init; }
 }

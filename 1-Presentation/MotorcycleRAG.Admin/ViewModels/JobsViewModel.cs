@@ -48,6 +48,8 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         CancelJobCommand = new Command<string>(async executionId => await CancelJobAsync(executionId).ConfigureAwait(false));
         ProcessPendingStorageFileCommand = new Command<PendingStorageFileViewModel>(
             async pendingFile => await ProcessPendingStorageFileAsync(pendingFile).ConfigureAwait(false));
+        ProcessPendingStorageFileAsGraphCommand = new Command<PendingStorageFileViewModel>(
+            async pendingFile => await ProcessPendingStorageFileAsync(pendingFile, "bike-graph").ConfigureAwait(false));
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
@@ -77,6 +79,9 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
     public ICommand ProcessPendingStorageFileCommand { get; }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
+    public ICommand ProcessPendingStorageFileAsGraphCommand { get; }
 
     public async Task InitializeAsync() {
         var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
@@ -172,7 +177,9 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
                         SizeBytes = pendingFile.SizeBytes,
                         LastModifiedUtc = pendingFile.LastModifiedUtc,
                         LastKnownJobStatus = pendingFile.LastKnownJobStatus,
-                        FailureReason = pendingFile.FailureReason
+                        FailureReason = pendingFile.FailureReason,
+                        GraphImportStatus = pendingFile.GraphImportStatus,
+                        GraphImportFailureReason = pendingFile.GraphImportFailureReason
                     });
                 }
 
@@ -270,6 +277,10 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     }
 
     private async Task ProcessPendingStorageFileAsync(PendingStorageFileViewModel? pendingFile) {
+        await ProcessPendingStorageFileAsync(pendingFile, pendingFile?.DocumentType ?? string.Empty).ConfigureAwait(false);
+    }
+
+    private async Task ProcessPendingStorageFileAsync(PendingStorageFileViewModel? pendingFile, string workflowDocumentType) {
         if (pendingFile is null || pendingFile.IsProcessing) {
             return;
         }
@@ -278,36 +289,46 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         try {
             var request = new IngestionJobStartRequest {
                 UploadId = pendingFile.UploadId,
-                DocumentType = pendingFile.DocumentType,
-                Configuration = CreateDefaultIngestionConfiguration()
+                DocumentType = workflowDocumentType,
+                Configuration = CreateDefaultIngestionConfiguration(workflowDocumentType)
             };
 
             var result = await _apiClient.StartIngestionJobAsync(request, default).ConfigureAwait(false);
+            var isGraphImport = string.Equals(workflowDocumentType, "bike-graph", StringComparison.OrdinalIgnoreCase);
+            var title = isGraphImport ? "Graph Import Queued" : "Ingestion Queued";
+            var message = isGraphImport
+                ? $"Queued graph import for {pendingFile.BlobName} with job {result.JobId}."
+                : $"Queued {pendingFile.BlobName} with job {result.JobId}.";
 
             var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
             if (window?.Page != null) {
                 await window.Page.DisplayAlertAsync(
-                    "Ingestion Queued",
-                    $"Queued {pendingFile.BlobName} with job {result.JobId}.",
+                    title,
+                    message,
                     "OK").ConfigureAwait(false);
             }
 
             await LoadJobsAsync().ConfigureAwait(false);
         }
         catch (UnauthorizedAccessException ex) {
-            _logger.LogWarning(ex, "User not authorized to process pending storage file {UploadId}", pendingFile.UploadId);
+            _logger.LogWarning(ex, "User not authorized to process pending storage file {UploadId} for workflow {WorkflowDocumentType}", pendingFile.UploadId, workflowDocumentType);
         }
         catch (HttpRequestException ex) {
-            var message = "Failed to queue the ingestion job.";
+            var isGraphImport = string.Equals(workflowDocumentType, "bike-graph", StringComparison.OrdinalIgnoreCase);
+            var message = isGraphImport
+                ? "Failed to queue the graph import job."
+                : "Failed to queue the ingestion job.";
             if (ex.StatusCode == HttpStatusCode.BadRequest) {
-                message = "The API rejected the ingestion request. Check the file type and current ingestion configuration.";
+                message = isGraphImport
+                    ? "The API rejected the graph import request. Check the upload ID and current processing mode."
+                    : "The API rejected the ingestion request. Check the file type and current ingestion configuration.";
             }
 
             await ErrorPresenter.ShowErrorAsync("Queue Failed", message).ConfigureAwait(false);
-            _logger.LogWarning(ex, "Failed to queue pending storage file {UploadId}", pendingFile.UploadId);
+            _logger.LogWarning(ex, "Failed to queue pending storage file {UploadId} for workflow {WorkflowDocumentType}", pendingFile.UploadId, workflowDocumentType);
         }
         catch (OperationCanceledException ex) {
-            _logger.LogWarning(ex, "Queue operation timed out for upload {UploadId}", pendingFile.UploadId);
+            _logger.LogWarning(ex, "Queue operation timed out for upload {UploadId} and workflow {WorkflowDocumentType}", pendingFile.UploadId, workflowDocumentType);
         }
         finally {
             pendingFile.IsProcessing = false;
@@ -366,7 +387,11 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         return true;
     }
 
-    private static IngestionJobConfiguration CreateDefaultIngestionConfiguration() {
+    private static IngestionJobConfiguration? CreateDefaultIngestionConfiguration(string documentType) {
+        if (string.Equals(documentType, "bike-graph", StringComparison.OrdinalIgnoreCase)) {
+            return null;
+        }
+
         return new IngestionJobConfiguration {
             ExtractGraphRelationships = true,
             OcrEnabled = true

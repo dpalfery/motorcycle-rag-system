@@ -24,6 +24,10 @@ internal sealed class PendingStorageFileViewModel : INotifyPropertyChanged {
 
     public string? FailureReason { get; set; }
 
+    public string? GraphImportStatus { get; set; }
+
+    public string? GraphImportFailureReason { get; set; }
+
     public bool IsProcessing {
         get => _isProcessing;
         set {
@@ -33,14 +37,24 @@ internal sealed class PendingStorageFileViewModel : INotifyPropertyChanged {
 
             _isProcessing = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsProcessing)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartPrimaryAction)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartGraphImport)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProcessButtonText)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GraphImportButtonText)));
         }
     }
 
     public bool HasFailureReason => !string.IsNullOrWhiteSpace(FailureReason);
 
-    public string DisplayStatus => string.IsNullOrWhiteSpace(LastKnownJobStatus)
-        ? "Not started"
-        : $"Last attempt: {LastKnownJobStatus}";
+    public bool HasGraphWorkflow => string.Equals(DocumentType, "spec-dataset", StringComparison.OrdinalIgnoreCase);
+
+    public bool HasGraphImportFailureReason => !string.IsNullOrWhiteSpace(GraphImportFailureReason);
+
+    public string DisplayStatus => BuildWorkflowStatusText(
+        HasGraphWorkflow ? "Search ingest" : "Ingestion",
+        LastKnownJobStatus);
+
+    public string GraphWorkflowStatusText => BuildWorkflowStatusText("Graph import", GraphImportStatus);
 
     public string DocumentTypeLabel => DocumentType switch {
         "manual-pdf" => "Manual PDF",
@@ -50,12 +64,72 @@ internal sealed class PendingStorageFileViewModel : INotifyPropertyChanged {
 
     public string SizeLabel => FormatFileSize(SizeBytes);
 
-    public string ProcessButtonText => IsRetry ? "Retry" : "Process";
+    public string ProcessButtonText => BuildPrimaryActionButtonText();
 
-    private bool IsRetry => !string.IsNullOrWhiteSpace(LastKnownJobStatus);
+    public string GraphImportButtonText => BuildGraphActionButtonText();
+
+    public bool CanStartPrimaryAction => !IsProcessing && CanStartWorkflow(LastKnownJobStatus);
+
+    public bool CanStartGraphImport => HasGraphWorkflow && !IsProcessing && CanStartWorkflow(GraphImportStatus);
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    private string BuildPrimaryActionButtonText() {
+        if (string.IsNullOrWhiteSpace(LastKnownJobStatus)) {
+            return HasGraphWorkflow ? "Search Ingest" : "Process";
+        }
+
+        if (IsWorkflowRunning(LastKnownJobStatus)) {
+            return HasGraphWorkflow ? "Search Running" : "Running";
+        }
+
+        if (IsWorkflowCompleted(LastKnownJobStatus)) {
+            return HasGraphWorkflow ? "Search Done" : "Done";
+        }
+
+        return HasGraphWorkflow ? "Retry Search" : "Retry";
+    }
+
+    private string BuildGraphActionButtonText(string? workflowStatus = null) {
+        var status = workflowStatus ?? GraphImportStatus;
+        if (string.IsNullOrWhiteSpace(status)) {
+            return "Graph Import";
+        }
+
+        if (IsWorkflowRunning(status)) {
+            return "Graph Running";
+        }
+
+        if (IsWorkflowCompleted(status)) {
+            return "Graph Done";
+        }
+
+        return "Retry Graph";
+    }
+
+    private static bool CanStartWorkflow(string? workflowStatus) {
+        return string.IsNullOrWhiteSpace(workflowStatus)
+               || string.Equals(workflowStatus, "Failed", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(workflowStatus, "Cancelled", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsWorkflowRunning(string workflowStatus) {
+        return string.Equals(workflowStatus, "Queued", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(workflowStatus, "Processing", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(workflowStatus, "Indexing", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsWorkflowCompleted(string workflowStatus) {
+        return string.Equals(workflowStatus, "Completed", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(workflowStatus, "PartiallyCompleted", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string BuildWorkflowStatusText(string workflowName, string? workflowStatus) {
+        return string.IsNullOrWhiteSpace(workflowStatus)
+            ? $"{workflowName}: Not started"
+            : $"{workflowName}: {workflowStatus}";
+    }
 
     private static string FormatFileSize(long sizeBytes) {
         const double kilobyte = 1024d;

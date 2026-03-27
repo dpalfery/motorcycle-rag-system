@@ -46,6 +46,7 @@ def _clear_jobs():
 def blob_writer():
     bw = MagicMock()
     bw.upload_json = AsyncMock(return_value=None)
+    bw.download_blob = AsyncMock(return_value=MINIMAL_CSV.encode("utf-8"))
     return bw
 
 
@@ -88,6 +89,12 @@ class TestProcessAsync:
             upload_id=str(uuid.uuid4()), local_file_path=str(csv_path)
         )
         uuid.UUID(job_id)  # raises if not valid UUID
+
+    async def test_supports_blob_backed_processing(self, processor):
+        job_id = await processor.process_async(
+            upload_id=str(uuid.uuid4()), blob_container="raw-uploads"
+        )
+        uuid.UUID(job_id)
 
     async def test_job_registered_immediately(self, processor):
         csv_path = _write_csv(MINIMAL_CSV)
@@ -157,7 +164,9 @@ class TestBackgroundProcessing:
 
         call_args = blob_writer.upload_json.call_args
         assert call_args is not None
-        _, blob_path, _ = call_args.args
+        container, blob_path, _ = call_args.args
+        assert container == "raw-uploads"
+        assert blob_path == f"graph-entities/{upload_id}/entities.json"
         assert upload_id in blob_path
 
     async def test_empty_csv_results_in_failed(self, processor):

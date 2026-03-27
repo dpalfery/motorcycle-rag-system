@@ -98,6 +98,23 @@ public sealed class LocalPipelineServiceTests {
     }
 
     [Fact]
+    public async Task TriggerPipelineAsync_WithBikeGraphDocumentType_ShouldPostToBikeGraphEndpoint() {
+        // Arrange
+        _handler
+            .SetupRequest(HttpMethod.Post, $"{LocalEndpoint}/process/bike-graph")
+            .ReturnsResponse(HttpStatusCode.OK, """{"job_id": "job-graph-789"}""", "application/json");
+
+        var sut = CreateSut();
+
+        // Act
+        var runId = await sut.TriggerPipelineAsync("upload-graph", "bike-graph", "ignored-pipeline-id");
+
+        // Assert
+        runId.Should().Be("job-graph-789");
+        _handler.VerifyRequest(HttpMethod.Post, $"{LocalEndpoint}/process/bike-graph", Times.Once());
+    }
+
+    [Fact]
     public async Task TriggerPipelineAsync_WithNonSuccessStatusCode_ShouldThrowInvalidOperationException() {
         // Arrange
         _handler

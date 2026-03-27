@@ -31,7 +31,7 @@
                     <Label Text="Pending Storage Files"
                            FontSize="20"
                            FontAttributes="Bold" />
-                    <Label Text="Blob-backed files appear here until they finish ingestion. Use Process to queue a new ingestion run."
+                    <Label Text="Blob-backed files appear here while search ingestion or graph import is still outstanding."
                            FontSize="12"
                            TextColor="Gray" />
 
@@ -42,7 +42,7 @@
                                 <Label Text="No pending storage files found"
                                        FontSize="16"
                                        HorizontalOptions="Center" />
-                                <Label Text="Files already queued or completed will not show here."
+                                <Label Text="Files disappear once their remaining search and graph actions are either complete or already running."
                                        FontSize="12"
                                        TextColor="Gray"
                                        HorizontalOptions="Center" />
@@ -54,7 +54,7 @@
                                        Margin="0,5"
                                        Padding="15"
                                        CornerRadius="8">
-                                    <Grid RowDefinitions="Auto,Auto,Auto"
+                                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
                                           ColumnDefinitions="*,Auto">
 
                                         <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="5">
@@ -75,15 +75,26 @@
                                             </HorizontalStackLayout>
                                         </VerticalStackLayout>
 
-                                        <Button Grid.Row="0" Grid.Column="1"
-                                                Text="{Binding ProcessButtonText}"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ProcessPendingStorageFileCommand}"
-                                                CommandParameter="{Binding .}"
-                                                BackgroundColor="{StaticResource Primary}"
-                                                TextColor="White"
-                                                FontSize="11"
-                                                Padding="10,5"
-                                                IsEnabled="{Binding IsProcessing, Converter={StaticResource InverseBoolConverter}}" />
+                                        <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="6">
+                                            <Button Text="{Binding ProcessButtonText}"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ProcessPendingStorageFileCommand}"
+                                                    CommandParameter="{Binding .}"
+                                                    BackgroundColor="{StaticResource Primary}"
+                                                    TextColor="White"
+                                                    FontSize="11"
+                                                    Padding="10,5"
+                                                    IsEnabled="{Binding CanStartPrimaryAction}" />
+
+                                            <Button Text="{Binding GraphImportButtonText}"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ProcessPendingStorageFileAsGraphCommand}"
+                                                    CommandParameter="{Binding .}"
+                                                    BackgroundColor="DarkSlateBlue"
+                                                    TextColor="White"
+                                                    FontSize="11"
+                                                    Padding="10,5"
+                                                    IsVisible="{Binding HasGraphWorkflow}"
+                                                    IsEnabled="{Binding CanStartGraphImport}" />
+                                        </VerticalStackLayout>
 
                                         <VerticalStackLayout Grid.Row="1" Grid.ColumnSpan="2" Spacing="3" Margin="0,10,0,0">
                                             <Label Text="{Binding UploadId, StringFormat='Upload ID: {0}'}"
@@ -107,6 +118,17 @@
                                                TextColor="Orange"
                                                Margin="0,8,0,0"
                                                IsVisible="{Binding HasFailureReason}" />
+
+                                        <VerticalStackLayout Grid.Row="3" Grid.ColumnSpan="2" Spacing="3" Margin="0,8,0,0"
+                                                             IsVisible="{Binding HasGraphWorkflow}">
+                                            <Label Text="{Binding GraphWorkflowStatusText}"
+                                                   FontSize="11"
+                                                   TextColor="Gray" />
+                                            <Label Text="{Binding GraphImportFailureReason, StringFormat='Last graph failure: {0}'}"
+                                                   FontSize="11"
+                                                   TextColor="Orange"
+                                                   IsVisible="{Binding HasGraphImportFailureReason}" />
+                                        </VerticalStackLayout>
                                     </Grid>
                                 </Frame>
                             </DataTemplate>
@@ -118,7 +140,7 @@
                     <Label Text="Ingestion Jobs"
                            FontSize="20"
                            FontAttributes="Bold" />
-                    <Label Text="Queued and recent storage ingestion runs appear here with their current status."
+                    <Label Text="Queued and recent ingestion or graph-import runs appear here with their current status."
                            FontSize="12"
                            TextColor="Gray" />
 

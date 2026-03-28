@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -60,6 +61,45 @@ internal sealed class LocalProcessorService : ILocalProcessorService
 
         return await response.Content.ReadFromJsonAsync<List<LocalProcessorJobResponse>>(cancellationToken: cancellationToken).ConfigureAwait(false)
                ?? [];
+    }
+
+    public async Task<int> ClearFinishedJobsAsync(CancellationToken cancellationToken = default)
+    {
+        var endpoint = GetEndpoint();
+        using var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, new Uri(endpoint, "/jobs"));
+        using var deleteResponse = await _httpClient.SendAsync(deleteRequest, cancellationToken).ConfigureAwait(false);
+        if (deleteResponse.StatusCode == HttpStatusCode.MethodNotAllowed)
+        {
+            return await ClearFinishedJobsWithPostFallbackAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (deleteResponse.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new InvalidOperationException("The local processor cleanup endpoint is unavailable. Restart the local processor and try again.");
+        }
+
+        deleteResponse.EnsureSuccessStatusCode();
+
+        return await ReadDeletedJobCountAsync(deleteResponse, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<int> ClearFinishedJobsWithPostFallbackAsync(Uri endpoint, CancellationToken cancellationToken)
+    {
+        using var postResponse = await _httpClient.PostAsync(new Uri(endpoint, "/jobs/cleanup"), content: null, cancellationToken).ConfigureAwait(false);
+        if (postResponse.StatusCode == HttpStatusCode.MethodNotAllowed || postResponse.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new InvalidOperationException("The local processor is running an older API version. Restart it and try clearing finished jobs again.");
+        }
+
+        postResponse.EnsureSuccessStatusCode();
+
+        return await ReadDeletedJobCountAsync(postResponse, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<int> ReadDeletedJobCountAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var payload = await response.Content.ReadFromJsonAsync<LocalProcessorJobCleanupResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
+        return payload?.DeletedCount ?? 0;
     }
 
     public async Task<LocalProcessorHealthResponse> StartAsync(CancellationToken cancellationToken = default)

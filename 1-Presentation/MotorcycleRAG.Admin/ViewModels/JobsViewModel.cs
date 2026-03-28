@@ -32,6 +32,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private bool _isStartingLocalGraphJob;
     private bool _isStartingLocalProcessor;
     private bool _isStoppingLocalProcessor;
+    private bool _isClearingLocalProcessorJobs;
     private bool _isLocalProcessorRunning;
     private bool _isLocalProcessorAcceptingWork;
     private bool _autoPollIngestionJobsEnabled = true;
@@ -59,6 +60,8 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         IngestionJobs = new ObservableCollection<IngestionJobHistoryViewModel>();
         Jobs = new ObservableCollection<JobViewModel>();
         LocalProcessorJobs = new ObservableCollection<LocalProcessorJobViewModel>();
+        LocalProcessorJobs.CollectionChanged += (_, _) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanClearLocalProcessorJobs)));
 
         LoadJobsCommand = new AsyncRelayCommand(() => LoadJobsAsync(forceApiRetry: true));
         CancelJobCommand = new AsyncRelayCommand<string>(CancelJobAsync);
@@ -68,6 +71,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         StartLocalGraphJobCommand = new AsyncRelayCommand(StartLocalGraphJobAsync);
         StartLocalProcessorCommand = new AsyncRelayCommand(StartLocalProcessorAsync);
         StopLocalProcessorCommand = new AsyncRelayCommand(StopLocalProcessorAsync);
+        ClearLocalProcessorJobsCommand = new AsyncRelayCommand(ClearLocalProcessorJobsAsync);
         ImportLocalProcessorJobCommand = new AsyncRelayCommand<LocalProcessorJobViewModel>(ImportLocalProcessorJobAsync);
     }
 
@@ -92,6 +96,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalGraphJob)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalProcessor)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStopLocalProcessor)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanClearLocalProcessorJobs)));
             }
         }
     }
@@ -135,7 +140,21 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsStoppingLocalProcessor)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalProcessor)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStopLocalProcessor)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanClearLocalProcessorJobs)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalProcessorStateLabel)));
+        }
+    }
+
+    public bool IsClearingLocalProcessorJobs {
+        get => _isClearingLocalProcessorJobs;
+        private set {
+            if (_isClearingLocalProcessorJobs == value) {
+                return;
+            }
+
+            _isClearingLocalProcessorJobs = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsClearingLocalProcessorJobs)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanClearLocalProcessorJobs)));
         }
     }
 
@@ -150,6 +169,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsLocalProcessorRunning)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalProcessor)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStopLocalProcessor)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanClearLocalProcessorJobs)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalProcessorStateLabel)));
         }
     }
@@ -248,6 +268,13 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         !IsStoppingLocalProcessor &&
         IsLocalProcessorRunning;
 
+    public bool CanClearLocalProcessorJobs =>
+        !IsLoading &&
+        !IsClearingLocalProcessorJobs &&
+        !IsStoppingLocalProcessor &&
+        IsLocalProcessorRunning &&
+        LocalProcessorJobs.Any(job => !job.IsRunning);
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
     public ICommand LoadJobsCommand { get; }
 
@@ -266,6 +293,8 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     public ICommand StartLocalProcessorCommand { get; }
 
     public ICommand StopLocalProcessorCommand { get; }
+
+    public ICommand ClearLocalProcessorJobsCommand { get; }
 
     public ICommand ImportLocalProcessorJobCommand { get; }
 
@@ -592,6 +621,46 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         }
         finally {
             IsStoppingLocalProcessor = false;
+        }
+    }
+
+    private async Task ClearLocalProcessorJobsAsync() {
+        var clearableJobCount = LocalProcessorJobs.Count(job => !job.IsRunning);
+        if (clearableJobCount == 0) {
+            return;
+        }
+
+        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
+        if (window?.Page is null) {
+            return;
+        }
+
+        var confirm = await window.Page.DisplayAlertAsync(
+            "Clear Finished Local Jobs",
+            clearableJobCount == 1
+                ? "Remove the finished local processor job from this list? Active jobs will be kept."
+                : $"Remove {clearableJobCount} finished local processor jobs from this list? Active jobs will be kept.",
+            "Clear Finished",
+            "Cancel");
+
+        if (!confirm) {
+            return;
+        }
+
+        IsClearingLocalProcessorJobs = true;
+
+        try {
+            _ = await _localProcessorService.ClearFinishedJobsAsync();
+            await RefreshLocalProcessorSectionAsync();
+        }
+        catch (Exception ex) {
+            await ErrorPresenter.ShowErrorAsync(
+                "Cleanup Failed",
+                ErrorPresenter.SanitizeErrorMessage(ex.Message));
+            _logger.LogError(ex, "Failed to clear finished local processor jobs.");
+        }
+        finally {
+            IsClearingLocalProcessorJobs = false;
         }
     }
 

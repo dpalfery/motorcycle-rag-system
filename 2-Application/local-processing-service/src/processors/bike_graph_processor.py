@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 # Deterministic UUID namespace — stable across runs so re-processing is idempotent.
 _NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+_ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
 
 _jobs: dict[str, dict] = {}
 
@@ -121,6 +122,18 @@ class BikeGraphProcessor:
 
     async def list_jobs(self) -> list[dict]:
         return list(_jobs.values())
+
+    async def clear_terminal_jobs(self) -> int:
+        terminal_job_ids = [
+            job_id
+            for job_id, job in _jobs.items()
+            if str(job.get("status", "")).strip().lower() not in _ACTIVE_JOB_STATUSES
+        ]
+
+        for job_id in terminal_job_ids:
+            _jobs.pop(job_id, None)
+
+        return len(terminal_job_ids)
 
     # ------------------------------------------------------------------
     # Background processing

@@ -8,6 +8,8 @@ internal interface ILocalProcessorService
 
     Task<IReadOnlyList<LocalProcessorJobResponse>> GetJobsAsync(CancellationToken cancellationToken = default);
 
+    Task<int> ClearFinishedJobsAsync(CancellationToken cancellationToken = default);
+
     Task<LocalProcessorHealthResponse> StartAsync(CancellationToken cancellationToken = default);
 
     Task StopAsync(CancellationToken cancellationToken = default);

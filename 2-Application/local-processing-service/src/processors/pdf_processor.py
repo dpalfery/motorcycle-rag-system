@@ -16,6 +16,7 @@ from storage.blob_writer import BlobWriter
 from search.azure_search_uploader import AzureSearchDirectUploader
 
 logger = logging.getLogger(__name__)
+_ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
 
 _jobs: dict[str, dict] = {}
 
@@ -61,6 +62,18 @@ class PDFProcessor:
 
     async def list_jobs(self) -> list[dict]:
         return list(_jobs.values())
+
+    async def clear_terminal_jobs(self) -> int:
+        terminal_job_ids = [
+            job_id
+            for job_id, job in _jobs.items()
+            if str(job.get("status", "")).strip().lower() not in _ACTIVE_JOB_STATUSES
+        ]
+
+        for job_id in terminal_job_ids:
+            _jobs.pop(job_id, None)
+
+        return len(terminal_job_ids)
 
     async def _process_pdf(
         self,

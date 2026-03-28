@@ -62,6 +62,7 @@ bike_graph_processor = BikeGraphProcessor(blob_writer=blob_writer)
 
 shutdown_requested = False
 uvicorn_server: uvicorn.Server | None = None
+_ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
 
 
 async def _list_all_jobs() -> list[dict]:
@@ -74,12 +75,11 @@ async def _list_all_jobs() -> list[dict]:
 
 
 async def _count_active_jobs() -> int:
-    active_statuses = {"queued", "processing", "running", "inprogress"}
     jobs = await _list_all_jobs()
     return sum(
         1
         for job in jobs
-        if str(job.get("status", "")).strip().lower() in active_statuses
+        if str(job.get("status", "")).strip().lower() in _ACTIVE_JOB_STATUSES
     )
 
 
@@ -310,6 +310,27 @@ async def get_job_status(job_id: str):
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred"
         )
+
+
+@app.delete("/jobs")
+@app.post("/jobs/cleanup")
+async def clear_finished_jobs():
+    """Delete completed and failed jobs while preserving active work."""
+    deleted_count = 0
+    deleted_count += await pdf_processor.clear_terminal_jobs()
+    deleted_count += await csv_processor.clear_terminal_jobs()
+    deleted_count += await bike_graph_processor.clear_terminal_jobs()
+
+    remaining_jobs = len(await _list_all_jobs())
+    active_jobs = await _count_active_jobs()
+
+    return {
+        "status": "ok",
+        "deleted_count": deleted_count,
+        "remaining_jobs": remaining_jobs,
+        "active_jobs": active_jobs,
+        "message": f"Deleted {deleted_count} finished jobs",
+    }
 
 
 @app.post("/control/shutdown")

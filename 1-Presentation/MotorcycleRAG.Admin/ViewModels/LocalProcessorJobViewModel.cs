@@ -49,7 +49,9 @@ internal sealed class LocalProcessorJobViewModel : INotifyPropertyChanged
 
     public bool IsRunning =>
         string.Equals(Status, "processing", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(Status, "queued", StringComparison.OrdinalIgnoreCase);
+        string.Equals(Status, "queued", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Status, "running", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Status, "inprogress", StringComparison.OrdinalIgnoreCase);
 
     public bool HasGraphImportFailureReason => !string.IsNullOrWhiteSpace(GraphImportFailureReason);
 

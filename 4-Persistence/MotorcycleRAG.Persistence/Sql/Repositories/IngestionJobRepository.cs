@@ -61,9 +61,9 @@ public class IngestionJobRepository : IIngestionJobRepository
                 StartedAtUtc = job.StartedAtUtc?.UtcDateTime,
                 CompletedAtUtc = job.CompletedAtUtc?.UtcDateTime,
                 job.CreatedBySubject,
-                Status = (int)job.Status,
+                Status = job.Status.ToString(),
                 job.FailureReason,
-                InputType = (int)job.InputType,
+                InputType = job.InputType.ToString(),
                 job.InputRef,
                 job.ComputeProvider,
                 job.FabricRunId,
@@ -150,9 +150,9 @@ public class IngestionJobRepository : IIngestionJobRepository
                 StartedAtUtc = job.StartedAtUtc?.UtcDateTime,
                 CompletedAtUtc = job.CompletedAtUtc?.UtcDateTime,
                 job.CreatedBySubject,
-                Status = (int)job.Status,
+                Status = job.Status.ToString(),
                 job.FailureReason,
-                InputType = (int)job.InputType,
+                InputType = job.InputType.ToString(),
                 job.InputRef,
                 job.ComputeProvider,
                 job.FabricRunId,
@@ -195,7 +195,7 @@ public class IngestionJobRepository : IIngestionJobRepository
             await connection.ExecuteAsync(new CommandDefinition(sql, new
             {
                 IngestionJobId = ingestionJobId,
-                Status = (int)status,
+                Status = status.ToString(),
                 FailureReason = failureReason
             }, cancellationToken: cancellationToken));
 
@@ -224,7 +224,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [MissingPagesJson], [MetricsJson]
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
-            ORDER BY [CreatedAtUtc] DESC;
+            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
 
         try
@@ -259,14 +259,14 @@ public class IngestionJobRepository : IIngestionJobRepository
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
               AND [InputType] = @InputType
-            ORDER BY [CreatedAtUtc] DESC;
+            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
 
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
             return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
-                new CommandDefinition(sql, new { InputRef = inputRef, InputType = (int)inputType }, cancellationToken: cancellationToken));
+                new CommandDefinition(sql, new { InputRef = inputRef, InputType = inputType.ToString() }, cancellationToken: cancellationToken));
         }
         catch (Exception ex)
         {
@@ -292,7 +292,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
                 [MissingPagesJson], [MetricsJson]
             FROM [dbo].[IngestionJobs]
-            ORDER BY [CreatedAtUtc] DESC;
+            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
 
         try
@@ -323,7 +323,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                    [MissingPagesJson], [MetricsJson]
             FROM [dbo].[IngestionJobs]
             WHERE [ManualDocumentId] = @ManualDocumentId
-            ORDER BY [CreatedAtUtc] DESC;
+            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
 
         try

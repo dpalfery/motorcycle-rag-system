@@ -110,9 +110,27 @@
                 </VerticalStackLayout>
 
                 <VerticalStackLayout Spacing="6">
-                    <Label Text="Local Processor Jobs"
-                           FontSize="20"
-                           FontAttributes="Bold" />
+                    <Grid ColumnDefinitions="*,Auto,Auto"
+                          ColumnSpacing="10">
+                        <Label Grid.Column="0"
+                               Text="Local Processor Jobs"
+                               FontSize="20"
+                               FontAttributes="Bold" />
+
+                        <Button Grid.Column="1"
+                                Text="Clear Finished"
+                                Command="{Binding ClearLocalProcessorJobsCommand}"
+                                BackgroundColor="#5A5A5A"
+                                TextColor="White"
+                                FontSize="11"
+                                Padding="12,6"
+                                IsEnabled="{Binding CanClearLocalProcessorJobs}" />
+
+                        <ActivityIndicator Grid.Column="2"
+                                           IsRunning="{Binding IsClearingLocalProcessorJobs}"
+                                           IsVisible="{Binding IsClearingLocalProcessorJobs}"
+                                           VerticalOptions="Center" />
+                    </Grid>
                     <Label Text="Local graph processing runs appear here while the processor is working on files from this machine. Use Import To Graph after a local bike-graph run completes."
                            FontSize="12"
                            TextColor="Gray" />

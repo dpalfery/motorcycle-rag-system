@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Azure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -46,8 +47,18 @@ public sealed class IngestionJobService : IIngestionJobService {
     /// <inheritdoc />
     public async Task<IReadOnlyList<PendingStorageFileDto>> GetPendingStorageFilesAsync(
         CancellationToken ct = default) {
-        var sourceBlobs = await _blobStorageService.ListAsync(_blobStorageOptions.RawUploadsContainer, ct)
-            .ConfigureAwait(false);
+        IReadOnlyList<BlobObjectDescriptor> sourceBlobs;
+        try {
+            sourceBlobs = await _blobStorageService.ListAsync(_blobStorageOptions.RawUploadsContainer, ct)
+                .ConfigureAwait(false);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 403) {
+            _logger.LogWarning(
+                ex,
+                "Listing pending storage files was denied for container {Container}. Returning an empty result set.",
+                _blobStorageOptions.RawUploadsContainer);
+            return Array.Empty<PendingStorageFileDto>();
+        }
 
         var candidates = new Dictionary<string, PendingStorageFileDto>(StringComparer.OrdinalIgnoreCase);
         foreach (var blob in sourceBlobs) {

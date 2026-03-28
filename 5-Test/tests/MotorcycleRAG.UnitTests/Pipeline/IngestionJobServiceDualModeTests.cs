@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using Azure;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -224,6 +225,19 @@ public sealed class IngestionJobServiceDualModeTests {
         response.Should().NotBeNull();
         response!.Status.Should().Be(IngestionJobStatus.Completed.ToString());
         _graphEntityIngestionService.Verify(g => g.IngestAsync("upload-graph-001", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetPendingStorageFilesAsync_WhenBlobListingIsForbidden_ReturnsEmptyList() {
+        _blobStorage
+            .Setup(b => b.ListAsync("raw-uploads", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(403, "forbidden", "AuthorizationPermissionMismatch", null));
+
+        var sut = CreateSut();
+
+        var result = await sut.GetPendingStorageFilesAsync();
+
+        result.Should().BeEmpty();
     }
 
     private IngestionJobService CreateSut() {

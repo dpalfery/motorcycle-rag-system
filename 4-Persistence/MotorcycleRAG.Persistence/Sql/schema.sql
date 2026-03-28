@@ -228,10 +228,28 @@ IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'IngestionJobs')
 BEGIN
     CREATE TABLE [dbo].[IngestionJobs] (
         [Id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [JobId] NVARCHAR(128) NOT NULL,
-        [JobType] NVARCHAR(50) NOT NULL,
-        [Status] NVARCHAR(50) NOT NULL,
-        [SourceFilePath] NVARCHAR(500) NOT NULL,
+        [IngestionJobId] UNIQUEIDENTIFIER NOT NULL DEFAULT NEWSEQUENTIALID(),
+        [CreatedAtUtc] DATETIME2(7) NOT NULL DEFAULT SYSUTCDATETIME(),
+        [StartedAtUtc] DATETIME2(7) NULL,
+        [CompletedAtUtc] DATETIME2(7) NULL,
+        [CreatedBySubject] NVARCHAR(128) NULL,
+        [Status] NVARCHAR(50) NOT NULL DEFAULT N'Queued',
+        [FailureReason] NVARCHAR(2000) NULL,
+        [InputType] NVARCHAR(50) NOT NULL DEFAULT N'StructuredSpecification',
+        [InputRef] NVARCHAR(500) NOT NULL DEFAULT N'',
+        [ComputeProvider] NVARCHAR(128) NOT NULL DEFAULT N'Unknown',
+        [FabricRunId] NVARCHAR(128) NULL,
+        [ManualDocumentId] UNIQUEIDENTIFIER NULL,
+        [TotalPages] INT NULL,
+        [PagesCapturedViewableCount] INT NULL,
+        [PagesWithSearchableTextCount] INT NULL,
+        [PagesWithOcrTextCount] INT NULL,
+        [PagesWithNativeTextCount] INT NULL,
+        [MissingPagesJson] NVARCHAR(MAX) NULL,
+        [MetricsJson] NVARCHAR(MAX) NULL,
+        [JobId] NVARCHAR(128) NOT NULL DEFAULT CONVERT(NVARCHAR(36), NEWID()),
+        [JobType] NVARCHAR(50) NOT NULL DEFAULT N'unknown',
+        [SourceFilePath] NVARCHAR(500) NOT NULL DEFAULT N'',
         [SourceFileName] NVARCHAR(500) NULL,
         [StartTime] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
         [EndTime] DATETIME2 NULL,
@@ -241,7 +259,6 @@ BEGIN
         [RecordsIndexed] INT NOT NULL DEFAULT 0,
         [RecordsFailed] INT NOT NULL DEFAULT 0,
         [RecordsWithWarnings] INT NOT NULL DEFAULT 0,
-        [MetricsJson] NVARCHAR(MAX) NULL,
         [ErrorsJson] NVARCHAR(MAX) NULL,
         [ErrorMessage] NVARCHAR(2000) NULL,
         [MetadataJson] NVARCHAR(MAX) NULL,
@@ -250,11 +267,279 @@ BEGIN
         CONSTRAINT [UQ_IngestionJobs_JobId] UNIQUE ([JobId])
     );
     
+    CREATE UNIQUE INDEX [IX_IngestionJobs_IngestionJobId] ON [dbo].[IngestionJobs]([IngestionJobId]);
     CREATE INDEX [IX_IngestionJobs_JobId] ON [dbo].[IngestionJobs]([JobId]);
     CREATE INDEX [IX_IngestionJobs_Status] ON [dbo].[IngestionJobs]([Status]);
+    CREATE INDEX [IX_IngestionJobs_InputType] ON [dbo].[IngestionJobs]([InputType]);
+    CREATE INDEX [IX_IngestionJobs_InputRef_InputType] ON [dbo].[IngestionJobs]([InputRef], [InputType]);
+    CREATE INDEX [IX_IngestionJobs_CreatedAtUtc] ON [dbo].[IngestionJobs]([CreatedAtUtc]);
     CREATE INDEX [IX_IngestionJobs_JobType] ON [dbo].[IngestionJobs]([JobType]);
     CREATE INDEX [IX_IngestionJobs_StartTime] ON [dbo].[IngestionJobs]([StartTime]);
     CREATE INDEX [IX_IngestionJobs_UserId] ON [dbo].[IngestionJobs]([UserId]);
+END
+GO
+
+-- Upgrade legacy IngestionJobs deployments in place so the API and schema stay aligned.
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'IngestionJobs')
+BEGIN
+    IF COL_LENGTH('dbo.IngestionJobs', 'IngestionJobId') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [IngestionJobId] UNIQUEIDENTIFIER NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'CreatedAtUtc') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [CreatedAtUtc] DATETIME2(7) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'StartedAtUtc') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [StartedAtUtc] DATETIME2(7) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'CompletedAtUtc') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [CompletedAtUtc] DATETIME2(7) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'CreatedBySubject') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [CreatedBySubject] NVARCHAR(128) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'FailureReason') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [FailureReason] NVARCHAR(2000) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'InputType') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [InputType] NVARCHAR(50) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'InputRef') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [InputRef] NVARCHAR(500) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'ComputeProvider') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [ComputeProvider] NVARCHAR(128) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'FabricRunId') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [FabricRunId] NVARCHAR(128) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'ManualDocumentId') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [ManualDocumentId] UNIQUEIDENTIFIER NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'TotalPages') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [TotalPages] INT NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'PagesCapturedViewableCount') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [PagesCapturedViewableCount] INT NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'PagesWithSearchableTextCount') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [PagesWithSearchableTextCount] INT NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'PagesWithOcrTextCount') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [PagesWithOcrTextCount] INT NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'PagesWithNativeTextCount') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [PagesWithNativeTextCount] INT NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'MissingPagesJson') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [MissingPagesJson] NVARCHAR(MAX) NULL;
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'IngestionJobs')
+BEGIN
+    IF COL_LENGTH('dbo.IngestionJobs', 'JobId') IS NOT NULL
+       AND NOT EXISTS (
+           SELECT 1
+           FROM sys.default_constraints dc
+           INNER JOIN sys.columns c
+               ON c.default_object_id = dc.object_id
+           WHERE c.object_id = OBJECT_ID(N'dbo.IngestionJobs')
+             AND c.name = N'JobId')
+    BEGIN
+        ALTER TABLE [dbo].[IngestionJobs]
+            ADD CONSTRAINT [DF_IngestionJobs_JobId]
+            DEFAULT CONVERT(NVARCHAR(36), NEWID()) FOR [JobId];
+    END
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'JobType') IS NOT NULL
+       AND NOT EXISTS (
+           SELECT 1
+           FROM sys.default_constraints dc
+           INNER JOIN sys.columns c
+               ON c.default_object_id = dc.object_id
+           WHERE c.object_id = OBJECT_ID(N'dbo.IngestionJobs')
+             AND c.name = N'JobType')
+    BEGIN
+        ALTER TABLE [dbo].[IngestionJobs]
+            ADD CONSTRAINT [DF_IngestionJobs_JobType]
+            DEFAULT N'unknown' FOR [JobType];
+    END
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'SourceFilePath') IS NOT NULL
+       AND NOT EXISTS (
+           SELECT 1
+           FROM sys.default_constraints dc
+           INNER JOIN sys.columns c
+               ON c.default_object_id = dc.object_id
+           WHERE c.object_id = OBJECT_ID(N'dbo.IngestionJobs')
+             AND c.name = N'SourceFilePath')
+    BEGIN
+        ALTER TABLE [dbo].[IngestionJobs]
+            ADD CONSTRAINT [DF_IngestionJobs_SourceFilePath]
+            DEFAULT N'' FOR [SourceFilePath];
+    END
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'StartTime') IS NOT NULL
+       AND NOT EXISTS (
+           SELECT 1
+           FROM sys.default_constraints dc
+           INNER JOIN sys.columns c
+               ON c.default_object_id = dc.object_id
+           WHERE c.object_id = OBJECT_ID(N'dbo.IngestionJobs')
+             AND c.name = N'StartTime')
+    BEGIN
+        ALTER TABLE [dbo].[IngestionJobs]
+            ADD CONSTRAINT [DF_IngestionJobs_StartTime]
+            DEFAULT SYSUTCDATETIME() FOR [StartTime];
+    END
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'IngestionJobs')
+BEGIN
+    UPDATE [dbo].[IngestionJobs]
+    SET [IngestionJobId] = COALESCE(
+            TRY_CONVERT(UNIQUEIDENTIFIER, NULLIF([JobId], N'')),
+            NEWID())
+    WHERE [IngestionJobId] IS NULL;
+
+    UPDATE [dbo].[IngestionJobs]
+    SET [CreatedAtUtc] = COALESCE([CreatedAt], [StartTime], SYSUTCDATETIME())
+    WHERE [CreatedAtUtc] IS NULL;
+
+    UPDATE [dbo].[IngestionJobs]
+    SET [StartedAtUtc] = COALESCE([StartedAtUtc], [StartTime])
+    WHERE [StartedAtUtc] IS NULL
+      AND [StartTime] IS NOT NULL;
+
+    UPDATE [dbo].[IngestionJobs]
+    SET [CompletedAtUtc] = COALESCE([CompletedAtUtc], [EndTime])
+    WHERE [CompletedAtUtc] IS NULL
+      AND [EndTime] IS NOT NULL;
+
+    UPDATE [dbo].[IngestionJobs]
+    SET [CreatedBySubject] = COALESCE(
+            NULLIF([CreatedBySubject], N''),
+            NULLIF([UserId], N''),
+            NULLIF([UserEmail], N''))
+    WHERE [CreatedBySubject] IS NULL
+       OR LTRIM(RTRIM([CreatedBySubject])) = N'';
+
+    UPDATE [dbo].[IngestionJobs]
+    SET [FailureReason] = COALESCE([FailureReason], [ErrorMessage])
+    WHERE [FailureReason] IS NULL
+      AND [ErrorMessage] IS NOT NULL;
+
+    UPDATE [dbo].[IngestionJobs]
+    SET [Status] = CASE LOWER(LTRIM(RTRIM([Status])))
+        WHEN N'' THEN N'Queued'
+        WHEN N'0' THEN N'Queued'
+        WHEN N'1' THEN N'Processing'
+        WHEN N'2' THEN N'Indexing'
+        WHEN N'3' THEN N'Completed'
+        WHEN N'4' THEN N'Failed'
+        WHEN N'5' THEN N'Cancelled'
+        WHEN N'6' THEN N'PartiallyCompleted'
+        WHEN N'queued' THEN N'Queued'
+        WHEN N'processing' THEN N'Processing'
+        WHEN N'running' THEN N'Processing'
+        WHEN N'inprogress' THEN N'Processing'
+        WHEN N'indexing' THEN N'Indexing'
+        WHEN N'completed' THEN N'Completed'
+        WHEN N'complete' THEN N'Completed'
+        WHEN N'failed' THEN N'Failed'
+        WHEN N'error' THEN N'Failed'
+        WHEN N'cancelled' THEN N'Cancelled'
+        WHEN N'canceled' THEN N'Cancelled'
+        WHEN N'partiallycompleted' THEN N'PartiallyCompleted'
+        WHEN N'partially-completed' THEN N'PartiallyCompleted'
+        ELSE [Status]
+    END
+    WHERE [Status] IS NOT NULL;
+
+    UPDATE [dbo].[IngestionJobs]
+    SET [InputType] = CASE LOWER(LTRIM(RTRIM(COALESCE([InputType], [JobType], N''))))
+        WHEN N'' THEN N'StructuredSpecification'
+        WHEN N'0' THEN N'StructuredSpecification'
+        WHEN N'1' THEN N'BikeGraph'
+        WHEN N'2' THEN N'PDFManual'
+        WHEN N'3' THEN N'WebContent'
+        WHEN N'4' THEN N'Batch'
+        WHEN N'5' THEN N'Scheduled'
+        WHEN N'pdfmanual' THEN N'PDFManual'
+        WHEN N'manual-pdf' THEN N'PDFManual'
+        WHEN N'pdf' THEN N'PDFManual'
+        WHEN N'bikegraph' THEN N'BikeGraph'
+        WHEN N'bike-graph' THEN N'BikeGraph'
+        WHEN N'structuredspecification' THEN N'StructuredSpecification'
+        WHEN N'structured-specification' THEN N'StructuredSpecification'
+        WHEN N'spec-dataset' THEN N'StructuredSpecification'
+        WHEN N'csv' THEN N'StructuredSpecification'
+        WHEN N'webcontent' THEN N'WebContent'
+        WHEN N'batch' THEN N'Batch'
+        WHEN N'scheduled' THEN N'Scheduled'
+        ELSE N'StructuredSpecification'
+    END
+    WHERE [InputType] IS NULL
+       OR LTRIM(RTRIM([InputType])) = N'';
+
+    UPDATE [dbo].[IngestionJobs]
+    SET [InputRef] = COALESCE(
+            NULLIF([InputRef], N''),
+            NULLIF([SourceFilePath], N''),
+            CONVERT(NVARCHAR(36), [IngestionJobId]))
+    WHERE [InputRef] IS NULL
+       OR LTRIM(RTRIM([InputRef])) = N'';
+
+    UPDATE [dbo].[IngestionJobs]
+    SET [ComputeProvider] = N'LegacyPipeline'
+    WHERE [ComputeProvider] IS NULL
+       OR LTRIM(RTRIM([ComputeProvider])) = N'';
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'IngestionJobs')
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.IngestionJobs')
+          AND name = N'IX_IngestionJobs_IngestionJobId')
+    BEGIN
+        CREATE UNIQUE NONCLUSTERED INDEX [IX_IngestionJobs_IngestionJobId]
+            ON [dbo].[IngestionJobs] ([IngestionJobId])
+            WHERE [IngestionJobId] IS NOT NULL;
+    END
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.IngestionJobs')
+          AND name = N'IX_IngestionJobs_InputType')
+    BEGIN
+        CREATE NONCLUSTERED INDEX [IX_IngestionJobs_InputType]
+            ON [dbo].[IngestionJobs] ([InputType]);
+    END
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.IngestionJobs')
+          AND name = N'IX_IngestionJobs_InputRef_InputType')
+    BEGIN
+        CREATE NONCLUSTERED INDEX [IX_IngestionJobs_InputRef_InputType]
+            ON [dbo].[IngestionJobs] ([InputRef], [InputType]);
+    END
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.IngestionJobs')
+          AND name = N'IX_IngestionJobs_CreatedAtUtc')
+    BEGIN
+        CREATE NONCLUSTERED INDEX [IX_IngestionJobs_CreatedAtUtc]
+            ON [dbo].[IngestionJobs] ([CreatedAtUtc]);
+    END
 END
 GO
 

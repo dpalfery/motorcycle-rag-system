@@ -43,9 +43,11 @@ internal static class UrlValidator
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
             return false;
 
-        // Block loopback addresses if not allowed
-        if (!allowLocalhost && IsLoopbackAddress(uri.Host))
-            return false;
+        var isLocalhostAddress = uri.IsLoopback || IsLocalhostAddress(uri.Host);
+
+        // Allow localhost endpoints explicitly for development workflows.
+        if (isLocalhostAddress)
+            return allowLocalhost;
 
         // Block private IP ranges
         if (IsPrivateIpAddress(uri.Host))
@@ -58,12 +60,12 @@ internal static class UrlValidator
         // Port validation
         if (uri.Port > 0)
         {
-            if (DevelopmentPorts.Contains(uri.Port) && !IsLocalhostAddress(uri.Host))
+            if (DevelopmentPorts.Contains(uri.Port) && !isLocalhostAddress)
             {
                 // Development ports allowed only on localhost
                 return false;
             }
-            else if (!StandardPorts.Contains(uri.Port))
+            else if (!isLocalhostAddress && !StandardPorts.Contains(uri.Port))
             {
                 // Port not in allowed lists
                 return false;
@@ -75,7 +77,8 @@ internal static class UrlValidator
 
     private static bool IsLocalhostAddress(string host)
     {
-        return host == "localhost" || host == "127.0.0.1" || host == "::1";
+        var normalizedHost = host.Trim('[', ']');
+        return normalizedHost == "localhost" || normalizedHost == "127.0.0.1" || normalizedHost == "::1";
     }
 
     private static bool IsLoopbackAddress(string host)

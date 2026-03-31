@@ -1,11 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Services.Dtos;
 using MotorcycleRAG.Admin.Utilities;
-using MotorcycleRAG.Admin.Constants;
-using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.Admin.ViewModels;
 
@@ -15,7 +14,8 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
-internal partial class ToolsViewModel : ObservableObject {
+internal partial class ToolsViewModel : ObservableObject
+{
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly IConfigurationStateService _configService;
@@ -33,172 +33,177 @@ internal partial class ToolsViewModel : ObservableObject {
     [ObservableProperty]
     private ToolConfigItem? selectedTool;
 
-    public ToolsViewModel(ApiClient apiClient, IAdminAuthService authService, IConfigurationStateService configService, ILogger<ToolsViewModel> logger) {
+    public ToolsViewModel(
+        ApiClient apiClient,
+        IAdminAuthService authService,
+        IConfigurationStateService configService,
+        ILogger<ToolsViewModel> logger)
+    {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    #region Commands
-
-    /// <summary>
-    /// Command to load MCP tools from the API
-    /// </summary>
     [RelayCommand]
-    internal async Task RefreshAsync() {
-        IsLoading = true;
-        ErrorMessage = null;
+    internal async Task RefreshAsync()
+    {
+        await MauiThreading.RunOnMainThreadAsync(() =>
+        {
+            IsLoading = true;
+            ErrorMessage = null;
+        }).ConfigureAwait(false);
 
-        try {
-            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
-            if (!authorized) {
+        try
+        {
+            var toolConfigs = await MauiThreading.RunOffMainThreadAsync(async () =>
+            {
+                var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+                if (!authorized)
+                {
+                    return null;
+                }
+
+                return await _apiClient.GetMcpToolsAsync().ConfigureAwait(false);
+            }).ConfigureAwait(false);
+
+            if (toolConfigs is null)
+            {
                 return;
             }
-            var toolConfigs = await _apiClient.GetMcpToolsAsync();
 
-            await MainThread.InvokeOnMainThreadAsync(() => {
+            await MauiThreading.RunOnMainThreadAsync(() =>
+            {
                 Tools.Clear();
-                foreach (var config in toolConfigs) {
+                foreach (var config in toolConfigs)
+                {
                     Tools.Add(new ToolConfigItem(config));
                 }
-            });
+            }).ConfigureAwait(false);
 
             _logger.LogInformation("Loaded {Count} MCP tool configurations", toolConfigs.Length);
         }
-        catch (HttpRequestException ex) {
-            // API not available - silently fail
+        catch (HttpRequestException ex)
+        {
             _logger.LogWarning(ex, "API not available for loading MCP tools");
-            await MainThread.InvokeOnMainThreadAsync(() => Tools.Clear());
+            await MauiThreading.RunOnMainThreadAsync(() => Tools.Clear()).ConfigureAwait(false);
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             _logger.LogError(ex, "Error loading MCP tools");
 
-            await MainThread.InvokeOnMainThreadAsync(async () => {
-                ErrorMessage = $"Failed to load MCP tools: {sanitizedMessage}";
-                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-                if (window?.Page != null) {
-                    await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
-                }
-            });
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ErrorMessage = $"Failed to load MCP tools: {sanitizedMessage}").ConfigureAwait(false);
+            await ErrorPresenter.ShowErrorAsync("Error", ErrorMessage ?? "Failed to load MCP tools.").ConfigureAwait(false);
         }
-        finally {
-            IsLoading = false;
+        finally
+        {
+            await MauiThreading.RunOnMainThreadAsync(() => IsLoading = false).ConfigureAwait(false);
         }
     }
 
-    /// <summary>
-    /// Command to save a tool configuration change
-    /// </summary>
     [RelayCommand]
-    internal async Task SaveToolAsync(ToolConfigItem? tool) {
-        if (tool == null)
+    internal async Task SaveToolAsync(ToolConfigItem? tool)
+    {
+        if (tool is null)
+        {
             return;
-
-        IsLoading = true;
-        ErrorMessage = null;
-
-        try {
-            // Validate tool configuration
-            if (!ValidateTool(tool)) {
-                ErrorMessage = "Invalid tool configuration. Please check the settings.";
-                return;
-            }
-
-            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
-            if (!authorized) {
-                return;
-            }
-
-            // Call API to update tool
-            var updateRequest = new UpdateMcpToolRequest {
-                IsEnabled = tool.IsEnabled,
-                ChangeReason = tool.IsEnabled ? "Enabled via admin panel" : "Disabled via admin panel"
-            };
-
-            await _apiClient.UpdateMcpToolAsync(tool.ToolId, updateRequest);
-
-            _logger.LogInformation("Saved MCP tool configuration '{ToolId}': IsEnabled={IsEnabled}",
-                tool.ToolId, tool.IsEnabled);
-
-            // Show success message
-            await MainThread.InvokeOnMainThreadAsync(async () => {
-                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-                if (window?.Page != null) {
-                    await window.Page.DisplayAlertAsync("Success",
-                        $"Tool '{tool.Name}' has been {(tool.IsEnabled ? "enabled" : "disabled")}.", "OK");
-                }
-            });
         }
-        catch (Exception ex) {
+
+        if (!ValidateTool(tool))
+        {
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ErrorMessage = "Invalid tool configuration. Please check the settings.").ConfigureAwait(false);
+            return;
+        }
+
+        await MauiThreading.RunOnMainThreadAsync(() =>
+        {
+            IsLoading = true;
+            ErrorMessage = null;
+        }).ConfigureAwait(false);
+
+        try
+        {
+            var saved = await MauiThreading.RunOffMainThreadAsync(async () =>
+            {
+                var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+                if (!authorized)
+                {
+                    return false;
+                }
+
+                var updateRequest = new UpdateMcpToolRequest
+                {
+                    IsEnabled = tool.IsEnabled,
+                    ChangeReason = tool.IsEnabled ? "Enabled via admin panel" : "Disabled via admin panel"
+                };
+
+                await _apiClient.UpdateMcpToolAsync(tool.ToolId, updateRequest).ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+
+            if (!saved)
+            {
+                return;
+            }
+
+            _logger.LogInformation(
+                "Saved MCP tool configuration '{ToolId}': IsEnabled={IsEnabled}",
+                tool.ToolId,
+                tool.IsEnabled);
+
+            await ErrorPresenter.ShowSuccessAsync(
+                "Success",
+                $"Tool '{tool.Name}' has been {(tool.IsEnabled ? "enabled" : "disabled")}.").ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             _logger.LogError(ex, "Error saving MCP tool '{ToolId}'", tool.ToolId);
 
-            await MainThread.InvokeOnMainThreadAsync(async () => {
-                ErrorMessage = $"Failed to save tool: {sanitizedMessage}";
-                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-                if (window?.Page != null) {
-                    await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
-                }
-            });
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ErrorMessage = $"Failed to save tool: {sanitizedMessage}").ConfigureAwait(false);
+            await ErrorPresenter.ShowErrorAsync("Error", ErrorMessage ?? "Failed to save tool.").ConfigureAwait(false);
         }
-        finally {
-            IsLoading = false;
+        finally
+        {
+            await MauiThreading.RunOnMainThreadAsync(() => IsLoading = false).ConfigureAwait(false);
         }
     }
 
-    /// <summary>
-    /// Command to select a tool
-    /// </summary>
     [RelayCommand]
-    internal void SelectTool(ToolConfigItem? tool) {
+    internal void SelectTool(ToolConfigItem? tool)
+    {
         SelectedTool = tool;
         _logger.LogDebug("Selected tool: {ToolId}", tool?.ToolId ?? "null");
     }
 
-    #endregion
+    internal Task InitializeAsync() => RefreshAsync();
 
-    #region Lifecycle
-
-    /// <summary>
-    /// Initialize the view model - load MCP tools
-    /// </summary>
-    internal async Task InitializeAsync() {
-        await RefreshAsync();
-    }
-
-    #endregion
-
-    #region Validation
-
-    /// <summary>
-    /// Validate tool configuration
-    /// </summary>
-    private bool ValidateTool(ToolConfigItem tool) {
-        if (tool == null) {
-            _logger.LogWarning("Cannot validate null tool");
-            return false;
-        }
-
-        // Basic validation
-        if (string.IsNullOrWhiteSpace(tool.ToolId)) {
+    private bool ValidateTool(ToolConfigItem tool)
+    {
+        if (string.IsNullOrWhiteSpace(tool.ToolId))
+        {
             _logger.LogWarning("Tool ID is empty");
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(tool.Name)) {
+        if (string.IsNullOrWhiteSpace(tool.Name))
+        {
             _logger.LogWarning("Tool name is empty");
             return false;
         }
 
-        if (tool.ServerUrl == null) {
+        if (tool.ServerUrl == null)
+        {
             _logger.LogWarning("Tool server URL is empty");
             return false;
         }
 
-        // Validate URL format with SSRF protection
-        if (!UrlValidator.IsValidUrl(tool.ServerUrl)) {
+        if (!UrlValidator.IsValidUrl(tool.ServerUrl, allowLocalhost: true))
+        {
             _logger.LogWarning("Tool server URL is invalid or disallowed (SSRF protection): {ServerUrl}", tool.ServerUrl);
             return false;
         }
@@ -206,54 +211,46 @@ internal partial class ToolsViewModel : ObservableObject {
         return true;
     }
 
-    #endregion
-
-    #region Private Helpers
-
-    /// <summary>
-    /// Ensure user is authorized to manage MCP tools
-    /// </summary>
-    private async Task<bool> EnsureAuthorizedAsync() {
-        if (!_configService.IsApiConfigured) {
+    private async Task<bool> EnsureAuthorizedAsync()
+    {
+        if (!_configService.IsApiConfigured)
+        {
             _logger.LogWarning("Tools page blocked: API not configured");
             await ErrorPresenter.ShowWarningAsync(
                 "Configuration Required",
-                "API is not configured. Go to Settings to configure the API base URL."
-            ).ConfigureAwait(false);
+                "API is not configured. Go to Settings to configure the API base URL.").ConfigureAwait(false);
             return false;
         }
 
-        if (!_authService.IsAuthenticated) {
+        if (!_authService.IsAuthenticated)
+        {
             _logger.LogWarning("Tools page blocked: user not authenticated");
             await ErrorPresenter.ShowWarningAsync(
                 "Sign In Required",
-                "Please sign in to manage MCP tools."
-            ).ConfigureAwait(false);
+                "Please sign in to manage MCP tools.").ConfigureAwait(false);
             return false;
         }
 
-        // Use IsAuthorizedAdminAsync to support Debug mode bypass
         var isAuthorized = await _authService.IsAuthorizedAdminAsync().ConfigureAwait(false);
-        if (!isAuthorized) {
+        if (!isAuthorized)
+        {
             _logger.LogWarning("Tools page blocked: user lacks admin roles");
             await ErrorPresenter.ShowWarningAsync(
                 "Access Denied",
-                "You do not have permission to manage MCP tools."
-            ).ConfigureAwait(false);
+                "You do not have permission to manage MCP tools.").ConfigureAwait(false);
             return false;
         }
 
         return true;
     }
-
-    #endregion
 }
 
 /// <summary>
-/// View model item for a single MCP tool configuration
+/// View model item for a single MCP tool configuration.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
-internal partial class ToolConfigItem : ObservableObject {
+internal partial class ToolConfigItem : ObservableObject
+{
     internal Guid Id { get; }
     internal string ToolId { get; }
     internal string Name { get; }
@@ -265,7 +262,8 @@ internal partial class ToolConfigItem : ObservableObject {
     [ObservableProperty]
     private bool isEnabled;
 
-    internal ToolConfigItem(McpToolConfigurationDto config) {
+    internal ToolConfigItem(McpToolConfigurationDto config)
+    {
         Id = config.Id;
         ToolId = config.ToolId;
         Name = config.Name;
@@ -276,5 +274,3 @@ internal partial class ToolConfigItem : ObservableObject {
         isEnabled = config.IsEnabled;
     }
 }
-
-

@@ -24,6 +24,7 @@ internal partial class SettingsViewModel : ObservableObject {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S4487:Unread private field", Justification = "Reserved for future use")]
     private readonly INavigationService _navigationService;
     private readonly ILogger<SettingsViewModel> _logger;
+    private int _localProcessorValidationVersion;
 
     // ========== API Configuration ==========
 
@@ -117,7 +118,7 @@ internal partial class SettingsViewModel : ObservableObject {
 
         ValidateApiUrl();
         ValidateAuthSettings();
-        ValidateLocalProcessorSettings();
+        QueueLocalProcessorValidation();
         HasUnsavedChanges = false;
     }
 
@@ -156,7 +157,7 @@ internal partial class SettingsViewModel : ObservableObject {
     partial void OnLocalProcessorStartCommandChanged(string value) => OnLocalProcessorSettingChanged();
 
     private void OnLocalProcessorSettingChanged() {
-        ValidateLocalProcessorSettings();
+        QueueLocalProcessorValidation();
         HasUnsavedChanges = true;
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
@@ -177,8 +178,7 @@ internal partial class SettingsViewModel : ObservableObject {
         }
 
         // Allow HTTP only for localhost
-        var isLocalhost = uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                          uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+        var isLocalhost = uri.IsLoopback;
 
         if (!isLocalhost && !uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)) {
             IsApiValid = false;
@@ -228,13 +228,38 @@ internal partial class SettingsViewModel : ObservableObject {
         }
     }
 
-    private void ValidateLocalProcessorSettings() {
+    private void QueueLocalProcessorValidation() {
+        var validationVersion = Interlocked.Increment(ref _localProcessorValidationVersion);
+        _ = ValidateLocalProcessorSettingsAsync(validationVersion);
+    }
+
+    private async Task ValidateLocalProcessorSettingsAsync(int validationVersion) {
+        var validationResult = await MauiThreading.RunOffMainThreadAsync(
+            () => BuildLocalProcessorValidation(
+                LocalProcessorEndpoint,
+                LocalProcessorWorkingDirectory,
+                LocalProcessorStartCommand)).ConfigureAwait(false);
+
+        await MauiThreading.RunOnMainThreadAsync(() => {
+            if (validationVersion != _localProcessorValidationVersion) {
+                return;
+            }
+
+            IsLocalProcessorValid = validationResult.IsValid;
+            LocalProcessorValidationMessage = validationResult.Message;
+        }).ConfigureAwait(false);
+    }
+
+    private static (bool IsValid, string Message) BuildLocalProcessorValidation(
+        string endpointValue,
+        string workingDirectoryValue,
+        string startCommandValue) {
         var issues = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(LocalProcessorEndpoint)) {
+        if (string.IsNullOrWhiteSpace(endpointValue)) {
             issues.Add("Endpoint required");
         }
-        else if (!Uri.TryCreate(LocalProcessorEndpoint, UriKind.Absolute, out var endpointUri)) {
+        else if (!Uri.TryCreate(endpointValue, UriKind.Absolute, out var endpointUri)) {
             issues.Add("Invalid endpoint URL");
         }
         else if (!endpointUri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) &&
@@ -242,34 +267,35 @@ internal partial class SettingsViewModel : ObservableObject {
             issues.Add("Endpoint must use HTTP or HTTPS");
         }
 
-        if (string.IsNullOrWhiteSpace(LocalProcessorWorkingDirectory)) {
+        if (string.IsNullOrWhiteSpace(workingDirectoryValue)) {
             issues.Add("Working directory required");
         }
-        else if (!Directory.Exists(LocalProcessorWorkingDirectory)) {
+        else if (!Directory.Exists(workingDirectoryValue)) {
             issues.Add("Working directory not found");
         }
-        else if (!File.Exists(Path.Combine(LocalProcessorWorkingDirectory, "src", "main.py"))) {
+        else if (!File.Exists(Path.Combine(workingDirectoryValue, "src", "main.py"))) {
             issues.Add("src/main.py not found in working directory");
         }
 
-        if (string.IsNullOrWhiteSpace(LocalProcessorStartCommand)) {
+        if (string.IsNullOrWhiteSpace(startCommandValue)) {
             issues.Add("Start command required");
         }
 
         if (issues.Count > 0) {
-            IsLocalProcessorValid = false;
-            LocalProcessorValidationMessage = string.Join(", ", issues);
+            return (false, string.Join(", ", issues));
         }
-        else {
-            IsLocalProcessorValid = true;
-            LocalProcessorValidationMessage = "Valid";
-        }
+
+        return (true, "Valid");
     }
 
     // ========== Commands ==========
 
     [RelayCommand(CanExecute = nameof(CanSaveSettings))]
     private async Task SaveSettingsAsync() {
+        ValidateApiUrl();
+        ValidateAuthSettings();
+        await ValidateLocalProcessorSettingsAsync(Interlocked.Increment(ref _localProcessorValidationVersion)).ConfigureAwait(false);
+
         // Validate all settings before saving
         var hasValidationErrors = false;
         var errorMessages = new List<string>();
@@ -290,63 +316,65 @@ internal partial class SettingsViewModel : ObservableObject {
         }
 
         if (hasValidationErrors) {
-            StatusMessage = "Please fix validation errors before saving.";
-            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-            if (window?.Page != null) {
-                await window.Page.DisplayAlertAsync(
-                    "Validation Error",
-                    $"Please fix the following errors:\n\n{string.Join("\n", errorMessages)}",
-                    "OK");
-            }
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                StatusMessage = "Please fix validation errors before saving.").ConfigureAwait(false);
+            await ErrorPresenter.ShowErrorAsync(
+                "Validation Error",
+                $"Please fix the following errors:\n\n{string.Join("\n", errorMessages)}").ConfigureAwait(false);
             return;
         }
 
-        IsSaving = true;
-        StatusMessage = "Saving settings...";
+        await MauiThreading.RunOnMainThreadAsync(() => {
+            IsSaving = true;
+            StatusMessage = "Saving settings...";
+        }).ConfigureAwait(false);
 
         try {
-            // Save API configuration - convert string to Uri
-            Uri? apiUri = string.IsNullOrWhiteSpace(ApiBaseUrl) ? null : new Uri(ApiBaseUrl);
-            await _configService.SaveApiBaseUrlAsync(apiUri);
+            var apiBaseUrl = ApiBaseUrl;
+            var authClientId = AuthClientId;
+            var authAuthority = AuthAuthority;
+            var authScope = AuthScope;
+            var embeddingModelPath = EmbeddingModelPath;
+            var localProcessorEndpoint = LocalProcessorEndpoint;
+            var localProcessorWorkingDirectory = LocalProcessorWorkingDirectory;
+            var localProcessorStartCommand = LocalProcessorStartCommand;
 
-            // Save auth configuration
-            await _configService.SaveAuthConfigurationAsync(
-                AuthClientId,
-                AuthAuthority,
-                AuthScope);
+            await MauiThreading.RunOffMainThreadAsync(async () => {
+                Uri? apiUri = string.IsNullOrWhiteSpace(apiBaseUrl) ? null : new Uri(apiBaseUrl);
+                await _configService.SaveApiBaseUrlAsync(apiUri).ConfigureAwait(false);
+                await _configService.SaveAuthConfigurationAsync(
+                    authClientId,
+                    authAuthority,
+                    authScope).ConfigureAwait(false);
 
-            // Save embedding model path
-            if (!string.IsNullOrWhiteSpace(EmbeddingModelPath)) {
-                await _configService.SaveEmbeddingModelPathAsync(EmbeddingModelPath);
-            }
+                if (!string.IsNullOrWhiteSpace(embeddingModelPath)) {
+                    await _configService.SaveEmbeddingModelPathAsync(embeddingModelPath).ConfigureAwait(false);
+                }
 
-            await _configService.SaveLocalProcessorConfigurationAsync(
-                string.IsNullOrWhiteSpace(LocalProcessorEndpoint) ? null : new Uri(LocalProcessorEndpoint),
-                LocalProcessorWorkingDirectory,
-                LocalProcessorStartCommand);
+                await _configService.SaveLocalProcessorConfigurationAsync(
+                    string.IsNullOrWhiteSpace(localProcessorEndpoint) ? null : new Uri(localProcessorEndpoint),
+                    localProcessorWorkingDirectory,
+                    localProcessorStartCommand).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
-            HasUnsavedChanges = false;
-            StatusMessage = "Settings saved successfully.";
+            await MauiThreading.RunOnMainThreadAsync(() => {
+                HasUnsavedChanges = false;
+                StatusMessage = "Settings saved successfully.";
+            }).ConfigureAwait(false);
             _logger.LogInformation("Settings saved successfully");
-            
-            // Show success alert to ensure user knows it worked
-             var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-            if (window?.Page != null) {
-                await window.Page.DisplayAlertAsync("Success", "Settings saved successfully.", "OK");
-            }
+
+            await ErrorPresenter.ShowSuccessAsync("Success", "Settings saved successfully.").ConfigureAwait(false);
         }
         catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
-            StatusMessage = $"Failed to save settings: {sanitizedMessage}";
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                StatusMessage = $"Failed to save settings: {sanitizedMessage}").ConfigureAwait(false);
             _logger.LogError(ex, "Failed to save settings");
-            
-            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-            if (window?.Page != null) {
-                await window.Page.DisplayAlertAsync("Error", $"Failed to save settings: {sanitizedMessage}", "OK");
-            }
+
+            await ErrorPresenter.ShowErrorAsync("Error", $"Failed to save settings: {sanitizedMessage}").ConfigureAwait(false);
         }
         finally {
-            IsSaving = false;
+            await MauiThreading.RunOnMainThreadAsync(() => IsSaving = false).ConfigureAwait(false);
         }
     }
 
@@ -355,43 +383,52 @@ internal partial class SettingsViewModel : ObservableObject {
     [RelayCommand(CanExecute = nameof(CanTestApi))]
     private async Task TestApiConnectionAsync() {
         if (!IsApiValid) {
-            ApiTestResult = "Please enter a valid API URL first";
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ApiTestResult = "Please enter a valid API URL first").ConfigureAwait(false);
             return;
         }
 
-        IsTestingApi = true;
-        ApiTestResult = "Testing connection...";
+        await MauiThreading.RunOnMainThreadAsync(() => {
+            IsTestingApi = true;
+            ApiTestResult = "Testing connection...";
+        }).ConfigureAwait(false);
 
         try {
-            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var healthUrl = new Uri(ApiBaseUrl.TrimEnd('/') + "/health");
+            var apiBaseUrl = ApiBaseUrl;
+            var testResult = await MauiThreading.RunOffMainThreadAsync(async () => {
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                var healthUrl = new Uri(apiBaseUrl.TrimEnd('/') + "/health");
+                var response = await httpClient.GetAsync(healthUrl).ConfigureAwait(false);
+                return response.IsSuccessStatusCode
+                    ? "Connection successful!"
+                    : $"Connection failed: {response.StatusCode}";
+            }).ConfigureAwait(false);
 
-            var response = await httpClient.GetAsync(healthUrl);
-
-            if (response.IsSuccessStatusCode) {
-                ApiTestResult = "Connection successful!";
+            await MauiThreading.RunOnMainThreadAsync(() => ApiTestResult = testResult).ConfigureAwait(false);
+            if (string.Equals(testResult, "Connection successful!", StringComparison.Ordinal)) {
                 _logger.LogInformation("API connection test successful");
             }
             else {
-                ApiTestResult = $"Connection failed: {response.StatusCode}";
-                _logger.LogWarning("API connection test failed: {StatusCode}", response.StatusCode);
+                _logger.LogWarning("API connection test failed: {Result}", testResult);
             }
         }
         catch (HttpRequestException ex) {
-            ApiTestResult = $"Connection failed: {ex.Message}";
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ApiTestResult = $"Connection failed: {ex.Message}").ConfigureAwait(false);
             _logger.LogWarning(ex, "API connection test failed");
         }
         catch (TaskCanceledException ex) {
-            ApiTestResult = "Connection timed out";
+            await MauiThreading.RunOnMainThreadAsync(() => ApiTestResult = "Connection timed out").ConfigureAwait(false);
             _logger.LogWarning(ex, "API connection test timed out");
         }
         catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
-            ApiTestResult = $"Error: {sanitizedMessage}";
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ApiTestResult = $"Error: {sanitizedMessage}").ConfigureAwait(false);
             _logger.LogError(ex, "API connection test error");
         }
         finally {
-            IsTestingApi = false;
+            await MauiThreading.RunOnMainThreadAsync(() => IsTestingApi = false).ConfigureAwait(false);
         }
     }
 
@@ -423,43 +460,43 @@ internal partial class SettingsViewModel : ObservableObject {
 
     [RelayCommand]
     private async Task ResetSettingsAsync() {
-        var confirmed = await ShowConfirmationAsync(
+        var confirmed = await ErrorPresenter.ShowConfirmAsync(
             "Reset Settings",
-            "Are you sure you want to clear all settings? This action cannot be undone.");
+            "Are you sure you want to clear all settings? This action cannot be undone.").ConfigureAwait(false);
 
         if (!confirmed) {
             return;
         }
 
         try {
-            await _configService.ClearConfigurationAsync();
+            var resetState = await MauiThreading.RunOffMainThreadAsync(async () => {
+                await _configService.ClearConfigurationAsync().ConfigureAwait(false);
+                return new {
+                    LocalProcessorEndpoint = LocalProcessorDefaults.DefaultEndpoint,
+                    LocalProcessorWorkingDirectory = LocalProcessorDefaults.TryFindWorkingDirectory() ?? string.Empty,
+                    LocalProcessorStartCommand = LocalProcessorDefaults.DefaultStartCommand
+                };
+            }).ConfigureAwait(false);
 
-            // Reset local properties
-            ApiBaseUrl = string.Empty;
-            AuthClientId = string.Empty;
-            AuthAuthority = string.Empty;
-            AuthScope = string.Empty;
-            EmbeddingModelPath = string.Empty;
-            LocalProcessorEndpoint = LocalProcessorDefaults.DefaultEndpoint;
-            LocalProcessorWorkingDirectory = LocalProcessorDefaults.TryFindWorkingDirectory() ?? string.Empty;
-            LocalProcessorStartCommand = LocalProcessorDefaults.DefaultStartCommand;
-
-            HasUnsavedChanges = false;
-            StatusMessage = "Settings cleared.";
+            await MauiThreading.RunOnMainThreadAsync(() => {
+                ApiBaseUrl = string.Empty;
+                AuthClientId = string.Empty;
+                AuthAuthority = string.Empty;
+                AuthScope = string.Empty;
+                EmbeddingModelPath = string.Empty;
+                LocalProcessorEndpoint = resetState.LocalProcessorEndpoint;
+                LocalProcessorWorkingDirectory = resetState.LocalProcessorWorkingDirectory;
+                LocalProcessorStartCommand = resetState.LocalProcessorStartCommand;
+                HasUnsavedChanges = false;
+                StatusMessage = "Settings cleared.";
+            }).ConfigureAwait(false);
             _logger.LogInformation("Settings cleared");
         }
         catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
-            StatusMessage = $"Failed to clear settings: {sanitizedMessage}";
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                StatusMessage = $"Failed to clear settings: {sanitizedMessage}").ConfigureAwait(false);
             _logger.LogError(ex, "Failed to clear settings");
         }
-    }
-
-    private static async Task<bool> ShowConfirmationAsync(string title, string message) {
-        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-        if (window?.Page != null) {
-            return await window.Page.DisplayAlertAsync(title, message, "Yes", "No");
-        }
-        return false;
     }
 }

@@ -26,6 +26,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
     private readonly ILogger<AdminAuthService> _logger;
     private readonly SemaphoreSlim _tokenRefreshLock = new SemaphoreSlim(1, 1);
     private MsalCacheHelper? _cacheHelper;
+    private readonly Task _initializationTask;
 
     internal AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService> logger, IPublicClientApplication? msalClient)
     {
@@ -47,7 +48,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
                 .Build();
 
         // Initialize token cache and try to restore session
-        InitializeCache();
+        _initializationTask = InitializeCacheAsync();
     }
 
     internal AdminAuthService(string clientId, string authority, string[] scopes, ILogger<AdminAuthService> logger)
@@ -68,11 +69,10 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
     /// Dependency: Requires Microsoft.Identity.Client.Extensions.Msal v4.81.0+
     ///
     /// Implementation Notes:
-    /// - Uses Task.Run().Result for synchronous initialization (safe for file-based operations)
     /// - Attempts to restore existing session from cache automatically
     /// - Gracefully degrades to no caching if initialization fails
     /// </remarks>
-    private void InitializeCache()
+    private async Task InitializeCacheAsync()
     {
         try
         {
@@ -82,21 +82,20 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
                 FileSystem.AppDataDirectory)
                 .Build();
 
-            // Initialize CacheHelper (async wrapped in sync for constructor)
-            // This is safe because CacheHelper creation is fast and file-based
-            _cacheHelper = Task.Run(() => MsalCacheHelper.CreateAsync(storageProperties)).Result;
+            _cacheHelper = await MsalCacheHelper.CreateAsync(storageProperties).ConfigureAwait(false);
             _cacheHelper.RegisterCache(_msalClient.UserTokenCache);
 
             _logger.LogInformation("Token cache initialized at {Path}", Path.Combine(FileSystem.AppDataDirectory, CacheFileName));
 
             // Try to restore session from cache
-            var accounts = Task.Run(() => _msalClient.GetAccountsAsync()).Result;
+            var accounts = await _msalClient.GetAccountsAsync().ConfigureAwait(false);
             if (accounts.Any())
             {
                 try 
                 {
-                    _currentAuthResult = Task.Run(() => _msalClient.AcquireTokenSilent(_scopes, accounts.FirstOrDefault())
-                        .ExecuteAsync()).Result;
+                    _currentAuthResult = await _msalClient
+                        .AcquireTokenSilent(_scopes, accounts.FirstOrDefault())
+                        .ExecuteAsync().ConfigureAwait(false);
                     _tokenExpiresAt = _currentAuthResult.ExpiresOn.UtcDateTime;
                     _logger.LogInformation("Session restored from cache for user: {User}", _currentAuthResult.Account.Username);
                 }
@@ -117,6 +116,8 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
         }
     }
 
+    private Task EnsureInitializedAsync() => _initializationTask;
+
     /// <summary>
     /// Checks if the current cached token has expired
     /// </summary>
@@ -131,6 +132,8 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
     /// </summary>
     private async Task<AuthenticationResult?> GetValidTokenAsync(CancellationToken cancellationToken = default)
     {
+        await EnsureInitializedAsync().ConfigureAwait(false);
+
         // Quick check without lock (optimization - avoids lock contention for valid tokens)
         if (_currentAuthResult != null && !IsTokenExpired())
         {
@@ -184,6 +187,8 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
     {
         try
         {
+            await EnsureInitializedAsync().ConfigureAwait(false);
+
             // Try silent sign-in first
             var accounts = await _msalClient.GetAccountsAsync().ConfigureAwait(false);
             if (accounts.Any())
@@ -302,6 +307,7 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
     /// </summary>
     public async Task SignOutAsync()
     {
+        await EnsureInitializedAsync().ConfigureAwait(false);
         var accounts = await _msalClient.GetAccountsAsync().ConfigureAwait(false);
         foreach (var account in accounts)
         {

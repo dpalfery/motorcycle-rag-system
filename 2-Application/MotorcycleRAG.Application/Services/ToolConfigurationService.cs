@@ -404,28 +404,32 @@ public class ToolConfigurationService : IToolConfigurationService {
         if (serverUrl.Scheme != Uri.UriSchemeHttp && serverUrl.Scheme != Uri.UriSchemeHttps)
             return false;
 
-        // Block localhost variants
-        if (IsLoopbackAddress(serverUrl.Host))
-            return false;
+        var isLocalhost = IsLocalhostAddress(serverUrl.Host);
 
-        // Block private IP ranges
-        if (IsPrivateIpAddress(serverUrl.Host))
-            return false;
+        if (!isLocalhost) {
+            // Block loopback, private, and reserved addresses for non-local tools.
+            if (IsLoopbackAddress(serverUrl.Host))
+                return false;
 
-        // Block reserved and special addresses
-        if (IsReservedAddress(serverUrl.Host))
-            return false;
+            if (IsPrivateIpAddress(serverUrl.Host))
+                return false;
+
+            if (IsReservedAddress(serverUrl.Host))
+                return false;
+        }
 
         // CQ-001 + SC-002: Port validation using constants
-        // Development ports allowed only on localhost, standard ports allowed everywhere
+        // Development ports are allowed for localhost, standard ports are allowed everywhere.
         if (serverUrl.Port > 0 && DevelopmentPorts.Contains(serverUrl.Port)) {
-            // SC-002: Development ports MUST be on localhost only
-            if (!IsLocalhostAddress(serverUrl.Host)) {
+            if (!isLocalhost) {
                 _logger.LogWarning(
                     "Development port {Port} attempted on non-localhost address: {Host}",
                     serverUrl.Port, serverUrl.Host);
                 return false;
             }
+        }
+        else if (serverUrl.Port > 0 && isLocalhost) {
+            return true;
         }
         else if (serverUrl.Port > 0 && !StandardPorts.Contains(serverUrl.Port)) {
             // CQ-001: Port not in allowed lists

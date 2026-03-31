@@ -178,5 +178,41 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new InvalidOperationException($"Failed to set enabled status for user {userId}", ex);
             }
         }
+
+        /// <summary>
+        /// Gets a paged set of users for administrative views.
+        /// </summary>
+        public async Task<UserDTO[]> GetUsersAsync(int page, int pageSize) {
+            if (page < 1) {
+                throw new ArgumentException("Page number must be at least 1", nameof(page));
+            }
+
+            if (pageSize < 1) {
+                throw new ArgumentException("Page size must be at least 1", nameof(pageSize));
+            }
+
+            const string sql = @"
+                SELECT *
+                FROM [dbo].[Users]
+                ORDER BY [CreatedDate] DESC, [Id] ASC
+                OFFSET @Offset ROWS
+                FETCH NEXT @PageSize ROWS ONLY;
+            ";
+
+            try {
+                using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+                var offset = (page - 1) * pageSize;
+                var users = await connection.QueryAsync<UserDTO>(sql, new {
+                    Offset = offset,
+                    PageSize = pageSize
+                });
+
+                return users.ToArray();
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Failed to get users for page {Page} with page size {PageSize}", page, pageSize);
+                throw new InvalidOperationException($"Failed to get users for page {page}", ex);
+            }
+        }
     }
 }

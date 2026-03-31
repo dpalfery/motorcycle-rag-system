@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Http.Resilience;
-using Polly;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Pages;
 using MotorcycleRAG.Admin.ViewModels;
@@ -32,6 +31,8 @@ internal static class MauiProgram {
 #else
         builder.Logging.SetMinimumLevel(LogLevel.Information);
 #endif
+        builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
+        builder.Logging.AddFilter("Polly", LogLevel.Error);
 
         // ========== Core Services (Singletons) ==========
 
@@ -69,8 +70,7 @@ internal static class MauiProgram {
                 // If we have a URL, validate and configure it
                 if (apiUri != null) {
                     // Validate HTTPS in production (non-localhost URLs must use HTTPS)
-                    var isLocalhost = apiUri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                                      apiUri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+                    var isLocalhost = apiUri.IsLoopback;
 
                     if (!isLocalhost && !apiUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)) {
                         logger.LogWarning(
@@ -87,21 +87,21 @@ internal static class MauiProgram {
 
                 client.Timeout = TimeSpan.FromSeconds(30);
             })
-            .AddStandardResilienceHandler(); // Includes retry + circuit breaker policies
+            .AddStandardResilienceHandler()
+            .Configure(options => {
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(20);
+                options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
+                options.Retry.MaxRetryAttempts = 0;
+                options.CircuitBreaker.MinimumThroughput = 5;
+                options.CircuitBreaker.FailureRatio = 0.5;
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+                options.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(2);
+            });
 
         // ========== Local Processing Services ==========
 
         builder.Services.AddSingleton<PdfChunker>(_ => new PdfChunker());
         builder.Services.AddSingleton<CsvChunker>(_ => new CsvChunker());
-
-        // Optional: ONNX embedding service (requires model file in Resources/Raw/)
-        // Only register if model is available - IngestionViewModel will use server-side
-        // embedding processing as fallback if this service is not registered
-        if (OnnxEmbeddingServiceFactory.IsModelAvailable())
-        {
-            builder.Services.AddSingleton<OnnxEmbeddingService>(_ =>
-                OnnxEmbeddingServiceFactory.CreateFromAppResources());
-        }
 
         // ========== Pages (Transient - Fresh instance per navigation) ==========
 

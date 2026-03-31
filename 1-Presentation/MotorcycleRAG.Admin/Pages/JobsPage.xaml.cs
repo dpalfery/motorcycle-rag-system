@@ -59,7 +59,7 @@ internal partial class JobsPage : ContentPage {
     private IDispatcherTimer CreatePollTimer() {
         var dispatcher = Dispatcher ?? throw new InvalidOperationException("Dispatcher is not available for JobsPage polling.");
         var timer = dispatcher.CreateTimer();
-        timer.Interval = TimeSpan.FromSeconds(5);
+        timer.Interval = TimeSpan.FromSeconds(15);
         timer.IsRepeating = true;
         timer.Tick += OnPollTimerTick;
         return timer;

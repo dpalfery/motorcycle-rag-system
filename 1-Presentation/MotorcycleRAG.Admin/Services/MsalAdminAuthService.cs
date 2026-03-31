@@ -17,9 +17,11 @@ public class MsalAdminAuthService : IAdminAuthService {
     private readonly string[] _scopes;
     private readonly ILogger<MsalAdminAuthService> _logger;
     private readonly SemaphoreSlim _tokenRefreshSemaphore = new(1, 1);
+    private readonly object _accountLoadSync = new();
     private IPublicClientApplication? _pca;
     private const string CacheFileName = "msal_cache.dat";
     private readonly string _cacheDirectory;
+    private Task? _accountInitializationTask;
     private IAccount? _currentAccount;
     private string? _cachedAccessToken;
     private DateTimeOffset _cachedAccessTokenExpiresAtUtc = DateTimeOffset.MinValue;
@@ -36,6 +38,7 @@ public class MsalAdminAuthService : IAdminAuthService {
 
         // Store cache in user's local app data folder
         _cacheDirectory = Path.Combine(MsalCacheHelper.UserRootDirectory, "MotorcycleRAG.Admin");
+        StartAccountInitialization();
     }
 
     private async Task<IPublicClientApplication> GetPcaAsync() {
@@ -61,6 +64,23 @@ public class MsalAdminAuthService : IAdminAuthService {
         cacheHelper.RegisterCache(_pca.UserTokenCache);
 
         return _pca;
+    }
+
+    private void StartAccountInitialization() {
+        lock (_accountLoadSync) {
+            _accountInitializationTask ??= Task.Run(LoadCachedAccountAsync);
+        }
+    }
+
+    private async Task LoadCachedAccountAsync() {
+        try {
+            var pca = await GetPcaAsync().ConfigureAwait(false);
+            var accounts = await pca.GetAccountsAsync().ConfigureAwait(false);
+            _currentAccount = accounts.FirstOrDefault();
+        }
+        catch (Exception ex) {
+            _logger.LogDebug(ex, "Failed to inspect cached MSAL account state.");
+        }
     }
 
     public async Task<string?> GetAccessTokenAsync() {
@@ -138,27 +158,19 @@ public class MsalAdminAuthService : IAdminAuthService {
     }
 
     public bool IsSignedIn() {
-        if (_currentAccount != null)
-        {
+        if (_currentAccount != null || HasUsableCachedAccessToken()) {
             return true;
         }
 
-        try {
-            var pca = GetPcaAsync().GetAwaiter().GetResult();
-            _currentAccount = pca.GetAccountsAsync().GetAwaiter().GetResult().FirstOrDefault();
-        }
-        catch (Exception ex) {
-            _logger.LogDebug(ex, "Failed to inspect cached MSAL account state.");
-        }
-
-        return _currentAccount != null;
+        StartAccountInitialization();
+        return false;
     }
 
     public bool IsAuthenticated => IsSignedIn();
 
     public string? UserDisplayName {
         get {
-            _ = IsSignedIn();
+            StartAccountInitialization();
             return _currentAccount?.Username;
         }
     }

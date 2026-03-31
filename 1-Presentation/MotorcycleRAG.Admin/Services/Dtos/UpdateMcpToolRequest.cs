@@ -5,6 +5,6 @@ namespace MotorcycleRAG.Admin.Services.Dtos;
 /// </summary>
 internal class UpdateMcpToolRequest
 {
-    internal bool? IsEnabled { get; set; }
-    internal string? ChangeReason { get; set; }
+    public bool? IsEnabled { get; set; }
+    public string? ChangeReason { get; set; }
 }

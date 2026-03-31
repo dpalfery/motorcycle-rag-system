@@ -1,4 +1,5 @@
 using MotorcycleRAG.Admin.Services;
+using MotorcycleRAG.Admin.Utilities;
 
 namespace MotorcycleRAG.Admin;
 
@@ -52,14 +53,14 @@ internal partial class AppShell : Shell {
         // Load configuration on startup
         try
         {
-            await _configService.LoadConfigurationAsync();
+            await MauiThreading.RunOffMainThreadAsync(() => _configService.LoadConfigurationAsync()).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error loading configuration: {ex.Message}");
         }
 
-        await UpdateUIAsync();
+        await UpdateUIAsync().ConfigureAwait(false);
     }
 
     private async void OnAuthButtonClicked(object? sender, EventArgs e)
@@ -68,31 +69,31 @@ internal partial class AppShell : Shell {
         {
             if (_authService.IsSignedIn())
             {
-                // Sign out from auth service
-                await _authService.SignOutAsync();
-
-                // Clear any cached tokens
-                await _settingsService.RemoveSecureAsync("auth_token");
-                await _settingsService.RemoveSecureAsync("auth_refresh_token");
+                await MauiThreading.RunOffMainThreadAsync(async () =>
+                {
+                    await _authService.SignOutAsync().ConfigureAwait(false);
+                    await _settingsService.RemoveSecureAsync("auth_token").ConfigureAwait(false);
+                    await _settingsService.RemoveSecureAsync("auth_refresh_token").ConfigureAwait(false);
+                }).ConfigureAwait(false);
 
                 _appFlowCoordinator.ShowLandingPage();
             }
             else
             {
                 // Sign in
-                var signedIn = await _authService.SignInAsync();
+                var signedIn = await MauiThreading.RunOffMainThreadAsync(() => _authService.SignInAsync()).ConfigureAwait(false);
                 if (!signedIn)
                 {
                     return;
                 }
             }
             
-            await UpdateUIAsync();
+            await UpdateUIAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Auth error: {ex.Message}");
-            await DisplayAlertAsync("Authentication Error", $"Action failed: {ex.Message}", "OK");
+            await ErrorPresenter.ShowErrorAsync("Authentication Error", $"Action failed: {ex.Message}").ConfigureAwait(false);
         }
     }
 

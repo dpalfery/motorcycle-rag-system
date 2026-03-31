@@ -8,6 +8,8 @@ using MotorcycleRAG.Admin.Models.Api;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Utilities;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using Polly.Timeout;
+using LocalProcessorHealthResponse = MotorcycleRAG.Admin.Services.Dtos.LocalProcessorHealthResponse;
 
 namespace MotorcycleRAG.Admin.ViewModels;
 
@@ -20,12 +22,17 @@ namespace MotorcycleRAG.Admin.ViewModels;
 internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private const int RecentIngestionJobCount = 50;
     private const long LocalGraphMaxFileSizeBytes = 2L * 1024 * 1024 * 1024;
+    private const int MaxAutomaticApiSectionFailures = 5;
+    private const string PendingStorageFilesSectionName = "Pending storage files";
+    private const string IngestionJobsSectionName = "Ingestion jobs";
+    private const string PipelineExecutionsSectionName = "Pipeline executions";
     private readonly ApiClient _apiClient;
     private readonly IAdminAuthService _authService;
     private readonly IConfigurationStateService _configService;
     private readonly ILocalProcessorService _localProcessorService;
     private readonly ILogger<JobsViewModel> _logger;
     private readonly SemaphoreSlim _loadJobsSemaphore = new(1, 1);
+    private readonly object _automaticApiPollingSync = new();
     private readonly object _loadJobsCancellationSync = new();
     private bool _isLoading;
     private bool _isPickingLocalGraphFile;
@@ -38,10 +45,14 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private bool _autoPollIngestionJobsEnabled = true;
     private bool _autoPollPendingStorageFilesEnabled = true;
     private bool _autoPollPipelineExecutionsEnabled = true;
+    private int _pendingStorageFilesFailureCount;
+    private int _ingestionJobsFailureCount;
+    private int _pipelineExecutionsFailureCount;
     private int _localProcessorActiveJobs;
     private string _selectedLocalGraphFilePath = string.Empty;
     private string _localGraphStatusMessage = string.Empty;
     private string _localProcessorStatusMessage = "Local processor is not running.";
+    private string _apiPollingProblemMessage = string.Empty;
     private CancellationTokenSource? _loadJobsCancellationTokenSource;
 
     public JobsViewModel(
@@ -63,7 +74,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         LocalProcessorJobs.CollectionChanged += (_, _) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanClearLocalProcessorJobs)));
 
-        LoadJobsCommand = new AsyncRelayCommand(() => LoadJobsAsync(forceApiRetry: true));
+        LoadJobsCommand = new AsyncRelayCommand(() => LoadJobsAsync(forceApiRetry: true, showBusyIndicator: true));
         CancelJobCommand = new AsyncRelayCommand<string>(CancelJobAsync);
         ProcessPendingStorageFileCommand = new AsyncRelayCommand<PendingStorageFileViewModel>(ProcessPendingStorageFileAsync);
         ProcessPendingStorageFileAsGraphCommand = new AsyncRelayCommand<PendingStorageFileViewModel>(
@@ -239,6 +250,19 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         }
     }
 
+    public string ApiPollingProblemMessage {
+        get => _apiPollingProblemMessage;
+        private set {
+            if (string.Equals(_apiPollingProblemMessage, value, StringComparison.Ordinal)) {
+                return;
+            }
+
+            _apiPollingProblemMessage = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ApiPollingProblemMessage)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasApiPollingProblemMessage)));
+        }
+    }
+
     public string LocalProcessorStateLabel =>
         !IsLocalProcessorRunning
             ? "Stopped"
@@ -249,6 +273,8 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     public bool HasSelectedLocalGraphFile => !string.IsNullOrWhiteSpace(SelectedLocalGraphFilePath);
 
     public bool HasLocalGraphStatusMessage => !string.IsNullOrWhiteSpace(LocalGraphStatusMessage);
+
+    public bool HasApiPollingProblemMessage => !string.IsNullOrWhiteSpace(ApiPollingProblemMessage);
 
     public bool CanSelectLocalGraphFile => !IsStartingLocalGraphJob && !_isPickingLocalGraphFile;
 
@@ -299,197 +325,246 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     public ICommand ImportLocalProcessorJobCommand { get; }
 
     public async Task InitializeAsync() {
-        await LoadJobsAsync(forceApiRetry: true);
+        await LoadJobsAsync(forceApiRetry: true, showBusyIndicator: true);
     }
 
-    internal Task RefreshAsync() => LoadJobsAsync(forceApiRetry: false);
+    internal Task RefreshAsync() => LoadJobsAsync(forceApiRetry: false, showBusyIndicator: false);
 
-    private async Task LoadJobsAsync(bool forceApiRetry) {
-        if (!MainThread.IsMainThread) {
-            await MainThread.InvokeOnMainThreadAsync(() => LoadJobsAsync(forceApiRetry));
-            return;
-        }
-
+    private async Task LoadJobsAsync(bool forceApiRetry, bool showBusyIndicator = true) {
         if (_isPickingLocalGraphFile) {
             return;
         }
 
-        if (!await _loadJobsSemaphore.WaitAsync(0)) {
+        if (!await _loadJobsSemaphore.WaitAsync(0).ConfigureAwait(false)) {
             return;
         }
 
         var loadJobsCancellationTokenSource = RegisterLoadJobsCancellationTokenSource();
         var cancellationToken = loadJobsCancellationTokenSource.Token;
-        IsLoading = true;
+        if (showBusyIndicator) {
+            await RunOnUiThreadAsync(() => IsLoading = true).ConfigureAwait(false);
+        }
         try {
+            var loadResult = await RunOffUiThreadAsync(
+                    () => LoadJobsCoreAsync(forceApiRetry, cancellationToken))
+                .ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            if (forceApiRetry) {
-                ResetAutomaticApiSectionPolling();
-            }
 
-            var localHealth = await _localProcessorService.GetHealthAsync(cancellationToken);
-            var localJobsTask = localHealth is null
-                ? Task.FromResult(new List<LocalProcessorJobViewModel>())
-                : TryGetLocalProcessorJobsAsync(cancellationToken);
-
-            List<PipelineExecution> executions = [];
-            List<PendingStorageFileDto> pendingFiles = [];
-            List<IngestionJobStatusResponse> ingestionJobs = [];
-            var loadedPipelineExecutions = false;
-            var loadedPendingStorageFiles = false;
-            var loadedIngestionJobs = false;
-
-            if (CanLoadApiData()) {
-                loadedPipelineExecutions = forceApiRetry || _autoPollPipelineExecutionsEnabled;
-                loadedPendingStorageFiles = forceApiRetry || _autoPollPendingStorageFilesEnabled;
-                loadedIngestionJobs = forceApiRetry || _autoPollIngestionJobsEnabled;
-
-                var executionsTask = loadedPipelineExecutions
-                    ? TryGetPipelineExecutionsAsync(cancellationToken)
-                    : Task.FromResult(new List<PipelineExecution>());
-                var pendingFilesTask = loadedPendingStorageFiles
-                    ? TryGetPendingStorageFilesAsync(cancellationToken)
-                    : Task.FromResult(new List<PendingStorageFileDto>());
-                var ingestionJobsTask = loadedIngestionJobs
-                    ? TryGetIngestionJobsAsync(cancellationToken)
-                    : Task.FromResult(new List<IngestionJobStatusResponse>());
-                await Task.WhenAll(localJobsTask, executionsTask, pendingFilesTask, ingestionJobsTask);
-                cancellationToken.ThrowIfCancellationRequested();
-
-                executions = await executionsTask;
-                pendingFiles = await pendingFilesTask;
-                ingestionJobs = await ingestionJobsTask;
-            }
-            else {
-                await localJobsTask;
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-
-            var localJobs = await localJobsTask;
-            cancellationToken.ThrowIfCancellationRequested();
-            var latestGraphImportsByUpload = loadedIngestionJobs
-                ? ingestionJobs
-                    .Where(job => string.Equals(job.InputType, "BikeGraph", StringComparison.OrdinalIgnoreCase)
-                                  && !string.IsNullOrWhiteSpace(job.InputRef))
-                    .GroupBy(job => job.InputRef, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(
-                        group => group.Key,
-                        group => {
-                            var latestJob = group.OrderByDescending(job => job.CreatedAtUtc).First();
-                            return (latestJob.Status, latestJob.FailureReason);
-                        },
-                        StringComparer.OrdinalIgnoreCase)
-                : IngestionJobs
-                    .Where(job => string.Equals(job.InputType, "BikeGraph", StringComparison.OrdinalIgnoreCase)
-                                  && !string.IsNullOrWhiteSpace(job.InputRef))
-                    .GroupBy(job => job.InputRef, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(
-                        group => group.Key,
-                        group => {
-                            var latestJob = group.OrderByDescending(job => job.CreatedAtUtc).First();
-                            return (latestJob.Status, latestJob.FailureReason);
-                        },
-                        StringComparer.OrdinalIgnoreCase);
-
-            ApplyLocalProcessorState(localHealth);
-
-            LocalProcessorJobs.Clear();
-            foreach (var localJob in localJobs) {
-                if (latestGraphImportsByUpload.TryGetValue(localJob.UploadId, out var graphImport)) {
-                    localJob.GraphImportStatus = graphImport.Status;
-                    localJob.GraphImportFailureReason = graphImport.FailureReason;
-                }
-
-                LocalProcessorJobs.Add(localJob);
-            }
-
-            if (loadedPendingStorageFiles) {
-                PendingStorageFiles.Clear();
-                foreach (var pendingFile in pendingFiles
-                             .OrderByDescending(file => file.LastModifiedUtc)
-                             .ThenBy(file => file.BlobName, StringComparer.OrdinalIgnoreCase)) {
-                    PendingStorageFiles.Add(new PendingStorageFileViewModel {
-                        UploadId = pendingFile.UploadId,
-                        BlobName = pendingFile.BlobName,
-                        DocumentType = pendingFile.DocumentType,
-                        SizeBytes = pendingFile.SizeBytes,
-                        LastModifiedUtc = pendingFile.LastModifiedUtc,
-                        LastKnownJobStatus = pendingFile.LastKnownJobStatus,
-                        FailureReason = pendingFile.FailureReason,
-                        GraphImportStatus = pendingFile.GraphImportStatus,
-                        GraphImportFailureReason = pendingFile.GraphImportFailureReason
-                    });
-                }
-            }
-
-            if (loadedIngestionJobs) {
-                IngestionJobs.Clear();
-                foreach (var ingestionJob in ingestionJobs
-                             .OrderByDescending(job => job.CreatedAtUtc)
-                             .ThenBy(job => job.JobId)) {
-                    IngestionJobs.Add(new IngestionJobHistoryViewModel {
-                        JobId = ingestionJob.JobId,
-                        Status = ingestionJob.Status,
-                        CreatedAtUtc = ingestionJob.CreatedAtUtc,
-                        StartedAtUtc = ingestionJob.StartedAtUtc,
-                        CompletedAtUtc = ingestionJob.CompletedAtUtc,
-                        InputType = ingestionJob.InputType,
-                        InputRef = ingestionJob.InputRef,
-                        FailureReason = ingestionJob.FailureReason,
-                        FabricRunId = ingestionJob.FabricRunId
-                    });
-                }
-            }
-
-            if (loadedPipelineExecutions) {
-                Jobs.Clear();
-                foreach (var execution in executions.OrderByDescending(e => e.StartTime)) {
-                    Jobs.Add(new JobViewModel {
-                        ExecutionId = execution.ExecutionId,
-                        PipelineType = execution.PipelineType,
-                        Status = execution.Status,
-                        StartTime = execution.StartTime,
-                        EndTime = execution.EndTime,
-                        CreatedBy = execution.CreatedBy,
-                        Errors = new ObservableCollection<string>(execution.Errors),
-                        Warnings = new ObservableCollection<string>(execution.Warnings)
-                    });
-                }
-            }
+            await RunOnUiThreadAsync(() => ApplyLoadJobsResult(
+                    loadResult.LocalHealth,
+                    loadResult.LocalJobs,
+                    loadResult.Executions,
+                    loadResult.PendingFiles,
+                    loadResult.IngestionJobs,
+                    loadResult.LoadedPipelineExecutions,
+                    loadResult.LoadedPendingStorageFiles,
+                    loadResult.LoadedIngestionJobs))
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) {
             _logger.LogDebug("Jobs refresh was cancelled.");
         }
         finally {
-            IsLoading = false;
+            if (showBusyIndicator) {
+                await RunOnUiThreadAsync(() => IsLoading = false).ConfigureAwait(false);
+            }
             ClearLoadJobsCancellationTokenSource(loadJobsCancellationTokenSource);
             _loadJobsSemaphore.Release();
         }
     }
 
-    private async Task RefreshLocalProcessorSectionAsync(MotorcycleRAG.Admin.Services.Dtos.LocalProcessorHealthResponse? knownHealth = null) {
-        if (!MainThread.IsMainThread) {
-            await MainThread.InvokeOnMainThreadAsync(() => RefreshLocalProcessorSectionAsync(knownHealth));
-            return;
+    private async Task<(
+        LocalProcessorHealthResponse? LocalHealth,
+        List<LocalProcessorJobViewModel> LocalJobs,
+        List<PipelineExecution> Executions,
+        List<PendingStorageFileDto> PendingFiles,
+        List<IngestionJobStatusResponse> IngestionJobs,
+        bool LoadedPipelineExecutions,
+        bool LoadedPendingStorageFiles,
+        bool LoadedIngestionJobs)> LoadJobsCoreAsync(bool forceApiRetry, CancellationToken cancellationToken) {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (forceApiRetry) {
+            await ResetAutomaticApiSectionPollingAsync().ConfigureAwait(false);
         }
 
-        await _loadJobsSemaphore.WaitAsync();
-        try {
-            var health = knownHealth ?? await _localProcessorService.GetHealthAsync(default);
-            ApplyLocalProcessorState(health);
+        var localHealth = await _localProcessorService.GetHealthAsync(cancellationToken).ConfigureAwait(false);
+        var localJobsTask = localHealth is null
+            ? Task.FromResult(new List<LocalProcessorJobViewModel>())
+            : TryGetLocalProcessorJobsAsync(cancellationToken);
 
-            var localJobs = health is null
-                ? []
-                : await TryGetLocalProcessorJobsAsync(default);
+        List<PipelineExecution> executions = [];
+        List<PendingStorageFileDto> pendingFiles = [];
+        List<IngestionJobStatusResponse> ingestionJobs = [];
+        var loadedPipelineExecutions = false;
+        var loadedPendingStorageFiles = false;
+        var loadedIngestionJobs = false;
 
-            LocalProcessorJobs.Clear();
-            foreach (var localJob in localJobs) {
-                LocalProcessorJobs.Add(localJob);
+        if (CanLoadApiData()) {
+            loadedPipelineExecutions = forceApiRetry || _autoPollPipelineExecutionsEnabled;
+            loadedPendingStorageFiles = forceApiRetry || _autoPollPendingStorageFilesEnabled;
+            loadedIngestionJobs = forceApiRetry || _autoPollIngestionJobsEnabled;
+
+            var executionsTask = loadedPipelineExecutions
+                ? TryGetPipelineExecutionsAsync(cancellationToken)
+                : Task.FromResult(new List<PipelineExecution>());
+            var pendingFilesTask = loadedPendingStorageFiles
+                ? TryGetPendingStorageFilesAsync(cancellationToken)
+                : Task.FromResult(new List<PendingStorageFileDto>());
+            var ingestionJobsTask = loadedIngestionJobs
+                ? TryGetIngestionJobsAsync(cancellationToken)
+                : Task.FromResult(new List<IngestionJobStatusResponse>());
+            await Task.WhenAll(localJobsTask, executionsTask, pendingFilesTask, ingestionJobsTask).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            executions = await executionsTask.ConfigureAwait(false);
+            pendingFiles = await pendingFilesTask.ConfigureAwait(false);
+            ingestionJobs = await ingestionJobsTask.ConfigureAwait(false);
+        }
+        else {
+            await localJobsTask.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        var localJobs = await localJobsTask.ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return (
+            localHealth,
+            localJobs,
+            executions,
+            pendingFiles,
+            ingestionJobs,
+            loadedPipelineExecutions,
+            loadedPendingStorageFiles,
+            loadedIngestionJobs);
+    }
+
+    private void ApplyLoadJobsResult(
+        LocalProcessorHealthResponse? localHealth,
+        List<LocalProcessorJobViewModel> localJobs,
+        List<PipelineExecution> executions,
+        List<PendingStorageFileDto> pendingFiles,
+        List<IngestionJobStatusResponse> ingestionJobs,
+        bool loadedPipelineExecutions,
+        bool loadedPendingStorageFiles,
+        bool loadedIngestionJobs) {
+        var latestGraphImportsByUpload = loadedIngestionJobs
+            ? ingestionJobs
+                .Where(job => string.Equals(job.InputType, "BikeGraph", StringComparison.OrdinalIgnoreCase)
+                              && !string.IsNullOrWhiteSpace(job.InputRef))
+                .GroupBy(job => job.InputRef, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => {
+                        var latestJob = group.OrderByDescending(job => job.CreatedAtUtc).First();
+                        return (latestJob.Status, latestJob.FailureReason);
+                    },
+                    StringComparer.OrdinalIgnoreCase)
+            : IngestionJobs
+                .Where(job => string.Equals(job.InputType, "BikeGraph", StringComparison.OrdinalIgnoreCase)
+                              && !string.IsNullOrWhiteSpace(job.InputRef))
+                .GroupBy(job => job.InputRef, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => {
+                        var latestJob = group.OrderByDescending(job => job.CreatedAtUtc).First();
+                        return (latestJob.Status, latestJob.FailureReason);
+                    },
+                    StringComparer.OrdinalIgnoreCase);
+
+        ApplyLocalProcessorState(localHealth);
+
+        LocalProcessorJobs.Clear();
+        foreach (var localJob in localJobs) {
+            if (latestGraphImportsByUpload.TryGetValue(localJob.UploadId, out var graphImport)) {
+                localJob.GraphImportStatus = graphImport.Status;
+                localJob.GraphImportFailureReason = graphImport.FailureReason;
             }
+
+            LocalProcessorJobs.Add(localJob);
+        }
+
+        if (loadedPendingStorageFiles) {
+            PendingStorageFiles.Clear();
+            foreach (var pendingFile in pendingFiles
+                         .OrderByDescending(file => file.LastModifiedUtc)
+                         .ThenBy(file => file.BlobName, StringComparer.OrdinalIgnoreCase)) {
+                PendingStorageFiles.Add(new PendingStorageFileViewModel {
+                    UploadId = pendingFile.UploadId,
+                    BlobName = pendingFile.BlobName,
+                    DocumentType = pendingFile.DocumentType,
+                    SizeBytes = pendingFile.SizeBytes,
+                    LastModifiedUtc = pendingFile.LastModifiedUtc,
+                    LastKnownJobStatus = pendingFile.LastKnownJobStatus,
+                    FailureReason = pendingFile.FailureReason,
+                    GraphImportStatus = pendingFile.GraphImportStatus,
+                    GraphImportFailureReason = pendingFile.GraphImportFailureReason
+                });
+            }
+        }
+
+        if (loadedIngestionJobs) {
+            IngestionJobs.Clear();
+            foreach (var ingestionJob in ingestionJobs
+                         .OrderByDescending(job => job.CreatedAtUtc)
+                         .ThenBy(job => job.JobId)) {
+                IngestionJobs.Add(new IngestionJobHistoryViewModel {
+                    JobId = ingestionJob.JobId,
+                    Status = ingestionJob.Status,
+                    CreatedAtUtc = ingestionJob.CreatedAtUtc,
+                    StartedAtUtc = ingestionJob.StartedAtUtc,
+                    CompletedAtUtc = ingestionJob.CompletedAtUtc,
+                    InputType = ingestionJob.InputType,
+                    InputRef = ingestionJob.InputRef,
+                    FailureReason = ingestionJob.FailureReason,
+                    FabricRunId = ingestionJob.FabricRunId
+                });
+            }
+        }
+
+        if (loadedPipelineExecutions) {
+            Jobs.Clear();
+            foreach (var execution in executions.OrderByDescending(e => e.StartTime)) {
+                Jobs.Add(new JobViewModel {
+                    ExecutionId = execution.ExecutionId,
+                    PipelineType = execution.PipelineType,
+                    Status = execution.Status,
+                    StartTime = execution.StartTime,
+                    EndTime = execution.EndTime,
+                    CreatedBy = execution.CreatedBy,
+                    Errors = new ObservableCollection<string>(execution.Errors),
+                    Warnings = new ObservableCollection<string>(execution.Warnings)
+                });
+            }
+        }
+    }
+
+    private async Task RefreshLocalProcessorSectionAsync(LocalProcessorHealthResponse? knownHealth = null) {
+        await _loadJobsSemaphore.WaitAsync().ConfigureAwait(false);
+        try {
+            var refreshResult = await RunOffUiThreadAsync(
+                    () => RefreshLocalProcessorSectionCoreAsync(knownHealth))
+                .ConfigureAwait(false);
+
+            await RunOnUiThreadAsync(() => {
+                ApplyLocalProcessorState(refreshResult.Health);
+                LocalProcessorJobs.Clear();
+                foreach (var localJob in refreshResult.LocalJobs) {
+                    LocalProcessorJobs.Add(localJob);
+                }
+            }).ConfigureAwait(false);
         }
         finally {
             _loadJobsSemaphore.Release();
         }
+    }
+
+    private async Task<(LocalProcessorHealthResponse? Health, List<LocalProcessorJobViewModel> LocalJobs)> RefreshLocalProcessorSectionCoreAsync(
+        LocalProcessorHealthResponse? knownHealth) {
+        var health = knownHealth ?? await _localProcessorService.GetHealthAsync(default).ConfigureAwait(false);
+        var localJobs = health is null
+            ? []
+            : await TryGetLocalProcessorJobsAsync(default).ConfigureAwait(false);
+        return (health, localJobs);
     }
 
     private async Task CancelJobAsync(string? executionId) {
@@ -498,38 +573,30 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         }
 
         try {
-            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-            if (window?.Page is null) {
-                return;
-            }
-
-            var confirm = await window.Page.DisplayAlertAsync(
+            var confirm = await ErrorPresenter.ShowConfirmAsync(
                 "Cancel Job",
                 $"Are you sure you want to cancel execution {executionId}?",
                 "Yes",
-                "No");
+                "No").ConfigureAwait(false);
 
             if (!confirm) {
                 return;
             }
 
-            var result = await _apiClient.CancelPipelineAsync(executionId);
+            var result = await RunOffUiThreadAsync(() => _apiClient.CancelPipelineAsync(executionId)).ConfigureAwait(false);
             if (result.Cancelled) {
-                await window.Page.DisplayAlertAsync("Success", "Job cancelled successfully", "OK");
-                await LoadJobsAsync(forceApiRetry: true);
+                await ErrorPresenter.ShowSuccessAsync("Success", "Job cancelled successfully").ConfigureAwait(false);
+                await LoadJobsAsync(forceApiRetry: true).ConfigureAwait(false);
             }
             else {
-                await window.Page.DisplayAlertAsync("Error", "Failed to cancel job", "OK");
+                await ErrorPresenter.ShowErrorAsync("Error", "Failed to cancel job").ConfigureAwait(false);
             }
         }
         catch (UnauthorizedAccessException ex) {
             _logger.LogWarning(ex, "User not authorized to cancel job {ExecutionId}", executionId);
         }
         catch (HttpRequestException ex) {
-            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-            if (window?.Page != null) {
-                await window.Page.DisplayAlertAsync("Error", "Failed to reach the API server", "OK");
-            }
+            await ErrorPresenter.ShowErrorAsync("Error", "Failed to reach the API server").ConfigureAwait(false);
 
             _logger.LogWarning(ex, "Failed to reach API server when canceling execution {ExecutionId}", executionId);
         }
@@ -555,7 +622,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     }
 
     internal void ApplySelectedLocalGraphFile(string filePath) {
-        ValidateLocalGraphFile(filePath);
         SelectedLocalGraphFilePath = filePath;
         LocalGraphStatusMessage = $"Selected CSV: {Path.GetFileName(filePath)}";
     }
@@ -570,57 +636,56 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     }
 
     private async Task StartLocalProcessorAsync() {
-        IsStartingLocalProcessor = true;
-        LocalProcessorStatusMessage = "Starting local processor...";
+        await RunOnUiThreadAsync(() => {
+            IsStartingLocalProcessor = true;
+            LocalProcessorStatusMessage = "Starting local processor...";
+        }).ConfigureAwait(false);
 
         try {
-            var health = await _localProcessorService.StartAsync();
-            await RefreshLocalProcessorSectionAsync(health);
+            var health = await RunOffUiThreadAsync(() => _localProcessorService.StartAsync()).ConfigureAwait(false);
+            await RefreshLocalProcessorSectionAsync(health).ConfigureAwait(false);
         }
         catch (Exception ex) {
-            LocalProcessorStatusMessage = "Failed to start the local processor.";
+            await RunOnUiThreadAsync(() => LocalProcessorStatusMessage = "Failed to start the local processor.").ConfigureAwait(false);
             await ErrorPresenter.ShowErrorAsync(
                 "Local Processor Failed",
-                ErrorPresenter.SanitizeErrorMessage(ex.Message));
+                ErrorPresenter.SanitizeErrorMessage(ex.Message)).ConfigureAwait(false);
             _logger.LogError(ex, "Failed to start the local processor.");
         }
         finally {
-            IsStartingLocalProcessor = false;
+            await RunOnUiThreadAsync(() => IsStartingLocalProcessor = false).ConfigureAwait(false);
         }
     }
 
     private async Task StopLocalProcessorAsync() {
-        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-        if (window?.Page is null) {
-            return;
-        }
-
-        var confirm = await window.Page.DisplayAlertAsync(
+        var confirm = await ErrorPresenter.ShowConfirmAsync(
             "Stop Local Processor",
             "Stop the local processor gracefully after active jobs finish?",
             "Stop",
-            "Cancel");
+            "Cancel").ConfigureAwait(false);
 
         if (!confirm) {
             return;
         }
 
-        IsStoppingLocalProcessor = true;
-        LocalProcessorStatusMessage = "Stopping local processor gracefully...";
+        await RunOnUiThreadAsync(() => {
+            IsStoppingLocalProcessor = true;
+            LocalProcessorStatusMessage = "Stopping local processor gracefully...";
+        }).ConfigureAwait(false);
 
         try {
-            await _localProcessorService.StopAsync();
-            await RefreshLocalProcessorSectionAsync();
+            await RunOffUiThreadAsync(() => _localProcessorService.StopAsync()).ConfigureAwait(false);
+            await RefreshLocalProcessorSectionAsync().ConfigureAwait(false);
         }
         catch (Exception ex) {
-            LocalProcessorStatusMessage = "The local processor did not stop cleanly.";
+            await RunOnUiThreadAsync(() => LocalProcessorStatusMessage = "The local processor did not stop cleanly.").ConfigureAwait(false);
             await ErrorPresenter.ShowErrorAsync(
                 "Stop Failed",
-                ErrorPresenter.SanitizeErrorMessage(ex.Message));
+                ErrorPresenter.SanitizeErrorMessage(ex.Message)).ConfigureAwait(false);
             _logger.LogError(ex, "Failed to stop the local processor.");
         }
         finally {
-            IsStoppingLocalProcessor = false;
+            await RunOnUiThreadAsync(() => IsStoppingLocalProcessor = false).ConfigureAwait(false);
         }
     }
 
@@ -630,37 +695,32 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             return;
         }
 
-        var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-        if (window?.Page is null) {
-            return;
-        }
-
-        var confirm = await window.Page.DisplayAlertAsync(
+        var confirm = await ErrorPresenter.ShowConfirmAsync(
             "Clear Finished Local Jobs",
             clearableJobCount == 1
                 ? "Remove the finished local processor job from this list? Active jobs will be kept."
                 : $"Remove {clearableJobCount} finished local processor jobs from this list? Active jobs will be kept.",
             "Clear Finished",
-            "Cancel");
+            "Cancel").ConfigureAwait(false);
 
         if (!confirm) {
             return;
         }
 
-        IsClearingLocalProcessorJobs = true;
+        await RunOnUiThreadAsync(() => IsClearingLocalProcessorJobs = true).ConfigureAwait(false);
 
         try {
-            _ = await _localProcessorService.ClearFinishedJobsAsync();
-            await RefreshLocalProcessorSectionAsync();
+            _ = await RunOffUiThreadAsync(() => _localProcessorService.ClearFinishedJobsAsync()).ConfigureAwait(false);
+            await RefreshLocalProcessorSectionAsync().ConfigureAwait(false);
         }
         catch (Exception ex) {
             await ErrorPresenter.ShowErrorAsync(
                 "Cleanup Failed",
-                ErrorPresenter.SanitizeErrorMessage(ex.Message));
+                ErrorPresenter.SanitizeErrorMessage(ex.Message)).ConfigureAwait(false);
             _logger.LogError(ex, "Failed to clear finished local processor jobs.");
         }
         finally {
-            IsClearingLocalProcessorJobs = false;
+            await RunOnUiThreadAsync(() => IsClearingLocalProcessorJobs = false).ConfigureAwait(false);
         }
     }
 
@@ -669,43 +729,46 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             return;
         }
 
-        try {
-            ValidateLocalGraphFile(SelectedLocalGraphFilePath);
-        }
-        catch (Exception ex) {
-            await ErrorPresenter.ShowErrorAsync(
-                "Invalid CSV",
-                ErrorPresenter.SanitizeErrorMessage(ex.Message));
-            return;
-        }
-
-        IsStartingLocalGraphJob = true;
         var selectedPath = SelectedLocalGraphFilePath;
         var fileName = Path.GetFileName(selectedPath);
 
         try {
-            var health = await _localProcessorService.GetHealthAsync();
-            if (health is null) {
-                LocalGraphStatusMessage = "Starting local processor...";
-                await _localProcessorService.StartAsync();
-            }
-
-            LocalGraphStatusMessage = $"Starting local graph job for {fileName}...";
-            var result = await _localProcessorService.StartBikeGraphJobAsync(selectedPath);
-
-            SelectedLocalGraphFilePath = string.Empty;
-            LocalGraphStatusMessage = $"Local graph job {result.JobId} started for {fileName}.";
-            await RefreshLocalProcessorSectionAsync();
+            await RunOffUiThreadAsync(() => ValidateLocalGraphFile(selectedPath)).ConfigureAwait(false);
         }
         catch (Exception ex) {
-            LocalGraphStatusMessage = "Failed to start the local graph job.";
+            await ErrorPresenter.ShowErrorAsync(
+                "Invalid CSV",
+                ErrorPresenter.SanitizeErrorMessage(ex.Message)).ConfigureAwait(false);
+            return;
+        }
+
+        await RunOnUiThreadAsync(() => IsStartingLocalGraphJob = true).ConfigureAwait(false);
+
+        try {
+            var health = await RunOffUiThreadAsync(() => _localProcessorService.GetHealthAsync()).ConfigureAwait(false);
+            if (health is null) {
+                await RunOnUiThreadAsync(() => LocalGraphStatusMessage = "Starting local processor...").ConfigureAwait(false);
+                await RunOffUiThreadAsync(() => _localProcessorService.StartAsync()).ConfigureAwait(false);
+            }
+
+            await RunOnUiThreadAsync(() => LocalGraphStatusMessage = $"Starting local graph job for {fileName}...").ConfigureAwait(false);
+            var result = await RunOffUiThreadAsync(() => _localProcessorService.StartBikeGraphJobAsync(selectedPath)).ConfigureAwait(false);
+
+            await RunOnUiThreadAsync(() => {
+                SelectedLocalGraphFilePath = string.Empty;
+                LocalGraphStatusMessage = $"Local graph job {result.JobId} started for {fileName}.";
+            }).ConfigureAwait(false);
+            await RefreshLocalProcessorSectionAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex) {
+            await RunOnUiThreadAsync(() => LocalGraphStatusMessage = "Failed to start the local graph job.").ConfigureAwait(false);
             await ErrorPresenter.ShowErrorAsync(
                 "Local Graph Job Failed",
-                ErrorPresenter.SanitizeErrorMessage(ex.Message));
+                ErrorPresenter.SanitizeErrorMessage(ex.Message)).ConfigureAwait(false);
             _logger.LogError(ex, "Failed to start a local graph job for {FileName}", fileName);
         }
         finally {
-            IsStartingLocalGraphJob = false;
+            await RunOnUiThreadAsync(() => IsStartingLocalGraphJob = false).ConfigureAwait(false);
         }
     }
 
@@ -714,30 +777,31 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             return;
         }
 
-        var authorized = await EnsureAuthorizedAsync(showErrors: true);
+        var authorized = await EnsureAuthorizedAsync(showErrors: true).ConfigureAwait(false);
         if (!authorized) {
             return;
         }
 
-        job.IsImporting = true;
+        await RunOnUiThreadAsync(() => job.IsImporting = true).ConfigureAwait(false);
         try {
-            var result = await _apiClient.ImportGraphArtifactsAsync(
-                new GraphImportStartRequest { UploadId = job.UploadId },
-                default);
+            var request = new GraphImportStartRequest { UploadId = job.UploadId };
+            var result = await RunOffUiThreadAsync(() => _apiClient.ImportGraphArtifactsAsync(request, default)).ConfigureAwait(false);
 
-            job.GraphImportStatus = result.Status;
-            job.GraphImportFailureReason = result.FailureReason;
-            LocalGraphStatusMessage = $"Imported processed graph artifact for upload {job.UploadId}.";
-            await LoadJobsAsync(forceApiRetry: true);
+            await RunOnUiThreadAsync(() => {
+                job.GraphImportStatus = result.Status;
+                job.GraphImportFailureReason = result.FailureReason;
+                LocalGraphStatusMessage = $"Imported processed graph artifact for upload {job.UploadId}.";
+            }).ConfigureAwait(false);
+            await LoadJobsAsync(forceApiRetry: true).ConfigureAwait(false);
         }
         catch (Exception ex) {
             await ErrorPresenter.ShowErrorAsync(
                 "Import Failed",
-                ErrorPresenter.SanitizeErrorMessage(ex.Message));
+                ErrorPresenter.SanitizeErrorMessage(ex.Message)).ConfigureAwait(false);
             _logger.LogError(ex, "Failed to import processed graph artifact for upload {UploadId}", job.UploadId);
         }
         finally {
-            job.IsImporting = false;
+            await RunOnUiThreadAsync(() => job.IsImporting = false).ConfigureAwait(false);
         }
     }
 
@@ -746,12 +810,12 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             return;
         }
 
-        var authorized = await EnsureAuthorizedAsync(showErrors: true);
+        var authorized = await EnsureAuthorizedAsync(showErrors: true).ConfigureAwait(false);
         if (!authorized) {
             return;
         }
 
-        pendingFile.IsProcessing = true;
+        await RunOnUiThreadAsync(() => pendingFile.IsProcessing = true).ConfigureAwait(false);
         try {
             var request = new IngestionJobStartRequest {
                 UploadId = pendingFile.UploadId,
@@ -759,22 +823,16 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
                 Configuration = CreateDefaultIngestionConfiguration(workflowDocumentType)
             };
 
-            var result = await _apiClient.StartIngestionJobAsync(request, default);
+            var result = await RunOffUiThreadAsync(() => _apiClient.StartIngestionJobAsync(request, default)).ConfigureAwait(false);
             var isGraphImport = string.Equals(workflowDocumentType, "bike-graph", StringComparison.OrdinalIgnoreCase);
             var title = isGraphImport ? "Graph Import Queued" : "Ingestion Queued";
             var message = isGraphImport
                 ? $"Queued graph import for {pendingFile.BlobName} with job {result.JobId}."
                 : $"Queued {pendingFile.BlobName} with job {result.JobId}.";
 
-            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-            if (window?.Page != null) {
-                await window.Page.DisplayAlertAsync(
-                    title,
-                    message,
-                    "OK");
-            }
+            await ErrorPresenter.ShowSuccessAsync(title, message).ConfigureAwait(false);
 
-            await LoadJobsAsync(forceApiRetry: true);
+            await LoadJobsAsync(forceApiRetry: true).ConfigureAwait(false);
         }
         catch (UnauthorizedAccessException ex) {
             _logger.LogWarning(ex, "User not authorized to process pending storage file {UploadId} for workflow {WorkflowDocumentType}", pendingFile.UploadId, workflowDocumentType);
@@ -797,31 +855,39 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             _logger.LogWarning(ex, "Queue operation timed out for upload {UploadId} and workflow {WorkflowDocumentType}", pendingFile.UploadId, workflowDocumentType);
         }
         finally {
-            pendingFile.IsProcessing = false;
+            await RunOnUiThreadAsync(() => pendingFile.IsProcessing = false).ConfigureAwait(false);
         }
     }
 
     private async Task<List<PendingStorageFileDto>> TryGetPendingStorageFilesAsync(CancellationToken cancellationToken) {
         try {
-            return await _apiClient.GetPendingStorageFilesAsync(cancellationToken);
+            var pendingFiles = await _apiClient.GetPendingStorageFilesAsync(cancellationToken).ConfigureAwait(false);
+            ResetAutomaticApiSectionFailureCount(PendingStorageFilesSectionName);
+            return pendingFiles;
         }
         catch (OperationCanceledException) {
             throw;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound) {
-            PauseAutomaticApiSectionPolling(
-                ref _autoPollPendingStorageFilesEnabled,
-                "Pending storage files",
-                ex.StatusCode);
+            await PauseAutomaticApiSectionPollingAsync(
+                PendingStorageFilesSectionName,
+                ex.StatusCode,
+                "The endpoint is not available on the current API.")
+                .ConfigureAwait(false);
             _logger.LogInformation(ex, "Pending storage files endpoint is not available on the current API.");
             return [];
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.BadRequest) {
-            PauseAutomaticApiSectionPolling(
-                ref _autoPollPendingStorageFilesEnabled,
-                "Pending storage files",
-                ex.StatusCode);
+            await PauseAutomaticApiSectionPollingAsync(
+                PendingStorageFilesSectionName,
+                ex.StatusCode,
+                "The API rejected the request.")
+                .ConfigureAwait(false);
             _logger.LogInformation("Pending storage files request was rejected by the API.");
+            return [];
+        }
+        catch (Exception ex) when (IsTransientApiFailure(ex)) {
+            await RecordAutomaticApiSectionFailureAsync(PendingStorageFilesSectionName, ex).ConfigureAwait(false);
             return [];
         }
         catch (Exception ex) {
@@ -832,25 +898,33 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
 
     private async Task<List<IngestionJobStatusResponse>> TryGetIngestionJobsAsync(CancellationToken cancellationToken) {
         try {
-            return await _apiClient.GetIngestionJobsAsync(RecentIngestionJobCount, cancellationToken);
+            var ingestionJobs = await _apiClient.GetIngestionJobsAsync(RecentIngestionJobCount, cancellationToken).ConfigureAwait(false);
+            ResetAutomaticApiSectionFailureCount(IngestionJobsSectionName);
+            return ingestionJobs;
         }
         catch (OperationCanceledException) {
             throw;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound) {
-            PauseAutomaticApiSectionPolling(
-                ref _autoPollIngestionJobsEnabled,
-                "Ingestion jobs",
-                ex.StatusCode);
+            await PauseAutomaticApiSectionPollingAsync(
+                IngestionJobsSectionName,
+                ex.StatusCode,
+                "The endpoint is not available on the current API.")
+                .ConfigureAwait(false);
             _logger.LogInformation(ex, "Ingestion jobs endpoint is not available on the current API.");
             return [];
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.BadRequest) {
-            PauseAutomaticApiSectionPolling(
-                ref _autoPollIngestionJobsEnabled,
-                "Ingestion jobs",
-                ex.StatusCode);
+            await PauseAutomaticApiSectionPollingAsync(
+                IngestionJobsSectionName,
+                ex.StatusCode,
+                "The API rejected the request.")
+                .ConfigureAwait(false);
             _logger.LogInformation("Ingestion jobs request was rejected by the API.");
+            return [];
+        }
+        catch (Exception ex) when (IsTransientApiFailure(ex)) {
+            await RecordAutomaticApiSectionFailureAsync(IngestionJobsSectionName, ex).ConfigureAwait(false);
             return [];
         }
         catch (Exception ex) {
@@ -861,17 +935,24 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
 
     private async Task<List<PipelineExecution>> TryGetPipelineExecutionsAsync(CancellationToken cancellationToken) {
         try {
-            return await _apiClient.GetPipelineExecutionsAsync(cancellationToken);
+            var pipelineExecutions = await _apiClient.GetPipelineExecutionsAsync(cancellationToken).ConfigureAwait(false);
+            ResetAutomaticApiSectionFailureCount(PipelineExecutionsSectionName);
+            return pipelineExecutions;
         }
         catch (OperationCanceledException) {
             throw;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound || ex.StatusCode == HttpStatusCode.BadRequest) {
-            PauseAutomaticApiSectionPolling(
-                ref _autoPollPipelineExecutionsEnabled,
-                "Pipeline executions",
-                ex.StatusCode);
+            await PauseAutomaticApiSectionPollingAsync(
+                PipelineExecutionsSectionName,
+                ex.StatusCode,
+                "The API rejected the request.")
+                .ConfigureAwait(false);
             _logger.LogInformation("Pipeline executions request was rejected by the API.");
+            return [];
+        }
+        catch (Exception ex) when (IsTransientApiFailure(ex)) {
+            await RecordAutomaticApiSectionFailureAsync(PipelineExecutionsSectionName, ex).ConfigureAwait(false);
             return [];
         }
         catch (Exception ex) {
@@ -936,7 +1017,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             return false;
         }
 
-        var isAuthorized = await _authService.IsAuthorizedAdminAsync();
+        var isAuthorized = await RunOffUiThreadAsync(() => _authService.IsAuthorizedAdminAsync()).ConfigureAwait(false);
         if (!isAuthorized) {
             _logger.LogWarning("Jobs page blocked: user lacks admin permissions");
             if (showErrors) {
@@ -953,25 +1034,153 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
 
     private bool CanLoadApiData() => _configService.IsApiConfigured && _authService.IsSignedIn();
 
-    private void ResetAutomaticApiSectionPolling() {
-        _autoPollPendingStorageFilesEnabled = true;
-        _autoPollIngestionJobsEnabled = true;
-        _autoPollPipelineExecutionsEnabled = true;
+    private async Task ResetAutomaticApiSectionPollingAsync() {
+        lock (_automaticApiPollingSync) {
+            _autoPollPendingStorageFilesEnabled = true;
+            _autoPollIngestionJobsEnabled = true;
+            _autoPollPipelineExecutionsEnabled = true;
+            _pendingStorageFilesFailureCount = 0;
+            _ingestionJobsFailureCount = 0;
+            _pipelineExecutionsFailureCount = 0;
+        }
+
+        await RunOnUiThreadAsync(() => ApiPollingProblemMessage = string.Empty).ConfigureAwait(false);
     }
 
-    private void PauseAutomaticApiSectionPolling(
-        ref bool isEnabled,
+    private async Task PauseAutomaticApiSectionPollingAsync(
         string sectionName,
-        HttpStatusCode? statusCode) {
-        if (!isEnabled) {
+        HttpStatusCode? statusCode,
+        string reason) {
+        var shouldUpdateMessage = false;
+        lock (_automaticApiPollingSync) {
+            if (!IsAutomaticApiSectionPollingEnabled(sectionName)) {
+                return;
+            }
+
+            SetAutomaticApiSectionPollingEnabled(sectionName, false);
+            shouldUpdateMessage = true;
+        }
+
+        if (!shouldUpdateMessage) {
             return;
         }
 
-        isEnabled = false;
+        var problemMessage = $"{sectionName} automatic polling paused after the API returned {statusCode}. Use Refresh to retry.";
         _logger.LogWarning(
-            "{SectionName} automatic polling paused after the API returned {StatusCode}. Use Refresh to retry.",
+            "{SectionName} automatic polling paused after the API returned {StatusCode}. {Reason}",
             sectionName,
-            statusCode);
+            statusCode,
+            reason);
+        await RunOnUiThreadAsync(() => ApiPollingProblemMessage = problemMessage).ConfigureAwait(false);
+    }
+
+    private void ResetAutomaticApiSectionFailureCount(string sectionName) {
+        lock (_automaticApiPollingSync) {
+            SetAutomaticApiSectionFailureCount(sectionName, 0);
+        }
+    }
+
+    private async Task RecordAutomaticApiSectionFailureAsync(string sectionName, Exception exception) {
+        var shouldPausePolling = false;
+        var currentFailureCount = 0;
+        lock (_automaticApiPollingSync) {
+            if (!IsAutomaticApiSectionPollingEnabled(sectionName)) {
+                return;
+            }
+
+            currentFailureCount = GetAutomaticApiSectionFailureCount(sectionName) + 1;
+            SetAutomaticApiSectionFailureCount(sectionName, currentFailureCount);
+            shouldPausePolling = currentFailureCount >= MaxAutomaticApiSectionFailures;
+            if (shouldPausePolling) {
+                SetAutomaticApiSectionPollingEnabled(sectionName, false);
+            }
+        }
+
+        if (!shouldPausePolling) {
+            return;
+        }
+
+        var reason = DescribeApiFailure(exception);
+        var problemMessage = $"{sectionName} automatic polling paused after {currentFailureCount} consecutive failures. Use Refresh to retry.";
+        _logger.LogWarning(
+            exception,
+            "{SectionName} automatic polling paused after {FailureCount} consecutive failures. Reason: {Reason}",
+            sectionName,
+            currentFailureCount,
+            reason);
+        await RunOnUiThreadAsync(() => ApiPollingProblemMessage = problemMessage).ConfigureAwait(false);
+    }
+
+    private bool IsAutomaticApiSectionPollingEnabled(string sectionName) {
+        return sectionName switch {
+            PendingStorageFilesSectionName => _autoPollPendingStorageFilesEnabled,
+            IngestionJobsSectionName => _autoPollIngestionJobsEnabled,
+            PipelineExecutionsSectionName => _autoPollPipelineExecutionsEnabled,
+            _ => true
+        };
+    }
+
+    private void SetAutomaticApiSectionPollingEnabled(string sectionName, bool isEnabled) {
+        switch (sectionName) {
+            case PendingStorageFilesSectionName:
+                _autoPollPendingStorageFilesEnabled = isEnabled;
+                break;
+            case IngestionJobsSectionName:
+                _autoPollIngestionJobsEnabled = isEnabled;
+                break;
+            case PipelineExecutionsSectionName:
+                _autoPollPipelineExecutionsEnabled = isEnabled;
+                break;
+        }
+    }
+
+    private int GetAutomaticApiSectionFailureCount(string sectionName) {
+        return sectionName switch {
+            PendingStorageFilesSectionName => _pendingStorageFilesFailureCount,
+            IngestionJobsSectionName => _ingestionJobsFailureCount,
+            PipelineExecutionsSectionName => _pipelineExecutionsFailureCount,
+            _ => 0
+        };
+    }
+
+    private void SetAutomaticApiSectionFailureCount(string sectionName, int failureCount) {
+        switch (sectionName) {
+            case PendingStorageFilesSectionName:
+                _pendingStorageFilesFailureCount = failureCount;
+                break;
+            case IngestionJobsSectionName:
+                _ingestionJobsFailureCount = failureCount;
+                break;
+            case PipelineExecutionsSectionName:
+                _pipelineExecutionsFailureCount = failureCount;
+                break;
+        }
+    }
+
+    private static bool IsTransientApiFailure(Exception exception) {
+        if (exception is TimeoutRejectedException) {
+            return true;
+        }
+
+        if (exception is HttpRequestException httpRequestException) {
+            return httpRequestException.StatusCode is null ||
+                   httpRequestException.StatusCode == HttpStatusCode.RequestTimeout ||
+                   httpRequestException.StatusCode == HttpStatusCode.TooManyRequests ||
+                   (int)httpRequestException.StatusCode >= 500;
+        }
+
+        return exception is TaskCanceledException;
+    }
+
+    private static string DescribeApiFailure(Exception exception) {
+        return exception switch {
+            TimeoutRejectedException => "The request timed out.",
+            HttpRequestException httpRequestException when httpRequestException.StatusCode is not null =>
+                $"The API returned {httpRequestException.StatusCode}.",
+            HttpRequestException => "The API could not be reached.",
+            TaskCanceledException => "The request was canceled before completion.",
+            _ => "The API returned a transient failure."
+        };
     }
 
     private CancellationTokenSource RegisterLoadJobsCancellationTokenSource() {
@@ -1001,11 +1210,11 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     }
 
     private async Task WaitForLoadJobsIdleAsync() {
-        await _loadJobsSemaphore.WaitAsync();
+        await _loadJobsSemaphore.WaitAsync().ConfigureAwait(false);
         _loadJobsSemaphore.Release();
     }
 
-    private void ApplyLocalProcessorState(MotorcycleRAG.Admin.Services.Dtos.LocalProcessorHealthResponse? health) {
+    private void ApplyLocalProcessorState(LocalProcessorHealthResponse? health) {
         if (health is null) {
             IsLocalProcessorRunning = false;
             IsLocalProcessorAcceptingWork = false;
@@ -1055,6 +1264,22 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             throw new InvalidOperationException("The selected CSV exceeds the 2 GB graph import limit.");
         }
     }
+
+    private static Task RunOnUiThreadAsync(Action action) => MauiThreading.RunOnMainThreadAsync(action);
+
+    private static Task RunOnUiThreadAsync(Func<Task> action) => MauiThreading.RunOnMainThreadAsync(action);
+
+    private static Task RunOffUiThreadAsync(Action action, CancellationToken cancellationToken = default) =>
+        MauiThreading.RunOffMainThreadAsync(action, cancellationToken);
+
+    private static Task RunOffUiThreadAsync(Func<Task> action, CancellationToken cancellationToken = default) =>
+        MauiThreading.RunOffMainThreadAsync(action, cancellationToken);
+
+    private static Task<T> RunOffUiThreadAsync<T>(Func<T> action, CancellationToken cancellationToken = default) =>
+        MauiThreading.RunOffMainThreadAsync(action, cancellationToken);
+
+    private static Task<T> RunOffUiThreadAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken = default) =>
+        MauiThreading.RunOffMainThreadAsync(action, cancellationToken);
 
     public void Dispose() {
         Dispose(true);

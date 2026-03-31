@@ -1,12 +1,11 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using MotorcycleRAG.Admin.Services;
+using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Admin.Utilities;
-using MotorcycleRAG.Admin.Constants;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Enums;
-using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Admin.Services;
 
 namespace MotorcycleRAG.Admin.ViewModels;
 
@@ -16,9 +15,9 @@ namespace MotorcycleRAG.Admin.ViewModels;
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
-internal partial class WebSourcesViewModel : ObservableObject {
+internal partial class WebSourcesViewModel : ObservableObject
+{
     private readonly ApiClient _apiClient;
-
     private readonly IAdminAuthService _authService;
     private readonly IConfigurationStateService _configService;
     private readonly ILogger<WebSourcesViewModel> _logger;
@@ -53,581 +52,348 @@ internal partial class WebSourcesViewModel : ObservableObject {
     [ObservableProperty]
     private bool newSourceIncludeInSearch = true;
 
-    public WebSourcesViewModel(ApiClient apiClient, IAdminAuthService authService, IConfigurationStateService configService, ILogger<WebSourcesViewModel> logger) {
+    public WebSourcesViewModel(
+        ApiClient apiClient,
+        IAdminAuthService authService,
+        IConfigurationStateService configService,
+        ILogger<WebSourcesViewModel> logger)
+    {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-
-
-    #region Commands
-
-
-
-    /// <summary>
-
-    /// Command to load web sources from the API
-
-    /// </summary>
-
     [RelayCommand]
+    internal async Task LoadSourcesAsync()
+    {
+        await MauiThreading.RunOnMainThreadAsync(() =>
+        {
+            IsLoading = true;
+            ErrorMessage = null;
+        }).ConfigureAwait(false);
 
-    internal async Task LoadSourcesAsync() {
+        try
+        {
+            var sources = await MauiThreading.RunOffMainThreadAsync(async () =>
+            {
+                var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+                if (!authorized)
+                {
+                    return null;
+                }
 
-        IsLoading = true;
+                return await _apiClient.GetWebSourcesAsync().ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
-        ErrorMessage = null;
-
-
-
-        try {
-            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
-            if (!authorized) {
+            if (sources is null)
+            {
                 return;
             }
 
-            var sources = await _apiClient.GetWebSourcesAsync();
-
-
-
-            await MainThread.InvokeOnMainThreadAsync(() => {
-
+            await MauiThreading.RunOnMainThreadAsync(() =>
+            {
                 WebSources.Clear();
-
-                foreach (var source in sources) {
-
+                foreach (var source in sources)
+                {
                     WebSources.Add(new WebSourceViewModel(source));
-
                 }
-
             }).ConfigureAwait(false);
-
-
 
             _logger.LogInformation("Loaded {Count} web sources", sources.Count);
-
         }
-
-
-        catch (HttpRequestException ex) {
-
-            // API not available - silently fail
-
+        catch (HttpRequestException ex)
+        {
             _logger.LogWarning(ex, "API not available for loading web sources");
-
-            await MainThread.InvokeOnMainThreadAsync(() => WebSources.Clear());
-
+            await MauiThreading.RunOnMainThreadAsync(() => WebSources.Clear()).ConfigureAwait(false);
         }
-
-        catch (Exception ex) {
-
+        catch (Exception ex)
+        {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
-
             _logger.LogError(ex, "Error loading web sources");
 
-
-
-            await MainThread.InvokeOnMainThreadAsync(async () => {
-
-                ErrorMessage = $"Failed to load web sources: {sanitizedMessage}";
-
-                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-
-                if (window?.Page != null) {
-
-                    await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
-
-                }
-
-            });
-
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ErrorMessage = $"Failed to load web sources: {sanitizedMessage}").ConfigureAwait(false);
+            await ErrorPresenter.ShowErrorAsync("Error", ErrorMessage ?? "Failed to load web sources.").ConfigureAwait(false);
         }
-
-        finally {
-
-            IsLoading = false;
-
+        finally
+        {
+            await MauiThreading.RunOnMainThreadAsync(() => IsLoading = false).ConfigureAwait(false);
         }
-
     }
 
-
-
-    /// <summary>
-
-    /// Command to show the add source form
-
-    /// </summary>
-
     [RelayCommand]
-
-    internal void OpenAddSourceForm() {
-
+    internal void OpenAddSourceForm()
+    {
         ResetForm();
-
         ShowAddSourceForm = true;
-
     }
 
-
-
-    /// <summary>
-
-    /// Command to hide the add source form
-
-    /// </summary>
-
     [RelayCommand]
-
-    internal void CloseAddSourceForm() {
-
+    internal void CloseAddSourceForm()
+    {
         ShowAddSourceForm = false;
-
         ResetForm();
-
     }
 
-
-
-    /// <summary>
-
-    /// Command to add a new web source
-
-    /// </summary>
-
     [RelayCommand]
-
-    internal async Task AddSourceAsync() {
-
-        IsLoading = true;
-
-        ErrorMessage = null;
-
-
-
-        try {
-
-            // Validate form
-
-            if (string.IsNullOrWhiteSpace(NewSourceName)) {
-
-                ErrorMessage = "Source name is required";
-
-                return;
-
-            }
-
-
-
-            if (string.IsNullOrWhiteSpace(NewSourceUrl)) {
-
-                ErrorMessage = "Source URL is required";
-
-                return;
-
-            }
-
-
-
-            if (Uri.TryCreate(NewSourceUrl, UriKind.Absolute, out var uriForValidation) && !UrlValidator.IsValidUrl(uriForValidation)) {
-
-                ErrorMessage = "Invalid or disallowed URL format (SSRF protection)";
-
-                return;
-
-            }
-
-
-
-            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
-            if (!authorized) {
-                return;
-            }
-
-            var newSource = new WebSource {
-                Name = NewSourceName,
-                Url = NewSourceUrl,
-                Description = NewSourceDescription,
-                TrustTier = SelectedTrustTier,
-                IsEnabled = NewSourceIsEnabled,
-                IncludeInSearch = NewSourceIncludeInSearch,
-                CrawlFrequencyHours = 24,
-                MaxCrawlDepth = 2
-            };
-
-
-
-            if (!string.IsNullOrWhiteSpace(NewSourceUrl) && Uri.TryCreate(NewSourceUrl, UriKind.Absolute, out _)) {
-                var createdSource = await _apiClient.AddWebSourceAsync(newSource);
-
-                await MainThread.InvokeOnMainThreadAsync(() => {
-                    WebSources.Add(new WebSourceViewModel(createdSource));
-                    ShowAddSourceForm = false;
-                    ResetForm();
-                }).ConfigureAwait(false);
-
-                _logger.LogInformation("Added web source: {SourceName}", createdSource.Name);
-
-                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-                if (window?.Page != null) {
-                    await window.Page.DisplayAlertAsync("Success", "Web source added successfully", "OK");
-                }
-            }
-
-        }
-
-        catch (UnauthorizedAccessException ex) {
-
-            ErrorMessage = "You do not have permission to add web sources";
-
-            _logger.LogWarning(ex, "User not authorized to add web sources");
-
-        }
-
-        catch (InvalidOperationException ex) {
-
-            ErrorMessage = ex.Message;
-
-            _logger.LogWarning(ex, "Invalid operation while adding web source");
-
-        }
-
-        catch (Exception ex) {
-
-            var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
-
-            ErrorMessage = $"Failed to add web source: {sanitizedMessage}";
-
-            _logger.LogError(ex, "Error adding web source");
-
-
-
-            await MainThread.InvokeOnMainThreadAsync(async () => {
-
-                var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-
-                if (window?.Page != null) {
-
-                    await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
-
-                }
-
-            });
-
-        }
-
-        finally {
-
-            IsLoading = false;
-
-        }
-
-    }
-
-
-
-    /// <summary>
-
-    /// Command to delete a web source
-
-    /// </summary>
-
-    [RelayCommand]
-
-    internal async Task DeleteSourceAsync(int sourceId) {
-
-        try {
-
-            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-
-            if (window?.Page == null)
-
-                return;
-
-
-
-            var sourceToDelete = WebSources.FirstOrDefault(s => s.Id == sourceId);
-
-            if (sourceToDelete == null)
-
-                return;
-
-
-
-            var confirm = await window.Page.DisplayAlertAsync(
-
-                "Delete Web Source",
-
-                $"Are you sure you want to delete '{sourceToDelete.Name}'?",
-
-                "Yes",
-
-                "No");
-
-
-
-            if (!confirm)
-
-                return;
-
-
-
+    internal async Task AddSourceAsync()
+    {
+        await MauiThreading.RunOnMainThreadAsync(() =>
+        {
             IsLoading = true;
-
             ErrorMessage = null;
+        }).ConfigureAwait(false);
 
-
-
-            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
-            if (!authorized) {
+        try
+        {
+            var validationError = ValidateNewSource();
+            if (!string.IsNullOrWhiteSpace(validationError))
+            {
+                await MauiThreading.RunOnMainThreadAsync(() => ErrorMessage = validationError).ConfigureAwait(false);
                 return;
             }
 
-            await _apiClient.DeleteWebSourceAsync(sourceId);
+            var createdSource = await MauiThreading.RunOffMainThreadAsync(async () =>
+            {
+                var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+                if (!authorized)
+                {
+                    return null;
+                }
 
+                var newSource = new WebSource
+                {
+                    Name = NewSourceName,
+                    Url = NewSourceUrl,
+                    Description = NewSourceDescription,
+                    TrustTier = SelectedTrustTier,
+                    IsEnabled = NewSourceIsEnabled,
+                    IncludeInSearch = NewSourceIncludeInSearch,
+                    CrawlFrequencyHours = 24,
+                    MaxCrawlDepth = 2
+                };
 
-
-            await MainThread.InvokeOnMainThreadAsync(() => {
-
-                WebSources.Remove(sourceToDelete);
-
+                return await _apiClient.AddWebSourceAsync(newSource).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
-
-
-            _logger.LogInformation("Deleted web source with ID: {SourceId}", sourceId);
-
-
-
-            await window.Page.DisplayAlertAsync("Success", "Web source deleted successfully", "OK");
-
-        }
-
-        catch (UnauthorizedAccessException ex) {
-
-            ErrorMessage = "You do not have permission to delete web sources";
-
-            _logger.LogWarning(ex, "User not authorized to delete web sources");
-
-
-
-            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-
-            if (window?.Page != null) {
-
-                await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
-
-            }
-
-        }
-
-        catch (InvalidOperationException ex) {
-
-            ErrorMessage = ex.Message;
-
-            _logger.LogWarning(ex, "Invalid operation while deleting web source");
-
-
-
-            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-
-            if (window?.Page != null) {
-
-                await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
-
-            }
-
-        }
-
-        catch (Exception ex) {
-
-            var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
-
-            ErrorMessage = $"Failed to delete web source: {sanitizedMessage}";
-
-            _logger.LogError(ex, "Error deleting web source {SourceId}", sourceId);
-
-
-
-            var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
-
-            if (window?.Page != null) {
-
-                await window.Page.DisplayAlertAsync("Error", ErrorMessage, "OK");
-
-            }
-
-        }
-
-        finally {
-
-            IsLoading = false;
-
-        }
-
-    }
-
-
-
-    /// <summary>
-
-    /// Command to refresh the web sources list
-
-    /// </summary>
-
-    [RelayCommand]
-
-    internal async Task RefreshAsync() {
-
-        await LoadSourcesAsync();
-
-    }
-
-
-
-    #endregion
-
-
-
-    #region Lifecycle
-
-
-
-    /// <summary>
-
-    /// Initialize the view model
-
-    /// </summary>
-
-    internal async Task InitializeAsync() {
-
-        try {
-            var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
-            if (!authorized) {
+            if (createdSource is null)
+            {
                 return;
             }
 
-            await LoadSourcesAsync().ConfigureAwait(false);
+            await MauiThreading.RunOnMainThreadAsync(() =>
+            {
+                WebSources.Add(new WebSourceViewModel(createdSource));
+                ShowAddSourceForm = false;
+                ResetForm();
+            }).ConfigureAwait(false);
 
+            _logger.LogInformation("Added web source: {SourceName}", createdSource.Name);
+            await ErrorPresenter.ShowSuccessAsync("Success", "Web source added successfully").ConfigureAwait(false);
         }
-
-        catch (HttpRequestException ex) {
-            _logger.LogWarning(ex, "API not available for loading web sources");
+        catch (UnauthorizedAccessException ex)
+        {
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ErrorMessage = "You do not have permission to add web sources").ConfigureAwait(false);
+            _logger.LogWarning(ex, "User not authorized to add web sources");
         }
+        catch (InvalidOperationException ex)
+        {
+            await MauiThreading.RunOnMainThreadAsync(() => ErrorMessage = ex.Message).ConfigureAwait(false);
+            _logger.LogWarning(ex, "Invalid operation while adding web source");
+        }
+        catch (Exception ex)
+        {
+            var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
+            _logger.LogError(ex, "Error adding web source");
 
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ErrorMessage = $"Failed to add web source: {sanitizedMessage}").ConfigureAwait(false);
+            await ErrorPresenter.ShowErrorAsync("Error", ErrorMessage ?? "Failed to add web source.").ConfigureAwait(false);
+        }
+        finally
+        {
+            await MauiThreading.RunOnMainThreadAsync(() => IsLoading = false).ConfigureAwait(false);
+        }
     }
 
+    [RelayCommand]
+    internal async Task DeleteSourceAsync(int sourceId)
+    {
+        var sourceToDelete = WebSources.FirstOrDefault(source => source.Id == sourceId);
+        if (sourceToDelete is null)
+        {
+            return;
+        }
 
+        var confirm = await ErrorPresenter.ShowConfirmAsync(
+            "Delete Web Source",
+            $"Are you sure you want to delete '{sourceToDelete.Name}'?",
+            "Yes",
+            "No").ConfigureAwait(false);
 
-    #endregion
+        if (!confirm)
+        {
+            return;
+        }
 
+        await MauiThreading.RunOnMainThreadAsync(() =>
+        {
+            IsLoading = true;
+            ErrorMessage = null;
+        }).ConfigureAwait(false);
 
+        try
+        {
+            var deleted = await MauiThreading.RunOffMainThreadAsync(async () =>
+            {
+                var authorized = await EnsureAuthorizedAsync().ConfigureAwait(false);
+                if (!authorized)
+                {
+                    return false;
+                }
 
-    #region Private Methods
+                await _apiClient.DeleteWebSourceAsync(sourceId).ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
 
+            if (!deleted)
+            {
+                return;
+            }
 
+            await MauiThreading.RunOnMainThreadAsync(() => WebSources.Remove(sourceToDelete)).ConfigureAwait(false);
+            _logger.LogInformation("Deleted web source with ID: {SourceId}", sourceId);
+            await ErrorPresenter.ShowSuccessAsync("Success", "Web source deleted successfully").ConfigureAwait(false);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ErrorMessage = "You do not have permission to delete web sources").ConfigureAwait(false);
+            _logger.LogWarning(ex, "User not authorized to delete web sources");
+            await ErrorPresenter.ShowErrorAsync("Error", ErrorMessage ?? "Access denied.").ConfigureAwait(false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await MauiThreading.RunOnMainThreadAsync(() => ErrorMessage = ex.Message).ConfigureAwait(false);
+            _logger.LogWarning(ex, "Invalid operation while deleting web source");
+            await ErrorPresenter.ShowErrorAsync("Error", ErrorMessage ?? "Delete failed.").ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
+            _logger.LogError(ex, "Error deleting web source {SourceId}", sourceId);
 
-    /// <summary>
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                ErrorMessage = $"Failed to delete web source: {sanitizedMessage}").ConfigureAwait(false);
+            await ErrorPresenter.ShowErrorAsync("Error", ErrorMessage ?? "Failed to delete web source.").ConfigureAwait(false);
+        }
+        finally
+        {
+            await MauiThreading.RunOnMainThreadAsync(() => IsLoading = false).ConfigureAwait(false);
+        }
+    }
 
-    /// Ensure the user is authorized to manage web sources
+    [RelayCommand]
+    internal Task RefreshAsync() => LoadSourcesAsync();
 
-    /// </summary>
+    internal async Task InitializeAsync()
+    {
+        try
+        {
+            await LoadSourcesAsync().ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "API not available for loading web sources");
+        }
+    }
 
-    private async Task<bool> EnsureAuthorizedAsync() {
-        if (!_configService.IsApiConfigured) {
+    private async Task<bool> EnsureAuthorizedAsync()
+    {
+        if (!_configService.IsApiConfigured)
+        {
             _logger.LogWarning("Web sources page blocked: API not configured");
             await ErrorPresenter.ShowWarningAsync(
                 "Configuration Required",
-                "API is not configured. Go to Settings to configure the API base URL."
-            ).ConfigureAwait(false);
+                "API is not configured. Go to Settings to configure the API base URL.").ConfigureAwait(false);
             return false;
         }
 
-        if (!_authService.IsSignedIn()) {
+        if (!_authService.IsSignedIn())
+        {
             _logger.LogWarning("Web sources page blocked: user not signed in");
             await ErrorPresenter.ShowWarningAsync(
                 "Sign In Required",
-                "Please sign in to manage web sources."
-            ).ConfigureAwait(false);
+                "Please sign in to manage web sources.").ConfigureAwait(false);
             return false;
         }
 
-        // Use IsAuthorizedAdminAsync to support Debug mode bypass
         var isAuthorized = await _authService.IsAuthorizedAdminAsync().ConfigureAwait(false);
-        if (!isAuthorized) {
+        if (!isAuthorized)
+        {
             _logger.LogWarning("Web sources page blocked: user lacks admin permissions");
             await ErrorPresenter.ShowWarningAsync(
                 "Access Denied",
-                "You do not have permission to manage web sources."
-            ).ConfigureAwait(false);
+                "You do not have permission to manage web sources.").ConfigureAwait(false);
             return false;
         }
 
         return true;
     }
 
+    private string? ValidateNewSource()
+    {
+        if (string.IsNullOrWhiteSpace(NewSourceName))
+        {
+            return "Source name is required";
+        }
 
+        if (string.IsNullOrWhiteSpace(NewSourceUrl))
+        {
+            return "Source URL is required";
+        }
 
-    /// <summary>
+        if (!Uri.TryCreate(NewSourceUrl, UriKind.Absolute, out var uri))
+        {
+            return "Source URL must be a valid absolute URL";
+        }
 
-    /// Reset the add source form to default values
+        if (!UrlValidator.IsValidUrl(uri))
+        {
+            return "Invalid or disallowed URL format (SSRF protection)";
+        }
 
-    /// </summary>
-
-    private void ResetForm() {
-
-        NewSourceName = string.Empty;
-
-        NewSourceUrl = string.Empty;
-
-        NewSourceDescription = string.Empty;
-
-        SelectedTrustTier = (int)WebTrustTier.TierB;
-
-        NewSourceIsEnabled = true;
-
-        NewSourceIncludeInSearch = true;
-
+        return null;
     }
 
-
-
-    #endregion
-
+    private void ResetForm()
+    {
+        NewSourceName = string.Empty;
+        NewSourceUrl = string.Empty;
+        NewSourceDescription = string.Empty;
+        SelectedTrustTier = (int)WebTrustTier.TierB;
+        NewSourceIsEnabled = true;
+        NewSourceIncludeInSearch = true;
+    }
 }
 
-
-
 /// <summary>
-
-/// ViewModel for a single web source in the list
-
+/// ViewModel for a single web source in the list.
 /// </summary>
-
-
-internal class WebSourceViewModel : ObservableObject {
-
-
+internal class WebSourceViewModel : ObservableObject
+{
     private readonly WebSource _source;
 
-
-
-    internal WebSourceViewModel(WebSource source) {
-
+    internal WebSourceViewModel(WebSource source)
+    {
         _source = source ?? throw new ArgumentNullException(nameof(source));
-
     }
 
-
-
     internal int Id => _source.Id;
-
     internal string Name => _source.Name;
-
     internal Uri Url => new Uri(_source.Url, UriKind.Absolute);
-
     internal string Description => _source.Description;
     internal bool IsEnabled => _source.IsEnabled;
     internal int TrustTier => _source.TrustTier;
@@ -638,30 +404,21 @@ internal class WebSourceViewModel : ObservableObject {
     internal bool IncludeInSearch => _source.IncludeInSearch;
     internal int MaxCrawlDepth => _source.MaxCrawlDepth;
 
-    /// <summary>
-    /// Get the display label for the trust tier
-    /// </summary>
-    internal string TrustTierLabel => TrustTier switch {
+    internal string TrustTierLabel => TrustTier switch
+    {
         (int)WebTrustTier.TierA => "Tier A - OEM",
         (int)WebTrustTier.TierB => "Tier B - Media",
         (int)WebTrustTier.TierC => "Tier C - Community",
         _ => "Unknown"
     };
 
-    /// <summary>
-    /// Get the color for the trust tier badge
-    /// </summary>
-    internal Color TrustTierColor => TrustTier switch {
+    internal Color TrustTierColor => TrustTier switch
+    {
         (int)WebTrustTier.TierA => Colors.Green,
         (int)WebTrustTier.TierB => Colors.Blue,
         (int)WebTrustTier.TierC => Colors.Orange,
         _ => Colors.Gray
     };
 
-    /// <summary>
-    /// Status display label
-    /// </summary>
     internal string StatusLabel => IsEnabled ? "Enabled" : "Disabled";
 }
-
-

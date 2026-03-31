@@ -1,6 +1,10 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Admin.Services.Dtos;
@@ -11,13 +15,15 @@ internal sealed class LocalProcessorService : ILocalProcessorService
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan StartupPollInterval = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan HealthReadyTimeout = TimeSpan.FromSeconds(5);
 
     private readonly IConfigurationStateService _configurationStateService;
     private readonly ILogger<LocalProcessorService> _logger;
     private readonly HttpClient _httpClient;
+    private readonly ConcurrentQueue<string> _recentProcessMessages = new();
 
     private Process? _managedProcess;
-    private string _lastProcessError = string.Empty;
 
     public LocalProcessorService(
         IConfigurationStateService configurationStateService,
@@ -104,16 +110,26 @@ internal sealed class LocalProcessorService : ILocalProcessorService
 
     public async Task<LocalProcessorHealthResponse> StartAsync(CancellationToken cancellationToken = default)
     {
+        var endpoint = GetEndpoint();
         var currentHealth = await GetHealthAsync(cancellationToken).ConfigureAwait(false);
         if (currentHealth is not null)
         {
             return currentHealth;
         }
 
+        if (IsEndpointPortInUse(endpoint))
+        {
+            throw new InvalidOperationException(
+                $"Port {endpoint.Port} is already in use, but {endpoint} did not respond to /health. Stop the other process or change the local processor endpoint.");
+        }
+
         var workingDirectory = GetWorkingDirectory();
         var startCommand = GetStartCommand();
+        var startupSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        _managedProcess = BuildProcess(startCommand, workingDirectory);
+        ClearRecentProcessMessages();
+
+        _managedProcess = BuildProcess(startCommand, workingDirectory, startupSignal);
         _managedProcess.Start();
         _managedProcess.BeginOutputReadLine();
         _managedProcess.BeginErrorReadLine();
@@ -125,8 +141,30 @@ internal sealed class LocalProcessorService : ILocalProcessorService
 
             if (_managedProcess.HasExited)
             {
-                throw new InvalidOperationException(
-                    $"The local processor exited with code {_managedProcess.ExitCode}. {_lastProcessError}".Trim());
+                throw CreateStartupFailure(_managedProcess, endpoint);
+            }
+
+            if (startupSignal.Task.IsCompletedSuccessfully)
+            {
+                break;
+            }
+
+            await Task.Delay(StartupPollInterval, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (!startupSignal.Task.IsCompletedSuccessfully)
+        {
+            throw new TimeoutException(BuildStartupTimeoutMessage(endpoint));
+        }
+
+        var healthReadyStartedAt = DateTimeOffset.UtcNow;
+        while (DateTimeOffset.UtcNow - healthReadyStartedAt < HealthReadyTimeout)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (_managedProcess.HasExited)
+            {
+                throw CreateStartupFailure(_managedProcess, endpoint);
             }
 
             var health = await GetHealthAsync(cancellationToken).ConfigureAwait(false);
@@ -135,10 +173,10 @@ internal sealed class LocalProcessorService : ILocalProcessorService
                 return health;
             }
 
-            await Task.Delay(750, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(StartupPollInterval, cancellationToken).ConfigureAwait(false);
         }
 
-        throw new TimeoutException("Timed out waiting for the local processor to start.");
+        throw new TimeoutException(BuildStartupTimeoutMessage(endpoint));
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -215,7 +253,7 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         };
     }
 
-    private Process BuildProcess(string startCommand, string workingDirectory)
+    private Process BuildProcess(string startCommand, string workingDirectory, TaskCompletionSource<bool> startupSignal)
     {
         var process = new Process {
             StartInfo = new ProcessStartInfo {
@@ -233,14 +271,19 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         process.OutputDataReceived += (_, e) => {
             if (!string.IsNullOrWhiteSpace(e.Data))
             {
+                TrackProcessMessage(e.Data);
                 _logger.LogInformation("Local processor: {Message}", e.Data);
+                if (IsStartupReadyMessage(e.Data))
+                {
+                    startupSignal.TrySetResult(true);
+                }
             }
         };
 
         process.ErrorDataReceived += (_, e) => {
             if (!string.IsNullOrWhiteSpace(e.Data))
             {
-                _lastProcessError = e.Data;
+                TrackProcessMessage(e.Data);
                 _logger.LogWarning("Local processor stderr: {Message}", e.Data);
             }
         };
@@ -289,5 +332,82 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         }
 
         return startCommand;
+    }
+
+    private static bool IsStartupReadyMessage(string message)
+    {
+        return message.Contains("Application startup complete.", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Uvicorn running on", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ClearRecentProcessMessages()
+    {
+        while (_recentProcessMessages.TryDequeue(out _))
+        {
+        }
+    }
+
+    private void TrackProcessMessage(string message)
+    {
+        _recentProcessMessages.Enqueue(message);
+        while (_recentProcessMessages.Count > 10 && _recentProcessMessages.TryDequeue(out _))
+        {
+        }
+    }
+
+    private Exception CreateStartupFailure(Process process, Uri endpoint)
+    {
+        var recentMessages = string.Join(" | ", _recentProcessMessages.ToArray());
+        if (recentMessages.Contains("error while attempting to bind", StringComparison.OrdinalIgnoreCase) ||
+            recentMessages.Contains("only one usage of each socket address", StringComparison.OrdinalIgnoreCase))
+        {
+            return new InvalidOperationException(
+                $"Port {endpoint.Port} is already in use, so the local processor could not bind to {endpoint}. Recent output: {recentMessages}".Trim());
+        }
+
+        var message = string.IsNullOrWhiteSpace(recentMessages)
+            ? $"The local processor exited with code {process.ExitCode}."
+            : $"The local processor exited with code {process.ExitCode}. Recent output: {recentMessages}";
+
+        return new InvalidOperationException(message.Trim());
+    }
+
+    private string BuildStartupTimeoutMessage(Uri endpoint)
+    {
+        var recentMessages = string.Join(" | ", _recentProcessMessages.ToArray());
+        return string.IsNullOrWhiteSpace(recentMessages)
+            ? $"Timed out waiting for the local processor to start at {endpoint}."
+            : $"Timed out waiting for the local processor to start at {endpoint}. Recent output: {recentMessages}";
+    }
+
+    private static bool IsEndpointPortInUse(Uri endpoint)
+    {
+        if (!endpoint.IsLoopback)
+        {
+            return false;
+        }
+
+        try
+        {
+            return IPGlobalProperties
+                .GetIPGlobalProperties()
+                .GetActiveTcpListeners()
+                .Any(listener => listener.Port == endpoint.Port && IsLoopbackOrAnyAddress(listener.Address));
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        catch (NetworkInformationException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsLoopbackOrAnyAddress(IPAddress address)
+    {
+        return IPAddress.IsLoopback(address) ||
+               address.Equals(IPAddress.Any) ||
+               address.Equals(IPAddress.IPv6Any);
     }
 }

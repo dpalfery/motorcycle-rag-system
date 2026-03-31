@@ -42,5 +42,13 @@ namespace MotorcycleRAG.Contracts.Interfaces {
         /// <param name="isEnabled">Enable/disable status</param>
         /// <returns>True if successful, false otherwise</returns>
         Task<bool> SetUserEnabledStatusAsync(string userId, bool isEnabled);
+
+        /// <summary>
+        /// Gets a paged set of users for administrative views
+        /// </summary>
+        /// <param name="page">1-based page number</param>
+        /// <param name="pageSize">Number of users per page</param>
+        /// <returns>Paged users ordered by creation date descending</returns>
+        Task<UserDTO[]> GetUsersAsync(int page, int pageSize);
     }
 }

@@ -69,14 +69,42 @@ internal class SigningKeyCache
             return cached.Keys;
         }
 
-        // Cache miss - either cache wasn't pre-warmed or keys expired
-        // Return empty to reject token, triggering fallback handling
-        // A warning is logged to alert operators that cache pre-warming may have failed
+        if (_keyCache.TryGetValue(issuer, out cached) && cached.Keys.Count > 0)
+        {
+            _logger.LogWarning(
+                "Signing keys expired for issuer {Issuer}. Returning stale keys while scheduling a refresh.",
+                issuer);
+            QueueRefresh(issuer);
+            return cached.Keys;
+        }
+
+        // Cache miss - either cache wasn't pre-warmed or the initial refresh failed.
         _logger.LogWarning(
             "Signing keys not available in cache for issuer {Issuer}. " +
-            "Cache may not have been pre-warmed at startup. Token will be rejected.",
+            "Scheduling a refresh; current token validation may fail until keys are loaded.",
             issuer);
+        QueueRefresh(issuer);
         return [];
+    }
+
+    internal void QueueRefresh(string issuer)
+    {
+        if (string.IsNullOrWhiteSpace(issuer))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RefreshKeysAsync(issuer).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Background signing key refresh failed for issuer {Issuer}", issuer);
+            }
+        });
     }
 
     /// <summary>
@@ -232,6 +260,11 @@ internal static class AuthenticationServiceExtensions
                 if (!string.IsNullOrEmpty(kid))
                 {
                     var matchedKey = keys.FirstOrDefault(k => k.KeyId == kid);
+                    if (matchedKey == null)
+                    {
+                        keyCache.QueueRefresh(issuer);
+                    }
+
                     return matchedKey == null ? [] : [matchedKey];
                 }
 

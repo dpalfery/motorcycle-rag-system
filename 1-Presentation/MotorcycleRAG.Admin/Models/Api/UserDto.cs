@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MotorcycleRAG.Admin.Models.Api;
 
 /// <summary>
@@ -7,12 +9,19 @@ namespace MotorcycleRAG.Admin.Models.Api;
 #pragma warning disable S3059 // Public properties required for serialization
 internal class UserDto
 {
-    public string UserId { get; set; } = string.Empty;
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
 #pragma warning restore S3059
+    [JsonPropertyName("email")]
     public string Email { get; set; } = string.Empty;
+    [JsonPropertyName("displayName")]
     public string DisplayName { get; set; } = string.Empty;
+    [JsonPropertyName("isEnabled")]
     public bool IsEnabled { get; set; }
-    public string PlanSku { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-    public DateTime? LastSignInAt { get; set; }
+    [JsonPropertyName("planId")]
+    public string PlanId { get; set; } = string.Empty;
+    [JsonPropertyName("createdDate")]
+    public DateTime CreatedDate { get; set; }
+    [JsonPropertyName("lastUpdatedDate")]
+    public DateTime? LastUpdatedDate { get; set; }
 }

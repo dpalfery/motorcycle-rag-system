@@ -26,6 +26,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     private Uri? _localProcessorEndpoint;
     private string? _localProcessorWorkingDirectory;
     private string? _localProcessorStartCommand;
+    private bool _isLocalProcessorConfigured;
 
     /// <inheritdoc/>
     public bool IsConfigured => IsApiConfigured && IsAuthConfigured;
@@ -64,13 +65,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     public string? LocalProcessorStartCommand => _localProcessorStartCommand;
 
     /// <inheritdoc/>
-    public bool IsLocalProcessorConfigured =>
-        !string.IsNullOrWhiteSpace(_localProcessorWorkingDirectory) &&
-        Directory.Exists(_localProcessorWorkingDirectory) &&
-        File.Exists(Path.Combine(_localProcessorWorkingDirectory, "src", "main.py")) &&
-        _localProcessorEndpoint is not null &&
-        IsValidLocalProcessorEndpoint(_localProcessorEndpoint) &&
-        !string.IsNullOrWhiteSpace(_localProcessorStartCommand);
+    public bool IsLocalProcessorConfigured => _isLocalProcessorConfigured;
 
     /// <inheritdoc/>
     public event EventHandler? ConfigurationChanged;
@@ -118,6 +113,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
             _embeddingModelPath = NullIfEmpty(_embeddingModelPath);
             _localProcessorWorkingDirectory = NullIfEmpty(_localProcessorWorkingDirectory) ?? LocalProcessorDefaults.TryFindWorkingDirectory();
             _localProcessorStartCommand = NullIfEmpty(_localProcessorStartCommand) ?? LocalProcessorDefaults.DefaultStartCommand;
+            RefreshLocalProcessorConfigurationState();
 
             _logger.LogInformation(
                 "Configuration loaded. IsApiConfigured: {IsApi}, IsAuthConfigured: {IsAuth}, IsLocalProcessorConfigured: {IsLocalProcessor}",
@@ -206,6 +202,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
         _localProcessorEndpoint = endpoint ?? new Uri(LocalProcessorDefaults.DefaultEndpoint);
         _localProcessorWorkingDirectory = NullIfEmpty(workingDirectory);
         _localProcessorStartCommand = NullIfEmpty(startCommand) ?? LocalProcessorDefaults.DefaultStartCommand;
+        RefreshLocalProcessorConfigurationState();
 
         _logger.LogInformation("Local processor configuration saved. IsLocalProcessorConfigured: {IsConfigured}", IsLocalProcessorConfigured);
         OnConfigurationChanged();
@@ -231,6 +228,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
         _localProcessorEndpoint = new Uri(LocalProcessorDefaults.DefaultEndpoint);
         _localProcessorWorkingDirectory = LocalProcessorDefaults.TryFindWorkingDirectory();
         _localProcessorStartCommand = LocalProcessorDefaults.DefaultStartCommand;
+        RefreshLocalProcessorConfigurationState();
 
         _logger.LogInformation("Configuration cleared");
         OnConfigurationChanged();
@@ -245,8 +243,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
         // Allow HTTP only for localhost development
         if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
         {
-            return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                   uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+            return uri.IsLoopback;
         }
 
         return uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
@@ -256,8 +253,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     {
         if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
         {
-            return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                   uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+            return uri.IsLoopback;
         }
 
         return uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
@@ -269,6 +265,16 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     private static string? NullIfEmpty(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private void RefreshLocalProcessorConfigurationState()
+    {
+        _isLocalProcessorConfigured = _localProcessorEndpoint is not null
+            && IsValidLocalProcessorEndpoint(_localProcessorEndpoint)
+            && !string.IsNullOrWhiteSpace(_localProcessorWorkingDirectory)
+            && Directory.Exists(_localProcessorWorkingDirectory)
+            && File.Exists(Path.Combine(_localProcessorWorkingDirectory, "src", "main.py"))
+            && !string.IsNullOrWhiteSpace(_localProcessorStartCommand);
     }
 
     /// <summary>

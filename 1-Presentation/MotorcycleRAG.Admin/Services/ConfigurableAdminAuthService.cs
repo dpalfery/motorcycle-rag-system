@@ -17,16 +17,6 @@ internal sealed class ConfigurableAdminAuthService : IAdminAuthService
         _configurationStateService = configurationStateService ?? throw new ArgumentNullException(nameof(configurationStateService));
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
 
-        try
-        {
-            Task.Run(() => _configurationStateService.LoadConfigurationAsync()).GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            _loggerFactory.CreateLogger<ConfigurableAdminAuthService>()
-                .LogError(ex, "Failed to load configuration before auth service initialization.");
-        }
-
         _innerService = CreateInnerService();
         _configurationStateService.ConfigurationChanged += OnConfigurationChanged;
     }

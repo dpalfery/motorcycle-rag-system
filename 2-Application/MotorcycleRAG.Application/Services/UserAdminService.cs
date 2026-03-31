@@ -117,15 +117,8 @@ namespace MotorcycleRAG.Application.Services {
                 throw new ArgumentException("Page size must be between 1 and 100", nameof(pageSize));
             }
 
-            // Note: This is a simplified implementation
-            // In a real scenario, you'd implement pagination in the repository
-            // For now, we'll return all users and the caller can paginate
             _logger.LogInformation("Retrieving all users (page: {Page}, pageSize: {PageSize})", page, pageSize);
-
-            // Since IUserRepository doesn't have a GetAll method, we'll need to extend it
-            // For now, return empty array as this would require repository changes
-            _logger.LogWarning("GetAllUsersAsync called but repository doesn't support pagination");
-            return Array.Empty<UserDTO>();
+            return await _userRepository.GetUsersAsync(page, pageSize);
         }
     }
 }

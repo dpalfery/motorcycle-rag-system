@@ -7,7 +7,7 @@
              x:DataType="viewmodels:JobsViewModel"
              Title="Pipeline Jobs">
 
-    <Grid RowDefinitions="Auto,*" Padding="20">
+    <Grid RowDefinitions="Auto,Auto,*" Padding="20">
 
         <HorizontalStackLayout Grid.Row="0" Spacing="10" Margin="0,0,0,15">
             <Label Text="Pipeline Jobs"
@@ -24,7 +24,18 @@
                     HorizontalOptions="End" />
         </HorizontalStackLayout>
 
-        <ScrollView Grid.Row="1">
+        <Frame Grid.Row="1"
+               Margin="0,0,0,15"
+               Padding="12"
+               BorderColor="#D9A441"
+               BackgroundColor="#332813"
+               IsVisible="{Binding HasApiPollingProblemMessage}">
+            <Label Text="{Binding ApiPollingProblemMessage}"
+                   FontSize="12"
+                   TextColor="#FFD27A" />
+        </Frame>
+
+        <ScrollView Grid.Row="2">
             <VerticalStackLayout Spacing="18">
 
                 <VerticalStackLayout Spacing="6">

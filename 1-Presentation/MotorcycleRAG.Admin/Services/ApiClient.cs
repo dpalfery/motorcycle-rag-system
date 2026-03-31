@@ -5,9 +5,6 @@ using System.Text.Json;
 using MotorcycleRAG.Admin.Models.Api;
 using MotorcycleRAG.Admin.Services.Dtos;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using Polly;
-using Polly.Retry;
-using Polly.CircuitBreaker;
 using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.Admin.Services;
@@ -27,8 +24,6 @@ internal class ApiClient {
     private readonly HttpClient _httpClient;
     private readonly IAdminAuthService _authService;
     private readonly JsonSerializerOptions _jsonOptions;
-    private readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy;
-    private readonly AsyncCircuitBreakerPolicy<HttpResponseMessage> _circuitBreaker;
     private readonly ILogger<ApiClient> _logger;
 
     public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger)
@@ -41,25 +36,6 @@ internal class ApiClient {
             PropertyNameCaseInsensitive = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
-
-        _retryPolicy = Policy
-            .Handle<HttpRequestException>()
-            .OrResult<HttpResponseMessage>(r => r.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
-                                                (int)r.StatusCode == 503)
-            .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
-                (outcome, timespan, retryCount, _) => {
-                    _logger.LogWarning("ApiClient retry {Retry} after {Delay}s. Reason: {Reason}",
-                        retryCount, timespan.TotalSeconds, outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString());
-                });
-
-        _circuitBreaker = Policy
-            .Handle<HttpRequestException>()
-            .OrResult<HttpResponseMessage>(r => (int)r.StatusCode >= 500)
-            .CircuitBreakerAsync(5, TimeSpan.FromMinutes(1),
-                onBreak: (outcome, ts) => _logger.LogWarning("ApiClient circuit opened for {Duration}s. Reason: {Reason}",
-                    ts.TotalSeconds, outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString()),
-                onReset: () => _logger.LogInformation("ApiClient circuit reset"),
-                onHalfOpen: () => _logger.LogInformation("ApiClient circuit half-open"));
     }
 
     /// <summary>
@@ -125,7 +101,10 @@ internal class ApiClient {
 
             content.Add(streamContent, "file", Path.GetFileName(filePath));
 
-            var requestUri = new Uri($"api/datapipeline/upload?processImmediately={processImmediately}", UriKind.Relative);
+            var requestPath = processImmediately
+                ? "api/file-upload/with-processing?processImmediately=true"
+                : "api/file-upload";
+            var requestUri = new Uri(requestPath, UriKind.Relative);
             var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
                 requestUri,
                 content,
@@ -139,7 +118,9 @@ internal class ApiClient {
             }
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<FileUploadResult>(_jsonOptions, cancellationToken).ConfigureAwait(false);
+            var result = processImmediately
+                ? (await response.Content.ReadFromJsonAsync<FileUploadResponseDto>(_jsonOptions, cancellationToken).ConfigureAwait(false))?.Upload
+                : await response.Content.ReadFromJsonAsync<FileUploadResult>(_jsonOptions, cancellationToken).ConfigureAwait(false);
             UploadResultValidator.ValidateFileUploadResult(result);
             return result!;
         }
@@ -202,7 +183,10 @@ internal class ApiClient {
                 content.Add(streamContent, "files", Path.GetFileName(filePath));
             }
 
-            var requestUri = new Uri($"api/datapipeline/upload-batch?processImmediately={processImmediately}", UriKind.Relative);
+            var requestPath = processImmediately
+                ? "api/file-upload/batch-with-processing?processImmediately=true"
+                : "api/file-upload/batch";
+            var requestUri = new Uri(requestPath, UriKind.Relative);
             var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(
                 requestUri,
                 content,
@@ -216,7 +200,9 @@ internal class ApiClient {
             }
             response.EnsureSuccessStatusCode();
 
-            var batchResult = await response.Content.ReadFromJsonAsync<BatchFileUploadResult>(_jsonOptions, cancellationToken).ConfigureAwait(false);
+            var batchResult = processImmediately
+                ? (await response.Content.ReadFromJsonAsync<BatchFileUploadResponseDto>(_jsonOptions, cancellationToken).ConfigureAwait(false))?.Upload
+                : await response.Content.ReadFromJsonAsync<BatchFileUploadResult>(_jsonOptions, cancellationToken).ConfigureAwait(false);
             UploadResultValidator.ValidateBatchFileUploadResult(batchResult);
             return batchResult!;
         }
@@ -618,7 +604,7 @@ internal class ApiClient {
 
     private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action)
     {
-        return await _retryPolicy.WrapAsync(_circuitBreaker).ExecuteAsync(action).ConfigureAwait(false);
+        return await action().ConfigureAwait(false);
     }
 
     #endregion
@@ -843,20 +829,41 @@ internal class ApiClient {
     {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var query = isEnabled.HasValue ? $"?isEnabled={isEnabled.Value}" : string.Empty;
-        var relativePath = $"api/users-admin{query}";
-        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
-            throw new UnauthorizedAccessException(
-                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
-        }
-        response.EnsureSuccessStatusCode();
+        const int pageSize = 100;
+        var page = 1;
+        var users = new List<UserDto>();
+        var totalCount = int.MaxValue;
 
-        return await response.Content.ReadFromJsonAsync<List<UserDto>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
-               ?? new List<UserDto>();
+        while (users.Count < totalCount)
+        {
+            var relativePath = $"api/admin/users?page={page}&pageSize={pageSize}";
+            var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+            var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                throw new UnauthorizedAccessException(
+                    $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var pageResult = await response.Content.ReadFromJsonAsync<UserListResponseDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+                             ?? new UserListResponseDto();
+
+            users.AddRange(pageResult.Users);
+            totalCount = pageResult.TotalCount;
+            page++;
+
+            if (pageResult.Users.Count == 0)
+            {
+                break;
+            }
+        }
+
+        return isEnabled.HasValue
+            ? users.Where(user => user.IsEnabled == isEnabled.Value).ToList()
+            : users;
     }
 
     /// <summary>
@@ -872,21 +879,7 @@ internal class ApiClient {
     /// </summary>
     internal async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken)
     {
-        await EnsureAuthenticatedAsync().ConfigureAwait(false);
-
-        var relativePath = $"api/users-admin/{userId}/enable";
-        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
-            throw new UnauthorizedAccessException(
-                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
-        }
-        response.EnsureSuccessStatusCode();
-
-        return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
-               ?? throw new InvalidOperationException("Failed to deserialize user response");
+        return await SetUserEnabledAsync(userId, isEnabled: true, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -902,26 +895,36 @@ internal class ApiClient {
     /// </summary>
     internal async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken)
     {
+        return await SetUserEnabledAsync(userId, isEnabled: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private async Task<UserDto> SetUserEnabledAsync(string userId, bool isEnabled, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
+
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        var relativePath = $"api/users-admin/{userId}/disable";
-        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
-        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
+        var request = new SetUserEnabledRequestDto { IsEnabled = isEnabled };
+        var relativePath = $"api/admin/users/{Uri.EscapeDataString(userId)}/enabled";
+        var response = await ExecuteWithResilienceAsync(() =>
+            _httpClient.PutAsJsonAsync(relativePath, request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
             response.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
+
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<UserDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? throw new InvalidOperationException("Failed to deserialize user response");
     }
-
-    #endregion
-
-    #region Helpers
 
     /// <summary>
     /// Validates that executionId is in a valid GUID format

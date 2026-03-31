@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Admin.Services;
+using MotorcycleRAG.Admin.Utilities;
 
 namespace MotorcycleRAG.Admin.ViewModels;
 
@@ -58,8 +59,8 @@ internal partial class LandingViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        await _configurationStateService.LoadConfigurationAsync();
-        RefreshState();
+        await MauiThreading.RunOffMainThreadAsync(() => _configurationStateService.LoadConfigurationAsync()).ConfigureAwait(false);
+        await MauiThreading.RunOnMainThreadAsync(RefreshState).ConfigureAwait(false);
         _ = WarmUpApiAsync();
     }
 
@@ -84,41 +85,47 @@ internal partial class LandingViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSignIn))]
     private async Task SignInAsync()
     {
-        await InitializeAsync();
+        await InitializeAsync().ConfigureAwait(false);
 
         if (!IsAuthConfigured)
         {
-            StatusMessage = "Authentication is not configured yet. Open Settings first.";
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                StatusMessage = "Authentication is not configured yet. Open Settings first.").ConfigureAwait(false);
             return;
         }
 
-        IsBusy = true;
-        StatusMessage = IsSignedIn
-            ? "Opening the admin workspace..."
-            : "Starting sign-in...";
+        await MauiThreading.RunOnMainThreadAsync(() =>
+        {
+            IsBusy = true;
+            StatusMessage = IsSignedIn
+                ? "Opening the admin workspace..."
+                : "Starting sign-in...";
+        }).ConfigureAwait(false);
 
         try
         {
-            var signedIn = IsSignedIn || await _authService.SignInAsync();
-            RefreshState();
+            var signedIn = IsSignedIn || await MauiThreading.RunOffMainThreadAsync(() => _authService.SignInAsync()).ConfigureAwait(false);
+            await MauiThreading.RunOnMainThreadAsync(RefreshState).ConfigureAwait(false);
 
             if (!signedIn)
             {
-                StatusMessage = "Sign-in did not complete. Check your saved settings and try again.";
+                await MauiThreading.RunOnMainThreadAsync(() =>
+                    StatusMessage = "Sign-in did not complete. Check your saved settings and try again.").ConfigureAwait(false);
                 return;
             }
 
-            StatusMessage = "Sign-in complete.";
-            await _appFlowCoordinator.ShowShellAsync();
+            await MauiThreading.RunOnMainThreadAsync(() => StatusMessage = "Sign-in complete.").ConfigureAwait(false);
+            await _appFlowCoordinator.ShowShellAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Landing-page sign-in failed.");
-            StatusMessage = "Sign-in failed. Check your saved settings and try again.";
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                StatusMessage = "Sign-in failed. Check your saved settings and try again.").ConfigureAwait(false);
         }
         finally
         {
-            IsBusy = false;
+            await MauiThreading.RunOnMainThreadAsync(() => IsBusy = false).ConfigureAwait(false);
         }
     }
 
@@ -127,8 +134,8 @@ internal partial class LandingViewModel : ObservableObject
     [RelayCommand]
     private async Task OpenSettingsAsync()
     {
-        await _appFlowCoordinator.OpenSettingsAsync();
-        await InitializeAsync();
+        await _appFlowCoordinator.OpenSettingsAsync().ConfigureAwait(false);
+        await InitializeAsync().ConfigureAwait(false);
     }
 
     private void RefreshState()

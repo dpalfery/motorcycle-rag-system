@@ -59,7 +59,16 @@
                                            FontAttributes="Bold" />
                                     <Label Text="{Binding LocalProcessorStatusMessage}"
                                            FontSize="11"
-                                           TextColor="Gray" />
+                                           TextColor="Gray">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label"
+                                                         Binding="{Binding LocalProcessorStatusIsError}"
+                                                         Value="True">
+                                                <Setter Property="TextColor" Value="#FF6B6B" />
+                                                <Setter Property="FontAttributes" Value="Bold" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
                                 </VerticalStackLayout>
 
                                 <Button Grid.Column="1"
@@ -116,6 +125,29 @@
                                    FontSize="11"
                                    TextColor="Gray"
                                    IsVisible="{Binding HasLocalGraphStatusMessage}" />
+
+                            <!-- Diagnostic Output -->
+                            <BoxView HeightRequest="1" Opacity="0.2"
+                                     IsVisible="{Binding HasLocalProcessorDiagnosticOutput}" />
+
+                            <Label Text="Recent Process Output"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   IsVisible="{Binding HasLocalProcessorDiagnosticOutput}" />
+
+                            <Frame BorderColor="#333333"
+                                   BackgroundColor="#1A1A1A"
+                                   Padding="10"
+                                   CornerRadius="4"
+                                   IsVisible="{Binding HasLocalProcessorDiagnosticOutput}">
+                                <ScrollView HeightRequest="180" Orientation="Both">
+                                    <Label Text="{Binding LocalProcessorDiagnosticOutput}"
+                                           FontFamily="Courier New"
+                                           FontSize="10"
+                                           TextColor="#CCCCCC"
+                                           LineBreakMode="NoWrap" />
+                                </ScrollView>
+                            </Frame>
                         </VerticalStackLayout>
                     </Frame>
                 </VerticalStackLayout>

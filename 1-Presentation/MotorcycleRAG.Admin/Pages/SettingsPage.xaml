@@ -178,6 +178,31 @@
                 </VerticalStackLayout>
             </Frame>
 
+            <!-- Diagnostics Section -->
+            <Frame BorderColor="LightGray"
+                   CornerRadius="8"
+                   Padding="15">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Diagnostics"
+                           FontSize="18"
+                           FontAttributes="Bold" />
+                    <Label Text="Application logs are written to a rolling daily file. Open the folder to access them for troubleshooting."
+                           FontSize="12"
+                           TextColor="Gray" />
+                    <Label Text="{Binding LogFolderPath}"
+                           FontSize="11"
+                           TextColor="Gray"
+                           LineBreakMode="MiddleTruncation" />
+                    <Button Text="Open Log Folder"
+                            Command="{Binding OpenLogFolderCommand}"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            Padding="15,8"
+                            FontSize="12"
+                            HorizontalOptions="Start" />
+                </VerticalStackLayout>
+            </Frame>
+
             <!-- Action Buttons -->
             <Frame BorderColor="LightGray"
                    CornerRadius="8"

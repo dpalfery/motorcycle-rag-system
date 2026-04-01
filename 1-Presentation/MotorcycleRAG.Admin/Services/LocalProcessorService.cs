@@ -15,8 +15,8 @@ internal sealed class LocalProcessorService : ILocalProcessorService
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan StartupPollInterval = TimeSpan.FromMilliseconds(250);
-    private static readonly TimeSpan HealthReadyTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan StartupPollInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan HealthReadyTimeout = TimeSpan.FromSeconds(30); // cold Python start needs time for Azure credential init
 
     private readonly IConfigurationStateService _configurationStateService;
     private readonly ILogger<LocalProcessorService> _logger;
@@ -24,6 +24,8 @@ internal sealed class LocalProcessorService : ILocalProcessorService
     private readonly ConcurrentQueue<string> _recentProcessMessages = new();
 
     private Process? _managedProcess;
+
+    public IReadOnlyList<string> RecentProcessOutput => _recentProcessMessages.ToArray();
 
     public LocalProcessorService(
         IConfigurationStateService configurationStateService,
@@ -44,6 +46,7 @@ internal sealed class LocalProcessorService : ILocalProcessorService
             using var response = await _httpClient.GetAsync(new Uri(endpoint, "/health"), cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
+                _logger.LogDebug("Local processor health check returned non-success status {StatusCode} for {Endpoint}", response.StatusCode, endpoint);
                 return null;
             }
 
@@ -51,10 +54,12 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         }
         catch (HttpRequestException)
         {
+            _logger.LogDebug("Local processor health check failed with HTTP exception for {Endpoint}", endpoint);
             return null;
         }
         catch (TaskCanceledException)
         {
+            _logger.LogDebug("Local processor health check timed out for {Endpoint}", endpoint);
             return null;
         }
     }
@@ -141,6 +146,18 @@ internal sealed class LocalProcessorService : ILocalProcessorService
 
             if (_managedProcess.HasExited)
             {
+                // Wait briefly for asynchronous output streams (OutputDataReceived/ErrorDataReceived) to flush
+                try
+                {
+                    using var flushCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    flushCts.CancelAfter(TimeSpan.FromMilliseconds(500));
+                    await _managedProcess.WaitForExitAsync(flushCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Ignore timeout, we just wanted to wait a little bit for logs to flush
+                }
+
                 throw CreateStartupFailure(_managedProcess, endpoint);
             }
 
@@ -164,13 +181,35 @@ internal sealed class LocalProcessorService : ILocalProcessorService
 
             if (_managedProcess.HasExited)
             {
+                // Wait briefly for asynchronous output streams (OutputDataReceived/ErrorDataReceived) to flush
+                try
+                {
+                    using var flushCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    flushCts.CancelAfter(TimeSpan.FromMilliseconds(500));
+                    await _managedProcess.WaitForExitAsync(flushCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Ignore
+                }
+
                 throw CreateStartupFailure(_managedProcess, endpoint);
             }
 
-            var health = await GetHealthAsync(cancellationToken).ConfigureAwait(false);
-            if (health is not null)
+            // Use a short per-request timeout so the loop can retry quickly across the full window.
+            using var pollCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            pollCts.CancelAfter(TimeSpan.FromSeconds(2));
+            try
             {
-                return health;
+                var health = await GetHealthAsync(pollCts.Token).ConfigureAwait(false);
+                if (health is not null)
+                {
+                    return health;
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Per-request timeout — server not ready yet, keep polling
             }
 
             await Task.Delay(StartupPollInterval, cancellationToken).ConfigureAwait(false);
@@ -255,16 +294,19 @@ internal sealed class LocalProcessorService : ILocalProcessorService
 
     private Process BuildProcess(string startCommand, string workingDirectory, TaskCompletionSource<bool> startupSignal)
     {
+        var startInfo = new ProcessStartInfo {
+            FileName = "cmd.exe",
+            Arguments = $"/c {startCommand}",
+            WorkingDirectory = workingDirectory,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+
         var process = new Process {
-            StartInfo = new ProcessStartInfo {
-                FileName = "cmd.exe",
-                Arguments = $"/c {startCommand}",
-                WorkingDirectory = workingDirectory,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            },
+            StartInfo = startInfo,
             EnableRaisingEvents = true
         };
 
@@ -284,7 +326,7 @@ internal sealed class LocalProcessorService : ILocalProcessorService
             if (!string.IsNullOrWhiteSpace(e.Data))
             {
                 TrackProcessMessage(e.Data);
-                _logger.LogWarning("Local processor stderr: {Message}", e.Data);
+                _logger.LogInformation("Local processor stderr: {Message}", e.Data);
             }
         };
 
@@ -340,6 +382,14 @@ internal sealed class LocalProcessorService : ILocalProcessorService
                message.Contains("Uvicorn running on", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool ContainsErrorKeyword(string message)
+    {
+        return message.Contains("ERROR", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("CRITICAL", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Exception", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Traceback", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void ClearRecentProcessMessages()
     {
         while (_recentProcessMessages.TryDequeue(out _))
@@ -350,34 +400,34 @@ internal sealed class LocalProcessorService : ILocalProcessorService
     private void TrackProcessMessage(string message)
     {
         _recentProcessMessages.Enqueue(message);
-        while (_recentProcessMessages.Count > 10 && _recentProcessMessages.TryDequeue(out _))
+        while (_recentProcessMessages.Count > 100 && _recentProcessMessages.TryDequeue(out _))
         {
         }
     }
 
     private Exception CreateStartupFailure(Process process, Uri endpoint)
     {
-        var recentMessages = string.Join(" | ", _recentProcessMessages.ToArray());
+        var recentMessages = string.Join(Environment.NewLine, _recentProcessMessages.ToArray());
         if (recentMessages.Contains("error while attempting to bind", StringComparison.OrdinalIgnoreCase) ||
             recentMessages.Contains("only one usage of each socket address", StringComparison.OrdinalIgnoreCase))
         {
             return new InvalidOperationException(
-                $"Port {endpoint.Port} is already in use, so the local processor could not bind to {endpoint}. Recent output: {recentMessages}".Trim());
+                $"Port {endpoint.Port} is already in use, so the local processor could not bind to {endpoint}.{Environment.NewLine}{Environment.NewLine}Recent output:{Environment.NewLine}{recentMessages}".Trim());
         }
 
         var message = string.IsNullOrWhiteSpace(recentMessages)
             ? $"The local processor exited with code {process.ExitCode}."
-            : $"The local processor exited with code {process.ExitCode}. Recent output: {recentMessages}";
+            : $"The local processor exited with code {process.ExitCode}.{Environment.NewLine}{Environment.NewLine}Recent output:{Environment.NewLine}{recentMessages}";
 
         return new InvalidOperationException(message.Trim());
     }
 
     private string BuildStartupTimeoutMessage(Uri endpoint)
     {
-        var recentMessages = string.Join(" | ", _recentProcessMessages.ToArray());
+        var recentMessages = string.Join(Environment.NewLine, _recentProcessMessages.ToArray());
         return string.IsNullOrWhiteSpace(recentMessages)
             ? $"Timed out waiting for the local processor to start at {endpoint}."
-            : $"Timed out waiting for the local processor to start at {endpoint}. Recent output: {recentMessages}";
+            : $"Timed out waiting for the local processor to start at {endpoint}.{Environment.NewLine}{Environment.NewLine}Recent output:{Environment.NewLine}{recentMessages}";
     }
 
     private static bool IsEndpointPortInUse(Uri endpoint)

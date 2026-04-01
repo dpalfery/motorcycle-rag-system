@@ -29,7 +29,13 @@ internal sealed class AppFlowCoordinator : IAppFlowCoordinator
     public async Task ShowShellAsync()
     {
         var shell = _serviceProvider.GetRequiredService<AppShell>();
-        await MainThread.InvokeOnMainThreadAsync(async () =>
+
+        // Refresh auth state first — it dispatches to the main thread internally.
+        // Awaiting it here (before entering InvokeOnMainThreadAsync) avoids nesting
+        // an async lambda inside a main-thread dispatch, which can deadlock.
+        await shell.RefreshAuthStateAsync();
+
+        MainThread.BeginInvokeOnMainThread(() =>
         {
             var window = Application.Current?.Windows is { Count: > 0 } windows ? windows[0] : null;
             if (window == null)
@@ -37,7 +43,6 @@ internal sealed class AppFlowCoordinator : IAppFlowCoordinator
                 return;
             }
 
-            await shell.RefreshAuthStateAsync();
             window.Page = shell;
         });
     }

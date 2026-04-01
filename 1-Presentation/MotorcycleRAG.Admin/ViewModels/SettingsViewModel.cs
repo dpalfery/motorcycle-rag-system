@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Admin.Services;
+using MotorcycleRAG.Admin.Services.Logging;
 using MotorcycleRAG.Admin.Utilities;
 
 namespace MotorcycleRAG.Admin.ViewModels;
@@ -24,6 +26,7 @@ internal partial class SettingsViewModel : ObservableObject {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S4487:Unread private field", Justification = "Reserved for future use")]
     private readonly INavigationService _navigationService;
     private readonly ILogger<SettingsViewModel> _logger;
+    private readonly FileLoggerOptions _fileLoggerOptions;
     private int _localProcessorValidationVersion;
 
     // ========== API Configuration ==========
@@ -91,13 +94,22 @@ internal partial class SettingsViewModel : ObservableObject {
     [ObservableProperty]
     private bool _hasUnsavedChanges;
 
+    // ========== Diagnostics ==========
+
+    [ObservableProperty]
+    private string _logFolderPath = string.Empty;
+
     public SettingsViewModel(
         IConfigurationStateService configService,
         INavigationService navigationService,
+        FileLoggerOptions fileLoggerOptions,
         ILogger<SettingsViewModel> logger) {
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
+        _fileLoggerOptions = fileLoggerOptions ?? throw new ArgumentNullException(nameof(fileLoggerOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        LogFolderPath = _fileLoggerOptions.LogDirectory;
 
         // Load current configuration
         LoadCurrentConfiguration();
@@ -230,7 +242,12 @@ internal partial class SettingsViewModel : ObservableObject {
 
     private void QueueLocalProcessorValidation() {
         var validationVersion = Interlocked.Increment(ref _localProcessorValidationVersion);
-        _ = ValidateLocalProcessorSettingsAsync(validationVersion);
+        _ = ValidateLocalProcessorSettingsAsync(validationVersion)
+            .ContinueWith(
+                t => _logger.LogError(t.Exception, "Local processor validation failed unexpectedly"),
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted,
+                TaskScheduler.Default);
     }
 
     private async Task ValidateLocalProcessorSettingsAsync(int validationVersion) {
@@ -498,5 +515,13 @@ internal partial class SettingsViewModel : ObservableObject {
                 StatusMessage = $"Failed to clear settings: {sanitizedMessage}").ConfigureAwait(false);
             _logger.LogError(ex, "Failed to clear settings");
         }
+    }
+
+    [RelayCommand]
+    private void OpenLogFolder() {
+        if (!Directory.Exists(LogFolderPath)) {
+            Directory.CreateDirectory(LogFolderPath);
+        }
+        Process.Start(new ProcessStartInfo("explorer.exe", LogFolderPath) { UseShellExecute = true });
     }
 }

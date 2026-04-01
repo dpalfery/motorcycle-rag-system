@@ -218,13 +218,12 @@ class PDFProcessor:
                 len(records),
             )
 
-        except Exception as e:
+        except Exception as exc:
             logger.exception("PDF processing failed for upload %s", upload_id)
             _jobs[job_id].update(
                 {
                     "status": "failed",
-                    "error": "Processing failed \u2014 see server logs for details",
-                    "message": "PDF processing failed",
+                    "message": f"PDF processing failed — {type(exc).__name__}: {str(exc)[:300]}",
                     "progress": 0.0,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }

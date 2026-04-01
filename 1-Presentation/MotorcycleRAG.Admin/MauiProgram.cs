@@ -26,15 +26,31 @@ internal static class MauiProgram {
         // Configure logging for all build configurations
         // Using Debug provider which works across all MAUI platforms
         builder.Logging.AddDebug();
+
+        // Configure rolling file logger for persistent diagnostics
+        var logDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MotorcycleRAGAdmin", "logs");
+        var fileLoggerOptions = new Services.Logging.FileLoggerOptions
+        {
+            LogDirectory = logDirectory,
+            MinimumLevel = LogLevel.Trace
+        };
+        builder.Logging.AddProvider(new Services.Logging.FileLoggerProvider(fileLoggerOptions));
+
 #if DEBUG
-        builder.Logging.SetMinimumLevel(LogLevel.Debug);
+        builder.Logging.SetMinimumLevel(LogLevel.Trace);
 #else
         builder.Logging.SetMinimumLevel(LogLevel.Information);
 #endif
         builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
-        builder.Logging.AddFilter("Polly", LogLevel.Error);
+        builder.Logging.AddFilter("Microsoft.Extensions.Http", LogLevel.Warning);  // suppresses handler expiry noise
+        builder.Logging.AddFilter("Polly", LogLevel.None); // retry/circuit-breaker telemetry is noise; failures surface via ViewModel error handlers
 
         // ========== Core Services (Singletons) ==========
+
+        // File Logger Options - provides log directory path to SettingsViewModel
+        builder.Services.AddSingleton(fileLoggerOptions);
 
         // Navigation Service - enables testable ViewModels
         builder.Services.AddSingleton<INavigationService, NavigationService>();
@@ -91,7 +107,7 @@ internal static class MauiProgram {
             .Configure(options => {
                 options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(20);
                 options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
-                options.Retry.MaxRetryAttempts = 0;
+                options.Retry.MaxRetryAttempts = 1; // 0 is invalid; 1 = one retry after initial failure
                 options.CircuitBreaker.MinimumThroughput = 5;
                 options.CircuitBreaker.FailureRatio = 0.5;
                 options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
@@ -103,25 +119,27 @@ internal static class MauiProgram {
         builder.Services.AddSingleton<PdfChunker>(_ => new PdfChunker());
         builder.Services.AddSingleton<CsvChunker>(_ => new CsvChunker());
 
-        // ========== Pages (Transient - Fresh instance per navigation) ==========
+        // ========== Pages ==========
+        // Shell ContentTemplate caches the page instance for the Shell lifetime,
+        // so Shell pages MUST be Singleton to avoid BindingContext becoming stale.
+        builder.Services.AddSingleton<DashboardPage>();
+        builder.Services.AddTransient<LandingPage>(); // Not in Shell — transient is correct
+        builder.Services.AddSingleton<UploadPage>();
+        builder.Services.AddSingleton<JobsPage>();
+        builder.Services.AddSingleton<WebSourcesPage>();
+        builder.Services.AddSingleton<ToolsPage>();
+        builder.Services.AddSingleton<SettingsPage>();
 
-        builder.Services.AddTransient<DashboardPage>();
-        builder.Services.AddTransient<LandingPage>();
-        builder.Services.AddTransient<UploadPage>();
-        builder.Services.AddTransient<JobsPage>();
-        builder.Services.AddTransient<WebSourcesPage>();
-        builder.Services.AddTransient<ToolsPage>();
-        builder.Services.AddTransient<SettingsPage>();
-
-        // ========== ViewModels (Transient - Fresh instance per navigation) ==========
-
-        builder.Services.AddTransient<DashboardViewModel>();
-        builder.Services.AddTransient<LandingViewModel>();
-        builder.Services.AddTransient<IngestionViewModel>();
-        builder.Services.AddTransient<JobsViewModel>();
-        builder.Services.AddTransient<WebSourcesViewModel>();
-        builder.Services.AddTransient<ToolsViewModel>();
-        builder.Services.AddTransient<SettingsViewModel>();
+        // ========== ViewModels ==========
+        // Shell pages are Singleton so their ViewModels must also be Singleton to match
+        // the page lifetime (avoids the VM being GC'd while the page is still alive).
+        builder.Services.AddSingleton<DashboardViewModel>();
+        builder.Services.AddTransient<LandingViewModel>(); // Matches LandingPage lifetime
+        builder.Services.AddSingleton<IngestionViewModel>();
+        builder.Services.AddSingleton<JobsViewModel>();
+        builder.Services.AddSingleton<WebSourcesViewModel>();
+        builder.Services.AddSingleton<ToolsViewModel>();
+        builder.Services.AddSingleton<SettingsViewModel>();
 
         // Register AppShell (Singleton - single instance for app lifetime)
         builder.Services.AddSingleton<AppShell>(sp =>

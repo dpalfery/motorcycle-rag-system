@@ -217,6 +217,12 @@ For deployment procedures and GitHub Actions setup, see `deployment.md`.
 > These variables are read directly from the OS environment (or a local `.env` file, never committed).
 > See `.env.example` in the local-processing-service directory for a ready-to-copy template.
 
+### Logging
+
+| Variable | Default | Purpose | Required | Type |
+| --- | --- | --- | --- | --- |
+| `LOCAL_PROCESSOR_LOG_DIR` | `./logs` | Directory where daily rolling log files are written. Rotates at midnight, retains 14 days. | No | Non-Secret |
+
 ### Embedding Backend
 
 | Variable | Default | Purpose | Required | Type |

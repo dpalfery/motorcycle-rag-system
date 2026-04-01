@@ -8,6 +8,7 @@ using MotorcycleRAG.Admin.Models.Api;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Utilities;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using Polly.CircuitBreaker;
 using Polly.Timeout;
 using LocalProcessorHealthResponse = MotorcycleRAG.Admin.Services.Dtos.LocalProcessorHealthResponse;
 
@@ -52,6 +53,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private string _selectedLocalGraphFilePath = string.Empty;
     private string _localGraphStatusMessage = string.Empty;
     private string _localProcessorStatusMessage = "Local processor is not running.";
+    private string _localProcessorDiagnosticOutput = string.Empty;
     private string _apiPollingProblemMessage = string.Empty;
     private CancellationTokenSource? _loadJobsCancellationTokenSource;
 
@@ -247,6 +249,24 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
 
             _localProcessorStatusMessage = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalProcessorStatusMessage)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalProcessorStatusIsError)));
+        }
+    }
+
+    /// <summary>True when the status message represents a failure — drives the red label color in the UI.</summary>
+    public bool LocalProcessorStatusIsError =>
+        _localProcessorStatusMessage.StartsWith("Failed", StringComparison.OrdinalIgnoreCase);
+
+    public string LocalProcessorDiagnosticOutput {
+        get => _localProcessorDiagnosticOutput;
+        private set {
+            if (string.Equals(_localProcessorDiagnosticOutput, value, StringComparison.Ordinal)) {
+                return;
+            }
+
+            _localProcessorDiagnosticOutput = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalProcessorDiagnosticOutput)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasLocalProcessorDiagnosticOutput)));
         }
     }
 
@@ -273,6 +293,8 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     public bool HasSelectedLocalGraphFile => !string.IsNullOrWhiteSpace(SelectedLocalGraphFilePath);
 
     public bool HasLocalGraphStatusMessage => !string.IsNullOrWhiteSpace(LocalGraphStatusMessage);
+
+    public bool HasLocalProcessorDiagnosticOutput => !string.IsNullOrWhiteSpace(LocalProcessorDiagnosticOutput);
 
     public bool HasApiPollingProblemMessage => !string.IsNullOrWhiteSpace(ApiPollingProblemMessage);
 
@@ -643,13 +665,25 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
 
         try {
             var health = await RunOffUiThreadAsync(() => _localProcessorService.StartAsync()).ConfigureAwait(false);
+            await RunOnUiThreadAsync(() => LocalProcessorDiagnosticOutput = string.Empty).ConfigureAwait(false);
             await RefreshLocalProcessorSectionAsync(health).ConfigureAwait(false);
         }
         catch (Exception ex) {
-            await RunOnUiThreadAsync(() => LocalProcessorStatusMessage = "Failed to start the local processor.").ConfigureAwait(false);
-            await ErrorPresenter.ShowErrorAsync(
-                "Local Processor Failed",
-                ErrorPresenter.SanitizeErrorMessage(ex.Message)).ConfigureAwait(false);
+            // Populate the diagnostic panel first — it shows the full unsanitized message including
+            // "Recent output: ..." from the process, which is the most actionable debugging info.
+            var diagnostic = ex.Message;
+            await RunOnUiThreadAsync(() => {
+                LocalProcessorStatusMessage = "Failed to start. See output below.";
+                LocalProcessorDiagnosticOutput = diagnostic;
+            }).ConfigureAwait(false);
+
+            // Show a concise dialog — just enough to draw attention; details are on the page.
+            var headline = ex is TimeoutException
+                ? "The local processor did not start within the timeout. See the 'Recent Process Output' panel below for details."
+                : ex is InvalidOperationException
+                    ? ex.Message.Split('.')[0] + ". See the 'Recent Process Output' panel below."
+                    : "An unexpected error prevented the local processor from starting. See the 'Recent Process Output' panel below.";
+            await ErrorPresenter.ShowErrorAsync("Local Processor Failed", headline).ConfigureAwait(false);
             _logger.LogError(ex, "Failed to start the local processor.");
         }
         finally {
@@ -1158,7 +1192,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     }
 
     private static bool IsTransientApiFailure(Exception exception) {
-        if (exception is TimeoutRejectedException) {
+        if (exception is TimeoutRejectedException or BrokenCircuitException) {
             return true;
         }
 
@@ -1175,6 +1209,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private static string DescribeApiFailure(Exception exception) {
         return exception switch {
             TimeoutRejectedException => "The request timed out.",
+            BrokenCircuitException => "The API is currently overloaded or unreachable. Please wait before retrying.",
             HttpRequestException httpRequestException when httpRequestException.StatusCode is not null =>
                 $"The API returned {httpRequestException.StatusCode}.",
             HttpRequestException => "The API could not be reached.",
@@ -1222,13 +1257,18 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             LocalProcessorStatusMessage = _configService.IsLocalProcessorConfigured
                 ? "Local processor is not running."
                 : "Configure the local processor in Settings to start it from this page.";
-            return;
+        }
+        else {
+            IsLocalProcessorRunning = true;
+            IsLocalProcessorAcceptingWork = health.AcceptingWork;
+            LocalProcessorActiveJobs = health.ActiveJobs;
+            LocalProcessorStatusMessage = health.Message;
         }
 
-        IsLocalProcessorRunning = true;
-        IsLocalProcessorAcceptingWork = health.AcceptingWork;
-        LocalProcessorActiveJobs = health.ActiveJobs;
-        LocalProcessorStatusMessage = health.Message;
+        var output = _localProcessorService.RecentProcessOutput;
+        LocalProcessorDiagnosticOutput = output.Count > 0
+            ? string.Join(Environment.NewLine, output)
+            : string.Empty;
     }
 
     private static IngestionJobConfiguration? CreateDefaultIngestionConfiguration(string documentType) {

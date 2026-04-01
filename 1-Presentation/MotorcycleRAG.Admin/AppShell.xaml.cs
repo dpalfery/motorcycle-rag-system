@@ -29,23 +29,19 @@ internal partial class AppShell : Shell {
         _appFlowCoordinator = serviceProvider?.GetRequiredService<IAppFlowCoordinator>()
             ?? throw new ArgumentNullException(nameof(serviceProvider));
 
-        // Register routes for navigation
-        RegisterRoutes();
+        // Assign page instances directly from DI.
+        // ContentTemplate="{DataTemplate T}" calls Activator.CreateInstance(T) which bypasses DI
+        // and requires a parameterless constructor — these pages use constructor injection.
+        // Setting ShellContent.Content directly after InitializeComponent is the correct pattern.
+        DashboardContent.Content  = serviceProvider.GetRequiredService<Pages.DashboardPage>();
+        UploadContent.Content     = serviceProvider.GetRequiredService<Pages.UploadPage>();
+        JobsContent.Content       = serviceProvider.GetRequiredService<Pages.JobsPage>();
+        WebSourcesContent.Content = serviceProvider.GetRequiredService<Pages.WebSourcesPage>();
+        ToolsContent.Content      = serviceProvider.GetRequiredService<Pages.ToolsPage>();
+        SettingsContent.Content   = serviceProvider.GetRequiredService<Pages.SettingsPage>();
 
         // Update UI based on auth state
         Loaded += OnShellLoaded;
-    }
-
-    private void RegisterRoutes()
-    {
-        // Register all routes for Shell-based navigation
-        Routing.RegisterRoute("dashboard", typeof(Pages.DashboardPage));
-        Routing.RegisterRoute("dashboardpage", typeof(Pages.DashboardPage));
-        Routing.RegisterRoute("uploadpage", typeof(Pages.UploadPage));
-        Routing.RegisterRoute("jobspage", typeof(Pages.JobsPage));
-        Routing.RegisterRoute("websourcespage", typeof(Pages.WebSourcesPage));
-        Routing.RegisterRoute("toolspage", typeof(Pages.ToolsPage));
-        Routing.RegisterRoute("settingspage", typeof(Pages.SettingsPage));
     }
 
     private async void OnShellLoaded(object? sender, EventArgs e)

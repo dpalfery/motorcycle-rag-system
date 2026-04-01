@@ -51,14 +51,12 @@ class BlobWriter:
     # ------------------------------------------------------------------
 
     def is_connected(self) -> bool:
-        """Return True when the storage account is reachable. Never raises."""
-        if self._client is None:
-            return False
-        try:
-            self._client.get_service_properties()
-            return True
-        except Exception:
-            return False
+        """Return True when a storage client is configured.
+
+        Avoids a live network call on every health poll — actual connectivity
+        failures surface when upload/download operations fail.
+        """
+        return self._client is not None
 
     # ------------------------------------------------------------------
     # Downloads

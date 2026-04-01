@@ -183,12 +183,12 @@ class BikeGraphProcessor:
                 len(edges),
             )
 
-        except Exception:
+        except Exception as exc:
             logger.exception("Bike graph processing failed for upload %s", upload_id)
             _jobs[job_id].update(
                 {
                     "status": "failed",
-                    "message": "Bike graph processing failed",
+                    "message": f"Bike graph processing failed — {type(exc).__name__}: {str(exc)[:300]}",
                     "progress": 0.0,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }

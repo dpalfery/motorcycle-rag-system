@@ -4,6 +4,8 @@ namespace MotorcycleRAG.Admin.Services;
 
 internal interface ILocalProcessorService
 {
+    IReadOnlyList<string> RecentProcessOutput { get; }
+
     Task<LocalProcessorHealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<LocalProcessorJobResponse>> GetJobsAsync(CancellationToken cancellationToken = default);

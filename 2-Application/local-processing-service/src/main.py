@@ -7,11 +7,42 @@ import uvicorn
 import os
 import sys
 import logging
+import logging.handlers
 import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()  # Load .env file if present — no-op when env vars already set (production)
+
+
+def _configure_logging() -> None:
+    """Configure root logger with console and daily rolling file handlers.
+
+    Called at module load time so logs are captured even if startup fails.
+    """
+    log_dir = os.getenv("LOCAL_PROCESSOR_LOG_DIR", "./logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    fmt = logging.Formatter("%(asctime)s %(levelname)-8s %(name)s — %(message)s")
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(fmt)
+
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        filename=os.path.join(log_dir, "local-processor.log"),
+        when="midnight",
+        backupCount=14,
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(fmt)
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.addHandler(console_handler)
+    root.addHandler(file_handler)
+
+
+_configure_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -349,11 +380,6 @@ async def shutdown():
 
 # Main entry point
 if __name__ == "__main__":
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
 
     # Get port from environment or use default
     port = int(os.getenv("PORT", 8100))

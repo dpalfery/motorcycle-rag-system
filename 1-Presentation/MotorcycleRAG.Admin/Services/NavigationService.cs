@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace MotorcycleRAG.Admin.Services;
 
 /// <summary>
@@ -7,6 +9,9 @@ namespace MotorcycleRAG.Admin.Services;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by dependency injection")]
 internal class NavigationService : INavigationService
 {
+    private static readonly Regex ParamNameRegex =
+        new(@"^[a-zA-Z0-9_]+$", RegexOptions.Compiled, matchTimeout: TimeSpan.FromMilliseconds(100));
+
     /// <summary>
     /// Navigates to the specified route with optional query parameters.
     /// </summary>
@@ -41,7 +46,7 @@ internal class NavigationService : INavigationService
                 foreach (var kvp in parameters)
                 {
                     // Validate parameter name is not empty and contains only alphanumeric and underscore
-                    if (string.IsNullOrWhiteSpace(kvp.Key) || !System.Text.RegularExpressions.Regex.IsMatch(kvp.Key, @"^[a-zA-Z0-9_]+$"))
+                    if (string.IsNullOrWhiteSpace(kvp.Key) || !ParamNameRegex.IsMatch(kvp.Key))
                     {
                         throw new ArgumentException($"Parameter name '{kvp.Key}' is invalid. Names must contain only alphanumeric characters and underscores.");
                     }

@@ -4,7 +4,6 @@
     x:ClassModifier="Internal"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:Pages="clr-namespace:MotorcycleRAG.Admin.Pages"
     Title="Motorcycle RAG Admin"
     FlyoutBehavior="Locked"
     FlyoutIsPresented="False">
@@ -76,55 +75,56 @@
     </Shell.FlyoutFooter>
 
     <!-- Navigation Structure -->
+    <!-- Content is assigned in AppShell.xaml.cs constructor via DI.
+         ContentTemplate=DataTemplate cannot use DI-injected constructors (uses Activator.CreateInstance).
+         Setting ShellContent.Content directly is the correct pattern for constructor-injected pages. -->
     <FlyoutItem Title="Dashboard"
                 Icon="home.png"
                 Route="dashboard">
-        <ShellContent Title="Dashboard"
-                      Route="dashboardpage"
-                      ContentTemplate="{DataTemplate Pages:DashboardPage}"/>
+        <ShellContent x:Name="DashboardContent"
+                      Title="Dashboard"
+                      Route="dashboardpage"/>
     </FlyoutItem>
 
     <FlyoutItem Title="Upload"
                 Icon="upload.png"
                 Route="upload">
-        <ShellContent Title="Upload and Process"
-                      Route="uploadpage"
-                      ContentTemplate="{DataTemplate Pages:UploadPage}"/>
+        <ShellContent x:Name="UploadContent"
+                      Title="Upload and Process"
+                      Route="uploadpage"/>
     </FlyoutItem>
 
     <FlyoutItem Title="Pipeline Jobs"
                 Icon="tasks.png"
                 Route="jobs">
-        <ShellContent Title="Pipeline Jobs"
-                      Route="jobspage"
-                      ContentTemplate="{DataTemplate Pages:JobsPage}"/>
+        <ShellContent x:Name="JobsContent"
+                      Title="Pipeline Jobs"
+                      Route="jobspage"/>
     </FlyoutItem>
 
     <FlyoutItem Title="Web Sources"
                 Icon="globe.png"
                 Route="websources">
-        <ShellContent Title="Web Sources"
-                      Route="websourcespage"
-                      ContentTemplate="{DataTemplate Pages:WebSourcesPage}"/>
+        <ShellContent x:Name="WebSourcesContent"
+                      Title="Web Sources"
+                      Route="websourcespage"/>
     </FlyoutItem>
 
     <FlyoutItem Title="Tools"
                 Icon="tools.png"
                 Route="tools">
-        <ShellContent Title="Tools and Settings"
-                      Route="toolspage"
-                      ContentTemplate="{DataTemplate Pages:ToolsPage}"/>
+        <ShellContent x:Name="ToolsContent"
+                      Title="Tools and Settings"
+                      Route="toolspage"/>
     </FlyoutItem>
 
     <FlyoutItem Title="Settings"
                 Icon="settings.png"
                 Route="settings">
-        <ShellContent Title="Settings"
-                      Route="settingspage"
-                      ContentTemplate="{DataTemplate Pages:SettingsPage}"/>
+        <ShellContent x:Name="SettingsContent"
+                      Title="Settings"
+                      Route="settingspage"/>
     </FlyoutItem>
 
-    <!-- TabBar can be used for modal or secondary navigation if needed -->
-    <TabBar x:Name="MainTabBar"/>
 
 </Shell>

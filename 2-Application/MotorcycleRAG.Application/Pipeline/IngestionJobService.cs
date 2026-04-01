@@ -218,23 +218,30 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         job = await _repository.CreateAsync(job, ct).ConfigureAwait(false);
 
-        try {
-            await EnsureGraphArtifactsExistAsync(request.UploadId, ct).ConfigureAwait(false);
-            await _graphEntityIngestionService.IngestAsync(request.UploadId, ct).ConfigureAwait(false);
+        await EnsureGraphArtifactsExistAsync(request.UploadId, ct).ConfigureAwait(false);
 
+        // Run ingestion in the background so the HTTP request returns 202 immediately.
+        // CancellationToken.None is intentional — the work must outlive the HTTP request.
+        _ = Task.Run(() => RunGraphIngestionAsync(job, request.UploadId), CancellationToken.None);
+
+        return MapToResponse(job);
+    }
+
+    private async Task RunGraphIngestionAsync(IngestionJob job, string uploadId) {
+        try {
+            await _graphEntityIngestionService.IngestAsync(uploadId, CancellationToken.None).ConfigureAwait(false);
             job.Status = IngestionJobStatus.Completed;
             job.CompletedAtUtc = DateTimeOffset.UtcNow;
             job.FailureReason = null;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Graph import failed for upload {UploadId}.", request.UploadId);
+            _logger.LogError(ex, "Graph import failed for upload {UploadId}.", uploadId);
             job.Status = IngestionJobStatus.Failed;
             job.CompletedAtUtc = DateTimeOffset.UtcNow;
             job.FailureReason = "Graph import failed.";
         }
 
-        await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
-        return MapToResponse(job);
+        await _repository.UpdateAsync(job, CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

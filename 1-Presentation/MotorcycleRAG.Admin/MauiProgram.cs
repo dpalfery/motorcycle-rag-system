@@ -110,7 +110,7 @@ internal static class MauiProgram {
                 options.Retry.MaxRetryAttempts = 1; // 0 is invalid; 1 = one retry after initial failure
                 options.CircuitBreaker.MinimumThroughput = 5;
                 options.CircuitBreaker.FailureRatio = 0.5;
-                options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(90); // must be >= 2x AttemptTimeout (30s)
                 options.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(2);
             });
 

@@ -55,6 +55,7 @@ from processors.bike_graph_processor import BikeGraphProcessor
 from embeddings.ollama_embedder import OllamaEmbedder
 from extraction.graph_extractor import GraphExtractor
 from storage.blob_writer import BlobWriter
+from api.api_client import ApiClient
 from models.schemas import (
     ProcessPDFRequest,
     ProcessCSVRequest,
@@ -80,16 +81,17 @@ app.add_middleware(
 
 # Initialize services
 blob_writer = BlobWriter()
+api_client = ApiClient()
 embedder = OllamaEmbedder()
 graph_extractor = GraphExtractor()
 
 # Initialize processors
 pdf_processor = PDFProcessor(
-    blob_writer=blob_writer, embedder=embedder, graph_extractor=graph_extractor
+    blob_writer=blob_writer, embedder=embedder, graph_extractor=graph_extractor, api_client=api_client
 )
 
-csv_processor = CSVProcessor(blob_writer=blob_writer, embedder=embedder)
-bike_graph_processor = BikeGraphProcessor(blob_writer=blob_writer)
+csv_processor = CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
+bike_graph_processor = BikeGraphProcessor(blob_writer=blob_writer, api_client=api_client)
 
 shutdown_requested = False
 uvicorn_server: uvicorn.Server | None = None
@@ -143,6 +145,7 @@ async def health_check():
                     if shutdown_requested
                     else "Processor ready"
                 ),
+                "api_client_configured": api_client.is_configured(),
                 "services": {
                     "ollama": ollama_status,
                     "blob_storage": blob_writer.is_connected(),

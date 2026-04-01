@@ -22,6 +22,7 @@ internal static class AuthorizationPoliciesConfiguration {
         ArgumentNullException.ThrowIfNull(env);
         // Get Admin Client ID from configuration for isolation checks
         var adminClientId = configuration["AzureAd:AdminClientId"];
+        var localProcessorClientId = configuration["AzureAd:LocalProcessorClientId"];
 
         // Provide a dummy Client ID for testing environment if not set
         if (string.IsNullOrEmpty(adminClientId) && env.IsEnvironment("Testing")) {
@@ -43,6 +44,21 @@ internal static class AuthorizationPoliciesConfiguration {
                     }
 
                     return hasScope && hasRole && isAuthorizedClient;
+                });
+            });
+
+            // Local processor policy — M2M only, no delegated scope, checks File.Upload.All role + azp
+            options.AddPolicy("mcr-api-local-processor", policy => {
+                policy.RequireAuthenticatedUser();
+                policy.RequireAssertion(ctx => {
+                    var hasRole = ctx.User.HasAnyRole("File.Upload.All");
+                    var isAuthorizedClient = ctx.User.IsAuthorizedClient(localProcessorClientId!);
+
+                    if (env.IsEnvironment("Testing")) {
+                        return hasRole || ctx.User.HasClaim("X-Test-Auth", "mcr-api-local-processor");
+                    }
+
+                    return hasRole && isAuthorizedClient;
                 });
             });
 

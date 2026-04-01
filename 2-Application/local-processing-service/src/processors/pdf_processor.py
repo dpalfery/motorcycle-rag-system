@@ -1,6 +1,7 @@
 """PDF processor using Docling HybridChunker for semantic chunking."""
 
 import asyncio
+import json
 import logging
 import os
 import tempfile
@@ -11,6 +12,7 @@ from docling.chunking import HybridChunker
 from docling.document_converter import DocumentConverter
 
 from typing import Any
+from api.api_client import ApiClient
 from extraction.graph_extractor import GraphExtractor
 from storage.blob_writer import BlobWriter
 from search.azure_search_uploader import AzureSearchDirectUploader
@@ -27,10 +29,12 @@ class PDFProcessor:
         blob_writer: BlobWriter,
         embedder: Any,
         graph_extractor: GraphExtractor,
+        api_client: ApiClient,
     ):
         self._blob_writer = blob_writer
         self._embedder = embedder
         self._graph_extractor = graph_extractor
+        self._api_client = api_client
 
     async def process_pdf_async(
         self, upload_id: str, document_type: str, blob_container: str, metadata
@@ -180,8 +184,9 @@ class PDFProcessor:
             _jobs[job_id]["message"] = "Uploading chunks to blob storage"
             _jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-            await self._blob_writer.upload_jsonl(
-                "search-chunks", f"{upload_id}/chunks.jsonl", records
+            chunks_bytes = ("\n".join(json.dumps(r) for r in records)).encode("utf-8")
+            await self._api_client.upload_artifact(
+                chunks_bytes, upload_id, "search-chunks", "application/x-ndjson"
             )
 
             # Direct push to Azure AI Search (no-op if AZURE_SEARCH_ENDPOINT not set)
@@ -196,10 +201,9 @@ class PDFProcessor:
             combined_text = "\n\n".join(chunk.text for chunk in chunks)
             entities = await self._graph_extractor.extract(combined_text, source_document_id=upload_id)
 
-            await self._blob_writer.upload_json(
-                "graph-entities",
-                f"graph-entities/{upload_id}/entities.json",
-                entities,
+            entities_bytes = json.dumps(entities).encode("utf-8")
+            await self._api_client.upload_artifact(
+                entities_bytes, upload_id, "graph-entities", "application/json"
             )
 
             # ---- Mark completed ----

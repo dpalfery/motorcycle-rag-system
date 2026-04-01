@@ -5,6 +5,7 @@ import uuid
 import os
 import io
 import logging
+from api.api_client import ApiClient
 from search.azure_search_uploader import AzureSearchDirectUploader
 from datetime import datetime, timezone
 
@@ -45,9 +46,10 @@ def _split_text_into_chunks(text: str, max_tokens: int) -> list[str]:
 
 
 class CSVProcessor:
-    def __init__(self, blob_writer, embedder):
+    def __init__(self, blob_writer, embedder, api_client: ApiClient):
         self.blob_writer = blob_writer
         self.embedder = embedder
+        self._api_client = api_client
 
     async def process_csv_async(
         self, upload_id: str, blob_container: str, metadata=None
@@ -193,8 +195,9 @@ class CSVProcessor:
                 _jobs[job_id]["progress"] = round((i + 1) / total_groups * 0.9, 2)
                 _jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-            await self.blob_writer.upload_jsonl(
-                "search-chunks", f"{upload_id}/chunks.jsonl", chunks
+            chunks_bytes = ("\n".join(json.dumps(c) for c in chunks)).encode("utf-8")
+            await self._api_client.upload_artifact(
+                chunks_bytes, upload_id, "search-chunks", "application/x-ndjson"
             )
 
             # Direct push to Azure AI Search (no-op if AZURE_SEARCH_ENDPOINT not set)

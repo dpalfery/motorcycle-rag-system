@@ -19,6 +19,7 @@ in the format consumed by GraphEntityIngestionService:
 
 import asyncio
 import io
+import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -26,6 +27,8 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+
+from api.api_client import ApiClient
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +86,9 @@ def _build_description(row: pd.Series, lower_col_map: dict[str, str]) -> str:
 class BikeGraphProcessor:
     """Converts a motorcycle spec CSV to graph nodes/edges without LLM or embeddings."""
 
-    def __init__(self, blob_writer) -> None:
+    def __init__(self, blob_writer, api_client: ApiClient) -> None:
         self.blob_writer = blob_writer
+        self._api_client = api_client
 
     # ------------------------------------------------------------------
     # Public API
@@ -160,10 +164,9 @@ class BikeGraphProcessor:
                 )
 
             payload = [{"nodes": nodes, "edges": edges}]
-            await self.blob_writer.upload_json(
-                "raw-uploads",
-                f"graph-entities/{upload_id}/entities.json",
-                payload,
+            entities_bytes = json.dumps(payload).encode("utf-8")
+            await self._api_client.upload_artifact(
+                entities_bytes, upload_id, "graph-entities", "application/json"
             )
 
             _jobs[job_id].update(

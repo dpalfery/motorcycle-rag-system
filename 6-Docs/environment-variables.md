@@ -43,6 +43,7 @@ MCR_<APP>_<VARIABLE>
 | --- | --- | --- | --- | --- |
 | `MCR_API_AZURE_AD_TENANT_ID` | `00000000-0000-0000-0000-000000000000` | Azure AD tenant ID for token validation. | Yes | Secret |
 | `MCR_API_AZURE_AD_CLIENT_ID` | `00000000-0000-0000-0000-000000000000` | API app registration client ID. | Yes | Secret |
+| `MCR_LOCAL_PROCESSOR_CLIENT_ID` | `d09d356d-62ac-4f38-b636-64169119ea25` | Client ID of the Python-Upload-Job app registration. Used to validate `azp` on the `mcr-api-local-processor` policy. Maps to `AzureAd:LocalProcessorClientId`. | Yes (for processor endpoint) | Non-Secret |
 
 ### Azure Services (Endpoints)
 | Variable | Example | Purpose | Required | Type |
@@ -278,3 +279,18 @@ For deployment procedures and GitHub Actions setup, see `deployment.md`.
 | `DEEPINFRA_API_KEY` | `xxxxxxxxxxxxx` | DeepInfra API key (shared with Python service). | Yes | Secret |
 | `DEEPINFRA_BASE_URL` | `https://api.deepinfra.com/v1/openai` | DeepInfra OpenAI-compatible endpoint. | Yes | Non-Secret |
 | `DEEPINFRA_EMBEDDING_MODEL` | `Qwen/Qwen3-Embedding-4B` | DeepInfra embedding model name (used when GetEmbeddingsAsync model param is blank). | Yes (unless passed as method arg) | Non-Secret |
+
+### MotorcycleRAG API — M2M Upload (Python-Upload-Job)
+
+> The Python service uses client credentials (M2M) to POST processed artifacts to the API.
+> App registration: `Python-Upload-Job` (client ID `d09d356d-62ac-4f38-b636-64169119ea25`).
+> The API validates these tokens against the `mcr-api-local-processor` policy (requires `File.Upload.All` app role + `azp` check).
+> The corresponding API config key is `AzureAd:LocalProcessorClientId` (env var `MCR_LOCAL_PROCESSOR_CLIENT_ID`).
+
+| Variable | Default | Purpose | Required | Type |
+| --- | --- | --- | --- | --- |
+| `MCR_API_BASE_URL` | `https://localhost:5001` | Base URL of the MotorcycleRAG API. | Yes | Non-Secret |
+| `MCR_LOCAL_PROCESSOR_CLIENT_ID` | `d09d356d-62ac-4f38-b636-64169119ea25` | Entra client ID of the Python-Upload-Job app registration. | No (has default) | Non-Secret |
+| `PYTHON_UPLOAD_JOB_SECRET` | — | Client secret for the Python-Upload-Job app registration. If absent, artifact upload is disabled (no-op). | Yes (for upload) | Secret |
+| `MCR_LOCAL_PROCESSOR_TENANT_ID` | `0f8f8a52-f135-43af-af88-e0b54ca9ff91` | Entra tenant ID. | No (has default) | Non-Secret |
+| `MCR_API_SCOPE` | `api://motorcyclerag-api/.default` | OAuth scope for M2M token requests. Always use `/.default` for client credentials. | No (has default) | Non-Secret |

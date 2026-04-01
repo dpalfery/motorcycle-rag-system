@@ -52,7 +52,7 @@ class CSVProcessor:
         self._api_client = api_client
 
     async def process_csv_async(
-        self, upload_id: str, blob_container: str, metadata=None
+        self, upload_id: str, blob_container: str | None = None, metadata=None, local_file_path: str | None = None
     ) -> str:
         job_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
@@ -67,7 +67,7 @@ class CSVProcessor:
             "updated_at": now,
         }
         asyncio.create_task(
-            self._process_background(job_id, upload_id, blob_container, metadata)
+            self._process_background(job_id, upload_id, blob_container, metadata, local_file_path)
         )
         return job_id
 
@@ -90,13 +90,16 @@ class CSVProcessor:
         return len(terminal_job_ids)
 
     async def _process_background(
-        self, job_id: str, upload_id: str, blob_container: str, metadata
+        self, job_id: str, upload_id: str, blob_container: str | None, metadata, local_file_path: str | None = None
     ) -> None:
         try:
-            csv_bytes = await self.blob_writer.download_blob(
-                blob_container, f"{upload_id}.csv"
-            )
-            df = pd.read_csv(io.BytesIO(csv_bytes))
+            if local_file_path:
+                df = await asyncio.to_thread(pd.read_csv, local_file_path)
+            else:
+                csv_bytes = await self.blob_writer.download_blob(
+                    blob_container, f"{upload_id}.csv"
+                )
+                df = pd.read_csv(io.BytesIO(csv_bytes))
 
             if df.empty:
                 _jobs[job_id].update(

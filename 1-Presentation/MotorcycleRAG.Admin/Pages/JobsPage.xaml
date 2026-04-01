@@ -140,12 +140,14 @@
                                    Padding="10"
                                    CornerRadius="4"
                                    IsVisible="{Binding HasLocalProcessorDiagnosticOutput}">
-                                <ScrollView HeightRequest="180" Orientation="Both">
-                                    <Label Text="{Binding LocalProcessorDiagnosticOutput}"
-                                           FontFamily="Courier New"
-                                           FontSize="10"
-                                           TextColor="#CCCCCC"
-                                           LineBreakMode="NoWrap" />
+                                <ScrollView HeightRequest="180">
+                                    <Editor Text="{Binding LocalProcessorDiagnosticOutput}"
+                                            IsReadOnly="True"
+                                            FontFamily="Courier New"
+                                            FontSize="10"
+                                            TextColor="#CCCCCC"
+                                            BackgroundColor="Transparent"
+                                            AutoSize="TextChanges" />
                                 </ScrollView>
                             </Frame>
                         </VerticalStackLayout>

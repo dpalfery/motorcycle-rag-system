@@ -101,12 +101,12 @@ internal static class MauiProgram {
                     logger.LogWarning("API base URL not configured. Open Settings to configure it.");
                 }
 
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromSeconds(120);
             })
             .AddStandardResilienceHandler()
             .Configure(options => {
-                options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(20);
-                options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(90);
+                options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(30); // Container App cold-starts can take 10-30s
                 options.Retry.MaxRetryAttempts = 1; // 0 is invalid; 1 = one retry after initial failure
                 options.CircuitBreaker.MinimumThroughput = 5;
                 options.CircuitBreaker.FailureRatio = 0.5;

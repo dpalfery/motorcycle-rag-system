@@ -34,7 +34,8 @@ class OllamaEmbedder:
         self._model: str = os.getenv("OLLAMA_MODEL") or os.getenv(
             "OLLAMA_MODEL_EMBEDDING", "qwen3-embedding"
         )
-        self._dims: int = 3584
+        dims_env = os.getenv("OLLAMA_EMBEDDING_DIMS")
+        self._dims: int | None = int(dims_env) if dims_env else None
         self._client: ollama.AsyncClient = ollama.AsyncClient(host=self._host)
 
     # ------------------------------------------------------------------
@@ -58,7 +59,7 @@ class OllamaEmbedder:
 
                 vector: list[float] = list(response.embeddings[0])
 
-                if len(vector) != self._dims:
+                if self._dims is not None and len(vector) != self._dims:
                     raise ValueError(f"Expected {self._dims} dims, got {len(vector)}")
 
                 return vector

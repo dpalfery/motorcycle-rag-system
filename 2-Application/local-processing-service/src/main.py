@@ -228,14 +228,25 @@ async def process_csv(request: ProcessCSVRequest, background_tasks: BackgroundTa
         # Validate request
         if not request.upload_id:
             raise HTTPException(status_code=400, detail="upload_id is required")
-        if not request.blob_container:
-            raise HTTPException(status_code=400, detail="blob_container is required")
+
+        local_file_path = None
+        if request.local_file_path:
+            from pathlib import Path as _Path
+            p = _Path(request.local_file_path).resolve()
+            if not p.is_file():
+                raise HTTPException(status_code=400, detail="local_file_path does not point to an existing file")
+            if p.suffix.lower() != ".csv":
+                raise HTTPException(status_code=400, detail="Only .csv files are supported")
+            local_file_path = str(p)
+        elif not request.blob_container:
+            raise HTTPException(status_code=400, detail="Either blob_container or local_file_path is required")
 
         # Start background processing
         job_id = await csv_processor.process_csv_async(
             upload_id=request.upload_id,
             blob_container=request.blob_container,
             metadata=request.metadata,
+            local_file_path=local_file_path,
         )
 
         return ProcessingStatusResponse(

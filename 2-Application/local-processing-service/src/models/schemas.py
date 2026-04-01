@@ -36,7 +36,12 @@ class ProcessCSVRequest(BaseModel):
     upload_id: str = Field(
         ..., description="Unique identifier for the uploaded CSV file"
     )
-    blob_container: str = Field(..., description="Azure Blob Storage container name")
+    blob_container: Optional[str] = Field(
+        None, description="Azure Blob Storage container name (required if local_file_path is not set)"
+    )
+    local_file_path: Optional[str] = Field(
+        None, description="Absolute path to a CSV file on the local machine (skips blob download)"
+    )
     metadata: Metadata = Field(
         default_factory=Metadata, description="Document metadata"
     )

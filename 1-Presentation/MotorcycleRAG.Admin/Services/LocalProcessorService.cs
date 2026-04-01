@@ -41,6 +41,17 @@ internal sealed class LocalProcessorService : ILocalProcessorService
     public async Task<LocalProcessorHealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default)
     {
         var endpoint = GetEndpoint();
+        if (endpoint is null)
+        {
+            return null;
+        }
+
+        if (endpoint.IsLoopback && !IsEndpointPortInUse(endpoint))
+        {
+            _logger.LogTrace("Skipping local processor health check because {Endpoint} has no active listeners", endpoint);
+            return null;
+        }
+
         try
         {
             using var response = await _httpClient.GetAsync(new Uri(endpoint, "/health"), cancellationToken).ConfigureAwait(false);
@@ -54,12 +65,12 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         }
         catch (HttpRequestException)
         {
-            _logger.LogDebug("Local processor health check failed with HTTP exception for {Endpoint}", endpoint);
+            _logger.LogTrace("Local processor health check failed with HTTP exception for {Endpoint}", endpoint);
             return null;
         }
         catch (TaskCanceledException)
         {
-            _logger.LogDebug("Local processor health check timed out for {Endpoint}", endpoint);
+            _logger.LogTrace("Local processor health check timed out for {Endpoint}", endpoint);
             return null;
         }
     }
@@ -304,6 +315,12 @@ internal sealed class LocalProcessorService : ILocalProcessorService
             CreateNoWindow = true
         };
         startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
+
+        var uploadJobSecret = Environment.GetEnvironmentVariable("PYTHON_UPLOAD_JOB_SECRET");
+        if (!string.IsNullOrWhiteSpace(uploadJobSecret))
+        {
+            startInfo.EnvironmentVariables["PYTHON_UPLOAD_JOB_SECRET"] = uploadJobSecret;
+        }
 
         var process = new Process {
             StartInfo = startInfo,

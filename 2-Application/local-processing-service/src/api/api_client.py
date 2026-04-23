@@ -1,6 +1,8 @@
 """MSAL M2M client for uploading processed artifacts to the MotorcycleRAG API."""
 
 import asyncio
+import base64
+import json
 import logging
 import os
 
@@ -12,6 +14,7 @@ logger = logging.getLogger(__name__)
 _DEFAULT_TENANT_ID = "0f8f8a52-f135-43af-af88-e0b54ca9ff91"
 _DEFAULT_CLIENT_ID = "d09d356d-62ac-4f38-b636-64169119ea25"
 _DEFAULT_SCOPE = "api://motorcyclerag-api/.default"
+_DEFAULT_BASE_URL = "https://localhost:7215"
 
 
 class ApiClient:
@@ -33,14 +36,19 @@ class ApiClient:
         authority = f"https://login.microsoftonline.com/{tenant_id}"
 
         self._scope = [scope]
-        self._base_url = os.environ.get("MCR_API_BASE_URL", "https://localhost:5001").rstrip("/")
+        self._base_url = os.environ.get("MCR_API_BASE_URL", _DEFAULT_BASE_URL).rstrip("/")
         self._msal_app = msal.ConfidentialClientApplication(
             client_id,
             authority=authority,
             client_credential=secret,
         )
         self._configured = True
-        logger.info("ApiClient initialised (tenant=%s, client=%s).", tenant_id, client_id)
+        logger.info(
+            "ApiClient initialised (tenant=%s, client=%s, base_url=%s).",
+            tenant_id,
+            client_id,
+            self._base_url,
+        )
 
     def is_configured(self) -> bool:
         return self._configured
@@ -52,6 +60,29 @@ class ApiClient:
                 f"MSAL token acquisition failed: {result.get('error_description', result)}"
             )
         return result["access_token"]
+
+    @staticmethod
+    def _get_token_diagnostics(token: str) -> dict[str, object]:
+        try:
+            parts = token.split(".")
+            if len(parts) < 2:
+                return {"token_format": "invalid"}
+
+            payload = parts[1]
+            padding = "=" * (-len(payload) % 4)
+            decoded = base64.urlsafe_b64decode(payload + padding)
+            claims = json.loads(decoded.decode("utf-8"))
+            return {
+                "aud": claims.get("aud"),
+                "azp": claims.get("azp"),
+                "appid": claims.get("appid"),
+                "roles": claims.get("roles", []),
+                "scp": claims.get("scp"),
+                "iss": claims.get("iss"),
+                "tid": claims.get("tid"),
+            }
+        except Exception as exc:
+            return {"decode_error": f"{type(exc).__name__}: {exc}"}
 
     async def upload_artifact(
         self,
@@ -76,32 +107,66 @@ class ApiClient:
         headers = {"Authorization": f"Bearer {token}"}
         last_exc: Exception | None = None
 
+        logger.info(
+            "Starting artifact upload for upload %s (artifact_type=%s, bytes=%d, url=%s)",
+            upload_id,
+            artifact_type,
+            len(data),
+            url,
+        )
+
         for attempt in range(3):
             try:
+                logger.info(
+                    "Artifact upload attempt %d for upload %s (artifact_type=%s)",
+                    attempt + 1,
+                    upload_id,
+                    artifact_type,
+                )
                 async with httpx.AsyncClient(timeout=120.0) as client:
                     response = await client.post(
                         url,
                         headers=headers,
                         files={"file": (filename, data, content_type)},
                     )
+                logger.info(
+                    "Artifact upload attempt %d for upload %s returned HTTP %d",
+                    attempt + 1,
+                    upload_id,
+                    response.status_code,
+                )
                 if response.status_code < 500:
                     if response.is_success or response.status_code == 202:
                         logger.info(
                             "Uploaded %s artifact for upload %s.", artifact_type, upload_id
                         )
                         return
-                    raise RuntimeError(
-                        f"Artifact upload failed: HTTP {response.status_code}"
-                    )
-                last_exc = RuntimeError(f"Artifact upload server error: HTTP {response.status_code}")
-            except httpx.TransportError as exc:
+                    response_text = response.text.strip()
+                    detail = f"HTTP {response.status_code}"
+                    if response_text:
+                        detail = f"{detail} - {response_text[:500]}"
+                    if response.status_code in (401, 403):
+                        logger.error(
+                            "Artifact upload authorization failed for %s. Token diagnostics: %s",
+                            url,
+                            self._get_token_diagnostics(token),
+                        )
+                    raise RuntimeError(f"Artifact upload failed: {detail}")
+                response_text = response.text.strip()
+                detail = f"Artifact upload server error: HTTP {response.status_code}"
+                if response_text:
+                    detail = f"{detail} - {response_text[:500]}"
+                last_exc = RuntimeError(detail)
+            except httpx.HTTPError as exc:
                 last_exc = exc
 
             wait = 2 ** attempt
             logger.warning(
-                "Artifact upload attempt %d failed, retrying in %ds: %s",
+                "Artifact upload attempt %d failed for %s, retrying in %ds: %s: %r",
                 attempt + 1,
+                url,
                 wait,
+                type(last_exc).__name__,
                 last_exc,
             )
             await asyncio.sleep(wait)

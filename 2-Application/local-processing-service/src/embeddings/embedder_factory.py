@@ -6,6 +6,7 @@ from typing import Union
 
 from .deepinfra_embedder import DeepInfraEmbedder
 from .foundry_local_embedder import AzureFoundryLocalEmbedder
+from .model_discovery import discover_embedding_models_sync
 from .ollama_embedder import OllamaEmbedder
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,30 @@ def get_embedder() -> EmbedderType:
     """
     global _embedder_instance
     if _embedder_instance is not None:
+        return _embedder_instance
+
+    provider_endpoint = os.getenv("EMBEDDING_PROVIDER_ENDPOINT", "").strip()
+    selected_model = os.getenv("EMBEDDING_MODEL", "").strip() or None
+
+    if provider_endpoint:
+        discovery = discover_embedding_models_sync(provider_endpoint)
+        logger.info(
+            "Initialising embedding provider from endpoint %s using %s",
+            provider_endpoint,
+            discovery.provider,
+        )
+
+        if discovery.provider == "ollama":
+            _embedder_instance = OllamaEmbedder(
+                host=provider_endpoint,
+                model=selected_model or discovery.models[0],
+            )
+        else:
+            _embedder_instance = AzureFoundryLocalEmbedder(
+                endpoint=provider_endpoint,
+                model=selected_model or discovery.models[0],
+            )
+
         return _embedder_instance
 
     backend = os.getenv("EMBEDDING_BACKEND", "ollama").lower().strip()

@@ -43,9 +43,14 @@ internal interface IConfigurationStateService
     string? AuthScope { get; }
 
     /// <summary>
-    /// Gets the configured embedding model path, or null if not configured.
+    /// Gets the configured embedding provider endpoint, or null if not configured.
     /// </summary>
-    string? EmbeddingModelPath { get; }
+    string? EmbeddingProviderEndpoint { get; }
+
+    /// <summary>
+    /// Gets the configured embedding model name, or null if not configured.
+    /// </summary>
+    string? EmbeddingModel { get; }
 
     /// <summary>
     /// Gets the configured local processor endpoint, or the in-app default if none was saved.
@@ -61,6 +66,11 @@ internal interface IConfigurationStateService
     /// Gets the configured local processor start command, or the in-app default if none was saved.
     /// </summary>
     string? LocalProcessorStartCommand { get; }
+
+    /// <summary>
+    /// Gets the securely stored client secret used by the local processor to upload artifacts.
+    /// </summary>
+    string? LocalProcessorUploadJobSecret { get; }
 
     /// <summary>
     /// Gets a value indicating whether the local processor can be started from the admin app.
@@ -88,10 +98,11 @@ internal interface IConfigurationStateService
     Task SaveAuthConfigurationAsync(string clientId, string authority, string scope);
 
     /// <summary>
-    /// Saves the embedding model path to settings.
+    /// Saves embedding configuration to settings.
     /// </summary>
-    /// <param name="path">The path to the ONNX embedding model</param>
-    Task SaveEmbeddingModelPathAsync(string path);
+    /// <param name="providerEndpoint">The embedding provider endpoint to inspect.</param>
+    /// <param name="model">The selected embedding model name.</param>
+    Task SaveEmbeddingConfigurationAsync(string? providerEndpoint, string? model);
 
     /// <summary>
     /// Saves local processor startup configuration to settings.
@@ -99,7 +110,8 @@ internal interface IConfigurationStateService
     /// <param name="endpoint">The local processor endpoint.</param>
     /// <param name="workingDirectory">The local processor working directory.</param>
     /// <param name="startCommand">The command used to start the processor.</param>
-    Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand);
+    /// <param name="uploadJobSecret">The client secret used by the local processor for artifact uploads.</param>
+    Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand, string? uploadJobSecret);
 
     /// <summary>
     /// Clears all configuration settings.

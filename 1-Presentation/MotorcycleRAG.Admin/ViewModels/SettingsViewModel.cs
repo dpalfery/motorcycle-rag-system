@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -18,16 +19,15 @@ namespace MotorcycleRAG.Admin.ViewModels;
     Justification = "Instantiated by MAUI framework via DI")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
 internal partial class SettingsViewModel : ObservableObject {
-    private static readonly string[] OnnxFileExtensionsWinUI = { ".onnx" };
-    private static readonly string[] OnnxFileExtensionsMacOS = { "onnx" };
-
     private readonly IConfigurationStateService _configService;
+    private readonly ILocalProcessorService _localProcessorService;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0052:Remove unread private members", Justification = "Reserved for future use")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S4487:Unread private field", Justification = "Reserved for future use")]
     private readonly INavigationService _navigationService;
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly FileLoggerOptions _fileLoggerOptions;
     private int _localProcessorValidationVersion;
+    private bool _isHydratingConfiguration;
 
     // ========== API Configuration ==========
 
@@ -66,7 +66,19 @@ internal partial class SettingsViewModel : ObservableObject {
     // ========== Local Processing Configuration ==========
 
     [ObservableProperty]
-    private string _embeddingModelPath = string.Empty;
+    private string _embeddingProviderEndpoint = string.Empty;
+
+    [ObservableProperty]
+    private string _embeddingModel = string.Empty;
+
+    [ObservableProperty]
+    private string _embeddingProvider = string.Empty;
+
+    [ObservableProperty]
+    private string _embeddingModelsStatusMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool _isLoadingEmbeddingModels;
 
     [ObservableProperty]
     private string _localProcessorEndpoint = string.Empty;
@@ -76,6 +88,9 @@ internal partial class SettingsViewModel : ObservableObject {
 
     [ObservableProperty]
     private string _localProcessorStartCommand = string.Empty;
+
+    [ObservableProperty]
+    private string _localProcessorUploadJobSecret = string.Empty;
 
     [ObservableProperty]
     private bool _isLocalProcessorValid;
@@ -99,12 +114,16 @@ internal partial class SettingsViewModel : ObservableObject {
     [ObservableProperty]
     private string _logFolderPath = string.Empty;
 
+    public ObservableCollection<string> EmbeddingModels { get; } = [];
+
     public SettingsViewModel(
         IConfigurationStateService configService,
+        ILocalProcessorService localProcessorService,
         INavigationService navigationService,
         FileLoggerOptions fileLoggerOptions,
         ILogger<SettingsViewModel> logger) {
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
+        _localProcessorService = localProcessorService ?? throw new ArgumentNullException(nameof(localProcessorService));
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
         _fileLoggerOptions = fileLoggerOptions ?? throw new ArgumentNullException(nameof(fileLoggerOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -119,18 +138,32 @@ internal partial class SettingsViewModel : ObservableObject {
     /// Loads the current configuration values into the ViewModel properties.
     /// </summary>
     private void LoadCurrentConfiguration() {
-        ApiBaseUrl = _configService.ApiBaseUrl?.ToString() ?? string.Empty;
-        AuthClientId = _configService.AuthClientId ?? string.Empty;
-        AuthAuthority = _configService.AuthAuthority ?? string.Empty;
-        AuthScope = _configService.AuthScope ?? string.Empty;
-        EmbeddingModelPath = _configService.EmbeddingModelPath ?? string.Empty;
-        LocalProcessorEndpoint = _configService.LocalProcessorEndpoint?.ToString() ?? LocalProcessorDefaults.DefaultEndpoint;
-        LocalProcessorWorkingDirectory = _configService.LocalProcessorWorkingDirectory ?? string.Empty;
-        LocalProcessorStartCommand = _configService.LocalProcessorStartCommand ?? LocalProcessorDefaults.DefaultStartCommand;
+        _isHydratingConfiguration = true;
+        try {
+            ApiBaseUrl = _configService.ApiBaseUrl?.ToString() ?? string.Empty;
+            AuthClientId = _configService.AuthClientId ?? string.Empty;
+            AuthAuthority = _configService.AuthAuthority ?? string.Empty;
+            AuthScope = _configService.AuthScope ?? string.Empty;
+            EmbeddingProviderEndpoint = _configService.EmbeddingProviderEndpoint ?? string.Empty;
+            EmbeddingModel = _configService.EmbeddingModel ?? string.Empty;
+            EmbeddingProvider = string.Empty;
+            EmbeddingModelsStatusMessage = string.Empty;
+            SetEmbeddingModels(string.IsNullOrWhiteSpace(EmbeddingModel)
+                ? []
+                : [EmbeddingModel]);
+            LocalProcessorEndpoint = _configService.LocalProcessorEndpoint?.ToString() ?? LocalProcessorDefaults.DefaultEndpoint;
+            LocalProcessorWorkingDirectory = _configService.LocalProcessorWorkingDirectory ?? string.Empty;
+            LocalProcessorStartCommand = _configService.LocalProcessorStartCommand ?? LocalProcessorDefaults.DefaultStartCommand;
+            LocalProcessorUploadJobSecret = _configService.LocalProcessorUploadJobSecret ?? string.Empty;
+        }
+        finally {
+            _isHydratingConfiguration = false;
+        }
 
         ValidateApiUrl();
         ValidateAuthSettings();
         QueueLocalProcessorValidation();
+        LoadEmbeddingModelsCommand.NotifyCanExecuteChanged();
         HasUnsavedChanges = false;
     }
 
@@ -157,7 +190,24 @@ internal partial class SettingsViewModel : ObservableObject {
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnEmbeddingModelPathChanged(string value) {
+    partial void OnEmbeddingProviderEndpointChanged(string value) {
+        if (!_isHydratingConfiguration) {
+            EmbeddingProvider = string.Empty;
+            EmbeddingModelsStatusMessage = string.Empty;
+            SetEmbeddingModels([]);
+            EmbeddingModel = string.Empty;
+            HasUnsavedChanges = true;
+        }
+
+        LoadEmbeddingModelsCommand.NotifyCanExecuteChanged();
+        SaveSettingsCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnEmbeddingModelChanged(string value) {
+        if (_isHydratingConfiguration) {
+            return;
+        }
+
         HasUnsavedChanges = true;
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
@@ -168,11 +218,16 @@ internal partial class SettingsViewModel : ObservableObject {
 
     partial void OnLocalProcessorStartCommandChanged(string value) => OnLocalProcessorSettingChanged();
 
+    partial void OnLocalProcessorUploadJobSecretChanged(string value) => OnLocalProcessorSettingChanged();
+
     private void OnLocalProcessorSettingChanged() {
         QueueLocalProcessorValidation();
         HasUnsavedChanges = true;
+        LoadEmbeddingModelsCommand.NotifyCanExecuteChanged();
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnIsLoadingEmbeddingModelsChanged(bool value) => LoadEmbeddingModelsCommand.NotifyCanExecuteChanged();
 
     // ========== Validation ==========
 
@@ -305,6 +360,13 @@ internal partial class SettingsViewModel : ObservableObject {
         return (true, "Valid");
     }
 
+    private void SetEmbeddingModels(IEnumerable<string> models) {
+        EmbeddingModels.Clear();
+        foreach (var model in models.Where(model => !string.IsNullOrWhiteSpace(model))) {
+            EmbeddingModels.Add(model);
+        }
+    }
+
     // ========== Commands ==========
 
     [RelayCommand(CanExecute = nameof(CanSaveSettings))]
@@ -351,10 +413,12 @@ internal partial class SettingsViewModel : ObservableObject {
             var authClientId = AuthClientId;
             var authAuthority = AuthAuthority;
             var authScope = AuthScope;
-            var embeddingModelPath = EmbeddingModelPath;
+            var embeddingProviderEndpoint = EmbeddingProviderEndpoint;
+            var embeddingModel = EmbeddingModel;
             var localProcessorEndpoint = LocalProcessorEndpoint;
             var localProcessorWorkingDirectory = LocalProcessorWorkingDirectory;
             var localProcessorStartCommand = LocalProcessorStartCommand;
+            var localProcessorUploadJobSecret = LocalProcessorUploadJobSecret;
 
             await MauiThreading.RunOffMainThreadAsync(async () => {
                 Uri? apiUri = string.IsNullOrWhiteSpace(apiBaseUrl) ? null : new Uri(apiBaseUrl);
@@ -363,15 +427,13 @@ internal partial class SettingsViewModel : ObservableObject {
                     authClientId,
                     authAuthority,
                     authScope).ConfigureAwait(false);
-
-                if (!string.IsNullOrWhiteSpace(embeddingModelPath)) {
-                    await _configService.SaveEmbeddingModelPathAsync(embeddingModelPath).ConfigureAwait(false);
-                }
+                await _configService.SaveEmbeddingConfigurationAsync(embeddingProviderEndpoint, embeddingModel).ConfigureAwait(false);
 
                 await _configService.SaveLocalProcessorConfigurationAsync(
                     string.IsNullOrWhiteSpace(localProcessorEndpoint) ? null : new Uri(localProcessorEndpoint),
                     localProcessorWorkingDirectory,
-                    localProcessorStartCommand).ConfigureAwait(false);
+                    localProcessorStartCommand,
+                    localProcessorUploadJobSecret).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
             await MauiThreading.RunOnMainThreadAsync(() => {
@@ -451,29 +513,66 @@ internal partial class SettingsViewModel : ObservableObject {
 
     private bool CanTestApi() => IsApiValid && !IsTestingApi;
 
-    [RelayCommand]
-    private async Task BrowseModelPathAsync() {
-        try {
-            var result = await FilePicker.PickAsync(new PickOptions {
-                PickerTitle = "Select ONNX Embedding Model",
-                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
-                {
-                    { DevicePlatform.WinUI, OnnxFileExtensionsWinUI },
-                    { DevicePlatform.macOS, OnnxFileExtensionsMacOS }
-                })
-            });
+    [RelayCommand(CanExecute = nameof(CanLoadEmbeddingModels))]
+    private async Task LoadEmbeddingModelsAsync() {
+        if (string.IsNullOrWhiteSpace(EmbeddingProviderEndpoint)) {
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                EmbeddingModelsStatusMessage = "Embedding provider endpoint is required.").ConfigureAwait(false);
+            return;
+        }
 
-            if (result != null) {
-                EmbeddingModelPath = result.FullPath;
-                _logger.LogInformation("Embedding model path selected: {Path}", result.FileName);
-            }
+        await MauiThreading.RunOnMainThreadAsync(() => {
+            IsLoadingEmbeddingModels = true;
+            EmbeddingModelsStatusMessage = "Loading embedding models...";
+        }).ConfigureAwait(false);
+
+        try {
+            var providerEndpoint = EmbeddingProviderEndpoint;
+            var discovery = await MauiThreading.RunOffMainThreadAsync(
+                () => _localProcessorService.GetEmbeddingModelsAsync(providerEndpoint)).ConfigureAwait(false);
+
+            await MauiThreading.RunOnMainThreadAsync(() => {
+                EmbeddingProvider = discovery.Provider;
+                SetEmbeddingModels(discovery.Models);
+
+                if (EmbeddingModels.Count == 0) {
+                    EmbeddingModel = string.Empty;
+                    EmbeddingModelsStatusMessage = $"No embedding models found for {discovery.Provider}.";
+                }
+                else {
+                    if (string.IsNullOrWhiteSpace(EmbeddingModel) || !EmbeddingModels.Contains(EmbeddingModel)) {
+                        EmbeddingModel = EmbeddingModels[0];
+                    }
+
+                    EmbeddingModelsStatusMessage = $"Loaded {EmbeddingModels.Count} model(s) from {discovery.Provider}.";
+                }
+            }).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Loaded {ModelCount} embedding models from provider {Provider}",
+                discovery.Models.Count,
+                discovery.Provider);
         }
         catch (Exception ex) {
             var sanitizedMessage = ErrorPresenter.SanitizeErrorMessage(ex.Message);
-            StatusMessage = $"Failed to select file: {sanitizedMessage}";
-            _logger.LogError(ex, "Failed to browse for model file");
+            await MauiThreading.RunOnMainThreadAsync(() => {
+                EmbeddingProvider = string.Empty;
+                SetEmbeddingModels([]);
+                EmbeddingModel = string.Empty;
+                EmbeddingModelsStatusMessage = $"Failed to load models: {sanitizedMessage}";
+            }).ConfigureAwait(false);
+            _logger.LogWarning(ex, "Failed to load embedding models from provider endpoint {Endpoint}", EmbeddingProviderEndpoint);
+        }
+        finally {
+            await MauiThreading.RunOnMainThreadAsync(() => IsLoadingEmbeddingModels = false).ConfigureAwait(false);
         }
     }
+
+    private bool CanLoadEmbeddingModels() =>
+        !IsLoadingEmbeddingModels
+        && !string.IsNullOrWhiteSpace(EmbeddingProviderEndpoint)
+        && !string.IsNullOrWhiteSpace(LocalProcessorEndpoint)
+        && Uri.TryCreate(LocalProcessorEndpoint, UriKind.Absolute, out _);
 
     [RelayCommand]
     private async Task ResetSettingsAsync() {
@@ -500,10 +599,15 @@ internal partial class SettingsViewModel : ObservableObject {
                 AuthClientId = string.Empty;
                 AuthAuthority = string.Empty;
                 AuthScope = string.Empty;
-                EmbeddingModelPath = string.Empty;
+                EmbeddingProviderEndpoint = string.Empty;
+                EmbeddingModel = string.Empty;
+                EmbeddingProvider = string.Empty;
+                EmbeddingModelsStatusMessage = string.Empty;
+                SetEmbeddingModels([]);
                 LocalProcessorEndpoint = resetState.LocalProcessorEndpoint;
                 LocalProcessorWorkingDirectory = resetState.LocalProcessorWorkingDirectory;
                 LocalProcessorStartCommand = resetState.LocalProcessorStartCommand;
+                LocalProcessorUploadJobSecret = string.Empty;
                 HasUnsavedChanges = false;
                 StatusMessage = "Settings cleared.";
             }).ConfigureAwait(false);

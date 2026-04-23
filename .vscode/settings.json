@@ -39,7 +39,11 @@
     "chat.agentSessionsViewLocation": "view",
     "chat.viewSessions.enabled": true,
     "inlineChat.enableV2": true,
-    "chat.viewSessions.orientation": "sideBySide",
+    "chat.viewSessions.orientation": "stacked",
     "specstory.cloudSync.enabled": "always",
-    "specstory.derivedRules.enabled": true
+    "specstory.derivedRules.enabled": true,
+    "airun.settings": {
+        "workspaceId": "926a5f0b-21d8-4aee-8742-9052005f81d3"
+    },
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }

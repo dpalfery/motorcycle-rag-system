@@ -536,6 +536,13 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = adminClientId
             });
 
+            _ = new KeyValue("appconfig-kv-api-local-processor-client-id", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAd:LocalProcessorClientId$api",
+                Value = "d09d356d-62ac-4f38-b636-64169119ea25"
+            });
+
             // CIAM External ID issuer for API JWT validation.
             // Pattern: https://{tenantId}.ciamlogin.com/{tenantId}/v2.0 (from CIAM discovery document).
             // Required so the API accepts tokens issued by CIAM (External ID) in addition to workforce Entra ID.
@@ -677,11 +684,45 @@ namespace MotorcycleRAG.Infrastructure {
                 PublicAccess = PublicAccess.None,
             });
 
+            // Blob containers used by ingestion and local processor artifact flows.
+            _ = new BlobContainer($"{namePrefix}-raw-uploads-container", new BlobContainerArgs {
+                ResourceGroupName = resourceGroup.Name,
+                AccountName = storageAccount.Name,
+                ContainerName = "raw-uploads",
+                PublicAccess = PublicAccess.None,
+            });
+            _ = new BlobContainer($"{namePrefix}-search-chunks-container", new BlobContainerArgs {
+                ResourceGroupName = resourceGroup.Name,
+                AccountName = storageAccount.Name,
+                ContainerName = "search-chunks",
+                PublicAccess = PublicAccess.None,
+            });
+            _ = new BlobContainer($"{namePrefix}-manuals-container", new BlobContainerArgs {
+                ResourceGroupName = resourceGroup.Name,
+                AccountName = storageAccount.Name,
+                ContainerName = "manuals",
+                PublicAccess = PublicAccess.None,
+            });
+            _ = new BlobContainer($"{namePrefix}-uploads-container", new BlobContainerArgs {
+                ResourceGroupName = resourceGroup.Name,
+                AccountName = storageAccount.Name,
+                ContainerName = "uploads",
+                PublicAccess = PublicAccess.None,
+            });
+
             // RBAC: Search Index Data Contributor for API (query + index documents)
             _ = new RoleAssignment($"{namePrefix}-api-search-role", new RoleAssignmentArgs {
                 PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
                 RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/8ebe5a00-799e-43f5-93ac-243d3dce84a7", // Search Index Data Contributor
                 Scope = searchService.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
+
+            // RBAC: Storage Blob Data Contributor for API to read/write ingestion source and processor artifacts.
+            _ = new RoleAssignment($"{namePrefix}-api-storage-role", new RoleAssignmentArgs {
+                PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/ba92f5b4-2d11-453d-a403-e96b0029c9fe", // Storage Blob Data Contributor
+                Scope = storageAccount.Id,
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
 

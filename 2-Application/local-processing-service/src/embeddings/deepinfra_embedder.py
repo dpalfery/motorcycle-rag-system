@@ -92,3 +92,10 @@ class DeepInfraEmbedder:
         """
         tasks = [self.generate_embedding(text) for text in texts]
         return list(await asyncio.gather(*tasks))
+
+    async def check_status(self) -> str:
+        try:
+            await self._client.models.list()
+            return "connected"
+        except Exception:
+            return "disconnected"

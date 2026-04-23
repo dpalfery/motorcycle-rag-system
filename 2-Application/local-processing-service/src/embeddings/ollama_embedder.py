@@ -27,11 +27,11 @@ class OllamaEmbedder:
     3584 dims; the full native dimensions are used without truncation.
     """
 
-    def __init__(self) -> None:
-        self._host: str = os.getenv("OLLAMA_BASE_URL") or os.getenv(
+    def __init__(self, host: str | None = None, model: str | None = None) -> None:
+        self._host: str = (host or os.getenv("OLLAMA_BASE_URL") or os.getenv(
             "OLLAMA_HOST", "http://localhost:11434"
-        )
-        self._model: str = os.getenv("OLLAMA_MODEL") or os.getenv(
+        )).rstrip("/")
+        self._model: str = model or os.getenv("OLLAMA_MODEL") or os.getenv(
             "OLLAMA_MODEL_EMBEDDING", "qwen3-embedding"
         )
         dims_env = os.getenv("OLLAMA_EMBEDDING_DIMS")
@@ -101,3 +101,6 @@ class OllamaEmbedder:
             return "connected"
         except Exception:
             return "disconnected"
+
+    async def check_status(self) -> str:
+        return await self.check_ollama_status()

@@ -126,29 +126,50 @@
                     <Label Text="Local Processing (Optional)"
                            FontSize="18"
                            FontAttributes="Bold" />
-                    <Label Text="Configure local ONNX embedding model for offline processing."
+                    <Label Text="Configure the embedding provider endpoint and select a discovered model for local processing."
                            FontSize="12"
                            TextColor="Gray" />
 
-                    <!-- Embedding Model Path -->
-                    <Label Text="Embedding Model Path"
+                    <Label Text="Embedding Provider Endpoint"
                            FontSize="14"
                            FontAttributes="Bold"
                            Margin="0,10,0,0" />
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <Entry Grid.Column="0"
-                               Text="{Binding EmbeddingModelPath}"
-                               Placeholder="Path to ONNX model file"
-                               IsReadOnly="True" />
+                               Text="{Binding EmbeddingProviderEndpoint}"
+                               Placeholder="http://localhost:5272"
+                               Keyboard="Url" />
                         <Button Grid.Column="1"
-                                Text="Browse"
-                                Command="{Binding BrowseModelPathCommand}"
+                                Text="Load Models"
+                                Command="{Binding LoadEmbeddingModelsCommand}"
                                 BackgroundColor="{StaticResource Secondary}"
                                 TextColor="White"
                                 Padding="15,8"
                                 FontSize="12"
-                                CornerRadius="4" />
+                                CornerRadius="4"
+                                IsEnabled="{Binding IsLoadingEmbeddingModels, Converter={StaticResource InverseBoolConverter}}" />
                     </Grid>
+                    <ActivityIndicator IsRunning="{Binding IsLoadingEmbeddingModels}"
+                                       IsVisible="{Binding IsLoadingEmbeddingModels}"
+                                       HeightRequest="20"
+                                       WidthRequest="20"
+                                       HorizontalOptions="Start" />
+                    <Label Text="{Binding EmbeddingProvider, StringFormat='Detected provider: {0}'}"
+                           FontSize="12"
+                           TextColor="Gray"
+                           IsVisible="{Binding EmbeddingProvider, Converter={StaticResource StringToBoolConverter}}" />
+                    <Label Text="{Binding EmbeddingModelsStatusMessage}"
+                           FontSize="12"
+                           TextColor="Gray"
+                           IsVisible="{Binding EmbeddingModelsStatusMessage, Converter={StaticResource StringToBoolConverter}}" />
+
+                    <Label Text="Embedding Model"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           Margin="0,10,0,0" />
+                    <Picker ItemsSource="{Binding EmbeddingModels}"
+                            SelectedItem="{Binding EmbeddingModel}"
+                            Title="Select an embedding model" />
 
                     <Label Text="Local Processor Endpoint"
                            FontSize="14"
@@ -171,6 +192,14 @@
                            Margin="0,10,0,0" />
                     <Entry Text="{Binding LocalProcessorStartCommand}"
                            Placeholder="py -3 src/main.py" />
+
+                    <Label Text="Local Processor Upload Secret"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           Margin="0,10,0,0" />
+                    <Entry Text="{Binding LocalProcessorUploadJobSecret}"
+                           Placeholder="Client secret for processor artifact uploads"
+                           IsPassword="True" />
 
                     <Label Text="{Binding LocalProcessorValidationMessage}"
                            FontSize="12"

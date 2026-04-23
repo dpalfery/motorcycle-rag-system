@@ -31,10 +31,16 @@ internal static class SettingsKeys
     internal const string AuthScope = "config_auth_scope";
 
     /// <summary>
-    /// Path to the ONNX embedding model file for local processing.
+    /// Endpoint for the embedding provider used by local processing.
     /// Stored in regular preferences (not sensitive).
     /// </summary>
-    internal const string EmbeddingModelPath = "config_embedding_model_path";
+    internal const string EmbeddingProviderEndpoint = "config_embedding_provider_endpoint";
+
+    /// <summary>
+    /// Selected embedding model name for local processing.
+    /// Stored in regular preferences (not sensitive).
+    /// </summary>
+    internal const string EmbeddingModel = "config_embedding_model";
 
     /// <summary>
     /// Default folder path for file uploads.
@@ -59,4 +65,10 @@ internal static class SettingsKeys
     /// Stored in regular preferences (not sensitive).
     /// </summary>
     internal const string LocalProcessorStartCommand = "config_local_processor_start_command";
+
+    /// <summary>
+    /// Client secret used by the local Python processing service when uploading artifacts to the API.
+    /// Stored in secure storage (sensitive credential).
+    /// </summary>
+    internal const string LocalProcessorUploadJobSecret = "config_local_processor_upload_job_secret";
 }

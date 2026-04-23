@@ -22,10 +22,12 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     private string? _authClientId;
     private string? _authAuthority;
     private string? _authScope;
-    private string? _embeddingModelPath;
+    private string? _embeddingProviderEndpoint;
+    private string? _embeddingModel;
     private Uri? _localProcessorEndpoint;
     private string? _localProcessorWorkingDirectory;
     private string? _localProcessorStartCommand;
+    private string? _localProcessorUploadJobSecret;
     private bool _isLocalProcessorConfigured;
 
     /// <inheritdoc/>
@@ -53,7 +55,10 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     public string? AuthScope => _authScope;
 
     /// <inheritdoc/>
-    public string? EmbeddingModelPath => _embeddingModelPath;
+    public string? EmbeddingProviderEndpoint => _embeddingProviderEndpoint;
+
+    /// <inheritdoc/>
+    public string? EmbeddingModel => _embeddingModel;
 
     /// <inheritdoc/>
     public Uri? LocalProcessorEndpoint => _localProcessorEndpoint;
@@ -63,6 +68,9 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
 
     /// <inheritdoc/>
     public string? LocalProcessorStartCommand => _localProcessorStartCommand;
+
+    /// <inheritdoc/>
+    public string? LocalProcessorUploadJobSecret => _localProcessorUploadJobSecret;
 
     /// <inheritdoc/>
     public bool IsLocalProcessorConfigured => _isLocalProcessorConfigured;
@@ -89,13 +97,15 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
             var apiBaseUrlString = await _settingsService.GetAsync(SettingsKeys.ApiBaseUrl).ConfigureAwait(false);
             _authAuthority = await _settingsService.GetAsync(SettingsKeys.AuthAuthority).ConfigureAwait(false);
             _authScope = await _settingsService.GetAsync(SettingsKeys.AuthScope).ConfigureAwait(false);
-            _embeddingModelPath = await _settingsService.GetAsync(SettingsKeys.EmbeddingModelPath).ConfigureAwait(false);
+            _embeddingProviderEndpoint = await _settingsService.GetAsync(SettingsKeys.EmbeddingProviderEndpoint).ConfigureAwait(false);
+            _embeddingModel = await _settingsService.GetAsync(SettingsKeys.EmbeddingModel).ConfigureAwait(false);
             var localProcessorEndpointString = await _settingsService.GetAsync(SettingsKeys.LocalProcessorEndpoint).ConfigureAwait(false);
             _localProcessorWorkingDirectory = await _settingsService.GetAsync(SettingsKeys.LocalProcessorWorkingDirectory).ConfigureAwait(false);
             _localProcessorStartCommand = await _settingsService.GetAsync(SettingsKeys.LocalProcessorStartCommand).ConfigureAwait(false);
 
-            // Load secure setting (client ID)
+            // Load secure settings
             _authClientId = await _settingsService.GetSecureAsync(SettingsKeys.AuthClientId).ConfigureAwait(false);
+            _localProcessorUploadJobSecret = await _settingsService.GetSecureAsync(SettingsKeys.LocalProcessorUploadJobSecret).ConfigureAwait(false);
 
             // Parse API URL
             _apiBaseUrl = !string.IsNullOrWhiteSpace(apiBaseUrlString) && Uri.TryCreate(apiBaseUrlString, UriKind.Absolute, out var parsedUri)
@@ -110,9 +120,11 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
             _authAuthority = NullIfEmpty(_authAuthority);
             _authScope = NullIfEmpty(_authScope);
             _authClientId = NullIfEmpty(_authClientId);
-            _embeddingModelPath = NullIfEmpty(_embeddingModelPath);
+            _embeddingProviderEndpoint = NullIfEmpty(_embeddingProviderEndpoint);
+            _embeddingModel = NullIfEmpty(_embeddingModel);
             _localProcessorWorkingDirectory = NullIfEmpty(_localProcessorWorkingDirectory) ?? LocalProcessorDefaults.TryFindWorkingDirectory();
             _localProcessorStartCommand = NullIfEmpty(_localProcessorStartCommand) ?? LocalProcessorDefaults.DefaultStartCommand;
+            _localProcessorUploadJobSecret = NullIfEmpty(_localProcessorUploadJobSecret);
             RefreshLocalProcessorConfigurationState();
 
             _logger.LogInformation(
@@ -171,19 +183,29 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     }
 
     /// <inheritdoc/>
-    public async Task SaveEmbeddingModelPathAsync(string path)
+    public async Task SaveEmbeddingConfigurationAsync(string? providerEndpoint, string? model)
     {
-        ArgumentNullException.ThrowIfNull(path);
+        if (!string.IsNullOrWhiteSpace(providerEndpoint) && !Uri.TryCreate(providerEndpoint, UriKind.Absolute, out _))
+        {
+            throw new ArgumentException("Invalid embedding provider endpoint format", nameof(providerEndpoint));
+        }
 
-        await _settingsService.SetAsync(SettingsKeys.EmbeddingModelPath, path).ConfigureAwait(false);
-        _embeddingModelPath = NullIfEmpty(path);
+        var normalizedProviderEndpoint = string.IsNullOrWhiteSpace(providerEndpoint)
+            ? string.Empty
+            : new Uri(providerEndpoint).AbsoluteUri.TrimEnd('/');
+        var normalizedModel = model?.Trim() ?? string.Empty;
 
-        _logger.LogInformation("Embedding model path saved");
+        await _settingsService.SetAsync(SettingsKeys.EmbeddingProviderEndpoint, normalizedProviderEndpoint).ConfigureAwait(false);
+        await _settingsService.SetAsync(SettingsKeys.EmbeddingModel, normalizedModel).ConfigureAwait(false);
+        _embeddingProviderEndpoint = NullIfEmpty(normalizedProviderEndpoint);
+        _embeddingModel = NullIfEmpty(normalizedModel);
+
+        _logger.LogInformation("Embedding configuration saved");
         OnConfigurationChanged();
     }
 
     /// <inheritdoc/>
-    public async Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand)
+    public async Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand, string? uploadJobSecret)
     {
         if (endpoint != null && !IsValidLocalProcessorEndpoint(endpoint))
         {
@@ -198,10 +220,12 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
         await _settingsService.SetAsync(SettingsKeys.LocalProcessorEndpoint, endpoint?.ToString() ?? string.Empty).ConfigureAwait(false);
         await _settingsService.SetAsync(SettingsKeys.LocalProcessorWorkingDirectory, workingDirectory ?? string.Empty).ConfigureAwait(false);
         await _settingsService.SetAsync(SettingsKeys.LocalProcessorStartCommand, startCommand ?? string.Empty).ConfigureAwait(false);
+        await _settingsService.SetSecureAsync(SettingsKeys.LocalProcessorUploadJobSecret, uploadJobSecret ?? string.Empty).ConfigureAwait(false);
 
         _localProcessorEndpoint = endpoint ?? new Uri(LocalProcessorDefaults.DefaultEndpoint);
         _localProcessorWorkingDirectory = NullIfEmpty(workingDirectory);
         _localProcessorStartCommand = NullIfEmpty(startCommand) ?? LocalProcessorDefaults.DefaultStartCommand;
+        _localProcessorUploadJobSecret = NullIfEmpty(uploadJobSecret);
         RefreshLocalProcessorConfigurationState();
 
         _logger.LogInformation("Local processor configuration saved. IsLocalProcessorConfigured: {IsConfigured}", IsLocalProcessorConfigured);
@@ -215,19 +239,23 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
         await _settingsService.RemoveSecureAsync(SettingsKeys.AuthClientId).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.AuthAuthority).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.AuthScope).ConfigureAwait(false);
-        await _settingsService.RemoveAsync(SettingsKeys.EmbeddingModelPath).ConfigureAwait(false);
+        await _settingsService.RemoveAsync(SettingsKeys.EmbeddingProviderEndpoint).ConfigureAwait(false);
+        await _settingsService.RemoveAsync(SettingsKeys.EmbeddingModel).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.LocalProcessorEndpoint).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.LocalProcessorWorkingDirectory).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.LocalProcessorStartCommand).ConfigureAwait(false);
+        await _settingsService.RemoveSecureAsync(SettingsKeys.LocalProcessorUploadJobSecret).ConfigureAwait(false);
 
         _apiBaseUrl = null;
         _authClientId = null;
         _authAuthority = null;
         _authScope = null;
-        _embeddingModelPath = null;
+        _embeddingProviderEndpoint = null;
+        _embeddingModel = null;
         _localProcessorEndpoint = new Uri(LocalProcessorDefaults.DefaultEndpoint);
         _localProcessorWorkingDirectory = LocalProcessorDefaults.TryFindWorkingDirectory();
         _localProcessorStartCommand = LocalProcessorDefaults.DefaultStartCommand;
+        _localProcessorUploadJobSecret = null;
         RefreshLocalProcessorConfigurationState();
 
         _logger.LogInformation("Configuration cleared");

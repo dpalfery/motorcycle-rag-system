@@ -17,6 +17,14 @@
 - Windows 11, WSL2, Docker
 - Assume Windows-native solutions unless easy Docker alternative exists
 
+## Azure Tenant Map
+
+- **EPAM tenant**: compute and hosting tenant for this solution. This is where the Azure hosting resources for the repo live, including the subscription backed by MSDN credits.
+- **`palfery.onmicrosoft.com` tenant**: David's primary Entra ID tenant and the home for personal Azure subscriptions.
+- **`0f8f8a52-f135-43af-af88-e0b54ca9ff91` tenant**: the Entra External ID tenant associated with `palfery.onmicrosoft.com`.
+- **Do not assume** Azure hosting resources, personal subscriptions, workforce app registrations, and External ID objects live in the same tenant.
+- Before using `az` or checking Entra objects, verify which tenant actually owns the target resource or identity.
+
 # 3. Project Overview
 
 Multi-agent RAG system for motorcycle information retrieval. OWASP ASVS Level 2 security. Clean Architecture + DDD.

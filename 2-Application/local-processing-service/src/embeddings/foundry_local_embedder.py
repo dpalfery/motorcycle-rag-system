@@ -26,11 +26,11 @@ class AzureFoundryLocalEmbedder:
     3584 dims; the full native dimensions are used without truncation.
     """
 
-    def __init__(self) -> None:
-        self._endpoint: str = os.getenv(
+    def __init__(self, endpoint: str | None = None, model: str | None = None) -> None:
+        self._endpoint: str = (endpoint or os.getenv(
             "AZURE_FOUNDRY_LOCAL_ENDPOINT", "http://localhost:5272"
-        )
-        self._model: str = os.getenv(
+        )).rstrip("/")
+        self._model: str = model or os.getenv(
             "AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL", "qwen3-embedding"
         )
         self._dims: int = 3584
@@ -90,3 +90,10 @@ class AzureFoundryLocalEmbedder:
         """
         tasks = [self.generate_embedding(text) for text in texts]
         return list(await asyncio.gather(*tasks))
+
+    async def check_status(self) -> str:
+        try:
+            await self._client.models.list()
+            return "connected"
+        except Exception:
+            return "disconnected"

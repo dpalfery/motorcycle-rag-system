@@ -116,6 +116,11 @@ class BikeGraphProcessor:
             "created_at": now,
             "updated_at": now,
         }
+        logger.info(
+            "Bike graph job queued for upload %s (source=%s)",
+            upload_id,
+            local_file_path or f"blob:{blob_container}",
+        )
         asyncio.create_task(
             self._process_background(job_id, upload_id, blob_container, local_file_path)
         )
@@ -151,11 +156,26 @@ class BikeGraphProcessor:
         local_file_path: Optional[str],
     ) -> None:
         try:
+            logger.info(
+                "Bike graph processing started for upload %s (source=%s)",
+                upload_id,
+                local_file_path or f"blob:{blob_container}",
+            )
             if local_file_path:
+                logger.info(
+                    "Bike graph upload %s reading local CSV %s",
+                    upload_id,
+                    local_file_path,
+                )
                 nodes, edges = await asyncio.to_thread(
                     self._build_graph, upload_id, local_file_path
                 )
             else:
+                logger.info(
+                    "Bike graph upload %s downloading source CSV from blob container %s",
+                    upload_id,
+                    blob_container,
+                )
                 csv_bytes = await self.blob_writer.download_blob(
                     blob_container, f"{upload_id}.csv"
                 )
@@ -163,8 +183,20 @@ class BikeGraphProcessor:
                     self._build_graph_from_bytes, upload_id, csv_bytes
                 )
 
+            logger.info(
+                "Bike graph upload %s built local artifact with %d nodes and %d edges; embeddings are not used for this job type",
+                upload_id,
+                len(nodes),
+                len(edges),
+            )
+
             payload = [{"nodes": nodes, "edges": edges}]
             entities_bytes = json.dumps(payload).encode("utf-8")
+            logger.info(
+                "Bike graph upload %s sending graph-entities artifact to backend API (%d bytes)",
+                upload_id,
+                len(entities_bytes),
+            )
             await self._api_client.upload_artifact(
                 entities_bytes, upload_id, "graph-entities", "application/json"
             )
@@ -204,18 +236,34 @@ class BikeGraphProcessor:
     def _build_graph(
         self, upload_id: str, local_file_path: str
     ) -> tuple[list[dict], list[dict]]:
-        df = pd.read_csv(local_file_path)
+        logger.info(
+            "Bike graph upload %s loading dataframe from local file %s",
+            upload_id,
+            local_file_path,
+        )
+        df = pd.read_csv(local_file_path, low_memory=False)
         return self._build_graph_from_dataframe(upload_id, df)
 
     def _build_graph_from_bytes(
         self, upload_id: str, csv_bytes: bytes
     ) -> tuple[list[dict], list[dict]]:
-        df = pd.read_csv(io.BytesIO(csv_bytes))
+        logger.info(
+            "Bike graph upload %s loading dataframe from blob payload (%d bytes)",
+            upload_id,
+            len(csv_bytes),
+        )
+        df = pd.read_csv(io.BytesIO(csv_bytes), low_memory=False)
         return self._build_graph_from_dataframe(upload_id, df)
 
     def _build_graph_from_dataframe(
         self, upload_id: str, df: pd.DataFrame
     ) -> tuple[list[dict], list[dict]]:
+        logger.info(
+            "Bike graph upload %s normalising dataframe with %d rows and %d columns",
+            upload_id,
+            len(df.index),
+            len(df.columns),
+        )
         if df.empty:
             raise ValueError("CSV file is empty")
 
@@ -323,4 +371,10 @@ class BikeGraphProcessor:
                             }
                         )
 
+            logger.info(
+                "Bike graph upload %s finished graph construction with %d nodes and %d edges",
+                upload_id,
+                len(nodes),
+                len(edges),
+            )
         return nodes, edges

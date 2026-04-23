@@ -1,6 +1,6 @@
 # FastAPI Application for Motorcycle RAG Local Processing Service
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -52,7 +52,8 @@ sys.path.append(str(Path(__file__).parent / "src"))
 from processors.pdf_processor import PDFProcessor
 from processors.csv_processor import CSVProcessor
 from processors.bike_graph_processor import BikeGraphProcessor
-from embeddings.ollama_embedder import OllamaEmbedder
+from embeddings.embedder_factory import get_embedder
+from embeddings.model_discovery import ModelDiscoveryError, discover_embedding_models
 from extraction.graph_extractor import GraphExtractor
 from storage.blob_writer import BlobWriter
 from api.api_client import ApiClient
@@ -82,7 +83,7 @@ app.add_middleware(
 # Initialize services
 blob_writer = BlobWriter()
 api_client = ApiClient()
-embedder = OllamaEmbedder()
+embedder = get_embedder()
 graph_extractor = GraphExtractor()
 
 # Initialize processors
@@ -130,8 +131,7 @@ async def _wait_for_graceful_shutdown() -> None:
 async def health_check():
     """Check service health and dependencies"""
     try:
-        # Test Ollama connectivity
-        ollama_status = await embedder.check_ollama_status()
+        embedding_provider_status = await embedder.check_status()
 
         active_jobs = await _count_active_jobs()
         return JSONResponse(
@@ -147,7 +147,7 @@ async def health_check():
                 ),
                 "api_client_configured": api_client.is_configured(),
                 "services": {
-                    "ollama": ollama_status,
+                    "embedding_provider": embedding_provider_status,
                     "blob_storage": blob_writer.is_connected(),
                     "service_uptime": "running",
                 },
@@ -164,13 +164,35 @@ async def health_check():
                 "message": "Processor health check failed",
                 "error": str(e),
                 "services": {
-                    "ollama": "unknown",
+                    "embedding_provider": "unknown",
                     "blob_storage": "unknown",
                     "service_uptime": "running",
                 },
             },
             status_code=503,
         )
+
+
+@app.get("/embedding/models")
+async def list_embedding_models(
+    endpoint: str = Query(..., description="Embedding provider endpoint to inspect")
+):
+    """Probe an embedding provider endpoint and return its available models."""
+    try:
+        discovery = await discover_embedding_models(endpoint)
+        return JSONResponse(
+            content={
+                "provider": discovery.provider,
+                "endpoint": endpoint,
+                "models": discovery.models,
+            },
+            status_code=200,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ModelDiscoveryError as exc:
+        logger.warning("Embedding model discovery failed for %s: %s", endpoint, exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 # PDF processing endpoint

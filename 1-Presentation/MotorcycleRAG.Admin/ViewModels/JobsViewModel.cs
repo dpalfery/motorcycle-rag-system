@@ -184,6 +184,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStopLocalProcessor)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanClearLocalProcessorJobs)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalProcessorStateLabel)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowLocalProcessorDiagnosticPanel)));
         }
     }
 
@@ -250,6 +251,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             _localProcessorStatusMessage = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalProcessorStatusMessage)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalProcessorStatusIsError)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowLocalProcessorDiagnosticPanel)));
         }
     }
 
@@ -267,8 +269,12 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             _localProcessorDiagnosticOutput = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalProcessorDiagnosticOutput)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasLocalProcessorDiagnosticOutput)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowLocalProcessorDiagnosticPanel)));
         }
     }
+
+    public bool ShowLocalProcessorDiagnosticPanel =>
+        IsLocalProcessorRunning || HasLocalProcessorDiagnosticOutput;
 
     public string ApiPollingProblemMessage {
         get => _apiPollingProblemMessage;

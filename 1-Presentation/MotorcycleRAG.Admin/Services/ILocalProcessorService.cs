@@ -8,6 +8,8 @@ internal interface ILocalProcessorService
 
     Task<LocalProcessorHealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default);
 
+    Task<EmbeddingModelDiscoveryResponse> GetEmbeddingModelsAsync(string providerEndpoint, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<LocalProcessorJobResponse>> GetJobsAsync(CancellationToken cancellationToken = default);
 
     Task<int> ClearFinishedJobsAsync(CancellationToken cancellationToken = default);

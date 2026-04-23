@@ -7,8 +7,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -28,6 +30,7 @@ namespace MotorcycleRAG.API.Controllers;
 public sealed class ProcessorArtifactsController : ControllerBase
 {
     private readonly IBlobStorageService _blobStorageService;
+    private readonly BlobStorageOptions _blobStorageOptions;
     private readonly ILogger<ProcessorArtifactsController> _logger;
 
     /// <summary>Maximum upload size in bytes (500 MB).</summary>
@@ -35,9 +38,11 @@ public sealed class ProcessorArtifactsController : ControllerBase
 
     public ProcessorArtifactsController(
         IBlobStorageService blobStorageService,
+        IOptions<BlobStorageOptions> blobStorageOptions,
         ILogger<ProcessorArtifactsController> logger)
     {
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
+        _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -99,6 +104,12 @@ public sealed class ProcessorArtifactsController : ControllerBase
                 Detail = "artifactType must be 'search-chunks' or 'graph-entities'.",
                 Status = StatusCodes.Status400BadRequest
             });
+        }
+
+        // For graph-entities, we need to use the raw-uploads container, not the graph-entities container
+        if (string.Equals(artifactType, "graph-entities", StringComparison.OrdinalIgnoreCase))
+        {
+            container = _blobStorageOptions.RawUploadsContainer;
         }
 
         blobPath = BuildBlobPath(uploadId, artifactType);

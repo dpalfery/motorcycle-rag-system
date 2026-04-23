@@ -6,6 +6,7 @@ using System.Net.Http.Json;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Admin.Services.Dtos;
 
@@ -13,6 +14,7 @@ namespace MotorcycleRAG.Admin.Services;
 
 internal sealed class LocalProcessorService : ILocalProcessorService
 {
+    private const int MaxRecentProcessMessages = 100;
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan StartupPollInterval = TimeSpan.FromMilliseconds(100);
@@ -22,17 +24,31 @@ internal sealed class LocalProcessorService : ILocalProcessorService
     private readonly ILogger<LocalProcessorService> _logger;
     private readonly HttpClient _httpClient;
     private readonly ConcurrentQueue<string> _recentProcessMessages = new();
+    private readonly string _processorLogDirectory;
+    private readonly string _processorLogFilePath;
 
     private Process? _managedProcess;
 
-    public IReadOnlyList<string> RecentProcessOutput => _recentProcessMessages.ToArray();
+    public IReadOnlyList<string> RecentProcessOutput => GetRecentProcessOutput();
 
     public LocalProcessorService(
         IConfigurationStateService configurationStateService,
         ILogger<LocalProcessorService> logger)
+        : this(configurationStateService, logger, GetDefaultLogDirectory())
+    {
+    }
+
+    internal LocalProcessorService(
+        IConfigurationStateService configurationStateService,
+        ILogger<LocalProcessorService> logger,
+        string processorLogDirectory)
     {
         _configurationStateService = configurationStateService ?? throw new ArgumentNullException(nameof(configurationStateService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _processorLogDirectory = string.IsNullOrWhiteSpace(processorLogDirectory)
+            ? GetDefaultLogDirectory()
+            : processorLogDirectory;
+        _processorLogFilePath = Path.Combine(_processorLogDirectory, "local-processor.log");
         _httpClient = new HttpClient {
             Timeout = TimeSpan.FromSeconds(10)
         };
@@ -73,6 +89,32 @@ internal sealed class LocalProcessorService : ILocalProcessorService
             _logger.LogTrace("Local processor health check timed out for {Endpoint}", endpoint);
             return null;
         }
+    }
+
+    public async Task<EmbeddingModelDiscoveryResponse> GetEmbeddingModelsAsync(string providerEndpoint, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(providerEndpoint))
+        {
+            throw new ArgumentException("An embedding provider endpoint is required.", nameof(providerEndpoint));
+        }
+
+        var endpoint = GetEndpoint();
+        var requestUri = new Uri(endpoint, $"/embedding/models?endpoint={Uri.EscapeDataString(providerEndpoint.Trim())}");
+
+        using var response = await _httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = await ReadErrorDetailAsync(response, cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException(detail ?? $"Embedding model discovery failed with status code {(int)response.StatusCode}.");
+        }
+
+        var payload = await response.Content.ReadFromJsonAsync<EmbeddingModelDiscoveryResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (payload is null)
+        {
+            throw new InvalidOperationException("The local processor returned an empty embedding model discovery response.");
+        }
+
+        return payload;
     }
 
     public async Task<IReadOnlyList<LocalProcessorJobResponse>> GetJobsAsync(CancellationToken cancellationToken = default)
@@ -303,6 +345,64 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         };
     }
 
+    internal IReadOnlyDictionary<string, string> BuildChildEnvironmentVariables()
+    {
+        Directory.CreateDirectory(_processorLogDirectory);
+
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+            ["PYTHONUNBUFFERED"] = "1",
+            ["LOCAL_PROCESSOR_LOG_DIR"] = _processorLogDirectory
+        };
+
+        if (!string.IsNullOrWhiteSpace(_configurationStateService.EmbeddingProviderEndpoint))
+        {
+            variables["EMBEDDING_PROVIDER_ENDPOINT"] = _configurationStateService.EmbeddingProviderEndpoint;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_configurationStateService.EmbeddingModel))
+        {
+            variables["EMBEDDING_MODEL"] = _configurationStateService.EmbeddingModel;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_configurationStateService.LocalProcessorUploadJobSecret))
+        {
+            variables["PYTHON_UPLOAD_JOB_SECRET"] = _configurationStateService.LocalProcessorUploadJobSecret;
+        }
+
+        var apiBaseUrl = _configurationStateService.ApiBaseUrl?.AbsoluteUri.TrimEnd('/');
+        if (!string.IsNullOrWhiteSpace(apiBaseUrl))
+        {
+            variables["MCR_API_BASE_URL"] = apiBaseUrl;
+        }
+
+        return variables;
+    }
+
+    private static async Task<string?> ReadErrorDetailAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(content);
+            if (document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("detail", out var detailElement)
+                && detailElement.ValueKind == JsonValueKind.String)
+            {
+                return detailElement.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return content;
+    }
+
     private Process BuildProcess(string startCommand, string workingDirectory, TaskCompletionSource<bool> startupSignal)
     {
         var startInfo = new ProcessStartInfo {
@@ -314,12 +414,9 @@ internal sealed class LocalProcessorService : ILocalProcessorService
             UseShellExecute = false,
             CreateNoWindow = true
         };
-        startInfo.EnvironmentVariables["PYTHONUNBUFFERED"] = "1";
-
-        var uploadJobSecret = Environment.GetEnvironmentVariable("PYTHON_UPLOAD_JOB_SECRET");
-        if (!string.IsNullOrWhiteSpace(uploadJobSecret))
+        foreach (var variable in BuildChildEnvironmentVariables())
         {
-            startInfo.EnvironmentVariables["PYTHON_UPLOAD_JOB_SECRET"] = uploadJobSecret;
+            startInfo.EnvironmentVariables[variable.Key] = variable.Value;
         }
 
         var process = new Process {
@@ -417,9 +514,54 @@ internal sealed class LocalProcessorService : ILocalProcessorService
     private void TrackProcessMessage(string message)
     {
         _recentProcessMessages.Enqueue(message);
-        while (_recentProcessMessages.Count > 100 && _recentProcessMessages.TryDequeue(out _))
+        while (_recentProcessMessages.Count > MaxRecentProcessMessages && _recentProcessMessages.TryDequeue(out _))
         {
         }
+    }
+
+    private IReadOnlyList<string> GetRecentProcessOutput()
+    {
+        var trackedOutput = _recentProcessMessages.ToArray();
+        if (trackedOutput.Length > 0)
+        {
+            return trackedOutput;
+        }
+
+        return ReadRecentLogLines();
+    }
+
+    private IReadOnlyList<string> ReadRecentLogLines()
+    {
+        if (!File.Exists(_processorLogFilePath))
+        {
+            return [];
+        }
+
+        try
+        {
+            return File.ReadLines(_processorLogFilePath)
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .TakeLast(MaxRecentProcessMessages)
+                .ToArray();
+        }
+        catch (IOException ex)
+        {
+            _logger.LogTrace(ex, "Unable to read local processor log file {LogFilePath}", _processorLogFilePath);
+            return [];
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogTrace(ex, "Access denied while reading local processor log file {LogFilePath}", _processorLogFilePath);
+            return [];
+        }
+    }
+
+    private static string GetDefaultLogDirectory()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MotorcycleRAGAdmin",
+            "logs");
     }
 
     private Exception CreateStartupFailure(Process process, Uri endpoint)

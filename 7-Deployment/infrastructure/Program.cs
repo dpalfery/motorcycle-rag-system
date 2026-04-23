@@ -680,32 +680,6 @@ namespace MotorcycleRAG.Infrastructure {
                 PublicAccess = PublicAccess.None,
             });
 
-            // Blob containers used by ingestion and local processor artifact flows.
-            _ = new BlobContainer($"{namePrefix}-raw-uploads-container", new BlobContainerArgs {
-                ResourceGroupName = resourceGroup.Name,
-                AccountName = storageAccount.Name,
-                ContainerName = "raw-uploads",
-                PublicAccess = PublicAccess.None,
-            });
-            _ = new BlobContainer($"{namePrefix}-search-chunks-container", new BlobContainerArgs {
-                ResourceGroupName = resourceGroup.Name,
-                AccountName = storageAccount.Name,
-                ContainerName = "search-chunks",
-                PublicAccess = PublicAccess.None,
-            });
-            _ = new BlobContainer($"{namePrefix}-manuals-container", new BlobContainerArgs {
-                ResourceGroupName = resourceGroup.Name,
-                AccountName = storageAccount.Name,
-                ContainerName = "manuals",
-                PublicAccess = PublicAccess.None,
-            });
-            _ = new BlobContainer($"{namePrefix}-uploads-container", new BlobContainerArgs {
-                ResourceGroupName = resourceGroup.Name,
-                AccountName = storageAccount.Name,
-                ContainerName = "uploads",
-                PublicAccess = PublicAccess.None,
-            });
-
             // RBAC: Search Index Data Contributor for API (query + index documents)
             _ = new RoleAssignment($"{namePrefix}-api-search-role", new RoleAssignmentArgs {
                 PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),

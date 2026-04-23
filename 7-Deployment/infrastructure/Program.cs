@@ -193,12 +193,10 @@ namespace MotorcycleRAG.Infrastructure {
                 DependsOn = new[] { foundryAiServices }
             });
 
-            var foundryProjectEndpoint = Output.Tuple(foundryAiServices.Name, foundryProject.Properties).Apply(values =>
-            {
+            var foundryProjectEndpoint = Output.Tuple(foundryAiServices.Name, foundryProject.Properties).Apply(values => {
                 var accountName = values.Item1;
                 var projectProperties = values.Item2;
-                if (projectProperties.Endpoints is not null && projectProperties.Endpoints.Count > 0)
-                {
+                if (projectProperties.Endpoints is not null && projectProperties.Endpoints.Count > 0) {
                     return projectProperties.Endpoints.Values.First();
                 }
 
@@ -298,28 +296,27 @@ namespace MotorcycleRAG.Infrastructure {
                         }
                     }
                 },
-                Scale = new ScaleArgs
-                {
-                    MinReplicas = 0,
-                    MaxReplicas = 10
-                }
-            },
-            Identity = new ManagedServiceIdentityArgs {
-                Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
-            }
-        });
-
-        // 11. UI Container App (BFF)
-        var uiApp = new ContainerApp($"{namePrefix}-ui", new ContainerAppArgs {
-            ResourceGroupName = resourceGroup.Name,
-            ManagedEnvironmentId = managedEnvironment.Id,
-            Configuration = new ConfigurationArgs {
-                Ingress = new IngressArgs {
-                    External = true,
-                    TargetPort = 8080
+                    Scale = new ScaleArgs {
+                        MinReplicas = 0,
+                        MaxReplicas = 10
+                    }
                 },
-                Registries = new[]
-                {
+                Identity = new ManagedServiceIdentityArgs {
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+                }
+            });
+
+            // 11. UI Container App (BFF)
+            var uiApp = new ContainerApp($"{namePrefix}-ui", new ContainerAppArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ManagedEnvironmentId = managedEnvironment.Id,
+                Configuration = new ConfigurationArgs {
+                    Ingress = new IngressArgs {
+                        External = true,
+                        TargetPort = 8080
+                    },
+                    Registries = new[]
+                    {
                     new RegistryCredentialsArgs
                     {
                         Server = registry.LoginServer,
@@ -327,14 +324,14 @@ namespace MotorcycleRAG.Infrastructure {
                         PasswordSecretRef = "acr-password"
                     }
                 },
-                Secrets = new[]
-                {
+                    Secrets = new[]
+                    {
                     new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
-            },
-            Template = new TemplateArgs {
-                Containers = new[]
-                {
+                },
+                Template = new TemplateArgs {
+                    Containers = new[]
+                    {
                     new ContainerArgs
                     {
                         Name = "ui",
@@ -364,16 +361,15 @@ namespace MotorcycleRAG.Infrastructure {
                         }
                     }
                 },
-                Scale = new ScaleArgs
-                {
-                    MinReplicas = 1,
-                    MaxReplicas = 10
+                    Scale = new ScaleArgs {
+                        MinReplicas = 1,
+                        MaxReplicas = 10
+                    }
+                },
+                Identity = new ManagedServiceIdentityArgs {
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
                 }
-            },
-            Identity = new ManagedServiceIdentityArgs {
-                Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
-            }
-        });
+            });
 
             // 12. Azure AI Search
             var searchService = new Pulumi.AzureNative.Search.Service($"{namePrefix}-search", new Pulumi.AzureNative.Search.ServiceArgs {
@@ -581,7 +577,7 @@ namespace MotorcycleRAG.Infrastructure {
                 ConfigStoreName = appConfig.Name,
                 KeyValueName = "AzureAd:ClientSecret$bff",
                 ContentType = kvRefContentType,
-                Value = kvSecretBffClientSecret.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}") 
+                Value = kvSecretBffClientSecret.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
             });
 
             _ = new KeyValue("appconfig-kvref-appinsights-connstr", new KeyValueArgs {

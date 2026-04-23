@@ -13,8 +13,7 @@ namespace MotorcycleRAG.Admin.Services;
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Design", "S3059:Types should not have members with visibility set higher than the type's visibility",
     Justification = "Internal class implements public interface IConfigurationStateService required by clients in other assemblies")]
-internal sealed class ConfigurationStateService : IConfigurationStateService
-{
+internal sealed class ConfigurationStateService : IConfigurationStateService {
     private readonly ISettingsService _settingsService;
     private readonly ILogger<ConfigurationStateService> _logger;
 
@@ -80,19 +79,16 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
 
     public ConfigurationStateService(
         ISettingsService settingsService,
-        ILogger<ConfigurationStateService> logger)
-    {
+        ILogger<ConfigurationStateService> logger) {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <inheritdoc/>
-    public async Task LoadConfigurationAsync()
-    {
+    public async Task LoadConfigurationAsync() {
         _logger.LogDebug("Loading configuration from settings");
 
-        try
-        {
+        try {
             // Load regular settings
             var apiBaseUrlString = await _settingsService.GetAsync(SettingsKeys.ApiBaseUrl).ConfigureAwait(false);
             _authAuthority = await _settingsService.GetAsync(SettingsKeys.AuthAuthority).ConfigureAwait(false);
@@ -133,18 +129,15 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
                 IsAuthConfigured,
                 IsLocalProcessorConfigured);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to load configuration from settings");
             // Don't throw - app should still start with no configuration
         }
     }
 
     /// <inheritdoc/>
-    public async Task SaveApiBaseUrlAsync(Uri? url)
-    {
-        if (url != null && !IsValidApiUrl(url))
-        {
+    public async Task SaveApiBaseUrlAsync(Uri? url) {
+        if (url != null && !IsValidApiUrl(url)) {
             throw new ArgumentException("Invalid API URL format or protocol", nameof(url));
         }
 
@@ -157,15 +150,13 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     }
 
     /// <inheritdoc/>
-    public async Task SaveAuthConfigurationAsync(string clientId, string authority, string scope)
-    {
+    public async Task SaveAuthConfigurationAsync(string clientId, string authority, string scope) {
         ArgumentNullException.ThrowIfNull(clientId);
         ArgumentNullException.ThrowIfNull(authority);
         ArgumentNullException.ThrowIfNull(scope);
 
         // Validate authority URL format
-        if (!string.IsNullOrWhiteSpace(authority) && !Uri.TryCreate(authority, UriKind.Absolute, out _))
-        {
+        if (!string.IsNullOrWhiteSpace(authority) && !Uri.TryCreate(authority, UriKind.Absolute, out _)) {
             throw new ArgumentException("Invalid authority URL format", nameof(authority));
         }
 
@@ -183,10 +174,8 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     }
 
     /// <inheritdoc/>
-    public async Task SaveEmbeddingConfigurationAsync(string? providerEndpoint, string? model)
-    {
-        if (!string.IsNullOrWhiteSpace(providerEndpoint) && !Uri.TryCreate(providerEndpoint, UriKind.Absolute, out _))
-        {
+    public async Task SaveEmbeddingConfigurationAsync(string? providerEndpoint, string? model) {
+        if (!string.IsNullOrWhiteSpace(providerEndpoint) && !Uri.TryCreate(providerEndpoint, UriKind.Absolute, out _)) {
             throw new ArgumentException("Invalid embedding provider endpoint format", nameof(providerEndpoint));
         }
 
@@ -205,15 +194,12 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     }
 
     /// <inheritdoc/>
-    public async Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand, string? uploadJobSecret)
-    {
-        if (endpoint != null && !IsValidLocalProcessorEndpoint(endpoint))
-        {
+    public async Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand, string? uploadJobSecret) {
+        if (endpoint != null && !IsValidLocalProcessorEndpoint(endpoint)) {
             throw new ArgumentException("Invalid local processor endpoint.", nameof(endpoint));
         }
 
-        if (!string.IsNullOrWhiteSpace(workingDirectory) && !Directory.Exists(workingDirectory))
-        {
+        if (!string.IsNullOrWhiteSpace(workingDirectory) && !Directory.Exists(workingDirectory)) {
             throw new DirectoryNotFoundException($"The local processor directory '{workingDirectory}' was not found.");
         }
 
@@ -233,8 +219,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     }
 
     /// <inheritdoc/>
-    public async Task ClearConfigurationAsync()
-    {
+    public async Task ClearConfigurationAsync() {
         await _settingsService.RemoveAsync(SettingsKeys.ApiBaseUrl).ConfigureAwait(false);
         await _settingsService.RemoveSecureAsync(SettingsKeys.AuthClientId).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.AuthAuthority).ConfigureAwait(false);
@@ -266,21 +251,17 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     /// Validates that the API URL is well-formed and uses appropriate protocol.
     /// Non-localhost URLs must use HTTPS.
     /// </summary>
-    private static bool IsValidApiUrl(Uri uri)
-    {
+    private static bool IsValidApiUrl(Uri uri) {
         // Allow HTTP only for localhost development
-        if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
-        {
+        if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)) {
             return uri.IsLoopback;
         }
 
         return uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsValidLocalProcessorEndpoint(Uri uri)
-    {
-        if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase))
-        {
+    private static bool IsValidLocalProcessorEndpoint(Uri uri) {
+        if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)) {
             return uri.IsLoopback;
         }
 
@@ -290,13 +271,11 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     /// <summary>
     /// Returns null if the string is null or whitespace, otherwise returns the string.
     /// </summary>
-    private static string? NullIfEmpty(string? value)
-    {
+    private static string? NullIfEmpty(string? value) {
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
-    private void RefreshLocalProcessorConfigurationState()
-    {
+    private void RefreshLocalProcessorConfigurationState() {
         _isLocalProcessorConfigured = _localProcessorEndpoint is not null
             && IsValidLocalProcessorEndpoint(_localProcessorEndpoint)
             && !string.IsNullOrWhiteSpace(_localProcessorWorkingDirectory)
@@ -308,8 +287,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService
     /// <summary>
     /// Raises the ConfigurationChanged event.
     /// </summary>
-    private void OnConfigurationChanged()
-    {
+    private void OnConfigurationChanged() {
         ConfigurationChanged?.Invoke(this, EventArgs.Empty);
     }
 }

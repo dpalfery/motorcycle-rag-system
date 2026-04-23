@@ -4,8 +4,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// Tracks the application's configuration state and provides access to configuration values.
 /// This service loads settings from ISettingsService on startup and notifies when configuration changes.
 /// </summary>
-internal interface IConfigurationStateService
-{
+internal interface IConfigurationStateService {
     /// <summary>
     /// Gets a value indicating whether the application is fully configured.
     /// Returns true when both API and Auth are configured.

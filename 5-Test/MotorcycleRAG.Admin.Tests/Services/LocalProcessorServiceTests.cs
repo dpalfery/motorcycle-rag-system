@@ -4,11 +4,9 @@ using MotorcycleRAG.Admin.Services;
 
 namespace MotorcycleRAG.Admin.Tests.Services;
 
-public sealed class LocalProcessorServiceTests
-{
+public sealed class LocalProcessorServiceTests {
     [Fact]
-    public void BuildChildEnvironmentVariables_IncludesConfiguredApiBaseUrlAndPersistedUploadSecret()
-    {
+    public void BuildChildEnvironmentVariables_IncludesConfiguredApiBaseUrlAndPersistedUploadSecret() {
         var processorLogDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var configurationStateService = new TestConfigurationStateService {
             ApiBaseUrl = new Uri("https://localhost:7215"),
@@ -40,8 +38,7 @@ public sealed class LocalProcessorServiceTests
     }
 
     [Fact]
-    public void BuildChildEnvironmentVariables_OmitsOptionalValuesWhenNotConfigured()
-    {
+    public void BuildChildEnvironmentVariables_OmitsOptionalValuesWhenNotConfigured() {
         var processorLogDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var configurationStateService = new TestConfigurationStateService();
 
@@ -64,8 +61,7 @@ public sealed class LocalProcessorServiceTests
     }
 
     [Fact]
-    public void RecentProcessOutput_FallsBackToProcessorLogWhenLiveOutputIsEmpty()
-    {
+    public void RecentProcessOutput_FallsBackToProcessorLogWhenLiveOutputIsEmpty() {
         var processorLogDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(processorLogDirectory);
         File.WriteAllLines(
@@ -86,8 +82,7 @@ public sealed class LocalProcessorServiceTests
         Directory.Delete(processorLogDirectory, recursive: true);
     }
 
-    private sealed class TestConfigurationStateService : IConfigurationStateService
-    {
+    private sealed class TestConfigurationStateService : IConfigurationStateService {
         public bool IsConfigured => IsApiConfigured && IsAuthConfigured;
 
         public bool IsApiConfigured => ApiBaseUrl is not null;

@@ -2,8 +2,7 @@ using MotorcycleRAG.Admin.Services.Dtos;
 
 namespace MotorcycleRAG.Admin.Services;
 
-internal interface ILocalProcessorService
-{
+internal interface ILocalProcessorService {
     IReadOnlyList<string> RecentProcessOutput { get; }
 
     Task<LocalProcessorHealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default);

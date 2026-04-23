@@ -4,8 +4,7 @@ namespace MotorcycleRAG.Admin.Constants;
 /// Defines keys for application settings stored via ISettingsService.
 /// Keys are categorized by storage type (regular vs secure) and functional area.
 /// </summary>
-internal static class SettingsKeys
-{
+internal static class SettingsKeys {
     /// <summary>
     /// API base URL for the Motorcycle RAG backend service.
     /// Stored in regular preferences (not sensitive).

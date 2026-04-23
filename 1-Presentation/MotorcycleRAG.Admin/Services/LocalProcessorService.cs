@@ -12,8 +12,7 @@ using MotorcycleRAG.Admin.Services.Dtos;
 
 namespace MotorcycleRAG.Admin.Services;
 
-internal sealed class LocalProcessorService : ILocalProcessorService
-{
+internal sealed class LocalProcessorService : ILocalProcessorService {
     private const int MaxRecentProcessMessages = 100;
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromMinutes(5);
@@ -34,15 +33,13 @@ internal sealed class LocalProcessorService : ILocalProcessorService
     public LocalProcessorService(
         IConfigurationStateService configurationStateService,
         ILogger<LocalProcessorService> logger)
-        : this(configurationStateService, logger, GetDefaultLogDirectory())
-    {
+        : this(configurationStateService, logger, GetDefaultLogDirectory()) {
     }
 
     internal LocalProcessorService(
         IConfigurationStateService configurationStateService,
         ILogger<LocalProcessorService> logger,
-        string processorLogDirectory)
-    {
+        string processorLogDirectory) {
         _configurationStateService = configurationStateService ?? throw new ArgumentNullException(nameof(configurationStateService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _processorLogDirectory = string.IsNullOrWhiteSpace(processorLogDirectory)
@@ -54,47 +51,38 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         };
     }
 
-    public async Task<LocalProcessorHealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<LocalProcessorHealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default) {
         var endpoint = GetEndpoint();
-        if (endpoint is null)
-        {
+        if (endpoint is null) {
             return null;
         }
 
-        if (endpoint.IsLoopback && !IsEndpointPortInUse(endpoint))
-        {
+        if (endpoint.IsLoopback && !IsEndpointPortInUse(endpoint)) {
             _logger.LogTrace("Skipping local processor health check because {Endpoint} has no active listeners", endpoint);
             return null;
         }
 
-        try
-        {
+        try {
             using var response = await _httpClient.GetAsync(new Uri(endpoint, "/health"), cancellationToken).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
+            if (!response.IsSuccessStatusCode) {
                 _logger.LogDebug("Local processor health check returned non-success status {StatusCode} for {Endpoint}", response.StatusCode, endpoint);
                 return null;
             }
 
             return await response.Content.ReadFromJsonAsync<LocalProcessorHealthResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
         }
-        catch (HttpRequestException)
-        {
+        catch (HttpRequestException) {
             _logger.LogTrace("Local processor health check failed with HTTP exception for {Endpoint}", endpoint);
             return null;
         }
-        catch (TaskCanceledException)
-        {
+        catch (TaskCanceledException) {
             _logger.LogTrace("Local processor health check timed out for {Endpoint}", endpoint);
             return null;
         }
     }
 
-    public async Task<EmbeddingModelDiscoveryResponse> GetEmbeddingModelsAsync(string providerEndpoint, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(providerEndpoint))
-        {
+    public async Task<EmbeddingModelDiscoveryResponse> GetEmbeddingModelsAsync(string providerEndpoint, CancellationToken cancellationToken = default) {
+        if (string.IsNullOrWhiteSpace(providerEndpoint)) {
             throw new ArgumentException("An embedding provider endpoint is required.", nameof(providerEndpoint));
         }
 
@@ -102,23 +90,20 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         var requestUri = new Uri(endpoint, $"/embedding/models?endpoint={Uri.EscapeDataString(providerEndpoint.Trim())}");
 
         using var response = await _httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
+        if (!response.IsSuccessStatusCode) {
             var detail = await ReadErrorDetailAsync(response, cancellationToken).ConfigureAwait(false);
             throw new InvalidOperationException(detail ?? $"Embedding model discovery failed with status code {(int)response.StatusCode}.");
         }
 
         var payload = await response.Content.ReadFromJsonAsync<EmbeddingModelDiscoveryResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (payload is null)
-        {
+        if (payload is null) {
             throw new InvalidOperationException("The local processor returned an empty embedding model discovery response.");
         }
 
         return payload;
     }
 
-    public async Task<IReadOnlyList<LocalProcessorJobResponse>> GetJobsAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<IReadOnlyList<LocalProcessorJobResponse>> GetJobsAsync(CancellationToken cancellationToken = default) {
         var endpoint = GetEndpoint();
         using var response = await _httpClient.GetAsync(new Uri(endpoint, "/jobs"), cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
@@ -127,18 +112,15 @@ internal sealed class LocalProcessorService : ILocalProcessorService
                ?? [];
     }
 
-    public async Task<int> ClearFinishedJobsAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<int> ClearFinishedJobsAsync(CancellationToken cancellationToken = default) {
         var endpoint = GetEndpoint();
         using var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, new Uri(endpoint, "/jobs"));
         using var deleteResponse = await _httpClient.SendAsync(deleteRequest, cancellationToken).ConfigureAwait(false);
-        if (deleteResponse.StatusCode == HttpStatusCode.MethodNotAllowed)
-        {
+        if (deleteResponse.StatusCode == HttpStatusCode.MethodNotAllowed) {
             return await ClearFinishedJobsWithPostFallbackAsync(endpoint, cancellationToken).ConfigureAwait(false);
         }
 
-        if (deleteResponse.StatusCode == HttpStatusCode.NotFound)
-        {
+        if (deleteResponse.StatusCode == HttpStatusCode.NotFound) {
             throw new InvalidOperationException("The local processor cleanup endpoint is unavailable. Restart the local processor and try again.");
         }
 
@@ -147,11 +129,9 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         return await ReadDeletedJobCountAsync(deleteResponse, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<int> ClearFinishedJobsWithPostFallbackAsync(Uri endpoint, CancellationToken cancellationToken)
-    {
+    private async Task<int> ClearFinishedJobsWithPostFallbackAsync(Uri endpoint, CancellationToken cancellationToken) {
         using var postResponse = await _httpClient.PostAsync(new Uri(endpoint, "/jobs/cleanup"), content: null, cancellationToken).ConfigureAwait(false);
-        if (postResponse.StatusCode == HttpStatusCode.MethodNotAllowed || postResponse.StatusCode == HttpStatusCode.NotFound)
-        {
+        if (postResponse.StatusCode == HttpStatusCode.MethodNotAllowed || postResponse.StatusCode == HttpStatusCode.NotFound) {
             throw new InvalidOperationException("The local processor is running an older API version. Restart it and try clearing finished jobs again.");
         }
 
@@ -160,23 +140,19 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         return await ReadDeletedJobCountAsync(postResponse, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<int> ReadDeletedJobCountAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
+    private static async Task<int> ReadDeletedJobCountAsync(HttpResponseMessage response, CancellationToken cancellationToken) {
         var payload = await response.Content.ReadFromJsonAsync<LocalProcessorJobCleanupResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
         return payload?.DeletedCount ?? 0;
     }
 
-    public async Task<LocalProcessorHealthResponse> StartAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task<LocalProcessorHealthResponse> StartAsync(CancellationToken cancellationToken = default) {
         var endpoint = GetEndpoint();
         var currentHealth = await GetHealthAsync(cancellationToken).ConfigureAwait(false);
-        if (currentHealth is not null)
-        {
+        if (currentHealth is not null) {
             return currentHealth;
         }
 
-        if (IsEndpointPortInUse(endpoint))
-        {
+        if (IsEndpointPortInUse(endpoint)) {
             throw new InvalidOperationException(
                 $"Port {endpoint.Port} is already in use, but {endpoint} did not respond to /health. Stop the other process or change the local processor endpoint.");
         }
@@ -193,56 +169,46 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         _managedProcess.BeginErrorReadLine();
 
         var startedAt = DateTimeOffset.UtcNow;
-        while (DateTimeOffset.UtcNow - startedAt < StartupTimeout)
-        {
+        while (DateTimeOffset.UtcNow - startedAt < StartupTimeout) {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (_managedProcess.HasExited)
-            {
+            if (_managedProcess.HasExited) {
                 // Wait briefly for asynchronous output streams (OutputDataReceived/ErrorDataReceived) to flush
-                try
-                {
+                try {
                     using var flushCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     flushCts.CancelAfter(TimeSpan.FromMilliseconds(500));
                     await _managedProcess.WaitForExitAsync(flushCts.Token).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException)
-                {
+                catch (OperationCanceledException) {
                     // Ignore timeout, we just wanted to wait a little bit for logs to flush
                 }
 
                 throw CreateStartupFailure(_managedProcess, endpoint);
             }
 
-            if (startupSignal.Task.IsCompletedSuccessfully)
-            {
+            if (startupSignal.Task.IsCompletedSuccessfully) {
                 break;
             }
 
             await Task.Delay(StartupPollInterval, cancellationToken).ConfigureAwait(false);
         }
 
-        if (!startupSignal.Task.IsCompletedSuccessfully)
-        {
+        if (!startupSignal.Task.IsCompletedSuccessfully) {
             throw new TimeoutException(BuildStartupTimeoutMessage(endpoint));
         }
 
         var healthReadyStartedAt = DateTimeOffset.UtcNow;
-        while (DateTimeOffset.UtcNow - healthReadyStartedAt < HealthReadyTimeout)
-        {
+        while (DateTimeOffset.UtcNow - healthReadyStartedAt < HealthReadyTimeout) {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (_managedProcess.HasExited)
-            {
+            if (_managedProcess.HasExited) {
                 // Wait briefly for asynchronous output streams (OutputDataReceived/ErrorDataReceived) to flush
-                try
-                {
+                try {
                     using var flushCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     flushCts.CancelAfter(TimeSpan.FromMilliseconds(500));
                     await _managedProcess.WaitForExitAsync(flushCts.Token).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException)
-                {
+                catch (OperationCanceledException) {
                     // Ignore
                 }
 
@@ -252,16 +218,13 @@ internal sealed class LocalProcessorService : ILocalProcessorService
             // Use a short per-request timeout so the loop can retry quickly across the full window.
             using var pollCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             pollCts.CancelAfter(TimeSpan.FromSeconds(2));
-            try
-            {
+            try {
                 var health = await GetHealthAsync(pollCts.Token).ConfigureAwait(false);
-                if (health is not null)
-                {
+                if (health is not null) {
                     return health;
                 }
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
                 // Per-request timeout — server not ready yet, keep polling
             }
 
@@ -271,12 +234,10 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         throw new TimeoutException(BuildStartupTimeoutMessage(endpoint));
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken = default)
-    {
+    public async Task StopAsync(CancellationToken cancellationToken = default) {
         var endpoint = GetEndpoint();
         var health = await GetHealthAsync(cancellationToken).ConfigureAwait(false);
-        if (health is null)
-        {
+        if (health is null) {
             return;
         }
 
@@ -285,13 +246,11 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         _ = await response.Content.ReadFromJsonAsync<LocalProcessorShutdownResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
 
         var stopRequestedAt = DateTimeOffset.UtcNow;
-        while (DateTimeOffset.UtcNow - stopRequestedAt < ShutdownTimeout)
-        {
+        while (DateTimeOffset.UtcNow - stopRequestedAt < ShutdownTimeout) {
             cancellationToken.ThrowIfCancellationRequested();
 
             var currentHealth = await GetHealthAsync(cancellationToken).ConfigureAwait(false);
-            if (currentHealth is null)
-            {
+            if (currentHealth is null) {
                 return;
             }
 
@@ -301,21 +260,17 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         throw new TimeoutException("Timed out waiting for the local processor to stop gracefully.");
     }
 
-    public async Task<LocalGraphJobStartResult> StartBikeGraphJobAsync(string localFilePath, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(localFilePath))
-        {
+    public async Task<LocalGraphJobStartResult> StartBikeGraphJobAsync(string localFilePath, CancellationToken cancellationToken = default) {
+        if (string.IsNullOrWhiteSpace(localFilePath)) {
             throw new ArgumentException("A CSV file path is required.", nameof(localFilePath));
         }
 
         var health = await GetHealthAsync(cancellationToken).ConfigureAwait(false);
-        if (health is null)
-        {
+        if (health is null) {
             throw new InvalidOperationException("The local processor is not running.");
         }
 
-        if (!health.AcceptingWork)
-        {
+        if (!health.AcceptingWork) {
             throw new InvalidOperationException("The local processor is shutting down and is not accepting new work.");
         }
 
@@ -332,8 +287,7 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         response.EnsureSuccessStatusCode();
 
         var payload = await response.Content.ReadFromJsonAsync<LocalProcessorJobResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (payload == null || string.IsNullOrWhiteSpace(payload.JobId))
-        {
+        if (payload == null || string.IsNullOrWhiteSpace(payload.JobId)) {
             throw new InvalidOperationException("The local processor did not return a job identifier.");
         }
 
@@ -345,8 +299,7 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         };
     }
 
-    internal IReadOnlyDictionary<string, string> BuildChildEnvironmentVariables()
-    {
+    internal IReadOnlyDictionary<string, string> BuildChildEnvironmentVariables() {
         Directory.CreateDirectory(_processorLogDirectory);
 
         var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
@@ -354,57 +307,47 @@ internal sealed class LocalProcessorService : ILocalProcessorService
             ["LOCAL_PROCESSOR_LOG_DIR"] = _processorLogDirectory
         };
 
-        if (!string.IsNullOrWhiteSpace(_configurationStateService.EmbeddingProviderEndpoint))
-        {
+        if (!string.IsNullOrWhiteSpace(_configurationStateService.EmbeddingProviderEndpoint)) {
             variables["EMBEDDING_PROVIDER_ENDPOINT"] = _configurationStateService.EmbeddingProviderEndpoint;
         }
 
-        if (!string.IsNullOrWhiteSpace(_configurationStateService.EmbeddingModel))
-        {
+        if (!string.IsNullOrWhiteSpace(_configurationStateService.EmbeddingModel)) {
             variables["EMBEDDING_MODEL"] = _configurationStateService.EmbeddingModel;
         }
 
-        if (!string.IsNullOrWhiteSpace(_configurationStateService.LocalProcessorUploadJobSecret))
-        {
+        if (!string.IsNullOrWhiteSpace(_configurationStateService.LocalProcessorUploadJobSecret)) {
             variables["PYTHON_UPLOAD_JOB_SECRET"] = _configurationStateService.LocalProcessorUploadJobSecret;
         }
 
         var apiBaseUrl = _configurationStateService.ApiBaseUrl?.AbsoluteUri.TrimEnd('/');
-        if (!string.IsNullOrWhiteSpace(apiBaseUrl))
-        {
+        if (!string.IsNullOrWhiteSpace(apiBaseUrl)) {
             variables["MCR_API_BASE_URL"] = apiBaseUrl;
         }
 
         return variables;
     }
 
-    private static async Task<string?> ReadErrorDetailAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
+    private static async Task<string?> ReadErrorDetailAsync(HttpResponseMessage response, CancellationToken cancellationToken) {
         var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(content))
-        {
+        if (string.IsNullOrWhiteSpace(content)) {
             return null;
         }
 
-        try
-        {
+        try {
             using var document = JsonDocument.Parse(content);
             if (document.RootElement.ValueKind == JsonValueKind.Object
                 && document.RootElement.TryGetProperty("detail", out var detailElement)
-                && detailElement.ValueKind == JsonValueKind.String)
-            {
+                && detailElement.ValueKind == JsonValueKind.String) {
                 return detailElement.GetString();
             }
         }
-        catch (JsonException)
-        {
+        catch (JsonException) {
         }
 
         return content;
     }
 
-    private Process BuildProcess(string startCommand, string workingDirectory, TaskCompletionSource<bool> startupSignal)
-    {
+    private Process BuildProcess(string startCommand, string workingDirectory, TaskCompletionSource<bool> startupSignal) {
         var startInfo = new ProcessStartInfo {
             FileName = "cmd.exe",
             Arguments = $"/c {startCommand}",
@@ -414,8 +357,7 @@ internal sealed class LocalProcessorService : ILocalProcessorService
             UseShellExecute = false,
             CreateNoWindow = true
         };
-        foreach (var variable in BuildChildEnvironmentVariables())
-        {
+        foreach (var variable in BuildChildEnvironmentVariables()) {
             startInfo.EnvironmentVariables[variable.Key] = variable.Value;
         }
 
@@ -425,20 +367,17 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         };
 
         process.OutputDataReceived += (_, e) => {
-            if (!string.IsNullOrWhiteSpace(e.Data))
-            {
+            if (!string.IsNullOrWhiteSpace(e.Data)) {
                 TrackProcessMessage(e.Data);
                 _logger.LogInformation("Local processor: {Message}", e.Data);
-                if (IsStartupReadyMessage(e.Data))
-                {
+                if (IsStartupReadyMessage(e.Data)) {
                     startupSignal.TrySetResult(true);
                 }
             }
         };
 
         process.ErrorDataReceived += (_, e) => {
-            if (!string.IsNullOrWhiteSpace(e.Data))
-            {
+            if (!string.IsNullOrWhiteSpace(e.Data)) {
                 TrackProcessMessage(e.Data);
                 _logger.LogInformation("Local processor stderr: {Message}", e.Data);
             }
@@ -448,128 +387,104 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         return process;
     }
 
-    private Uri GetEndpoint()
-    {
-        if (_configurationStateService.LocalProcessorEndpoint == null)
-        {
+    private Uri GetEndpoint() {
+        if (_configurationStateService.LocalProcessorEndpoint == null) {
             throw new InvalidOperationException("Local processor endpoint is not configured. Open Settings to configure it.");
         }
 
         return _configurationStateService.LocalProcessorEndpoint;
     }
 
-    private string GetWorkingDirectory()
-    {
+    private string GetWorkingDirectory() {
         var workingDirectory = _configurationStateService.LocalProcessorWorkingDirectory;
-        if (string.IsNullOrWhiteSpace(workingDirectory))
-        {
+        if (string.IsNullOrWhiteSpace(workingDirectory)) {
             throw new InvalidOperationException("Local processor working directory is not configured. Open Settings to configure it.");
         }
 
-        if (!Directory.Exists(workingDirectory))
-        {
+        if (!Directory.Exists(workingDirectory)) {
             throw new DirectoryNotFoundException($"The local processor directory '{workingDirectory}' was not found.");
         }
 
-        if (!File.Exists(Path.Combine(workingDirectory, "src", "main.py")))
-        {
+        if (!File.Exists(Path.Combine(workingDirectory, "src", "main.py"))) {
             throw new FileNotFoundException("The local processor entry point src/main.py was not found.", Path.Combine(workingDirectory, "src", "main.py"));
         }
 
         return workingDirectory;
     }
 
-    private string GetStartCommand()
-    {
+    private string GetStartCommand() {
         var startCommand = _configurationStateService.LocalProcessorStartCommand;
-        if (string.IsNullOrWhiteSpace(startCommand))
-        {
+        if (string.IsNullOrWhiteSpace(startCommand)) {
             throw new InvalidOperationException("Local processor start command is not configured. Open Settings to configure it.");
         }
 
         return startCommand;
     }
 
-    private static bool IsStartupReadyMessage(string message)
-    {
+    private static bool IsStartupReadyMessage(string message) {
         return message.Contains("Application startup complete.", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("Uvicorn running on", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool ContainsErrorKeyword(string message)
-    {
+    private static bool ContainsErrorKeyword(string message) {
         return message.Contains("ERROR", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("CRITICAL", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("Exception", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("Traceback", StringComparison.OrdinalIgnoreCase);
     }
 
-    private void ClearRecentProcessMessages()
-    {
-        while (_recentProcessMessages.TryDequeue(out _))
-        {
+    private void ClearRecentProcessMessages() {
+        while (_recentProcessMessages.TryDequeue(out _)) {
         }
     }
 
-    private void TrackProcessMessage(string message)
-    {
+    private void TrackProcessMessage(string message) {
         _recentProcessMessages.Enqueue(message);
-        while (_recentProcessMessages.Count > MaxRecentProcessMessages && _recentProcessMessages.TryDequeue(out _))
-        {
+        while (_recentProcessMessages.Count > MaxRecentProcessMessages && _recentProcessMessages.TryDequeue(out _)) {
         }
     }
 
-    private IReadOnlyList<string> GetRecentProcessOutput()
-    {
+    private IReadOnlyList<string> GetRecentProcessOutput() {
         var trackedOutput = _recentProcessMessages.ToArray();
-        if (trackedOutput.Length > 0)
-        {
+        if (trackedOutput.Length > 0) {
             return trackedOutput;
         }
 
         return ReadRecentLogLines();
     }
 
-    private IReadOnlyList<string> ReadRecentLogLines()
-    {
-        if (!File.Exists(_processorLogFilePath))
-        {
+    private IReadOnlyList<string> ReadRecentLogLines() {
+        if (!File.Exists(_processorLogFilePath)) {
             return [];
         }
 
-        try
-        {
+        try {
             return File.ReadLines(_processorLogFilePath)
                 .Where(line => !string.IsNullOrWhiteSpace(line))
                 .TakeLast(MaxRecentProcessMessages)
                 .ToArray();
         }
-        catch (IOException ex)
-        {
+        catch (IOException ex) {
             _logger.LogTrace(ex, "Unable to read local processor log file {LogFilePath}", _processorLogFilePath);
             return [];
         }
-        catch (UnauthorizedAccessException ex)
-        {
+        catch (UnauthorizedAccessException ex) {
             _logger.LogTrace(ex, "Access denied while reading local processor log file {LogFilePath}", _processorLogFilePath);
             return [];
         }
     }
 
-    private static string GetDefaultLogDirectory()
-    {
+    private static string GetDefaultLogDirectory() {
         return Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MotorcycleRAGAdmin",
             "logs");
     }
 
-    private Exception CreateStartupFailure(Process process, Uri endpoint)
-    {
+    private Exception CreateStartupFailure(Process process, Uri endpoint) {
         var recentMessages = string.Join(Environment.NewLine, _recentProcessMessages.ToArray());
         if (recentMessages.Contains("error while attempting to bind", StringComparison.OrdinalIgnoreCase) ||
-            recentMessages.Contains("only one usage of each socket address", StringComparison.OrdinalIgnoreCase))
-        {
+            recentMessages.Contains("only one usage of each socket address", StringComparison.OrdinalIgnoreCase)) {
             return new InvalidOperationException(
                 $"Port {endpoint.Port} is already in use, so the local processor could not bind to {endpoint}.{Environment.NewLine}{Environment.NewLine}Recent output:{Environment.NewLine}{recentMessages}".Trim());
         }
@@ -581,40 +496,33 @@ internal sealed class LocalProcessorService : ILocalProcessorService
         return new InvalidOperationException(message.Trim());
     }
 
-    private string BuildStartupTimeoutMessage(Uri endpoint)
-    {
+    private string BuildStartupTimeoutMessage(Uri endpoint) {
         var recentMessages = string.Join(Environment.NewLine, _recentProcessMessages.ToArray());
         return string.IsNullOrWhiteSpace(recentMessages)
             ? $"Timed out waiting for the local processor to start at {endpoint}."
             : $"Timed out waiting for the local processor to start at {endpoint}.{Environment.NewLine}{Environment.NewLine}Recent output:{Environment.NewLine}{recentMessages}";
     }
 
-    private static bool IsEndpointPortInUse(Uri endpoint)
-    {
-        if (!endpoint.IsLoopback)
-        {
+    private static bool IsEndpointPortInUse(Uri endpoint) {
+        if (!endpoint.IsLoopback) {
             return false;
         }
 
-        try
-        {
+        try {
             return IPGlobalProperties
                 .GetIPGlobalProperties()
                 .GetActiveTcpListeners()
                 .Any(listener => listener.Port == endpoint.Port && IsLoopbackOrAnyAddress(listener.Address));
         }
-        catch (SocketException)
-        {
+        catch (SocketException) {
             return false;
         }
-        catch (NetworkInformationException)
-        {
+        catch (NetworkInformationException) {
             return false;
         }
     }
 
-    private static bool IsLoopbackOrAnyAddress(IPAddress address)
-    {
+    private static bool IsLoopbackOrAnyAddress(IPAddress address) {
         return IPAddress.IsLoopback(address) ||
                address.Equals(IPAddress.Any) ||
                address.Equals(IPAddress.IPv6Any);

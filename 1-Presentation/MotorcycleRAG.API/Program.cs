@@ -52,6 +52,7 @@ public class Program {
         builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
         builder.Services.ConfigureJsonSerialization(builder.Environment.IsDevelopment());
         builder.Services.Configure<AppOptions>(configuration);
+        builder.Services.Configure<OnboardingOptions>(configuration.GetSection("Onboarding"));
 
         // 4. API Documentation & Connectivity
         builder.Services.AddApiDocumentation();

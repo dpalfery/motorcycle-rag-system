@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Threading.Tasks;
+using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.Contracts.Interfaces
 {
@@ -12,6 +14,16 @@ namespace MotorcycleRAG.Contracts.Interfaces
         /// </summary>
         /// <returns>User ID if authenticated, null otherwise</returns>
         string? UserId { get; }
+
+        /// <summary>
+        /// Gets the token issuer for the current user.
+        /// </summary>
+        string? Issuer { get; }
+
+        /// <summary>
+        /// Gets the stable subject for the current user.
+        /// </summary>
+        string? Subject { get; }
 
         /// <summary>
         /// Gets the current user's email from claims
@@ -50,6 +62,16 @@ namespace MotorcycleRAG.Contracts.Interfaces
         string? ProviderUserId { get; }
 
         /// <summary>
+        /// Gets the authorized party / calling client ID from claims.
+        /// </summary>
+        string? AuthorizedParty { get; }
+
+        /// <summary>
+        /// Gets the object ID for the current user when present.
+        /// </summary>
+        string? ObjectId { get; }
+
+        /// <summary>
         /// Checks if the current user has a specific role
         /// </summary>
         /// <param name="role">Role to check</param>
@@ -61,6 +83,16 @@ namespace MotorcycleRAG.Contracts.Interfaces
         /// </summary>
         /// <returns>Collection of claims</returns>
         IEnumerable<Claim> GetClaims();
+
+        /// <summary>
+        /// Resolves the current authenticated principal to an internal managed user ID when access is approved.
+        /// </summary>
+        Task<string?> GetManagedUserIdAsync();
+
+        /// <summary>
+        /// Resolves the current authenticated principal to an internal managed user when access is approved.
+        /// </summary>
+        Task<UserDTO?> GetManagedUserAsync();
 
         /// <summary>
         /// Checks if the current user is authenticated

@@ -102,6 +102,14 @@
                       Route="jobspage"/>
     </FlyoutItem>
 
+        <FlyoutItem Title="User Management"
+            Icon="tasks.png"
+            Route="usermanagement">
+        <ShellContent x:Name="UserManagementContent"
+                  Title="User Management"
+                  Route="usermanagementpage"/>
+        </FlyoutItem>
+
     <FlyoutItem Title="Web Sources"
                 Icon="globe.png"
                 Route="websources">

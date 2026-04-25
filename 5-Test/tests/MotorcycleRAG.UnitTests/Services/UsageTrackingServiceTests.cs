@@ -178,6 +178,36 @@ namespace MotorcycleRAG.UnitTests.Services {
         }
 
         [Fact]
+        public async Task SeedOnboardingAccessAsync_ValidRequest_UsesSeedRepositoryPath() {
+            // Arrange
+            var recordedUsage = new Usage {
+                Id = 42,
+                UserId = "user-1",
+                Endpoint = "/system/onboarding/seed",
+                HttpMethod = "POST",
+                QueryId = "onboarding-seed:req-1",
+                StatusCode = 201,
+                IsSuccess = true,
+                RequestTime = DateTime.UtcNow
+            };
+
+            _mockUsageRepository
+                .Setup(r => r.RecordSeedUsageAsync(It.IsAny<Usage>()))
+                .ReturnsAsync(recordedUsage);
+
+            // Act
+            var result = await _service.SeedOnboardingAccessAsync("user-1", "req-1");
+
+            // Assert
+            Assert.Equal("onboarding-seed:req-1", result.QueryId);
+            _mockUsageRepository.Verify(r => r.RecordSeedUsageAsync(It.Is<Usage>(u =>
+                u.UserId == "user-1"
+                && u.Endpoint == "/system/onboarding/seed"
+                && u.HttpMethod == "POST"
+                && u.QueryId == "onboarding-seed:req-1")), Times.Once);
+        }
+
+        [Fact]
         public async Task GetUsageByDateRangeAsync_ValidParameters_ReturnsUsageRecords() {
             // Arrange
             var userId = "user-1";

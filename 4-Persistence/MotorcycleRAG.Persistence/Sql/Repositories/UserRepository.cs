@@ -14,6 +14,25 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
     /// ADO.NET implementation of user repository
     /// </summary>
     public class UserRepository : IUserRepository {
+        private const string UserSelectColumns = @"
+                [Id],
+                [Email],
+                [DisplayName],
+                [FirstName],
+                [LastName],
+                [IsEnabled],
+                [CreatedDate],
+                [LastUpdatedDate],
+                [PlanId],
+                [TierLabel],
+                [AccessState],
+                [CancelledAtUtc],
+                [CancelledByUserId],
+                [CancelReason],
+                [AuthProvider],
+                [ProviderUserId],
+                sys.fn_varbintohexstr([RowVersion]) AS [RowVersion]";
+
         private readonly ISqlConnectionFactory _connectionFactory;
         private readonly ILogger<UserRepository> _logger;
 
@@ -35,16 +54,20 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         public async Task<UserDTO> CreateUserAsync(UserDTO user) {
             ArgumentNullException.ThrowIfNull(user);
 
-            const string sql = @"
+            var sql = $@"
                 INSERT INTO [dbo].[Users] (
                     [Id], [Email], [DisplayName], [FirstName], [LastName], [IsEnabled], 
-                    [CreatedDate], [LastUpdatedDate], [PlanId], [AuthProvider], [ProviderUserId]
+                    [CreatedDate], [LastUpdatedDate], [PlanId], [TierLabel], [AccessState],
+                    [CancelledAtUtc], [CancelledByUserId], [CancelReason], [AuthProvider], [ProviderUserId]
                 )
                 VALUES (
                     @Id, @Email, @DisplayName, @FirstName, @LastName, @IsEnabled,
-                    @CreatedDate, @LastUpdatedDate, @PlanId, @AuthProvider, @ProviderUserId
+                    @CreatedDate, @LastUpdatedDate, @PlanId, @TierLabel, @AccessState,
+                    @CancelledAtUtc, @CancelledByUserId, @CancelReason, @AuthProvider, @ProviderUserId
                 );
-                SELECT * FROM [dbo].[Users] WHERE [Id] = @Id;
+                SELECT {UserSelectColumns}
+                FROM [dbo].[Users]
+                WHERE [Id] = @Id;
             ";
 
             try {
@@ -70,8 +93,10 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
             }
 
-            const string sql = @"
-                SELECT * FROM [dbo].[Users] WHERE [Id] = @UserId;
+            var sql = $@"
+                SELECT {UserSelectColumns}
+                FROM [dbo].[Users]
+                WHERE [Id] = @UserId;
             ";
 
             try {
@@ -94,8 +119,10 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Email cannot be null or empty", nameof(email));
             }
 
-            const string sql = @"
-                SELECT * FROM [dbo].[Users] WHERE [Email] = @Email;
+            var sql = $@"
+                SELECT {UserSelectColumns}
+                FROM [dbo].[Users]
+                WHERE [Email] = @Email;
             ";
 
             try {
@@ -125,6 +152,11 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                     [IsEnabled] = @IsEnabled,
                     [LastUpdatedDate] = @LastUpdatedDate,
                     [PlanId] = @PlanId,
+                    [TierLabel] = @TierLabel,
+                    [AccessState] = @AccessState,
+                    [CancelledAtUtc] = @CancelledAtUtc,
+                    [CancelledByUserId] = @CancelledByUserId,
+                    [CancelReason] = @CancelReason,
                     [AuthProvider] = @AuthProvider,
                     [ProviderUserId] = @ProviderUserId
                 WHERE [Id] = @Id;
@@ -157,6 +189,11 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             const string sql = @"
                 UPDATE [dbo].[Users] SET
                     [IsEnabled] = @IsEnabled,
+                    [AccessState] = CASE
+                        WHEN @IsEnabled = 0 AND [AccessState] <> @CancelledState THEN @DisabledState
+                        WHEN @IsEnabled = 1 AND [AccessState] = @DisabledState THEN @ActiveState
+                        ELSE [AccessState]
+                    END,
                     [LastUpdatedDate] = @LastUpdatedDate
                 WHERE [Id] = @UserId;
             ";
@@ -166,6 +203,9 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 int rowsAffected = await connection.ExecuteAsync(sql, new {
                     UserId = userId,
                     IsEnabled = isEnabled,
+                    DisabledState = ManagedUserAccessState.Disabled.ToString(),
+                    CancelledState = ManagedUserAccessState.Cancelled.ToString(),
+                    ActiveState = ManagedUserAccessState.Active.ToString(),
                     LastUpdatedDate = DateTime.UtcNow
                 });
 
@@ -176,6 +216,85 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to set enabled status for user {UserId}", userId);
                 throw new InvalidOperationException($"Failed to set enabled status for user {userId}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Assigns a plan and tier label to a managed user.
+        /// </summary>
+        public async Task<bool> AssignTierAsync(string userId, string planId, TierLabel tierLabel) {
+            if (string.IsNullOrWhiteSpace(userId)) {
+                throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
+            }
+
+            if (string.IsNullOrWhiteSpace(planId)) {
+                throw new ArgumentException("Plan ID cannot be null or empty", nameof(planId));
+            }
+
+            const string sql = @"
+                UPDATE [dbo].[Users] SET
+                    [PlanId] = @PlanId,
+                    [TierLabel] = @TierLabel,
+                    [LastUpdatedDate] = @LastUpdatedDate
+                WHERE [Id] = @UserId;";
+
+            try {
+                using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+                var rowsAffected = await connection.ExecuteAsync(sql, new {
+                    UserId = userId,
+                    PlanId = planId,
+                    TierLabel = tierLabel.ToString(),
+                    LastUpdatedDate = DateTime.UtcNow
+                });
+
+                return rowsAffected > 0;
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Failed to assign tier {TierLabel} for user {UserId}", tierLabel, userId);
+                throw new InvalidOperationException($"Failed to assign tier for user {userId}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Updates the effective access state for a managed user.
+        /// </summary>
+        public async Task<bool> UpdateAccessStateAsync(
+            string userId,
+            ManagedUserAccessState accessState,
+            bool isEnabled,
+            string? cancelledByUserId,
+            string? cancelReason) {
+            if (string.IsNullOrWhiteSpace(userId)) {
+                throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
+            }
+
+            const string sql = @"
+                UPDATE [dbo].[Users] SET
+                    [AccessState] = @AccessState,
+                    [IsEnabled] = @IsEnabled,
+                    [CancelledAtUtc] = CASE WHEN @AccessState = @CancelledState THEN COALESCE([CancelledAtUtc], SYSUTCDATETIME()) ELSE NULL END,
+                    [CancelledByUserId] = CASE WHEN @AccessState = @CancelledState THEN @CancelledByUserId ELSE NULL END,
+                    [CancelReason] = CASE WHEN @AccessState = @CancelledState THEN @CancelReason ELSE NULL END,
+                    [LastUpdatedDate] = @LastUpdatedDate
+                WHERE [Id] = @UserId;";
+
+            try {
+                using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+                var rowsAffected = await connection.ExecuteAsync(sql, new {
+                    UserId = userId,
+                    AccessState = accessState.ToString(),
+                    IsEnabled = isEnabled,
+                    CancelledState = ManagedUserAccessState.Cancelled.ToString(),
+                    CancelledByUserId = cancelledByUserId,
+                    CancelReason = cancelReason,
+                    LastUpdatedDate = DateTime.UtcNow
+                });
+
+                return rowsAffected > 0;
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Failed to update access state {AccessState} for user {UserId}", accessState, userId);
+                throw new InvalidOperationException($"Failed to update access state for user {userId}", ex);
             }
         }
 
@@ -191,8 +310,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Page size must be at least 1", nameof(pageSize));
             }
 
-            const string sql = @"
-                SELECT *
+            var sql = $@"
+                SELECT {UserSelectColumns}
                 FROM [dbo].[Users]
                 ORDER BY [CreatedDate] DESC, [Id] ASC
                 OFFSET @Offset ROWS

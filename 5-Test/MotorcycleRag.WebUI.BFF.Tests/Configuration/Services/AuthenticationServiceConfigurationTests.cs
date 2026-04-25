@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -23,7 +24,8 @@ public class AuthenticationServiceConfigurationTests
                 { "AzureAd:Instance", "https://login.microsoftonline.com/" },
                 { "AzureAd:TenantId", "tenant-id" },
                 { "AzureAd:ClientId", "client-id" },
-                { "AzureAd:ClientSecret", "client-secret" }
+                { "AzureAd:ClientSecret", "client-secret" },
+                { "ReverseProxy:Clusters:api-cluster:Destinations:destination1:Address", "https://localhost:7215" }
             })
             .Build();
 
@@ -48,7 +50,8 @@ public class AuthenticationServiceConfigurationTests
                 { "AzureAd:Instance", "https://login.microsoftonline.com/" },
                 { "AzureAd:TenantId", "tenant-id" },
                 { "AzureAd:ClientId", "client-id" },
-                { "AzureAd:ClientSecret", "client-secret" }
+                { "AzureAd:ClientSecret", "client-secret" },
+                { "ReverseProxy:Clusters:api-cluster:Destinations:destination1:Address", "https://localhost:7215" }
             })
             .Build();
 
@@ -75,7 +78,8 @@ public class AuthenticationServiceConfigurationTests
                 { "AzureAd:Instance", "https://login.microsoftonline.com/" },
                 { "AzureAd:TenantId", "tenant-id" },
                 { "AzureAd:ClientId", "client-id" },
-                { "AzureAd:ClientSecret", "client-secret" }
+                { "AzureAd:ClientSecret", "client-secret" },
+                { "ReverseProxy:Clusters:api-cluster:Destinations:destination1:Address", "https://localhost:7215" }
             })
             .Build();
 
@@ -88,7 +92,31 @@ public class AuthenticationServiceConfigurationTests
         // Assert
         options.Authority.Should().Be("https://login.microsoftonline.com/tenant-id/v2.0");
         options.ClientId.Should().Be("client-id");
-        options.Scope.Should().Contain(new[] { "openid", "profile", "api://motorcyclerag-api/read", "api://motorcyclerag-api/chat" });
+        options.Scope.Should().Contain(new[] { "openid", "profile", "email", "api://motorcyclerag-api/read", "api://motorcyclerag-api/chat" });
         options.UsePkce.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AddBffAuthentication_RegistersApprovalStatusHttpClient()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "AzureAd:Instance", "https://login.microsoftonline.com/" },
+                { "AzureAd:TenantId", "tenant-id" },
+                { "AzureAd:ClientId", "client-id" },
+                { "AzureAd:ClientSecret", "client-secret" },
+                { "ReverseProxy:Clusters:api-cluster:Destinations:destination1:Address", "https://localhost:7215" }
+            })
+            .Build();
+
+        services.AddBffAuthentication(configuration);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+        using var client = httpClientFactory.CreateClient(AuthenticationServiceConfiguration.ApprovalStatusHttpClientName);
+
+        client.BaseAddress.Should().Be(new Uri("https://localhost:7215/"));
     }
 }

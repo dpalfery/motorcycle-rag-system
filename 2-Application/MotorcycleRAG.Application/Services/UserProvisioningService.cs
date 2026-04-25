@@ -11,6 +11,7 @@ namespace MotorcycleRAG.Application.Services {
     /// </summary>
     public class UserProvisioningService : IUserProvisioningService {
         private readonly IUserRepository _userRepository;
+        private readonly IUserIdentityRepository _userIdentityRepository;
         private readonly IPlanRepository _planRepository;
         private readonly ILogger<UserProvisioningService> _logger;
 
@@ -22,9 +23,11 @@ namespace MotorcycleRAG.Application.Services {
         /// <param name="logger">Logger</param>
         public UserProvisioningService(
             IUserRepository userRepository,
+            IUserIdentityRepository userIdentityRepository,
             IPlanRepository planRepository,
             ILogger<UserProvisioningService> logger) {
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+            _userIdentityRepository = userIdentityRepository ?? throw new ArgumentNullException(nameof(userIdentityRepository));
             _planRepository = planRepository ?? throw new ArgumentNullException(nameof(planRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -60,54 +63,115 @@ namespace MotorcycleRAG.Application.Services {
                 throw new ArgumentException("Auth provider cannot be null or empty", nameof(authProvider));
             }
 
-            // Try to find existing user by ID or email
-            var existingUser = await _userRepository.GetUserByIdAsync(userId)
-                            ?? await _userRepository.GetUserByEmailAsync(email);
+            var provider = ResolveIdentityProvider(authProvider);
+            var reconciledUser = await ReconcileApprovedUserAsync(
+                issuer: string.Empty,
+                subject: userId,
+                email: email,
+                displayName: displayName,
+                firstName: firstName,
+                lastName: lastName,
+                provider: provider,
+                providerUserId: providerUserId,
+                objectId: null);
 
-            if (existingUser != null) {
-                // Update existing user
-                _logger.LogInformation("Updating existing user {UserId} on login", existingUser.Id);
-                return await UpdateUserAsync(existingUser, email, displayName, firstName, lastName, authProvider, providerUserId);
+            if (reconciledUser == null) {
+                _logger.LogWarning("Rejected sign-in for unapproved user {Email}", email);
+                throw new InvalidOperationException("User must be approved before sign-in is allowed.");
             }
-            else {
-                // Create new user
-                _logger.LogInformation("Creating new user {UserId} on login", userId);
-                return await CreateUserAsync(userId, email, displayName, firstName, lastName, authProvider, providerUserId);
-            }
+
+            return reconciledUser;
         }
 
         /// <summary>
-        /// Creates a new user with default plan assignment
+        /// Resolves the approved internal managed-user ID for a provider-authenticated sign-in.
         /// </summary>
-        private async Task<UserDTO> CreateUserAsync(
-            string userId,
+        public async Task<string?> ResolveManagedUserIdAsync(
+            string issuer,
+            string subject,
+            string email,
+            IdentityProvider provider) {
+            if (string.IsNullOrWhiteSpace(email)) {
+                throw new ArgumentException("Email cannot be null or empty", nameof(email));
+            }
+
+            return await _userIdentityRepository.GetManagedUserIdAsync(issuer, subject, email, provider);
+        }
+
+        /// <summary>
+        /// Gets the approved managed user for a provider-authenticated sign-in.
+        /// </summary>
+        public async Task<UserDTO?> GetApprovedManagedUserAsync(
+            string issuer,
+            string subject,
+            string email,
+            IdentityProvider provider) {
+            var managedUserId = await ResolveManagedUserIdAsync(issuer, subject, email, provider);
+            if (string.IsNullOrWhiteSpace(managedUserId)) {
+                _logger.LogInformation(
+                    "No approved managed user found for provider-authenticated sign-in {Provider}/{Email}",
+                    provider,
+                    email);
+                return null;
+            }
+
+            var user = await _userRepository.GetUserByIdAsync(managedUserId);
+            return IsUserAllowedToSignIn(user) ? user : null;
+        }
+
+        /// <summary>
+        /// Reconciles an approved or legacy active user with provider identity claims without creating a new user.
+        /// </summary>
+        public async Task<UserDTO?> ReconcileApprovedUserAsync(
+            string issuer,
+            string subject,
             string email,
             string? displayName,
             string? firstName,
             string? lastName,
-            string authProvider,
-            string? providerUserId) {
-            // Get default plan (typically a free tier)
-            var defaultPlan = await _planRepository.GetPlanByNameAsync("Free")
-                           ?? await _planRepository.GetPlanByNameAsync("Basic");
+            IdentityProvider provider,
+            string? providerUserId,
+            string? objectId) {
+            if (string.IsNullOrWhiteSpace(email)) {
+                throw new ArgumentException("Email cannot be null or empty", nameof(email));
+            }
 
-            var newUser = new UserDTO {
-                Id = userId,
-                Email = email,
-                DisplayName = displayName ?? email.Split('@')[0],
-                FirstName = firstName ?? string.Empty,
-                LastName = lastName ?? string.Empty,
-                IsEnabled = true,
-                CreatedDate = DateTime.UtcNow,
-                LastUpdatedDate = DateTime.UtcNow,
-                PlanId = defaultPlan?.Id ?? string.Empty,
-                AuthProvider = authProvider,
-                ProviderUserId = providerUserId ?? userId
-            };
+            var approvedUser = await GetApprovedManagedUserAsync(issuer, subject, email, provider)
+                ?? await GetSameProviderEmailFallbackUserAsync(email, provider);
 
-            var createdUser = await _userRepository.CreateUserAsync(newUser);
-            _logger.LogInformation("Created new user {UserId} with plan {PlanId}", createdUser.Id, createdUser.PlanId);
-            return createdUser;
+            if (!IsUserAllowedToSignIn(approvedUser)) {
+                return null;
+            }
+
+            var user = await UpdateUserAsync(
+                approvedUser!,
+                email,
+                displayName,
+                firstName,
+                lastName,
+                provider.ToString(),
+                providerUserId);
+
+            var identityLinkSaved = await _userIdentityRepository.UpsertAsync(
+                user.Id,
+                provider,
+                email,
+                string.IsNullOrWhiteSpace(issuer) ? null : issuer,
+                string.IsNullOrWhiteSpace(subject) ? null : subject,
+                providerUserId,
+                objectId);
+
+            if (!identityLinkSaved) {
+                _logger.LogWarning("Identity link was not updated for approved user {UserId}", user.Id);
+            }
+
+            if (user.AccessState == ManagedUserAccessState.None && user.IsEnabled) {
+                user.AccessState = ManagedUserAccessState.Active;
+                user.LastUpdatedDate = DateTime.UtcNow;
+                await _userRepository.UpdateUserAsync(user);
+            }
+
+            return user;
         }
 
         /// <summary>
@@ -169,6 +233,52 @@ namespace MotorcycleRAG.Application.Services {
             }
 
             return existingUser;
+        }
+
+        private async Task<UserDTO?> GetSameProviderEmailFallbackUserAsync(string email, IdentityProvider provider) {
+            var existingUser = await _userRepository.GetUserByEmailAsync(email);
+            if (existingUser == null) {
+                return null;
+            }
+
+            if (!IsUserAllowedToSignIn(existingUser)) {
+                return null;
+            }
+
+            if (!MatchesProvider(existingUser.AuthProvider, provider)) {
+                _logger.LogWarning(
+                    "Blocked sign-in for {Email} because the authenticated provider {Provider} does not match the approved provider {ApprovedProvider}",
+                    email,
+                    provider,
+                    existingUser.AuthProvider);
+                return null;
+            }
+
+            return existingUser;
+        }
+
+        private static bool IsUserAllowedToSignIn(UserDTO? user) {
+            return user != null
+                && user.IsEnabled
+                && user.AccessState != ManagedUserAccessState.Cancelled
+                && user.AccessState != ManagedUserAccessState.Disabled;
+        }
+
+        private static bool MatchesProvider(string? authProvider, IdentityProvider provider) {
+            if (string.IsNullOrWhiteSpace(authProvider)) {
+                return false;
+            }
+
+            var isGoogleProvider = authProvider.Contains("google", StringComparison.OrdinalIgnoreCase);
+            return provider == IdentityProvider.Google ? isGoogleProvider : !isGoogleProvider;
+        }
+
+        private static IdentityProvider ResolveIdentityProvider(string authProvider) {
+            if (!string.IsNullOrWhiteSpace(authProvider) && authProvider.Contains("google", StringComparison.OrdinalIgnoreCase)) {
+                return IdentityProvider.Google;
+            }
+
+            return IdentityProvider.Microsoft;
         }
     }
 }

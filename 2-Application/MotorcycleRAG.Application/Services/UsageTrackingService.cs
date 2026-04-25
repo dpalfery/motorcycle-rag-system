@@ -10,6 +10,9 @@ namespace MotorcycleRAG.Application.Services {
     /// Service for tracking API usage through repository calls
     /// </summary>
     public class UsageTrackingService : IUsageTrackingService {
+        private const string OnboardingSeedEndpoint = "/system/onboarding/seed";
+        private const string OnboardingSeedMethod = "POST";
+
         private readonly IUsageRepository _usageRepository;
         private readonly ILogger<UsageTrackingService> _logger;
 
@@ -117,6 +120,38 @@ namespace MotorcycleRAG.Application.Services {
                 statusCode: statusCode,
                 callerIp: callerIp,
                 userAgent: userAgent);
+        }
+
+        /// <summary>
+        /// Ensures the initial approval-time usage seed exists for the managed user.
+        /// </summary>
+        public async Task<Usage> SeedOnboardingAccessAsync(string userId, string accessRequestId) {
+            if (string.IsNullOrWhiteSpace(userId)) {
+                throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
+            }
+
+            if (string.IsNullOrWhiteSpace(accessRequestId)) {
+                throw new ArgumentException("Access request ID cannot be null or empty", nameof(accessRequestId));
+            }
+
+            var usage = new Usage {
+                UserId = userId,
+                Endpoint = OnboardingSeedEndpoint,
+                HttpMethod = OnboardingSeedMethod,
+                QueryId = $"onboarding-seed:{accessRequestId}",
+                RequestTime = DateTime.UtcNow,
+                DurationMs = 0,
+                StatusCode = 201,
+                IsSuccess = true
+            };
+
+            var recordedUsage = await _usageRepository.RecordSeedUsageAsync(usage);
+            _logger.LogInformation(
+                "Ensured onboarding usage seed for user {UserId} and access request {AccessRequestId}",
+                userId,
+                accessRequestId);
+
+            return recordedUsage;
         }
 
         /// <summary>

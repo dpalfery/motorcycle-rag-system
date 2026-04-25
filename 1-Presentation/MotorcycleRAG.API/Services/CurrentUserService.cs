@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs;
 
 
 namespace MotorcycleRAG.API.Services;
@@ -16,6 +17,7 @@ namespace MotorcycleRAG.API.Services;
 public class CurrentUserService : ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IUserProvisioningService _userProvisioningService;
     private readonly ILogger<CurrentUserService> _logger;
 
     /// <summary>
@@ -23,9 +25,13 @@ public class CurrentUserService : ICurrentUserService
     /// </summary>
     /// <param name="httpContextAccessor">HTTP context accessor</param>
     /// <param name="logger">Logger</param>
-    public CurrentUserService(IHttpContextAccessor httpContextAccessor, ILogger<CurrentUserService> logger)
+    public CurrentUserService(
+        IHttpContextAccessor httpContextAccessor,
+        IUserProvisioningService userProvisioningService,
+        ILogger<CurrentUserService> logger)
     {
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
+        _userProvisioningService = userProvisioningService ?? throw new ArgumentNullException(nameof(userProvisioningService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -33,6 +39,16 @@ public class CurrentUserService : ICurrentUserService
     /// Gets the current user's ID from claims
     /// </summary>
     public string? UserId => GetClaimValue(ClaimTypes.NameIdentifier) ?? GetClaimValue("sub");
+
+    /// <summary>
+    /// Gets the current token issuer from claims.
+    /// </summary>
+    public string? Issuer => GetClaimValue("iss");
+
+    /// <summary>
+    /// Gets the current user's stable subject from claims.
+    /// </summary>
+    public string? Subject => GetClaimValue("sub") ?? GetClaimValue(ClaimTypes.NameIdentifier);
 
     /// <summary>
     /// Gets the current user's email from claims
@@ -63,6 +79,16 @@ public class CurrentUserService : ICurrentUserService
     /// Gets the provider-specific user ID from claims
     /// </summary>
     public string? ProviderUserId => GetClaimValue("oid") ?? GetClaimValue("sub");
+
+    /// <summary>
+    /// Gets the authorized party / calling client ID from claims.
+    /// </summary>
+    public string? AuthorizedParty => GetClaimValue("azp") ?? GetClaimValue("appid");
+
+    /// <summary>
+    /// Gets the Entra object ID from claims when present.
+    /// </summary>
+    public string? ObjectId => GetClaimValue("oid");
 
     /// <summary>
     /// Checks if the current user is authenticated
@@ -118,6 +144,44 @@ public class CurrentUserService : ICurrentUserService
     }
 
     /// <summary>
+    /// Resolves the current authenticated principal to an internal managed user ID when access is approved.
+    /// </summary>
+    public async Task<string?> GetManagedUserIdAsync()
+    {
+        var user = await GetManagedUserAsync();
+        return user?.Id;
+    }
+
+    /// <summary>
+    /// Resolves the current authenticated principal to an internal managed user when access is approved.
+    /// </summary>
+    public async Task<UserDTO?> GetManagedUserAsync()
+    {
+        if (!IsAuthenticated)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(Email))
+        {
+            _logger.LogWarning("Unable to resolve managed user because email claim is missing for subject {Subject}", Subject);
+            return null;
+        }
+
+        var provider = ResolveIdentityProvider();
+        return await _userProvisioningService.ReconcileApprovedUserAsync(
+            Issuer ?? string.Empty,
+            Subject ?? string.Empty,
+            Email,
+            DisplayName,
+            FirstName,
+            LastName,
+            provider,
+            ProviderUserId,
+            ObjectId);
+    }
+
+    /// <summary>
     /// Helper method to get a claim value by type
     /// </summary>
     /// <param name="claimType">Type of claim to retrieve</param>
@@ -132,6 +196,17 @@ public class CurrentUserService : ICurrentUserService
 
         var claim = user.FindFirst(claimType);
         return claim?.Value;
+    }
+
+    private IdentityProvider ResolveIdentityProvider()
+    {
+        var providerHint = AuthProvider ?? string.Empty;
+        if (providerHint.Contains("google", StringComparison.OrdinalIgnoreCase))
+        {
+            return IdentityProvider.Google;
+        }
+
+        return IdentityProvider.Microsoft;
     }
 }
 

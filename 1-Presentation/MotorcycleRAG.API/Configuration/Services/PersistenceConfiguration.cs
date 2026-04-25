@@ -6,6 +6,7 @@ using MotorcycleRAG.Persistence.Sql.Repositories;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Persistence.Resilience;
 using MotorcycleRAG.Persistence.Azure;
+using MotorcycleRAG.Persistence.Notifications;
 
 namespace MotorcycleRAG.API.Configuration.Services;
 
@@ -34,10 +35,15 @@ internal static class PersistenceConfiguration
         // Register repository implementations
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUsageRepository, UsageRepository>();
+        services.AddScoped<IAccessRequestRepository, AccessRequestRepository>();
+        services.AddScoped<IUserIdentityRepository, UserIdentityRepository>();
+        services.AddScoped<IUserManagementQueryRepository, UserManagementQueryRepository>();
         services.AddScoped<IWebSourceRepository, WebSourceRepository>();
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<IWebScrapeRunRepository, WebScrapeRunRepository>();
         services.AddScoped<IPlanRepository, PlanRepository>();
+        services.AddScoped<IApproverNotificationService, ApproverNotificationService>();
+        services.AddScoped<IExternalIdentityProvisioningService, ExternalIdentityProvisioningService>();
 
         // Register application services
         services.AddScoped<WebSourceRegistryService>();

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using System.Linq;
 
 namespace MotorcycleRag.WebUI.BFF.Configuration.Services;
 
@@ -9,10 +10,22 @@ namespace MotorcycleRag.WebUI.BFF.Configuration.Services;
 /// </summary>
 internal static class AuthenticationServiceConfiguration
 {
+    internal const string ApprovalStatusHttpClientName = "bff-approval-status";
+
     public static IServiceCollection AddBffAuthentication(
         this IServiceCollection services, 
         IConfiguration configuration)
     {
+        var apiClusterAddress = GetApiClusterAddress(configuration);
+
+        services.AddHttpClient(ApprovalStatusHttpClientName, client =>
+        {
+            if (apiClusterAddress != null)
+            {
+                client.BaseAddress = apiClusterAddress;
+            }
+        });
+
         services.AddAuthentication(options =>
         {
             options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
@@ -48,6 +61,7 @@ internal static class AuthenticationServiceConfiguration
             options.SaveTokens = true;
             options.Scope.Add("openid");
             options.Scope.Add("profile");
+            options.Scope.Add("email");
             options.Scope.Add("offline_access"); // Request refresh token
             
             // API scopes
@@ -94,5 +108,22 @@ internal static class AuthenticationServiceConfiguration
         });
 
         return services;
+    }
+
+    private static Uri? GetApiClusterAddress(IConfiguration configuration)
+    {
+        var destinations = configuration.GetSection("ReverseProxy:Clusters:api-cluster:Destinations").GetChildren();
+        var address = destinations
+            .Select(destination => destination["Address"])
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        return uri.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
+            ? uri
+            : new Uri($"{uri.AbsoluteUri}/", UriKind.Absolute);
     }
 }

@@ -89,6 +89,38 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program> {
             services.AddHttpContextAccessor();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
 
+            var userProvisioning = new Mock<IUserProvisioningService>();
+            userProvisioning
+                .Setup(service => service.ResolveManagedUserIdAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IdentityProvider>()))
+                .ReturnsAsync((string?)null);
+            userProvisioning
+                .Setup(service => service.GetApprovedManagedUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IdentityProvider>()))
+                .ReturnsAsync((UserDTO?)null);
+            userProvisioning
+                .Setup(service => service.ReconcileApprovedUserAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<IdentityProvider>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<string?>()))
+                .ReturnsAsync((string issuer, string subject, string email, string? displayName, string? firstName, string? lastName, IdentityProvider provider, string? providerUserId, string? objectId) => new UserDTO {
+                    Id = string.IsNullOrWhiteSpace(subject) ? email : subject,
+                    Email = email,
+                    DisplayName = displayName ?? email,
+                    FirstName = firstName ?? string.Empty,
+                    LastName = lastName ?? string.Empty,
+                    IsEnabled = true,
+                    AccessState = ManagedUserAccessState.Active,
+                    PlanId = "free-plan",
+                    AuthProvider = provider.ToString(),
+                    ProviderUserId = providerUserId ?? subject
+                });
+            services.AddSingleton(userProvisioning.Object);
+
             // Provide safe default mocks for services that otherwise require SQL persistence.
             // Individual tests may override these with their own registrations.
             var userRepo = new Mock<IUserRepository>();
@@ -130,6 +162,17 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program> {
                     It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
                     It.IsAny<string?>(), It.IsAny<long>(), It.IsAny<string?>(), It.IsAny<string?>()))
                 .ReturnsAsync(new Usage { Id = 1, IsSuccess = false, StatusCode = 500 });
+            usageTracking.Setup(s => s.SeedOnboardingAccessAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ReturnsAsync((string userId, string accessRequestId) => new Usage {
+                    Id = 1,
+                    UserId = userId,
+                    Endpoint = "/system/onboarding/seed",
+                    HttpMethod = "POST",
+                    QueryId = $"onboarding-seed:{accessRequestId}",
+                    RequestTime = DateTime.UtcNow,
+                    StatusCode = 201,
+                    IsSuccess = true
+                });
             services.AddSingleton(usageTracking.Object);
 
             var planPolicy = new Mock<IPlanPolicyService>();

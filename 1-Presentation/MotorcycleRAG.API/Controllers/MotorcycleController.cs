@@ -44,6 +44,7 @@ public sealed class MotorcycleController : ControllerBase {
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(MotorcycleQueryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> QueryAsync([FromBody] MotorcycleQueryRequest request) {
         ArgumentNullException.ThrowIfNull(request);
@@ -51,10 +52,15 @@ public sealed class MotorcycleController : ControllerBase {
         // The [ApiController] attribute automatically validates the model state and returns 400 if invalid.
 
         // Get current user
-        var userId = _currentUserService.UserId;
-        if (string.IsNullOrWhiteSpace(userId)) {
+        if (!_currentUserService.IsAuthenticated) {
             _logger.LogWarning("Query attempt without authenticated user");
             return Unauthorized(new { error = "Authentication required" });
+        }
+
+        var userId = await _currentUserService.GetManagedUserIdAsync();
+        if (string.IsNullOrWhiteSpace(userId)) {
+            _logger.LogWarning("Authenticated principal does not resolve to an approved managed user for query access");
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access has not been approved for this account" });
         }
 
         // Check daily request limit

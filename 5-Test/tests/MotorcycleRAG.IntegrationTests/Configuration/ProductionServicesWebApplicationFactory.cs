@@ -5,9 +5,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Moq;
 using MotorcycleRAG.API;
 using MotorcycleRAG.API.Services;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.IntegrationTests.Configuration;
 
@@ -77,6 +79,39 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
 
             services.AddHttpContextAccessor();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+            var userProvisioning = new Mock<IUserProvisioningService>();
+            userProvisioning
+                .Setup(service => service.ResolveManagedUserIdAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IdentityProvider>()))
+                .ReturnsAsync((string?)null);
+            userProvisioning
+                .Setup(service => service.GetApprovedManagedUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IdentityProvider>()))
+                .ReturnsAsync((UserDTO?)null);
+            userProvisioning
+                .Setup(service => service.ReconcileApprovedUserAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<IdentityProvider>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<string?>()))
+                .ReturnsAsync((string issuer, string subject, string email, string? displayName, string? firstName, string? lastName, IdentityProvider provider, string? providerUserId, string? objectId) => new UserDTO
+                {
+                    Id = string.IsNullOrWhiteSpace(subject) ? email : subject,
+                    Email = email,
+                    DisplayName = displayName ?? email,
+                    FirstName = firstName ?? string.Empty,
+                    LastName = lastName ?? string.Empty,
+                    IsEnabled = true,
+                    AccessState = ManagedUserAccessState.Active,
+                    PlanId = "free-plan",
+                    AuthProvider = provider.ToString(),
+                    ProviderUserId = providerUserId ?? subject
+                });
+            services.AddSingleton(userProvisioning.Object);
         });
     }
 

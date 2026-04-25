@@ -44,6 +44,31 @@ namespace MotorcycleRAG.Contracts.Interfaces {
         Task<bool> SetUserEnabledStatusAsync(string userId, bool isEnabled);
 
         /// <summary>
+        /// Assigns a plan and tier label to a managed user.
+        /// </summary>
+        /// <param name="userId">Managed user ID</param>
+        /// <param name="planId">Mapped internal plan ID</param>
+        /// <param name="tierLabel">User-facing tier label</param>
+        /// <returns>True if successful, false otherwise</returns>
+        Task<bool> AssignTierAsync(string userId, string planId, TierLabel tierLabel);
+
+        /// <summary>
+        /// Updates the effective access state for a managed user.
+        /// </summary>
+        /// <param name="userId">Managed user ID</param>
+        /// <param name="accessState">New access state</param>
+        /// <param name="isEnabled">Whether the account should remain enabled</param>
+        /// <param name="cancelledByUserId">Cancelling internal user ID when applicable</param>
+        /// <param name="cancelReason">Cancellation reason when applicable</param>
+        /// <returns>True if successful, false otherwise</returns>
+        Task<bool> UpdateAccessStateAsync(
+            string userId,
+            ManagedUserAccessState accessState,
+            bool isEnabled,
+            string? cancelledByUserId,
+            string? cancelReason);
+
+        /// <summary>
         /// Gets a paged set of users for administrative views
         /// </summary>
         /// <param name="page">1-based page number</param>

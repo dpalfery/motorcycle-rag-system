@@ -45,13 +45,14 @@ Preferred local path: use the existing VS Code launch profile `Admin + API (Wind
 1. Open the WebUI login page.
 2. Confirm the existing sign-in path is still present.
 3. Submit a new access request with provider `Microsoft` or `Google` and a valid email.
-4. Verify the request is accepted and duplicate re-submission for the same `provider + email` pair is prevented.
-5. Verify the request becomes visible in the admin user-management list within 1 minute of `POST /api/access-requests` returning `202`.
+4. Verify the request is accepted, the login-page access-request panel shows `PendingReview`, and duplicate re-submission for the same `provider + email` pair is prevented.
+5. Re-enter the same provider and email and verify the same panel returns the current requester-visible status instead of creating another pending request.
+6. Verify the request becomes visible in the admin user-management list within 1 minute of `POST /api/access-requests` returning `202`.
 
 ### Scenario 2: Approve From The Unified Admin Management Table
 
 1. Sign into the Admin app with a user that satisfies the existing admin authorization policy.
-2. Open the user-management view and verify one table shows both pending requests and existing managed users.
+2. Open the user-management view and verify one table shows both pending requests and existing managed users, including the provider for each row so same-email requests across providers remain distinguishable.
 3. Locate the pending request row and assign one of the supported tiers: `trial`, `road runner`, or `admin`.
 4. Approve the request.
 5. Verify the row transitions through onboarding and finishes in an active state.
@@ -60,11 +61,11 @@ Preferred local path: use the existing VS Code launch profile `Admin + API (Wind
 ### Scenario 3: Complete First Sign-In After Approval
 
 1. Use the provider chosen in the original request to sign in through the WebUI.
-2. Verify protected application access succeeds.
+2. Verify protected application access succeeds for the protected WebUI session, `/api/me`, and motorcycle query access.
 3. Verify `/api/me` resolves the approved user profile via the internal identity mapping rather than failing with `User not found`.
 4. Verify the resulting identity presented to the BFF and API includes the minimum claims contract used by this feature: `iss`, `sub`, `email`, `name`, `oid` when present, plus `azp`, `scp`, and `roles` where applicable.
 5. Verify the resulting access level matches the approved tier mapping.
-5. Verify the time from approval recorded to first successful protected API access remains within the SC-002 target.
+6. Verify the time from approval recorded to first successful protected API access remains within the SC-002 target.
 
 ### Scenario 4: Move Tier Or Cancel From The Same Admin Table
 
@@ -78,9 +79,16 @@ Preferred local path: use the existing VS Code launch profile `Admin + API (Wind
 ### Scenario 5: Retry A Failed Onboarding Attempt
 
 1. Force or simulate a provisioning failure after the approval decision is recorded.
-2. Verify the request lands in `OnboardingFailed` without losing the tier assignment.
+2. Verify the request lands in `OnboardingFailed` without losing the tier assignment and that the failure stage is visible for admin diagnosis.
 3. Retry onboarding from the admin surface.
 4. Verify the retry is idempotent and ends in `Completed` without duplicate users or duplicate identity links.
+
+### Scenario 6: Decline Or Notification Degradation Behavior
+
+1. Cancel a pending request from the admin surface and verify this acts as the decline path for the request.
+2. Re-enter the same provider and email on the login page and verify the requester-visible status is `Cancelled` until a fresh request is created.
+3. Simulate notification-delivery failure for a newly accepted request.
+4. Verify the request remains pending, the admin surface shows degraded notification state with correlation data, and the requester still sees `PendingReview` rather than a prompt to resubmit.
 
 ## Suggested Automated Validation
 

@@ -8,61 +8,61 @@
 
 ## Requirement Completeness
 
-- [ ] CHK001 Are requirements defined for how a requester can view the status of an existing pending request beyond the duplicate-submission case? [Gap, Spec §User Story 1, Spec §FR-004]
-- [ ] CHK002 Are rejection requirements explicitly documented, including who can reject, what states follow rejection, and what the requester is told? [Gap, Data Model §AccessRequest]
-- [ ] CHK003 Are requirements defined for re-request behavior when the same provider and email already belong to an approved or disabled managed user? [Gap, Spec §Edge Cases]
-- [ ] CHK004 Are requirements defined for concurrent admin actions on the same access request so approval, retry, or rejection cannot conflict silently? [Gap]
+- [x] CHK001 Are requirements defined for how a requester can view the status of an existing pending request beyond the duplicate-submission case? [Addressed: Spec §Clarifications, Spec §User Story 1, Spec §FR-024, Contract §PublicAccessRequestResponse]
+- [x] CHK002 Are rejection requirements explicitly documented, including who can reject, what states follow rejection, and what the requester is told? [Addressed: Spec §Clarifications, Spec §FR-026, Quickstart §Scenario 6]
+- [x] CHK003 Are requirements defined for re-request behavior when the same provider and email already belong to an approved or disabled managed user? [Addressed: Spec §Clarifications, Spec §FR-027, Data Model §AccessRequest]
+- [x] CHK004 Are requirements defined for concurrent admin actions on the same access request so approval, retry, or rejection cannot conflict silently? [Addressed: Spec §FR-023, Contract expectedRowVersion fields]
 
 ## Requirement Clarity
 
-- [ ] CHK005 Is the phrase "show the current request status" defined with specific user-visible states and where they appear in the login experience? [Clarity, Spec §User Story 1]
-- [ ] CHK006 Are the "required claims" for Entra external identity registration explicitly named or referenced so provisioning scope is not left open-ended? [Ambiguity, Spec §User Story 3, Spec §FR-011]
-- [ ] CHK007 Is "protected application access" defined clearly enough to determine which surfaces remain blocked for pending, rejected, and failed-onboarding users? [Clarity, Spec §FR-015]
-- [ ] CHK008 Is the timing phrase "before first sign-in" defined precisely enough to distinguish approval-time provisioning from first-login profile reconciliation? [Clarity, Spec §FR-010, Spec §FR-011]
+- [x] CHK005 Is the phrase "show the current request status" defined with specific user-visible states and where they appear in the login experience? [Addressed: Spec §Clarifications, Spec §FR-024, Quickstart §Scenario 1]
+- [x] CHK006 Are the "required claims" for Entra external identity registration explicitly named or referenced so provisioning scope is not left open-ended? [Addressed: Spec §Required Claims Contract, Data Model §UserIdentityLink]
+- [x] CHK007 Is "protected application access" defined clearly enough to determine which surfaces remain blocked for pending, rejected, and failed-onboarding users? [Addressed: Spec §FR-018, Spec §SC-005, Quickstart §Scenario 3]
+- [x] CHK008 Is the timing phrase "before first sign-in" defined precisely enough to distinguish approval-time provisioning from first-login profile reconciliation? [Addressed: Spec §Clarifications, User Story 3 acceptance scenarios, Plan §Application Services]
 
 ## Requirement Consistency
 
-- [ ] CHK009 Are request-status requirements consistent between the spec's edge cases, the data model state list, and the functional requirements? [Consistency, Spec §Edge Cases, Spec §FR-013, Data Model §Recommended State Model]
-- [ ] CHK010 Are tier requirements consistent between the user-facing labels `trial`, `road runner`, `admin` and the existing entitlement artifacts the plan says will remain in place? [Consistency, Spec §FR-008, Research D5]
-- [ ] CHK011 Are provider-identity requirements consistent between `provider + email` uniqueness for requests and the separate internal user identity requirement for managed users? [Consistency, Spec §FR-016, Spec §FR-017, Data Model §UserIdentityLink]
-- [ ] CHK012 Are onboarding-failure requirements consistent about whether approval is considered complete before or only after provisioning succeeds? [Consistency, Spec §FR-013, Spec §FR-014, Spec §User Story 3]
+- [x] CHK009 Are request-status requirements consistent between the spec's edge cases, the data model state list, and the functional requirements? [Addressed: Spec §Lifecycle State Vocabulary, Spec §FR-024, Data Model §Recommended State Model]
+- [x] CHK010 Are tier requirements consistent between the user-facing labels `trial`, `road runner`, `admin` and the existing entitlement artifacts the plan says will remain in place? [Addressed: Spec §FR-022, Data Model §TierAssignment, Research D5]
+- [x] CHK011 Are provider-identity requirements consistent between `provider + email` uniqueness for requests and the separate internal user identity requirement for managed users? [Addressed: Spec §FR-019, §FR-020, Data Model §UserIdentityLink]
+- [x] CHK012 Are onboarding-failure requirements consistent about whether approval is considered complete before or only after provisioning succeeds? [Addressed: Spec §FR-013, §FR-017, User Story 3 acceptance scenarios]
 
 ## Acceptance Criteria Quality
 
-- [ ] CHK013 Are the success criteria measurable enough to verify what counts as "reflected in the admin review list within 1 minute" and which system timestamps define that interval? [Acceptance Criteria, Spec §SC-001]
-- [ ] CHK014 Is the requirement that admins complete approval "in under 2 minutes for standard cases" bounded by clear start and end events? [Acceptance Criteria, Spec §SC-003]
-- [ ] CHK015 Can the requirement that 100% of rejected, pending, or failed-onboarding users remain blocked from protected features be objectively verified against a defined access surface list? [Measurability, Spec §SC-005, Spec §FR-015]
+- [x] CHK013 Are the success criteria measurable enough to verify what counts as "reflected in the admin review list within 1 minute" and which system timestamps define that interval? [Addressed: Spec §SC-001]
+- [x] CHK014 Is the requirement that admins complete approval "in under 2 minutes for standard cases" bounded by clear start and end events? [Addressed: Spec §SC-003]
+- [x] CHK015 Can the requirement that 100% of rejected, pending, or failed-onboarding users remain blocked from protected features be objectively verified against a defined access surface list? [Addressed: Spec §FR-018, §SC-005]
 
 ## Scenario Coverage
 
-- [ ] CHK016 Are requirements documented for the full primary flow from request submission through approval, provisioning, and first successful sign-in? [Coverage, Spec §User Story 1, Spec §User Story 2, Spec §User Story 3]
-- [ ] CHK017 Are alternate-flow requirements defined for same-email requests submitted through different providers and how admins distinguish them during review? [Coverage, Spec §User Story 1, Spec §FR-016]
-- [ ] CHK018 Are exception-flow requirements defined for approval-time provisioning failures at each major stage, not just the final failed-onboarding state? [Coverage, Spec §FR-013, Data Model §OnboardingAttempt]
-- [ ] CHK019 Are recovery-flow requirements defined for what a successful retry must preserve or must not duplicate in managed-user, identity-link, and usage-tracking data? [Coverage, Spec §FR-014, Data Model §UsageSeedRecord, Data Model §UserIdentityLink]
+- [x] CHK016 Are requirements documented for the full primary flow from request submission through approval, provisioning, and first successful sign-in? [Addressed: Spec §User Story 1, §User Story 2, §User Story 3, Quickstart]
+- [x] CHK017 Are alternate-flow requirements defined for same-email requests submitted through different providers and how admins distinguish them during review? [Addressed: Spec §User Story 2 scenario 1, Edge Cases, Data Model §UserManagementRow]
+- [x] CHK018 Are exception-flow requirements defined for approval-time provisioning failures at each major stage, not just the final failed-onboarding state? [Addressed: Spec §FR-029, Edge Cases, Data Model §OnboardingAttempt]
+- [x] CHK019 Are recovery-flow requirements defined for what a successful retry must preserve or must not duplicate in managed-user, identity-link, and usage-tracking data? [Addressed: Spec §FR-017, Data Model §UsageSeedRecord, §UserIdentityLink, Quickstart §Scenario 5]
 
 ## Edge Case Coverage
 
-- [ ] CHK020 Is the notification-outage edge case specified with required admin/requester-visible behavior when the approver email destination is unavailable? [Edge Case, Spec §Edge Cases, Spec §FR-005]
-- [ ] CHK021 Are requirements defined for what happens when a requester tries first sign-in with a different provider than the one approved? [Edge Case, Spec §Edge Cases, Spec §FR-012, Spec §FR-016]
-- [ ] CHK022 Are requirements defined for how the admin app should present multiple requests for the same email across providers while preserving one internal user identity per onboarded user? [Edge Case, Spec §Edge Cases, Spec §FR-017]
-- [ ] CHK023 Are requirements defined for revoked or disabled users re-requesting access, including whether prior identity links, tiers, or audit history are reused? [Gap, Spec §Edge Cases]
+- [x] CHK020 Is the notification-outage edge case specified with required admin/requester-visible behavior when the approver email destination is unavailable? [Addressed: Spec §Edge Cases, §FR-031, Quickstart §Scenario 6]
+- [x] CHK021 Are requirements defined for what happens when a requester tries first sign-in with a different provider than the one approved? [Addressed: Spec §User Story 3 acceptance scenario 3, Quickstart §Scenario 3]
+- [x] CHK022 Are requirements defined for how the admin app should present multiple requests for the same email across providers while preserving one internal user identity per onboarded user? [Addressed: Spec §User Story 2 scenario 1, Edge Cases, Data Model §UserManagementRow]
+- [x] CHK023 Are requirements defined for revoked or disabled users re-requesting access, including whether prior identity links, tiers, or audit history are reused? [Addressed: Spec §Clarifications, §FR-027, Data Model §AccessRequest]
 
 ## Non-Functional Requirements
 
-- [ ] CHK024 Are anti-automation and rate-limiting requirements specified for the anonymous access-request endpoint, rather than only implied by the implementation plan? [Gap, Plan §Technical Context]
-- [ ] CHK025 Are observability requirements specific enough to define which onboarding transitions, retries, and external-identity failures must be logged or correlated? [Completeness, Spec §Constitution Alignment, Spec §FR-013]
-- [ ] CHK026 Are privacy and data-retention requirements defined for pending access requests, notification metadata, and failed-onboarding records? [Gap]
+- [x] CHK024 Are anti-automation and rate-limiting requirements specified for the anonymous access-request endpoint, rather than only implied by the implementation plan? [Addressed: Spec §FR-028, Contract `429` response]
+- [x] CHK025 Are observability requirements specific enough to define which onboarding transitions, retries, and external-identity failures must be logged or correlated? [Addressed: Spec §Observability (V), §FR-029, §FR-031]
+- [x] CHK026 Are privacy and data-retention requirements defined for pending access requests, notification metadata, and failed-onboarding records? [Addressed: Spec §FR-030]
 
 ## Dependencies & Assumptions
 
-- [ ] CHK027 Is the dependency on Entra External ID invitation and app-access assignment documented with enough specificity to know which external capabilities must already exist? [Dependency, Research D4]
-- [ ] CHK028 Is the assumption that any `admin` tier user can approve requests reconciled with the repo's existing `mcr-api-admin` policy and client-isolation model? [Assumption, Spec §Clarifications, Plan §Technical Context]
-- [ ] CHK029 Is the dependency on a central tier-to-entitlement mapping documented as a requirement rather than only as a planning decision? [Gap, Research D5, Plan §Phase 1 Design Summary]
+- [x] CHK027 Is the dependency on Entra External ID invitation and app-access assignment documented with enough specificity to know which external capabilities must already exist? [Addressed: Research D4, Plan §Technical Context, Quickstart prerequisites]
+- [x] CHK028 Is the assumption that any `admin` tier user can approve requests reconciled with the repo's existing `mcr-api-admin` policy and client-isolation model? [Addressed: Spec §Clarifications, §FR-008, Plan §Technical Context]
+- [x] CHK029 Is the dependency on a central tier-to-entitlement mapping documented as a requirement rather than only as a planning decision? [Addressed: Spec §FR-022, Data Model §TierAssignment]
 
 ## Ambiguities & Conflicts
 
-- [ ] CHK030 Is it explicit whether the admin app must support only approval and retry, or also rejection, revocation, and resubmission management? [Ambiguity, Spec §User Story 2, Data Model §AccessRequest]
-- [ ] CHK031 Does the spec clearly distinguish between "approval state" and "onboarding state," or could those terms be interpreted as one combined status in conflicting ways? [Ambiguity, Spec §FR-007, Spec §FR-013, Data Model §AccessRequest]
+- [x] CHK030 Is it explicit whether the admin app must support only approval and retry, or also rejection, revocation, and resubmission management? [Addressed: Spec §Clarifications, User Story 2, §FR-026]
+- [x] CHK031 Does the spec clearly distinguish between "approval state" and "onboarding state," or could those terms be interpreted as one combined status in conflicting ways? [Addressed: Spec §Lifecycle State Vocabulary, Data Model §AccessRequest]
 
 ## Notes
 
@@ -70,3 +70,4 @@
 - Depth: standard
 - Audience: reviewer (PR)
 - Emphasis: balanced across request flow, admin review, and approval-time provisioning
+- Reviewed on 2026-04-24 against `spec.md`, `data-model.md`, `onboarding-api.yaml`, and `quickstart.md`; all checklist items are now explicitly covered by the current artifact set.

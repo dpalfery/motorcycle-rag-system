@@ -26,5 +26,37 @@ namespace MotorcycleRAG.Contracts.Interfaces {
             string? lastName,
             string authProvider,
             string? providerUserId);
+
+        /// <summary>
+        /// Resolves the approved internal managed-user ID for a provider-authenticated sign-in.
+        /// </summary>
+        Task<string?> ResolveManagedUserIdAsync(
+            string issuer,
+            string subject,
+            string email,
+            IdentityProvider provider);
+
+        /// <summary>
+        /// Gets the approved managed user for a provider-authenticated sign-in.
+        /// </summary>
+        Task<UserDTO?> GetApprovedManagedUserAsync(
+            string issuer,
+            string subject,
+            string email,
+            IdentityProvider provider);
+
+        /// <summary>
+        /// Reconciles an approved or legacy active user with provider identity claims without creating a new user.
+        /// </summary>
+        Task<UserDTO?> ReconcileApprovedUserAsync(
+            string issuer,
+            string subject,
+            string email,
+            string? displayName,
+            string? firstName,
+            string? lastName,
+            IdentityProvider provider,
+            string? providerUserId,
+            string? objectId);
     }
 }

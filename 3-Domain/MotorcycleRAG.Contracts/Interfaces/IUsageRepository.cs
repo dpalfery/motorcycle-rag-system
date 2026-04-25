@@ -16,6 +16,11 @@ namespace MotorcycleRAG.Contracts.Interfaces {
         Task<Usage> RecordUsageAsync(Usage usage);
 
         /// <summary>
+        /// Records or returns the existing onboarding usage seed for a managed user.
+        /// </summary>
+        Task<Usage> RecordSeedUsageAsync(Usage usage);
+
+        /// <summary>
         /// Gets usage statistics for a user within a date range
         /// </summary>
         /// <param name="userId">User ID</param>

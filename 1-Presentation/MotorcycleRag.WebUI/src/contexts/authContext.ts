@@ -4,6 +4,13 @@ interface User {
     user: string;
     token?: string;
     authenticated: boolean;
+    sessionAuthenticated?: boolean;
+    accessApproved?: boolean;
+    approvalStatus?: string;
+    approvalMessage?: string;
+    managedUserId?: string;
+    email?: string;
+    planName?: string;
 }
 
 interface AuthContextType {

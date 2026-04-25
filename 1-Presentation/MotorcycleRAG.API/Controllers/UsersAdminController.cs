@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
@@ -18,12 +19,18 @@ namespace MotorcycleRAG.API.Controllers;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class UsersAdminController : ControllerBase {
     private readonly IUserAdminService _userAdminService;
+    private readonly ICurrentUserService _currentUserService;
+    private readonly UserAccessLifecycleService _userAccessLifecycleService;
     private readonly ILogger<UsersAdminController> _logger;
 
     public UsersAdminController(
         IUserAdminService userAdminService,
+        ICurrentUserService currentUserService,
+        UserAccessLifecycleService userAccessLifecycleService,
         ILogger<UsersAdminController> logger) {
         _userAdminService = userAdminService ?? throw new ArgumentNullException(nameof(userAdminService));
+        _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
+        _userAccessLifecycleService = userAccessLifecycleService ?? throw new ArgumentNullException(nameof(userAccessLifecycleService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -104,6 +111,79 @@ public sealed class UsersAdminController : ControllerBase {
         catch (Exception ex) {
             _logger.LogError(ex, "Error assigning plan to user {UserId}", userId);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Changes the onboarding tier for an existing managed user.
+    /// </summary>
+    [HttpPost("{userId}/change-tier")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(typeof(AdminActionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ChangeManagedUserTierAsync(
+        string userId,
+        [FromBody] ChangeManagedUserTierRequest request) {
+        if (string.IsNullOrWhiteSpace(userId)) {
+            return BadRequest(new { error = "User ID is required" });
+        }
+
+        if (request == null) {
+            return BadRequest(new { error = "Request body is required" });
+        }
+
+        try {
+            var response = await _userAccessLifecycleService.ChangeManagedUserTierAsync(userId, request);
+            return Ok(response);
+        }
+        catch (ArgumentException ex) {
+            _logger.LogWarning(ex, "Invalid tier-change request for user {UserId}", userId);
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex) {
+            _logger.LogWarning(ex, "Tier change could not be completed for user {UserId}", userId);
+            return Conflict(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Cancels access for an existing managed user.
+    /// </summary>
+    [HttpPost("{userId}/cancel")]
+    [Consumes(MediaTypeNames.Application.Json)]
+    [Produces(MediaTypeNames.Application.Json)]
+    [ProducesResponseType(typeof(AdminActionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelManagedUserAsync(
+        string userId,
+        [FromBody] CancelManagedUserRequest request) {
+        if (string.IsNullOrWhiteSpace(userId)) {
+            return BadRequest(new { error = "User ID is required" });
+        }
+
+        if (request == null || string.IsNullOrWhiteSpace(request.Reason)) {
+            return BadRequest(new { error = "Cancellation reason is required" });
+        }
+
+        try {
+            var cancelledByUserId = await _currentUserService.GetManagedUserIdAsync();
+            var response = await _userAccessLifecycleService.CancelManagedUserAsync(userId, request, cancelledByUserId);
+            return Ok(response);
+        }
+        catch (ArgumentException ex) {
+            _logger.LogWarning(ex, "Invalid cancellation request for user {UserId}", userId);
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex) {
+            _logger.LogWarning(ex, "Cancellation could not be completed for user {UserId}", userId);
+            return Conflict(new { error = ex.Message });
         }
     }
 

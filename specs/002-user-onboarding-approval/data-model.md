@@ -12,6 +12,7 @@ This data model describes the entities and relationships required to implement `
 - `AccessRequestId` (GUID or sequential unique identifier)
 - `RequestedEmail` (normalized email, required)
 - `RequestedProvider` (`Microsoft` or `Google`, required)
+- `RequesterVisibleStatus` (derived public status: `PendingReview`, `ApprovedReadyToSignIn`, `OnboardingDelayed`, `Cancelled`, `AlreadyActive`)
 - `RequestDecisionState` (`Pending`, `Approved`, `Cancelled`)
 - `OnboardingExecutionState` (`NotStarted`, `InProgress`, `Failed`, `Completed`, `NotRequired`)
 - `RequestedAtUtc`
@@ -36,6 +37,8 @@ This data model describes the entities and relationships required to implement `
 - Only one `Pending` request may exist for the same `RequestedProvider + RequestedEmail` pair.
 - A different provider for the same email is permitted as a separate request.
 - A cancelled pending request may be resubmitted as a new request.
+- Re-entering the same provider and email for an active managed user returns `AlreadyActive` and does not create a new managed user.
+- Re-request after cancellation or disablement creates a new `AccessRequest` row while preserving prior audit history and not restoring prior tier automatically.
 
 **State transitions**:
 - `RequestDecisionState`: `Pending` → `Approved` or `Cancelled`
@@ -213,3 +216,11 @@ Use the following persisted state dimensions and derived row states:
 - `OnboardingFailed`: `RequestDecisionState=Approved`, `OnboardingExecutionState=Failed`, `ManagedUserAccessState=None`
 - `Active`: `RequestDecisionState=Approved`, `OnboardingExecutionState=Completed`, `ManagedUserAccessState=Active`
 - `Cancelled`: either a pending request cancelled before provisioning or an existing managed user cancelled after onboarding, surfaced as one derived row state with different persistence semantics underneath
+
+Use the following requester-visible statuses on the login-page access-request panel:
+
+- `PendingReview`: request accepted or still awaiting admin action
+- `ApprovedReadyToSignIn`: approval-time onboarding completed and the requester may use the approved provider
+- `OnboardingDelayed`: approval recorded but onboarding failed and admin retry is required before protected access is possible
+- `Cancelled`: the pending request was declined or an existing request path was closed and a fresh request is required
+- `AlreadyActive`: the provider and email already belong to an active managed user and the requester should sign in instead of creating a new request

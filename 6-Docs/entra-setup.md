@@ -41,7 +41,7 @@ api://<API_CLIENT_ID>
 
 ### App Roles
 Create:
-- Admin
+- mcr-api-admin
 - DemoUser
 - ProUser
 - Roadrunner
@@ -133,7 +133,7 @@ Desktop admin clients should request the explicit admin scope URI `api://<API_CL
 ### Admins
 - Entra native users only
 - Assigned:
-  - `Admin` app role
+  - `mcr-api-admin` app role
   - Access to Admin app
 
 ### External Users
@@ -141,6 +141,18 @@ Desktop admin clients should request the explicit admin scope URI `api://<API_CL
   - Admin portal
   - Automation
   - Default role = `DemoUser`
+
+### Onboarding Feature Mapping
+
+For `specs/002-user-onboarding-approval`, use this canonical mapping when approval assigns a user-facing tier:
+
+| Onboarding tier | SQL plan | Entra/API app role |
+|----|----|----|
+| `trial` | `Free` | `DemoUser` |
+| `road runner` | `Pro` | `Roadrunner` |
+| `admin` | `Pro` | `mcr-api-admin` |
+
+`Plus` and `ProUser` remain configured for existing system behavior, but onboarding for this feature must not emit those values.
 
 ---
 

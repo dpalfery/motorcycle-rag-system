@@ -5,6 +5,10 @@ USE [MotorcycleRAG];
 GO
 
 -- Insert User Plans (Free, Plus, Pro)
+-- Onboarding feature mapping is fixed to:
+--   trial -> Free + DemoUser
+--   road runner -> Pro + Roadrunner
+--   admin -> Pro + mcr-api-admin
 IF NOT EXISTS (SELECT 1 FROM [dbo].[UserPlans] WHERE [Name] = 'Free')
 BEGIN
     INSERT INTO [dbo].[UserPlans] ([Id], [Name], [Description], [DailyRequestLimit], [IsPaid], [CreatedDate])

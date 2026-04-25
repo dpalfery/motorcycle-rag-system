@@ -73,6 +73,11 @@ namespace MotorcycleRAG.Contracts.Interfaces {
             string? userAgent = null);
 
         /// <summary>
+        /// Ensures the initial approval-time usage seed exists for the managed user.
+        /// </summary>
+        Task<Usage> SeedOnboardingAccessAsync(string userId, string accessRequestId);
+
+        /// <summary>
         /// Gets usage statistics for a user within a date range
         /// </summary>
         /// <param name="userId">User ID</param>

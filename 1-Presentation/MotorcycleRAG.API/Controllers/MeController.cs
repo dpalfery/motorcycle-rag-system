@@ -42,22 +42,21 @@ public sealed class MeController : ControllerBase {
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetProfileAsync() {
-        var userId = _currentUserService.UserId;
-        if (string.IsNullOrWhiteSpace(userId)) {
+        if (!_currentUserService.IsAuthenticated) {
             _logger.LogWarning("Profile request without authenticated user");
             return Unauthorized(new { error = "Authentication required" });
         }
 
-        var user = await _userRepository.GetUserByIdAsync(userId);
+        var user = await _currentUserService.GetManagedUserAsync();
         if (user == null) {
-            _logger.LogWarning("User {UserId} not found in database", userId);
-            return NotFound(new { error = "User not found" });
+            _logger.LogWarning("Authenticated principal does not resolve to an approved managed user for profile access");
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access has not been approved for this account" });
         }
 
         var dailyLimit = await _planPolicyService.GetDailyRequestLimitAsync(user);
-        var remaining = await _planPolicyService.GetRemainingDailyRequestsAsync(userId);
+        var remaining = await _planPolicyService.GetRemainingDailyRequestsAsync(user.Id);
 
         var response = new UserProfileResponse {
             Id = user.Id,
@@ -73,7 +72,7 @@ public sealed class MeController : ControllerBase {
             RemainingDailyRequests = remaining
         };
 
-        _logger.LogInformation("Retrieved profile for user {UserId}", userId);
+        _logger.LogInformation("Retrieved profile for user {UserId}", user.Id);
         return Ok(response);
     }
 
@@ -85,6 +84,7 @@ public sealed class MeController : ControllerBase {
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UsageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetUsageAsync() {
         return await GetUsageInternalAsync(7);
     }
@@ -98,6 +98,7 @@ public sealed class MeController : ControllerBase {
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UsageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetUsageAsync([FromQuery] int days) {
         return await GetUsageInternalAsync(days);
     }
@@ -106,11 +107,18 @@ public sealed class MeController : ControllerBase {
     /// Internal implementation for getting usage information.
     /// </summary>
     private async Task<IActionResult> GetUsageInternalAsync(int days) {
-        var userId = _currentUserService.UserId;
-        if (string.IsNullOrWhiteSpace(userId)) {
+        if (!_currentUserService.IsAuthenticated) {
             _logger.LogWarning("Usage request without authenticated user");
             return Unauthorized(new { error = "Authentication required" });
         }
+
+        var user = await _currentUserService.GetManagedUserAsync();
+        if (user == null) {
+            _logger.LogWarning("Authenticated principal does not resolve to an approved managed user for usage access");
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access has not been approved for this account" });
+        }
+
+        var userId = user.Id;
 
         // Validate and clamp days parameter
         if (days < 1) {
@@ -125,13 +133,6 @@ public sealed class MeController : ControllerBase {
 
         var usageRecords = await _usageTrackingService.GetUsageByDateRangeAsync(userId, startDate, endDate);
         var dailyCount = await _planPolicyService.GetDailyUsageCountAsync(userId);
-
-        // Get user to determine daily limit
-        var user = await _userRepository.GetUserByIdAsync(userId);
-        if (user == null) {
-            _logger.LogWarning("User {UserId} not found when getting usage", userId);
-            return NotFound(new { error = "User not found" });
-        }
         var dailyLimit = await _planPolicyService.GetDailyRequestLimitAsync(user);
 
         var response = new UsageResponse {
@@ -172,20 +173,19 @@ public sealed class MeController : ControllerBase {
     [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> UpdateProfileAsync([FromBody] UpdateProfileRequest request) {
         ArgumentNullException.ThrowIfNull(request);
 
-        var userId = _currentUserService.UserId;
-        if (string.IsNullOrWhiteSpace(userId)) {
+        if (!_currentUserService.IsAuthenticated) {
             _logger.LogWarning("Profile update request without authenticated user");
             return Unauthorized(new { error = "Authentication required" });
         }
 
-        var user = await _userRepository.GetUserByIdAsync(userId);
+        var user = await _currentUserService.GetManagedUserAsync();
         if (user == null) {
-            _logger.LogWarning("User {UserId} not found in database", userId);
-            return NotFound(new { error = "User not found" });
+            _logger.LogWarning("Authenticated principal does not resolve to an approved managed user for profile update");
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access has not been approved for this account" });
         }
 
         // Validate request
@@ -234,11 +234,11 @@ public sealed class MeController : ControllerBase {
         if (needsUpdate) {
             user.LastUpdatedDate = DateTime.UtcNow;
             await _userRepository.UpdateUserAsync(user);
-            _logger.LogInformation("Updated profile for user {UserId}", userId);
+            _logger.LogInformation("Updated profile for user {UserId}", user.Id);
         }
 
         var dailyLimit = await _planPolicyService.GetDailyRequestLimitAsync(user);
-        var remaining = await _planPolicyService.GetRemainingDailyRequestsAsync(userId);
+        var remaining = await _planPolicyService.GetRemainingDailyRequestsAsync(user.Id);
 
         var response = new UserProfileResponse {
             Id = user.Id,

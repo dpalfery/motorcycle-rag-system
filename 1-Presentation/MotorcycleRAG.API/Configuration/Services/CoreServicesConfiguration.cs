@@ -33,6 +33,12 @@ internal static class CoreServicesConfiguration
 
         services.AddScoped<IUsageTrackingService, UsageTrackingService>();
         services.AddScoped<IUserAdminService, UserAdminService>();
+        services.AddScoped<IUserProvisioningService, UserProvisioningService>();
+        services.AddScoped<AccessRequestService>();
+        services.AddScoped<AccessRequestAdminService>();
+        services.AddScoped<ApprovalOnboardingService>();
+        services.AddScoped<TierEntitlementMappingService>();
+        services.AddScoped<UserAccessLifecycleService>();
 
         // Add Application Insights TelemetryClient
         services.AddApplicationInsightsTelemetry();

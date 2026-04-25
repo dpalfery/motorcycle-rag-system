@@ -36,6 +36,7 @@ internal partial class AppShell : Shell {
         DashboardContent.Content  = serviceProvider.GetRequiredService<Pages.DashboardPage>();
         UploadContent.Content     = serviceProvider.GetRequiredService<Pages.UploadPage>();
         JobsContent.Content       = serviceProvider.GetRequiredService<Pages.JobsPage>();
+        UserManagementContent.Content = serviceProvider.GetRequiredService<Pages.UserManagementPage>();
         WebSourcesContent.Content = serviceProvider.GetRequiredService<Pages.WebSourcesPage>();
         ToolsContent.Content      = serviceProvider.GetRequiredService<Pages.ToolsPage>();
         SettingsContent.Content   = serviceProvider.GetRequiredService<Pages.SettingsPage>();

@@ -69,6 +69,58 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
         }
 
         /// <summary>
+        /// Records or returns the existing onboarding seed usage row for a managed user.
+        /// </summary>
+        public async Task<Usage> RecordSeedUsageAsync(Usage usage) {
+            ArgumentNullException.ThrowIfNull(usage);
+
+            const string sql = @"
+                IF EXISTS (
+                    SELECT 1
+                    FROM [dbo].[Usage]
+                    WHERE [UserId] = @UserId
+                      AND [QueryId] = @QueryId
+                )
+                BEGIN
+                    SELECT TOP (1) *
+                    FROM [dbo].[Usage]
+                    WHERE [UserId] = @UserId
+                      AND [QueryId] = @QueryId
+                    ORDER BY [Id] ASC;
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO [dbo].[Usage] (
+                        [UserId], [Endpoint], [HttpMethod], [QueryId], [RequestTime],
+                        [DurationMs], [StatusCode], [IsSuccess], [CallerIp], [UserAgent]
+                    )
+                    VALUES (
+                        @UserId, @Endpoint, @HttpMethod, @QueryId, @RequestTime,
+                        @DurationMs, @StatusCode, @IsSuccess, @CallerIp, @UserAgent
+                    );
+
+                    SELECT TOP (1) *
+                    FROM [dbo].[Usage]
+                    WHERE [Id] = CAST(SCOPE_IDENTITY() AS BIGINT);
+                END";
+
+            try {
+                using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+                var recorded = await connection.QueryFirstAsync<Usage>(sql, usage);
+                _logger.LogDebug(
+                    "Ensured onboarding seed usage for user {UserId} and query {QueryId}",
+                    usage.UserId,
+                    usage.QueryId);
+
+                return recorded;
+            }
+            catch (Exception ex) {
+                _logger.LogError(ex, "Failed to record onboarding seed usage for user {UserId}", usage.UserId);
+                throw new InvalidOperationException($"Failed to record onboarding seed usage for user {usage.UserId}", ex);
+            }
+        }
+
+        /// <summary>
         /// Gets usage statistics for a user within a date range
         /// </summary>
         /// <param name="userId">User ID</param>

@@ -54,6 +54,31 @@ namespace MotorcycleRAG.Contracts.Models.DTOs {
         public string PlanId { get; set; } = string.Empty;
 
         /// <summary>
+        /// User's assigned onboarding tier label.
+        /// </summary>
+        public TierLabel? TierLabel { get; set; }
+
+        /// <summary>
+        /// User's effective access state.
+        /// </summary>
+        public ManagedUserAccessState AccessState { get; set; } = ManagedUserAccessState.None;
+
+        /// <summary>
+        /// When access was cancelled, if applicable.
+        /// </summary>
+        public DateTime? CancelledAtUtc { get; set; }
+
+        /// <summary>
+        /// The internal user ID that cancelled access.
+        /// </summary>
+        public string? CancelledByUserId { get; set; }
+
+        /// <summary>
+        /// The reason access was cancelled.
+        /// </summary>
+        public string? CancelReason { get; set; }
+
+        /// <summary>
         /// Authentication provider (e.g., Azure AD, B2C)
         /// </summary>
         public string AuthProvider { get; set; } = string.Empty;
@@ -62,5 +87,10 @@ namespace MotorcycleRAG.Contracts.Models.DTOs {
         /// Provider-specific user ID
         /// </summary>
         public string ProviderUserId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// SQL rowversion rendered as a hex string for optimistic concurrency.
+        /// </summary>
+        public string RowVersion { get; set; } = string.Empty;
     }
 }

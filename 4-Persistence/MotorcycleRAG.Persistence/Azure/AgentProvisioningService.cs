@@ -16,6 +16,10 @@ public sealed class AgentProvisioningService
 {
     private readonly IAgentAdminOperations _adminOps;
     private readonly ILogger<AgentProvisioningService> _logger;
+    private readonly string _orchestratorSystemPrompt;
+    private readonly string _vectorSearchSystemPrompt;
+    private readonly string _webSearchSystemPrompt;
+    private readonly string _pdfSearchSystemPrompt;
 
     /// <summary>Production constructor — creates a <see cref="PersistentAgentsClient"/> from options.</summary>
     public AgentProvisioningService(
@@ -32,15 +36,27 @@ public sealed class AgentProvisioningService
         var client = new PersistentAgentsClient(config.FoundryEndpoint, new DefaultAzureCredential());
         _adminOps = new PersistentAgentAdminClientAdapter(client);
         _logger = logger;
+        _orchestratorSystemPrompt = AgentDefinitions.OrchestratorSystemPrompt;
+        _vectorSearchSystemPrompt = AgentDefinitions.VectorSearchSystemPrompt;
+        _webSearchSystemPrompt = AgentDefinitions.WebSearchSystemPrompt;
+        _pdfSearchSystemPrompt = AgentDefinitions.PDFSearchSystemPrompt;
     }
 
     /// <summary>Test constructor — injects a mock <see cref="IAgentAdminOperations"/>.</summary>
     internal AgentProvisioningService(
         IAgentAdminOperations adminOps,
-        ILogger<AgentProvisioningService> logger)
+        ILogger<AgentProvisioningService> logger,
+        string? orchestratorSystemPrompt = null,
+        string? vectorSearchSystemPrompt = null,
+        string? webSearchSystemPrompt = null,
+        string? pdfSearchSystemPrompt = null)
     {
         _adminOps = adminOps ?? throw new ArgumentNullException(nameof(adminOps));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _orchestratorSystemPrompt = orchestratorSystemPrompt ?? AgentDefinitions.OrchestratorSystemPrompt;
+        _vectorSearchSystemPrompt = vectorSearchSystemPrompt ?? AgentDefinitions.VectorSearchSystemPrompt;
+        _webSearchSystemPrompt = webSearchSystemPrompt ?? AgentDefinitions.WebSearchSystemPrompt;
+        _pdfSearchSystemPrompt = pdfSearchSystemPrompt ?? AgentDefinitions.PDFSearchSystemPrompt;
     }
 
     /// <summary>
@@ -53,28 +69,28 @@ public sealed class AgentProvisioningService
         var orchestratorId = await UpsertAgentAsync(
             AgentDefinitions.OrchestratorAgentName,
             AgentDefinitions.OrchestratorModel,
-            AgentDefinitions.OrchestratorSystemPrompt,
+            _orchestratorSystemPrompt,
             AgentDefinitions.OrchestratorTools,
             ct);
 
         var vectorSearchId = await UpsertAgentAsync(
             AgentDefinitions.VectorSearchAgentName,
             AgentDefinitions.SubAgentModel,
-            AgentDefinitions.VectorSearchSystemPrompt,
+            _vectorSearchSystemPrompt,
             AgentDefinitions.VectorSearchTools,
             ct);
 
         var webSearchId = await UpsertAgentAsync(
             AgentDefinitions.WebSearchAgentName,
             AgentDefinitions.SubAgentModel,
-            AgentDefinitions.WebSearchSystemPrompt,
+            _webSearchSystemPrompt,
             AgentDefinitions.WebSearchTools,
             ct);
 
         var pdfSearchId = await UpsertAgentAsync(
             AgentDefinitions.PDFSearchAgentName,
             AgentDefinitions.SubAgentModel,
-            AgentDefinitions.PDFSearchSystemPrompt,
+            _pdfSearchSystemPrompt,
             AgentDefinitions.PDFSearchTools,
             ct);
 

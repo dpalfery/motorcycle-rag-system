@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using MotorcycleRAG.Admin.Models.Api;
 using MotorcycleRAG.Admin.Services.Dtos;
@@ -812,6 +813,90 @@ internal class ApiClient {
 
     #endregion
 
+    #region User Management
+
+    internal Task<UserManagementListResponseDto> GetUserManagementAsync(
+        UserManagementRowState? rowState = null,
+        string? search = null,
+        int page = 1,
+        int pageSize = 100,
+        CancellationToken cancellationToken = default)
+    {
+        return GetUserManagementInternalAsync(rowState, search, page, pageSize, cancellationToken);
+    }
+
+    internal Task<UserManagementRowDto> ApproveAccessRequestAsync(
+        string requestId,
+        ApproveAccessRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateManagementIdentifier(requestId, nameof(requestId));
+
+        return ExecuteAdminActionAsync(
+            $"api/admin/access-requests/{Uri.EscapeDataString(requestId)}/approve",
+            request,
+            cancellationToken);
+    }
+
+    internal Task<UserManagementRowDto> RetryAccessRequestOnboardingAsync(
+        string requestId,
+        RetryOnboardingDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateManagementIdentifier(requestId, nameof(requestId));
+
+        return ExecuteAdminActionAsync(
+            $"api/admin/access-requests/{Uri.EscapeDataString(requestId)}/retry-onboarding",
+            request,
+            cancellationToken);
+    }
+
+    internal Task<UserManagementRowDto> ChangeManagedUserTierAsync(
+        string userId,
+        ChangeManagedUserTierDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateManagementIdentifier(userId, nameof(userId));
+
+        return ExecuteAdminActionAsync(
+            $"api/admin/users/{Uri.EscapeDataString(userId)}/change-tier",
+            request,
+            cancellationToken);
+    }
+
+    internal Task<UserManagementRowDto> CancelAccessRequestAsync(
+        string requestId,
+        CancelManagementItemDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateManagementIdentifier(requestId, nameof(requestId));
+
+        return ExecuteAdminActionAsync(
+            $"api/admin/access-requests/{Uri.EscapeDataString(requestId)}/cancel",
+            request,
+            cancellationToken);
+    }
+
+    internal Task<UserManagementRowDto> CancelManagedUserAsync(
+        string userId,
+        CancelManagementItemDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateManagementIdentifier(userId, nameof(userId));
+
+        return ExecuteAdminActionAsync(
+            $"api/admin/users/{Uri.EscapeDataString(userId)}/cancel",
+            request,
+            cancellationToken);
+    }
+
+    #endregion
+
     #region User Administration
 
     /// <summary>
@@ -902,6 +987,90 @@ internal class ApiClient {
 
     #region Helpers
 
+    private async Task<UserManagementListResponseDto> GetUserManagementInternalAsync(
+        UserManagementRowState? rowState,
+        string? search,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        if (page < 1)
+            throw new ArgumentOutOfRangeException(nameof(page), page, "Page must be at least 1.");
+
+        if (pageSize < 1)
+            throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be at least 1.");
+
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var relativePath = BuildUserManagementQuery(rowState, search, page, pageSize);
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() =>
+            _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
+        EnsureAuthorizedResponse(response);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<UserManagementListResponseDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+               ?? new UserManagementListResponseDto();
+    }
+
+    private async Task<UserManagementRowDto> ExecuteAdminActionAsync<TRequest>(
+        string relativePath,
+        TRequest request,
+        CancellationToken cancellationToken)
+    {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var response = await ExecuteWithResilienceAsync(() =>
+            _httpClient.PostAsJsonAsync(relativePath, request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
+        EnsureAuthorizedResponse(response);
+        response.EnsureSuccessStatusCode();
+
+        var actionResponse = await response.Content.ReadFromJsonAsync<AdminActionResponseDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+                            ?? throw new InvalidOperationException("Failed to deserialize admin action response");
+
+        return actionResponse.Row;
+    }
+
+    private static void ValidateManagementIdentifier(string identifier, string paramName)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+            throw new ArgumentException("Identifier cannot be null or empty", paramName);
+    }
+
+    private static void EnsureAuthorizedResponse(HttpResponseMessage response)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+    }
+
+    private static string BuildUserManagementQuery(
+        UserManagementRowState? rowState,
+        string? search,
+        int page,
+        int pageSize)
+    {
+        var query = new StringBuilder("api/admin/user-management?");
+        query.Append($"page={page}&pageSize={pageSize}");
+
+        if (rowState.HasValue)
+        {
+            query.Append("&rowState=");
+            query.Append(Uri.EscapeDataString(rowState.Value.ToString()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query.Append("&search=");
+            query.Append(Uri.EscapeDataString(search));
+        }
+
+        return query.ToString();
+    }
+
     private async Task<UserDto> SetUserEnabledAsync(string userId, bool isEnabled, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(userId))
@@ -913,12 +1082,7 @@ internal class ApiClient {
         var relativePath = $"api/admin/users/{Uri.EscapeDataString(userId)}/enabled";
         var response = await ExecuteWithResilienceAsync(() =>
             _httpClient.PutAsJsonAsync(relativePath, request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
-            throw new UnauthorizedAccessException(
-                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
-        }
+        EnsureAuthorizedResponse(response);
 
         response.EnsureSuccessStatusCode();
 

@@ -140,6 +140,18 @@ Defined on **MotorcycleRAG.API**:
 
 Roles appear in **access tokens** as `roles`.
 
+### Onboarding Feature Mapping
+
+For `specs/002-user-onboarding-approval`, the approved onboarding vocabulary is fixed to the following entitlement mapping:
+
+| Onboarding tier | Plan | App role |
+|----|----|----|
+| `trial` | `Free` | `DemoUser` |
+| `road runner` | `Pro` | `Roadrunner` |
+| `admin` | `Pro` | `mcr-api-admin` |
+
+`Plus` and `ProUser` remain valid existing entitlement artifacts elsewhere in the system, but they are not part of the onboarding vocabulary for this feature.
+
 ---
 
 ## 5.3 Authorization Rules (API)

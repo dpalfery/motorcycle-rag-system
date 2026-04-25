@@ -19,12 +19,15 @@
 - Q: How should the Admin app manage users? → A: The Admin app uses one user-management table that shows pending requests and existing users together and supports approve, move tier, retry onboarding, and cancel from the same surface.
 - Q: What does cancel mean for an existing user? → A: Canceling an existing user revokes effective access and downstream app-role assignments while preserving the managed user, usage history, identity-link history, and audit history.
 - Q: What minimum claims must the approved identity provide after onboarding? → A: The approved identity contract is limited to trusted identity and authorization claims already used by the platform: `iss`, `sub`, `email`, `name`, `oid` when present, `azp` for client isolation, `scp` for delegated permissions, and `roles` for app-role authorization.
+- Q: How can a requester see request status from the login experience? → A: The login-page access-request panel returns and displays a requester-visible status of `PendingReview`, `ApprovedReadyToSignIn`, `OnboardingDelayed`, `Cancelled`, or `AlreadyActive`; re-entering the same provider and email retrieves the current public status without creating a duplicate pending request.
+- Q: Does this feature add a separate reject action? → A: No. This feature uses the existing cancel action as the decline path for pending requests, moves the request to `Cancelled`, and requires a new request before later reconsideration.
+- Q: What happens when a previously onboarded or revoked user requests access again? → A: An active managed user receives `AlreadyActive` and is told to sign in, while a cancelled or disabled managed user may create a new request that preserves prior audit history without automatically restoring prior tier or access.
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Request Access From Login (Priority: P1)
 
-A prospective user can open the login page, choose whether they intend to use a Microsoft account or Google account, submit their email address, and trigger an approval request to the designated approver.
+A prospective user can open the login page, choose whether they intend to use a Microsoft account or Google account, submit their email address, trigger an approval request to the designated approver, and later use the same access-request panel to see the current requester-visible status for that provider and email.
 
 **Why this priority**: Without a user-facing request flow, onboarding remains manual and invisible to the requester, so no scalable approval workflow exists.
 
@@ -33,8 +36,9 @@ A prospective user can open the login page, choose whether they intend to use a 
 **Acceptance Scenarios**:
 
 1. **Given** a visitor is on the login page and has not been approved, **When** they submit an access request with a supported identity provider and email address, **Then** the system records the request and sends an approval email to the designated approver.
-2. **Given** a visitor has already submitted a pending request for the same email and provider, **When** they submit again, **Then** the system prevents duplicate pending requests and shows the current request status.
+2. **Given** a visitor has already submitted a pending request for the same email and provider, **When** they submit again, **Then** the system prevents duplicate pending requests and shows the current requester-visible status on the login-page access-request panel.
 3. **Given** a visitor submits the same email address with a different provider, **When** the second request is submitted, **Then** the system treats it as a separate request that requires its own approval.
+4. **Given** the same provider and email already belong to an active, cancelled, or disabled managed user, **When** the visitor submits again, **Then** the system either returns `AlreadyActive` for the active user or creates a fresh request for the cancelled or disabled user without restoring prior access automatically.
 
 ---
 
@@ -48,10 +52,10 @@ A caller that satisfies the existing `mcr-api-admin` API policy and Admin app `a
 
 **Acceptance Scenarios**:
 
-1. **Given** one or more pending access requests or existing managed users exist, **When** an authorized admin opens the user-management page, **Then** the page shows one table containing both pending and existing rows with their current tier, lifecycle state, and allowed actions.
+1. **Given** one or more pending access requests or existing managed users exist, **When** an authorized admin opens the user-management page, **Then** the page shows one table containing both pending and existing rows with their provider, current tier, lifecycle state, and allowed actions so same-email requests across providers remain distinguishable.
 2. **Given** a pending request is ready for approval, **When** an authorized admin assigns a valid tier and approves it, **Then** the system immediately creates the managed user, prepares usage tracking, registers the Entra external identity, and records the chosen tier before marking onboarding complete.
 3. **Given** an existing managed user is active, **When** an authorized admin changes the user's tier, **Then** the system updates the entitlement mapping, downstream app-role assignment, and management row state without creating a second managed user.
-4. **Given** a pending request or an active managed user should no longer have access, **When** an authorized admin cancels the row, **Then** the system moves the row to a cancelled state, blocks protected access, and preserves diagnostic and audit history.
+4. **Given** a pending request or an active managed user should no longer have access, **When** an authorized admin cancels the row, **Then** the system moves the row to a cancelled state, uses cancellation as the only decline path for pending requests, blocks protected access, and preserves diagnostic and audit history.
 
 ---
 
@@ -74,12 +78,16 @@ Once a request is approved, the system immediately finishes onboarding by creati
 ### Edge Cases
 
 - A `provider + email` combination that already has a pending request returns the existing request state and does not create a duplicate row.
+- Re-entering the same provider and email on the login-page access-request panel returns a requester-visible status of `PendingReview`, `ApprovedReadyToSignIn`, `OnboardingDelayed`, `Cancelled`, or `AlreadyActive` and does not create another pending row unless the user explicitly starts a new request after cancellation or disablement.
 - The same email submitted through a different provider remains a separate request and cannot reuse the existing provider identity link automatically.
 - A `provider + email` combination that already maps to an active managed user reuses that managed user for tier moves or later re-approval and never creates a second managed user.
+- A cancelled or disabled managed user may submit a new request for the same provider and email, but prior tier, app-role assignment, and effective access are not restored automatically.
 - External identity registration failure after approval leaves the request in a retryable failed-onboarding state and does not grant protected access.
-- Notification delivery failure records degraded operational state and correlation data without dropping the pending request.
+- Notification delivery failure records degraded operational state and correlation data without dropping the pending request, the admin surface shows the degraded notification state, and the requester continues to see `PendingReview` instead of being asked to resubmit.
 - Cancelling a pending request creates no managed user, no identity link, and no usage-seed record.
 - Cancelling an existing user revokes effective access without deleting the managed user, usage history, identity-link history, or audit history.
+- Multiple requests for the same email across different providers appear as separate admin rows with provider shown on each row so admins can review them independently.
+- Approval-time onboarding failures must record the failure stage, such as `UserCreate`, `UsageSeed`, `GraphInvitation`, `AppAssignment`, or `Notification`, so retry decisions are diagnosable.
 - Conflicting admin actions on the same row must surface a concurrency or invalid-state failure instead of applying silently out of order.
 
 ## Requirements *(mandatory)*
@@ -103,12 +111,20 @@ Once a request is approved, the system immediately finishes onboarding by creati
 - **FR-015**: System MUST ensure that an approved user receives access consistent with the assigned tier mapping when they authenticate with the approved provider.
 - **FR-016**: System MUST record request decision changes, onboarding execution changes, and managed-user access changes in a way that administrators can diagnose partial failures and retry safely.
 - **FR-017**: System MUST preserve the assigned tier and approval decision when onboarding fails after approval, and expose the request in a failed-onboarding state until an authorized admin retries or resolves it.
-- **FR-018**: System MUST block unauthorized, unapproved, failed-onboarding, provider-mismatched, or cancelled users from completing sign-in access to protected application features.
+- **FR-018**: System MUST block unauthorized, unapproved, failed-onboarding, provider-mismatched, or cancelled users from completing BFF-issued protected sessions, `/api/me`, motorcycle query endpoints, and any other protected application feature that requires successful internal managed-user resolution.
 - **FR-019**: System MUST treat `provider + email` as the unique identity for access requests and approval decisions, so the same email submitted through a different provider requires a separate request and approval.
 - **FR-020**: System MUST assign each onboarded user a unique internal database identity that is distinct from provider-specific identity values and persists across user management and usage tracking records.
-- **FR-021**: System MUST expose a management-row projection that includes request state, onboarding state, managed-user access state, assigned tier, allowed actions, timestamps, correlation data, and row versioning for optimistic concurrency.
+- **FR-021**: System MUST expose a management-row projection that includes email, provider, request state, onboarding state, managed-user access state, assigned tier, allowed actions, timestamps, correlation data, and row versioning for optimistic concurrency.
 - **FR-022**: System MUST use one canonical entitlement mapping for this feature: `trial` maps to `Free` plan plus `DemoUser`, `road runner` maps to `Pro` plan plus `Roadrunner`, and `admin` maps to `Pro` plan plus `mcr-api-admin`.
 - **FR-023**: System MUST reject conflicting or stale admin actions using optimistic concurrency or an equivalent guard and return a diagnosable invalid-state or conflict response.
+- **FR-024**: System MUST return and display a requester-visible status on the login-page access-request panel after accepted or duplicate submissions, limited to `PendingReview`, `ApprovedReadyToSignIn`, `OnboardingDelayed`, `Cancelled`, or `AlreadyActive`.
+- **FR-025**: System MUST allow a requester to re-enter the same provider and email on the login page to retrieve the current requester-visible status without creating a second pending request for the same active or pending identity.
+- **FR-026**: System MUST treat cancelling a pending request as the decline action for this feature, move the request to `Cancelled`, and require a new request before later reconsideration.
+- **FR-027**: System MUST allow a previously cancelled or disabled managed user to submit a new access request while preserving prior audit history, and MUST NOT automatically restore prior tier or effective access.
+- **FR-028**: System MUST apply anonymous-endpoint anti-automation controls, including rate limiting and diagnosable throttled responses, to the public access-request submission path.
+- **FR-029**: System MUST record onboarding failure stage, retry count, and correlation data for `UserCreate`, `UsageSeed`, `GraphInvitation`, `AppAssignment`, `Notification`, or equivalent provisioning stages so admins can diagnose and retry safely.
+- **FR-030**: System MUST retain pending, cancelled, and failed-onboarding request metadata only as normalized email, provider, timestamps, correlation IDs, redacted reasons, and audit identifiers, and MUST NOT store raw tokens or notification content in feature records.
+- **FR-031**: System MUST surface notification-delivery degradation to admins while keeping the request pending and continuing to show the requester a stable pending-review status instead of requiring resubmission.
 
 ### Required Claims Contract
 
@@ -151,8 +167,8 @@ Describe how this feature complies with each principle in
 
 ### Measurable Outcomes
 
-- **SC-001**: 95% of valid access requests transition from accepted by `POST /api/access-requests` to visible in the admin user-management list within 1 minute.
+- **SC-001**: 95% of valid access requests transition from the timestamp when `POST /api/access-requests` accepts the request to the timestamp when the row first appears in `GET /api/admin/user-management` within 1 minute.
 - **SC-002**: 95% of approved users transition from approval recorded to first successful protected API access with the approved provider within 10 minutes.
-- **SC-003**: In standard cases where dependencies are healthy and no retry is required, administrators can load the pending row, assign a tier, and complete approval in under 2 minutes.
+- **SC-003**: In standard cases where dependencies are healthy and no retry is required, administrators can complete approval in under 2 minutes measured from the first successful load of the pending row in the management table to the timestamp when the approval action records onboarding completion or failure.
 - **SC-004**: 100% of approved users appear in the managed user list with the correct tier and mapped role assignment before they are granted protected application access.
-- **SC-005**: 100% of pending, failed-onboarding, provider-mismatched, or cancelled rows remain blocked from protected application access until an authorized admin action restores a valid access state.
+- **SC-005**: 100% of pending, failed-onboarding, provider-mismatched, or cancelled rows remain blocked from BFF-issued protected sessions, `/api/me`, motorcycle query endpoints, and any other protected application surface requiring active managed-user resolution until an authorized admin action restores a valid access state.

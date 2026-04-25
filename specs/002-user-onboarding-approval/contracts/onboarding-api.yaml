@@ -20,7 +20,7 @@ paths:
               $ref: '#/components/schemas/CreateAccessRequestRequest'
       responses:
         '202':
-          description: Request accepted for admin review.
+          description: Request accepted for admin review and current requester-visible status returned.
           content:
             application/json:
               schema:
@@ -32,11 +32,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Duplicate pending request for the same provider and email.
+          description: Existing pending or active request state returned for the same provider and email instead of creating a duplicate pending request.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/PublicAccessRequestResponse'
         '429':
           description: Request throttled.
           content:
@@ -450,6 +450,7 @@ components:
         - requestId
         - email
         - provider
+        - requesterVisibleStatus
         - requestDecisionState
         - onboardingExecutionState
         - rowState
@@ -463,6 +464,12 @@ components:
           format: email
         provider:
           $ref: '#/components/schemas/IdentityProvider'
+        requesterVisibleStatus:
+          $ref: '#/components/schemas/RequesterVisibleAccessRequestStatus'
+        statusMessage:
+          type: string
+        nextAction:
+          type: string
         requestDecisionState:
           $ref: '#/components/schemas/RequestDecisionState'
         onboardingExecutionState:
@@ -632,3 +639,11 @@ components:
           type: string
         correlationId:
           type: string
+    RequesterVisibleAccessRequestStatus:
+      type: string
+      enum:
+        - PendingReview
+        - ApprovedReadyToSignIn
+        - OnboardingDelayed
+        - Cancelled
+        - AlreadyActive

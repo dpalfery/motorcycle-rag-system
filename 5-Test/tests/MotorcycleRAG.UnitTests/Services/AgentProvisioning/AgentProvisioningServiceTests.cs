@@ -204,10 +204,6 @@ public class AgentProvisioningServiceTests
     [Fact]
     public async Task ProvisionAllAgentsAsync_ShouldThrow_WhenOrchestratorSystemPromptIsEmpty()
     {
-        // The static prompts in AgentDefinitions are non-empty, so we exercise this
-        // guard via a subclass or test-only constructor that overrides the prompt.
-        // Verify that AgentDefinitions.OrchestratorSystemPrompt is actually non-empty
-        // (the real guard path is exercised by AgentProvisioningService.UpsertAgentAsync).
         Assert.False(string.IsNullOrWhiteSpace(AgentDefinitions.OrchestratorSystemPrompt),
             "OrchestratorSystemPrompt must not be empty — production guard depends on it");
         Assert.False(string.IsNullOrWhiteSpace(AgentDefinitions.VectorSearchSystemPrompt),
@@ -217,13 +213,13 @@ public class AgentProvisioningServiceTests
         Assert.False(string.IsNullOrWhiteSpace(AgentDefinitions.PDFSearchSystemPrompt),
             "PDFSearchSystemPrompt must not be empty");
 
-        // Test that the service guard throws when given an empty prompt via stub
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-        {
-            var stub = new EmptyPromptStubOps();
-            var svc = new AgentProvisioningService(stub, _mockLogger.Object);
-            return svc.ProvisionAllAgentsAsync();
-        });
+        var stub = new EmptyPromptStubOps();
+        var svc = new AgentProvisioningService(
+            stub,
+            _mockLogger.Object,
+            orchestratorSystemPrompt: string.Empty);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.ProvisionAllAgentsAsync());
     }
 
     // -------------------------------------------------------------------------

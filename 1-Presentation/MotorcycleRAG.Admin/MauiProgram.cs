@@ -126,6 +126,7 @@ internal static class MauiProgram {
         builder.Services.AddTransient<LandingPage>(); // Not in Shell — transient is correct
         builder.Services.AddSingleton<UploadPage>();
         builder.Services.AddSingleton<JobsPage>();
+        builder.Services.AddSingleton<UserManagementPage>();
         builder.Services.AddSingleton<WebSourcesPage>();
         builder.Services.AddSingleton<ToolsPage>();
         builder.Services.AddSingleton<SettingsPage>();
@@ -137,6 +138,7 @@ internal static class MauiProgram {
         builder.Services.AddTransient<LandingViewModel>(); // Matches LandingPage lifetime
         builder.Services.AddSingleton<IngestionViewModel>();
         builder.Services.AddSingleton<JobsViewModel>();
+        builder.Services.AddSingleton<UserManagementViewModel>();
         builder.Services.AddSingleton<WebSourcesViewModel>();
         builder.Services.AddSingleton<ToolsViewModel>();
         builder.Services.AddSingleton<SettingsViewModel>();

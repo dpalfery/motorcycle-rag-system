@@ -3,7 +3,7 @@
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
+**Note**: This template is filled in by the `/speckit.plan` command.
 
 ## Summary
 
@@ -37,11 +37,14 @@ Fill this section by mapping the feature plan to each constitution principle in
 Minimum gates:
 - Security (I): secrets handling, authz, validation, HTTPS, logging redaction
 - Clean Architecture (II): dependency direction, thin adapters, domain purity
-- Code Quality (III): zero warnings, one type per C# file, async I/O
+- Code Quality (III): executable completion, zero warnings, one type per C# file, async I/O
 - Testing (IV): test plan + coverage expectations where applicable
 - Observability (V): logging, metrics/health, correlation/tracing
 - Resilience (VI): timeouts, retry/backoff, circuit breaking, rate limiting
-- Process (VII): approvals for dependencies/infra, hygiene, artifacts updated
+- Process (VII): approvals for dependencies/infra/docs/cross-cutting changes, repo hygiene,
+  artifacts updated
+- Delivery constraints: GitHub Actions-only deployment path; no direct `pulumi up`, `az` write
+  actions, or local container publication
 
 ## Project Structure
 

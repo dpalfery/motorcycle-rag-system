@@ -5,6 +5,10 @@
 **Status**: Draft  
 **Input**: User description: "$ARGUMENTS"
 
+**Approval Notes**: If this feature introduces new dependencies, infrastructure or operations
+automation, generated documentation, or cross-cutting behavior, record the required explicit
+approval in this spec before planning.
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -113,7 +117,8 @@ Describe how this feature complies with each principle in
 - Testing (IV):
 - Observability (V):
 - Resilience (VI):
-- Process & Workflow (VII):
+- Process & Workflow (VII): approvals required, repository hygiene preserved, and delivery uses the
+  GitHub Actions path only
 
 <!--
   ACTION REQUIRED: Define measurable success criteria.

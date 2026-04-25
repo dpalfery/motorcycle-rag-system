@@ -27,13 +27,13 @@ Replace the hard-coded sequential retrieval pipeline with four agents hosted in 
 
 | Principle | Status | Notes |
 |-----------|--------|-------|
-| Security (I) | ✅ PASS | Agent IDs from Key Vault. Managed Identity for Foundry auth. Tool inputs validated before I/O. No hardcoded secrets or model names. |
-| Clean Architecture (II) | ✅ PASS | `IFoundryAgentRunner` in Contracts. `FoundryAgentRunner` + `AgentProvisioningService` in Persistence. `FoundryToolDispatcher` + `AgentOrchestrator` in Application. No Foundry SDK types in Domain. |
-| Code Quality (III) | ✅ PASS | Sequential policy removed. `GetChatCompletionAsync` removed from agent path. One class per file. Full async. |
-| Testing (IV) | ✅ PASS | Unit tests for dispatcher, orchestrator run coordination, tool handlers. Integration test for provisioning + end-to-end run. |
-| Observability (V) | ✅ PASS | Structured logs with Foundry run ID, thread ID, tool name, iteration. Thread ID correlated to request correlation ID. |
-| Resilience (VI) | ✅ PASS | Max rounds enforced by Foundry. Tool exceptions become error tool outputs (no crash). DB failure on trusted sources degrades gracefully. |
-| Process (VII) | ✅ PASS | New NuGet packages listed and approved below. No manual infra. Provisioning via pipeline only. |
+| Security (I) | PASS | Agent IDs from Key Vault. Managed Identity for Foundry auth. Tool inputs validated before I/O. No hardcoded secrets or model names. |
+| Clean Architecture (II) | PASS | `IFoundryAgentRunner` in Contracts. `FoundryAgentRunner` + `AgentProvisioningService` in Persistence. `FoundryToolDispatcher` + `AgentOrchestrator` in Application. No Foundry SDK types in Domain. |
+| Code Quality (III) | PASS | Sequential policy removed. `GetChatCompletionAsync` removed from agent path. One class per file. Full async. |
+| Testing (IV) | PASS | Unit tests for dispatcher, orchestrator run coordination, tool handlers. Integration test for provisioning + end-to-end run. |
+| Observability (V) | PASS | Structured logs with Foundry run ID, thread ID, tool name, iteration. Thread ID correlated to request correlation ID. |
+| Resilience (VI) | PASS | Max rounds enforced by Foundry. Tool exceptions become error tool outputs (no crash). DB failure on trusted sources degrades gracefully. |
+| Process (VII) | PASS | New NuGet packages listed and approved below. No manual infra. Provisioning via pipeline only. |
 
 ### Approved New NuGet Packages
 
@@ -138,7 +138,7 @@ See `specs/develop/data-model.md` and `specs/develop/contracts/`.
 
 ### Agent Architecture
 
-```
+```text
 User query
     ↓
 MotorcycleRAGService.QueryAsync()
@@ -214,7 +214,7 @@ public enum AgentRunState { Queued, InProgress, RequiresAction, Completed, Faile
 
 Each agent definition provisioned to Foundry contains:
 
-```
+```text
 OrchestratorAgent:
   model: o4-mini
   instructions: [OrchestratorSystemPrompt — see contracts/orchestrator-system-prompt.md]

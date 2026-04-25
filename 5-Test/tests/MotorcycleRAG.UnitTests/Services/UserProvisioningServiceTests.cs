@@ -7,18 +7,15 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.UnitTests.Services;
 
-public class UserProvisioningServiceTests
-{
+public class UserProvisioningServiceTests {
     private readonly Mock<IUserRepository> _userRepository = new();
     private readonly Mock<IUserIdentityRepository> _userIdentityRepository = new();
     private readonly Mock<IPlanRepository> _planRepository = new();
     private readonly Mock<ILogger<UserProvisioningService>> _logger = new();
 
     [Fact]
-    public async Task ReconcileApprovedUserAsync_WhenEmailMatchesDifferentProvider_ReturnsNull()
-    {
-        var user = new UserDTO
-        {
+    public async Task ReconcileApprovedUserAsync_WhenEmailMatchesDifferentProvider_ReturnsNull() {
+        var user = new UserDTO {
             Id = "user-1",
             Email = "rider@example.com",
             AuthProvider = "Google",
@@ -55,10 +52,8 @@ public class UserProvisioningServiceTests
     }
 
     [Fact]
-    public async Task ReconcileApprovedUserAsync_WhenSameProviderFallbackExists_UpdatesUserAndIdentityLink()
-    {
-        var user = new UserDTO
-        {
+    public async Task ReconcileApprovedUserAsync_WhenSameProviderFallbackExists_UpdatesUserAndIdentityLink() {
+        var user = new UserDTO {
             Id = "user-1",
             Email = "rider@example.com",
             DisplayName = "Old Rider",
@@ -108,8 +103,7 @@ public class UserProvisioningServiceTests
         _userRepository.Verify(repository => repository.UpdateUserAsync(It.Is<UserDTO>(updatedUser => updatedUser.Id == "user-1")), Times.AtLeastOnce);
     }
 
-    private UserProvisioningService CreateService()
-    {
+    private UserProvisioningService CreateService() {
         return new UserProvisioningService(
             _userRepository.Object,
             _userIdentityRepository.Object,

@@ -51,8 +51,7 @@ internal partial class UserManagementViewModel : ObservableObject {
         Func<string, string, Task>? showWarningAsync = null,
         Func<string, string, Task>? showSuccessAsync = null,
         Func<string, string, Task>? showErrorAsync = null,
-        Func<string, string, string, string, Task<bool>>? showConfirmAsync = null)
-    {
+        Func<string, string, string, string, Task<bool>>? showConfirmAsync = null) {
         _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _configService = configService ?? throw new ArgumentNullException(nameof(configService));
@@ -79,10 +78,8 @@ internal partial class UserManagementViewModel : ObservableObject {
     internal Task SearchAsync() => LoadRowsAsync();
 
     [RelayCommand]
-    internal async Task ApproveAsync(UserManagementRowViewModel? row)
-    {
-        if (row is null || string.IsNullOrWhiteSpace(row.AccessRequestId))
-        {
+    internal async Task ApproveAsync(UserManagementRowViewModel? row) {
+        if (row is null || string.IsNullOrWhiteSpace(row.AccessRequestId)) {
             return;
         }
 
@@ -98,10 +95,8 @@ internal partial class UserManagementViewModel : ObservableObject {
     }
 
     [RelayCommand]
-    internal async Task RetryOnboardingAsync(UserManagementRowViewModel? row)
-    {
-        if (row is null || string.IsNullOrWhiteSpace(row.AccessRequestId))
-        {
+    internal async Task RetryOnboardingAsync(UserManagementRowViewModel? row) {
+        if (row is null || string.IsNullOrWhiteSpace(row.AccessRequestId)) {
             return;
         }
 
@@ -116,10 +111,8 @@ internal partial class UserManagementViewModel : ObservableObject {
     }
 
     [RelayCommand]
-    internal async Task ChangeTierAsync(UserManagementRowViewModel? row)
-    {
-        if (row is null || string.IsNullOrWhiteSpace(row.ManagedUserId))
-        {
+    internal async Task ChangeTierAsync(UserManagementRowViewModel? row) {
+        if (row is null || string.IsNullOrWhiteSpace(row.ManagedUserId)) {
             return;
         }
 
@@ -136,15 +129,12 @@ internal partial class UserManagementViewModel : ObservableObject {
     }
 
     [RelayCommand]
-    internal async Task CancelAsync(UserManagementRowViewModel? row)
-    {
-        if (row is null)
-        {
+    internal async Task CancelAsync(UserManagementRowViewModel? row) {
+        if (row is null) {
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(row.ActionReason))
-        {
+        if (string.IsNullOrWhiteSpace(row.ActionReason)) {
             await SetErrorAsync("A cancellation reason is required.").ConfigureAwait(false);
             return;
         }
@@ -154,13 +144,11 @@ internal partial class UserManagementViewModel : ObservableObject {
             $"Cancel access for {row.Email}?",
             "Confirm",
             "Keep").ConfigureAwait(false);
-        if (!confirmed)
-        {
+        if (!confirmed) {
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(row.AccessRequestId))
-        {
+        if (!string.IsNullOrWhiteSpace(row.AccessRequestId)) {
             await ExecuteRowActionAsync(
                 row,
                 async () => await _apiClient.CancelAccessRequestAsync(
@@ -173,8 +161,7 @@ internal partial class UserManagementViewModel : ObservableObject {
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(row.ManagedUserId))
-        {
+        if (!string.IsNullOrWhiteSpace(row.ManagedUserId)) {
             await ExecuteRowActionAsync(
                 row,
                 async () => await _apiClient.CancelManagedUserAsync(
@@ -187,18 +174,15 @@ internal partial class UserManagementViewModel : ObservableObject {
         }
     }
 
-    private async Task LoadRowsAsync()
-    {
+    private async Task LoadRowsAsync() {
         await _runOnMainThreadAsync(() => {
             IsLoading = true;
             ErrorMessage = null;
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
-        try
-        {
-            if (!await EnsureAuthorizedAsync().ConfigureAwait(false))
-            {
+        try {
+            if (!await EnsureAuthorizedAsync().ConfigureAwait(false)) {
                 await _runOnMainThreadAsync(() => {
                     Rows.Clear();
                     TotalCount = 0;
@@ -218,8 +202,7 @@ internal partial class UserManagementViewModel : ObservableObject {
             var result = response ?? new UserManagementListResponseDto();
             await _runOnMainThreadAsync(() => {
                 Rows.Clear();
-                foreach (var row in result.Rows)
-                {
+                foreach (var row in result.Rows) {
                     Rows.Add(new UserManagementRowViewModel(row));
                 }
 
@@ -228,15 +211,13 @@ internal partial class UserManagementViewModel : ObservableObject {
                 return Task.CompletedTask;
             }).ConfigureAwait(false);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             var sanitized = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             _logger.LogError(ex, "Failed to load user-management rows");
             await SetErrorAsync($"Failed to load user management rows: {sanitized}").ConfigureAwait(false);
             await _showErrorAsync("User Management", ErrorMessage ?? "Failed to load user management rows.").ConfigureAwait(false);
         }
-        finally
-        {
+        finally {
             await _runOnMainThreadAsync(() => {
                 IsLoading = false;
                 OnPropertyChanged(nameof(SummaryText));
@@ -248,23 +229,20 @@ internal partial class UserManagementViewModel : ObservableObject {
     private async Task ExecuteRowActionAsync(
         UserManagementRowViewModel row,
         Func<Task<UserManagementRowDto>> action,
-        string successMessage)
-    {
+        string successMessage) {
         await _runOnMainThreadAsync(() => {
             row.IsBusy = true;
             ErrorMessage = null;
             return Task.CompletedTask;
         }).ConfigureAwait(false);
 
-        try
-        {
+        try {
             UserManagementRowDto? updatedRow = null;
             await _runOffMainThreadAsync(async () => {
                 updatedRow = await action().ConfigureAwait(false);
             }).ConfigureAwait(false);
 
-            if (updatedRow is null)
-            {
+            if (updatedRow is null) {
                 return;
             }
 
@@ -275,15 +253,13 @@ internal partial class UserManagementViewModel : ObservableObject {
             }).ConfigureAwait(false);
             await _showSuccessAsync("User Management", successMessage).ConfigureAwait(false);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             var sanitized = ErrorPresenter.SanitizeErrorMessage(ex.Message);
             _logger.LogWarning(ex, "User-management action failed for row {RowId}", row.RowId);
             await SetErrorAsync(sanitized).ConfigureAwait(false);
             await _showErrorAsync("User Management", ErrorMessage ?? sanitized).ConfigureAwait(false);
         }
-        finally
-        {
+        finally {
             await _runOnMainThreadAsync(() => {
                 row.IsBusy = false;
                 return Task.CompletedTask;
@@ -291,10 +267,8 @@ internal partial class UserManagementViewModel : ObservableObject {
         }
     }
 
-    private async Task<bool> EnsureAuthorizedAsync()
-    {
-        if (!_configService.IsApiConfigured)
-        {
+    private async Task<bool> EnsureAuthorizedAsync() {
+        if (!_configService.IsApiConfigured) {
             _logger.LogWarning("User management blocked: API not configured");
             await _showWarningAsync(
                 "Configuration required",
@@ -302,8 +276,7 @@ internal partial class UserManagementViewModel : ObservableObject {
             return false;
         }
 
-        if (!_authService.IsSignedIn())
-        {
+        if (!_authService.IsSignedIn()) {
             _logger.LogWarning("User management blocked: user not signed in");
             await _showWarningAsync(
                 "Sign in required",
@@ -312,8 +285,7 @@ internal partial class UserManagementViewModel : ObservableObject {
         }
 
         var isAuthorized = await _authService.IsAuthorizedAdminAsync().ConfigureAwait(false);
-        if (!isAuthorized)
-        {
+        if (!isAuthorized) {
             _logger.LogWarning("User management blocked: user lacks admin permissions");
             await _showWarningAsync(
                 "Access denied",
@@ -324,8 +296,7 @@ internal partial class UserManagementViewModel : ObservableObject {
         return true;
     }
 
-    private async Task SetErrorAsync(string message)
-    {
+    private async Task SetErrorAsync(string message) {
         await _runOnMainThreadAsync(() => {
             ErrorMessage = message;
             OnPropertyChanged(nameof(SummaryText));
@@ -333,8 +304,7 @@ internal partial class UserManagementViewModel : ObservableObject {
         }).ConfigureAwait(false);
     }
 
-    private static string? NormalizeReason(string reason)
-    {
+    private static string? NormalizeReason(string reason) {
         return string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
     }
 }

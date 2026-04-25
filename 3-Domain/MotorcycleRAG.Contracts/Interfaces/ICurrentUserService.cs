@@ -2,13 +2,11 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
-namespace MotorcycleRAG.Contracts.Interfaces
-{
+namespace MotorcycleRAG.Contracts.Interfaces {
     /// <summary>
     /// Service interface for resolving the current authenticated user from HTTP context claims
     /// </summary>
-    public interface ICurrentUserService
-    {
+    public interface ICurrentUserService {
         /// <summary>
         /// Gets the current user's ID from claims
         /// </summary>

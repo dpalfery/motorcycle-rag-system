@@ -24,15 +24,13 @@ public class MotorcycleRagApiClient : IApiClient
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        // Get base URL from environment variable first, then configuration
-        var baseUrl = Environment.GetEnvironmentVariable("MCR_MOBILE_API_BASE_URL")
-            ?? configuration["ApiSettings:BaseUrl"];
+        var baseUrl = configuration["ApiSettings:BaseUrl"];
 
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
             throw new InvalidOperationException(
                 "API base URL is not configured. " +
-                "Set MCR_MOBILE_API_BASE_URL environment variable or configure ApiSettings:BaseUrl in appsettings.json");
+                "Configure ApiSettings:BaseUrl through the approved configuration provider.");
         }
 
         // Validate HTTPS
@@ -41,7 +39,7 @@ public class MotorcycleRagApiClient : IApiClient
             throw new InvalidOperationException(
                 $"API base URL must use HTTPS protocol for security. " +
                 $"Configured URL: {baseUrl}. " +
-                $"Update ApiSettings:BaseUrl in appsettings.json to a valid HTTPS endpoint or set MCR_MOBILE_API_BASE_URL.");
+                $"Update ApiSettings:BaseUrl to a valid HTTPS endpoint.");
         }
 
         _httpClient.BaseAddress = uri;

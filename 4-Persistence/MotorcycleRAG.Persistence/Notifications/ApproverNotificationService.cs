@@ -7,24 +7,20 @@ namespace MotorcycleRAG.Persistence.Notifications;
 /// <summary>
 /// Emits structured approver-notification events for newly submitted access requests.
 /// </summary>
-public class ApproverNotificationService : IApproverNotificationService
-{
+public class ApproverNotificationService : IApproverNotificationService {
     private readonly ILogger<ApproverNotificationService> _logger;
 
-    public ApproverNotificationService(ILogger<ApproverNotificationService> logger)
-    {
+    public ApproverNotificationService(ILogger<ApproverNotificationService> logger) {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
     /// Sends a notification for a newly submitted access request.
     /// </summary>
-    public Task SendAccessRequestSubmittedAsync(PublicAccessRequestResponse accessRequest, string approverAddress)
-    {
+    public Task SendAccessRequestSubmittedAsync(PublicAccessRequestResponse accessRequest, string approverAddress) {
         ArgumentNullException.ThrowIfNull(accessRequest);
 
-        if (string.IsNullOrWhiteSpace(approverAddress))
-        {
+        if (string.IsNullOrWhiteSpace(approverAddress)) {
             throw new ArgumentException("Approver address cannot be null or empty", nameof(approverAddress));
         }
 

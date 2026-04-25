@@ -11,11 +11,9 @@ using Xunit;
 
 namespace MotorcycleRag.WebUI.BFF.Tests.Configuration.Services;
 
-public class AuthenticationServiceConfigurationTests
-{
+public class AuthenticationServiceConfigurationTests {
     [Fact]
-    public void AddBffAuthentication_RegistersExpectedSchemes()
-    {
+    public void AddBffAuthentication_RegistersExpectedSchemes() {
         // Arrange
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder()
@@ -40,8 +38,7 @@ public class AuthenticationServiceConfigurationTests
     }
 
     [Fact]
-    public void AddBffAuthentication_ConfiguresCookieOptions()
-    {
+    public void AddBffAuthentication_ConfiguresCookieOptions() {
         // Arrange
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder()
@@ -68,8 +65,7 @@ public class AuthenticationServiceConfigurationTests
     }
 
     [Fact]
-    public void AddBffAuthentication_ConfiguresOidcOptions()
-    {
+    public void AddBffAuthentication_ConfiguresOidcOptions() {
         // Arrange
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder()
@@ -97,8 +93,7 @@ public class AuthenticationServiceConfigurationTests
     }
 
     [Fact]
-    public void AddBffAuthentication_RegistersApprovalStatusHttpClient()
-    {
+    public void AddBffAuthentication_RegistersApprovalStatusHttpClient() {
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>

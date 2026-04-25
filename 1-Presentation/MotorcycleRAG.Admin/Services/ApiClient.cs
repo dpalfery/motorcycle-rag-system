@@ -27,8 +27,7 @@ internal class ApiClient {
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly ILogger<ApiClient> _logger;
 
-    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger)
-    {
+    public ApiClient(HttpClient httpClient, IAdminAuthService authService, ILogger<ApiClient> logger) {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -43,10 +42,8 @@ internal class ApiClient {
     /// Ensures the HTTP client is configured with a base URL.
     /// Throws InvalidOperationException with a user-friendly message if not configured.
     /// </summary>
-    private void EnsureConfigured()
-    {
-        if (_httpClient.BaseAddress == null)
-        {
+    private void EnsureConfigured() {
+        if (_httpClient.BaseAddress == null) {
             throw new InvalidOperationException("API not configured. Go to Settings to configure the API base URL.");
         }
     }
@@ -54,14 +51,12 @@ internal class ApiClient {
     /// <summary>
     /// Ensures the HTTP client has a valid access token
     /// </summary>
-    private async Task EnsureAuthenticatedAsync()
-    {
+    private async Task EnsureAuthenticatedAsync() {
         // First check that the API is configured
         EnsureConfigured();
 
         var accessToken = await _authService.GetAccessTokenAsync().ConfigureAwait(false);
-        if (string.IsNullOrEmpty(accessToken))
-        {
+        if (string.IsNullOrEmpty(accessToken)) {
             throw new UnauthorizedAccessException("No valid access token available. Please sign in.");
         }
 
@@ -73,28 +68,24 @@ internal class ApiClient {
     /// <summary>
     /// Uploads a single file to the pipeline
     /// </summary>
-    internal Task<FileUploadResult> UploadFileAsync(string filePath)
-    {
+    internal Task<FileUploadResult> UploadFileAsync(string filePath) {
         return UploadFileAsync(filePath, processImmediately: false, default);
     }
 
     /// <summary>
     /// Uploads a single file to the pipeline with processing option
     /// </summary>
-    internal Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately)
-    {
+    internal Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately) {
         return UploadFileAsync(filePath, processImmediately, default);
     }
 
     /// <summary>
     /// Uploads a single file to the pipeline with processing option and cancellation
     /// </summary>
-    internal async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately, CancellationToken cancellationToken)
-    {
+    internal async Task<FileUploadResult> UploadFileAsync(string filePath, bool processImmediately, CancellationToken cancellationToken) {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        try
-        {
+        try {
             using var fileStream = File.OpenRead(filePath);
             using var content = new MultipartFormDataContent();
             using var streamContent = new StreamContent(fileStream);
@@ -112,8 +103,7 @@ internal class ApiClient {
                 cancellationToken)).ConfigureAwait(false);
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-                response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            {
+                response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
                 throw new UnauthorizedAccessException(
                     $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
             }
@@ -125,14 +115,12 @@ internal class ApiClient {
             UploadResultValidator.ValidateFileUploadResult(result);
             return result!;
         }
-        catch (HttpRequestException ex)
-        {
+        catch (HttpRequestException ex) {
             _logger.LogError(ex, "HTTP request failed uploading file: {FileName}. Status: {StatusCode}",
                 Path.GetFileName(filePath), ex.StatusCode);
             throw new FileLoadException($"HTTP request failed uploading file: {Path.GetFileName(filePath)}. Status: {ex.StatusCode}", ex);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Unexpected error uploading file: {FileName}", Path.GetFileName(filePath));
             throw new FileLoadException($"Unexpected error uploading file: {Path.GetFileName(filePath)}", ex);
         }
@@ -141,24 +129,21 @@ internal class ApiClient {
     /// <summary>
     /// Uploads multiple files to the pipeline
     /// </summary>
-    internal Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths)
-    {
+    internal Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths) {
         return UploadBatchAsync(filePaths, processImmediately: false, default);
     }
 
     /// <summary>
     /// Uploads multiple files to the pipeline with processing option
     /// </summary>
-    internal Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately)
-    {
+    internal Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately) {
         return UploadBatchAsync(filePaths, processImmediately, default);
     }
 
     /// <summary>
     /// Uploads multiple files to the pipeline with processing option and cancellation
     /// </summary>
-    public async Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately, CancellationToken cancellationToken)
-    {
+    public async Task<BatchFileUploadResult> UploadBatchAsync(IEnumerable<string> filePaths, bool processImmediately, CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(filePaths);
         var filePathList = filePaths.ToArray();
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -166,12 +151,10 @@ internal class ApiClient {
         var streams = new List<FileStream>();
         var streamContents = new List<StreamContent>();
 
-        try
-        {
+        try {
             using var content = new MultipartFormDataContent();
 
-            foreach (var filePath in filePathList)
-            {
+            foreach (var filePath in filePathList) {
                 if (!File.Exists(filePath))
                     throw new FileNotFoundException($"File not found: {filePath}");
 
@@ -194,8 +177,7 @@ internal class ApiClient {
                 cancellationToken)).ConfigureAwait(false);
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-                response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            {
+                response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
                 throw new UnauthorizedAccessException(
                     $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
             }
@@ -207,26 +189,21 @@ internal class ApiClient {
             UploadResultValidator.ValidateBatchFileUploadResult(batchResult);
             return batchResult!;
         }
-        catch (HttpRequestException ex)
-        {
+        catch (HttpRequestException ex) {
             _logger.LogError(ex, "HTTP request failed uploading batch files. Status: {StatusCode}, File count: {FileCount}",
                 ex.StatusCode, filePathList.Length);
             throw new FileLoadException($"HTTP error uploading batch files. Status: {ex.StatusCode}. File paths: {string.Join(", ", filePathList)}", ex);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Unexpected error uploading batch files. File count: {FileCount}", filePathList.Length);
             throw new FileLoadException($"Error uploading batch files. See inner exception for details. File paths: {string.Join(", ", filePathList)}", ex);
         }
-        finally
-        {
-            foreach (var streamContent in streamContents)
-            {
+        finally {
+            foreach (var streamContent in streamContents) {
                 streamContent?.Dispose();
             }
 
-            foreach (var stream in streams.Where(s => s != null))
-            {
+            foreach (var stream in streams.Where(s => s != null)) {
                 await stream.DisposeAsync().ConfigureAwait(false);
             }
         }
@@ -235,23 +212,20 @@ internal class ApiClient {
     /// <summary>
     /// Gets upload constraints (file size limits, allowed types, etc.)
     /// </summary>
-    internal Task<UploadConstraints> GetUploadConstraintsAsync()
-    {
+    internal Task<UploadConstraints> GetUploadConstraintsAsync() {
         return GetUploadConstraintsAsync(default);
     }
 
     /// <summary>
     /// Gets upload constraints (file size limits, allowed types, etc.) with cancellation
     /// </summary>
-    internal async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken)
-    {
+    internal async Task<UploadConstraints> GetUploadConstraintsAsync(CancellationToken cancellationToken) {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var requestUri = new Uri("api/datapipeline/upload-constraints", UriKind.Relative);
         var response = await _httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -268,16 +242,14 @@ internal class ApiClient {
     /// <summary>
     /// Processes a previously uploaded file
     /// </summary>
-    internal Task<ProcessingResult> ProcessFileAsync(string executionId)
-    {
+    internal Task<ProcessingResult> ProcessFileAsync(string executionId) {
         return ProcessFileAsync(executionId, default);
     }
 
     /// <summary>
     /// Processes a previously uploaded file with cancellation
     /// </summary>
-    internal async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken)
-    {
+    internal async Task<ProcessingResult> ProcessFileAsync(string executionId, CancellationToken cancellationToken) {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -288,8 +260,7 @@ internal class ApiClient {
             cancellationToken)).ConfigureAwait(false);
 
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -302,24 +273,21 @@ internal class ApiClient {
     /// <summary>
     /// Gets the status of a pipeline execution
     /// </summary>
-    internal Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId)
-    {
+    internal Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId) {
         return GetPipelineStatusAsync(executionId, default);
     }
 
     /// <summary>
     /// Gets the status of a pipeline execution with cancellation
     /// </summary>
-    internal async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken)
-    {
+    internal async Task<PipelineStatusResponse> GetPipelineStatusAsync(string executionId, CancellationToken cancellationToken) {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var requestUri = new Uri($"api/datapipeline/status/{Uri.EscapeDataString(executionId)}", UriKind.Relative);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -332,16 +300,14 @@ internal class ApiClient {
     /// <summary>
     /// Gets metrics for a pipeline execution
     /// </summary>
-    internal Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId)
-    {
+    internal Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId) {
         return GetPipelineMetricsAsync(executionId, default);
     }
 
     /// <summary>
     /// Gets metrics for a pipeline execution with cancellation
     /// </summary>
-    internal async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken)
-    {
+    internal async Task<PipelineMetrics> GetPipelineMetricsAsync(string executionId, CancellationToken cancellationToken) {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -349,8 +315,7 @@ internal class ApiClient {
         var uri = new Uri(_httpClient.BaseAddress!, relativePath);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -363,16 +328,14 @@ internal class ApiClient {
     /// <summary>
     /// Cancels a running pipeline execution
     /// </summary>
-    internal Task<CancelPipelineResponse> CancelPipelineAsync(string executionId)
-    {
+    internal Task<CancelPipelineResponse> CancelPipelineAsync(string executionId) {
         return CancelPipelineAsync(executionId, default);
     }
 
     /// <summary>
     /// Cancels a running pipeline execution with cancellation
     /// </summary>
-    internal async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken)
-    {
+    internal async Task<CancelPipelineResponse> CancelPipelineAsync(string executionId, CancellationToken cancellationToken) {
         ValidateExecutionId(executionId);
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
@@ -381,8 +344,7 @@ internal class ApiClient {
         var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
 
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -395,16 +357,14 @@ internal class ApiClient {
     /// <summary>
     /// Gets all pipeline executions with optional filtering
     /// </summary>
-    internal Task<List<PipelineExecution>> GetPipelineExecutionsAsync(CancellationToken cancellationToken)
-    {
+    internal Task<List<PipelineExecution>> GetPipelineExecutionsAsync(CancellationToken cancellationToken) {
         return GetPipelineExecutionsAsync(status: null, startTime: null, endTime: null, cancellationToken);
     }
 
     /// <summary>
     /// Gets all pipeline executions with optional filtering
     /// </summary>
-    internal Task<List<PipelineExecution>> GetPipelineExecutionsAsync(PipelineStatus? status, CancellationToken cancellationToken)
-    {
+    internal Task<List<PipelineExecution>> GetPipelineExecutionsAsync(PipelineStatus? status, CancellationToken cancellationToken) {
         return GetPipelineExecutionsAsync(status, startTime: null, endTime: null, cancellationToken);
     }
 
@@ -415,15 +375,13 @@ internal class ApiClient {
         PipelineStatus? status,
         DateTime? startTime,
         DateTime? endTime,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var requestUri = new Uri(_httpClient.BaseAddress!, "api/pipeline-processing/metrics/168");
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -434,18 +392,15 @@ internal class ApiClient {
 
         IEnumerable<PipelineExecutionSummary> executions = metrics.RecentExecutions;
 
-        if (status.HasValue)
-        {
+        if (status.HasValue) {
             executions = executions.Where(execution => execution.Status == status.Value);
         }
 
-        if (startTime.HasValue)
-        {
+        if (startTime.HasValue) {
             executions = executions.Where(execution => execution.StartTime >= startTime.Value);
         }
 
-        if (endTime.HasValue)
-        {
+        if (endTime.HasValue) {
             executions = executions.Where(execution => execution.StartTime <= endTime.Value);
         }
 
@@ -458,15 +413,13 @@ internal class ApiClient {
     /// <summary>
     /// Gets blob-backed source files that have not completed ingestion yet.
     /// </summary>
-    internal async Task<List<PendingStorageFileDto>> GetPendingStorageFilesAsync(CancellationToken cancellationToken)
-    {
+    internal async Task<List<PendingStorageFileDto>> GetPendingStorageFilesAsync(CancellationToken cancellationToken) {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var requestUri = new Uri(_httpClient.BaseAddress!, "api/ingestion/jobs/pending-files");
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -479,8 +432,7 @@ internal class ApiClient {
     /// <summary>
     /// Gets recent ingestion jobs for the admin status view.
     /// </summary>
-    internal async Task<List<IngestionJobStatusResponse>> GetIngestionJobsAsync(int top, CancellationToken cancellationToken)
-    {
+    internal async Task<List<IngestionJobStatusResponse>> GetIngestionJobsAsync(int top, CancellationToken cancellationToken) {
         if (top <= 0)
             throw new ArgumentOutOfRangeException(nameof(top), "top must be greater than zero.");
 
@@ -489,8 +441,7 @@ internal class ApiClient {
         var requestUri = new Uri(_httpClient.BaseAddress!, $"api/ingestion/jobs?top={top}");
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(requestUri, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -505,8 +456,7 @@ internal class ApiClient {
     /// </summary>
     internal async Task<IngestionJobStatusResponse> StartIngestionJobAsync(
         IngestionJobStartRequest request,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(request);
 
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -514,8 +464,7 @@ internal class ApiClient {
         var response = await ExecuteWithResilienceAsync(() =>
             _httpClient.PostAsJsonAsync("api/ingestion/jobs", request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -530,8 +479,7 @@ internal class ApiClient {
     /// </summary>
     internal async Task<IngestionJobStatusResponse> ImportGraphArtifactsAsync(
         GraphImportStartRequest request,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(request);
 
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -539,8 +487,7 @@ internal class ApiClient {
         var response = await ExecuteWithResilienceAsync(() =>
             _httpClient.PostAsJsonAsync("api/ingestion/jobs/graph-import", request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -557,8 +504,7 @@ internal class ApiClient {
     internal async Task<IngestionUploadResponse> UploadIngestionSourceAsync(
         string filePath,
         string documentType,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(filePath))
             throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
         if (string.IsNullOrWhiteSpace(documentType))
@@ -566,8 +512,7 @@ internal class ApiClient {
 
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
-        try
-        {
+        try {
             using var fileStream = File.OpenRead(filePath);
             using var content = new MultipartFormDataContent();
             using var streamContent = new StreamContent(fileStream);
@@ -584,8 +529,7 @@ internal class ApiClient {
                 cancellationToken)).ConfigureAwait(false);
 
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-                response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            {
+                response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
                 throw new UnauthorizedAccessException(
                     $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
             }
@@ -595,16 +539,14 @@ internal class ApiClient {
             return await response.Content.ReadFromJsonAsync<IngestionUploadResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                    ?? throw new InvalidOperationException("Failed to deserialize ingestion upload response");
         }
-        catch (HttpRequestException ex)
-        {
+        catch (HttpRequestException ex) {
             _logger.LogError(ex, "HTTP request failed uploading ingestion source {FileName}. Status: {StatusCode}",
                 Path.GetFileName(filePath), ex.StatusCode);
             throw;
         }
     }
 
-    private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action)
-    {
+    private async Task<HttpResponseMessage> ExecuteWithResilienceAsync(Func<Task<HttpResponseMessage>> action) {
         return await action().ConfigureAwait(false);
     }
 
@@ -615,23 +557,20 @@ internal class ApiClient {
     /// <summary>
     /// Gets all MCP tool configurations
     /// </summary>
-    internal Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync()
-    {
+    internal Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync() {
         return GetMcpToolsAsync(default);
     }
 
     /// <summary>
     /// Gets all MCP tool configurations with cancellation
     /// </summary>
-    internal async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync(CancellationToken cancellationToken)
-    {
+    internal async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto[]> GetMcpToolsAsync(CancellationToken cancellationToken) {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var uri = new Uri(_httpClient.BaseAddress!, "api/admin/mcp-tools");
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -646,8 +585,7 @@ internal class ApiClient {
     /// </summary>
     internal Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(
         string toolId,
-        MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request)
-    {
+        MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request) {
         return UpdateMcpToolAsync(toolId, request, default);
     }
 
@@ -657,8 +595,7 @@ internal class ApiClient {
     internal async Task<MotorcycleRAG.Admin.Services.Dtos.McpToolConfigurationDto> UpdateMcpToolAsync(
         string toolId,
         MotorcycleRAG.Admin.Services.Dtos.UpdateMcpToolRequest request,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(toolId))
             throw new ArgumentException("Tool ID cannot be null or empty", nameof(toolId));
@@ -672,8 +609,7 @@ internal class ApiClient {
                 _jsonOptions,
                 cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -690,23 +626,20 @@ internal class ApiClient {
     /// <summary>
     /// Gets all web sources
     /// </summary>
-    internal Task<List<WebSource>> GetWebSourcesAsync()
-    {
+    internal Task<List<WebSource>> GetWebSourcesAsync() {
         return GetWebSourcesAsync(default);
     }
 
     /// <summary>
     /// Gets all web sources with cancellation
     /// </summary>
-    internal async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken)
-    {
+    internal async Task<List<WebSource>> GetWebSourcesAsync(CancellationToken cancellationToken) {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var uri = new Uri(_httpClient.BaseAddress!, "api/admin/web-sources");
         var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -719,16 +652,14 @@ internal class ApiClient {
     /// <summary>
     /// Adds a new web source
     /// </summary>
-    internal Task<WebSource> AddWebSourceAsync(WebSource source)
-    {
+    internal Task<WebSource> AddWebSourceAsync(WebSource source) {
         return AddWebSourceAsync(source, default);
     }
 
     /// <summary>
     /// Adds a new web source with cancellation
     /// </summary>
-    internal async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken)
-    {
+    internal async Task<WebSource> AddWebSourceAsync(WebSource source, CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(source);
 
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
@@ -736,8 +667,7 @@ internal class ApiClient {
         var response = await ExecuteWithResilienceAsync(() =>
             _httpClient.PostAsJsonAsync("api/admin/web-sources", source, _jsonOptions, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -750,16 +680,14 @@ internal class ApiClient {
     /// <summary>
     /// Updates an existing web source
     /// </summary>
-    internal Task<WebSource> UpdateWebSourceAsync(WebSource source)
-    {
+    internal Task<WebSource> UpdateWebSourceAsync(WebSource source) {
         return UpdateWebSourceAsync(source, default);
     }
 
     /// <summary>
     /// Updates an existing web source with cancellation
     /// </summary>
-    internal async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken)
-    {
+    internal async Task<WebSource> UpdateWebSourceAsync(WebSource source, CancellationToken cancellationToken) {
         ArgumentNullException.ThrowIfNull(source);
 
         if (source.Id <= 0)
@@ -770,8 +698,7 @@ internal class ApiClient {
         var response = await ExecuteWithResilienceAsync(() =>
             _httpClient.PutAsJsonAsync($"api/admin/web-sources/{source.Id}", source, _jsonOptions, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -784,16 +711,14 @@ internal class ApiClient {
     /// <summary>
     /// Deletes a web source
     /// </summary>
-    internal Task DeleteWebSourceAsync(int sourceId)
-    {
+    internal Task DeleteWebSourceAsync(int sourceId) {
         return DeleteWebSourceAsync(sourceId, default);
     }
 
     /// <summary>
     /// Deletes a web source with cancellation
     /// </summary>
-    internal async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken)
-    {
+    internal async Task DeleteWebSourceAsync(int sourceId, CancellationToken cancellationToken) {
         if (sourceId <= 0)
             throw new ArgumentException("Invalid web source ID", nameof(sourceId));
 
@@ -803,8 +728,7 @@ internal class ApiClient {
         var uri = new Uri(_httpClient.BaseAddress!, relativePath);
         var response = await ExecuteWithResilienceAsync(() => _httpClient.DeleteAsync(uri, cancellationToken)).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -820,16 +744,14 @@ internal class ApiClient {
         string? search = null,
         int page = 1,
         int pageSize = 100,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         return GetUserManagementInternalAsync(rowState, search, page, pageSize, cancellationToken);
     }
 
     internal Task<UserManagementRowDto> ApproveAccessRequestAsync(
         string requestId,
         ApproveAccessRequestDto request,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(request);
         ValidateManagementIdentifier(requestId, nameof(requestId));
 
@@ -842,8 +764,7 @@ internal class ApiClient {
     internal Task<UserManagementRowDto> RetryAccessRequestOnboardingAsync(
         string requestId,
         RetryOnboardingDto request,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(request);
         ValidateManagementIdentifier(requestId, nameof(requestId));
 
@@ -856,8 +777,7 @@ internal class ApiClient {
     internal Task<UserManagementRowDto> ChangeManagedUserTierAsync(
         string userId,
         ChangeManagedUserTierDto request,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(request);
         ValidateManagementIdentifier(userId, nameof(userId));
 
@@ -870,8 +790,7 @@ internal class ApiClient {
     internal Task<UserManagementRowDto> CancelAccessRequestAsync(
         string requestId,
         CancelManagementItemDto request,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(request);
         ValidateManagementIdentifier(requestId, nameof(requestId));
 
@@ -884,8 +803,7 @@ internal class ApiClient {
     internal Task<UserManagementRowDto> CancelManagedUserAsync(
         string userId,
         CancelManagementItemDto request,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(request);
         ValidateManagementIdentifier(userId, nameof(userId));
 
@@ -902,16 +820,14 @@ internal class ApiClient {
     /// <summary>
     /// Gets all users with optional filtering
     /// </summary>
-    internal Task<List<UserDto>> GetUsersAsync(CancellationToken cancellationToken)
-    {
+    internal Task<List<UserDto>> GetUsersAsync(CancellationToken cancellationToken) {
         return GetUsersAsync(isEnabled: null, cancellationToken);
     }
 
     /// <summary>
     /// Gets all users with optional filtering
     /// </summary>
-    internal async Task<List<UserDto>> GetUsersAsync(bool? isEnabled, CancellationToken cancellationToken)
-    {
+    internal async Task<List<UserDto>> GetUsersAsync(bool? isEnabled, CancellationToken cancellationToken) {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         const int pageSize = 100;
@@ -919,14 +835,12 @@ internal class ApiClient {
         var users = new List<UserDto>();
         var totalCount = int.MaxValue;
 
-        while (users.Count < totalCount)
-        {
+        while (users.Count < totalCount) {
             var relativePath = $"api/admin/users?page={page}&pageSize={pageSize}";
             var uri = new Uri(_httpClient.BaseAddress!, relativePath);
             var response = await ExecuteWithResilienceAsync(() => _httpClient.GetAsync(uri, cancellationToken)).ConfigureAwait(false);
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-                response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            {
+                response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
                 throw new UnauthorizedAccessException(
                     $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
             }
@@ -940,8 +854,7 @@ internal class ApiClient {
             totalCount = pageResult.TotalCount;
             page++;
 
-            if (pageResult.Users.Count == 0)
-            {
+            if (pageResult.Users.Count == 0) {
                 break;
             }
         }
@@ -954,32 +867,28 @@ internal class ApiClient {
     /// <summary>
     /// Enables a user account
     /// </summary>
-    internal Task<UserDto> EnableUserAsync(string userId)
-    {
+    internal Task<UserDto> EnableUserAsync(string userId) {
         return EnableUserAsync(userId, default);
     }
 
     /// <summary>
     /// Enables a user account with cancellation
     /// </summary>
-    internal async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken)
-    {
+    internal async Task<UserDto> EnableUserAsync(string userId, CancellationToken cancellationToken) {
         return await SetUserEnabledAsync(userId, isEnabled: true, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Disables a user account
     /// </summary>
-    internal Task<UserDto> DisableUserAsync(string userId)
-    {
+    internal Task<UserDto> DisableUserAsync(string userId) {
         return DisableUserAsync(userId, default);
     }
 
     /// <summary>
     /// Disables a user account with cancellation
     /// </summary>
-    internal async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken)
-    {
+    internal async Task<UserDto> DisableUserAsync(string userId, CancellationToken cancellationToken) {
         return await SetUserEnabledAsync(userId, isEnabled: false, cancellationToken).ConfigureAwait(false);
     }
 
@@ -992,8 +901,7 @@ internal class ApiClient {
         string? search,
         int page,
         int pageSize,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         if (page < 1)
             throw new ArgumentOutOfRangeException(nameof(page), page, "Page must be at least 1.");
 
@@ -1016,8 +924,7 @@ internal class ApiClient {
     private async Task<UserManagementRowDto> ExecuteAdminActionAsync<TRequest>(
         string relativePath,
         TRequest request,
-        CancellationToken cancellationToken)
-    {
+        CancellationToken cancellationToken) {
         await EnsureAuthenticatedAsync().ConfigureAwait(false);
 
         var response = await ExecuteWithResilienceAsync(() =>
@@ -1031,17 +938,14 @@ internal class ApiClient {
         return actionResponse.Row;
     }
 
-    private static void ValidateManagementIdentifier(string identifier, string paramName)
-    {
+    private static void ValidateManagementIdentifier(string identifier, string paramName) {
         if (string.IsNullOrWhiteSpace(identifier))
             throw new ArgumentException("Identifier cannot be null or empty", paramName);
     }
 
-    private static void EnsureAuthorizedResponse(HttpResponseMessage response)
-    {
+    private static void EnsureAuthorizedResponse(HttpResponseMessage response) {
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-        {
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
             throw new UnauthorizedAccessException(
                 $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
         }
@@ -1051,19 +955,16 @@ internal class ApiClient {
         UserManagementRowState? rowState,
         string? search,
         int page,
-        int pageSize)
-    {
+        int pageSize) {
         var query = new StringBuilder("api/admin/user-management?");
         query.Append($"page={page}&pageSize={pageSize}");
 
-        if (rowState.HasValue)
-        {
+        if (rowState.HasValue) {
             query.Append("&rowState=");
             query.Append(Uri.EscapeDataString(rowState.Value.ToString()));
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
-        {
+        if (!string.IsNullOrWhiteSpace(search)) {
             query.Append("&search=");
             query.Append(Uri.EscapeDataString(search));
         }
@@ -1071,8 +972,7 @@ internal class ApiClient {
         return query.ToString();
     }
 
-    private async Task<UserDto> SetUserEnabledAsync(string userId, bool isEnabled, CancellationToken cancellationToken)
-    {
+    private async Task<UserDto> SetUserEnabledAsync(string userId, bool isEnabled, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
 

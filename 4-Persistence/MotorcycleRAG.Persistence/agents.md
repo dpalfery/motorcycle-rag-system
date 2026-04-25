@@ -4,7 +4,7 @@ This file is **persistence-layer specific** context. Root rules live in `AGENTS.
 
 ## What to read first (authoritative)
 - Security + secrets rules: `AGENTS.md`
-- Environment variables naming: `6-Docs/environment-variables.md` (API expects `MCR_API_*` for most infra dependencies)
+- Configuration rules: root `AGENTS.md`. C# infrastructure integrations use Azure App Configuration + Key Vault, not direct environment-variable reads.
 - Baseline system requirements: `specs/001-system-spec/spec.md`
 
 ## What this project is responsible for
@@ -13,7 +13,7 @@ This file is **persistence-layer specific** context. Root rules live in `AGENTS.
 
 ## Project-specific constraints
 - SQL access must be parameterized (no string concatenation).
-- No secrets in code/config; use environment variables / managed identity.
+- No secrets in code/config; use Azure Key Vault references through configuration and managed identity.
 - Keep dependencies one-way: Persistence depends inward on Domain/Contracts/Base, never on Application/Presentation.
 
 ## Useful commands

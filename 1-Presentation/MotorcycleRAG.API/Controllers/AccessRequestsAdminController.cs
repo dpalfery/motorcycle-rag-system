@@ -14,8 +14,7 @@ namespace MotorcycleRAG.API.Controllers;
 [Route("api/admin")]
 [Authorize(Policy = "mcr-api-admin")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
-public sealed class AccessRequestsAdminController : ControllerBase
-{
+public sealed class AccessRequestsAdminController : ControllerBase {
     private readonly AccessRequestAdminService _accessRequestAdminService;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<AccessRequestsAdminController> _logger;
@@ -23,8 +22,7 @@ public sealed class AccessRequestsAdminController : ControllerBase
     public AccessRequestsAdminController(
         AccessRequestAdminService accessRequestAdminService,
         ICurrentUserService currentUserService,
-        ILogger<AccessRequestsAdminController> logger)
-    {
+        ILogger<AccessRequestsAdminController> logger) {
         _accessRequestAdminService = accessRequestAdminService ?? throw new ArgumentNullException(nameof(accessRequestAdminService));
         _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -43,15 +41,12 @@ public sealed class AccessRequestsAdminController : ControllerBase
         [FromQuery] UserManagementRowState? rowState,
         [FromQuery] string? search,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
-    {
-        try
-        {
+        [FromQuery] int pageSize = 50) {
+        try {
             var response = await _accessRequestAdminService.GetUserManagementRowsAsync(rowState, search, page, pageSize);
             return Ok(response);
         }
-        catch (ArgumentException ex)
-        {
+        catch (ArgumentException ex) {
             _logger.LogWarning(ex, "Invalid user-management list request");
             return BadRequest(new { error = ex.Message, code = "InvalidPayload" });
         }
@@ -69,31 +64,25 @@ public sealed class AccessRequestsAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> ApproveAccessRequestAsync(string requestId, [FromBody] ApproveAccessRequestRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(requestId))
-        {
+    public async Task<IActionResult> ApproveAccessRequestAsync(string requestId, [FromBody] ApproveAccessRequestRequest request) {
+        if (string.IsNullOrWhiteSpace(requestId)) {
             return BadRequest(new { error = "Request ID is required" });
         }
 
-        if (request == null)
-        {
+        if (request == null) {
             return BadRequest(new { error = "Request body is required" });
         }
 
-        try
-        {
+        try {
             var approvedByUserId = await _currentUserService.GetManagedUserIdAsync();
             var response = await _accessRequestAdminService.ApproveAccessRequestAsync(requestId, request, approvedByUserId);
             return Ok(response);
         }
-        catch (ArgumentException ex)
-        {
+        catch (ArgumentException ex) {
             _logger.LogWarning(ex, "Invalid approval request for access request {RequestId}", requestId);
             return BadRequest(new { error = ex.Message });
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             _logger.LogWarning(ex, "Approval could not be completed for access request {RequestId}", requestId);
             return Conflict(new { error = ex.Message });
         }
@@ -111,30 +100,24 @@ public sealed class AccessRequestsAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> RetryOnboardingAsync(string requestId, [FromBody] RetryAccessRequestOnboardingRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(requestId))
-        {
+    public async Task<IActionResult> RetryOnboardingAsync(string requestId, [FromBody] RetryAccessRequestOnboardingRequest request) {
+        if (string.IsNullOrWhiteSpace(requestId)) {
             return BadRequest(new { error = "Request ID is required" });
         }
 
-        if (request == null)
-        {
+        if (request == null) {
             return BadRequest(new { error = "Request body is required" });
         }
 
-        try
-        {
+        try {
             var response = await _accessRequestAdminService.RetryOnboardingAsync(requestId, request);
             return Ok(response);
         }
-        catch (ArgumentException ex)
-        {
+        catch (ArgumentException ex) {
             _logger.LogWarning(ex, "Invalid retry request for access request {RequestId}", requestId);
             return BadRequest(new { error = ex.Message });
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             _logger.LogWarning(ex, "Retry could not be completed for access request {RequestId}", requestId);
             return Conflict(new { error = ex.Message });
         }
@@ -152,31 +135,25 @@ public sealed class AccessRequestsAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> CancelAccessRequestAsync(string requestId, [FromBody] CancelAccessRequestRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(requestId))
-        {
+    public async Task<IActionResult> CancelAccessRequestAsync(string requestId, [FromBody] CancelAccessRequestRequest request) {
+        if (string.IsNullOrWhiteSpace(requestId)) {
             return BadRequest(new { error = "Request ID is required" });
         }
 
-        if (request == null || string.IsNullOrWhiteSpace(request.Reason))
-        {
+        if (request == null || string.IsNullOrWhiteSpace(request.Reason)) {
             return BadRequest(new { error = "Cancellation reason is required" });
         }
 
-        try
-        {
+        try {
             var cancelledByUserId = await _currentUserService.GetManagedUserIdAsync();
             var response = await _accessRequestAdminService.CancelAccessRequestAsync(requestId, request, cancelledByUserId);
             return Ok(response);
         }
-        catch (ArgumentException ex)
-        {
+        catch (ArgumentException ex) {
             _logger.LogWarning(ex, "Invalid cancellation request for access request {RequestId}", requestId);
             return BadRequest(new { error = ex.Message });
         }
-        catch (InvalidOperationException ex)
-        {
+        catch (InvalidOperationException ex) {
             _logger.LogWarning(ex, "Cancellation could not be completed for access request {RequestId}", requestId);
             return Conflict(new { error = ex.Message });
         }

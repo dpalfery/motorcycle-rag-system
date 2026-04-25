@@ -10,14 +10,12 @@ namespace MotorcycleRAG.UnitTests.Services.AgentProvisioning;
 /// Unit tests for <see cref="AgentProvisioningService"/>.
 /// Uses a mock <see cref="IAgentAdminOperations"/> to isolate from Azure SDK.
 /// </summary>
-public class AgentProvisioningServiceTests
-{
+public class AgentProvisioningServiceTests {
     private readonly Mock<IAgentAdminOperations> _mockOps;
     private readonly Mock<ILogger<AgentProvisioningService>> _mockLogger;
     private readonly AgentProvisioningService _service;
 
-    public AgentProvisioningServiceTests()
-    {
+    public AgentProvisioningServiceTests() {
         _mockOps = new Mock<IAgentAdminOperations>();
         _mockLogger = new Mock<ILogger<AgentProvisioningService>>();
 
@@ -33,8 +31,7 @@ public class AgentProvisioningServiceTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task ProvisionAllAgentsAsync_ShouldCreateAllAgents_WhenNoneExist()
-    {
+    public async Task ProvisionAllAgentsAsync_ShouldCreateAllAgents_WhenNoneExist() {
         // Arrange — mock returns unique IDs for each create call
         _mockOps.SetupSequence(o => o.CreateAgentAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
@@ -92,8 +89,7 @@ public class AgentProvisioningServiceTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task ProvisionAllAgentsAsync_ShouldUpdateOrchestratorAgent_WhenItAlreadyExists()
-    {
+    public async Task ProvisionAllAgentsAsync_ShouldUpdateOrchestratorAgent_WhenItAlreadyExists() {
         // Arrange — orchestrator agent already exists
         _mockOps.Setup(o => o.GetAgentsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(string Id, string Name)>
@@ -143,8 +139,7 @@ public class AgentProvisioningServiceTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task ProvisionAllAgentsAsync_ShouldReturnAgentIdFromCreateAsync()
-    {
+    public async Task ProvisionAllAgentsAsync_ShouldReturnAgentIdFromCreateAsync() {
         // Arrange
         _mockOps.SetupSequence(o => o.CreateAgentAsync(
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
@@ -165,8 +160,7 @@ public class AgentProvisioningServiceTests
     }
 
     [Fact]
-    public async Task ProvisionAllAgentsAsync_ShouldReturnAgentIdFromUpdateAsync()
-    {
+    public async Task ProvisionAllAgentsAsync_ShouldReturnAgentIdFromUpdateAsync() {
         // Arrange — all four agents already exist
         _mockOps.Setup(o => o.GetAgentsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<(string Id, string Name)>
@@ -187,9 +181,9 @@ public class AgentProvisioningServiceTests
 
         // Assert — IDs returned from UpdateAgentAsync
         Assert.Equal("orch-existing", result.OrchestratorAgentId);
-        Assert.Equal("vec-existing",  result.VectorSearchAgentId);
-        Assert.Equal("web-existing",  result.WebSearchAgentId);
-        Assert.Equal("pdf-existing",  result.PDFSearchAgentId);
+        Assert.Equal("vec-existing", result.VectorSearchAgentId);
+        Assert.Equal("web-existing", result.WebSearchAgentId);
+        Assert.Equal("pdf-existing", result.PDFSearchAgentId);
 
         _mockOps.Verify(o => o.CreateAgentAsync(
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
@@ -202,8 +196,7 @@ public class AgentProvisioningServiceTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task ProvisionAllAgentsAsync_ShouldThrow_WhenOrchestratorSystemPromptIsEmpty()
-    {
+    public async Task ProvisionAllAgentsAsync_ShouldThrow_WhenOrchestratorSystemPromptIsEmpty() {
         Assert.False(string.IsNullOrWhiteSpace(AgentDefinitions.OrchestratorSystemPrompt),
             "OrchestratorSystemPrompt must not be empty — production guard depends on it");
         Assert.False(string.IsNullOrWhiteSpace(AgentDefinitions.VectorSearchSystemPrompt),
@@ -227,15 +220,13 @@ public class AgentProvisioningServiceTests
     // -------------------------------------------------------------------------
 
     /// <summary>Stub that simulates an empty system prompt to exercise the guard.</summary>
-    private sealed class EmptyPromptStubOps : IAgentAdminOperations
-    {
+    private sealed class EmptyPromptStubOps : IAgentAdminOperations {
         public Task<IReadOnlyList<(string Id, string Name)>> GetAgentsAsync(CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<(string Id, string Name)>>(
                 new List<(string Id, string Name)>().AsReadOnly());
 
         public Task<string> CreateAgentAsync(string name, string model, string instructions,
-            ToolDefinition[] tools, CancellationToken ct = default)
-        {
+            ToolDefinition[] tools, CancellationToken ct = default) {
             if (string.IsNullOrWhiteSpace(instructions))
                 throw new InvalidOperationException($"System prompt for agent '{name}' is missing or empty");
 

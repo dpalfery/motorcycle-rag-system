@@ -9,18 +9,15 @@ using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Services;
 
-public class AccessRequestValidationTests
-{
+public class AccessRequestValidationTests {
     private readonly Mock<IAccessRequestRepository> _accessRequestRepository = new();
     private readonly Mock<IApproverNotificationService> _approverNotificationService = new();
     private readonly Mock<ICorrelationService> _correlationService = new();
     private readonly Mock<ILogger<AccessRequestService>> _logger = new();
 
     [Fact]
-    public async Task CreateOrGetExistingAsync_WhenExistingRequestExists_ReturnsExistingState()
-    {
-        var existingRequest = new PublicAccessRequestResponse
-        {
+    public async Task CreateOrGetExistingAsync_WhenExistingRequestExists_ReturnsExistingState() {
+        var existingRequest = new PublicAccessRequestResponse {
             RequestId = Guid.NewGuid().ToString(),
             Email = "rider@example.com",
             Provider = IdentityProvider.Microsoft,
@@ -37,8 +34,7 @@ public class AccessRequestValidationTests
 
         var service = CreateService();
 
-        var result = await service.CreateOrGetExistingAsync(new CreateAccessRequestRequest
-        {
+        var result = await service.CreateOrGetExistingAsync(new CreateAccessRequestRequest {
             Email = " Rider@Example.com ",
             Provider = IdentityProvider.Microsoft
         });
@@ -49,12 +45,10 @@ public class AccessRequestValidationTests
     }
 
     [Fact]
-    public async Task CreateOrGetExistingAsync_WhenNewRequestIsCreated_NotifiesApprover()
-    {
+    public async Task CreateOrGetExistingAsync_WhenNewRequestIsCreated_NotifiesApprover() {
         _correlationService.Setup(service => service.GetOrGenerateCorrelationId()).Returns("corr-001");
 
-        var createdRequest = new PublicAccessRequestResponse
-        {
+        var createdRequest = new PublicAccessRequestResponse {
             RequestId = Guid.NewGuid().ToString(),
             Email = "rider@example.com",
             Provider = IdentityProvider.Google,
@@ -77,8 +71,7 @@ public class AccessRequestValidationTests
 
         var service = CreateService("approver@example.com");
 
-        var result = await service.CreateOrGetExistingAsync(new CreateAccessRequestRequest
-        {
+        var result = await service.CreateOrGetExistingAsync(new CreateAccessRequestRequest {
             Email = "rider@example.com",
             Provider = IdentityProvider.Google
         });
@@ -91,12 +84,10 @@ public class AccessRequestValidationTests
     }
 
     [Fact]
-    public async Task CreateOrGetExistingAsync_WhenNotificationFails_StillReturnsCreatedRequest()
-    {
+    public async Task CreateOrGetExistingAsync_WhenNotificationFails_StillReturnsCreatedRequest() {
         _correlationService.Setup(service => service.GetOrGenerateCorrelationId()).Returns("corr-002");
 
-        var createdRequest = new PublicAccessRequestResponse
-        {
+        var createdRequest = new PublicAccessRequestResponse {
             RequestId = Guid.NewGuid().ToString(),
             Email = "rider@example.com",
             Provider = IdentityProvider.Microsoft,
@@ -120,8 +111,7 @@ public class AccessRequestValidationTests
 
         var service = CreateService("approver@example.com");
 
-        var result = await service.CreateOrGetExistingAsync(new CreateAccessRequestRequest
-        {
+        var result = await service.CreateOrGetExistingAsync(new CreateAccessRequestRequest {
             Email = "rider@example.com",
             Provider = IdentityProvider.Microsoft
         });
@@ -130,8 +120,7 @@ public class AccessRequestValidationTests
         result.Response.Should().BeEquivalentTo(createdRequest);
     }
 
-    private AccessRequestService CreateService(string approverAddress = "")
-    {
+    private AccessRequestService CreateService(string approverAddress = "") {
         return new AccessRequestService(
             _accessRequestRepository.Object,
             _approverNotificationService.Object,

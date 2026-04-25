@@ -22,8 +22,7 @@ internal partial class UserManagementRowViewModel : ObservableObject {
     [ObservableProperty]
     private bool isBusy;
 
-    public UserManagementRowViewModel(UserManagementRowDto row)
-    {
+    public UserManagementRowViewModel(UserManagementRowDto row) {
         _row = row ?? throw new ArgumentNullException(nameof(row));
         selectedTier = row.AssignedTier ?? TierLabel.Trial;
     }
@@ -85,18 +84,15 @@ internal partial class UserManagementRowViewModel : ObservableObject {
 
     public string TimelineText {
         get {
-            if (CancelledAtUtc.HasValue)
-            {
+            if (CancelledAtUtc.HasValue) {
                 return $"Cancelled {CancelledAtUtc.Value.ToLocalTime():g}";
             }
 
-            if (ApprovedAtUtc.HasValue)
-            {
+            if (ApprovedAtUtc.HasValue) {
                 return $"Approved {ApprovedAtUtc.Value.ToLocalTime():g}";
             }
 
-            if (RequestedAtUtc.HasValue)
-            {
+            if (RequestedAtUtc.HasValue) {
                 return $"Requested {RequestedAtUtc.Value.ToLocalTime():g}";
             }
 
@@ -128,31 +124,26 @@ internal partial class UserManagementRowViewModel : ObservableObject {
         ? "Reason for cancellation"
         : "Optional reason for tier change";
 
-    internal void Apply(UserManagementRowDto row)
-    {
+    internal void Apply(UserManagementRowDto row) {
         _row = row ?? throw new ArgumentNullException(nameof(row));
 
-        if (row.AssignedTier.HasValue)
-        {
+        if (row.AssignedTier.HasValue) {
             SelectedTier = row.AssignedTier.Value;
         }
 
         NotifyRowChanged();
     }
 
-    partial void OnIsBusyChanged(bool value)
-    {
+    partial void OnIsBusyChanged(bool value) {
         OnPropertyChanged(nameof(IsActionEnabled));
     }
 
-    private bool HasAllowedAction(string action)
-    {
+    private bool HasAllowedAction(string action) {
         return _row.AllowedActions.Any(allowedAction =>
             string.Equals(allowedAction, action, StringComparison.OrdinalIgnoreCase));
     }
 
-    private void NotifyRowChanged()
-    {
+    private void NotifyRowChanged() {
         OnPropertyChanged(nameof(RowId));
         OnPropertyChanged(nameof(RowType));
         OnPropertyChanged(nameof(AccessRequestId));

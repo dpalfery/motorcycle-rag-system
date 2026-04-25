@@ -9,14 +9,12 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.UnitTests.Presentation.API.Services;
 
-public class CurrentUserServiceTests
-{
+public class CurrentUserServiceTests {
     private readonly Mock<IUserProvisioningService> _userProvisioningService = new();
     private readonly Mock<ILogger<CurrentUserService>> _logger = new();
 
     [Fact]
-    public async Task GetManagedUserAsync_WhenEmailClaimMissing_ReturnsNull()
-    {
+    public async Task GetManagedUserAsync_WhenEmailClaimMissing_ReturnsNull() {
         var service = CreateService(CreateAuthenticatedHttpContext(new Claim(ClaimTypes.NameIdentifier, "subject-1")));
 
         var result = await service.GetManagedUserAsync();
@@ -37,8 +35,7 @@ public class CurrentUserServiceTests
     }
 
     [Fact]
-    public async Task GetManagedUserAsync_WhenGoogleIdentityIsAuthenticated_UsesGoogleProvider()
-    {
+    public async Task GetManagedUserAsync_WhenGoogleIdentityIsAuthenticated_UsesGoogleProvider() {
         var expectedUser = new UserDTO { Id = "managed-user-1", Email = "rider@example.com" };
         _userProvisioningService
             .Setup(provisioning => provisioning.ReconcileApprovedUserAsync(
@@ -68,8 +65,7 @@ public class CurrentUserServiceTests
         result.Should().BeSameAs(expectedUser);
     }
 
-    private CurrentUserService CreateService(HttpContext httpContext)
-    {
+    private CurrentUserService CreateService(HttpContext httpContext) {
         var httpContextAccessor = new Mock<IHttpContextAccessor>();
         httpContextAccessor.Setup(accessor => accessor.HttpContext).Returns(httpContext);
 
@@ -79,11 +75,9 @@ public class CurrentUserServiceTests
             _logger.Object);
     }
 
-    private static HttpContext CreateAuthenticatedHttpContext(params Claim[] claims)
-    {
+    private static HttpContext CreateAuthenticatedHttpContext(params Claim[] claims) {
         var identity = new ClaimsIdentity(claims, authenticationType: "TestAuthType");
-        return new DefaultHttpContext
-        {
+        return new DefaultHttpContext {
             User = new ClaimsPrincipal(identity)
         };
     }

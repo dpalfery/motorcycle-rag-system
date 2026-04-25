@@ -14,8 +14,7 @@ namespace MotorcycleRAG.API.Services;
     "Design",
     "CA1515:Consider making public types internal",
     Justification = "Referenced by integration tests and registered as the default ICurrentUserService implementation.")]
-public class CurrentUserService : ICurrentUserService
-{
+public class CurrentUserService : ICurrentUserService {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserProvisioningService _userProvisioningService;
     private readonly ILogger<CurrentUserService> _logger;
@@ -28,8 +27,7 @@ public class CurrentUserService : ICurrentUserService
     public CurrentUserService(
         IHttpContextAccessor httpContextAccessor,
         IUserProvisioningService userProvisioningService,
-        ILogger<CurrentUserService> logger)
-    {
+        ILogger<CurrentUserService> logger) {
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
         _userProvisioningService = userProvisioningService ?? throw new ArgumentNullException(nameof(userProvisioningService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -93,10 +91,8 @@ public class CurrentUserService : ICurrentUserService
     /// <summary>
     /// Checks if the current user is authenticated
     /// </summary>
-    public bool IsAuthenticated
-    {
-        get
-        {
+    public bool IsAuthenticated {
+        get {
             var user = _httpContextAccessor.HttpContext?.User;
             return user?.Identity?.IsAuthenticated ?? false;
         }
@@ -107,16 +103,13 @@ public class CurrentUserService : ICurrentUserService
     /// </summary>
     /// <param name="role">Role to check</param>
     /// <returns>True if user has the role, false otherwise</returns>
-    public bool IsInRole(string role)
-    {
-        if (string.IsNullOrWhiteSpace(role))
-        {
+    public bool IsInRole(string role) {
+        if (string.IsNullOrWhiteSpace(role)) {
             return false;
         }
 
         var user = _httpContextAccessor.HttpContext?.User;
-        if (user == null)
-        {
+        if (user == null) {
             _logger.LogWarning("Attempted to check role {Role} but HTTP context is null", role);
             return false;
         }
@@ -125,8 +118,7 @@ public class CurrentUserService : ICurrentUserService
         var hasRole = user.IsInRole(role) ||
             user.HasClaim(c => c.Type == "roles" && c.Value == role);
 
-        if (!hasRole)
-        {
+        if (!hasRole) {
             _logger.LogDebug("User {UserId} does not have role {Role}", UserId, role);
         }
 
@@ -137,8 +129,7 @@ public class CurrentUserService : ICurrentUserService
     /// Gets all claims for the current user
     /// </summary>
     /// <returns>Collection of claims</returns>
-    public IEnumerable<Claim> GetClaims()
-    {
+    public IEnumerable<Claim> GetClaims() {
         var user = _httpContextAccessor.HttpContext?.User;
         return user?.Claims ?? Enumerable.Empty<Claim>();
     }
@@ -146,8 +137,7 @@ public class CurrentUserService : ICurrentUserService
     /// <summary>
     /// Resolves the current authenticated principal to an internal managed user ID when access is approved.
     /// </summary>
-    public async Task<string?> GetManagedUserIdAsync()
-    {
+    public async Task<string?> GetManagedUserIdAsync() {
         var user = await GetManagedUserAsync();
         return user?.Id;
     }
@@ -155,15 +145,12 @@ public class CurrentUserService : ICurrentUserService
     /// <summary>
     /// Resolves the current authenticated principal to an internal managed user when access is approved.
     /// </summary>
-    public async Task<UserDTO?> GetManagedUserAsync()
-    {
-        if (!IsAuthenticated)
-        {
+    public async Task<UserDTO?> GetManagedUserAsync() {
+        if (!IsAuthenticated) {
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(Email))
-        {
+        if (string.IsNullOrWhiteSpace(Email)) {
             _logger.LogWarning("Unable to resolve managed user because email claim is missing for subject {Subject}", Subject);
             return null;
         }
@@ -186,11 +173,9 @@ public class CurrentUserService : ICurrentUserService
     /// </summary>
     /// <param name="claimType">Type of claim to retrieve</param>
     /// <returns>Claim value if found, null otherwise</returns>
-    private string? GetClaimValue(string claimType)
-    {
+    private string? GetClaimValue(string claimType) {
         var user = _httpContextAccessor.HttpContext?.User;
-        if (user == null)
-        {
+        if (user == null) {
             return null;
         }
 
@@ -198,11 +183,9 @@ public class CurrentUserService : ICurrentUserService
         return claim?.Value;
     }
 
-    private IdentityProvider ResolveIdentityProvider()
-    {
+    private IdentityProvider ResolveIdentityProvider() {
         var providerHint = AuthProvider ?? string.Empty;
-        if (providerHint.Contains("google", StringComparison.OrdinalIgnoreCase))
-        {
+        if (providerHint.Contains("google", StringComparison.OrdinalIgnoreCase)) {
             return IdentityProvider.Google;
         }
 

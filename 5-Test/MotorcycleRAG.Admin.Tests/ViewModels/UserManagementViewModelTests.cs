@@ -17,8 +17,7 @@ public class UserManagementViewModelTests {
     };
 
     [Fact]
-    public async Task InitializeAsync_LoadsRows_AndExposesAllowedActions()
-    {
+    public async Task InitializeAsync_LoadsRows_AndExposesAllowedActions() {
         using var handler = new StubHttpMessageHandler(request => {
             request.Method.Should().Be(HttpMethod.Get);
             request.RequestUri.Should().NotBeNull();
@@ -78,8 +77,7 @@ public class UserManagementViewModelTests {
     }
 
     [Fact]
-    public async Task ApproveAsync_SendsSelectedTier_AndAppliesUpdatedRow()
-    {
+    public async Task ApproveAsync_SendsSelectedTier_AndAppliesUpdatedRow() {
         string? capturedBody = null;
         using var handler = new StubHttpMessageHandler(async request => {
             request.Method.Should().Be(HttpMethod.Post);
@@ -138,8 +136,7 @@ public class UserManagementViewModelTests {
     }
 
     [Fact]
-    public async Task RetryOnboardingAsync_UsesCurrentRowVersion_AndUpdatesState()
-    {
+    public async Task RetryOnboardingAsync_UsesCurrentRowVersion_AndUpdatesState() {
         string? capturedBody = null;
         using var handler = new StubHttpMessageHandler(async request => {
             request.Method.Should().Be(HttpMethod.Post);
@@ -193,8 +190,7 @@ public class UserManagementViewModelTests {
     }
 
     [Fact]
-    public async Task ChangeTierAsync_SendsTierAndReason_AndAppliesUpdatedRow()
-    {
+    public async Task ChangeTierAsync_SendsTierAndReason_AndAppliesUpdatedRow() {
         string? capturedBody = null;
         using var handler = new StubHttpMessageHandler(async request => {
             request.Method.Should().Be(HttpMethod.Post);
@@ -251,8 +247,7 @@ public class UserManagementViewModelTests {
     }
 
     [Fact]
-    public async Task CancelAsync_RequiresReason_BeforeCallingApi()
-    {
+    public async Task CancelAsync_RequiresReason_BeforeCallingApi() {
         var callCount = 0;
         using var handler = new StubHttpMessageHandler(_ => {
             callCount++;
@@ -286,8 +281,7 @@ public class UserManagementViewModelTests {
     private static ViewModelHarness CreateHarness(
         HttpMessageHandler handler,
         List<string>? successMessages = null,
-        List<string>? errorMessages = null)
-    {
+        List<string>? errorMessages = null) {
         var authService = new TestAdminAuthService();
         var configService = new TestConfigurationStateService();
 
@@ -321,8 +315,7 @@ public class UserManagementViewModelTests {
         return new ViewModelHarness(viewModel, httpClient);
     }
 
-    private static HttpResponseMessage CreateJsonResponse<T>(T payload)
-    {
+    private static HttpResponseMessage CreateJsonResponse<T>(T payload) {
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         return new HttpResponseMessage(HttpStatusCode.OK) {
             Content = new StringContent(json, Encoding.UTF8, "application/json")
@@ -332,13 +325,11 @@ public class UserManagementViewModelTests {
     private sealed class StubHttpMessageHandler : HttpMessageHandler {
         private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _handler;
 
-        public StubHttpMessageHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler)
-        {
+        public StubHttpMessageHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler) {
             _handler = handler;
         }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
             return _handler(request);
         }
     }
@@ -346,16 +337,14 @@ public class UserManagementViewModelTests {
     private sealed class ViewModelHarness : IDisposable {
         private readonly HttpClient _httpClient;
 
-        public ViewModelHarness(UserManagementViewModel viewModel, HttpClient httpClient)
-        {
+        public ViewModelHarness(UserManagementViewModel viewModel, HttpClient httpClient) {
             ViewModel = viewModel;
             _httpClient = httpClient;
         }
 
         public UserManagementViewModel ViewModel { get; }
 
-        public void Dispose()
-        {
+        public void Dispose() {
             _httpClient.Dispose();
         }
     }
@@ -407,9 +396,9 @@ public class UserManagementViewModelTests {
 
         public bool IsLocalProcessorConfigured => false;
 
-    #pragma warning disable CS0067
+#pragma warning disable CS0067
         public event EventHandler? ConfigurationChanged;
-    #pragma warning restore CS0067
+#pragma warning restore CS0067
 
         public Task LoadConfigurationAsync() => Task.CompletedTask;
 

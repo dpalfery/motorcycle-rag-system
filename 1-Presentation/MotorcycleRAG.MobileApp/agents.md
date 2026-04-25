@@ -5,7 +5,7 @@ This file is **mobile-app specific** context. Global rules live in the root `AGE
 ## What to read first (authoritative)
 - MAUI Golden Path: `6-Docs/MAUI_ARCHITECT.md`
 - Mobile requirements: `specs/001-mobile-app/spec.md` (+ `specs/001-mobile-app/plan.md`)
-- Environment variables: `6-Docs/environment-variables.md` (look for `MCR_MOBILE_*`)
+- Configuration rules: root `AGENTS.md`. Mobile .NET code uses approved configuration services, not direct environment-variable reads.
 
 ## What this project is responsible for
 - End-user mobile chat client (iOS/Android/Windows)

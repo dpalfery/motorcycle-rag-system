@@ -118,7 +118,7 @@
 ### Implementation for User Story 3
 
 - [x] T038 [P] [US3] Implement approval-time onboarding orchestration and entitlement reconciliation in `2-Application/MotorcycleRAG.Application/Services/ApprovalOnboardingService.cs`
-- [ ] T039 [P] [US3] Implement external identity provisioning, app-role assignment, and revocation in `4-Persistence/MotorcycleRAG.Persistence/Azure/ExternalIdentityProvisioningService.cs`
+- [x] T039 [P] [US3] Implement external identity provisioning, app-role assignment, and revocation in `4-Persistence/MotorcycleRAG.Persistence/Azure/ExternalIdentityProvisioningService.cs`
 - [x] T040 [US3] Update request approval, retry, and request-cancellation persistence states in `2-Application/MotorcycleRAG.Application/Services/AccessRequestAdminService.cs` and `4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/AccessRequestRepository.cs`
 - [x] T041 [US3] Create the initial usage-tracking seed behavior and protect it from duplicate retries in `2-Application/MotorcycleRAG.Application/Services/UsageTrackingService.cs` and `4-Persistence/MotorcycleRAG.Persistence/Sql/Repositories/UsageRepository.cs`
 - [x] T042 [US3] Complete internal-user lookup refactoring and cancelled-user blocking across protected API surfaces in `1-Presentation/MotorcycleRAG.API/Services/CurrentUserService.cs`, `1-Presentation/MotorcycleRAG.API/Controllers/MeController.cs`, and `1-Presentation/MotorcycleRAG.API/Controllers/MotorcycleController.cs`

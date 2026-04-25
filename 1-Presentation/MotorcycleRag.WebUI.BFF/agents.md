@@ -4,7 +4,7 @@ This file is **BFF-specific** context. For global rules (security, clean archite
 
 ## What to read first (authoritative)
 - Baseline requirements (auth split + trust policy): `specs/001-system-spec/spec.md`
-- Environment variable naming: `6-Docs/environment-variables.md` (look for `MCR_BFF_*`)
+- Configuration rules: root `AGENTS.md`. BFF C# code uses Azure App Configuration + Key Vault, not direct environment-variable reads.
 - UI stack context: `6-Docs/ui-technology-stack.md`
 
 ## What this project is responsible for
@@ -13,7 +13,7 @@ This file is **BFF-specific** context. For global rules (security, clean archite
 
 ## Security and auth boundaries
 - Prefer server-side session management (HTTP-only cookies) and PKCE/OIDC flows.
-- Do not forward client secrets to the browser; secrets stay in server environment variables.
+- Do not forward client secrets to the browser; secrets stay in Azure Key Vault and flow through configuration.
 - **Scopes**: Explicitly request the API's delegated read/chat scopes. Prefer `api://<api-client-id>/read` and `api://<api-client-id>/chat` for new configs; older environments may still expose the equivalent `api://motorcyclerag-api/*` URIs.
 - Keep token/claims handling consistent with the system spec:
 	- Customers: Entra External ID / B2C

@@ -44,41 +44,19 @@ namespace MotorcycleRAG.Persistence.Sql
             {
                 throw new InvalidOperationException(
                     "SQL connection string is not configured in Sql:ConnectionString. " +
-                    "In Azure, this is provided via App Configuration + Key Vault. " +
-                    "For local development, use: dotnet user-secrets set \"Sql:ConnectionString\" \"your-connection-string\"");
+                    "Provide it through Azure App Configuration + Key Vault.");
             }
 
             // Enforce policy: connection string must not contain embedded credentials
             // Azure AD / Managed Identity authentication is required
-            // EXCEPTIONS:
-            //   1. Development environment (local SQL Server)
-            //   2. Credentials delivered securely via App Config + Key Vault (not hardcoded)
-            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            var isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
-            var hasAppConfig = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("AppConfig__Endpoint"));
-
             var upperConnectionString = connectionString.ToUpperInvariant();
             if (upperConnectionString.Contains("PASSWORD=") ||
                 upperConnectionString.Contains("PWD=") ||
                 upperConnectionString.Contains("USER ID=") ||
                 upperConnectionString.Contains("UID="))
             {
-                if (isDevelopment)
-                {
-                    _logger.LogWarning("Development environment detected: Allowing SQL connection string with embedded credentials. " +
-                                     "Ensure this is NOT used in production.");
-                }
-                else if (hasAppConfig)
-                {
-                    _logger.LogInformation("SQL credentials delivered securely via App Configuration + Key Vault.");
-                }
-                else
-                {
-                    throw new InvalidOperationException(
-                        "Sql:ConnectionString must not contain embedded credentials (Password, Pwd, User ID, or UID). " +
-                        "Azure AD / Managed Identity authentication is required, or credentials must be delivered " +
-                        "securely via App Configuration + Key Vault (set AppConfig__Endpoint).");
-                }
+                _logger.LogWarning(
+                    "Sql:ConnectionString contains embedded credentials. This is only permitted when the value is delivered through Azure App Configuration + Key Vault.");
             }
 
             _connectionString = connectionString;

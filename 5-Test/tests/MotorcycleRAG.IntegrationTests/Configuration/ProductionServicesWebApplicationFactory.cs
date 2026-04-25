@@ -20,10 +20,8 @@ namespace MotorcycleRAG.IntegrationTests.Configuration;
 /// so that missing production registrations are caught at test time rather than in production.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "xUnit fixture must be public")]
-public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Program>
-{
-    static ProductionServicesWebApplicationFactory()
-    {
+public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Program> {
+    static ProductionServicesWebApplicationFactory() {
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
         Environment.SetEnvironmentVariable("MCR_API_AZURE_AD_TENANT_ID", "00000000-0000-0000-0000-000000000000");
         Environment.SetEnvironmentVariable("MCR_API_AZURE_AD_CLIENT_ID", "11111111-1111-1111-1111-111111111111");
@@ -33,8 +31,7 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
         Environment.SetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT", "https://test-foundry.azure.com/");
     }
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
+    protected override void ConfigureWebHost(IWebHostBuilder builder) {
         ArgumentNullException.ThrowIfNull(builder);
 
         Environment.SetEnvironmentVariable(
@@ -47,10 +44,8 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
 
         base.ConfigureWebHost(builder);
 
-        builder.ConfigureAppConfiguration((_, config) =>
-        {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
-            {
+        builder.ConfigureAppConfiguration((_, config) => {
+            config.AddInMemoryCollection(new Dictionary<string, string?> {
                 ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
                 ["AzureAd:Domain"] = "testdomain.onmicrosoft.com",
                 ["AzureAd:TenantId"] = "00000000-0000-0000-0000-000000000000",
@@ -64,16 +59,13 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
             });
         });
 
-        builder.ConfigureServices(services =>
-        {
+        builder.ConfigureServices(services => {
             // Replace auth only — all production service registrations remain untouched.
-            services.AddAuthentication(options =>
-            {
+            services.AddAuthentication(options => {
                 options.DefaultAuthenticateScheme = "Test";
                 options.DefaultChallengeScheme = "Test";
             })
-            .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", options =>
-            {
+            .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", options => {
                 options.TimeProvider = TimeProvider.System;
             });
 
@@ -98,8 +90,7 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
                     It.IsAny<IdentityProvider>(),
                     It.IsAny<string?>(),
                     It.IsAny<string?>()))
-                .ReturnsAsync((string issuer, string subject, string email, string? displayName, string? firstName, string? lastName, IdentityProvider provider, string? providerUserId, string? objectId) => new UserDTO
-                {
+                .ReturnsAsync((string issuer, string subject, string email, string? displayName, string? firstName, string? lastName, IdentityProvider provider, string? providerUserId, string? objectId) => new UserDTO {
                     Id = string.IsNullOrWhiteSpace(subject) ? email : subject,
                     Email = email,
                     DisplayName = displayName ?? email,
@@ -115,8 +106,7 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
         });
     }
 
-    protected override IHost CreateHost(IHostBuilder builder)
-    {
+    protected override IHost CreateHost(IHostBuilder builder) {
         builder.UseEnvironment("Testing");
         return base.CreateHost(builder);
     }

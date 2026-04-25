@@ -31,8 +31,7 @@ internal static class MauiProgram {
         var logDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MotorcycleRAGAdmin", "logs");
-        var fileLoggerOptions = new Services.Logging.FileLoggerOptions
-        {
+        var fileLoggerOptions = new Services.Logging.FileLoggerOptions {
             LogDirectory = logDirectory,
             MinimumLevel = LogLevel.Trace
         };

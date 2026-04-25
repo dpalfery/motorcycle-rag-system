@@ -12,8 +12,7 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// Upsert logic: finds existing agents by name, updates them if found, creates them if not.
 /// Called exclusively from the <c>MotorcycleRAG.AgentProvisioning</c> CLI during the deploy pipeline.
 /// </summary>
-public sealed class AgentProvisioningService
-{
+public sealed class AgentProvisioningService {
     private readonly IAgentAdminOperations _adminOps;
     private readonly ILogger<AgentProvisioningService> _logger;
     private readonly string _orchestratorSystemPrompt;
@@ -24,8 +23,7 @@ public sealed class AgentProvisioningService
     /// <summary>Production constructor — creates a <see cref="PersistentAgentsClient"/> from options.</summary>
     public AgentProvisioningService(
         IOptions<AzureFoundryOptions> options,
-        ILogger<AgentProvisioningService> logger)
-    {
+        ILogger<AgentProvisioningService> logger) {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
@@ -49,8 +47,7 @@ public sealed class AgentProvisioningService
         string? orchestratorSystemPrompt = null,
         string? vectorSearchSystemPrompt = null,
         string? webSearchSystemPrompt = null,
-        string? pdfSearchSystemPrompt = null)
-    {
+        string? pdfSearchSystemPrompt = null) {
         _adminOps = adminOps ?? throw new ArgumentNullException(nameof(adminOps));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _orchestratorSystemPrompt = orchestratorSystemPrompt ?? AgentDefinitions.OrchestratorSystemPrompt;
@@ -62,8 +59,7 @@ public sealed class AgentProvisioningService
     /// <summary>
     /// Creates or updates all four Foundry agents and returns their assigned IDs.
     /// </summary>
-    public async Task<ProvisionedAgentIds> ProvisionAllAgentsAsync(CancellationToken ct = default)
-    {
+    public async Task<ProvisionedAgentIds> ProvisionAllAgentsAsync(CancellationToken ct = default) {
         _logger.LogInformation("Starting Foundry agent provisioning");
 
         var orchestratorId = await UpsertAgentAsync(
@@ -110,17 +106,14 @@ public sealed class AgentProvisioningService
         string model,
         string instructions,
         ToolDefinition[] tools,
-        CancellationToken ct)
-    {
+        CancellationToken ct) {
         if (string.IsNullOrWhiteSpace(instructions))
             throw new InvalidOperationException($"System prompt for agent '{name}' is missing or empty");
 
         var existingAgents = await _adminOps.GetAgentsAsync(ct);
 
-        foreach (var (id, existingName) in existingAgents)
-        {
-            if (existingName == name)
-            {
+        foreach (var (id, existingName) in existingAgents) {
+            if (existingName == name) {
                 _logger.LogInformation("Updating existing agent '{AgentName}' (id={AgentId})", name, id);
                 return await _adminOps.UpdateAgentAsync(id, name, model, instructions, tools, ct);
             }

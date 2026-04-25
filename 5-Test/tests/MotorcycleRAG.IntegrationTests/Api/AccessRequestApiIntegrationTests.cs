@@ -7,19 +7,16 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.IntegrationTests.Api;
 
-public class AccessRequestApiIntegrationTests : IClassFixture<TestWebApplicationFactory>
-{
+public class AccessRequestApiIntegrationTests : IClassFixture<TestWebApplicationFactory> {
     private readonly TestWebApplicationFactory _factory;
     private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public AccessRequestApiIntegrationTests(TestWebApplicationFactory factory)
-    {
+    public AccessRequestApiIntegrationTests(TestWebApplicationFactory factory) {
         _factory = factory;
     }
 
     [Fact]
-    public async Task CreateAccessRequest_NewRequest_ReturnsAccepted()
-    {
+    public async Task CreateAccessRequest_NewRequest_ReturnsAccepted() {
         var requestRepository = new Mock<IAccessRequestRepository>();
         requestRepository
             .Setup(repository => repository.GetByProviderAndEmailAsync("rider@example.com", IdentityProvider.Microsoft))
@@ -28,8 +25,7 @@ public class AccessRequestApiIntegrationTests : IClassFixture<TestWebApplication
             .Setup(repository => repository.CreateAsync(
                 It.Is<CreateAccessRequestRequest>(request => request.Email == "rider@example.com" && request.Provider == IdentityProvider.Microsoft),
                 It.IsAny<string>()))
-            .ReturnsAsync(new PublicAccessRequestResponse
-            {
+            .ReturnsAsync(new PublicAccessRequestResponse {
                 RequestId = Guid.NewGuid().ToString(),
                 Email = "rider@example.com",
                 Provider = IdentityProvider.Microsoft,
@@ -41,10 +37,8 @@ public class AccessRequestApiIntegrationTests : IClassFixture<TestWebApplication
                 CorrelationId = "corr-accepted"
             });
 
-        using var factory = _factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
+        using var factory = _factory.WithWebHostBuilder(builder => {
+            builder.ConfigureServices(services => {
                 services.AddSingleton(requestRepository.Object);
             });
         });
@@ -65,10 +59,8 @@ public class AccessRequestApiIntegrationTests : IClassFixture<TestWebApplication
     }
 
     [Fact]
-    public async Task CreateAccessRequest_DuplicateRequest_ReturnsConflict()
-    {
-        var existingRequest = new PublicAccessRequestResponse
-        {
+    public async Task CreateAccessRequest_DuplicateRequest_ReturnsConflict() {
+        var existingRequest = new PublicAccessRequestResponse {
             RequestId = Guid.NewGuid().ToString(),
             Email = "rider@example.com",
             Provider = IdentityProvider.Google,
@@ -85,10 +77,8 @@ public class AccessRequestApiIntegrationTests : IClassFixture<TestWebApplication
             .Setup(repository => repository.GetByProviderAndEmailAsync("rider@example.com", IdentityProvider.Google))
             .ReturnsAsync(existingRequest);
 
-        using var factory = _factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
+        using var factory = _factory.WithWebHostBuilder(builder => {
+            builder.ConfigureServices(services => {
                 services.AddSingleton(requestRepository.Object);
             });
         });

@@ -15,13 +15,11 @@ namespace MotorcycleRAG.API.Controllers;
 [AllowAnonymous]
 [EnableRateLimiting("public")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
-public sealed class AccessRequestsController : ControllerBase
-{
+public sealed class AccessRequestsController : ControllerBase {
     private readonly AccessRequestService _accessRequestService;
     private readonly ILogger<AccessRequestsController> _logger;
 
-    public AccessRequestsController(AccessRequestService accessRequestService, ILogger<AccessRequestsController> logger)
-    {
+    public AccessRequestsController(AccessRequestService accessRequestService, ILogger<AccessRequestsController> logger) {
         _accessRequestService = accessRequestService ?? throw new ArgumentNullException(nameof(accessRequestService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -36,22 +34,18 @@ public sealed class AccessRequestsController : ControllerBase
     [ProducesResponseType(typeof(PublicAccessRequestResponse), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> CreateAsync([FromBody] CreateAccessRequestRequest request)
-    {
+    public async Task<IActionResult> CreateAsync([FromBody] CreateAccessRequestRequest request) {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (!ModelState.IsValid)
-        {
+        if (!ModelState.IsValid) {
             return ValidationProblem(ModelState);
         }
 
-        try
-        {
+        try {
             var (response, created) = await _accessRequestService.CreateOrGetExistingAsync(request);
             return created ? Accepted(response) : Conflict(response);
         }
-        catch (ArgumentException ex)
-        {
+        catch (ArgumentException ex) {
             _logger.LogWarning(ex, "Invalid access request payload received");
             return BadRequest(new { error = ex.Message, code = "InvalidPayload" });
         }

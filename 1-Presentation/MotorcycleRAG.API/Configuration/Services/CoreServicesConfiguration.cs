@@ -12,19 +12,17 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for core application services
 /// </summary>
-internal static class CoreServicesConfiguration
-{
+internal static class CoreServicesConfiguration {
     /// <summary>
     /// Configure core application services
     /// </summary>
-    internal static IServiceCollection AddCoreServices(this IServiceCollection services)
-    {
+    internal static IServiceCollection AddCoreServices(this IServiceCollection services) {
         // Register core service interfaces to concrete implementations in Application layer
         services.AddScoped<IMotorcycleRagService, MotorcycleRAG.Application.Services.MotorcycleRagService>();
         // IAgentOrchestrator is registered in SearchAgentsConfiguration with full Foundry dispatcher wiring
 
         // Register extracted services for MotorcycleRagService
-                services.AddScoped<ClaimCitationService>();
+        services.AddScoped<ClaimCitationService>();
         services.AddScoped<QueryRefinementService>();
         services.AddScoped<ResponseLimitationAnalyzer>();
         services.AddScoped<QueryCostCalculator>();

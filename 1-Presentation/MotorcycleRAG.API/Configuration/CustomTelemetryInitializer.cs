@@ -9,17 +9,19 @@ namespace MotorcycleRAG.API.Configuration;
 internal class CustomTelemetryInitializer : ITelemetryInitializer
 {
     private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _hostEnvironment;
 
-    public CustomTelemetryInitializer(IConfiguration configuration)
+    public CustomTelemetryInitializer(IConfiguration configuration, IHostEnvironment hostEnvironment)
     {
         _configuration = configuration;
+        _hostEnvironment = hostEnvironment;
     }
 
     void ITelemetryInitializer.Initialize(ITelemetry telemetry)
     {
         // Add custom properties to all telemetry
         telemetry.Context.GlobalProperties["ApplicationName"] = _configuration.GetValue<string>("ApplicationInsights:ApplicationName", "MotorcycleRAG");
-        telemetry.Context.GlobalProperties["Environment"] = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Unknown";
+        telemetry.Context.GlobalProperties["Environment"] = _hostEnvironment.EnvironmentName;
         telemetry.Context.GlobalProperties["Version"] = GetType().Assembly.GetName().Version?.ToString() ?? "Unknown";
 
         // Add correlation ID if available

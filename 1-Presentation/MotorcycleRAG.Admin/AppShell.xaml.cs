@@ -20,8 +20,7 @@ internal partial class AppShell : Shell {
     private readonly IConfigurationStateService _configService;
     private readonly IAppFlowCoordinator _appFlowCoordinator;
 
-    internal AppShell(IAdminAuthService authService, ISettingsService settingsService, IConfigurationStateService configService, IServiceProvider serviceProvider)
-    {
+    internal AppShell(IAdminAuthService authService, ISettingsService settingsService, IConfigurationStateService configService, IServiceProvider serviceProvider) {
         InitializeComponent();
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
@@ -33,41 +32,34 @@ internal partial class AppShell : Shell {
         // ContentTemplate="{DataTemplate T}" calls Activator.CreateInstance(T) which bypasses DI
         // and requires a parameterless constructor — these pages use constructor injection.
         // Setting ShellContent.Content directly after InitializeComponent is the correct pattern.
-        DashboardContent.Content  = serviceProvider.GetRequiredService<Pages.DashboardPage>();
-        UploadContent.Content     = serviceProvider.GetRequiredService<Pages.UploadPage>();
-        JobsContent.Content       = serviceProvider.GetRequiredService<Pages.JobsPage>();
+        DashboardContent.Content = serviceProvider.GetRequiredService<Pages.DashboardPage>();
+        UploadContent.Content = serviceProvider.GetRequiredService<Pages.UploadPage>();
+        JobsContent.Content = serviceProvider.GetRequiredService<Pages.JobsPage>();
         UserManagementContent.Content = serviceProvider.GetRequiredService<Pages.UserManagementPage>();
         WebSourcesContent.Content = serviceProvider.GetRequiredService<Pages.WebSourcesPage>();
-        ToolsContent.Content      = serviceProvider.GetRequiredService<Pages.ToolsPage>();
-        SettingsContent.Content   = serviceProvider.GetRequiredService<Pages.SettingsPage>();
+        ToolsContent.Content = serviceProvider.GetRequiredService<Pages.ToolsPage>();
+        SettingsContent.Content = serviceProvider.GetRequiredService<Pages.SettingsPage>();
 
         // Update UI based on auth state
         Loaded += OnShellLoaded;
     }
 
-    private async void OnShellLoaded(object? sender, EventArgs e)
-    {
+    private async void OnShellLoaded(object? sender, EventArgs e) {
         // Load configuration on startup
-        try
-        {
+        try {
             await MauiThreading.RunOffMainThreadAsync(() => _configService.LoadConfigurationAsync()).ConfigureAwait(false);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             System.Diagnostics.Debug.WriteLine($"Error loading configuration: {ex.Message}");
         }
 
         await UpdateUIAsync().ConfigureAwait(false);
     }
 
-    private async void OnAuthButtonClicked(object? sender, EventArgs e)
-    {
-        try
-        {
-            if (_authService.IsSignedIn())
-            {
-                await MauiThreading.RunOffMainThreadAsync(async () =>
-                {
+    private async void OnAuthButtonClicked(object? sender, EventArgs e) {
+        try {
+            if (_authService.IsSignedIn()) {
+                await MauiThreading.RunOffMainThreadAsync(async () => {
                     await _authService.SignOutAsync().ConfigureAwait(false);
                     await _settingsService.RemoveSecureAsync("auth_token").ConfigureAwait(false);
                     await _settingsService.RemoveSecureAsync("auth_refresh_token").ConfigureAwait(false);
@@ -75,48 +67,39 @@ internal partial class AppShell : Shell {
 
                 _appFlowCoordinator.ShowLandingPage();
             }
-            else
-            {
+            else {
                 // Sign in
                 var signedIn = await MauiThreading.RunOffMainThreadAsync(() => _authService.SignInAsync()).ConfigureAwait(false);
-                if (!signedIn)
-                {
+                if (!signedIn) {
                     return;
                 }
             }
-            
+
             await UpdateUIAsync().ConfigureAwait(false);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             System.Diagnostics.Debug.WriteLine($"Auth error: {ex.Message}");
             await ErrorPresenter.ShowErrorAsync("Authentication Error", $"Action failed: {ex.Message}").ConfigureAwait(false);
         }
     }
 
-    private async Task UpdateUIAsync()
-    {
-        await MainThread.InvokeOnMainThreadAsync(() =>
-        {
-            try
-            {
+    private async Task UpdateUIAsync() {
+        await MainThread.InvokeOnMainThreadAsync(() => {
+            try {
                 var isSignedIn = _authService.IsSignedIn();
 
                 // Update user display name in TitleView
-                if (isSignedIn)
-                {
+                if (isSignedIn) {
                     var displayName = _authService.UserDisplayName;
                     UserDisplayName.Text = displayName ?? "User";
                     AuthButton.Text = "Sign Out";
                 }
-                else
-                {
+                else {
                     UserDisplayName.Text = "Not signed in";
                     AuthButton.Text = "Sign In";
                 }
             }
-            catch (Exception ex)
-            {
+            catch (Exception ex) {
                 System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
                 UserDisplayName.Text = "User";
             }

@@ -15,27 +15,23 @@ public class AuthenticationService : IAuthenticationService
     {
         var authSettings = configuration.GetSection("Authentication");
 
-        // Try environment variables first, fall back to configuration
-        var clientId = Environment.GetEnvironmentVariable("MCR_MOBILE_CLIENT_ID")
-            ?? authSettings["ClientId"];
-        var tenantId = Environment.GetEnvironmentVariable("MCR_MOBILE_TENANT_ID")
-            ?? authSettings["TenantId"];
-        var redirectUri = Environment.GetEnvironmentVariable("MCR_MOBILE_REDIRECT_URI")
-            ?? authSettings["RedirectUri"];
+        var clientId = authSettings["ClientId"];
+        var tenantId = authSettings["TenantId"];
+        var redirectUri = authSettings["RedirectUri"];
 
         // Validate required settings
         if (string.IsNullOrWhiteSpace(clientId))
         {
             throw new InvalidOperationException(
                 "Mobile authentication ClientId is not configured. " +
-                "Set MCR_MOBILE_CLIENT_ID environment variable or configure Authentication:ClientId in appsettings.json");
+                "Configure Authentication:ClientId through the approved configuration provider.");
         }
 
         if (string.IsNullOrWhiteSpace(tenantId))
         {
             throw new InvalidOperationException(
                 "Mobile authentication TenantId is not configured. " +
-                "Set MCR_MOBILE_TENANT_ID environment variable or configure Authentication:TenantId in appsettings.json");
+                "Configure Authentication:TenantId through the approved configuration provider.");
         }
 
         // Default scopes if not provided in config

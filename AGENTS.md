@@ -1,4 +1,4 @@
-﻿# 1. Working Agreement Rules
+# 1. Working Agreement Rules
 
 1. **No infrastructure without approval** — Don't create docker-compose, Makefiles, CI/CD pipelines, IaC, or deployment scripts without explicit approval.
 2. **Permission before major decisions** — Ask before creating documentation files, adding/upgrading dependencies (NuGet/npm), or implementing cross-cutting concerns.
@@ -47,7 +47,8 @@ These are **non-optional** and apply to all code, tests, config, scripts, and do
 
 ### Secrets
 - **NEVER** hardcode secrets, connection strings, tokens, or passwords in any file — ever.
-- Retrieve secrets only via `Environment.GetEnvironmentVariable()` or Azure Key Vault.
+- C#/.NET application code must use Azure App Configuration for configuration and Azure Key Vault references for secrets. Do not read application settings or secrets directly with `Environment.GetEnvironmentVariable()` in C#/.NET code.
+- The only approved environment-variable usage is the Python local processor runtime values that the Admin app sets at run time.
 - No `.env` files. Appsettings files must never contain secrets.
 - It is better the app not work than for a secret to be exposed.
 
@@ -69,3 +70,8 @@ These are **non-optional** and apply to all code, tests, config, scripts, and do
 
 At the beginning of each task/response, include:
 `[******Working Agreement: Active******]`
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->

@@ -5,7 +5,7 @@ This file is **Admin-app specific** context. Global rules (secrets, auth separat
 ## What to read first (authoritative)
 - MAUI Golden Path: `6-Docs/MAUI_ARCHITECT.md`
 - Baseline requirements: `specs/001-system-spec/spec.md` (see US3a + US7)
-- Environment variables: `6-Docs/environment-variables.md` (look for `MCR_ADMIN_*`)
+- Configuration rules: root `AGENTS.md`. Admin .NET code uses approved configuration services; environment variables are only for Python local processor values that the Admin app sets at run time.
 
 ## What this project is responsible for
 - Windows-first ingestion operations UI (upload PDFs/CSVs, trigger/monitor ingestion)

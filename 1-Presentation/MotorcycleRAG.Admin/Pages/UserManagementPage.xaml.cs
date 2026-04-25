@@ -9,24 +9,20 @@ internal partial class UserManagementPage : ContentPage {
     private readonly UserManagementViewModel _viewModel;
     private readonly ILogger<UserManagementPage> _logger;
 
-    public UserManagementPage(UserManagementViewModel viewModel, ILogger<UserManagementPage> logger)
-    {
+    public UserManagementPage(UserManagementViewModel viewModel, ILogger<UserManagementPage> logger) {
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         BindingContext = _viewModel;
     }
 
-    protected override async void OnAppearing()
-    {
+    protected override async void OnAppearing() {
         base.OnAppearing();
 
-        try
-        {
+        try {
             await _viewModel.InitializeAsync().ConfigureAwait(false);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Failed to initialize User Management page");
             await Utilities.ErrorPresenter.ShowErrorAsync(
                 "Initialization Error",

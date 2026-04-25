@@ -7,8 +7,7 @@ namespace MotorcycleRAG.Application.Services;
 /// <summary>
 /// Coordinates managed-user tier changes and access cancellation.
 /// </summary>
-public class UserAccessLifecycleService
-{
+public class UserAccessLifecycleService {
     private readonly IUserRepository _userRepository;
     private readonly IUserIdentityRepository _userIdentityRepository;
     private readonly IPlanRepository _planRepository;
@@ -24,8 +23,7 @@ public class UserAccessLifecycleService
         IUserManagementQueryRepository userManagementQueryRepository,
         IExternalIdentityProvisioningService externalIdentityProvisioningService,
         TierEntitlementMappingService tierEntitlementMappingService,
-        ILogger<UserAccessLifecycleService> logger)
-    {
+        ILogger<UserAccessLifecycleService> logger) {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _userIdentityRepository = userIdentityRepository ?? throw new ArgumentNullException(nameof(userIdentityRepository));
         _planRepository = planRepository ?? throw new ArgumentNullException(nameof(planRepository));
@@ -38,10 +36,8 @@ public class UserAccessLifecycleService
     /// <summary>
     /// Changes the tier for an existing managed user and returns the latest management row.
     /// </summary>
-    public async Task<AdminActionResponse> ChangeManagedUserTierAsync(string userId, ChangeManagedUserTierRequest request)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
+    public async Task<AdminActionResponse> ChangeManagedUserTierAsync(string userId, ChangeManagedUserTierRequest request) {
+        if (string.IsNullOrWhiteSpace(userId)) {
             throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
         }
 
@@ -57,14 +53,12 @@ public class UserAccessLifecycleService
             ?? throw new InvalidOperationException($"Plan {planName} is not configured");
 
         var updated = await _userRepository.AssignTierAsync(userId, plan.Id, request.Tier);
-        if (!updated)
-        {
+        if (!updated) {
             throw new InvalidOperationException($"Failed to change tier for user {userId}");
         }
 
         var identityLink = await _userIdentityRepository.GetActiveByManagedUserIdAsync(userId);
-        if (!string.IsNullOrWhiteSpace(identityLink?.ExternalDirectoryObjectId))
-        {
+        if (!string.IsNullOrWhiteSpace(identityLink?.ExternalDirectoryObjectId)) {
             await _externalIdentityProvisioningService.ReconcileTierAssignmentsAsync(identityLink.ExternalDirectoryObjectId, request.Tier);
         }
 
@@ -78,10 +72,8 @@ public class UserAccessLifecycleService
     /// <summary>
     /// Cancels an existing managed user and returns the latest management row.
     /// </summary>
-    public async Task<AdminActionResponse> CancelManagedUserAsync(string userId, CancelManagedUserRequest request, string? cancelledByUserId)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
+    public async Task<AdminActionResponse> CancelManagedUserAsync(string userId, CancelManagedUserRequest request, string? cancelledByUserId) {
+        if (string.IsNullOrWhiteSpace(userId)) {
             throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
         }
 
@@ -92,8 +84,7 @@ public class UserAccessLifecycleService
         var user = await _userRepository.GetUserByIdAsync(userId)
             ?? throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
 
-        if (user.AccessState == ManagedUserAccessState.Cancelled)
-        {
+        if (user.AccessState == ManagedUserAccessState.Cancelled) {
             throw new InvalidOperationException($"User {userId} is already cancelled");
         }
 
@@ -104,14 +95,12 @@ public class UserAccessLifecycleService
             cancelledByUserId: cancelledByUserId,
             cancelReason: request.Reason);
 
-        if (!updated)
-        {
+        if (!updated) {
             throw new InvalidOperationException($"Failed to cancel user {userId}");
         }
 
         var identityLink = await _userIdentityRepository.GetActiveByManagedUserIdAsync(userId);
-        if (!string.IsNullOrWhiteSpace(identityLink?.ExternalDirectoryObjectId))
-        {
+        if (!string.IsNullOrWhiteSpace(identityLink?.ExternalDirectoryObjectId)) {
             await _externalIdentityProvisioningService.RevokeAccessAsync(identityLink.ExternalDirectoryObjectId);
             await _userIdentityRepository.MarkAccessRevokedAsync(userId);
         }
@@ -123,18 +112,15 @@ public class UserAccessLifecycleService
         return new AdminActionResponse { Row = row };
     }
 
-    private async Task EnsureExpectedRowVersionAsync(string rowId, string expectedRowVersion, string userId)
-    {
-        if (string.IsNullOrWhiteSpace(expectedRowVersion))
-        {
+    private async Task EnsureExpectedRowVersionAsync(string rowId, string expectedRowVersion, string userId) {
+        if (string.IsNullOrWhiteSpace(expectedRowVersion)) {
             throw new ArgumentException("Expected row version is required", nameof(expectedRowVersion));
         }
 
         var currentRow = await _userManagementQueryRepository.GetRowByIdAsync(rowId)
             ?? throw new InvalidOperationException($"Management row for user {userId} was not found");
 
-        if (!string.Equals(currentRow.RowVersion, expectedRowVersion, StringComparison.OrdinalIgnoreCase))
-        {
+        if (!string.Equals(currentRow.RowVersion, expectedRowVersion, StringComparison.OrdinalIgnoreCase)) {
             throw new InvalidOperationException($"User {userId} has changed since it was loaded. Refresh and retry.");
         }
     }

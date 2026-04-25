@@ -8,31 +8,25 @@ namespace MotorcycleRag.WebUI.BFF.Configuration.Services;
 /// <summary>
 /// Configuration for authentication services in the BFF.
 /// </summary>
-internal static class AuthenticationServiceConfiguration
-{
+internal static class AuthenticationServiceConfiguration {
     internal const string ApprovalStatusHttpClientName = "bff-approval-status";
 
     public static IServiceCollection AddBffAuthentication(
-        this IServiceCollection services, 
-        IConfiguration configuration)
-    {
+        this IServiceCollection services,
+        IConfiguration configuration) {
         var apiClusterAddress = GetApiClusterAddress(configuration);
 
-        services.AddHttpClient(ApprovalStatusHttpClientName, client =>
-        {
-            if (apiClusterAddress != null)
-            {
+        services.AddHttpClient(ApprovalStatusHttpClientName, client => {
+            if (apiClusterAddress != null) {
                 client.BaseAddress = apiClusterAddress;
             }
         });
 
-        services.AddAuthentication(options =>
-        {
+        services.AddAuthentication(options => {
             options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
             options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
         })
-        .AddCookie(options =>
-        {
+        .AddCookie(options => {
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
             options.Cookie.SameSite = SameSiteMode.Lax;
@@ -44,10 +38,9 @@ internal static class AuthenticationServiceConfiguration
             options.Cookie.MaxAge = TimeSpan.FromHours(1);
             options.Cookie.Domain = null; // Prevent subdomain attacks
         })
-        .AddOpenIdConnect(options =>
-        {
+        .AddOpenIdConnect(options => {
             var authConfig = configuration.GetSection("AzureAd");
-            
+
             // CIAM (Entra External ID) discovery document at /v2.0/.well-known/openid-configuration
             options.Authority = $"{authConfig["Instance"]}{authConfig["TenantId"]}/v2.0";
             options.ClientId = authConfig["ClientId"];
@@ -56,14 +49,14 @@ internal static class AuthenticationServiceConfiguration
                     "BFF Client Secret is not configured. " +
                     "For local development, use: dotnet user-secrets set \"AzureAd:ClientSecret\" \"your-secret\" " +
                     "--project 1-Presentation/MotorcycleRag.WebUI.BFF");
-            
+
             options.ResponseType = OpenIdConnectResponseType.Code;
             options.SaveTokens = true;
             options.Scope.Add("openid");
             options.Scope.Add("profile");
             options.Scope.Add("email");
             options.Scope.Add("offline_access"); // Request refresh token
-            
+
             // API scopes
             options.Scope.Add("api://motorcyclerag-api/read");
             options.Scope.Add("api://motorcyclerag-api/chat");
@@ -84,22 +77,19 @@ internal static class AuthenticationServiceConfiguration
             options.TokenValidationParameters.RequireSignedTokens = true;
 
             // ACA terminates TLS at the edge; the container receives plain http:// requests.
-            options.Events = new OpenIdConnectEvents
-            {
-                OnRedirectToIdentityProvider = context =>
-                {
+            options.Events = new OpenIdConnectEvents {
+                OnRedirectToIdentityProvider = context => {
                     context.ProtocolMessage.RedirectUri = context.ProtocolMessage.RedirectUri
                         .Replace("http://", "https://", StringComparison.OrdinalIgnoreCase);
                     return Task.CompletedTask;
                 },
-                OnRemoteFailure = context =>
-                {
+                OnRemoteFailure = context => {
                     context.HandleResponse();
                     context.Response.Redirect("/signin?error=auth_failed");
                     return Task.CompletedTask;
                 }
             };
-            
+
             // OIDC correlation + nonce cookies must survive the cross-site Entra redirect callback.
             options.NonceCookie.SameSite = SameSiteMode.None;
             options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
@@ -110,15 +100,13 @@ internal static class AuthenticationServiceConfiguration
         return services;
     }
 
-    private static Uri? GetApiClusterAddress(IConfiguration configuration)
-    {
+    private static Uri? GetApiClusterAddress(IConfiguration configuration) {
         var destinations = configuration.GetSection("ReverseProxy:Clusters:api-cluster:Destinations").GetChildren();
         var address = destinations
             .Select(destination => destination["Address"])
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
-        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri))
-        {
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri)) {
             return null;
         }
 

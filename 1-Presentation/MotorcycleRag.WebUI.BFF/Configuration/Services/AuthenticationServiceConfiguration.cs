@@ -47,8 +47,7 @@ internal static class AuthenticationServiceConfiguration {
             options.ClientSecret = configuration["AzureAd:ClientSecret"]
                 ?? throw new InvalidOperationException(
                     "BFF Client Secret is not configured. " +
-                    "For local development, use: dotnet user-secrets set \"AzureAd:ClientSecret\" \"your-secret\" " +
-                    "--project 1-Presentation/MotorcycleRag.WebUI.BFF");
+                    "Provide AzureAd:ClientSecret through Azure App Configuration with a Key Vault reference.");
 
             options.ResponseType = OpenIdConnectResponseType.Code;
             options.SaveTokens = true;

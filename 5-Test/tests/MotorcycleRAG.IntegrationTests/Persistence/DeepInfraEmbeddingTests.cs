@@ -17,7 +17,7 @@ namespace MotorcycleRAG.IntegrationTests.Persistence;
 
 /// <summary>
 /// Integration tests that verify the real AzureFoundryClientWrapper → DeepInfra HTTP path
-/// for embedding generation. Skipped by default; requires a real DEEPINFRA_API_KEY and network.
+/// for embedding generation. Skipped by default; requires DeepInfra:ApiKey from approved configuration and network.
 /// </summary>
 [Trait("Category", "Integration")]
 public class DeepInfraEmbeddingTests : IDisposable
@@ -27,12 +27,15 @@ public class DeepInfraEmbeddingTests : IDisposable
     [Fact(Skip = "Integration test - requires real DeepInfra API key and network")]
     public async Task GetEmbeddingsAsync_WithRealDeepInfraApi_Returns3584DimVector()
     {
-        // Arrange — read API key from environment (never hardcoded)
-        var apiKey = Environment.GetEnvironmentVariable("DEEPINFRA_API_KEY");
+        // Arrange - read API key from local test configuration when this skipped test is intentionally enabled.
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.Integration.json", optional: true)
+            .Build();
+        var apiKey = configuration["DeepInfra:ApiKey"];
         if (string.IsNullOrEmpty(apiKey))
         {
             // Defensive guard in case Skip is ever removed but key is missing
-            Assert.Fail("DEEPINFRA_API_KEY environment variable is not set");
+            Assert.Fail("DeepInfra:ApiKey is not configured");
             return;
         }
 
@@ -74,6 +77,9 @@ public class DeepInfraEmbeddingTests : IDisposable
         });
 
         var configMock = new Mock<IConfiguration>();
+        configMock.Setup(configuration => configuration["DeepInfra:ApiKey"]).Returns(apiKey);
+        configMock.Setup(configuration => configuration["DeepInfra:BaseUrl"]).Returns("https://api.deepinfra.com/v1/openai");
+        configMock.Setup(configuration => configuration["DeepInfra:EmbeddingModel"]).Returns("Qwen/Qwen3-Embedding-4B");
 
         using var sut = new AzureFoundryClientWrapper(
             options,

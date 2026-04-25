@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -12,6 +13,7 @@ public class AccessRequestAdminService {
     private readonly IUserManagementQueryRepository _userManagementQueryRepository;
     private readonly ApprovalOnboardingService _approvalOnboardingService;
     private readonly UserAccessLifecycleService _userAccessLifecycleService;
+    private readonly ITelemetryService _telemetryService;
     private readonly ILogger<AccessRequestAdminService> _logger;
 
     public AccessRequestAdminService(
@@ -19,11 +21,13 @@ public class AccessRequestAdminService {
         IUserManagementQueryRepository userManagementQueryRepository,
         ApprovalOnboardingService approvalOnboardingService,
         UserAccessLifecycleService userAccessLifecycleService,
+        ITelemetryService telemetryService,
         ILogger<AccessRequestAdminService> logger) {
         _accessRequestRepository = accessRequestRepository ?? throw new ArgumentNullException(nameof(accessRequestRepository));
         _userManagementQueryRepository = userManagementQueryRepository ?? throw new ArgumentNullException(nameof(userManagementQueryRepository));
         _approvalOnboardingService = approvalOnboardingService ?? throw new ArgumentNullException(nameof(approvalOnboardingService));
         _userAccessLifecycleService = userAccessLifecycleService ?? throw new ArgumentNullException(nameof(userAccessLifecycleService));
+        _telemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -62,19 +66,28 @@ public class AccessRequestAdminService {
         }
 
         ArgumentNullException.ThrowIfNull(request);
+        var stopwatch = Stopwatch.StartNew();
+        var success = false;
 
-        var current = await _accessRequestRepository.GetAdminRecordByRequestIdAsync(requestId)
-            ?? throw new ArgumentException($"Access request {requestId} was not found", nameof(requestId));
+        try {
+            var current = await _accessRequestRepository.GetAdminRecordByRequestIdAsync(requestId)
+                ?? throw new ArgumentException($"Access request {requestId} was not found", nameof(requestId));
 
-        if (current.RequestDecisionState != RequestDecisionState.Pending) {
-            throw new InvalidOperationException($"Access request {requestId} is not pending approval");
+            if (current.RequestDecisionState != RequestDecisionState.Pending) {
+                throw new InvalidOperationException($"Access request {requestId} is not pending approval");
+            }
+
+            var inProgress = await _accessRequestRepository.BeginApprovalOnboardingAsync(requestId, request.Tier, request.ExpectedRowVersion, approvedByUserId)
+                ?? throw new InvalidOperationException($"Access request {requestId} could not be approved. Refresh and retry.");
+
+            await TryExecuteOnboardingAsync(inProgress);
+            var response = await BuildActionResponseAsync(requestId);
+            success = true;
+            return response;
         }
-
-        var inProgress = await _accessRequestRepository.BeginApprovalOnboardingAsync(requestId, request.Tier, request.ExpectedRowVersion, approvedByUserId)
-            ?? throw new InvalidOperationException($"Access request {requestId} could not be approved. Refresh and retry.");
-
-        await TryExecuteOnboardingAsync(inProgress);
-        return await BuildActionResponseAsync(requestId);
+        finally {
+            _telemetryService.TrackAdminAction("ApproveAccessRequest", requestId, approvedByUserId, success, stopwatch.Elapsed);
+        }
     }
 
     /// <summary>
@@ -86,19 +99,28 @@ public class AccessRequestAdminService {
         }
 
         ArgumentNullException.ThrowIfNull(request);
+        var stopwatch = Stopwatch.StartNew();
+        var success = false;
 
-        var current = await _accessRequestRepository.GetAdminRecordByRequestIdAsync(requestId)
-            ?? throw new ArgumentException($"Access request {requestId} was not found", nameof(requestId));
+        try {
+            var current = await _accessRequestRepository.GetAdminRecordByRequestIdAsync(requestId)
+                ?? throw new ArgumentException($"Access request {requestId} was not found", nameof(requestId));
 
-        if (current.RequestDecisionState != RequestDecisionState.Approved || current.OnboardingExecutionState != OnboardingExecutionState.Failed) {
-            throw new InvalidOperationException($"Access request {requestId} is not eligible for onboarding retry");
+            if (current.RequestDecisionState != RequestDecisionState.Approved || current.OnboardingExecutionState != OnboardingExecutionState.Failed) {
+                throw new InvalidOperationException($"Access request {requestId} is not eligible for onboarding retry");
+            }
+
+            var inProgress = await _accessRequestRepository.RetryOnboardingAsync(requestId, request.ExpectedRowVersion)
+                ?? throw new InvalidOperationException($"Access request {requestId} could not be retried. Refresh and retry.");
+
+            await TryExecuteOnboardingAsync(inProgress);
+            var response = await BuildActionResponseAsync(requestId);
+            success = true;
+            return response;
         }
-
-        var inProgress = await _accessRequestRepository.RetryOnboardingAsync(requestId, request.ExpectedRowVersion)
-            ?? throw new InvalidOperationException($"Access request {requestId} could not be retried. Refresh and retry.");
-
-        await TryExecuteOnboardingAsync(inProgress);
-        return await BuildActionResponseAsync(requestId);
+        finally {
+            _telemetryService.TrackAdminAction("RetryOnboarding", requestId, null, success, stopwatch.Elapsed);
+        }
     }
 
     /// <summary>
@@ -110,35 +132,44 @@ public class AccessRequestAdminService {
         }
 
         ArgumentNullException.ThrowIfNull(request);
+        var stopwatch = Stopwatch.StartNew();
+        var success = false;
 
-        var current = await _accessRequestRepository.GetAdminRecordByRequestIdAsync(requestId)
-            ?? throw new ArgumentException($"Access request {requestId} was not found", nameof(requestId));
+        try {
+            var current = await _accessRequestRepository.GetAdminRecordByRequestIdAsync(requestId)
+                ?? throw new ArgumentException($"Access request {requestId} was not found", nameof(requestId));
 
-        var canCancelPending = current.RequestDecisionState == RequestDecisionState.Pending;
-        var canCancelFailedOnboarding = current.RequestDecisionState == RequestDecisionState.Approved
-            && current.OnboardingExecutionState == OnboardingExecutionState.Failed;
+            var canCancelPending = current.RequestDecisionState == RequestDecisionState.Pending;
+            var canCancelFailedOnboarding = current.RequestDecisionState == RequestDecisionState.Approved
+                && current.OnboardingExecutionState == OnboardingExecutionState.Failed;
 
-        if (!canCancelPending && !canCancelFailedOnboarding) {
-            throw new InvalidOperationException($"Access request {requestId} is not eligible for cancellation");
-        }
-
-        var cancelled = await _accessRequestRepository.CancelAsync(requestId, request.ExpectedRowVersion, request.Reason, cancelledByUserId)
-            ?? throw new InvalidOperationException($"Access request {requestId} could not be cancelled. Refresh and retry.");
-
-        if (!string.IsNullOrWhiteSpace(cancelled.ManagedUserId)) {
-            var userRow = await _userManagementQueryRepository.GetRowByIdAsync($"user:{cancelled.ManagedUserId}");
-            if (userRow != null && userRow.ManagedUserAccessState != ManagedUserAccessState.Cancelled) {
-                await _userAccessLifecycleService.CancelManagedUserAsync(
-                    cancelled.ManagedUserId,
-                    new CancelManagedUserRequest {
-                        ExpectedRowVersion = userRow.RowVersion,
-                        Reason = request.Reason
-                    },
-                    cancelledByUserId);
+            if (!canCancelPending && !canCancelFailedOnboarding) {
+                throw new InvalidOperationException($"Access request {requestId} is not eligible for cancellation");
             }
-        }
 
-        return await BuildActionResponseAsync(requestId);
+            var cancelled = await _accessRequestRepository.CancelAsync(requestId, request.ExpectedRowVersion, request.Reason, cancelledByUserId)
+                ?? throw new InvalidOperationException($"Access request {requestId} could not be cancelled. Refresh and retry.");
+
+            if (!string.IsNullOrWhiteSpace(cancelled.ManagedUserId)) {
+                var userRow = await _userManagementQueryRepository.GetRowByIdAsync($"user:{cancelled.ManagedUserId}");
+                if (userRow != null && userRow.ManagedUserAccessState != ManagedUserAccessState.Cancelled) {
+                    await _userAccessLifecycleService.CancelManagedUserAsync(
+                        cancelled.ManagedUserId,
+                        new CancelManagedUserRequest {
+                            ExpectedRowVersion = userRow.RowVersion,
+                            Reason = request.Reason
+                        },
+                        cancelledByUserId);
+                }
+            }
+
+            var response = await BuildActionResponseAsync(requestId);
+            success = true;
+            return response;
+        }
+        finally {
+            _telemetryService.TrackAdminAction("CancelAccessRequest", requestId, cancelledByUserId, success, stopwatch.Elapsed);
+        }
     }
 
     private async Task TryExecuteOnboardingAsync(AccessRequestAdminRecord record) {

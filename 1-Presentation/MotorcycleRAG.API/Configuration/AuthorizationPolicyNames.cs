@@ -11,6 +11,31 @@ internal static class AuthorizationPolicyNames {
     internal const string Admin = "mcr-api-admin";
 
     /// <summary>
+    /// Policy for local processor machine-to-machine ingestion callbacks.
+    /// </summary>
+    internal const string LocalProcessor = "mcr-api-local-processor";
+
+    /// <summary>
+    /// Policy requiring delegated read scope.
+    /// </summary>
+    internal const string Read = "Read";
+
+    /// <summary>
+    /// Policy requiring delegated chat scope.
+    /// </summary>
+    internal const string Chat = "Chat";
+
+    /// <summary>
+    /// Policy for regular approved users.
+    /// </summary>
+    internal const string User = "User";
+
+    /// <summary>
+    /// Policy for read-only approved users.
+    /// </summary>
+    internal const string Viewer = "Viewer";
+
+    /// <summary>
     /// Policy for users/viewers entitled to view manual pages (GET /api/manuals/{id}/pages/{n}).
     /// Allows roles: User, Viewer, and mcr-api-admin.
     /// </summary>

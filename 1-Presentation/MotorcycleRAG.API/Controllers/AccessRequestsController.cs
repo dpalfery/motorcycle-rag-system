@@ -13,7 +13,7 @@ namespace MotorcycleRAG.API.Controllers;
 [ApiController]
 [Route("api/access-requests")]
 [AllowAnonymous]
-[EnableRateLimiting("public")]
+[EnableRateLimiting("access-requests")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class AccessRequestsController : ControllerBase {
     private readonly AccessRequestService _accessRequestService;

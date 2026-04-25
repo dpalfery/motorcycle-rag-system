@@ -2,37 +2,37 @@ namespace MotorcycleRAG.Core.Options;
 
 /// <summary>
 /// Configuration for the ingestion pipeline. Binds to the "Ingestion" section.
-/// All values must be provided via environment variables — never hardcoded.
+/// .NET values are provided through Azure App Configuration and Key Vault where needed.
 /// </summary>
 public class IngestionOptions
 {
     /// <summary>
     /// Selects whether to use the local Python FastAPI service or the Microsoft Fabric pipeline.
-    /// Set via MCR_API_INGESTION_MODE environment variable.
+    /// Set via Ingestion:Mode.
     /// </summary>
     public ProcessingMode Mode { get; set; } = ProcessingMode.Local;
 
     /// <summary>
     /// The base URL of the local Python FastAPI document-processing service.
-    /// Set via MCR_API_INGESTION_LOCAL_ENDPOINT environment variable.
+    /// Set via Ingestion:LocalEndpoint.
     /// </summary>
     public string LocalEndpoint { get; set; } = "http://localhost:8100";
 
     /// <summary>
     /// The Microsoft Fabric REST API workspace endpoint.
-    /// Set via MCR_API_FABRIC_WORKSPACE_ENDPOINT environment variable.
+    /// Set via Ingestion:WorkspaceEndpoint.
     /// </summary>
     public string WorkspaceEndpoint { get; set; } = string.Empty;
 
     /// <summary>
     /// The Fabric pipeline item ID to trigger for PDF manual ingestion.
-    /// Set via MCR_API_FABRIC_PDF_PIPELINE_ID environment variable.
+    /// Set via Ingestion:PdfPipelineId.
     /// </summary>
     public string PdfPipelineId { get; set; } = string.Empty;
 
     /// <summary>
     /// The Fabric pipeline item ID to trigger for CSV spec dataset ingestion.
-    /// Set via MCR_API_FABRIC_CSV_PIPELINE_ID environment variable.
+    /// Set via Ingestion:CsvPipelineId.
     /// </summary>
     public string CsvPipelineId { get; set; } = string.Empty;
 
@@ -61,7 +61,7 @@ public class IngestionOptions
     /// <summary>
     /// Monthly Azure spend limit in the subscription currency (e.g. USD).
     /// When the estimated spend exceeds this value, new ingestion jobs may be rejected.
-    /// Set via MCR_API_FABRIC_MONTHLY_BUDGET_LIMIT environment variable.
+    /// Set via Ingestion:MonthlyBudgetLimit.
     /// A value of 0 disables budget enforcement.
     /// </summary>
     public decimal MonthlyBudgetLimit { get; set; } = 500m;

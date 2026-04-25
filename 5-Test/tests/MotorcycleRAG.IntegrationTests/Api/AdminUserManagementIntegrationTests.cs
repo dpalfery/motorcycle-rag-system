@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using MotorcycleRAG.API;
+using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using Xunit;
@@ -311,6 +313,265 @@ namespace MotorcycleRAG.IntegrationTests.Api {
 
             // Assert
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task UserManagement_Unauthenticated_ReturnsUnauthorized() {
+            using var client = _factory.CreateClient();
+
+            var response = await client.GetAsync("/api/admin/user-management");
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task UserManagement_WithAdminRole_ReturnsUnifiedRows() {
+            var row = CreatePendingRow("request-1");
+            using var factory = CreateFactoryForAdminSurface(row);
+            using var client = factory.CreateClientWithRoles("mcr-api-admin");
+
+            var response = await client.GetAsync("/api/admin/user-management?page=1&pageSize=25");
+
+            response.EnsureSuccessStatusCode();
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var list = System.Text.Json.JsonSerializer.Deserialize<UserManagementListResponse>(responseContent, JsonOptions);
+
+            Assert.NotNull(list);
+            Assert.Single(list!.Rows);
+            Assert.Equal("request:request-1", list.Rows[0].RowId);
+        }
+
+        [Fact]
+        public async Task ApproveAccessRequest_WithAdminRole_CompletesOnboarding() {
+            var row = CreatePendingRow("request-2");
+            row.RowState = UserManagementRowState.Active;
+            row.RequestDecisionState = RequestDecisionState.Approved;
+            row.OnboardingExecutionState = OnboardingExecutionState.Completed;
+            row.ManagedUserId = "managed-1";
+            row.AssignedTier = TierLabel.Trial;
+
+            using var factory = CreateFactoryForAdminSurface(row, configure: context => {
+                var pending = CreateAdminRecord("request-2");
+                context.AccessRequestRepository
+                    .Setup(repository => repository.GetAdminRecordByRequestIdAsync("request-2"))
+                    .ReturnsAsync(pending);
+                context.AccessRequestRepository
+                    .Setup(repository => repository.BeginApprovalOnboardingAsync("request-2", TierLabel.Trial, "rv-1", It.IsAny<string?>()))
+                    .ReturnsAsync(new AccessRequestAdminRecord {
+                        RequestId = pending.RequestId,
+                        Email = pending.Email,
+                        Provider = pending.Provider,
+                        RequestDecisionState = RequestDecisionState.Approved,
+                        OnboardingExecutionState = OnboardingExecutionState.InProgress,
+                        AssignedTier = TierLabel.Trial,
+                        CorrelationId = pending.CorrelationId,
+                        RowVersion = pending.RowVersion,
+                        RequestedAtUtc = pending.RequestedAtUtc
+                    });
+                ConfigureSuccessfulOnboarding(context, pending);
+            });
+            using var client = factory.CreateClientWithRoles("mcr-api-admin");
+
+            using var content = new StringContent(
+                """{"tier":"trial","expectedRowVersion":"rv-1"}""",
+                Encoding.UTF8,
+                "application/json");
+            var response = await client.PostAsync("/api/admin/access-requests/request-2/approve", content);
+
+            response.EnsureSuccessStatusCode();
+            var responseContent = await response.Content.ReadAsStringAsync();
+            var actionResponse = System.Text.Json.JsonSerializer.Deserialize<AdminActionResponse>(responseContent, JsonOptions);
+
+            Assert.NotNull(actionResponse);
+            Assert.Equal(UserManagementRowState.Active, actionResponse!.Row.RowState);
+        }
+
+        [Fact]
+        public async Task ChangeTierAndCancelManagedUser_WithAdminRole_ReturnsUpdatedRows() {
+            var activeRow = new UserManagementRow {
+                RowId = "user:managed-1",
+                RowType = "user",
+                ManagedUserId = "managed-1",
+                Email = "rider@example.com",
+                Provider = IdentityProvider.Microsoft,
+                AssignedTier = TierLabel.RoadRunner,
+                ManagedUserAccessState = ManagedUserAccessState.Active,
+                RowState = UserManagementRowState.Active,
+                RowVersion = "rv-1"
+            };
+
+            using var factory = CreateFactoryForAdminSurface(activeRow, configure: context => {
+                context.UserManagementQueryRepository
+                    .SetupSequence(repository => repository.GetRowByIdAsync("user:managed-1"))
+                    .ReturnsAsync(activeRow)
+                    .ReturnsAsync(CreateUserRow("managed-1", TierLabel.Admin, ManagedUserAccessState.Active, UserManagementRowState.Active, "rv-2"))
+                    .ReturnsAsync(CreateUserRow("managed-1", TierLabel.Admin, ManagedUserAccessState.Active, UserManagementRowState.Active, "rv-2"))
+                    .ReturnsAsync(CreateUserRow("managed-1", TierLabel.Admin, ManagedUserAccessState.Cancelled, UserManagementRowState.Cancelled, "rv-3"));
+                context.UserRepository.Setup(repository => repository.GetUserByIdAsync("managed-1"))
+                    .ReturnsAsync(new UserDTO { Id = "managed-1", Email = "rider@example.com", AccessState = ManagedUserAccessState.Active });
+                context.PlanRepository.Setup(repository => repository.GetPlanByNameAsync("Pro"))
+                    .ReturnsAsync(new UserPlan { Id = "plan-pro", Name = "Pro" });
+                context.UserRepository.Setup(repository => repository.AssignTierAsync("managed-1", "plan-pro", TierLabel.Admin))
+                    .ReturnsAsync(true);
+                context.UserRepository.Setup(repository => repository.UpdateAccessStateAsync("managed-1", ManagedUserAccessState.Cancelled, false, It.IsAny<string?>(), "done"))
+                    .ReturnsAsync(true);
+                context.UserIdentityRepository.Setup(repository => repository.GetActiveByManagedUserIdAsync("managed-1"))
+                    .ReturnsAsync(new UserIdentityLinkRecord {
+                        ManagedUserId = "managed-1",
+                        Provider = IdentityProvider.Microsoft,
+                        ProviderEmail = "rider@example.com",
+                        ExternalDirectoryObjectId = "external-1"
+                    });
+            });
+            using var client = factory.CreateClientWithRoles("mcr-api-admin");
+
+            using var tierContent = new StringContent("""{"tier":"admin","expectedRowVersion":"rv-1"}""", Encoding.UTF8, "application/json");
+            var tierResponse = await client.PostAsync("/api/admin/users/managed-1/change-tier", tierContent);
+            tierResponse.EnsureSuccessStatusCode();
+
+            using var cancelContent = new StringContent("""{"expectedRowVersion":"rv-2","reason":"done"}""", Encoding.UTF8, "application/json");
+            var cancelResponse = await client.PostAsync("/api/admin/users/managed-1/cancel", cancelContent);
+            cancelResponse.EnsureSuccessStatusCode();
+
+            Assert.Equal(HttpStatusCode.OK, tierResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, cancelResponse.StatusCode);
+        }
+
+        private WebApplicationFactory<Program> CreateFactoryForAdminSurface(
+            UserManagementRow row,
+            Action<AdminSurfaceContext>? configure = null) {
+            return _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
+                    var context = new AdminSurfaceContext();
+                    context.UserManagementQueryRepository
+                        .Setup(repository => repository.GetRowsAsync(It.IsAny<UserManagementRowState?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>()))
+                        .ReturnsAsync(new UserManagementListResponse { Rows = [row], Page = 1, PageSize = 50, TotalCount = 1 });
+                    context.UserManagementQueryRepository
+                        .Setup(repository => repository.GetRowByIdAsync(row.RowId))
+                        .ReturnsAsync(row);
+
+                    configure?.Invoke(context);
+
+                    var tierMapping = new TierEntitlementMappingService(NullLogger<TierEntitlementMappingService>.Instance);
+                    var approvalService = new ApprovalOnboardingService(
+                        context.AccessRequestRepository.Object,
+                        context.UserRepository.Object,
+                        context.UserIdentityRepository.Object,
+                        context.PlanRepository.Object,
+                        context.UsageTrackingService.Object,
+                        context.ExternalIdentityProvisioningService.Object,
+                        tierMapping,
+                        context.TelemetryService.Object,
+                        NullLogger<ApprovalOnboardingService>.Instance);
+                    var lifecycleService = new UserAccessLifecycleService(
+                        context.UserRepository.Object,
+                        context.UserIdentityRepository.Object,
+                        context.PlanRepository.Object,
+                        context.UserManagementQueryRepository.Object,
+                        context.ExternalIdentityProvisioningService.Object,
+                        tierMapping,
+                        context.TelemetryService.Object,
+                        NullLogger<UserAccessLifecycleService>.Instance);
+                    var adminService = new AccessRequestAdminService(
+                        context.AccessRequestRepository.Object,
+                        context.UserManagementQueryRepository.Object,
+                        approvalService,
+                        lifecycleService,
+                        context.TelemetryService.Object,
+                        NullLogger<AccessRequestAdminService>.Instance);
+
+                    services.AddSingleton(lifecycleService);
+                    services.AddSingleton(adminService);
+                });
+            });
+        }
+
+        private static UserManagementRow CreatePendingRow(string requestId) {
+            return new UserManagementRow {
+                RowId = $"request:{requestId}",
+                RowType = "request",
+                AccessRequestId = requestId,
+                Email = "rider@example.com",
+                Provider = IdentityProvider.Microsoft,
+                RequestDecisionState = RequestDecisionState.Pending,
+                OnboardingExecutionState = OnboardingExecutionState.NotStarted,
+                RowState = UserManagementRowState.PendingApproval,
+                RowVersion = "rv-1",
+                CorrelationId = "corr-001"
+            };
+        }
+
+        private static AccessRequestAdminRecord CreateAdminRecord(string requestId) {
+            return new AccessRequestAdminRecord {
+                RequestId = requestId,
+                Email = "rider@example.com",
+                Provider = IdentityProvider.Microsoft,
+                RequestDecisionState = RequestDecisionState.Pending,
+                OnboardingExecutionState = OnboardingExecutionState.NotStarted,
+                AssignedTier = TierLabel.Trial,
+                CorrelationId = "corr-001",
+                RowVersion = "rv-1",
+                RequestedAtUtc = DateTime.UtcNow
+            };
+        }
+
+        private static UserManagementRow CreateUserRow(
+            string managedUserId,
+            TierLabel tier,
+            ManagedUserAccessState accessState,
+            UserManagementRowState rowState,
+            string rowVersion) {
+            return new UserManagementRow {
+                RowId = $"user:{managedUserId}",
+                RowType = "user",
+                ManagedUserId = managedUserId,
+                Email = "rider@example.com",
+                Provider = IdentityProvider.Microsoft,
+                AssignedTier = tier,
+                ManagedUserAccessState = accessState,
+                RowState = rowState,
+                RowVersion = rowVersion
+            };
+        }
+
+        private static void ConfigureSuccessfulOnboarding(AdminSurfaceContext context, AccessRequestAdminRecord request) {
+            context.PlanRepository.Setup(repository => repository.GetPlanByNameAsync("Free"))
+                .ReturnsAsync(new UserPlan { Id = "plan-free", Name = "Free" });
+            context.UserRepository.Setup(repository => repository.GetUserByEmailAsync(request.Email))
+                .ReturnsAsync((UserDTO?)null);
+            context.UserRepository.Setup(repository => repository.CreateUserAsync(It.IsAny<UserDTO>()))
+                .ReturnsAsync(new UserDTO {
+                    Id = "managed-1",
+                    Email = request.Email,
+                    DisplayName = request.Email,
+                    AccessState = ManagedUserAccessState.Active,
+                    IsEnabled = true,
+                    PlanId = "plan-free",
+                    TierLabel = TierLabel.Trial,
+                    AuthProvider = request.Provider.ToString()
+                });
+            context.UsageTrackingService.Setup(service => service.SeedOnboardingAccessAsync("managed-1", request.RequestId))
+                .ReturnsAsync(new Usage { Id = 1, UserId = "managed-1" });
+            context.ExternalIdentityProvisioningService
+                .Setup(service => service.ProvisionApprovedUserAsync(request.Email, request.Email, TierLabel.Trial, request.Provider))
+                .ReturnsAsync("external-1");
+            context.UserIdentityRepository
+                .Setup(repository => repository.UpsertAsync("managed-1", request.Provider, request.Email, null, null, null, "external-1"))
+                .ReturnsAsync(true);
+            context.AccessRequestRepository
+                .Setup(repository => repository.CompleteOnboardingAsync(request.RequestId, "managed-1", "external-1"))
+                .ReturnsAsync(request);
+        }
+
+        private sealed class AdminSurfaceContext {
+            public Mock<IAccessRequestRepository> AccessRequestRepository { get; } = new();
+            public Mock<IUserManagementQueryRepository> UserManagementQueryRepository { get; } = new();
+            public Mock<IUserRepository> UserRepository { get; } = new();
+            public Mock<IUserIdentityRepository> UserIdentityRepository { get; } = new();
+            public Mock<IPlanRepository> PlanRepository { get; } = new();
+            public Mock<IUsageTrackingService> UsageTrackingService { get; } = new();
+            public Mock<IExternalIdentityProvisioningService> ExternalIdentityProvisioningService { get; } = new();
+            public Mock<ITelemetryService> TelemetryService { get; } = new();
         }
     }
 }

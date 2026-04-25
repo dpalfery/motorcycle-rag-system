@@ -23,8 +23,7 @@ internal static class TelemetryServiceConfiguration
         {
             throw new InvalidOperationException(
                 "Application Insights is enabled (EnableTelemetry=true) but ConnectionString is not configured. " +
-                "For local development, use: dotnet user-secrets set \"ConnectionStrings:ApplicationInsights\" \"your-connection-string\" " +
-                "--project 1-Presentation/MotorcycleRAG.API");
+                "Provide ConnectionStrings:ApplicationInsights through Azure App Configuration with a Key Vault reference.");
         }
 
         // Add Application Insights telemetry only if connection string is provided

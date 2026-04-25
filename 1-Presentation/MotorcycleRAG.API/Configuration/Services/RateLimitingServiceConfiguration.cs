@@ -23,6 +23,21 @@ public static class RateLimitingServiceConfiguration
                 rateLimiterOptions.QueueLimit = 50;
             });
 
+            options.AddPolicy("access-requests", context =>
+            {
+                var remoteIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var userAgent = context.Request.Headers.UserAgent.ToString();
+                var partitionKey = $"{remoteIp}:{StringComparer.Ordinal.GetHashCode(userAgent)}";
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                });
+            });
+
             // Role-based rate limiting per user (using 'oid' claim as partition key)
             options.AddPolicy("authenticated", context =>
             {

@@ -51,6 +51,16 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             mockUserService.Setup(s => s.FirstName).Returns("Test");
             mockUserService.Setup(s => s.LastName).Returns("User");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
+            mockUserService.Setup(s => s.GetManagedUserAsync()).ReturnsAsync(new UserDTO {
+                Id = "test-user-1",
+                Email = "test@example.com",
+                DisplayName = "Test User",
+                FirstName = "Test",
+                LastName = "User",
+                IsEnabled = true,
+                AccessState = ManagedUserAccessState.Active,
+                PlanId = "free-plan"
+            });
 
             using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
@@ -93,6 +103,13 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
+            mockUserService.Setup(s => s.GetManagedUserAsync()).ReturnsAsync(new UserDTO {
+                Id = "test-user-1",
+                Email = "test@example.com",
+                IsEnabled = true,
+                AccessState = ManagedUserAccessState.Active,
+                PlanId = "free-plan"
+            });
 
             using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
@@ -122,6 +139,13 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
+            mockUserService.Setup(s => s.GetManagedUserAsync()).ReturnsAsync(new UserDTO {
+                Id = "test-user-1",
+                Email = "test@example.com",
+                IsEnabled = true,
+                AccessState = ManagedUserAccessState.Active,
+                PlanId = "free-plan"
+            });
 
             using var factory = _factory.WithWebHostBuilder(builder => {
                 builder.ConfigureServices(services => {
@@ -148,6 +172,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
+            mockUserService.Setup(s => s.GetManagedUserIdAsync()).ReturnsAsync("test-user-1");
 
             var mockPlanPolicyService = new Mock<IPlanPolicyService>();
             mockPlanPolicyService
@@ -208,6 +233,7 @@ namespace MotorcycleRAG.IntegrationTests.Api {
             var mockUserService = new Mock<ICurrentUserService>();
             mockUserService.Setup(s => s.UserId).Returns("test-user-1");
             mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
+            mockUserService.Setup(s => s.GetManagedUserIdAsync()).ReturnsAsync("test-user-1");
 
             var mockPlanPolicyService = new Mock<IPlanPolicyService>();
             mockPlanPolicyService
@@ -266,6 +292,24 @@ namespace MotorcycleRAG.IntegrationTests.Api {
                 throw new Xunit.Sdk.XunitException($"Expected OK but got {response.StatusCode}. Response: {errorContent}");
             }
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetProfile_WhenManagedIdentityResolutionFails_ReturnsForbidden() {
+            var mockUserService = new Mock<ICurrentUserService>();
+            mockUserService.Setup(s => s.IsAuthenticated).Returns(true);
+            mockUserService.Setup(s => s.GetManagedUserAsync()).ReturnsAsync((UserDTO?)null);
+
+            using var factory = _factory.WithWebHostBuilder(builder => {
+                builder.ConfigureServices(services => {
+                    services.AddSingleton(mockUserService.Object);
+                });
+            });
+            using var client = factory.CreateClientWithRoles("User");
+
+            var response = await client.GetAsync("/api/me");
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
     }
 }

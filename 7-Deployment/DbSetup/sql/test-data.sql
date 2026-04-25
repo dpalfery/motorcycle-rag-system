@@ -51,9 +51,9 @@ FROM [dbo].[Users]
 WHERE [Email] = 'testuser.free@example.com')
 BEGIN
     INSERT INTO [dbo].[Users]
-        ([Id], [Email], [DisplayName], [FirstName], [LastName], [IsEnabled], [CreatedDate], [PlanId], [AuthProvider], [ProviderUserId])
+        ([Id], [Email], [DisplayName], [FirstName], [LastName], [IsEnabled], [CreatedDate], [PlanId], [AuthProvider], [ProviderUserId], [TierLabel], [AccessState])
     VALUES
-        ('user-free-001', 'testuser.free@example.com', 'Test User Free', 'Test', 'User Free', 1, SYSUTCDATETIME(), 'free-plan-001', 'EntraExternalID', 'ext-user-001');
+        ('user-free-001', 'testuser.free@example.com', 'Test User Free', 'Test', 'User Free', 1, SYSUTCDATETIME(), 'free-plan-001', 'EntraExternalID', 'ext-user-001', 'Trial', 'Active');
     PRINT 'Inserted Free test user';
 END
 GO
@@ -63,9 +63,9 @@ FROM [dbo].[Users]
 WHERE [Email] = 'testuser.plus@example.com')
 BEGIN
     INSERT INTO [dbo].[Users]
-        ([Id], [Email], [DisplayName], [FirstName], [LastName], [IsEnabled], [CreatedDate], [PlanId], [AuthProvider], [ProviderUserId])
+        ([Id], [Email], [DisplayName], [FirstName], [LastName], [IsEnabled], [CreatedDate], [PlanId], [AuthProvider], [ProviderUserId], [TierLabel], [AccessState])
     VALUES
-        ('user-plus-001', 'testuser.plus@example.com', 'Test User Plus', 'Test', 'User Plus', 1, SYSUTCDATETIME(), 'plus-plan-001', 'EntraExternalID', 'ext-user-002');
+        ('user-plus-001', 'testuser.plus@example.com', 'Test User Plus', 'Test', 'User Plus', 1, SYSUTCDATETIME(), 'plus-plan-001', 'EntraExternalID', 'ext-user-002', NULL, 'Active');
     PRINT 'Inserted Plus test user';
 END
 GO
@@ -75,10 +75,66 @@ FROM [dbo].[Users]
 WHERE [Email] = 'testuser.pro@example.com')
 BEGIN
     INSERT INTO [dbo].[Users]
-        ([Id], [Email], [DisplayName], [FirstName], [LastName], [IsEnabled], [CreatedDate], [PlanId], [AuthProvider], [ProviderUserId])
+        ([Id], [Email], [DisplayName], [FirstName], [LastName], [IsEnabled], [CreatedDate], [PlanId], [AuthProvider], [ProviderUserId], [TierLabel], [AccessState])
     VALUES
-        ('user-pro-001', 'testuser.pro@example.com', 'Test User Pro', 'Test', 'User Pro', 1, SYSUTCDATETIME(), 'pro-plan-001', 'EntraExternalID', 'ext-user-003');
+        ('user-pro-001', 'testuser.pro@example.com', 'Test User Pro', 'Test', 'User Pro', 1, SYSUTCDATETIME(), 'pro-plan-001', 'EntraExternalID', 'ext-user-003', 'RoadRunner', 'Active');
     PRINT 'Inserted Pro test user';
+END
+GO
+
+IF NOT EXISTS (SELECT 1
+FROM [dbo].[Users]
+WHERE [Email] = 'testuser.cancelled@example.com')
+BEGIN
+    INSERT INTO [dbo].[Users]
+        ([Id], [Email], [DisplayName], [FirstName], [LastName], [IsEnabled], [CreatedDate], [PlanId], [AuthProvider], [ProviderUserId], [TierLabel], [AccessState], [CancelledAtUtc], [CancelReason])
+    VALUES
+        ('user-cancelled-001', 'testuser.cancelled@example.com', 'Cancelled Test User', 'Cancelled', 'User', 0, SYSUTCDATETIME(), 'free-plan-001', 'EntraExternalID', 'ext-user-cancelled-001', 'Trial', 'Cancelled', SYSUTCDATETIME(), 'Seeded cancellation scenario');
+    PRINT 'Inserted Cancelled test user';
+END
+GO
+
+IF OBJECT_ID(N'[dbo].[UserIdentities]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[UserIdentities] WHERE [ManagedUserId] = 'user-free-001' AND [Provider] = 'Microsoft')
+    BEGIN
+        INSERT INTO [dbo].[UserIdentities]
+            ([ManagedUserId], [Provider], [ProviderEmail], [Issuer], [Subject], [ProviderUserId], [ExternalDirectoryObjectId], [InvitationStatus], [InvitationCreatedAtUtc], [LastSyncedAtUtc])
+        VALUES
+            ('user-free-001', 'Microsoft', 'testuser.free@example.com', 'https://login.microsoftonline.com/test/v2.0', 'seed-sub-free-001', 'ext-user-001', 'external-user-free-001', 'Redeemed', SYSUTCDATETIME(), SYSUTCDATETIME());
+        PRINT 'Inserted active user identity link';
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[UserIdentities] WHERE [ManagedUserId] = 'user-cancelled-001' AND [Provider] = 'Google')
+    BEGIN
+        INSERT INTO [dbo].[UserIdentities]
+            ([ManagedUserId], [Provider], [ProviderEmail], [Issuer], [Subject], [ProviderUserId], [ExternalDirectoryObjectId], [InvitationStatus], [InvitationCreatedAtUtc], [AccessRevokedAtUtc], [LastSyncedAtUtc])
+        VALUES
+            ('user-cancelled-001', 'Google', 'testuser.cancelled@example.com', 'https://login.microsoftonline.com/test/v2.0', 'seed-sub-cancelled-001', 'ext-user-cancelled-001', 'external-user-cancelled-001', 'Redeemed', SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME());
+        PRINT 'Inserted cancelled user identity link';
+    END
+END
+GO
+
+IF OBJECT_ID(N'[dbo].[AccessRequests]', N'U') IS NOT NULL
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[AccessRequests] WHERE [RequestedProvider] = 'Microsoft' AND [RequestedEmail] = 'pending.rider@example.com')
+    BEGIN
+        INSERT INTO [dbo].[AccessRequests]
+            ([RequestedEmail], [RequestedProvider], [RequestDecisionState], [OnboardingExecutionState], [RequestedAtUtc], [CorrelationId])
+        VALUES
+            ('pending.rider@example.com', 'Microsoft', 'Pending', 'NotStarted', SYSUTCDATETIME(), 'seed-pending-correlation');
+        PRINT 'Inserted pending onboarding request';
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM [dbo].[AccessRequests] WHERE [RequestedProvider] = 'Google' AND [RequestedEmail] = 'failed.rider@example.com')
+    BEGIN
+        INSERT INTO [dbo].[AccessRequests]
+            ([RequestedEmail], [RequestedProvider], [RequestDecisionState], [OnboardingExecutionState], [RequestedAtUtc], [AssignedTier], [ApprovedAtUtc], [OnboardingAttemptCount], [LastFailureCode], [LastFailureMessage], [CorrelationId])
+        VALUES
+            ('failed.rider@example.com', 'Google', 'Approved', 'Failed', SYSUTCDATETIME(), 'Trial', SYSUTCDATETIME(), 1, 'ProvisionExternalIdentity', 'Seeded retry scenario', 'seed-failed-correlation');
+        PRINT 'Inserted failed onboarding request';
+    END
 END
 GO
 

@@ -61,4 +61,29 @@ public interface ITelemetryService
     /// <param name="failedSources">Number of failed sources</param>
     /// <param name="degradedMode">Whether operating in degraded mode</param>
     void TrackSearchExecution(string correlationId, string queryId, TimeSpan totalDuration, int totalResults, int successfulSources, int failedSources, bool degradedMode);
+
+    /// <summary>
+    /// Tracks an onboarding state transition or stage outcome.
+    /// </summary>
+    void TrackOnboardingTransition(
+        string requestId,
+        string stage,
+        string state,
+        string correlationId,
+        TimeSpan duration);
+
+    /// <summary>
+    /// Tracks an admin user-management action outcome.
+    /// </summary>
+    void TrackAdminAction(
+        string action,
+        string targetId,
+        string? actorUserId,
+        bool success,
+        TimeSpan duration);
+
+    /// <summary>
+    /// Tracks degraded behavior for an onboarding dependency.
+    /// </summary>
+    void TrackDependencyDegradation(string dependencyName, string correlationId, string reason);
 }

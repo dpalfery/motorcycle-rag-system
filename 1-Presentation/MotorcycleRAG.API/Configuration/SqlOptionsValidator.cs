@@ -5,7 +5,7 @@ namespace MotorcycleRAG.API.Configuration;
 
 /// <summary>
 /// Validator for SQL configuration options
-/// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
+/// Note: Connection string must be provided through Azure App Configuration and Key Vault.
 /// </summary>
 internal class SqlOptionsValidator : IValidateOptions<SqlOptions>
 {

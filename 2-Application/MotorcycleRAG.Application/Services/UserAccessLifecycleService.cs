@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -14,6 +15,7 @@ public class UserAccessLifecycleService {
     private readonly IUserManagementQueryRepository _userManagementQueryRepository;
     private readonly IExternalIdentityProvisioningService _externalIdentityProvisioningService;
     private readonly TierEntitlementMappingService _tierEntitlementMappingService;
+    private readonly ITelemetryService _telemetryService;
     private readonly ILogger<UserAccessLifecycleService> _logger;
 
     public UserAccessLifecycleService(
@@ -23,6 +25,7 @@ public class UserAccessLifecycleService {
         IUserManagementQueryRepository userManagementQueryRepository,
         IExternalIdentityProvisioningService externalIdentityProvisioningService,
         TierEntitlementMappingService tierEntitlementMappingService,
+        ITelemetryService telemetryService,
         ILogger<UserAccessLifecycleService> logger) {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _userIdentityRepository = userIdentityRepository ?? throw new ArgumentNullException(nameof(userIdentityRepository));
@@ -30,6 +33,7 @@ public class UserAccessLifecycleService {
         _userManagementQueryRepository = userManagementQueryRepository ?? throw new ArgumentNullException(nameof(userManagementQueryRepository));
         _externalIdentityProvisioningService = externalIdentityProvisioningService ?? throw new ArgumentNullException(nameof(externalIdentityProvisioningService));
         _tierEntitlementMappingService = tierEntitlementMappingService ?? throw new ArgumentNullException(nameof(tierEntitlementMappingService));
+        _telemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -42,31 +46,39 @@ public class UserAccessLifecycleService {
         }
 
         ArgumentNullException.ThrowIfNull(request);
+        var stopwatch = Stopwatch.StartNew();
+        var success = false;
 
-        await EnsureExpectedRowVersionAsync($"user:{userId}", request.ExpectedRowVersion, userId);
+        try {
+            await EnsureExpectedRowVersionAsync($"user:{userId}", request.ExpectedRowVersion, userId);
 
-        var user = await _userRepository.GetUserByIdAsync(userId)
-            ?? throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
+            var user = await _userRepository.GetUserByIdAsync(userId)
+                ?? throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
 
-        var (planName, _) = _tierEntitlementMappingService.Resolve(request.Tier);
-        var plan = await _planRepository.GetPlanByNameAsync(planName)
-            ?? throw new InvalidOperationException($"Plan {planName} is not configured");
+            var (planName, _) = _tierEntitlementMappingService.Resolve(request.Tier);
+            var plan = await _planRepository.GetPlanByNameAsync(planName)
+                ?? throw new InvalidOperationException($"Plan {planName} is not configured");
 
-        var updated = await _userRepository.AssignTierAsync(userId, plan.Id, request.Tier);
-        if (!updated) {
-            throw new InvalidOperationException($"Failed to change tier for user {userId}");
+            var updated = await _userRepository.AssignTierAsync(userId, plan.Id, request.Tier);
+            if (!updated) {
+                throw new InvalidOperationException($"Failed to change tier for user {userId}");
+            }
+
+            var identityLink = await _userIdentityRepository.GetActiveByManagedUserIdAsync(userId);
+            if (!string.IsNullOrWhiteSpace(identityLink?.ExternalDirectoryObjectId)) {
+                await _externalIdentityProvisioningService.ReconcileTierAssignmentsAsync(identityLink.ExternalDirectoryObjectId, request.Tier);
+            }
+
+            var row = await _userManagementQueryRepository.GetRowByIdAsync($"user:{userId}")
+                ?? throw new InvalidOperationException($"Updated management row for user {userId} was not found");
+
+            _logger.LogInformation("Changed managed user {UserId} to tier {Tier}", userId, request.Tier);
+            success = true;
+            return new AdminActionResponse { Row = row };
         }
-
-        var identityLink = await _userIdentityRepository.GetActiveByManagedUserIdAsync(userId);
-        if (!string.IsNullOrWhiteSpace(identityLink?.ExternalDirectoryObjectId)) {
-            await _externalIdentityProvisioningService.ReconcileTierAssignmentsAsync(identityLink.ExternalDirectoryObjectId, request.Tier);
+        finally {
+            _telemetryService.TrackAdminAction("ChangeManagedUserTier", userId, null, success, stopwatch.Elapsed);
         }
-
-        var row = await _userManagementQueryRepository.GetRowByIdAsync($"user:{userId}")
-            ?? throw new InvalidOperationException($"Updated management row for user {userId} was not found");
-
-        _logger.LogInformation("Changed managed user {UserId} to tier {Tier}", userId, request.Tier);
-        return new AdminActionResponse { Row = row };
     }
 
     /// <summary>
@@ -78,38 +90,46 @@ public class UserAccessLifecycleService {
         }
 
         ArgumentNullException.ThrowIfNull(request);
+        var stopwatch = Stopwatch.StartNew();
+        var success = false;
 
-        await EnsureExpectedRowVersionAsync($"user:{userId}", request.ExpectedRowVersion, userId);
+        try {
+            await EnsureExpectedRowVersionAsync($"user:{userId}", request.ExpectedRowVersion, userId);
 
-        var user = await _userRepository.GetUserByIdAsync(userId)
-            ?? throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
+            var user = await _userRepository.GetUserByIdAsync(userId)
+                ?? throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
 
-        if (user.AccessState == ManagedUserAccessState.Cancelled) {
-            throw new InvalidOperationException($"User {userId} is already cancelled");
+            if (user.AccessState == ManagedUserAccessState.Cancelled) {
+                throw new InvalidOperationException($"User {userId} is already cancelled");
+            }
+
+            var updated = await _userRepository.UpdateAccessStateAsync(
+                userId,
+                ManagedUserAccessState.Cancelled,
+                isEnabled: false,
+                cancelledByUserId: cancelledByUserId,
+                cancelReason: request.Reason);
+
+            if (!updated) {
+                throw new InvalidOperationException($"Failed to cancel user {userId}");
+            }
+
+            var identityLink = await _userIdentityRepository.GetActiveByManagedUserIdAsync(userId);
+            if (!string.IsNullOrWhiteSpace(identityLink?.ExternalDirectoryObjectId)) {
+                await _externalIdentityProvisioningService.RevokeAccessAsync(identityLink.ExternalDirectoryObjectId);
+                await _userIdentityRepository.MarkAccessRevokedAsync(userId);
+            }
+
+            var row = await _userManagementQueryRepository.GetRowByIdAsync($"user:{userId}")
+                ?? throw new InvalidOperationException($"Updated management row for user {userId} was not found");
+
+            _logger.LogInformation("Cancelled managed user {UserId}", userId);
+            success = true;
+            return new AdminActionResponse { Row = row };
         }
-
-        var updated = await _userRepository.UpdateAccessStateAsync(
-            userId,
-            ManagedUserAccessState.Cancelled,
-            isEnabled: false,
-            cancelledByUserId: cancelledByUserId,
-            cancelReason: request.Reason);
-
-        if (!updated) {
-            throw new InvalidOperationException($"Failed to cancel user {userId}");
+        finally {
+            _telemetryService.TrackAdminAction("CancelManagedUser", userId, cancelledByUserId, success, stopwatch.Elapsed);
         }
-
-        var identityLink = await _userIdentityRepository.GetActiveByManagedUserIdAsync(userId);
-        if (!string.IsNullOrWhiteSpace(identityLink?.ExternalDirectoryObjectId)) {
-            await _externalIdentityProvisioningService.RevokeAccessAsync(identityLink.ExternalDirectoryObjectId);
-            await _userIdentityRepository.MarkAccessRevokedAsync(userId);
-        }
-
-        var row = await _userManagementQueryRepository.GetRowByIdAsync($"user:{userId}")
-            ?? throw new InvalidOperationException($"Updated management row for user {userId} was not found");
-
-        _logger.LogInformation("Cancelled managed user {UserId}", userId);
-        return new AdminActionResponse { Row = row };
     }
 
     private async Task EnsureExpectedRowVersionAsync(string rowId, string expectedRowVersion, string userId) {

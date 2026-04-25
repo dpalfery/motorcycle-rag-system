@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -15,6 +16,7 @@ public class ApprovalOnboardingService {
     private readonly IUsageTrackingService _usageTrackingService;
     private readonly IExternalIdentityProvisioningService _externalIdentityProvisioningService;
     private readonly TierEntitlementMappingService _tierEntitlementMappingService;
+    private readonly ITelemetryService _telemetryService;
     private readonly ILogger<ApprovalOnboardingService> _logger;
 
     public ApprovalOnboardingService(
@@ -25,6 +27,7 @@ public class ApprovalOnboardingService {
         IUsageTrackingService usageTrackingService,
         IExternalIdentityProvisioningService externalIdentityProvisioningService,
         TierEntitlementMappingService tierEntitlementMappingService,
+        ITelemetryService telemetryService,
         ILogger<ApprovalOnboardingService> logger) {
         _accessRequestRepository = accessRequestRepository ?? throw new ArgumentNullException(nameof(accessRequestRepository));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
@@ -33,6 +36,7 @@ public class ApprovalOnboardingService {
         _usageTrackingService = usageTrackingService ?? throw new ArgumentNullException(nameof(usageTrackingService));
         _externalIdentityProvisioningService = externalIdentityProvisioningService ?? throw new ArgumentNullException(nameof(externalIdentityProvisioningService));
         _tierEntitlementMappingService = tierEntitlementMappingService ?? throw new ArgumentNullException(nameof(tierEntitlementMappingService));
+        _telemetryService = telemetryService ?? throw new ArgumentNullException(nameof(telemetryService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -49,6 +53,7 @@ public class ApprovalOnboardingService {
         string stage = "ResolveTier";
         string? managedUserId = accessRequest.ManagedUserId;
         string? externalDirectoryObjectId = accessRequest.ExternalDirectoryObjectId;
+        var stopwatch = Stopwatch.StartNew();
 
         try {
             var tier = accessRequest.AssignedTier.Value;
@@ -96,9 +101,29 @@ public class ApprovalOnboardingService {
                 "Completed approval-time onboarding for access request {RequestId} and managed user {ManagedUserId}",
                 accessRequest.RequestId,
                 user.Id);
+            _telemetryService.TrackOnboardingTransition(
+                accessRequest.RequestId,
+                stage,
+                "Completed",
+                accessRequest.CorrelationId,
+                stopwatch.Elapsed);
         }
         catch (Exception ex) {
             await MarkFailedAsync(accessRequest.RequestId, stage, ex.Message, managedUserId, externalDirectoryObjectId);
+            _telemetryService.TrackOnboardingTransition(
+                accessRequest.RequestId,
+                stage,
+                "Failed",
+                accessRequest.CorrelationId,
+                stopwatch.Elapsed);
+
+            if (stage == "ProvisionExternalIdentity") {
+                _telemetryService.TrackDependencyDegradation(
+                    "ExternalIdentityProvisioning",
+                    accessRequest.CorrelationId,
+                    ex.GetType().Name);
+            }
+
             throw;
         }
     }

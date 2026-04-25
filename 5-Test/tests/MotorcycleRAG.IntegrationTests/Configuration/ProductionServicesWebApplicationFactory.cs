@@ -21,26 +21,8 @@ namespace MotorcycleRAG.IntegrationTests.Configuration;
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "xUnit fixture must be public")]
 public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Program> {
-    static ProductionServicesWebApplicationFactory() {
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
-        Environment.SetEnvironmentVariable("MCR_API_AZURE_AD_TENANT_ID", "00000000-0000-0000-0000-000000000000");
-        Environment.SetEnvironmentVariable("MCR_API_AZURE_AD_CLIENT_ID", "11111111-1111-1111-1111-111111111111");
-        Environment.SetEnvironmentVariable("MCR_API_AZURE_OPENAI_ENDPOINT", "https://test-openai.openai.azure.com/");
-        Environment.SetEnvironmentVariable("MCR_API_AZURE_SEARCH_ENDPOINT", "https://test-search.search.windows.net/");
-        Environment.SetEnvironmentVariable("MCR_API_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", "https://test-docint.cognitiveservices.azure.com/");
-        Environment.SetEnvironmentVariable("MCR_API_AZURE_FOUNDRY_ENDPOINT", "https://test-foundry.azure.com/");
-    }
-
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         ArgumentNullException.ThrowIfNull(builder);
-
-        Environment.SetEnvironmentVariable(
-            "SQL_CONNECTION_STRING",
-            "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Authentication=Active Directory Integrated;");
-
-        Environment.SetEnvironmentVariable(
-            "MCR_API_SQL_CONNECTION_STRING",
-            "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Authentication=Active Directory Integrated;");
 
         base.ConfigureWebHost(builder);
 
@@ -53,9 +35,21 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
                 ["AzureAd:CallbackPath"] = "/signin-oidc",
                 ["AzureAd:SignedOutCallbackPath"] = "/signout-callback-oidc",
                 ["AzureAd:ClientSecret"] = "test-client-secret-not-a-real-secret",
+                ["AzureAd:AdminClientId"] = "11111111-1111-1111-1111-111111111111",
+                ["AzureAd:LocalProcessorClientId"] = "22222222-2222-2222-2222-222222222222",
+                ["Authentication:Audience"] = "11111111-1111-1111-1111-111111111111",
+                ["Authentication:Issuers:Workforce"] = "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0",
                 ["AppConfig:Endpoint"] = string.Empty,
                 ["ApplicationInsights:ConnectionString"] = "InstrumentationKey=test-key",
-                ["ApplicationInsights:EnableTelemetry"] = "false"
+                ["ApplicationInsights:EnableTelemetry"] = "false",
+                ["AzureAI:OpenAIEndpoint"] = "https://test-openai.openai.azure.com/",
+                ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
+                ["AzureAI:DocumentIntelligenceEndpoint"] = "https://test-docint.cognitiveservices.azure.com/",
+                ["AzureAI:FoundryEndpoint"] = "https://test-foundry.services.ai.azure.com/",
+                ["Sql:ConnectionString"] = "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Authentication=Active Directory Integrated;",
+                ["Onboarding:ApproverAddress"] = "approver@example.invalid",
+                ["ExternalIdentityProvisioning:InviteRedirectUrl"] = "https://localhost/signin-oidc",
+                ["ExternalIdentityProvisioning:ApiApplicationClientId"] = "33333333-3333-3333-3333-333333333333"
             });
         });
 

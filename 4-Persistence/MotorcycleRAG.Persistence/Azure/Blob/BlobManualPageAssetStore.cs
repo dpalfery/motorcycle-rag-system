@@ -36,7 +36,7 @@ public class BlobManualPageAssetStore : IManualPageAssetStore
         if (string.IsNullOrWhiteSpace(opts.AccountEndpoint))
             throw new InvalidOperationException(
                 "BlobStorage:AccountEndpoint is required. " +
-                "Set it via the MCR_API_BLOB_ENDPOINT environment variable.");
+                "Provide it through Azure App Configuration.");
 
         var serviceClient = new BlobServiceClient(
             new Uri(opts.AccountEndpoint),

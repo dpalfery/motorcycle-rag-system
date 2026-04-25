@@ -13,8 +13,7 @@ namespace MotorcycleRAG.Persistence.ExternalServices;
 /// <summary>
 /// Calls the Microsoft Fabric REST API to trigger and monitor ingestion pipeline runs.
 /// Uses DefaultAzureCredential for authentication — no secrets in code.
-/// Fabric base URL is read from the MCR_API_FABRIC_WORKSPACE_ENDPOINT environment variable.
-/// Pipeline item IDs are read from MCR_API_FABRIC_PDF_PIPELINE_ID / MCR_API_FABRIC_CSV_PIPELINE_ID.
+/// Fabric settings are read from Azure App Configuration with secrets in Key Vault when needed.
 /// </summary>
 #pragma warning disable S1133 // Intentionally kept as deprecated fallback
 [Obsolete("Use ILocalPipelineService and LocalPipelineService. FabricPipelineService is kept as a fallback for ProcessingMode.Fabric.", false)]
@@ -50,7 +49,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         if (string.IsNullOrWhiteSpace(config.Value.WorkspaceEndpoint))
             throw new InvalidOperationException(
                 "FabricIngestion:WorkspaceEndpoint is required. " +
-                "Set it via the MCR_API_FABRIC_WORKSPACE_ENDPOINT environment variable.");
+                "Provide it through Azure App Configuration.");
 
         _httpClientFactory = httpClientFactory;
         _config = config.Value;

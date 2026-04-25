@@ -39,7 +39,11 @@ internal class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptio
         {
             new Claim(ClaimTypes.NameIdentifier, "test-user-id"),
             new Claim(ClaimTypes.Name, "Test User"),
-            new Claim(ClaimTypes.Email, "test@example.com")
+            new Claim(ClaimTypes.Email, "test@example.com"),
+            new Claim("iss", "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0"),
+            new Claim("sub", "test-subject"),
+            new Claim("oid", "test-object-id"),
+            new Claim("azp", "11111111-1111-1111-1111-111111111111")
         };
 
         // Add roles from header
@@ -55,11 +59,6 @@ internal class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptio
             {
                 claims.Add(new Claim("scp", "admin"));
                 
-                // Also add azp (Authorized Party) claim for admin isolation checks
-                if (!claims.Any(c => c.Type == "azp"))
-                {
-                    claims.Add(new Claim("azp", "11111111-1111-1111-1111-111111111111"));
-                }
             }
         }
 

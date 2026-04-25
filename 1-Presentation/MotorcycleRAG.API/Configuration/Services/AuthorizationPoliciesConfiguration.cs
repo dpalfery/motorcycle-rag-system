@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.API.Extensions;
 using MotorcycleRAG.Core.Options;
 
@@ -31,12 +32,13 @@ internal static class AuthorizationPoliciesConfiguration {
 
         services.AddAuthorization(options => {
             // Admin policy - requires BOTH admin scope AND admin app role AND correct Client ID
-            options.AddPolicy("mcr-api-admin", policy => {
+            options.AddPolicy(AuthorizationPolicyNames.Admin, policy => {
                 policy.RequireAuthenticatedUser();
                 policy.RequireAssertion(ctx => {
                     var hasScope = ctx.User.HasScope("admin");
                     var hasRole = ctx.User.HasAnyRole("mcr-api-admin");
-                    var isAuthorizedClient = ctx.User.IsAuthorizedClient(adminClientId!);
+                    var isAuthorizedClient = !string.IsNullOrWhiteSpace(adminClientId)
+                        && ctx.User.IsAuthorizedClient(adminClientId);
 
                     // In testing, we enforce roles strictly but can be flexible with scope/client if headers are used instead of JWT
                     if (env.IsEnvironment("Testing")) {
@@ -48,11 +50,12 @@ internal static class AuthorizationPoliciesConfiguration {
             });
 
             // Local processor policy — M2M only, no delegated scope, checks File.Upload.All role + azp
-            options.AddPolicy("mcr-api-local-processor", policy => {
+            options.AddPolicy(AuthorizationPolicyNames.LocalProcessor, policy => {
                 policy.RequireAuthenticatedUser();
                 policy.RequireAssertion(ctx => {
                     var hasRole = ctx.User.HasAnyRole("File.Upload.All");
-                    var isAuthorizedClient = ctx.User.IsAuthorizedClient(localProcessorClientId!);
+                    var isAuthorizedClient = !string.IsNullOrWhiteSpace(localProcessorClientId)
+                        && ctx.User.IsAuthorizedClient(localProcessorClientId);
 
                     if (env.IsEnvironment("Testing")) {
                         return hasRole || ctx.User.HasClaim("X-Test-Auth", "mcr-api-local-processor");
@@ -63,25 +66,25 @@ internal static class AuthorizationPoliciesConfiguration {
             });
 
             // Read policy - requires read scope
-            options.AddPolicy("Read", policy => {
+            options.AddPolicy(AuthorizationPolicyNames.Read, policy => {
                 policy.RequireAuthenticatedUser();
                 policy.RequireAssertion(ctx => ctx.User.HasScope("read"));
             });
 
             // Chat policy - requires chat scope
-            options.AddPolicy("Chat", policy => {
+            options.AddPolicy(AuthorizationPolicyNames.Chat, policy => {
                 policy.RequireAuthenticatedUser();
                 policy.RequireAssertion(ctx => ctx.User.HasScope("chat"));
             });
 
             // User policy - requires User app role (no scope requirement for regular users)
-            options.AddPolicy("User", policy => {
+            options.AddPolicy(AuthorizationPolicyNames.User, policy => {
                 policy.RequireAuthenticatedUser();
                 policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "User");
             });
 
             // Viewer policy - requires Viewer app role (no scope requirement for read-only access)
-            options.AddPolicy("Viewer", policy => {
+            options.AddPolicy(AuthorizationPolicyNames.Viewer, policy => {
                 policy.RequireAuthenticatedUser();
                 policy.RequireClaim(System.Security.Claims.ClaimTypes.Role, "Viewer");
             });

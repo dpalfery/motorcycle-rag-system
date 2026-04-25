@@ -3,7 +3,7 @@ namespace MotorcycleRAG.Core.Options;
 /// <summary>
 /// Configuration for Microsoft Fabric ingestion pipeline integration.
 /// Binds to the "FabricIngestion" section in configuration sources.
-/// All values must be provided via environment variables — never hardcoded.
+/// .NET values are provided through Azure App Configuration and Key Vault where needed.
 /// </summary>
 #pragma warning disable S1133 // Intentionally kept as deprecated fallback
 [Obsolete("Use IngestionOptions with ProcessingMode.Fabric. FabricIngestionOptions kept as fallback.", false)]
@@ -12,19 +12,19 @@ public class FabricIngestionOptions
 {
     /// <summary>
     /// The Microsoft Fabric REST API workspace endpoint.
-    /// Set via MCR_API_FABRIC_WORKSPACE_ENDPOINT environment variable.
+    /// Set via FabricIngestion:WorkspaceEndpoint.
     /// </summary>
     public string WorkspaceEndpoint { get; set; } = string.Empty;
 
     /// <summary>
     /// The Fabric pipeline item ID to trigger for PDF manual ingestion.
-    /// Set via MCR_API_FABRIC_PDF_PIPELINE_ID environment variable.
+    /// Set via FabricIngestion:PdfPipelineId.
     /// </summary>
     public string PdfPipelineId { get; set; } = string.Empty;
 
     /// <summary>
     /// The Fabric pipeline item ID to trigger for CSV spec dataset ingestion.
-    /// Set via MCR_API_FABRIC_CSV_PIPELINE_ID environment variable.
+    /// Set via FabricIngestion:CsvPipelineId.
     /// </summary>
     public string CsvPipelineId { get; set; } = string.Empty;
 
@@ -53,7 +53,7 @@ public class FabricIngestionOptions
     /// <summary>
     /// Monthly Azure spend limit in the subscription currency (e.g. USD).
     /// When the estimated spend exceeds this value, new ingestion jobs may be rejected.
-    /// Set via MCR_API_FABRIC_MONTHLY_BUDGET_LIMIT environment variable.
+    /// Set via FabricIngestion:MonthlyBudgetLimit.
     /// A value of 0 disables budget enforcement.
     /// </summary>
     public decimal MonthlyBudgetLimit { get; set; } = 500m;

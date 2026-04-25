@@ -129,6 +129,25 @@ public class MotorcycleApiIntegrationTests : IClassFixture<TestWebApplicationFac
     }
 
     [Fact]
+    public async Task QueryEndpoint_WhenManagedIdentityResolutionFails_ReturnsForbidden() {
+        using var factory = _factory.WithWebHostBuilder(builder => {
+            builder.ConfigureServices(services => {
+                var currentUser = new Mock<ICurrentUserService>();
+                currentUser.Setup(service => service.IsAuthenticated).Returns(true);
+                currentUser.Setup(service => service.GetManagedUserIdAsync()).ReturnsAsync((string?)null);
+                services.AddSingleton(currentUser.Object);
+            });
+        });
+        using var client = factory.CreateClientWithRoles("User");
+
+        var response = await client.PostAsJsonAsync("/api/motorcycles/query", new MotorcycleQueryRequest {
+            Query = "What is the oil capacity?"
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task QueryEndpoint_InvalidModel_ReturnsBadRequest() {
         using var factory = CreateFactoryWithMockedService();
         using var client = factory.CreateClientWithRoles("User");

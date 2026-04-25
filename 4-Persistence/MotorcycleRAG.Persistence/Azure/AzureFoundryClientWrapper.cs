@@ -100,17 +100,17 @@ public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
                     model, texts.Length);
 
                 // Read config from configuration (never hardcoded)
-                var apiKey = _configuration["DEEPINFRA_API_KEY"];
-                var baseUrl = _configuration["DEEPINFRA_BASE_URL"];
-                var embeddingModel = _configuration["DEEPINFRA_EMBEDDING_MODEL"];
+                var apiKey = _configuration["DeepInfra:ApiKey"];
+                var baseUrl = _configuration["DeepInfra:BaseUrl"];
+                var embeddingModel = _configuration["DeepInfra:EmbeddingModel"];
 
                 if (string.IsNullOrWhiteSpace(apiKey))
                 {
-                    throw new InvalidOperationException("DEEPINFRA_API_KEY is not configured");
+                    throw new InvalidOperationException("DeepInfra:ApiKey is not configured");
                 }
                 if (string.IsNullOrWhiteSpace(baseUrl))
                 {
-                    throw new InvalidOperationException("DEEPINFRA_BASE_URL is not configured");
+                    throw new InvalidOperationException("DeepInfra:BaseUrl is not configured");
                 }
 
                 var effectiveModel = string.IsNullOrWhiteSpace(model)
@@ -119,7 +119,7 @@ public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
 
                 if (string.IsNullOrWhiteSpace(effectiveModel))
                 {
-                    throw new InvalidOperationException("DEEPINFRA_EMBEDDING_MODEL is not configured");
+                    throw new InvalidOperationException("DeepInfra:EmbeddingModel is not configured");
                 }
 
                 // Build request

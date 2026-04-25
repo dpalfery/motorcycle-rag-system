@@ -18,7 +18,7 @@ namespace MotorcycleRAG.Persistence.Sql;
 public static class ServiceCollectionExtensions {
     /// <summary>
     /// Register SQL persistence services with connection management
-    /// Note: Connection string must be provided via SQL_CONNECTION_STRING environment variable
+    /// Note: Connection string must be provided through Azure App Configuration and Key Vault.
     /// </summary>
     public static IServiceCollection AddSqlPersistenceServices(
         this IServiceCollection services,

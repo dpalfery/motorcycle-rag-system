@@ -15,7 +15,7 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// Uses DefaultAzureCredential (Managed Identity in Azure, developer credential locally).
 /// Connection string must NEVER be stored in code or config files.
 /// Endpoint is read from <see cref="BlobStorageOptions.AccountEndpoint"/> which
-/// should be set via the MCR_API_BLOB_ENDPOINT environment variable.
+/// should be provided through Azure App Configuration.
 /// </summary>
 public class AzureBlobStorageService : IBlobStorageService
 {
@@ -34,7 +34,7 @@ public class AzureBlobStorageService : IBlobStorageService
         if (string.IsNullOrWhiteSpace(opts.AccountEndpoint))
             throw new InvalidOperationException(
                 "BlobStorage:AccountEndpoint is required. " +
-                "Set it via the MCR_API_BLOB_ENDPOINT environment variable.");
+                "Provide it through Azure App Configuration.");
 
         _blobServiceClient = new BlobServiceClient(
             new Uri(opts.AccountEndpoint),

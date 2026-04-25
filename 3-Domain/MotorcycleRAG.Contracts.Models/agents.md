@@ -30,7 +30,7 @@ These types should be:
 
 ## Security & logging gotchas
 - Do not add fields that encourage logging raw user prompts/query text.
-- Avoid storing secrets in DTOs; secret values must flow via environment variables/config at runtime.
+- Avoid storing secrets in DTOs; secret values must flow through approved configuration abstractions, with .NET application secrets backed by Azure Key Vault.
 - When adding new externally-exposed fields, prefer explicit naming and consider whether the field is PII.
 
 ## Quick checklist before adding/changing a DTO

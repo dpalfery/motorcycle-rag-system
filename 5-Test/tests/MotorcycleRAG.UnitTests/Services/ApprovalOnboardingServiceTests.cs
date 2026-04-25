@@ -13,6 +13,7 @@ public class ApprovalOnboardingServiceTests {
     private readonly Mock<IPlanRepository> _planRepository = new();
     private readonly Mock<IUsageTrackingService> _usageTrackingService = new();
     private readonly Mock<IExternalIdentityProvisioningService> _externalIdentityProvisioningService = new();
+    private readonly Mock<ITelemetryService> _telemetryService = new();
     private readonly ApprovalOnboardingService _service;
 
     public ApprovalOnboardingServiceTests() {
@@ -27,6 +28,7 @@ public class ApprovalOnboardingServiceTests {
             _usageTrackingService.Object,
             _externalIdentityProvisioningService.Object,
             new TierEntitlementMappingService(tierMappingLogger.Object),
+            _telemetryService.Object,
             serviceLogger.Object);
     }
 

@@ -7,7 +7,7 @@ namespace MotorcycleRAG.Core.Options
     {
         /// <summary>
         /// SQL Server connection string.
-        /// Populated from IConfiguration (App Config + Key Vault in Azure, user-secrets in dev).
+        /// Populated from IConfiguration, backed by Azure App Configuration and Key Vault.
         /// </summary>
         public string ConnectionString { get; set; } = string.Empty;
 
@@ -26,4 +26,4 @@ namespace MotorcycleRAG.Core.Options
         /// </summary>
         public int MaxPoolSize { get; set; } = 100;
     }
-}
+}

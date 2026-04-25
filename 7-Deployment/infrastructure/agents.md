@@ -145,8 +145,8 @@ When making Azure choices, prefer “good enough” and low-cost defaults for `d
 
 ## Config & Secrets Contract
 
-- Any application setting that is a secret must come from Key Vault or environment variables.
-- Non-secret configuration can come from environment variables or App Configuration.
+- Any application setting that is a secret must come from Key Vault.
+- Non-secret .NET application configuration should come from Azure App Configuration. Environment variables are reserved for the Python local processor runtime values that the Admin app sets at run time.
 - Keep naming consistent with `specs/001-system-spec/contracts/openapi.yaml` and current app configuration conventions.
 
 ## Change Management Checklist

@@ -433,5 +433,78 @@ namespace MotorcycleRAG.Persistence.Telemetry
                 throw new InvalidOperationException($"Failed to track search execution: {correlationId}, {queryId}", ex);
             }
         }
+
+        /// <inheritdoc />
+        public void TrackOnboardingTransition(
+            string requestId,
+            string stage,
+            string state,
+            string correlationId,
+            TimeSpan duration)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(stage);
+            ArgumentException.ThrowIfNullOrWhiteSpace(state);
+
+            var properties = new Dictionary<string, string>
+            {
+                ["RequestId"] = requestId,
+                ["Stage"] = stage,
+                ["State"] = state,
+                ["CorrelationId"] = string.IsNullOrWhiteSpace(correlationId) ? "unknown" : correlationId
+            };
+
+            var metrics = new Dictionary<string, double>
+            {
+                ["DurationMs"] = duration.TotalMilliseconds
+            };
+
+            TrackEvent("OnboardingTransition", properties, metrics);
+            TrackMetric("OnboardingStageDurationMs", duration.TotalMilliseconds, properties);
+        }
+
+        /// <inheritdoc />
+        public void TrackAdminAction(
+            string action,
+            string targetId,
+            string? actorUserId,
+            bool success,
+            TimeSpan duration)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(action);
+            ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+
+            var properties = new Dictionary<string, string>
+            {
+                ["Action"] = action,
+                ["TargetId"] = targetId,
+                ["ActorUserId"] = string.IsNullOrWhiteSpace(actorUserId) ? "unknown" : actorUserId,
+                ["Success"] = success.ToString()
+            };
+
+            var metrics = new Dictionary<string, double>
+            {
+                ["DurationMs"] = duration.TotalMilliseconds
+            };
+
+            TrackEvent("AdminUserManagementAction", properties, metrics);
+            TrackMetric("AdminActionDurationMs", duration.TotalMilliseconds, properties);
+        }
+
+        /// <inheritdoc />
+        public void TrackDependencyDegradation(string dependencyName, string correlationId, string reason)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(dependencyName);
+            ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
+            var properties = new Dictionary<string, string>
+            {
+                ["DependencyName"] = dependencyName,
+                ["CorrelationId"] = string.IsNullOrWhiteSpace(correlationId) ? "unknown" : correlationId,
+                ["Reason"] = reason
+            };
+
+            TrackEvent("OnboardingDependencyDegraded", properties);
+        }
     }
 }

@@ -13,6 +13,7 @@ public class AccessRequestValidationTests {
     private readonly Mock<IAccessRequestRepository> _accessRequestRepository = new();
     private readonly Mock<IApproverNotificationService> _approverNotificationService = new();
     private readonly Mock<ICorrelationService> _correlationService = new();
+    private readonly Mock<ITelemetryService> _telemetryService = new();
     private readonly Mock<ILogger<AccessRequestService>> _logger = new();
 
     [Fact]
@@ -125,6 +126,7 @@ public class AccessRequestValidationTests {
             _accessRequestRepository.Object,
             _approverNotificationService.Object,
             _correlationService.Object,
+            _telemetryService.Object,
             Options.Create(new OnboardingOptions { ApproverAddress = approverAddress }),
             _logger.Object);
     }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -12,7 +13,7 @@ namespace MotorcycleRAG.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/admin")]
-[Authorize(Policy = "mcr-api-admin")]
+[Authorize(Policy = AuthorizationPolicyNames.Admin)]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
 public sealed class AccessRequestsAdminController : ControllerBase {
     private readonly AccessRequestAdminService _accessRequestAdminService;

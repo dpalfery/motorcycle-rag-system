@@ -109,3 +109,12 @@ Focus additions for this feature should cover:
 - provider-mismatch blocking behavior
 - retry handling for failed-onboarding requests
 - timing evidence for SC-001, SC-002, and SC-003
+
+## Implementation Validation Notes
+
+2026-04-24 validation pass:
+
+- Added automated coverage for foundational tier mapping, access-request notification degradation, lifecycle concurrency, tier reassignment, cancellation, admin API actions, approval-to-onboarding, `/api/me` blocking, and motorcycle query blocking when an authenticated principal does not resolve to an approved managed user.
+- Confirmed C#/.NET onboarding configuration now flows through configuration keys intended for Azure App Configuration and Key Vault. Direct environment-variable setup remains limited to the Python local processor runtime surface managed by the Admin app.
+- Reviewed `.github/workflows/deploy.yml` against the delivery constraint. No Spec 002 change adds a direct deployment path; deployment remains GitHub Actions-only, with Pulumi, image build/push, database schema migration, and container app revision updates executed from the workflow rather than by local agent commands.
+- Local build validation is still blocked by the existing repository build issue where `dotnet build` fails during restore/project evaluation without emitting a concrete compiler error in this environment. Re-run the three commands above after the SDK/MSBuild restore issue is corrected.

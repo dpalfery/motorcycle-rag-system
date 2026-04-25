@@ -248,7 +248,7 @@ public class HealthIntegrationTests : IClassFixture<TestWebApplicationFactory>
     {
         // Arrange
         var client = _factory.CreateClient();
-        var expectedChecks = new[] { "self", "configuration" };
+        var expectedChecks = new[] { "self", "configuration", "onboarding_notification", "external_identity_provisioning" };
 
         // Act
         var response = await client.GetAsync("/health");

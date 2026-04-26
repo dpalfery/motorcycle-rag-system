@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Persistence.Azure;
 
@@ -55,7 +56,8 @@ public class AzureBlobStorageService : IBlobStorageService
         ArgumentException.ThrowIfNullOrWhiteSpace(blobName);
         ArgumentNullException.ThrowIfNull(content);
 
-        _logger.LogInformation("Uploading blob {BlobName} to container {Container}", blobName, containerName);
+        _logger.LogInformation("Uploading blob {BlobName} to container {Container}",
+            LogSanitizer.Sanitize(blobName), LogSanitizer.Sanitize(containerName));
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         await containerClient.CreateIfNotExistsAsync(
@@ -72,7 +74,8 @@ public class AzureBlobStorageService : IBlobStorageService
             },
             cancellationToken);
 
-        _logger.LogInformation("Blob {BlobName} uploaded successfully to {Container}", blobName, containerName);
+        _logger.LogInformation("Blob {BlobName} uploaded successfully to {Container}",
+            LogSanitizer.Sanitize(blobName), LogSanitizer.Sanitize(containerName));
 
         return blobClient.Uri.ToString();
     }
@@ -119,7 +122,7 @@ public class AzureBlobStorageService : IBlobStorageService
         {
             _logger.LogInformation(
                 "Blob container {Container} was not found while listing pending files.",
-                containerName);
+                LogSanitizer.Sanitize(containerName));
             return Array.Empty<BlobObjectDescriptor>();
         }
 
@@ -135,7 +138,8 @@ public class AzureBlobStorageService : IBlobStorageService
         ArgumentException.ThrowIfNullOrWhiteSpace(containerName);
         ArgumentException.ThrowIfNullOrWhiteSpace(blobName);
 
-        _logger.LogInformation("Downloading blob {BlobName} from container {Container}", blobName, containerName);
+        _logger.LogInformation("Downloading blob {BlobName} from container {Container}",
+            LogSanitizer.Sanitize(blobName), LogSanitizer.Sanitize(containerName));
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         var blobClient = containerClient.GetBlobClient(blobName);

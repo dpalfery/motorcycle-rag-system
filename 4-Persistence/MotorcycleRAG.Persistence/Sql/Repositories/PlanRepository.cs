@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Enums;
 
 
@@ -49,7 +50,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 var createdPlan = await connection.QueryFirstOrDefaultAsync<UserPlan>(sql, plan);
 
-                _logger.LogInformation("Created plan with ID {PlanId}", createdPlan?.Id);
+                _logger.LogInformation("Created plan with ID {PlanId}", LogSanitizer.Sanitize(createdPlan?.Id));
                 return createdPlan ?? throw new InvalidOperationException("Plan creation failed");
             }
             catch (Exception ex) {
@@ -77,7 +78,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<UserPlan>(sql, new { PlanId = planId });
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get plan by ID {PlanId}", planId);
+                _logger.LogError(ex, "Failed to get plan by ID {PlanId}", LogSanitizer.Sanitize(planId));
                 throw new InvalidOperationException($"Failed to get plan by ID {planId}", ex);
             }
         }
@@ -101,7 +102,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<UserPlan>(sql, new { PlanName = planName });
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get plan by name {PlanName}", planName);
+                _logger.LogError(ex, "Failed to get plan by name {PlanName}", LogSanitizer.Sanitize(planName));
                 throw new InvalidOperationException($"Failed to get plan by name {planName}", ex);
             }
         }
@@ -147,11 +148,12 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 int rowsAffected = await connection.ExecuteAsync(sql, plan);
 
-                _logger.LogInformation("Updated plan with ID {PlanId}, rows affected: {RowsAffected}", plan.Id, rowsAffected);
+                _logger.LogInformation("Updated plan with ID {PlanId}, rows affected: {RowsAffected}",
+                    LogSanitizer.Sanitize(plan.Id), rowsAffected);
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to update plan with ID {PlanId}", plan.Id);
+                _logger.LogError(ex, "Failed to update plan with ID {PlanId}", LogSanitizer.Sanitize(plan.Id));
                 throw new InvalidOperationException($"Failed to update plan with ID {plan.Id}", ex);
             }
         }
@@ -174,11 +176,12 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 int rowsAffected = await connection.ExecuteAsync(sql, new { PlanId = planId });
 
-                _logger.LogInformation("Deleted plan with ID {PlanId}, rows affected: {RowsAffected}", planId, rowsAffected);
+                _logger.LogInformation("Deleted plan with ID {PlanId}, rows affected: {RowsAffected}",
+                    LogSanitizer.Sanitize(planId), rowsAffected);
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to delete plan with ID {PlanId}", planId);
+                _logger.LogError(ex, "Failed to delete plan with ID {PlanId}", LogSanitizer.Sanitize(planId));
                 throw new InvalidOperationException($"Failed to delete plan with ID {planId}", ex);
             }
         }

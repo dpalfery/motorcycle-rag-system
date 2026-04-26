@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Persistence.Azure.Search;
@@ -76,11 +77,11 @@ public class AzureSearchHealthService : IAzureSearchHealthService
         using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
         {
             ["Operation"] = "BasicSearch",
-            ["SearchText"] = searchText,
+            ["SearchTextLength"] = searchText.Length,
             ["MaxResults"] = maxResults
         });
 
-        _logger.LogDebug("Executing basic search query: {SearchText}", searchText);
+        _logger.LogDebug("Executing basic search query with length {SearchTextLength}", searchText.Length);
 
         // Simplified implementation - in a real scenario, you would use the actual Azure Search SDK
         await Task.Delay(100, cancellationToken); // Simulate search operation
@@ -111,7 +112,7 @@ public class AzureSearchHealthService : IAzureSearchHealthService
 
     private SearchResult[] CreateFallbackSearchResult(string searchText)
     {
-        _logger.LogWarning("Using fallback search results for query: {SearchText}", searchText);
+        _logger.LogWarning("Using fallback search results for query length {SearchTextLength}", searchText.Length);
         var result = new SearchResult
         {
             Id = "fallback_result",

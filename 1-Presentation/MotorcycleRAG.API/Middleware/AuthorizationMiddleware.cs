@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Utilities;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 
@@ -58,15 +59,15 @@ public sealed class AuthorizationMiddleware
 
         _logger.LogInformation(
             "Authorization attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Azp: {Azp}, Path: {Path}, Method: {Method}",
-            correlationId,
-            userId,
-            userRoles,
-            rawRoleClaims,
-            scopeClaims,
-            altScopeClaims,
-            azp,
-            context.Request.Path,
-            context.Request.Method);
+            LogSanitizer.Sanitize(correlationId, 80),
+            LogSanitizer.Sanitize(userId),
+            LogSanitizer.Sanitize(userRoles),
+            LogSanitizer.Sanitize(rawRoleClaims),
+            LogSanitizer.Sanitize(scopeClaims),
+            LogSanitizer.Sanitize(altScopeClaims),
+            LogSanitizer.Sanitize(azp),
+            LogSanitizer.Sanitize(context.Request.Path, 200),
+            LogSanitizer.Sanitize(context.Request.Method, 16));
 
         // Check if endpoint has authorization requirements
         var endpoint = context.GetEndpoint();
@@ -74,17 +75,17 @@ public sealed class AuthorizationMiddleware
         {
             _logger.LogDebug(
                 "Endpoint requires authorization - CorrelationId: {CorrelationId}, Path: {Path}",
-                correlationId,
-                context.Request.Path);
+                LogSanitizer.Sanitize(correlationId, 80),
+                LogSanitizer.Sanitize(context.Request.Path, 200));
 
             // Check if user is authenticated
             if (!context.User.Identity?.IsAuthenticated ?? false)
             {
                 _logger.LogWarning(
                     "Unauthorized access attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Path: {Path}",
-                    correlationId,
-                    userId,
-                    context.Request.Path);
+                    LogSanitizer.Sanitize(correlationId, 80),
+                    LogSanitizer.Sanitize(userId),
+                    LogSanitizer.Sanitize(context.Request.Path, 200));
             }
         }
 
@@ -97,34 +98,34 @@ public sealed class AuthorizationMiddleware
         {
             _logger.LogWarning(
                 "Authorization failed - Unauthorized - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Path: {Path}",
-                correlationId,
-                userId,
-                userRoles,
-                rawRoleClaims,
-                scopeClaims,
-                altScopeClaims,
-                context.Request.Path);
+                LogSanitizer.Sanitize(correlationId, 80),
+                LogSanitizer.Sanitize(userId),
+                LogSanitizer.Sanitize(userRoles),
+                LogSanitizer.Sanitize(rawRoleClaims),
+                LogSanitizer.Sanitize(scopeClaims),
+                LogSanitizer.Sanitize(altScopeClaims),
+                LogSanitizer.Sanitize(context.Request.Path, 200));
         }
         else if (statusCode == StatusCodes.Status403Forbidden)
         {
             _logger.LogWarning(
                 "Authorization failed - Forbidden - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Azp: {Azp}, Path: {Path}",
-                correlationId,
-                userId,
-                userRoles,
-                rawRoleClaims,
-                scopeClaims,
-                altScopeClaims,
-                azp,
-                context.Request.Path);
+                LogSanitizer.Sanitize(correlationId, 80),
+                LogSanitizer.Sanitize(userId),
+                LogSanitizer.Sanitize(userRoles),
+                LogSanitizer.Sanitize(rawRoleClaims),
+                LogSanitizer.Sanitize(scopeClaims),
+                LogSanitizer.Sanitize(altScopeClaims),
+                LogSanitizer.Sanitize(azp),
+                LogSanitizer.Sanitize(context.Request.Path, 200));
         }
         else if (statusCode is >= 200 and < 300)
         {
             _logger.LogInformation(
                 "Authorization successful - CorrelationId: {CorrelationId}, UserId: {UserId}, Path: {Path}, Status: {StatusCode}",
-                correlationId,
-                userId,
-                context.Request.Path,
+                LogSanitizer.Sanitize(correlationId, 80),
+                LogSanitizer.Sanitize(userId),
+                LogSanitizer.Sanitize(context.Request.Path, 200),
                 statusCode);
         }
     }

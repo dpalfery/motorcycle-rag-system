@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories {
@@ -62,7 +63,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return row is null ? null : MapPublicResponse(row);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get access request for {Provider}/{Email}", provider, email);
+                _logger.LogError(ex, "Failed to get access request for {Provider}/{Email}",
+                    LogSanitizer.Sanitize(provider), LogSanitizer.Sanitize(email));
                 throw new InvalidOperationException($"Failed to get access request for {email}", ex);
             }
         }
@@ -94,7 +96,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Request ID must be a valid GUID", nameof(requestId), ex);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get access request {RequestId}", requestId);
+                _logger.LogError(ex, "Failed to get access request {RequestId}", LogSanitizer.Sanitize(requestId));
                 throw new InvalidOperationException($"Failed to get access request {requestId}", ex);
             }
         }
@@ -119,7 +121,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Request ID must be a valid GUID", nameof(requestId), ex);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get admin access request {RequestId}", requestId);
+                _logger.LogError(ex, "Failed to get admin access request {RequestId}", LogSanitizer.Sanitize(requestId));
                 throw new InvalidOperationException($"Failed to get access request {requestId}", ex);
             }
         }
@@ -429,7 +431,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return MapPublicResponse(row);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to create access request for {Provider}/{Email}", request.Provider, request.Email);
+                _logger.LogError(ex, "Failed to create access request for {Provider}/{Email}",
+                    LogSanitizer.Sanitize(request.Provider), LogSanitizer.Sanitize(request.Email));
                 throw new InvalidOperationException($"Failed to create access request for {request.Email}", ex);
             }
         }
@@ -452,7 +455,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return count > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to check pending access request for {Provider}/{Email}", provider, email);
+                _logger.LogError(ex, "Failed to check pending access request for {Provider}/{Email}",
+                    LogSanitizer.Sanitize(provider), LogSanitizer.Sanitize(email));
                 throw new InvalidOperationException($"Failed to check access request for {email}", ex);
             }
         }
@@ -510,7 +514,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Request ID must be a valid GUID", nameof(requestId), ex);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to update access request {RequestId}", requestId);
+                _logger.LogError(ex, "Failed to update access request {RequestId}", LogSanitizer.Sanitize(requestId));
                 throw new InvalidOperationException($"Failed to update access request {requestId}", ex);
             }
         }

@@ -3,6 +3,7 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories;
 
@@ -88,7 +89,9 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
 
                 _logger.LogInformation(
                     "Recorded audit entry for tool {ToolId}: {Action} by user {UserId}",
-                    toolId, action, userId ?? "system");
+                    LogSanitizer.Sanitize(toolId),
+                    LogSanitizer.Sanitize(action),
+                    LogSanitizer.Sanitize(userId ?? "system"));
 
                 return entry;
             }
@@ -100,7 +103,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         catch (Exception ex) {
             _logger.LogError(ex,
                 "Error recording audit entry for tool {ToolId}: {Action}",
-                toolId, action);
+                LogSanitizer.Sanitize(toolId), LogSanitizer.Sanitize(action));
             throw new InvalidOperationException($"Error recording audit entry for tool {toolId}: {action}", ex);
         }
     }
@@ -137,7 +140,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         catch (Exception ex) {
             _logger.LogError(ex,
                 "Error retrieving audit history for tool configuration {ToolConfigurationId}",
-                toolConfigurationId);
+                LogSanitizer.Sanitize(toolConfigurationId));
             throw new InvalidOperationException($"Error retrieving audit history for tool configuration {toolConfigurationId}", ex);
         }
     }
@@ -179,7 +182,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         catch (Exception ex) {
             _logger.LogError(ex,
                 "Error retrieving audit entries for action {Action}",
-                action);
+                LogSanitizer.Sanitize(action));
             throw new InvalidOperationException($"Error retrieving audit entries for {nameof(action)} {action}", ex);
         }
     }
@@ -216,7 +219,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         catch (Exception ex) {
             _logger.LogError(ex,
                 "Error retrieving audit entries for user {UserId}",
-                userId);
+                LogSanitizer.Sanitize(userId));
             throw new InvalidOperationException($"Error retrieving audit entries for user {userId}", ex);
         }
     }

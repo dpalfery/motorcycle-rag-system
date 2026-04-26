@@ -116,7 +116,7 @@ public class PipelineProcessingController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing file {FileName}", Path.GetFileName(request.FilePath));
+            _logger.LogError(ex, "Error processing file {FileName}", LogSanitizer.Sanitize(Path.GetFileName(request.FilePath), 80));
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",

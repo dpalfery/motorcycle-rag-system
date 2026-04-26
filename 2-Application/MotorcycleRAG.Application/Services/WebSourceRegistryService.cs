@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -49,7 +50,7 @@ public class WebSourceRegistryService {
 
         var createdSource = await _webSourceRepository.CreateWebSourceAsync(webSource);
         _logger.LogInformation("Added web source {SourceName} with ID {SourceId} by user {UserId}",
-            createdSource.Name, createdSource.Id, _currentUserService.UserId);
+            LogSanitizer.Sanitize(createdSource.Name, 120), createdSource.Id, LogSanitizer.Sanitize(_currentUserService.UserId));
 
         return createdSource;
     }
@@ -88,7 +89,7 @@ public class WebSourceRegistryService {
         }
 
         _logger.LogInformation("Updated web source {SourceId} by user {UserId}",
-            webSource.Id, _currentUserService.UserId);
+            webSource.Id, LogSanitizer.Sanitize(_currentUserService.UserId));
         return webSource;
     }
 
@@ -122,7 +123,7 @@ public class WebSourceRegistryService {
         }
 
         _logger.LogInformation("Removed web source {SourceId} by user {UserId}",
-            webSourceId, _currentUserService.UserId);
+            webSourceId, LogSanitizer.Sanitize(_currentUserService.UserId));
     }
 
     /// <summary>

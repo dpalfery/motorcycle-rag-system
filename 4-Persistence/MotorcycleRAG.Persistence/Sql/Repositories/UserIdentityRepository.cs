@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories {
@@ -43,7 +44,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 });
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to resolve managed user identity for {Provider}/{Email}", provider, email);
+                _logger.LogError(ex, "Failed to resolve managed user identity for {Provider}/{Email}",
+                    LogSanitizer.Sanitize(provider), LogSanitizer.Sanitize(email));
                 throw new InvalidOperationException($"Failed to resolve identity for {email}", ex);
             }
         }
@@ -77,7 +79,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                     };
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get active identity link for managed user {ManagedUserId}", managedUserId);
+                _logger.LogError(ex, "Failed to get active identity link for managed user {ManagedUserId}",
+                    LogSanitizer.Sanitize(managedUserId));
                 throw new InvalidOperationException($"Failed to get identity link for {managedUserId}", ex);
             }
         }
@@ -110,7 +113,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return count > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to check identity link for {ManagedUserId}", managedUserId);
+                _logger.LogError(ex, "Failed to check identity link for {ManagedUserId}",
+                    LogSanitizer.Sanitize(managedUserId));
                 throw new InvalidOperationException($"Failed to check identity link for {managedUserId}", ex);
             }
         }
@@ -196,7 +200,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to upsert identity link for {ManagedUserId}", managedUserId);
+                _logger.LogError(ex, "Failed to upsert identity link for {ManagedUserId}",
+                    LogSanitizer.Sanitize(managedUserId));
                 throw new InvalidOperationException($"Failed to upsert identity link for {managedUserId}", ex);
             }
         }
@@ -219,7 +224,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to revoke identity links for managed user {ManagedUserId}", managedUserId);
+                _logger.LogError(ex, "Failed to revoke identity links for managed user {ManagedUserId}",
+                    LogSanitizer.Sanitize(managedUserId));
                 throw new InvalidOperationException($"Failed to revoke identity links for {managedUserId}", ex);
             }
         }

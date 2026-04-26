@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Persistence.ExternalServices;
 
@@ -69,7 +70,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
 
         _logger.LogInformation(
             "Triggering Fabric pipeline {PipelineId} for document type {DocumentType}",
-            pipelineId, documentType);
+            LogSanitizer.Sanitize(pipelineId), LogSanitizer.Sanitize(documentType));
 
         var body = JsonSerializer.Serialize(new {
             executionData = new {
@@ -95,7 +96,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogError(
                 "Fabric pipeline trigger failed for pipeline {PipelineId}. Status: {StatusCode}",
-                pipelineId, (int)response.StatusCode);
+                LogSanitizer.Sanitize(pipelineId), (int)response.StatusCode);
             throw new InvalidOperationException(
                 $"Fabric pipeline trigger returned HTTP {(int)response.StatusCode} for pipeline '{pipelineId}'.");
         }
@@ -104,7 +105,8 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         // The run ID is the last segment of that URL.
         var location = response.Headers.Location?.ToString();
         if (string.IsNullOrWhiteSpace(location)) {
-            _logger.LogError("Fabric pipeline trigger returned no Location header for pipeline {PipelineId}", pipelineId);
+            _logger.LogError("Fabric pipeline trigger returned no Location header for pipeline {PipelineId}",
+                LogSanitizer.Sanitize(pipelineId));
             throw new InvalidOperationException(
                 $"Fabric pipeline trigger for '{pipelineId}' returned no Location header.");
         }
@@ -112,13 +114,14 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         var trimmedLocation = location.TrimEnd('/');
         var fabricRunId = trimmedLocation.Split('/').Last();
         if (string.IsNullOrEmpty(fabricRunId)) {
-            _logger.LogError("Fabric Location header has no run ID segment for pipeline {PipelineId}: {Location}", pipelineId, location);
+            _logger.LogError("Fabric Location header has no run ID segment for pipeline {PipelineId}: {Location}",
+                LogSanitizer.Sanitize(pipelineId), LogSanitizer.Sanitize(location, 500));
             throw new InvalidOperationException(
                 $"Fabric pipeline trigger for '{pipelineId}' returned a Location header with no run ID segment.");
         }
         _logger.LogInformation(
             "Fabric pipeline {PipelineId} triggered. Run ID: {FabricRunId}",
-            pipelineId, fabricRunId);
+            LogSanitizer.Sanitize(pipelineId), LogSanitizer.Sanitize(fabricRunId));
 
         return fabricRunId;
     }
@@ -142,7 +145,7 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         if (!response.IsSuccessStatusCode) {
             _logger.LogWarning(
                 "Fabric status check failed for run {FabricRunId}. Status: {StatusCode}",
-                fabricRunId, (int)response.StatusCode);
+                LogSanitizer.Sanitize(fabricRunId), (int)response.StatusCode);
             throw new InvalidOperationException(
                 $"Fabric status check returned HTTP {(int)response.StatusCode} for run '{fabricRunId}'.");
         }
@@ -155,7 +158,8 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
         if (jsonDoc.RootElement.TryGetProperty("status", out var statusProp))
             return statusProp.GetString() ?? "Unknown";
 
-        _logger.LogWarning("Fabric run status response missing 'status' field for run {FabricRunId}", fabricRunId);
+        _logger.LogWarning("Fabric run status response missing 'status' field for run {FabricRunId}",
+            LogSanitizer.Sanitize(fabricRunId));
         return "Unknown";
     }
 

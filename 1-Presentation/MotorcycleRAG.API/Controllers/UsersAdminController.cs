@@ -4,6 +4,7 @@ using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using System.Text.Json.Serialization;
 
@@ -62,15 +63,15 @@ public sealed class UsersAdminController : ControllerBase {
 
         try {
             var user = await _userAdminService.SetUserEnabledStatusAsync(userId, request.IsEnabled);
-            _logger.LogInformation("Admin set user {UserId} enabled status to {IsEnabled}", userId, request.IsEnabled);
+            _logger.LogInformation("Admin set user {UserId} enabled status to {IsEnabled}", LogSanitizer.Sanitize(userId), request.IsEnabled);
             return Ok(user);
         }
         catch (ArgumentException ex) {
-            _logger.LogWarning(ex, "Invalid request to set user enabled status for {UserId}", userId);
+            _logger.LogWarning(ex, "Invalid request to set user enabled status for {UserId}", LogSanitizer.Sanitize(userId));
             return BadRequest(new { error = ex.Message });
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error setting user enabled status for {UserId}", userId);
+            _logger.LogError(ex, "Error setting user enabled status for {UserId}", LogSanitizer.Sanitize(userId));
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
@@ -102,15 +103,15 @@ public sealed class UsersAdminController : ControllerBase {
 
         try {
             var user = await _userAdminService.AssignPlanToUserAsync(userId, request.PlanId);
-            _logger.LogInformation("Admin assigned plan {PlanId} to user {UserId}", request.PlanId, userId);
+            _logger.LogInformation("Admin assigned plan {PlanId} to user {UserId}", LogSanitizer.Sanitize(request.PlanId), LogSanitizer.Sanitize(userId));
             return Ok(user);
         }
         catch (ArgumentException ex) {
-            _logger.LogWarning(ex, "Invalid request to assign plan to user {UserId}", userId);
+            _logger.LogWarning(ex, "Invalid request to assign plan to user {UserId}", LogSanitizer.Sanitize(userId));
             return BadRequest(new { error = ex.Message });
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error assigning plan to user {UserId}", userId);
+            _logger.LogError(ex, "Error assigning plan to user {UserId}", LogSanitizer.Sanitize(userId));
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
@@ -142,11 +143,11 @@ public sealed class UsersAdminController : ControllerBase {
             return Ok(response);
         }
         catch (ArgumentException ex) {
-            _logger.LogWarning(ex, "Invalid tier-change request for user {UserId}", userId);
+            _logger.LogWarning(ex, "Invalid tier-change request for user {UserId}", LogSanitizer.Sanitize(userId));
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidOperationException ex) {
-            _logger.LogWarning(ex, "Tier change could not be completed for user {UserId}", userId);
+            _logger.LogWarning(ex, "Tier change could not be completed for user {UserId}", LogSanitizer.Sanitize(userId));
             return Conflict(new { error = ex.Message });
         }
     }
@@ -179,11 +180,11 @@ public sealed class UsersAdminController : ControllerBase {
             return Ok(response);
         }
         catch (ArgumentException ex) {
-            _logger.LogWarning(ex, "Invalid cancellation request for user {UserId}", userId);
+            _logger.LogWarning(ex, "Invalid cancellation request for user {UserId}", LogSanitizer.Sanitize(userId));
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidOperationException ex) {
-            _logger.LogWarning(ex, "Cancellation could not be completed for user {UserId}", userId);
+            _logger.LogWarning(ex, "Cancellation could not be completed for user {UserId}", LogSanitizer.Sanitize(userId));
             return Conflict(new { error = ex.Message });
         }
     }

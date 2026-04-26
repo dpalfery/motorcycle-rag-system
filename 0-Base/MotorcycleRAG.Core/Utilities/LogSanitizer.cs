@@ -42,4 +42,15 @@ public static class LogSanitizer
             ? sanitized[..maxLength]
             : sanitized;
     }
+
+    /// <summary>
+    /// Sanitizes any value by converting it to a string before applying standard log sanitization.
+    /// </summary>
+    /// <param name="value">The raw value to sanitize.</param>
+    /// <param name="maxLength">Maximum number of characters to retain.</param>
+    /// <returns>A sanitized, truncated copy of the input, or <see cref="string.Empty"/> if null.</returns>
+    public static string Sanitize(object? value, int maxLength = 200)
+    {
+        return Sanitize(value?.ToString(), maxLength);
+    }
 }

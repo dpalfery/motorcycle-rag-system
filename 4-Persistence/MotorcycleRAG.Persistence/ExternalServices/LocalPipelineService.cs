@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Persistence.ExternalServices;
 
@@ -48,7 +49,7 @@ public sealed class LocalPipelineService : ILocalPipelineService
 
         _logger.LogInformation(
             "Triggering local pipeline for document type {DocumentType}",
-            documentType);
+            LogSanitizer.Sanitize(documentType));
 
         var endpoint = documentType switch {
             "manual-pdf" => $"{_config.LocalEndpoint.TrimEnd('/')}/process/pdf",
@@ -83,7 +84,7 @@ public sealed class LocalPipelineService : ILocalPipelineService
         {
             _logger.LogError(
                 "Local pipeline trigger failed for document type {DocumentType}. Status: {StatusCode}",
-                documentType, (int)response.StatusCode);
+                LogSanitizer.Sanitize(documentType), (int)response.StatusCode);
             throw new InvalidOperationException(
                 $"Local pipeline trigger returned HTTP {(int)response.StatusCode} for document type '{documentType}'.");
         }
@@ -99,14 +100,14 @@ public sealed class LocalPipelineService : ILocalPipelineService
             {
                 _logger.LogInformation(
                     "Local pipeline triggered for document type {DocumentType}. Job ID: {JobId}",
-                    documentType, jobId);
+                    LogSanitizer.Sanitize(documentType), LogSanitizer.Sanitize(jobId));
                 return jobId;
             }
         }
 
         _logger.LogError(
             "Local pipeline trigger response missing 'job_id' field for document type {DocumentType}",
-            documentType);
+            LogSanitizer.Sanitize(documentType));
         throw new InvalidOperationException(
             $"Local pipeline trigger for document type '{documentType}' returned no job_id.");
     }
@@ -130,7 +131,7 @@ public sealed class LocalPipelineService : ILocalPipelineService
         {
             _logger.LogWarning(
                 "Local pipeline status check failed for job {RunId}. Status: {StatusCode}",
-                runId, (int)response.StatusCode);
+                LogSanitizer.Sanitize(runId), (int)response.StatusCode);
             throw new InvalidOperationException(
                 $"Local pipeline status check returned HTTP {(int)response.StatusCode} for job '{runId}'.");
         }
@@ -142,7 +143,8 @@ public sealed class LocalPipelineService : ILocalPipelineService
         if (jsonDoc.RootElement.TryGetProperty("status", out var statusProp))
             return statusProp.GetString() ?? "Unknown";
 
-        _logger.LogWarning("Local pipeline status response missing 'status' field for job {RunId}", runId);
+        _logger.LogWarning("Local pipeline status response missing 'status' field for job {RunId}",
+            LogSanitizer.Sanitize(runId));
         return "Unknown";
     }
 }

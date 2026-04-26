@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 
@@ -56,7 +57,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             _logger.LogWarning(
                 ex,
                 "Listing pending storage files was denied for container {Container}. Returning an empty result set.",
-                _blobStorageOptions.RawUploadsContainer);
+                LogSanitizer.Sanitize(_blobStorageOptions.RawUploadsContainer, 80));
             return Array.Empty<PendingStorageFileDto>();
         }
 
@@ -177,7 +178,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         _logger.LogInformation(
             "Pipeline triggered for job {JobId} with run {RunId} (mode: {Mode}).",
             job.IngestionJobId,
-            runId,
+            LogSanitizer.Sanitize(runId),
             _options.Mode);
 
         return MapToResponse(job);
@@ -235,7 +236,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             job.FailureReason = null;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Graph import failed for upload {UploadId}.", uploadId);
+            _logger.LogError(ex, "Graph import failed for upload {UploadId}.", LogSanitizer.Sanitize(uploadId));
             job.Status = IngestionJobStatus.Failed;
             job.CompletedAtUtc = DateTimeOffset.UtcNow;
             job.FailureReason = "Graph import failed.";

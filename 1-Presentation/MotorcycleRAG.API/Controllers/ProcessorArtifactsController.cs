@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -126,8 +127,8 @@ public sealed class ProcessorArtifactsController : ControllerBase
 
             _logger.LogInformation(
                 "Processor artifact accepted. UploadId={UploadId}, ArtifactType={ArtifactType}, SizeBytes={SizeBytes}.",
-                uploadId,
-                artifactType,
+                LogSanitizer.Sanitize(uploadId),
+                LogSanitizer.Sanitize(artifactType),
                 file.Length);
         }
         catch (Exception ex)
@@ -135,8 +136,8 @@ public sealed class ProcessorArtifactsController : ControllerBase
             _logger.LogError(
                 ex,
                 "Failed to upload processor artifact. UploadId={UploadId}, ArtifactType={ArtifactType}.",
-                uploadId,
-                artifactType);
+                LogSanitizer.Sanitize(uploadId),
+                LogSanitizer.Sanitize(artifactType));
 
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
             {

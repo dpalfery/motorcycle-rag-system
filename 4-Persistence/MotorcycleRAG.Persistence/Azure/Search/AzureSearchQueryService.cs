@@ -7,6 +7,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Persistence.Azure.Search;
@@ -70,10 +71,11 @@ public class AzureSearchQueryService : IAzureSearchQueryService
         using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
         {
             ["Operation"] = operation,
-            ["Query"] = query
+            ["QueryLength"] = query.Length
         });
 
-        _logger.LogDebug("Executing {Operation} query: {Query}", operation, query);
+        _logger.LogDebug("Executing {Operation} query with length {QueryLength}",
+            LogSanitizer.Sanitize(operation), query.Length);
 
         var azureOptions = ConvertToAzureSearchOptions(options);
         var response = await _searchClient.SearchAsync<SearchResult>(query, azureOptions);
@@ -99,13 +101,15 @@ public class AzureSearchQueryService : IAzureSearchQueryService
             results.Add(outDoc);
         }
 
-        _logger.LogDebug("{Operation} completed with {ResultCount} results", operation, results.Count);
+        _logger.LogDebug("{Operation} completed with {ResultCount} results",
+            LogSanitizer.Sanitize(operation), results.Count);
         return results.ToArray();
     }
 
     private SearchResult[] CreateFallbackResult(string query, string operation)
     {
-        _logger.LogWarning("Using fallback {Operation} results for query: {Query}", operation, query);
+        _logger.LogWarning("Using fallback {Operation} results for query length {QueryLength}",
+            LogSanitizer.Sanitize(operation), query.Length);
         var result = new SearchResult
         {
             Id = $"fallback_{operation.ToLower()}_result",

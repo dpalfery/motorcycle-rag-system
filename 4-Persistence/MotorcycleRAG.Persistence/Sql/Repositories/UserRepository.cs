@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Enums;
 
 
@@ -74,7 +75,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 var createdUser = await connection.QueryFirstOrDefaultAsync<UserDTO>(sql, user);
 
-                _logger.LogInformation("Created user with ID {UserId}", createdUser?.Id);
+                _logger.LogInformation("Created user with ID {UserId}", LogSanitizer.Sanitize(createdUser?.Id));
                 return createdUser ?? throw new InvalidOperationException("User creation failed");
             }
             catch (Exception ex) {
@@ -104,7 +105,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<UserDTO>(sql, new { UserId = userId });
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get user by ID {UserId}", userId);
+                _logger.LogError(ex, "Failed to get user by ID {UserId}", LogSanitizer.Sanitize(userId));
                 throw new InvalidOperationException($"Failed to get user by ID {userId}", ex);
             }
         }
@@ -130,7 +131,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<UserDTO>(sql, new { Email = email });
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get user by email {Email}", email);
+                _logger.LogError(ex, "Failed to get user by email {Email}", LogSanitizer.Sanitize(email));
                 throw new InvalidOperationException($"Failed to get user by email {email}", ex);
             }
         }
@@ -166,11 +167,12 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 using var connection = await _connectionFactory.CreateOpenConnectionAsync();
                 int rowsAffected = await connection.ExecuteAsync(sql, user);
 
-                _logger.LogInformation("Updated user with ID {UserId}, rows affected: {RowsAffected}", user.Id, rowsAffected);
+                _logger.LogInformation("Updated user with ID {UserId}, rows affected: {RowsAffected}",
+                    LogSanitizer.Sanitize(user.Id), rowsAffected);
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to update user with ID {UserId}", user.Id);
+                _logger.LogError(ex, "Failed to update user with ID {UserId}", LogSanitizer.Sanitize(user.Id));
                 throw new InvalidOperationException($"Failed to update user with ID {user.Id}", ex);
             }
         }
@@ -210,11 +212,11 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 });
 
                 _logger.LogInformation("Set user {UserId} enabled status to {IsEnabled}, rows affected: {RowsAffected}",
-                    userId, isEnabled, rowsAffected);
+                    LogSanitizer.Sanitize(userId), isEnabled, rowsAffected);
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to set enabled status for user {UserId}", userId);
+                _logger.LogError(ex, "Failed to set enabled status for user {UserId}", LogSanitizer.Sanitize(userId));
                 throw new InvalidOperationException($"Failed to set enabled status for user {userId}", ex);
             }
         }
@@ -250,7 +252,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to assign tier {TierLabel} for user {UserId}", tierLabel, userId);
+                _logger.LogError(ex, "Failed to assign tier {TierLabel} for user {UserId}",
+                    LogSanitizer.Sanitize(tierLabel), LogSanitizer.Sanitize(userId));
                 throw new InvalidOperationException($"Failed to assign tier for user {userId}", ex);
             }
         }
@@ -293,7 +296,8 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to update access state {AccessState} for user {UserId}", accessState, userId);
+                _logger.LogError(ex, "Failed to update access state {AccessState} for user {UserId}",
+                    LogSanitizer.Sanitize(accessState), LogSanitizer.Sanitize(userId));
                 throw new InvalidOperationException($"Failed to update access state for user {userId}", ex);
             }
         }

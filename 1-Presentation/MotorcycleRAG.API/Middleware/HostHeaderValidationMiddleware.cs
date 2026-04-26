@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Utilities;
 using System.Diagnostics.CodeAnalysis;
 
 namespace MotorcycleRAG.API.Middleware;
@@ -71,7 +72,7 @@ public sealed class HostHeaderValidationMiddleware
         // which are not in the allowlist and would cause probe failures → replica kills.
         if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", context.Request.Path);
+            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", LogSanitizer.Sanitize(context.Request.Path, 200));
             await _next(context);
             return;
         }
@@ -127,9 +128,9 @@ public sealed class HostHeaderValidationMiddleware
         {
             _logger.LogWarning(
                 "Host header validation failed. Host: {Host}, HostOnly: {HostOnly}, AllowedHosts: {AllowedHosts}",
-                hostValue,
-                hostOnly,
-                string.Join(", ", _allowedHosts));
+                LogSanitizer.Sanitize(hostValue, 200),
+                LogSanitizer.Sanitize(hostOnly, 200),
+                LogSanitizer.Sanitize(string.Join(", ", _allowedHosts), 500));
 
             // Return 400 Bad Request with ProblemDetails response
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
@@ -150,8 +151,8 @@ public sealed class HostHeaderValidationMiddleware
 
         _logger.LogDebug(
             "Host header validation successful. Host: {Host}, HostOnly: {HostOnly}",
-            hostValue,
-            hostOnly);
+            LogSanitizer.Sanitize(hostValue, 200),
+            LogSanitizer.Sanitize(hostOnly, 200));
 
         await _next(context);
     }

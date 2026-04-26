@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories;
@@ -96,12 +97,14 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
                 configuration.UpdatedAt
             });
 
-            _logger.LogInformation("Tool configuration {ToolId} saved successfully", configuration.ToolId);
+            _logger.LogInformation("Tool configuration {ToolId} saved successfully",
+                LogSanitizer.Sanitize(configuration.ToolId));
             return configuration;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error saving tool configuration {ToolId}", configuration.ToolId);
+            _logger.LogError(ex, "Error saving tool configuration {ToolId}",
+                LogSanitizer.Sanitize(configuration.ToolId));
             throw new InvalidOperationException($"Error saving tool {nameof(configuration)} {configuration.ToolId}", ex);
         }
     }
@@ -135,7 +138,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving tool configuration by ID {Id}", id);
+            _logger.LogError(ex, "Error retrieving tool configuration by ID {Id}", LogSanitizer.Sanitize(id));
             throw new InvalidOperationException($"Error retrieving tool configuration by ID {id}", ex);
         }
     }
@@ -169,7 +172,8 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving tool configuration by ToolId {ToolId}", toolId);
+            _logger.LogError(ex, "Error retrieving tool configuration by ToolId {ToolId}",
+                LogSanitizer.Sanitize(toolId));
             throw new InvalidOperationException($"Error retrieving tool configuration by ToolId {toolId}", ex);
         }
     }
@@ -263,7 +267,8 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving tool configurations by type {ToolType}", toolType);
+            _logger.LogError(ex, "Error retrieving tool configurations by type {ToolType}",
+                LogSanitizer.Sanitize(toolType));
             throw new InvalidOperationException($"Error retrieving tool configurations by type {toolType}", ex);
         }
     }
@@ -288,13 +293,13 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
             var rowsAffected = await connection.ExecuteAsync(sql, new { Id = id });
 
             if (rowsAffected > 0)
-                _logger.LogInformation("Tool configuration {Id} deleted successfully", id);
+                _logger.LogInformation("Tool configuration {Id} deleted successfully", LogSanitizer.Sanitize(id));
 
             return rowsAffected > 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting tool configuration {Id}", id);
+            _logger.LogError(ex, "Error deleting tool configuration {Id}", LogSanitizer.Sanitize(id));
             throw new InvalidOperationException($"Error deleting tool configuration {id}", ex);
         }
     }
@@ -319,7 +324,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking existence of tool configuration {Id}", id);
+            _logger.LogError(ex, "Error checking existence of tool configuration {Id}", LogSanitizer.Sanitize(id));
             throw new InvalidOperationException($"Error checking existence of tool configuration {id}", ex);
         }
     }
@@ -344,7 +349,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking existence of tool ID {ToolId}", toolId);
+            _logger.LogError(ex, "Error checking existence of tool ID {ToolId}", LogSanitizer.Sanitize(toolId));
             throw new InvalidOperationException($"Error checking existence of tool ID {toolId}", ex);
         }
     }

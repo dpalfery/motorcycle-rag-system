@@ -3,6 +3,7 @@ using CsvHelper.Configuration;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Domain.ValueObjects;
@@ -53,7 +54,8 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
         var errors = new List<string>();
 
         try {
-            _logger.LogInformation("Starting CSV processing for file: {FileName}", input.FileName);
+            _logger.LogInformation("Starting CSV processing for file: {FileName}",
+                LogSanitizer.Sanitize(input.FileName));
 
             // Validate input
             if (!ValidateInput(input, errors)) {
@@ -96,7 +98,8 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
             return processed;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Fatal error processing CSV file: {FileName}", input.FileName);
+            _logger.LogError(ex, "Fatal error processing CSV file: {FileName}",
+                LogSanitizer.Sanitize(input.FileName));
             throw new InvalidOperationException($"Fatal error processing CSV: {ex.Message}", ex);
         }
     }

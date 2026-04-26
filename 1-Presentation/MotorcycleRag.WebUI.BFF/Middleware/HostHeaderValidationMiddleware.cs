@@ -72,7 +72,7 @@ internal sealed class HostHeaderValidationMiddleware {
 #pragma warning disable CA1873 // Evaluation of this argument may be expensive and unnecessary if logging is disabled
         _logger.LogInformation(
             "HostHeaderValidationMiddleware initialized with allowed hosts: {AllowedHosts}",
-            string.Join(", ", _allowedHosts)
+            SanitizeLogValue(string.Join(", ", _allowedHosts), 500)
         );
 #pragma warning restore CA1873
 #pragma warning restore CA1848
@@ -92,7 +92,7 @@ internal sealed class HostHeaderValidationMiddleware {
         if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
         {
 #pragma warning disable CA1848
-            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", context.Request.Path);
+            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", SanitizeLogValue(context.Request.Path, 200));
 #pragma warning restore CA1848
             await _next(context).ConfigureAwait(false);
             return;
@@ -152,9 +152,9 @@ internal sealed class HostHeaderValidationMiddleware {
 #pragma warning disable CA1873 // Evaluation of this argument may be expensive and unnecessary if logging is disabled
             _logger.LogWarning(
                 "Host header validation failed. Host: {Host}, HostOnly: {HostOnly}, AllowedHosts: {AllowedHosts}",
-                hostValue,
-                hostOnly,
-                string.Join(", ", _allowedHosts)
+                SanitizeLogValue(hostValue, 200),
+                SanitizeLogValue(hostOnly, 200),
+                SanitizeLogValue(string.Join(", ", _allowedHosts), 500)
             );
 #pragma warning restore CA1873
 #pragma warning restore CA1848
@@ -179,8 +179,8 @@ internal sealed class HostHeaderValidationMiddleware {
 #pragma warning disable CA1873 // Evaluation of this argument may be expensive and unnecessary if logging is disabled
         _logger.LogDebug(
             "Host header validation successful. Host: {Host}, HostOnly: {HostOnly}",
-            hostValue,
-            hostOnly
+            SanitizeLogValue(hostValue, 200),
+            SanitizeLogValue(hostOnly, 200)
         );
 #pragma warning restore CA1873
 #pragma warning restore CA1848
@@ -249,6 +249,23 @@ internal sealed class HostHeaderValidationMiddleware {
 
         // HashSet uses StringComparer.OrdinalIgnoreCase, so Contains handles case-insensitive comparison
         return _allowedHosts.Contains(hostname);
+    }
+
+    private static string SanitizeLogValue(object? value, int maxLength = 200) {
+        var text = value?.ToString();
+        if (text is null) {
+            return string.Empty;
+        }
+
+        var sanitized = text
+            .Replace('\n', ' ')
+            .Replace('\r', ' ')
+            .Replace('\t', ' ')
+            .Replace('\0', ' ');
+
+        return sanitized.Length > maxLength
+            ? sanitized[..maxLength]
+            : sanitized;
     }
 }
 

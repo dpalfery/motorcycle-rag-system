@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Utilities;
 using System.Text.Json.Serialization;
 
 using System.Net.Mime;
@@ -68,15 +69,15 @@ public sealed class PlansAdminController : ControllerBase {
         try {
             var plan = await _planRepository.GetPlanByIdAsync(planId);
             if (plan == null) {
-                _logger.LogWarning("Plan {PlanId} not found", planId);
+                _logger.LogWarning("Plan {PlanId} not found", LogSanitizer.Sanitize(planId));
                 return NotFound(new { error = "Plan not found" });
             }
 
-            _logger.LogInformation("Admin retrieved plan {PlanId}", planId);
+            _logger.LogInformation("Admin retrieved plan {PlanId}", LogSanitizer.Sanitize(planId));
             return Ok(plan);
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error retrieving plan {PlanId}", planId);
+            _logger.LogError(ex, "Error retrieving plan {PlanId}", LogSanitizer.Sanitize(planId));
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
@@ -129,7 +130,7 @@ public sealed class PlansAdminController : ControllerBase {
             };
 
             var createdPlan = await _planRepository.CreatePlanAsync(plan);
-            _logger.LogInformation("Admin created plan {PlanId} with name {PlanName}", createdPlan.Id, createdPlan.Name);
+            _logger.LogInformation("Admin created plan {PlanId} with name {PlanName}", LogSanitizer.Sanitize(createdPlan.Id), LogSanitizer.Sanitize(createdPlan.Name));
 
             // Avoid route generation failures under test hosts by returning an explicit location.
             var location = new Uri($"/api/admin/plans/{createdPlan.Id}", UriKind.Relative);
@@ -181,7 +182,7 @@ public sealed class PlansAdminController : ControllerBase {
         try {
             var plan = await _planRepository.GetPlanByIdAsync(planId);
             if (plan == null) {
-                _logger.LogWarning("Plan {PlanId} not found for update", planId);
+                _logger.LogWarning("Plan {PlanId} not found for update", LogSanitizer.Sanitize(planId));
                 return NotFound(new { error = "Plan not found" });
             }
 
@@ -199,15 +200,15 @@ public sealed class PlansAdminController : ControllerBase {
 
             var success = await _planRepository.UpdatePlanAsync(plan);
             if (!success) {
-                _logger.LogError("Failed to update plan {PlanId}", planId);
+                _logger.LogError("Failed to update plan {PlanId}", LogSanitizer.Sanitize(planId));
                 return StatusCode(StatusCodes.Status500InternalServerError, new { error = "Failed to update plan" });
             }
 
-            _logger.LogInformation("Admin updated plan {PlanId}", planId);
+            _logger.LogInformation("Admin updated plan {PlanId}", LogSanitizer.Sanitize(planId));
             return Ok(plan);
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error updating plan {PlanId}", planId);
+            _logger.LogError(ex, "Error updating plan {PlanId}", LogSanitizer.Sanitize(planId));
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
@@ -231,21 +232,21 @@ public sealed class PlansAdminController : ControllerBase {
         try {
             var plan = await _planRepository.GetPlanByIdAsync(planId);
             if (plan == null) {
-                _logger.LogWarning("Plan {PlanId} not found for deletion", planId);
+                _logger.LogWarning("Plan {PlanId} not found for deletion", LogSanitizer.Sanitize(planId));
                 return NotFound(new { error = "Plan not found" });
             }
 
             var success = await _planRepository.DeletePlanAsync(planId);
             if (!success) {
-                _logger.LogError("Failed to delete plan {PlanId}", planId);
+                _logger.LogError("Failed to delete plan {PlanId}", LogSanitizer.Sanitize(planId));
                 return StatusCode(StatusCodes.Status500InternalServerError, new { error = "Failed to delete plan" });
             }
 
-            _logger.LogInformation("Admin deleted plan {PlanId}", planId);
+            _logger.LogInformation("Admin deleted plan {PlanId}", LogSanitizer.Sanitize(planId));
             return NoContent();
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error deleting plan {PlanId}", planId);
+            _logger.LogError(ex, "Error deleting plan {PlanId}", LogSanitizer.Sanitize(planId));
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }

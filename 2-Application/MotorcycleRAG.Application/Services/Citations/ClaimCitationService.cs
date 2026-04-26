@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Application.Services.Citations;
@@ -98,7 +99,7 @@ public class ClaimCitationService
             }
             else
             {
-                _logger.LogWarning("No evidence found for claim: {Claim}", claim);
+                _logger.LogWarning("No evidence found for claim: {Claim}", LogSanitizer.Sanitize(claim, 200));
             }
             claimEvidences.Add(evidence);
         }

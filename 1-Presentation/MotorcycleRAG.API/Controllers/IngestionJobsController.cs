@@ -6,6 +6,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Pipeline.Validators;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 using Microsoft.Extensions.Options;
 
 namespace MotorcycleRAG.API.Controllers;
@@ -109,16 +110,16 @@ public sealed class IngestionJobsController : ControllerBase {
 
             _logger.LogInformation(
                 "Upload accepted. UploadId={UploadId}, DocumentType={DocumentType}, SizeBytes={SizeBytes}.",
-                uploadId,
-                documentType,
+                LogSanitizer.Sanitize(uploadId),
+                LogSanitizer.Sanitize(documentType),
                 file.Length);
         }
         catch (Exception ex) {
             _logger.LogError(
                 ex,
                 "Failed to upload ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
-                uploadId,
-                documentType);
+                LogSanitizer.Sanitize(uploadId),
+                LogSanitizer.Sanitize(documentType));
 
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Upload failed",
@@ -170,8 +171,8 @@ public sealed class IngestionJobsController : ControllerBase {
 
         _logger.LogInformation(
             "Starting ingestion job for UploadId={UploadId}, DocumentType={DocumentType}.",
-            request.UploadId,
-            request.DocumentType);
+            LogSanitizer.Sanitize(request.UploadId),
+            LogSanitizer.Sanitize(request.DocumentType));
 
         var result = await _ingestionJobService.StartJobAsync(request, userId, ct).ConfigureAwait(false);
         return Accepted(result);

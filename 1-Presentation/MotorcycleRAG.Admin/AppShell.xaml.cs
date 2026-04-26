@@ -15,6 +15,7 @@ namespace MotorcycleRAG.Admin;
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1812: Avoid uninstantiated internal classes", Justification = "Instantiated by MAUI framework")]
 internal partial class AppShell : Shell {
+    private const double HeaderMinimumWidth = 320d;
     private readonly IAdminAuthService _authService;
     private readonly ISettingsService _settingsService;
     private readonly IConfigurationStateService _configService;
@@ -42,9 +43,14 @@ internal partial class AppShell : Shell {
 
         // Update UI based on auth state
         Loaded += OnShellLoaded;
+        SizeChanged += OnShellSizeChanged;
     }
 
     private async void OnShellLoaded(object? sender, EventArgs e) {
+#if WINDOWS
+        ConfigureWindowsShellChrome();
+#endif
+
         // Load configuration on startup
         try {
             await MauiThreading.RunOffMainThreadAsync(() => _configService.LoadConfigurationAsync()).ConfigureAwait(false);
@@ -54,6 +60,22 @@ internal partial class AppShell : Shell {
         }
 
         await UpdateUIAsync().ConfigureAwait(false);
+    }
+
+    private void OnShellSizeChanged(object? sender, EventArgs e) {
+        UpdateHeaderWidth();
+
+#if WINDOWS
+        ConfigureWindowsShellChrome();
+#endif
+    }
+
+    protected override void OnHandlerChanged() {
+        base.OnHandlerChanged();
+
+#if WINDOWS
+        ConfigureWindowsShellChrome();
+#endif
     }
 
     private async void OnAuthButtonClicked(object? sender, EventArgs e) {
@@ -107,6 +129,57 @@ internal partial class AppShell : Shell {
     }
 
     internal Task RefreshAuthStateAsync() => UpdateUIAsync();
+
+    private void UpdateHeaderWidth() {
+        if (Width <= 0) {
+            return;
+        }
+
+        HeaderGrid.WidthRequest = Math.Max(HeaderMinimumWidth, Width);
+    }
+
+#if WINDOWS
+    private void ConfigureWindowsShellChrome() {
+        MainThread.BeginInvokeOnMainThread(async () => {
+            UpdateHeaderWidth();
+            StretchCommandBarAndHideOverflow(Handler?.PlatformView as Microsoft.UI.Xaml.DependencyObject, Width);
+
+            await Task.Delay(100);
+            StretchCommandBarAndHideOverflow(Handler?.PlatformView as Microsoft.UI.Xaml.DependencyObject, Width);
+        });
+    }
+
+    private static void StretchCommandBarAndHideOverflow(Microsoft.UI.Xaml.DependencyObject? root, double shellWidth) {
+        if (root == null) {
+            return;
+        }
+
+        if (root is Microsoft.UI.Xaml.Controls.CommandBar commandBar) {
+            commandBar.IsDynamicOverflowEnabled = false;
+            commandBar.OverflowButtonVisibility = Microsoft.UI.Xaml.Controls.CommandBarOverflowButtonVisibility.Collapsed;
+            commandBar.HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch;
+
+            if (shellWidth > 0) {
+                commandBar.MinWidth = shellWidth;
+            }
+
+            if (commandBar.Content is Microsoft.UI.Xaml.FrameworkElement content) {
+                content.HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch;
+                if (shellWidth > 0) {
+                    content.Width = shellWidth;
+                }
+            }
+        }
+        else if (root is Microsoft.UI.Xaml.FrameworkElement element
+            && (element.Name.Equals("MoreButton", StringComparison.OrdinalIgnoreCase)
+                || element.Name.Contains("Overflow", StringComparison.OrdinalIgnoreCase))) {
+            element.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+        }
+
+        var childCount = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < childCount; index++) {
+            StretchCommandBarAndHideOverflow(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, index), shellWidth);
+        }
+    }
+#endif
 }
-
-

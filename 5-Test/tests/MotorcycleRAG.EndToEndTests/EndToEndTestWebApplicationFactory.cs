@@ -6,14 +6,11 @@ using MotorcycleRAG.IntegrationTests;
 
 namespace MotorcycleRAG.EndToEndTests;
 
-public class EndToEndTestWebApplicationFactory : TestWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
+public class EndToEndTestWebApplicationFactory : TestWebApplicationFactory {
+    protected override void ConfigureWebHost(IWebHostBuilder builder) {
         base.ConfigureWebHost(builder);
 
-        builder.ConfigureServices(services =>
-        {
+        builder.ConfigureServices(services => {
             services.RemoveAll<IAgentOrchestrator>();
             services.AddSingleton<IAgentOrchestrator, FakeEndToEndAgentOrchestrator>();
         });

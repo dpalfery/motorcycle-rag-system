@@ -8,8 +8,7 @@ namespace MotorcycleRag.WebUI.BFF.Extensions;
 /// Provides monitoring and telemetry for Data Protection key persistence operations.
 /// Tracks metrics, events, and enhances logging with correlation IDs.
 /// </summary>
-public class DataProtectionMonitoringService
-{
+public class DataProtectionMonitoringService {
     private readonly TelemetryClient _telemetryClient;
     private readonly ILogger<DataProtectionMonitoringService> _logger;
 
@@ -17,7 +16,7 @@ public class DataProtectionMonitoringService
     public const string MetricKeyPersistenceSuccess = "DataProtection.KeyPersistence.Success";
     public const string MetricKeyPersistenceFailure = "DataProtection.KeyPersistence.Failure";
     public const string MetricKeyPersistenceDuration = "DataProtection.KeyPersistence.Duration";
-    
+
     // Event names
     public const string EventKeysInitialized = "DataProtection.KeysInitialized";
     public const string EventKeysRotated = "DataProtection.KeysRotated";
@@ -29,8 +28,7 @@ public class DataProtectionMonitoringService
     public const string PropertyErrorMessage = "ErrorMessage";
     public const string PropertyCorrelationId = "CorrelationId";
 
-    public DataProtectionMonitoringService(TelemetryClient telemetryClient, ILogger<DataProtectionMonitoringService> logger)
-    {
+    public DataProtectionMonitoringService(TelemetryClient telemetryClient, ILogger<DataProtectionMonitoringService> logger) {
         _telemetryClient = telemetryClient;
         _logger = logger;
     }
@@ -41,8 +39,7 @@ public class DataProtectionMonitoringService
     /// <param name="blobUri">The blob URI where keys are persisted</param>
     /// <param name="durationMs">Time taken to persist keys in milliseconds</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeyPersistenceSuccess(Uri blobUri, long durationMs, string? correlationId = null)
-    {
+    public void TrackKeyPersistenceSuccess(Uri blobUri, long durationMs, string? correlationId = null) {
         ArgumentNullException.ThrowIfNull(blobUri);
         TrackKeyPersistenceSuccess(blobUri.ToString(), durationMs, correlationId);
     }
@@ -53,8 +50,7 @@ public class DataProtectionMonitoringService
     /// <param name="blobUri">The blob URI where keys are persisted</param>
     /// <param name="durationMs">Time taken to persist keys in milliseconds</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeyPersistenceSuccess(string blobUri, long durationMs, string? correlationId = null)
-    {
+    public void TrackKeyPersistenceSuccess(string blobUri, long durationMs, string? correlationId = null) {
         var properties = new Dictionary<string, string?>
         {
             { PropertyBlobUri, GetSanitizedBlobUri(blobUri) },
@@ -64,7 +60,7 @@ public class DataProtectionMonitoringService
 
         // Track counter metric
         _telemetryClient.GetMetric(MetricKeyPersistenceSuccess).TrackValue(1);
-        
+
         // Track duration metric
         _telemetryClient.GetMetric(MetricKeyPersistenceDuration).TrackValue(durationMs);
 
@@ -81,8 +77,7 @@ public class DataProtectionMonitoringService
     /// <param name="durationMs">Time taken before failure in milliseconds</param>
     /// <param name="errorMessage">The error message</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeyPersistenceFailure(Uri blobUri, long durationMs, string errorMessage, string? correlationId = null)
-    {
+    public void TrackKeyPersistenceFailure(Uri blobUri, long durationMs, string errorMessage, string? correlationId = null) {
         ArgumentNullException.ThrowIfNull(blobUri);
         TrackKeyPersistenceFailure(blobUri.ToString(), durationMs, errorMessage, correlationId);
     }
@@ -94,8 +89,7 @@ public class DataProtectionMonitoringService
     /// <param name="durationMs">Time taken before failure in milliseconds</param>
     /// <param name="errorMessage">The error message</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeyPersistenceFailure(string blobUri, long durationMs, string errorMessage, string? correlationId = null)
-    {
+    public void TrackKeyPersistenceFailure(string blobUri, long durationMs, string errorMessage, string? correlationId = null) {
         var properties = new Dictionary<string, string?>
         {
             { PropertyBlobUri, GetSanitizedBlobUri(blobUri) },
@@ -118,8 +112,7 @@ public class DataProtectionMonitoringService
     /// </summary>
     /// <param name="blobUri">The blob URI where keys are persisted</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeysInitialized(Uri blobUri, string? correlationId = null)
-    {
+    public void TrackKeysInitialized(Uri blobUri, string? correlationId = null) {
         ArgumentNullException.ThrowIfNull(blobUri);
         TrackKeysInitialized(blobUri.ToString(), correlationId);
     }
@@ -129,8 +122,7 @@ public class DataProtectionMonitoringService
     /// </summary>
     /// <param name="blobUri">The blob URI where keys are persisted</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeysInitialized(string blobUri, string? correlationId = null)
-    {
+    public void TrackKeysInitialized(string blobUri, string? correlationId = null) {
         var properties = new Dictionary<string, string?>
         {
             { PropertyBlobUri, GetSanitizedBlobUri(blobUri) },
@@ -149,8 +141,7 @@ public class DataProtectionMonitoringService
     /// </summary>
     /// <param name="blobUri">The blob URI where keys are persisted</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeysRotated(Uri blobUri, string? correlationId = null)
-    {
+    public void TrackKeysRotated(Uri blobUri, string? correlationId = null) {
         ArgumentNullException.ThrowIfNull(blobUri);
         TrackKeysRotated(blobUri.ToString(), correlationId);
     }
@@ -160,8 +151,7 @@ public class DataProtectionMonitoringService
     /// </summary>
     /// <param name="blobUri">The blob URI where keys are persisted</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeysRotated(string blobUri, string? correlationId = null)
-    {
+    public void TrackKeysRotated(string blobUri, string? correlationId = null) {
         var properties = new Dictionary<string, string?>
         {
             { PropertyBlobUri, GetSanitizedBlobUri(blobUri) },
@@ -180,8 +170,7 @@ public class DataProtectionMonitoringService
     /// </summary>
     /// <param name="blobUri">The blob URI where keys were loaded from</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeysLoaded(Uri blobUri, string? correlationId = null)
-    {
+    public void TrackKeysLoaded(Uri blobUri, string? correlationId = null) {
         ArgumentNullException.ThrowIfNull(blobUri);
         TrackKeysLoaded(blobUri.ToString(), correlationId);
     }
@@ -191,8 +180,7 @@ public class DataProtectionMonitoringService
     /// </summary>
     /// <param name="blobUri">The blob URI where keys were loaded from</param>
     /// <param name="correlationId">Optional correlation ID for request tracing</param>
-    public void TrackKeysLoaded(string blobUri, string? correlationId = null)
-    {
+    public void TrackKeysLoaded(string blobUri, string? correlationId = null) {
         var properties = new Dictionary<string, string?>
         {
             { PropertyBlobUri, GetSanitizedBlobUri(blobUri) },
@@ -215,20 +203,17 @@ public class DataProtectionMonitoringService
     /// Sanitizes the blob URI to avoid exposing sensitive information in telemetry.
     /// Removes account key if present and normalizes the URI.
     /// </summary>
-    private static string GetSanitizedBlobUri(string blobUri)
-    {
+    private static string GetSanitizedBlobUri(string blobUri) {
         if (string.IsNullOrEmpty(blobUri))
             return "not-configured";
 
-        try
-        {
+        try {
             var uri = new Uri(blobUri);
             // Return only the host and container path, not any SAS tokens or keys
             var containerPath = string.Join("", uri.Segments.Skip(1));
             return $"{uri.Host}/{containerPath.TrimEnd('/')}";
         }
-        catch
-        {
+        catch {
             return "invalid-uri";
         }
     }
@@ -237,13 +222,11 @@ public class DataProtectionMonitoringService
 /// <summary>
 /// Extension methods for registering Data Protection monitoring services.
 /// </summary>
-public static class DataProtectionMonitoringExtensions
-{
+public static class DataProtectionMonitoringExtensions {
     /// <summary>
     /// Adds Data Protection monitoring services to the service collection.
     /// </summary>
-    public static IServiceCollection AddDataProtectionMonitoring(this IServiceCollection services)
-    {
+    public static IServiceCollection AddDataProtectionMonitoring(this IServiceCollection services) {
         services.AddSingleton<DataProtectionMonitoringService>();
         return services;
     }

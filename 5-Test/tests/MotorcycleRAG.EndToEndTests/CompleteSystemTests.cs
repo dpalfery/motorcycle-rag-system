@@ -10,8 +10,7 @@ namespace MotorcycleRAG.EndToEndTests;
 /// <summary>
 /// Complete end-to-end system tests with realistic motorcycle data
 /// </summary>
-public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFactory>, IDisposable
-{
+public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFactory>, IDisposable {
     private readonly EndToEndTestWebApplicationFactory _factory;
     private readonly IServiceScope _scope;
     private readonly IMotorcycleRagService _ragService;
@@ -19,8 +18,7 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
     private readonly IFileUploadService _fileUploadService;
     private readonly string _testDataDirectory;
 
-    public CompleteSystemTests(EndToEndTestWebApplicationFactory factory)
-    {
+    public CompleteSystemTests(EndToEndTestWebApplicationFactory factory) {
         _factory = factory;
         _scope = _factory.Services.CreateScope();
 
@@ -37,14 +35,12 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
     }
 
     [Fact]
-    public async Task CompleteWorkflow_ProcessMotorcycleSpecsAndQuery_ShouldWork()
-    {
+    public async Task CompleteWorkflow_ProcessMotorcycleSpecsAndQuery_ShouldWork() {
         // Arrange - Upload and process motorcycle specifications CSV
         var csvFile = Path.Combine(_testDataDirectory, "motorcycle_specs.csv");
         var file = CreateFormFileFromPath(csvFile);
 
-        var uploadOptions = new FileUploadOptions
-        {
+        var uploadOptions = new FileUploadOptions {
             UploadDirectory = "e2e-test",
             GenerateUniqueFileName = true
         };
@@ -55,13 +51,11 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
         Assert.True(uploadResult.IsValid, $"Upload failed: {string.Join(", ", uploadResult.ValidationResult.Errors)}");
 
         // Act - Process CSV through pipeline
-        var pipelineRequest = new DataPipelineRequest
-        {
+        var pipelineRequest = new DataPipelineRequest {
             FileName = uploadResult.OriginalFileName,
             FilePath = uploadResult.FilePath,
             FileType = uploadResult.DetectedFileType,
-            Options = new PipelineOptions
-            {
+            Options = new PipelineOptions {
                 IndexImmediately = false, // Skip indexing for E2E test
                 ProcessImages = false,
                 GenerateEmbeddings = false
@@ -72,15 +66,13 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
         Assert.True(processingResult.Status == PipelineStatus.Completed ||
                     processingResult.Status == PipelineStatus.Failed);
 
-        if (processingResult.Status == PipelineStatus.Completed)
-        {
+        if (processingResult.Status == PipelineStatus.Completed) {
             Assert.NotNull(processingResult.ProcessedData);
             Assert.True(processingResult.ProcessedData.Documents.Count > 0);
         }
 
         // Act - Query the processed data
-        var queryRequest = new MotorcycleQueryRequest
-        {
+        var queryRequest = new MotorcycleQueryRequest {
             Query = "What are the specifications for Honda CBR600RR?",
             UserId = "test-user"
         };
@@ -98,14 +90,12 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
     }
 
     [Fact]
-    public async Task CompleteWorkflow_ProcessManualAndQuery_ShouldWork()
-    {
+    public async Task CompleteWorkflow_ProcessManualAndQuery_ShouldWork() {
         // Arrange - Upload and process motorcycle manual PDF
         var pdfFile = Path.Combine(_testDataDirectory, "honda_manual.pdf");
         var file = CreateFormFileFromPath(pdfFile);
 
-        var uploadOptions = new FileUploadOptions
-        {
+        var uploadOptions = new FileUploadOptions {
             UploadDirectory = "e2e-test",
             GenerateUniqueFileName = true
         };
@@ -116,13 +106,11 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
         Assert.True(uploadResult.IsValid, $"Upload failed: {string.Join(", ", uploadResult.ValidationResult.Errors)}");
 
         // Act - Process PDF through pipeline
-        var pipelineRequest = new DataPipelineRequest
-        {
+        var pipelineRequest = new DataPipelineRequest {
             FileName = uploadResult.OriginalFileName,
             FilePath = uploadResult.FilePath,
             FileType = uploadResult.DetectedFileType,
-            Options = new PipelineOptions
-            {
+            Options = new PipelineOptions {
                 IndexImmediately = false,
                 ProcessImages = true,
                 GenerateEmbeddings = false
@@ -135,14 +123,12 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
         Assert.True(processingResult.Status == PipelineStatus.Completed ||
                    processingResult.Status == PipelineStatus.Failed);
 
-        if (processingResult.Status == PipelineStatus.Completed)
-        {
+        if (processingResult.Status == PipelineStatus.Completed) {
             Assert.NotNull(processingResult.ProcessedData);
             Assert.True(processingResult.ProcessedData.Documents.Count > 0);
 
             // Act - Query the processed manual
-            var queryRequest = new MotorcycleQueryRequest
-            {
+            var queryRequest = new MotorcycleQueryRequest {
                 Query = "How do I change the oil in Honda CBR600RR?",
                 UserId = "test-user"
             };
@@ -159,8 +145,7 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
     }
 
     [Fact]
-    public async Task BatchProcessing_MultipleMotorcycleFiles_ShouldProcessEfficiently()
-    {
+    public async Task BatchProcessing_MultipleMotorcycleFiles_ShouldProcessEfficiently() {
         // Arrange - Create multiple files for batch processing
         var files = new List<IFormFile>
         {
@@ -169,8 +154,7 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
             CreateFormFileFromPath(Path.Combine(_testDataDirectory, "honda_manual.pdf"))
         };
 
-        var uploadOptions = new FileUploadOptions
-        {
+        var uploadOptions = new FileUploadOptions {
             UploadDirectory = "batch-e2e-test",
             GenerateUniqueFileName = true
         };
@@ -186,13 +170,11 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
         // Act - Batch processing
         var pipelineRequests = batchUploadResult.Results
             .Where(r => r.IsValid)
-            .Select(r => new DataPipelineRequest
-            {
+            .Select(r => new DataPipelineRequest {
                 FileName = r.OriginalFileName,
                 FilePath = r.FilePath,
                 FileType = r.DetectedFileType,
-                Options = new PipelineOptions
-                {
+                Options = new PipelineOptions {
                     IndexImmediately = false,
                     ProcessImages = false,
                     GenerateEmbeddings = false
@@ -210,15 +192,13 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
         Assert.NotNull(batchResult.BatchMetrics);
 
         // Cleanup
-        foreach (var result in batchUploadResult.Results.Where(r => r.IsValid))
-        {
+        foreach (var result in batchUploadResult.Results.Where(r => r.IsValid)) {
             await _fileUploadService.DeleteFileAsync(result.FilePath);
         }
     }
 
     [Fact]
-    public async Task SystemHealthCheck_AllComponents_ShouldBeHealthy()
-    {
+    public async Task SystemHealthCheck_AllComponents_ShouldBeHealthy() {
         // Act - Check RAG service health
         var ragHealth = await _ragService.GetHealthAsync();
 
@@ -234,15 +214,12 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
     [InlineData("Compare Honda CBR600RR vs Kawasaki ZX-6R")]
     [InlineData("What are the maintenance intervals for sport bikes?")]
     [InlineData("How much does a Ducati Panigale V4 cost?")]
-    public async Task QueryVariations_DifferentQuestionTypes_ShouldHandleGracefully(string query)
-    {
+    public async Task QueryVariations_DifferentQuestionTypes_ShouldHandleGracefully(string query) {
         // Arrange
-        var queryRequest = new MotorcycleQueryRequest
-        {
+        var queryRequest = new MotorcycleQueryRequest {
             Query = query,
             UserId = "test-user",
-            Context = new QueryContext
-            {
+            Context = new QueryContext {
                 SessionId = Guid.NewGuid().ToString()
             }
         };
@@ -261,8 +238,7 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
     }
 
     [Fact]
-    public async Task ConcurrentQueries_MultipleUsers_ShouldHandleLoad()
-    {
+    public async Task ConcurrentQueries_MultipleUsers_ShouldHandleLoad() {
         // Arrange - Multiple concurrent queries
         var queries = new[]
         {
@@ -273,10 +249,8 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
             "Ducati pricing information"
         };
 
-        var tasks = queries.Select(async (query, index) =>
-        {
-            var request = new MotorcycleQueryRequest
-            {
+        var tasks = queries.Select(async (query, index) => {
+            var request = new MotorcycleQueryRequest {
                 Query = query,
                 UserId = $"user-{index}"
             };
@@ -290,8 +264,7 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
 
         // Assert - All queries should complete successfully
         Assert.Equal(queries.Length, responses.Length);
-        Assert.All(responses, response =>
-        {
+        Assert.All(responses, response => {
             Assert.NotNull(response);
             Assert.NotEmpty(response.Response);
             Assert.NotNull(response.QueryId);
@@ -301,8 +274,7 @@ public class CompleteSystemTests : IClassFixture<EndToEndTestWebApplicationFacto
         Assert.True(totalTime < TimeSpan.FromMinutes(2));
     }
 
-    private void CreateRealisticTestData()
-    {
+    private void CreateRealisticTestData() {
         // Create realistic motorcycle specifications CSV
         var motorcycleSpecs = @"Make,Model,Year,Engine,Displacement,Power,Torque,Weight,TopSpeed,Price,Category,FuelCapacity
 Honda,CBR600RR,2023,Inline-4,599cc,118hp,65Nm,194kg,260km/h,12000,Sport,18.1L
@@ -404,15 +376,13 @@ startxref
         File.WriteAllText(Path.Combine(_testDataDirectory, "honda_manual.pdf"), pdfContent);
     }
 
-    private IFormFile CreateFormFileFromPath(string filePath)
-    {
+    private IFormFile CreateFormFileFromPath(string filePath) {
         var fileName = Path.GetFileName(filePath);
         var contentType = fileName.EndsWith(".pdf") ? "application/pdf" : "text/csv";
         var content = File.ReadAllBytes(filePath);
         var stream = new MemoryStream(content);
 
-        var file = new FormFile(stream, 0, content.Length, "file", fileName)
-        {
+        var file = new FormFile(stream, 0, content.Length, "file", fileName) {
             Headers = new HeaderDictionary(),
             ContentType = contentType
         };
@@ -420,19 +390,15 @@ startxref
         return file;
     }
 
-    public void Dispose()
-    {
+    public void Dispose() {
         _scope?.Dispose();
 
         // Cleanup test directory
-        if (Directory.Exists(_testDataDirectory))
-        {
-            try
-            {
+        if (Directory.Exists(_testDataDirectory)) {
+            try {
                 Directory.Delete(_testDataDirectory, true);
             }
-            catch
-            {
+            catch {
                 // Ignore cleanup errors in tests
             }
         }

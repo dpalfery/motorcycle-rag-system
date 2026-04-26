@@ -13,20 +13,17 @@ namespace MotorcycleRag.WebUI.BFF.Tests.DataProtection;
 /// These tests verify that Data Protection is configured correctly based on
 /// the DataProtection:BlobUri configuration setting.
 /// </summary>
-public class DataProtectionConfigurationTests
-{
+public class DataProtectionConfigurationTests {
     private const string ValidBlobUri = "https://teststorage.blob.core.windows.net/testcontainer/keys.xml";
 
     /// <summary>
     /// Test that the DataProtection:BlobUri configuration option exists and is read correctly.
     /// </summary>
     [Fact]
-    public void Configuration_Contains_DataProtection_BlobUri_Setting()
-    {
+    public void Configuration_Contains_DataProtection_BlobUri_Setting() {
         // Arrange
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
+            .AddInMemoryCollection(new Dictionary<string, string?> {
                 ["DataProtection:BlobUri"] = ValidBlobUri
             })
             .Build();
@@ -43,12 +40,10 @@ public class DataProtectionConfigurationTests
     /// Test that when DataProtection:BlobUri is empty string, it is treated as not configured.
     /// </summary>
     [Fact]
-    public void Configuration_WithEmptyBlobUri_TreatedAsNotConfigured()
-    {
+    public void Configuration_WithEmptyBlobUri_TreatedAsNotConfigured() {
         // Arrange
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
+            .AddInMemoryCollection(new Dictionary<string, string?> {
                 ["DataProtection:BlobUri"] = ""  // Empty string
             })
             .Build();
@@ -65,8 +60,7 @@ public class DataProtectionConfigurationTests
     /// Test that when DataProtection:BlobUri is null, it is treated as not configured.
     /// </summary>
     [Fact]
-    public void Configuration_WithNullBlobUri_TreatedAsNotConfigured()
-    {
+    public void Configuration_WithNullBlobUri_TreatedAsNotConfigured() {
         // Arrange
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>())
@@ -84,8 +78,7 @@ public class DataProtectionConfigurationTests
 /// Integration tests for Data Protection key persistence to Azure Blob Storage.
 /// These tests verify that Data Protection can write and read keys from blob storage.
 /// </summary>
-public class DataProtectionIntegrationTests
-{
+public class DataProtectionIntegrationTests {
     private const string ValidBlobUri = "https://teststorage.blob.core.windows.net/testcontainer/keys.xml";
     private static readonly Uri ValidBlobStorageUri = new(ValidBlobUri, UriKind.Absolute);
 
@@ -94,8 +87,7 @@ public class DataProtectionIntegrationTests
     /// This test verifies the configuration is correct and the application can start.
     /// </summary>
     [Fact]
-    public async Task Configure_DataProtection_WithBlobUri_ApplicationStartsSuccessfully()
-    {
+    public async Task Configure_DataProtection_WithBlobUri_ApplicationStartsSuccessfully() {
         // Arrange
         using var factory = new DataProtectionTestWebApplicationFactory(
             blobUri: ValidBlobStorageUri,
@@ -115,8 +107,7 @@ public class DataProtectionIntegrationTests
     /// the application still starts (with a warning).
     /// </summary>
     [Fact]
-    public async Task Configure_DataProtection_WithoutBlobUri_InDevelopment_ApplicationStarts()
-    {
+    public async Task Configure_DataProtection_WithoutBlobUri_InDevelopment_ApplicationStarts() {
         // Arrange
         using var factory = new DataProtectionTestWebApplicationFactory(
             blobUri: (Uri?)null,
@@ -136,8 +127,7 @@ public class DataProtectionIntegrationTests
     /// an InvalidOperationException is thrown during application startup.
     /// </summary>
     [Fact]
-    public void Configure_DataProtection_WithoutBlobUri_InProduction_ThrowsException()
-    {
+    public void Configure_DataProtection_WithoutBlobUri_InProduction_ThrowsException() {
         // Arrange & Act
         using var factory = new DataProtectionTestWebApplicationFactory(
             blobUri: (Uri?)null,
@@ -152,30 +142,24 @@ public class DataProtectionIntegrationTests
 /// <summary>
 /// Test web application factory for creating test clients with custom configuration.
 /// </summary>
-public class DataProtectionTestWebApplicationFactory : WebApplicationFactory<Program>
-{
+public class DataProtectionTestWebApplicationFactory : WebApplicationFactory<Program> {
     private readonly Uri? _blobUri;
     private readonly string _environment;
 
-    public DataProtectionTestWebApplicationFactory(Uri? blobUri, string environment)
-    {
+    public DataProtectionTestWebApplicationFactory(Uri? blobUri, string environment) {
         _blobUri = blobUri;
         _environment = environment;
     }
 
     public DataProtectionTestWebApplicationFactory(string? blobUri, string environment)
-        : this(string.IsNullOrWhiteSpace(blobUri) ? null : new Uri(blobUri, UriKind.Absolute), environment)
-    {
+        : this(string.IsNullOrWhiteSpace(blobUri) ? null : new Uri(blobUri, UriKind.Absolute), environment) {
     }
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
+    protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseEnvironment(_environment);
-        
-        builder.ConfigureAppConfiguration((context, config) =>
-        {
-            var configDict = new Dictionary<string, string?>
-            {
+
+        builder.ConfigureAppConfiguration((context, config) => {
+            var configDict = new Dictionary<string, string?> {
                 ["AppConfig:Endpoint"] = "",  // Disable App Config
                 ["AllowedHosts"] = "*",  // Allow all hosts for testing
                 ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
@@ -189,8 +173,7 @@ public class DataProtectionTestWebApplicationFactory : WebApplicationFactory<Pro
                 ["Cors:AllowedOrigins"] = "https://localhost",
             };
 
-            if (_blobUri is not null)
-            {
+            if (_blobUri is not null) {
                 configDict["DataProtection:BlobUri"] = _blobUri.ToString();
             }
 
@@ -199,8 +182,7 @@ public class DataProtectionTestWebApplicationFactory : WebApplicationFactory<Pro
 
         // Register a no-op TelemetryClient so DataProtectionMonitoringService can be activated
         // without a real Application Insights connection string in tests.
-        builder.ConfigureServices(services =>
-        {
+        builder.ConfigureServices(services => {
             var noopConfig = new Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration();
             noopConfig.TelemetryChannel = new Microsoft.ApplicationInsights.Channel.InMemoryChannel();
             services.AddSingleton(new Microsoft.ApplicationInsights.TelemetryClient(noopConfig));

@@ -8,18 +8,15 @@ using Xunit;
 
 namespace MotorcycleRag.WebUI.BFF.Tests.Configuration.Services;
 
-public class CorsServiceConfigurationTests
-{
+public class CorsServiceConfigurationTests {
     private static readonly string[] SingleOrigin = ["https://app.example.com"];
     private static readonly string[] MultipleOrigins = ["https://app.example.com", "https://admin.example.com"];
     private static readonly string[] AllowedMethods = ["GET", "POST", "PUT", "DELETE"];
     private static readonly string[] AllowedHeaders = ["Content-Type", "Authorization", "X-Requested-With"];
 
-    private static CorsOptions BuildCorsOptions(string[]? origins = null)
-    {
+    private static CorsOptions BuildCorsOptions(string[]? origins = null) {
         var configDict = new Dictionary<string, string?>();
-        if (origins is not null)
-        {
+        if (origins is not null) {
             for (var i = 0; i < origins.Length; i++)
                 configDict[$"Cors:AllowedOrigins:{i}"] = origins[i];
         }
@@ -35,16 +32,14 @@ public class CorsServiceConfigurationTests
     }
 
     [Fact]
-    public void AddBffCors_RegistersAllowFrontendPolicy()
-    {
+    public void AddBffCors_RegistersAllowFrontendPolicy() {
         var options = BuildCorsOptions(SingleOrigin);
 
         options.GetPolicy("AllowFrontend").Should().NotBeNull();
     }
 
     [Fact]
-    public void AddBffCors_WithConfiguredOrigins_AppliesOrigins()
-    {
+    public void AddBffCors_WithConfiguredOrigins_AppliesOrigins() {
         var options = BuildCorsOptions(MultipleOrigins);
 
         var policy = options.GetPolicy("AllowFrontend")!;
@@ -53,8 +48,7 @@ public class CorsServiceConfigurationTests
     }
 
     [Fact]
-    public void AddBffCors_NoConfiguredOrigins_FallsBackToLocalhost()
-    {
+    public void AddBffCors_NoConfiguredOrigins_FallsBackToLocalhost() {
         var options = BuildCorsOptions(null); // no config
 
         var policy = options.GetPolicy("AllowFrontend")!;
@@ -62,16 +56,14 @@ public class CorsServiceConfigurationTests
     }
 
     [Fact]
-    public void AddBffCors_AllowsCredentials()
-    {
+    public void AddBffCors_AllowsCredentials() {
         var options = BuildCorsOptions(SingleOrigin);
 
         options.GetPolicy("AllowFrontend")!.SupportsCredentials.Should().BeTrue();
     }
 
     [Fact]
-    public void AddBffCors_AllowsOnlyExplicitMethods()
-    {
+    public void AddBffCors_AllowsOnlyExplicitMethods() {
         var options = BuildCorsOptions(SingleOrigin);
 
         var policy = options.GetPolicy("AllowFrontend")!;
@@ -81,8 +73,7 @@ public class CorsServiceConfigurationTests
     }
 
     [Fact]
-    public void AddBffCors_AllowsExplicitHeadersOnly()
-    {
+    public void AddBffCors_AllowsExplicitHeadersOnly() {
         var options = BuildCorsOptions(SingleOrigin);
 
         var policy = options.GetPolicy("AllowFrontend")!;
@@ -90,8 +81,7 @@ public class CorsServiceConfigurationTests
     }
 
     [Fact]
-    public void AddBffCors_ExposesContentDispositionHeader()
-    {
+    public void AddBffCors_ExposesContentDispositionHeader() {
         var options = BuildCorsOptions(SingleOrigin);
 
         var policy = options.GetPolicy("AllowFrontend")!;
@@ -99,8 +89,7 @@ public class CorsServiceConfigurationTests
     }
 
     [Fact]
-    public void AddBffCors_SetsPreflightMaxAgeTo5Minutes()
-    {
+    public void AddBffCors_SetsPreflightMaxAgeTo5Minutes() {
         var options = BuildCorsOptions(SingleOrigin);
 
         var policy = options.GetPolicy("AllowFrontend")!;

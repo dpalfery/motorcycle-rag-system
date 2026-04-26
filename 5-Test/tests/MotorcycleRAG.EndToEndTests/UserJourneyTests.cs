@@ -13,10 +13,8 @@ namespace MotorcycleRAG.EndToEndTests;
 /// End-to-end tests covering complete user journeys through the motorcycle RAG system.
 /// Tests the full pipeline from query submission to response generation.
 /// </summary>
-public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
-{
-    private static readonly JsonSerializerOptions ResponseJsonOptions = new(JsonSerializerDefaults.Web)
-    {
+public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory> {
+    private static readonly JsonSerializerOptions ResponseJsonOptions = new(JsonSerializerDefaults.Web) {
         Converters = { new JsonStringEnumConverter() }
     };
 
@@ -24,8 +22,7 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     private readonly HttpClient _client;
     private readonly IConfiguration _configuration;
 
-    public UserJourneyTests(EndToEndTestWebApplicationFactory factory)
-    {
+    public UserJourneyTests(EndToEndTestWebApplicationFactory factory) {
         _factory = factory;
         _client = _factory.CreateClient();
         _client.DefaultRequestHeaders.Add("X-Test-Auth", "User");
@@ -37,15 +34,12 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task CompleteUserJourney_SimpleSpecificationQuery_ReturnsAccurateResponse()
-    {
+    public async Task CompleteUserJourney_SimpleSpecificationQuery_ReturnsAccurateResponse() {
         // Arrange
-        var query = new MotorcycleQueryRequest
-        {
+        var query = new MotorcycleQueryRequest {
             Query = "What are the specifications for Honda CBR600RR?",
             UserId = "test-user-001",
-            Context = new QueryContext
-            {
+            Context = new QueryContext {
                 SessionId = Guid.NewGuid().ToString(),
                 Timestamp = DateTime.UtcNow
             }
@@ -72,15 +66,12 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task CompleteUserJourney_ComplexComparisonQuery_ReturnsComparativeAnalysis()
-    {
+    public async Task CompleteUserJourney_ComplexComparisonQuery_ReturnsComparativeAnalysis() {
         // Arrange
-        var query = new MotorcycleQueryRequest
-        {
+        var query = new MotorcycleQueryRequest {
             Query = "Compare the performance between Honda CBR1000RR and Yamaha R1",
             UserId = "test-user-002",
-            Preferences = new SearchPreferences
-            {
+            Preferences = new SearchPreferences {
                 IncludeWebSources = true,
                 MaxResults = 10
             }
@@ -105,15 +96,12 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task CompleteUserJourney_MaintenanceProcedureQuery_ReturnsDetailedInstructions()
-    {
+    public async Task CompleteUserJourney_MaintenanceProcedureQuery_ReturnsDetailedInstructions() {
         // Arrange
-        var query = new MotorcycleQueryRequest
-        {
+        var query = new MotorcycleQueryRequest {
             Query = "How do I change the oil on a Kawasaki Ninja ZX-10R?",
             UserId = "test-user-003",
-            Preferences = new SearchPreferences
-            {
+            Preferences = new SearchPreferences {
                 IncludePDFSources = true
             }
         };
@@ -134,15 +122,12 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task CompleteUserJourney_MultiModalQuery_ProcessesImageContent()
-    {
+    public async Task CompleteUserJourney_MultiModalQuery_ProcessesImageContent() {
         // Arrange
-        var query = new MotorcycleQueryRequest
-        {
+        var query = new MotorcycleQueryRequest {
             Query = "Show me the engine diagram for BMW S1000RR",
             UserId = "test-user-004",
-            Context = new QueryContext
-            {
+            Context = new QueryContext {
                 RequiresMultiModal = true
             }
         };
@@ -161,11 +146,9 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task CompleteUserJourney_SequentialSearchPattern_ExecutesCorrectFallbackChain()
-    {
+    public async Task CompleteUserJourney_SequentialSearchPattern_ExecutesCorrectFallbackChain() {
         // Arrange
-        var query = new MotorcycleQueryRequest
-        {
+        var query = new MotorcycleQueryRequest {
             Query = "What is the rare specification for limited edition Ducati Superleggera V4?",
             UserId = "test-user-005"
         };
@@ -183,11 +166,9 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task CompleteUserJourney_ErrorHandling_GracefullyHandlesInvalidQuery()
-    {
+    public async Task CompleteUserJourney_ErrorHandling_GracefullyHandlesInvalidQuery() {
         // Arrange
-        var query = new MotorcycleQueryRequest
-        {
+        var query = new MotorcycleQueryRequest {
             Query = "", // Invalid empty query
             UserId = "test-user-006"
         };
@@ -204,8 +185,7 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task CompleteUserJourney_HealthCheck_ReturnsSystemStatus()
-    {
+    public async Task CompleteUserJourney_HealthCheck_ReturnsSystemStatus() {
         // Act
         var response = await _client.GetAsync(new Uri("/api/motorcycles/health", UriKind.Relative));
 
@@ -219,8 +199,7 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task CompleteUserJourney_ConcurrentQueries_HandlesMultipleUsersSimultaneously()
-    {
+    public async Task CompleteUserJourney_ConcurrentQueries_HandlesMultipleUsersSimultaneously() {
         // Arrange
         var queries = new[]
         {
@@ -231,10 +210,8 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
             "Ducati Panigale V4 engine specs"
         };
 
-        var tasks = queries.Select(async (queryText, index) =>
-        {
-            var query = new MotorcycleQueryRequest
-            {
+        var tasks = queries.Select(async (queryText, index) => {
+            var query = new MotorcycleQueryRequest {
                 Query = queryText,
                 UserId = $"concurrent-user-{index:D3}"
             };
@@ -248,29 +225,25 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
 
         // Assert
         results.Should().HaveCount(5);
-        results.Should().AllSatisfy(result =>
-        {
+        results.Should().AllSatisfy(result => {
             result.Should().NotBeNull();
             result!.Response.Should().NotBeNullOrEmpty();
             result.QueryId.Should().NotBeNullOrEmpty();
         });
 
         // Verify all queries completed within reasonable time
-        results.Should().AllSatisfy(result =>
-        {
+        results.Should().AllSatisfy(result => {
             result!.Metrics!.ProcessingTimeMs.Should().BeLessThan(10000); // 10 seconds max
         });
     }
 
     [Fact]
-    public async Task CompleteUserJourney_DataIngestion_ProcessesCSVAndPDFFiles()
-    {
+    public async Task CompleteUserJourney_DataIngestion_ProcessesCSVAndPDFFiles() {
         // This test would require file upload endpoints
         // For now, we'll test a sample query to ensure system is operational
 
         // Arrange
-        var query = new MotorcycleQueryRequest
-        {
+        var query = new MotorcycleQueryRequest {
             Query = "Honda CBR600RR specifications",
             UserId = "test-user"
         };
@@ -287,11 +260,9 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
     [InlineData("How much does a Yamaha R1 weigh?")]
     [InlineData("What type of engine does the Kawasaki ZX-10R have?")]
     [InlineData("What is the fuel capacity of BMW S1000RR?")]
-    public async Task CompleteUserJourney_VariousQueryTypes_ReturnsRelevantResponses(string queryText)
-    {
+    public async Task CompleteUserJourney_VariousQueryTypes_ReturnsRelevantResponses(string queryText) {
         // Arrange
-        var query = new MotorcycleQueryRequest
-        {
+        var query = new MotorcycleQueryRequest {
             Query = queryText,
             UserId = "theory-test-user"
         };
@@ -312,8 +283,7 @@ public class UserJourneyTests : IClassFixture<EndToEndTestWebApplicationFactory>
         result.Metrics!.ProcessingTimeMs.Should().BeLessThan(5000); // 5 seconds max
     }
 
-    private static async Task<MotorcycleQueryResponse?> ReadQueryResponseAsync(HttpResponseMessage response)
-    {
+    private static async Task<MotorcycleQueryResponse?> ReadQueryResponseAsync(HttpResponseMessage response) {
         return await response.Content.ReadFromJsonAsync<MotorcycleQueryResponse>(ResponseJsonOptions);
     }
 }

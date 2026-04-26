@@ -8,8 +8,7 @@ namespace MotorcycleRAG.EndToEndTests;
 /// Manages test data sets for comprehensive testing scenarios.
 /// Provides realistic motorcycle data for various test scenarios.
 /// </summary>
-public class TestDataManager
-{
+public class TestDataManager {
     private static readonly SearchSource[] EmptySearchSources = [];
     private static readonly string[] SimpleSpecificationQueries =
     [
@@ -70,18 +69,15 @@ public class TestDataManager
     private readonly string _testDataPath;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public TestDataManager(string testDataPath = "TestData")
-    {
+    public TestDataManager(string testDataPath = "TestData") {
         _testDataPath = testDataPath;
-        _jsonOptions = new JsonSerializerOptions
-        {
+        _jsonOptions = new JsonSerializerOptions {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = true
         };
     }
 
-    public async Task<List<MotorcycleSpecification>> GetTestMotorcycleSpecificationsAsync()
-    {
+    public async Task<List<MotorcycleSpecification>> GetTestMotorcycleSpecificationsAsync() {
         var specifications = new List<MotorcycleSpecification>
         {
             new()
@@ -176,8 +172,7 @@ public class TestDataManager
         return specifications;
     }
 
-    public async Task<List<string>> GetTestQueriesAsync()
-    {
+    public async Task<List<string>> GetTestQueriesAsync() {
         return new List<string>
         {
             // Simple specification queries
@@ -214,8 +209,7 @@ public class TestDataManager
         };
     }
 
-    public async Task<List<TestScenario>> GetTestScenariosAsync()
-    {
+    public async Task<List<TestScenario>> GetTestScenariosAsync() {
         return new List<TestScenario>
         {
             new()
@@ -257,8 +251,7 @@ public class TestDataManager
         };
     }
 
-    public async Task<byte[]> GenerateTestCSVAsync(string fileName)
-    {
+    public async Task<byte[]> GenerateTestCSVAsync(string fileName) {
         var csvContent = """
             Make,Model,Year,Engine_Type,Engine_Displacement_CC,Max_Power_HP,Max_Torque_NM,Top_Speed_KMH,Price_USD
             Honda,CBR600RR,2023,4-Stroke DOHC,599,118,64.5,260,12999
@@ -271,8 +264,7 @@ public class TestDataManager
         return System.Text.Encoding.UTF8.GetBytes(csvContent);
     }
 
-    public async Task<byte[]> GenerateTestPDFContentAsync(string fileName)
-    {
+    public async Task<byte[]> GenerateTestPDFContentAsync(string fileName) {
         // This would normally generate actual PDF bytes using a PDF library
         // For testing purposes, we'll return text content that represents PDF structure
         var pdfContent = """
@@ -321,8 +313,7 @@ public class TestDataManager
         return System.Text.Encoding.UTF8.GetBytes(pdfContent);
     }
 
-    public async Task SaveTestDataAsync()
-    {
+    public async Task SaveTestDataAsync() {
         Directory.CreateDirectory(_testDataPath);
 
         // Save motorcycle specifications
@@ -350,8 +341,7 @@ public class TestDataManager
     }
 }
 
-public class TestScenario
-{
+public class TestScenario {
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public IReadOnlyList<string> Queries { get; set; } = Array.Empty<string>();

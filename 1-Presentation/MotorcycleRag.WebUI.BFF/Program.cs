@@ -17,8 +17,7 @@ var bootstrapAiConnectionString = builder.Configuration.GetConnectionString("App
 
 TelemetryClient? bootstrapTelemetry = null;
 TelemetryConfiguration? bootstrapTelemetryConfiguration = null;
-if (!string.IsNullOrEmpty(bootstrapAiConnectionString))
-{
+if (!string.IsNullOrEmpty(bootstrapAiConnectionString)) {
     bootstrapTelemetryConfiguration = new TelemetryConfiguration { ConnectionString = bootstrapAiConnectionString };
     bootstrapTelemetry = new TelemetryClient(bootstrapTelemetryConfiguration);
 }
@@ -26,8 +25,7 @@ if (!string.IsNullOrEmpty(bootstrapAiConnectionString))
 // 2. Core Configuration & Infrastructure
 builder.AddBffAzureAppConfiguration();
 
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
+builder.Services.Configure<ForwardedHeadersOptions>(options => {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
@@ -36,8 +34,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddControllers();
 
 // Disable built-in HostFilter in favor of custom HostHeaderValidationMiddleware
-builder.Services.PostConfigure<Microsoft.AspNetCore.HostFiltering.HostFilteringOptions>(options =>
-{
+builder.Services.PostConfigure<Microsoft.AspNetCore.HostFiltering.HostFilteringOptions>(options => {
     options.AllowedHosts = ["*"];
 });
 
@@ -59,25 +56,20 @@ var app = builder.Build();
 // Monitoring & Logging
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 var dpBlobUri = builder.Configuration["DataProtection:BlobUri"];
-if (Uri.TryCreate(dpBlobUri, UriKind.Absolute, out var dpBlobStorageUri))
-{
+if (Uri.TryCreate(dpBlobUri, UriKind.Absolute, out var dpBlobStorageUri)) {
     logger.LogInformation("Data Protection keys persisted to Azure Blob Storage: {BlobUri}", dpBlobUri);
     app.Services.GetService<DataProtectionMonitoringService>()?.TrackKeysInitialized(dpBlobStorageUri);
 }
 
 app.UseMotorcycleRagBffMiddleware();
 
-try
-{
+try {
     await app.RunAsync().ConfigureAwait(false);
 }
-catch (Exception ex)
-{
+catch (Exception ex) {
     await Console.Error.WriteLineAsync($"FATAL STARTUP ERROR: {ex}").ConfigureAwait(false);
-    if (bootstrapTelemetry is not null)
-    {
-        bootstrapTelemetry.TrackException(ex, new Dictionary<string, string>
-        {
+    if (bootstrapTelemetry is not null) {
+        bootstrapTelemetry.TrackException(ex, new Dictionary<string, string> {
             ["source"] = "bootstrap",
             ["severity"] = "fatal"
         });
@@ -86,8 +78,7 @@ catch (Exception ex)
     }
     throw;
 }
-finally
-{
+finally {
     bootstrapTelemetryConfiguration?.Dispose();
 }
 

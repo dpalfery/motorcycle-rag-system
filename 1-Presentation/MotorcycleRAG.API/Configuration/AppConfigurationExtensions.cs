@@ -7,35 +7,29 @@ namespace MotorcycleRAG.API.Configuration;
 /// <summary>
 /// Extension methods for <see cref="WebApplicationBuilder"/> to configure Azure App Configuration and Key Vault.
 /// </summary>
-public static class AppConfigurationExtensions
-{
-    public static WebApplicationBuilder AddAzureAppConfigurationWithKeyVault(this WebApplicationBuilder builder)
-    {
+public static class AppConfigurationExtensions {
+    public static WebApplicationBuilder AddAzureAppConfigurationWithKeyVault(this WebApplicationBuilder builder) {
         var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
-        
-        if (!string.IsNullOrEmpty(appConfigEndpoint))
-        {
+
+        if (!string.IsNullOrEmpty(appConfigEndpoint)) {
             // Use ManagedIdentityCredential in non-development environments
             TokenCredential credential = builder.Environment.IsDevelopment()
                 ? new DefaultAzureCredential()
                 : new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
 
             // Pre-warm the managed identity token before loading App Config in non-dev envs
-            if (!builder.Environment.IsDevelopment())
-            {
+            if (!builder.Environment.IsDevelopment()) {
                 PreWarmManagedIdentityTokenAsync(credential).GetAwaiter().GetResult();
                 EnsureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
             }
 
-            builder.Configuration.AddAzureAppConfiguration(options =>
-            {
+            builder.Configuration.AddAzureAppConfiguration(options => {
                 options.Connect(new Uri(appConfigEndpoint), credential)
                        .Select(KeyFilter.Any)
                        .Select(KeyFilter.Any, "api")
                        .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
                        .ConfigureKeyVault(kv => kv.SetCredential(credential))
-                       .ConfigureRefresh(refreshOptions =>
-                       {
+                       .ConfigureRefresh(refreshOptions => {
                            refreshOptions.Register("Settings:Sentinel", refreshAll: true)
                                          .SetRefreshInterval(TimeSpan.FromSeconds(30));
                        });
@@ -45,8 +39,7 @@ public static class AppConfigurationExtensions
         }
 
         // Validate and derive configuration values (when config is built to IConfigurationRoot)
-        if (builder.Configuration is IConfigurationRoot configRoot)
-        {
+        if (builder.Configuration is IConfigurationRoot configRoot) {
             configRoot.WithDerivedAzureAdValues();
             configRoot.WithValidatedAzureAIEndpoints();
             configRoot.WithDerivedBlobStorageValues();
@@ -55,49 +48,39 @@ public static class AppConfigurationExtensions
         return builder;
     }
 
-    private static async Task PreWarmManagedIdentityTokenAsync(TokenCredential credential)
-    {
+    private static async Task PreWarmManagedIdentityTokenAsync(TokenCredential credential) {
         var tokenCtx = new TokenRequestContext(["https://azconfig.io/.default"]);
-        for (var attempt = 1; attempt <= 10; attempt++)
-        {
-            try
-            {
+        for (var attempt = 1; attempt <= 10; attempt++) {
+            try {
                 await credential.GetTokenAsync(tokenCtx, CancellationToken.None);
                 Console.WriteLine($"Managed identity token acquired on attempt {attempt}.");
                 break;
             }
-            catch (Exception ex) when (attempt < 10)
-            {
+            catch (Exception ex) when (attempt < 10) {
                 Console.WriteLine($"IMDS not ready (attempt {attempt}/10): {ex.Message}. Retrying in 3s...");
                 await Task.Delay(TimeSpan.FromSeconds(3));
             }
         }
     }
 
-    private static async Task EnsureTcpConnectivityAsync(string appConfigEndpoint)
-    {
+    private static async Task EnsureTcpConnectivityAsync(string appConfigEndpoint) {
         var appConfigUri = new Uri(appConfigEndpoint);
         var appConfigHost = appConfigUri.Host;
-        for (var attempt = 1; attempt <= 15; attempt++)
-        {
-            try
-            {
+        for (var attempt = 1; attempt <= 15; attempt++) {
+            try {
                 using var tcp = new System.Net.Sockets.TcpClient();
                 var connectTask = tcp.ConnectAsync(appConfigHost, 443);
-                if (await Task.WhenAny(connectTask, Task.Delay(5000)) == connectTask)
-                {
+                if (await Task.WhenAny(connectTask, Task.Delay(5000)) == connectTask) {
                     await connectTask;
                     Console.WriteLine($"App Config TCP connectivity confirmed on attempt {attempt}.");
                     break;
                 }
-                if (attempt < 15)
-                {
+                if (attempt < 15) {
                     Console.WriteLine($"App Config TCP timed out (attempt {attempt}/15). Retrying in 2s...");
                     await Task.Delay(TimeSpan.FromSeconds(2));
                 }
             }
-            catch (Exception ex) when (attempt < 15)
-            {
+            catch (Exception ex) when (attempt < 15) {
                 Console.WriteLine($"App Config TCP failed (attempt {attempt}/15): {ex.Message}. Retrying in 2s...");
                 await Task.Delay(TimeSpan.FromSeconds(2));
             }
@@ -108,14 +91,12 @@ public static class AppConfigurationExtensions
     /// Validates and populates Azure AD configuration defaults.
     /// Derives JWT issuer URLs and audience values from TenantId and ClientId.
     /// </summary>
-    public static IConfigurationRoot WithDerivedAzureAdValues(this IConfigurationRoot configuration)
-    {
+    public static IConfigurationRoot WithDerivedAzureAdValues(this IConfigurationRoot configuration) {
         var tenantId = configuration["AzureAd:TenantId"];
         var clientId = configuration["AzureAd:ClientId"];
         var configuredAudience = configuration["Authentication:Audience"] ?? configuration["AzureAd:Audience"];
 
-        if (string.IsNullOrWhiteSpace(tenantId))
-        {
+        if (string.IsNullOrWhiteSpace(tenantId)) {
             throw new InvalidOperationException("AzureAd Tenant ID is not configured");
         }
 
@@ -134,10 +115,8 @@ public static class AppConfigurationExtensions
         };
 
         // Set values on all providers that support it (especially MemoryConfigurationProvider)
-        foreach (var kvp in derivedConfig.Where(x => x.Value != null))
-        {
-            foreach (var provider in configuration.Providers)
-            {
+        foreach (var kvp in derivedConfig.Where(x => x.Value != null)) {
+            foreach (var provider in configuration.Providers) {
                 provider.Set(kvp.Key, kvp.Value!);
             }
         }
@@ -149,8 +128,7 @@ public static class AppConfigurationExtensions
     /// <summary>
     /// Validates Azure AI service endpoints.
     /// </summary>
-    public static IConfigurationRoot WithValidatedAzureAIEndpoints(this IConfigurationRoot configuration)
-    {
+    public static IConfigurationRoot WithValidatedAzureAIEndpoints(this IConfigurationRoot configuration) {
         var searchEndpoint = configuration["AzureAI:SearchServiceEndpoint"];
         var documentIntelligenceEndpoint = configuration["AzureAI:DocumentIntelligenceEndpoint"];
         var foundryEndpoint = configuration["AzureAI:FoundryEndpoint"];
@@ -166,28 +144,23 @@ public static class AppConfigurationExtensions
     /// Derives Blob Storage account endpoint from the configured Data Protection blob URI
     /// when the explicit BlobStorage:AccountEndpoint setting is not present.
     /// </summary>
-    public static IConfigurationRoot WithDerivedBlobStorageValues(this IConfigurationRoot configuration)
-    {
+    public static IConfigurationRoot WithDerivedBlobStorageValues(this IConfigurationRoot configuration) {
         var configuredAccountEndpoint = configuration["BlobStorage:AccountEndpoint"];
-        if (!string.IsNullOrWhiteSpace(configuredAccountEndpoint))
-        {
+        if (!string.IsNullOrWhiteSpace(configuredAccountEndpoint)) {
             return configuration;
         }
 
         var dataProtectionBlobUri = configuration["DataProtection:BlobUri"];
-        if (string.IsNullOrWhiteSpace(dataProtectionBlobUri))
-        {
+        if (string.IsNullOrWhiteSpace(dataProtectionBlobUri)) {
             return configuration;
         }
 
-        if (!Uri.TryCreate(dataProtectionBlobUri, UriKind.Absolute, out var blobUri))
-        {
+        if (!Uri.TryCreate(dataProtectionBlobUri, UriKind.Absolute, out var blobUri)) {
             return configuration;
         }
 
         var derivedAccountEndpoint = blobUri.GetLeftPart(UriPartial.Authority);
-        foreach (var provider in configuration.Providers)
-        {
+        foreach (var provider in configuration.Providers) {
             provider.Set("BlobStorage:AccountEndpoint", derivedAccountEndpoint);
         }
 
@@ -195,27 +168,22 @@ public static class AppConfigurationExtensions
         return configuration;
     }
 
-    private static void ValidateEndpointIfProvided(string serviceName, string? endpoint, string configKey)
-    {
-        if (string.IsNullOrWhiteSpace(endpoint))
-        {
+    private static void ValidateEndpointIfProvided(string serviceName, string? endpoint, string configKey) {
+        if (string.IsNullOrWhiteSpace(endpoint)) {
             return;
         }
 
-        if (!endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
+        if (!endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
             throw new InvalidOperationException($"Azure {serviceName} endpoint MUST use HTTPS protocol.");
         }
 
-        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || uri.Scheme != "https")
-        {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || uri.Scheme != "https") {
             throw new InvalidOperationException($"Azure {serviceName} endpoint is not a valid HTTPS URL.");
         }
 
         if (endpoint.Contains("your-", StringComparison.OrdinalIgnoreCase) ||
             endpoint.Contains("example", StringComparison.OrdinalIgnoreCase) ||
-            endpoint.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
-        {
+            endpoint.Contains("placeholder", StringComparison.OrdinalIgnoreCase)) {
             throw new InvalidOperationException($"Azure {serviceName} endpoint appears to be a placeholder.");
         }
     }

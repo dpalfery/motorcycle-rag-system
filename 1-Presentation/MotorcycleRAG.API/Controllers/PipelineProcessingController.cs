@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using System.Collections.ObjectModel;
@@ -48,23 +49,6 @@ public class PipelineProcessingController : ControllerBase
     {
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-
-    /// <summary>
-    /// Sanitizes user-provided values for logging to prevent log injection attacks.
-    /// Replaces newlines, carriage returns, and tabs with spaces.
-    /// </summary>
-    private string SanitizeForLogging(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-        {
-            return input;
-        }
-
-        return input
-            .Replace('\n', ' ')
-            .Replace('\r', ' ')
-            .Replace('\t', ' ');
     }
 
     /// <summary>
@@ -211,7 +195,7 @@ public class PipelineProcessingController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting pipeline status for {ExecutionId}", SanitizeForLogging(executionId));
+            _logger.LogError(ex, "Error getting pipeline status for {ExecutionId}", LogSanitizer.Sanitize(executionId));
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",
@@ -293,7 +277,7 @@ public class PipelineProcessingController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error cancelling pipeline {ExecutionId}", SanitizeForLogging(executionId));
+            _logger.LogError(ex, "Error cancelling pipeline {ExecutionId}", LogSanitizer.Sanitize(executionId));
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",

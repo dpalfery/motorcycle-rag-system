@@ -46,7 +46,8 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
                 ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
                 ["AzureAI:DocumentIntelligenceEndpoint"] = "https://test-docint.cognitiveservices.azure.com/",
                 ["AzureAI:FoundryEndpoint"] = "https://test-foundry.services.ai.azure.com/",
-                ["Sql:ConnectionString"] = "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Authentication=Active Directory Integrated;",
+                ["BlobStorage:AccountEndpoint"] = "https://teststorage.blob.core.windows.net/",
+                ["Sql:ConnectionString"] = "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Integrated Security=true;TrustServerCertificate=true;",
                 ["Onboarding:ApproverAddress"] = "approver@example.invalid",
                 ["ExternalIdentityProvisioning:InviteRedirectUrl"] = "https://localhost/signin-oidc",
                 ["ExternalIdentityProvisioning:ApiApplicationClientId"] = "33333333-3333-3333-3333-333333333333"

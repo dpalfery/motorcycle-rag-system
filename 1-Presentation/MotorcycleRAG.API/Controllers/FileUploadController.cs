@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using System.Collections.ObjectModel;
@@ -51,23 +52,6 @@ public class FileUploadController : ControllerBase
         _fileUploadService = fileUploadService ?? throw new ArgumentNullException(nameof(fileUploadService));
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-
-    /// <summary>
-    /// Sanitizes user-provided values for logging to prevent log injection attacks.
-    /// Replaces newlines, carriage returns, and tabs with spaces.
-    /// </summary>
-    private string SanitizeForLogging(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-        {
-            return input;
-        }
-
-        return input
-            .Replace('\n', ' ')
-            .Replace('\r', ' ')
-            .Replace('\t', ' ');
     }
 
     /// <summary>
@@ -180,7 +164,7 @@ public class FileUploadController : ControllerBase
         catch (Exception ex)
         {
             var fileName = file?.FileName ?? "unknown";
-            _logger.LogError(ex, "Error uploading file {FileName}", SanitizeForLogging(fileName));
+            _logger.LogError(ex, "Error uploading file {FileName}", LogSanitizer.Sanitize(fileName));
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",

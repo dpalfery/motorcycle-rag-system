@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -103,7 +104,7 @@ public class ModelValidationService {
         bool hasValidPageRange = !string.IsNullOrWhiteSpace(locator.PageRange);
 
         if (!hasValidPageNumber && !hasValidPageRange) {
-            errors.Add($"{prefix}Manual citation must have either PageNumber (> 0) or PageRange (non-empty). DocumentId: {SanitizeLogValue(locator.DocumentId)}");
+            errors.Add($"{prefix}Manual citation must have either PageNumber (> 0) or PageRange (non-empty). DocumentId: {LogSanitizer.Sanitize(locator.DocumentId, 48)}");
         }
     }
 
@@ -116,7 +117,7 @@ public class ModelValidationService {
 
             if (emptyHeadingIndices.Count > 0) {
                 errors.Add($"{prefix}SectionHeadings contains empty or whitespace-only strings at indices: {string.Join(", ", emptyHeadingIndices)}. " +
-                           $"DocumentId: {SanitizeLogValue(locator.DocumentId)}");
+                           $"DocumentId: {LogSanitizer.Sanitize(locator.DocumentId, 48)}");
             }
         }
     }
@@ -128,29 +129,11 @@ public class ModelValidationService {
 
             if (locator.SectionLevel.Value < minSectionLevel || locator.SectionLevel.Value > maxSectionLevel) {
                 errors.Add($"{prefix}SectionLevel must be between {minSectionLevel} and {maxSectionLevel}. " +
-                           $"Actual: {locator.SectionLevel.Value}. DocumentId: {SanitizeLogValue(locator.DocumentId)}");
+                           $"Actual: {locator.SectionLevel.Value}. DocumentId: {LogSanitizer.Sanitize(locator.DocumentId, 48)}");
             }
         }
     }
 
-    /// <summary>
-    /// Sanitizes a value for logging to prevent leaking sensitive data.
-    /// </summary>
-    /// <param name="value">The value to sanitize</param>
-    /// <returns>A sanitized version of the value (truncated if too long)</returns>
-    private string SanitizeLogValue(string value) {
-        if (string.IsNullOrWhiteSpace(value)) {
-            return "[empty]";
-        }
-
-        // Truncate long values to prevent log bloat and potential data leakage
-        const int maxLogLength = 48;
-        if (value.Length > maxLogLength) {
-            return string.Concat(value.AsSpan(0, maxLogLength), "...");
-        }
-
-        return value;
-    }
 }
 
 /// <summary>

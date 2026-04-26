@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Utilities;
 namespace MotorcycleRAG.Application.Pipeline.Audit;
 
 /// <summary>
@@ -10,8 +11,6 @@ namespace MotorcycleRAG.Application.Pipeline.Audit;
 /// </summary>
 public sealed class IngestionAuditLogger : IIngestionAuditLogger
 {
-    private const int MaxParamLength = 200;
-
     private readonly ILogger<IngestionAuditLogger> _logger;
     public IngestionAuditLogger(ILogger<IngestionAuditLogger> logger)
     {
@@ -26,9 +25,9 @@ public sealed class IngestionAuditLogger : IIngestionAuditLogger
         bool success,
         CancellationToken ct = default)
     {
-        var safeEvent    = Sanitize(eventName);
-        var safeUploadId = Sanitize(uploadId);
-        var safeUserId   = Sanitize(userId);
+        var safeEvent    = LogSanitizer.Sanitize(eventName);
+        var safeUploadId = LogSanitizer.Sanitize(uploadId);
+        var safeUserId   = LogSanitizer.Sanitize(userId);
 
         _logger.LogInformation(
             "Ingestion audit: event={Event} uploadId={UploadId} userId={UserId} success={Success}",
@@ -48,10 +47,10 @@ public sealed class IngestionAuditLogger : IIngestionAuditLogger
         string errorCode,
         CancellationToken ct = default)
     {
-        var safeEvent     = Sanitize(eventName);
-        var safeUploadId  = Sanitize(uploadId);
-        var safeUserId    = Sanitize(userId);
-        var safeErrorCode = Sanitize(errorCode);
+        var safeEvent     = LogSanitizer.Sanitize(eventName);
+        var safeUploadId  = LogSanitizer.Sanitize(uploadId);
+        var safeUserId    = LogSanitizer.Sanitize(userId);
+        var safeErrorCode = LogSanitizer.Sanitize(errorCode);
         _logger.LogWarning(
             "Ingestion audit error: event={Event} uploadId={UploadId} userId={UserId} errorCode={ErrorCode}",
             safeEvent,
@@ -62,21 +61,4 @@ public sealed class IngestionAuditLogger : IIngestionAuditLogger
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Replaces newline characters with a space and truncates to <see cref="MaxParamLength"/> chars.
-    /// Returns an empty string when the input is null.
-    /// </summary>
-    private static string Sanitize(string? value)
-    {
-        if (value is null)
-            return string.Empty;
-
-        var sanitized = value
-            .Replace('\n', ' ')
-            .Replace('\r', ' ');
-
-        return sanitized.Length > MaxParamLength
-            ? sanitized[..MaxParamLength]
-            : sanitized;
-    }
 }

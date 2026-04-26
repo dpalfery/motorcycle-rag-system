@@ -92,7 +92,7 @@ public class PreflightChecker
         }
         catch (SqlException ex)
         {
-            _logger.LogError("SQL Server connectivity failed. ExceptionType={ExceptionType}", ex.GetType().Name);
+            _logger.LogError(ex, "SQL Server connectivity failed");
             return false;
         }
         catch (Exception ex)
@@ -139,7 +139,7 @@ public class PreflightChecker
         }
         catch (SqlException ex)
         {
-            _logger.LogError("Privileged credentials check failed. ExceptionType={ExceptionType}", ex.GetType().Name);
+            _logger.LogError(ex, "Privileged credentials check failed");
             return false;
         }
         catch (Exception ex)

@@ -38,7 +38,7 @@ public class SqlScriptExecutor
             foreach (var batch in batches)
             {
                 batchNumber++;
-                
+
                 if (string.IsNullOrWhiteSpace(batch))
                 {
                     continue;
@@ -47,18 +47,18 @@ public class SqlScriptExecutor
                 try
                 {
                     _logger.LogDebug("Executing batch {BatchNumber}/{TotalBatches}", batchNumber, batches.Count);
-                    
+
                     await using var command = new SqlCommand(batch, connection)
                     {
                         CommandTimeout = 300 // 5 minutes
                     };
-                    
+
                     await command.ExecuteNonQueryAsync(cancellationToken);
                 }
                 catch (SqlException ex)
                 {
-                    _logger.LogError("Failed to execute batch {BatchNumber}. ExceptionType={ExceptionType}", batchNumber, ex.GetType().Name);
-                    _logger.LogError("Failed batch {BatchNumber} length: {BatchLength}", batchNumber, batch.Length);
+                    _logger.LogError(ex, "Failed to execute batch {BatchNumber}", batchNumber);
+                    _logger.LogError("Batch content: {BatchContent}", batch.Length > 200 ? batch.Substring(0, 200) + "..." : batch);
                     return false;
                 }
             }
@@ -78,9 +78,9 @@ public class SqlScriptExecutor
         // Split by GO statements (case-insensitive, must be on its own line)
         // This regex matches GO that is on its own line, possibly with whitespace
         var goRegex = new Regex(@"^\s*GO\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline);
-        
+
         var batches = goRegex.Split(scriptContent);
-        
+
         // Filter out empty batches and trim whitespace
         var result = batches
             .Select(b => b.Trim())

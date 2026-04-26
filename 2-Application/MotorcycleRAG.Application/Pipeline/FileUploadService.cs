@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using System.Collections.ObjectModel;
 using System.Security.Cryptography;
 using System.Text;
@@ -28,20 +29,6 @@ public class FileUploadService : IFileUploadService {
         _logger = logger;
     }
 
-    /// <summary>
-    /// Sanitizes user-provided values for logging to prevent log injection attacks.
-    /// Replaces newlines, carriage returns, and tabs with spaces.
-    /// </summary>
-    private static string SanitizeForLogging(string input) {
-        if (string.IsNullOrEmpty(input)) {
-            return input;
-        }
-
-        return input
-            .Replace('\n', ' ')
-            .Replace('\r', ' ')
-            .Replace('\t', ' ');
-    }
     public async Task<FileUploadResult> UploadFileAsync(Stream fileStream, FileMetadata metadata, FileUploadOptions options, CancellationToken cancellationToken = default) {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(options);
@@ -54,13 +41,13 @@ public class FileUploadService : IFileUploadService {
         };
 
         try {
-            _logger.LogInformation("Starting file upload for {FileName} ({Size} bytes)", SanitizeForLogging(metadata.FileName), metadata.ContentLength);
+            _logger.LogInformation("Starting file upload for {FileName} ({Size} bytes)", LogSanitizer.Sanitize(metadata.FileName), metadata.ContentLength);
 
             // Validate the file
             result.ValidationResult = await ValidateFileAsync(fileStream, metadata, options);
             if (!result.ValidationResult.IsValid) {
                 _logger.LogWarning("File validation failed for {FileName}: {Errors}",
-                    SanitizeForLogging(metadata.FileName), string.Join(", ", result.ValidationResult.Errors));
+                    LogSanitizer.Sanitize(metadata.FileName), string.Join(", ", result.ValidationResult.Errors));
                 return result;
             }
 
@@ -92,11 +79,11 @@ public class FileUploadService : IFileUploadService {
             result.Metadata["ValidationResults"] = result.ValidationResult;
 
             _logger.LogInformation("File upload completed successfully: {StoredFileName}",
-                SanitizeForLogging(result.StoredFileName));
+                LogSanitizer.Sanitize(result.StoredFileName));
 
             // Track telemetry
             _telemetryService.TrackEvent("FileUploaded", new Dictionary<string, string> {
-                ["FileName"] = SanitizeForLogging(metadata.FileName),
+                ["FileName"] = LogSanitizer.Sanitize(metadata.FileName),
                 ["FileType"] = result.DetectedFileType.ToString(),
                 ["FileSize"] = metadata.ContentLength.ToString()
             });
@@ -104,7 +91,7 @@ public class FileUploadService : IFileUploadService {
             return result;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Failed to upload file {FileName}", SanitizeForLogging(metadata.FileName));
+            _logger.LogError(ex, "Failed to upload file {FileName}", LogSanitizer.Sanitize(metadata.FileName));
             result.ValidationResult.AddError($"Upload failed: {ex.Message}");
             return result;
         }

@@ -141,7 +141,7 @@ EXEC sp_executesql @sql, N'@dbName NVARCHAR(128)', @dbName;
         }
         catch (SqlException ex) when (ex.Number == 1801) // Database already exists
         {
-            _logger.LogWarning("Database already exists");
+            _logger.LogWarning(ex, "Database already exists");
         }
     }
 
@@ -258,12 +258,12 @@ EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
                     await DropDatabaseAsync(connectionString, databaseName2, cancellationToken);
                     break;
             }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("Failed to rollback artifact: {Artifact}. ExceptionType={ExceptionType}", artifact, ex.GetType().Name);
-            }
         }
+        catch (Exception ex)
+        {
+            _logger.LogError("Failed to rollback artifact: {Artifact}. ExceptionType={ExceptionType}", artifact, ex.GetType().Name);
+        }
+    }
 
     private async Task DropUserFromDatabaseAsync(string connectionString, string databaseName, string loginName, CancellationToken cancellationToken = default)
     {

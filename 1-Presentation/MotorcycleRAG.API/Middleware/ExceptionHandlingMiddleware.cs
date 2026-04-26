@@ -61,7 +61,7 @@ public sealed class ExceptionHandlingMiddleware
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(exception);
 
-        _logger.LogError(exception, "Unhandled exception occurred: {Message}", exception.Message);
+        _logger.LogError(exception, "Unhandled exception occurred");
 
         // Generate correlation ID for client support reference
         var correlationId = context.TraceIdentifier ?? Guid.NewGuid().ToString();

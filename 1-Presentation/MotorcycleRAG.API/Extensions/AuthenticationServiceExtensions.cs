@@ -282,7 +282,7 @@ internal static class AuthenticationServiceExtensions
             OnAuthenticationFailed = context =>
             {
                 var localLogger = context.HttpContext.RequestServices.GetService<ILogger<JwtBearerEvents>>();
-                localLogger?.LogWarning("Authentication failed: {Exception}", context.Exception.Message);
+                localLogger?.LogWarning(context.Exception, "Authentication failed");
                 return Task.CompletedTask;
             },
             OnTokenValidated = context =>

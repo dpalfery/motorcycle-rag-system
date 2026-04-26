@@ -141,7 +141,7 @@ EXEC sp_executesql @sql, N'@dbName NVARCHAR(128)', @dbName;
         }
         catch (SqlException ex) when (ex.Number == 1801) // Database already exists
         {
-            _logger.LogWarning("Database already exists: {Message}", ex.Message);
+            _logger.LogWarning(ex, "Database already exists");
         }
     }
 

@@ -53,11 +53,11 @@ public class PreflightChecker
             {
                 if (optional)
                 {
-                    _logger.LogWarning(ex, "⚠ {CheckName} failed (optional - will be created)", name);
+                    _logger.LogWarning("⚠ {CheckName} failed (optional - will be created). ExceptionType={ExceptionType}", name, ex.GetType().Name);
                 }
                 else
                 {
-                    _logger.LogError(ex, "✗ {CheckName} failed with exception", name);
+                    _logger.LogError("✗ {CheckName} failed with exception. ExceptionType={ExceptionType}", name, ex.GetType().Name);
                     allPassed = false;
                 }
             }
@@ -92,12 +92,12 @@ public class PreflightChecker
         }
         catch (SqlException ex)
         {
-            _logger.LogError("SQL Server connectivity failed: {ErrorMessage}", ex.Message);
+            _logger.LogError("SQL Server connectivity failed. ExceptionType={ExceptionType}", ex.GetType().Name);
             return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during SQL Server connectivity check");
+            _logger.LogError("Unexpected error during SQL Server connectivity check. ExceptionType={ExceptionType}", ex.GetType().Name);
             return false;
         }
     }
@@ -139,12 +139,12 @@ public class PreflightChecker
         }
         catch (SqlException ex)
         {
-            _logger.LogError("Privileged credentials check failed: {ErrorMessage}", ex.Message);
+            _logger.LogError("Privileged credentials check failed. ExceptionType={ExceptionType}", ex.GetType().Name);
             return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error during privileged credentials check");
+            _logger.LogError("Unexpected error during privileged credentials check. ExceptionType={ExceptionType}", ex.GetType().Name);
             return false;
         }
     }

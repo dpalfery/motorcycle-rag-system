@@ -10,6 +10,63 @@ namespace MotorcycleRAG.EndToEndTests;
 /// </summary>
 public class TestDataManager
 {
+    private static readonly SearchSource[] EmptySearchSources = [];
+    private static readonly string[] SimpleSpecificationQueries =
+    [
+        "Honda CBR600RR specifications",
+        "Yamaha R1 engine specs",
+        "BMW S1000RR weight"
+    ];
+
+    private static readonly string[] SimpleSpecificationValidationCriteria =
+    [
+        "Response contains motorcycle make and model",
+        "Response includes specific technical specifications",
+        "Response is factually accurate"
+    ];
+
+    private static readonly string[] ComparativeAnalysisQueries =
+    [
+        "Compare Honda CBR1000RR vs Yamaha R1",
+        "BMW S1000RR vs Ducati Panigale V4 performance",
+        "Kawasaki ZX-10R vs Suzuki GSX-R1000R specs"
+    ];
+
+    private static readonly string[] ComparativeAnalysisValidationCriteria =
+    [
+        "Response mentions both motorcycles being compared",
+        "Response includes comparative analysis",
+        "Response highlights key differences"
+    ];
+
+    private static readonly string[] MaintenanceProcedureQueries =
+    [
+        "How to change oil on Honda CBR600RR",
+        "Yamaha R1 maintenance schedule",
+        "BMW S1000RR brake service procedure"
+    ];
+
+    private static readonly string[] MaintenanceProcedureValidationCriteria =
+    [
+        "Response includes step-by-step instructions",
+        "Response mentions required tools or parts",
+        "Response includes safety warnings if applicable"
+    ];
+
+    private static readonly string[] ComplexTechnicalQueries =
+    [
+        "Explain electronic systems on modern superbikes",
+        "How does traction control work on track-focused motorcycles",
+        "Compare braking systems across different motorcycle manufacturers"
+    ];
+
+    private static readonly string[] ComplexTechnicalValidationCriteria =
+    [
+        "Response demonstrates deep technical understanding",
+        "Response synthesizes information from multiple sources",
+        "Response is comprehensive and educational"
+    ];
+
     private readonly string _testDataPath;
     private readonly JsonSerializerOptions _jsonOptions;
 
@@ -165,77 +222,37 @@ public class TestDataManager
             {
                 Name = "Simple Specification Lookup",
                 Description = "User queries for basic motorcycle specifications",
-                Queries = new[]
-                {
-                    "Honda CBR600RR specifications",
-                    "Yamaha R1 engine specs",
-                    "BMW S1000RR weight"
-                },
+                Queries = SimpleSpecificationQueries,
                 ExpectedResponseTime = TimeSpan.FromSeconds(3),
-                ExpectedSources = Array.Empty<SearchSource>(),
-                ValidationCriteria = new[]
-                {
-                    "Response contains motorcycle make and model",
-                    "Response includes specific technical specifications",
-                    "Response is factually accurate"
-                }
+                ExpectedSources = EmptySearchSources,
+                ValidationCriteria = SimpleSpecificationValidationCriteria
             },
             new()
             {
                 Name = "Comparative Analysis",
                 Description = "User requests comparison between multiple motorcycles",
-                Queries = new[]
-                {
-                    "Compare Honda CBR1000RR vs Yamaha R1",
-                    "BMW S1000RR vs Ducati Panigale V4 performance",
-                    "Kawasaki ZX-10R vs Suzuki GSX-R1000R specs"
-                },
+                Queries = ComparativeAnalysisQueries,
                 ExpectedResponseTime = TimeSpan.FromSeconds(5),
-                ExpectedSources = Array.Empty<SearchSource>(),
-                ValidationCriteria = new[]
-                {
-                    "Response mentions both motorcycles being compared",
-                    "Response includes comparative analysis",
-                    "Response highlights key differences"
-                }
+                ExpectedSources = EmptySearchSources,
+                ValidationCriteria = ComparativeAnalysisValidationCriteria
             },
             new()
             {
                 Name = "Maintenance Procedures",
                 Description = "User seeks maintenance and service information",
-                Queries = new[]
-                {
-                    "How to change oil on Honda CBR600RR",
-                    "Yamaha R1 maintenance schedule",
-                    "BMW S1000RR brake service procedure"
-                },
+                Queries = MaintenanceProcedureQueries,
                 ExpectedResponseTime = TimeSpan.FromSeconds(7),
-                ExpectedSources = Array.Empty<SearchSource>(),
-                ValidationCriteria = new[]
-                {
-                    "Response includes step-by-step instructions",
-                    "Response mentions required tools or parts",
-                    "Response includes safety warnings if applicable"
-                }
+                ExpectedSources = EmptySearchSources,
+                ValidationCriteria = MaintenanceProcedureValidationCriteria
             },
             new()
             {
                 Name = "Complex Technical Query",
                 Description = "User asks complex technical questions requiring multiple sources",
-                Queries = new[]
-                {
-                    "Explain electronic systems on modern superbikes",
-                    "How does traction control work on track-focused motorcycles",
-                    "Compare braking systems across different motorcycle manufacturers"
-                },
+                Queries = ComplexTechnicalQueries,
                 ExpectedResponseTime = TimeSpan.FromSeconds(10),
-                ExpectedSources = Array.Empty<SearchSource>(),
-                ValidationCriteria = new[]
-                {
-                    "Response demonstrates deep technical understanding",
-                    "Response synthesizes information from multiple sources",
-                    "Response is comprehensive and educational"
-                }
+                ExpectedSources = EmptySearchSources,
+                ValidationCriteria = ComplexTechnicalValidationCriteria
             }
         };
     }
@@ -337,8 +354,8 @@ public class TestScenario
 {
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
-    public string[] Queries { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> Queries { get; set; } = Array.Empty<string>();
     public TimeSpan ExpectedResponseTime { get; set; }
-    public SearchSource[] ExpectedSources { get; set; } = Array.Empty<SearchSource>();
-    public string[] ValidationCriteria { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<SearchSource> ExpectedSources { get; set; } = Array.Empty<SearchSource>();
+    public IReadOnlyList<string> ValidationCriteria { get; set; } = Array.Empty<string>();
 }

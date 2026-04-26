@@ -8,7 +8,7 @@ var loggerFactory = LoggerFactory.Create(builder =>
     builder.SetMinimumLevel(LogLevel.Information);
 });
 
-var logger = loggerFactory.CreateLogger<Program>();
+var logger = loggerFactory.CreateSecureLogger<Program>();
 
 try
 {
@@ -26,12 +26,12 @@ try
     logger.LogInformation("Project Slug: {ProjectSlug}", parser.ProjectSlug);
 
     // Create component instances
-    var environmentManager = new EnvironmentManager(loggerFactory.CreateLogger<EnvironmentManager>());
-    var passwordManager = new PasswordManager(loggerFactory.CreateLogger<PasswordManager>());
-    var prompter = new InteractivePrompter(loggerFactory.CreateLogger<InteractivePrompter>());
-    var provisioner = new SqlServerProvisioner(loggerFactory.CreateLogger<SqlServerProvisioner>());
-    var preflightChecker = new PreflightChecker(loggerFactory.CreateLogger<PreflightChecker>());
-    var scriptExecutor = new SqlScriptExecutor(loggerFactory.CreateLogger<SqlScriptExecutor>());
+    var environmentManager = new EnvironmentManager(loggerFactory.CreateSecureLogger<EnvironmentManager>());
+    var passwordManager = new PasswordManager(loggerFactory.CreateSecureLogger<PasswordManager>());
+    var prompter = new InteractivePrompter(loggerFactory.CreateSecureLogger<InteractivePrompter>());
+    var provisioner = new SqlServerProvisioner(loggerFactory.CreateSecureLogger<SqlServerProvisioner>());
+    var preflightChecker = new PreflightChecker(loggerFactory.CreateSecureLogger<PreflightChecker>());
+    var scriptExecutor = new SqlScriptExecutor(loggerFactory.CreateSecureLogger<SqlScriptExecutor>());
 
     // Prompt for missing values in interactive mode
     if (!parser.NonInteractive)
@@ -41,6 +41,7 @@ try
         {
             Console.WriteLine();
             parser.SaPassword = prompter.PromptForPassword("Enter SA password for SQL Server", confirm: false);
+            SensitiveLogRedactor.RegisterSecret(parser.SaPassword);
         }
 
         // Prompt for database name
@@ -83,7 +84,9 @@ try
     }
 
     // Build SA connection string
+    SensitiveLogRedactor.RegisterSecret(parser.SaPassword);
     var saConnectionString = $"Server={parser.Server},{parser.Port};Database=master;User Id=sa;Password={parser.SaPassword};TrustServerCertificate=true;";
+    SensitiveLogRedactor.RegisterSecret(saConnectionString);
 
     // Run preflight checks
     logger.LogInformation("Running preflight checks...");
@@ -91,12 +94,13 @@ try
     if (!preflightPassed)
     {
         logger.LogError("Preflight checks failed. Please review the errors above.");
-        logger.LogInformation(preflightChecker.GetRemediationInstructions());
+        logger.LogInformation("{RemediationInstructions}", preflightChecker.GetRemediationInstructions());
         Environment.Exit(1);
     }
 
     // Generate or get password for app user
     var appPassword = parser.AppPassword ?? passwordManager.GeneratePassword();
+    SensitiveLogRedactor.RegisterSecret(appPassword);
     if (string.IsNullOrEmpty(parser.AppPassword))
     {
         logger.LogInformation("Generated password for application user (password hidden)");
@@ -128,6 +132,7 @@ try
     var schemaPath = Path.Combine(solutionRoot, "4-Persistence", "MotorcycleRAG.Persistence", "Sql", "schema.sql");
 
     var dbConnectionString = $"Server={parser.Server},{parser.Port};Database={parser.DatabaseName};User Id=sa;Password={parser.SaPassword};TrustServerCertificate=true;";
+    SensitiveLogRedactor.RegisterSecret(dbConnectionString);
     
     var schemaSuccess = await scriptExecutor.ExecuteScriptFileAsync(dbConnectionString, schemaPath, CancellationToken.None);
     if (!schemaSuccess)
@@ -151,6 +156,7 @@ try
 
     // Build application connection string
     var appConnectionString = $"Server={parser.Server},{parser.Port};Database={parser.DatabaseName};User Id={parser.AppUser};Password={appPassword};TrustServerCertificate=true;";
+    SensitiveLogRedactor.RegisterSecret(appConnectionString);
 
     // Set environment variables
     Console.WriteLine();
@@ -222,15 +228,15 @@ try
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to write to GITHUB_ENV file");
+                logger.LogWarning("Failed to write to GITHUB_ENV file. ExceptionType={ExceptionType}", ex.GetType().Name);
             }
         }
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Failed to set environment variables");
+        logger.LogError("Failed to set environment variables. ExceptionType={ExceptionType}", ex.GetType().Name);
         Console.WriteLine();
-        Console.WriteLine($"✗ Failed to set environment variables: {ex.Message}");
+        Console.WriteLine($"✗ Failed to set environment variables. Exception type: {ex.GetType().Name}");
         Console.WriteLine("You may need to run as administrator or set them manually.");
     }
 
@@ -260,7 +266,7 @@ try
 }
 catch (Exception ex)
 {
-    logger.LogError(ex, "An error occurred during database setup");
+    logger.LogError("An error occurred during database setup. ExceptionType={ExceptionType}", ex.GetType().Name);
     Environment.Exit(1);
 }
 

@@ -57,8 +57,8 @@ public class SqlScriptExecutor
                 }
                 catch (SqlException ex)
                 {
-                    _logger.LogError(ex, "Failed to execute batch {BatchNumber}: {ErrorMessage}", batchNumber, ex.Message);
-                    _logger.LogError("Batch content: {BatchContent}", batch.Length > 200 ? batch.Substring(0, 200) + "..." : batch);
+                    _logger.LogError("Failed to execute batch {BatchNumber}. ExceptionType={ExceptionType}", batchNumber, ex.GetType().Name);
+                    _logger.LogError("Failed batch {BatchNumber} length: {BatchLength}", batchNumber, batch.Length);
                     return false;
                 }
             }
@@ -68,7 +68,7 @@ public class SqlScriptExecutor
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to execute script: {ScriptFilePath}", scriptFilePath);
+            _logger.LogError("Failed to execute script: {ScriptFilePath}. ExceptionType={ExceptionType}", scriptFilePath, ex.GetType().Name);
             return false;
         }
     }

@@ -1,3 +1,5 @@
+#pragma warning disable CA1506 // Composition root intentionally coordinates framework/service registrations.
+
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -14,10 +16,11 @@ var bootstrapAiConnectionString = builder.Configuration.GetConnectionString("App
     ?? builder.Configuration["ApplicationInsights:ConnectionString"];
 
 TelemetryClient? bootstrapTelemetry = null;
+TelemetryConfiguration? bootstrapTelemetryConfiguration = null;
 if (!string.IsNullOrEmpty(bootstrapAiConnectionString))
 {
-    var bootstrapTelemetryConfig = new TelemetryConfiguration { ConnectionString = bootstrapAiConnectionString };
-    bootstrapTelemetry = new TelemetryClient(bootstrapTelemetryConfig);
+    bootstrapTelemetryConfiguration = new TelemetryConfiguration { ConnectionString = bootstrapAiConnectionString };
+    bootstrapTelemetry = new TelemetryClient(bootstrapTelemetryConfiguration);
 }
 
 // 2. Core Configuration & Infrastructure
@@ -26,7 +29,7 @@ builder.AddBffAzureAppConfiguration();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
+    options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
 
@@ -56,10 +59,10 @@ var app = builder.Build();
 // Monitoring & Logging
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 var dpBlobUri = builder.Configuration["DataProtection:BlobUri"];
-if (!string.IsNullOrEmpty(dpBlobUri))
+if (Uri.TryCreate(dpBlobUri, UriKind.Absolute, out var dpBlobStorageUri))
 {
     logger.LogInformation("Data Protection keys persisted to Azure Blob Storage: {BlobUri}", dpBlobUri);
-    app.Services.GetService<DataProtectionMonitoringService>()?.TrackKeysInitialized(dpBlobUri);
+    app.Services.GetService<DataProtectionMonitoringService>()?.TrackKeysInitialized(dpBlobStorageUri);
 }
 
 app.UseMotorcycleRagBffMiddleware();
@@ -83,3 +86,9 @@ catch (Exception ex)
     }
     throw;
 }
+finally
+{
+    bootstrapTelemetryConfiguration?.Dispose();
+}
+
+#pragma warning restore CA1506

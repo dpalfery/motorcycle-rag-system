@@ -87,6 +87,7 @@ public class DataProtectionConfigurationTests
 public class DataProtectionIntegrationTests
 {
     private const string ValidBlobUri = "https://teststorage.blob.core.windows.net/testcontainer/keys.xml";
+    private static readonly Uri ValidBlobStorageUri = new(ValidBlobUri, UriKind.Absolute);
 
     /// <summary>
     /// Test that when DataProtection:BlobUri is configured, the application starts successfully.
@@ -96,11 +97,11 @@ public class DataProtectionIntegrationTests
     public async Task Configure_DataProtection_WithBlobUri_ApplicationStartsSuccessfully()
     {
         // Arrange
-        var factory = new DataProtectionTestWebApplicationFactory(
-            blobUri: ValidBlobUri,
+        using var factory = new DataProtectionTestWebApplicationFactory(
+            blobUri: ValidBlobStorageUri,
             environment: "Development");
 
-        var client = factory.CreateClient();
+        using var client = factory.CreateClient();
 
         // Act
         var response = await client.GetAsync(new Uri("/health", UriKind.Relative));
@@ -117,11 +118,11 @@ public class DataProtectionIntegrationTests
     public async Task Configure_DataProtection_WithoutBlobUri_InDevelopment_ApplicationStarts()
     {
         // Arrange
-        var factory = new DataProtectionTestWebApplicationFactory(
-            blobUri: null,
+        using var factory = new DataProtectionTestWebApplicationFactory(
+            blobUri: (Uri?)null,
             environment: "Development");
 
-        var client = factory.CreateClient();
+        using var client = factory.CreateClient();
 
         // Act
         var response = await client.GetAsync(new Uri("/health", UriKind.Relative));
@@ -138,8 +139,8 @@ public class DataProtectionIntegrationTests
     public void Configure_DataProtection_WithoutBlobUri_InProduction_ThrowsException()
     {
         // Arrange & Act
-        var factory = new DataProtectionTestWebApplicationFactory(
-            blobUri: null,
+        using var factory = new DataProtectionTestWebApplicationFactory(
+            blobUri: (Uri?)null,
             environment: "Production");
 
         // Assert
@@ -153,13 +154,18 @@ public class DataProtectionIntegrationTests
 /// </summary>
 public class DataProtectionTestWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly string? _blobUri;
+    private readonly Uri? _blobUri;
     private readonly string _environment;
 
-    public DataProtectionTestWebApplicationFactory(string? blobUri, string environment)
+    public DataProtectionTestWebApplicationFactory(Uri? blobUri, string environment)
     {
         _blobUri = blobUri;
         _environment = environment;
+    }
+
+    public DataProtectionTestWebApplicationFactory(string? blobUri, string environment)
+        : this(string.IsNullOrWhiteSpace(blobUri) ? null : new Uri(blobUri, UriKind.Absolute), environment)
+    {
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -183,9 +189,9 @@ public class DataProtectionTestWebApplicationFactory : WebApplicationFactory<Pro
                 ["Cors:AllowedOrigins"] = "https://localhost",
             };
 
-            if (!string.IsNullOrEmpty(_blobUri))
+            if (_blobUri is not null)
             {
-                configDict["DataProtection:BlobUri"] = _blobUri;
+                configDict["DataProtection:BlobUri"] = _blobUri.ToString();
             }
 
             config.AddInMemoryCollection(configDict);

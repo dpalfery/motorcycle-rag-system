@@ -10,6 +10,11 @@ namespace MotorcycleRag.WebUI.BFF.Tests.Configuration.Services;
 
 public class CorsServiceConfigurationTests
 {
+    private static readonly string[] SingleOrigin = ["https://app.example.com"];
+    private static readonly string[] MultipleOrigins = ["https://app.example.com", "https://admin.example.com"];
+    private static readonly string[] AllowedMethods = ["GET", "POST", "PUT", "DELETE"];
+    private static readonly string[] AllowedHeaders = ["Content-Type", "Authorization", "X-Requested-With"];
+
     private static CorsOptions BuildCorsOptions(string[]? origins = null)
     {
         var configDict = new Dictionary<string, string?>();
@@ -32,7 +37,7 @@ public class CorsServiceConfigurationTests
     [Fact]
     public void AddBffCors_RegistersAllowFrontendPolicy()
     {
-        var options = BuildCorsOptions(["https://app.example.com"]);
+        var options = BuildCorsOptions(SingleOrigin);
 
         options.GetPolicy("AllowFrontend").Should().NotBeNull();
     }
@@ -40,7 +45,7 @@ public class CorsServiceConfigurationTests
     [Fact]
     public void AddBffCors_WithConfiguredOrigins_AppliesOrigins()
     {
-        var options = BuildCorsOptions(["https://app.example.com", "https://admin.example.com"]);
+        var options = BuildCorsOptions(MultipleOrigins);
 
         var policy = options.GetPolicy("AllowFrontend")!;
         policy.Origins.Should().Contain("https://app.example.com");
@@ -59,7 +64,7 @@ public class CorsServiceConfigurationTests
     [Fact]
     public void AddBffCors_AllowsCredentials()
     {
-        var options = BuildCorsOptions(["https://app.example.com"]);
+        var options = BuildCorsOptions(SingleOrigin);
 
         options.GetPolicy("AllowFrontend")!.SupportsCredentials.Should().BeTrue();
     }
@@ -67,10 +72,10 @@ public class CorsServiceConfigurationTests
     [Fact]
     public void AddBffCors_AllowsOnlyExplicitMethods()
     {
-        var options = BuildCorsOptions(["https://app.example.com"]);
+        var options = BuildCorsOptions(SingleOrigin);
 
         var policy = options.GetPolicy("AllowFrontend")!;
-        policy.Methods.Should().BeEquivalentTo(new[] { "GET", "POST", "PUT", "DELETE" });
+        policy.Methods.Should().BeEquivalentTo(AllowedMethods);
         policy.Methods.Should().NotContain("PATCH");
         policy.Methods.Should().NotContain("TRACE");
     }
@@ -78,17 +83,16 @@ public class CorsServiceConfigurationTests
     [Fact]
     public void AddBffCors_AllowsExplicitHeadersOnly()
     {
-        var options = BuildCorsOptions(["https://app.example.com"]);
+        var options = BuildCorsOptions(SingleOrigin);
 
         var policy = options.GetPolicy("AllowFrontend")!;
-        policy.Headers.Should().BeEquivalentTo(
-            new[] { "Content-Type", "Authorization", "X-Requested-With" });
+        policy.Headers.Should().BeEquivalentTo(AllowedHeaders);
     }
 
     [Fact]
     public void AddBffCors_ExposesContentDispositionHeader()
     {
-        var options = BuildCorsOptions(["https://app.example.com"]);
+        var options = BuildCorsOptions(SingleOrigin);
 
         var policy = options.GetPolicy("AllowFrontend")!;
         policy.ExposedHeaders.Should().Contain("Content-Disposition");
@@ -97,7 +101,7 @@ public class CorsServiceConfigurationTests
     [Fact]
     public void AddBffCors_SetsPreflightMaxAgeTo5Minutes()
     {
-        var options = BuildCorsOptions(["https://app.example.com"]);
+        var options = BuildCorsOptions(SingleOrigin);
 
         var policy = options.GetPolicy("AllowFrontend")!;
         policy.PreflightMaxAge.Should().Be(TimeSpan.FromMinutes(5));

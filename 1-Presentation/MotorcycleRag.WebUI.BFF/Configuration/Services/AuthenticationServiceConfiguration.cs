@@ -109,7 +109,7 @@ internal static class AuthenticationServiceConfiguration {
             return null;
         }
 
-        return uri.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
+        return uri.AbsoluteUri.EndsWith('/')
             ? uri
             : new Uri($"{uri.AbsoluteUri}/", UriKind.Absolute);
     }

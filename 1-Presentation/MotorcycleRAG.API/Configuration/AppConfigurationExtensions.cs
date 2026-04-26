@@ -18,7 +18,7 @@ public static class AppConfigurationExtensions
             // Use ManagedIdentityCredential in non-development environments
             TokenCredential credential = builder.Environment.IsDevelopment()
                 ? new DefaultAzureCredential()
-                : new ManagedIdentityCredential();
+                : new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
 
             // Pre-warm the managed identity token before loading App Config in non-dev envs
             if (!builder.Environment.IsDevelopment())

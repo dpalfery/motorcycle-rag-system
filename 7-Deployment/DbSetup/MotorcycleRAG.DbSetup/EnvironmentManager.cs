@@ -22,7 +22,7 @@ public class EnvironmentManager
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read environment variable {VariableName}", variableName);
+            _logger.LogWarning("Failed to read environment variable {VariableName}. ExceptionType={ExceptionType}", variableName, ex.GetType().Name);
             return null;
         }
     }
@@ -36,7 +36,7 @@ public class EnvironmentManager
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to set environment variable {VariableName}", variableName);
+            _logger.LogWarning("Failed to set environment variable {VariableName}. ExceptionType={ExceptionType}", variableName, ex.GetType().Name);
             throw;
         }
     }
@@ -71,7 +71,7 @@ public class EnvironmentManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to set system environment variable {VariableName}", variableName);
+            _logger.LogError("Failed to set system environment variable {VariableName}. ExceptionType={ExceptionType}", variableName, ex.GetType().Name);
             return false;
         }
     }
@@ -132,7 +132,7 @@ public class EnvironmentManager
             _logger.LogWarning("Failed to persist environment variable {VariableName}", variableName);
             Console.WriteLine($"Failed to set environment variable '{variableName}'.");
             Console.WriteLine("You can manually set it using:");
-            PrintManualInstructions(variableName, value);
+            PrintManualInstructions(variableName);
         }
 
         return success;
@@ -174,12 +174,12 @@ public class EnvironmentManager
         }
         catch (SecurityException ex)
         {
-            _logger.LogWarning(ex, "Permission denied setting environment variable {VariableName}", variableName);
+            _logger.LogWarning("Permission denied setting environment variable {VariableName}. ExceptionType={ExceptionType}", variableName, ex.GetType().Name);
             return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error setting environment variable {VariableName}", variableName);
+            _logger.LogError("Unexpected error setting environment variable {VariableName}. ExceptionType={ExceptionType}", variableName, ex.GetType().Name);
             return false;
         }
     }
@@ -206,7 +206,7 @@ public class EnvironmentManager
                     if (!existingContent.Contains(exportLine))
                     {
                         File.AppendAllText(fullProfilePath, Environment.NewLine + exportLine);
-                        Console.WriteLine($"Added '{exportLine}' to {shellProfile}");
+                        Console.WriteLine($"Added environment variable '{variableName}' to {shellProfile}");
                         Console.WriteLine($"Run 'source ~/{shellProfile}' or restart your shell to load the variable.");
                     }
                 }
@@ -223,7 +223,7 @@ public class EnvironmentManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to set Unix environment variable {VariableName}", variableName);
+            _logger.LogError("Failed to set Unix environment variable {VariableName}. ExceptionType={ExceptionType}", variableName, ex.GetType().Name);
             return false;
         }
     }
@@ -285,21 +285,21 @@ public class EnvironmentManager
             return ".profile"; // Default fallback
     }
 
-    private void PrintManualInstructions(string variableName, string value)
+    private void PrintManualInstructions(string variableName)
     {
         var platform = GetCurrentPlatform();
 
         switch (platform)
         {
             case Platform.Windows:
-                Console.WriteLine($"Windows PowerShell (current user): $env:{variableName} = '{value}'");
-                Console.WriteLine($"Windows PowerShell (machine): [Environment]::SetEnvironmentVariable('{variableName}', '{value}', 'Machine')");
-                Console.WriteLine($"Windows Command Prompt: setx {variableName} \"{value}\"");
+                Console.WriteLine($"Windows PowerShell (current user): $env:{variableName} = '<redacted>'");
+                Console.WriteLine($"Windows PowerShell (machine): [Environment]::SetEnvironmentVariable('{variableName}', '<redacted>', 'Machine')");
+                Console.WriteLine($"Windows Command Prompt: setx {variableName} \"<redacted>\"");
                 break;
 
             case Platform.MacOS:
             case Platform.Linux:
-                Console.WriteLine($"Bash/Zsh: echo 'export {variableName}=\"{value}\"' >> ~/.bashrc");
+                Console.WriteLine($"Bash/Zsh: echo 'export {variableName}=\"<redacted>\"' >> ~/.bashrc");
                 Console.WriteLine($"Then run: source ~/.bashrc");
                 break;
         }

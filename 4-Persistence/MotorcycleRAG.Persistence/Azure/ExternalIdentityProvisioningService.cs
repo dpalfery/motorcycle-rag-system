@@ -437,8 +437,8 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
         var credentials = new List<TokenCredential>();
 
         credentials.Add(string.IsNullOrWhiteSpace(_options.ManagedIdentityClientId)
-            ? new ManagedIdentityCredential()
-            : new ManagedIdentityCredential(_options.ManagedIdentityClientId.Trim()));
+            ? new ManagedIdentityCredential(new ManagedIdentityCredentialOptions())
+            : new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(_options.ManagedIdentityClientId.Trim())));
 
         if (!string.IsNullOrWhiteSpace(_options.TenantId)
             && !string.IsNullOrWhiteSpace(_options.ClientId)

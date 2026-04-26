@@ -17,7 +17,7 @@ internal static class AppConfigurationExtensions
         {
             TokenCredential credential = builder.Environment.IsDevelopment()
                 ? new DefaultAzureCredential()
-                : new ManagedIdentityCredential();
+                : new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
 
             if (!builder.Environment.IsDevelopment())
             {

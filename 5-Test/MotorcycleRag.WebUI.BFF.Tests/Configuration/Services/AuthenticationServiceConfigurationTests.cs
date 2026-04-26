@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MotorcycleRag.WebUI.BFF.Configuration.Services;
 using Xunit;
@@ -12,6 +11,8 @@ using Xunit;
 namespace MotorcycleRag.WebUI.BFF.Tests.Configuration.Services;
 
 public class AuthenticationServiceConfigurationTests {
+    private static readonly string[] RequiredScopes = ["openid", "profile", "email", "api://motorcyclerag-api/read", "api://motorcyclerag-api/chat"];
+
     [Fact]
     public void AddBffAuthentication_RegistersExpectedSchemes() {
         // Arrange
@@ -88,7 +89,7 @@ public class AuthenticationServiceConfigurationTests {
         // Assert
         options.Authority.Should().Be("https://login.microsoftonline.com/tenant-id/v2.0");
         options.ClientId.Should().Be("client-id");
-        options.Scope.Should().Contain(new[] { "openid", "profile", "email", "api://motorcyclerag-api/read", "api://motorcyclerag-api/chat" });
+        options.Scope.Should().Contain(RequiredScopes);
         options.UsePkce.Should().BeTrue();
     }
 

@@ -1,9 +1,8 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -13,8 +12,8 @@ namespace MotorcycleRAG.Application.Services;
 /// Implements OWASP ASVS Level 2 logging and monitoring requirements (ASVS 7.1.1-7.1.2).
 ///
 /// Security Notes:
-/// - User IDs are sanitized by hashing with SHA256 (one-way) to prevent direct PII exposure in logs
-/// - Email addresses and sensitive data are logged but with redaction where appropriate
+/// - User IDs (Entra OIDs) and email addresses are logged in plain text for debuggability; log injection is
+///   prevented via <see cref="LogSanitizer.Sanitize"/> (strips control characters and truncates)
 /// - All audit events include correlation IDs for request traceability
 /// - Timestamps use UTC to prevent timezone confusion
 /// - IP addresses are logged (optional) for forensic analysis
@@ -51,7 +50,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be empty", nameof(userId));
 
-        var sanitizedUserId = SanitizeUserId(userId);
+        var sanitizedUserId = LogSanitizer.Sanitize(userId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var auditLog = new AuditLog {
@@ -69,11 +68,11 @@ public class AuditService : IAuditService {
 
         var createdLog = await _auditRepository.CreateAuditLogAsync(auditLog);
 
-        // Structured logging with redacted user details
+        // Structured logging with sanitized (injection-safe) user details
         _logger.LogInformation(
             "User authentication successful. UserId: {SanitizedUserId}, Email: {Email}, CorrelationId: {CorrelationId}",
             sanitizedUserId,
-            RedactEmail(email),
+            LogSanitizer.Sanitize(email),
             correlationId);
 
         return createdLog;
@@ -89,7 +88,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be empty", nameof(userId));
 
-        var sanitizedUserId = SanitizeUserId(userId);
+        var sanitizedUserId = LogSanitizer.Sanitize(userId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var auditLog = new AuditLog {
@@ -126,7 +125,7 @@ public class AuditService : IAuditService {
             throw new ArgumentException("Reason cannot be empty", nameof(reason));
 
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
-        var sanitizedEmail = RedactEmail(email); // Redact email in case of brute force attempts
+        var sanitizedEmail = LogSanitizer.Sanitize(email); // Sanitize email for injection safety
 
         var auditLog = new AuditLog {
             UserEmail = email, // Store original for audit trail
@@ -178,7 +177,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(action))
             throw new ArgumentException("Action cannot be empty", nameof(action));
 
-        var sanitizedUserId = SanitizeUserId(userId);
+        var sanitizedUserId = LogSanitizer.Sanitize(userId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var metadata = new {
@@ -236,7 +235,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(action))
             throw new ArgumentException("Action cannot be empty", nameof(action));
 
-        var sanitizedUserId = SanitizeUserId(userId);
+        var sanitizedUserId = LogSanitizer.Sanitize(userId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var fullMetadata = new {
@@ -290,8 +289,8 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(action))
             throw new ArgumentException("Action cannot be empty", nameof(action));
 
-        var sanitizedAdminUserId = SanitizeUserId(adminUserId);
-        var sanitizedTargetUserId = SanitizeUserId(targetUserId);
+        var sanitizedAdminUserId = LogSanitizer.Sanitize(adminUserId);
+        var sanitizedTargetUserId = LogSanitizer.Sanitize(targetUserId);
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var metadata = new {
@@ -337,7 +336,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(endpoint))
             throw new ArgumentException("Endpoint cannot be empty", nameof(endpoint));
 
-        var sanitizedUserId = userId != null ? SanitizeUserId(userId) : "anonymous";
+        var sanitizedUserId = userId != null ? LogSanitizer.Sanitize(userId) : "anonymous";
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var metadata = new {
@@ -390,7 +389,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(description))
             throw new ArgumentException("Description cannot be empty", nameof(description));
 
-        var sanitizedUserId = userId != null ? SanitizeUserId(userId) : "system";
+        var sanitizedUserId = userId != null ? LogSanitizer.Sanitize(userId) : "system";
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var metadata = new {
@@ -482,48 +481,4 @@ public class AuditService : IAuditService {
         }
     }
 
-    /// <summary>
-    /// Sanitizes a user ID by hashing it with SHA256 (one-way hash).
-    /// This prevents direct user ID exposure in logs while maintaining uniqueness for tracking.
-    /// OWASP ASVS 7.1: PII protection in logs
-    /// </summary>
-    private static string SanitizeUserId(string userId) {
-        if (string.IsNullOrWhiteSpace(userId))
-            return "unknown";
-
-        try {
-            // Use SHA256 for consistent, one-way hashing (Preferred static method CA1850)
-            var hashedBytes = SHA256.HashData(Encoding.UTF8.GetBytes(userId));
-            // Return first 16 characters of hex representation for readability
-            return Convert.ToHexString(hashedBytes)[..16];
-        }
-        catch {
-            // Fallback if hashing fails
-            return "redacted";
-        }
-    }
-
-    /// <summary>
-    /// Redacts an email address for logging purposes.
-    /// Shows first character and domain, hides middle.
-    /// Example: user@example.com → u*****@example.com
-    /// </summary>
-    private static string RedactEmail(string? email) {
-        if (string.IsNullOrWhiteSpace(email))
-            return "[not provided]";
-
-        var parts = email.Split('@');
-        if (parts.Length != 2)
-            return "[invalid]";
-
-        var localPart = parts[0];
-        var domain = parts[1];
-
-        if (localPart.Length <= 2)
-            return $"*@{domain}";
-
-        var asterisks = new string('*', localPart.Length - 1);
-        var redacted = $"{localPart[0]}{asterisks}@{domain}";
-        return redacted;
-    }
 }

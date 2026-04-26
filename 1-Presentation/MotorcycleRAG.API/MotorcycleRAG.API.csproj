@@ -18,8 +18,8 @@
     <PackageReference Include="Azure.Identity" Version="1.17.1" />
     <PackageReference Include="Microsoft.Azure.AppConfiguration.AspNetCore" Version="8.4.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Identity.Web" Version="4.3.0" />
-    <PackageReference Include="Microsoft.Identity.Web.MicrosoftGraph" Version="4.3.0" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="4.8.0" />
+    <PackageReference Include="Microsoft.Identity.Web.MicrosoftGraph" Version="4.8.0" />
    </ItemGroup>
 
   <ItemGroup>

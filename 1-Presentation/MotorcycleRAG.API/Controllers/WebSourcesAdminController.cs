@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Models.DTOs;
-
+using MotorcycleRAG.Core.Utilities;
 using System.Net.Mime;
 using System.ComponentModel.DataAnnotations;
 
@@ -117,16 +117,16 @@ public sealed class WebSourcesAdminController : ControllerBase {
             };
 
             var createdSource = await _webSourceRegistryService.AddWebSourceAsync(webSource);
-            _logger.LogInformation("Admin created web source {WebSourceId} with URL {Url}", createdSource.Id, SanitizeLogValue(createdSource.Url));
+            _logger.LogInformation("Admin created web source {WebSourceId} with URL {Url}", createdSource.Id, LogSanitizer.Sanitize(createdSource.Url, 48));
 
             return Created(new Uri($"/api/admin/web-sources/{createdSource.Id}", UriKind.Relative), createdSource);
         }
         catch (InvalidOperationException ex) {
-            _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", SanitizeLogValue(request.Url?.ToString() ?? string.Empty));
+            _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", LogSanitizer.Sanitize(request.Url?.ToString() ?? string.Empty, 48));
             return Conflict(new { error = "A resource with this URL already exists" });
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error creating web source with URL {Url}", SanitizeLogValue(request.Url?.ToString() ?? string.Empty));
+            _logger.LogError(ex, "Error creating web source with URL {Url}", LogSanitizer.Sanitize(request.Url?.ToString() ?? string.Empty, 48));
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
@@ -327,22 +327,6 @@ public sealed class WebSourcesAdminController : ControllerBase {
         }
 
         return errors;
-    }
-
-    /// <summary>
-    /// Sanitizes a value for logging to prevent leaking sensitive data.
-    /// </summary>
-    private string SanitizeLogValue(string value) {
-        if (string.IsNullOrWhiteSpace(value)) {
-            return "[empty]";
-        }
-
-        const int maxLogLength = 48;
-        if (value.Length > maxLogLength) {
-            return string.Concat(value.AsSpan(0, maxLogLength), "...");
-        }
-
-        return value;
     }
 }
 

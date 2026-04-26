@@ -68,11 +68,11 @@ public class AuditService : IAuditService {
 
         var createdLog = await _auditRepository.CreateAuditLogAsync(auditLog);
 
-        // Structured logging with sanitized (injection-safe) user details
+        // Structured logging with sanitized user details and masked email (privacy-safe)
         _logger.LogInformation(
             "User authentication successful. UserId: {SanitizedUserId}, Email: {Email}, CorrelationId: {CorrelationId}",
             sanitizedUserId,
-            LogSanitizer.Sanitize(email),
+            MaskEmailForLog(email),
             correlationId);
 
         return createdLog;
@@ -110,6 +110,22 @@ public class AuditService : IAuditService {
             correlationId);
 
         return createdLog;
+    }
+
+    private static string MaskEmailForLog(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return string.Empty;
+
+        var atIndex = email.IndexOf('@');
+        if (atIndex <= 0 || atIndex == email.Length - 1)
+            return "[redacted]";
+
+        var localFirstChar = email[0];
+        var domain = email[(atIndex + 1)..];
+        var masked = $"{localFirstChar}***@{domain}";
+
+        return LogSanitizer.Sanitize(masked);
     }
 
     /// <summary>

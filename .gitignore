@@ -404,3 +404,6 @@ packages-microsoft-prod.deb
 
 # Local utilities (contain secrets)
 local-utils/
+
+# Codemie
+.codemie/

@@ -63,6 +63,7 @@ from models.schemas import (
     ProcessBikeGraphRequest,
     ProcessingStatusResponse,
 )
+from security.path_validation import resolve_local_csv_path
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -253,13 +254,7 @@ async def process_csv(request: ProcessCSVRequest, background_tasks: BackgroundTa
 
         local_file_path = None
         if request.local_file_path:
-            from pathlib import Path as _Path
-            p = _Path(request.local_file_path).resolve()
-            if not p.is_file():
-                raise HTTPException(status_code=400, detail="local_file_path does not point to an existing file")
-            if p.suffix.lower() != ".csv":
-                raise HTTPException(status_code=400, detail="Only .csv files are supported")
-            local_file_path = str(p)
+            local_file_path = str(resolve_local_csv_path(request.local_file_path))
         elif not request.blob_container:
             raise HTTPException(status_code=400, detail="Either blob_container or local_file_path is required")
 
@@ -307,14 +302,7 @@ async def process_bike_graph(request: ProcessBikeGraphRequest, background_tasks:
 
         file_path = None
         if request.local_file_path:
-            file_path = Path(request.local_file_path).resolve()
-            if not file_path.is_file():
-                raise HTTPException(
-                    status_code=400,
-                    detail="local_file_path does not point to an existing file",
-                )
-            if file_path.suffix.lower() != ".csv":
-                raise HTTPException(status_code=400, detail="Only .csv files are supported")
+            file_path = resolve_local_csv_path(request.local_file_path)
         elif not request.blob_container:
             raise HTTPException(
                 status_code=400,

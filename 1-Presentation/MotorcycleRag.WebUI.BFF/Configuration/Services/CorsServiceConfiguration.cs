@@ -3,15 +3,12 @@ namespace MotorcycleRag.WebUI.BFF.Configuration.Services;
 /// <summary>
 /// Configuration for CORS in the BFF.
 /// </summary>
-internal static class CorsServiceConfiguration
-{
+internal static class CorsServiceConfiguration {
     public static IServiceCollection AddBffCors(
-        this IServiceCollection services, 
+        this IServiceCollection services,
         IConfiguration configuration,
-        IWebHostEnvironment environment)
-    {
-        services.AddCors(options =>
-        {
+        IWebHostEnvironment environment) {
+        services.AddCors(options => {
             var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins")?.Get<string[]>() ?? ["http://localhost:3000"];
             var allowedOrigins = environment.IsDevelopment()
                 ? configuredOrigins
@@ -26,9 +23,8 @@ internal static class CorsServiceConfiguration
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray()
                 : configuredOrigins;
-            
-            options.AddPolicy("AllowFrontend", policy =>
-            {
+
+            options.AddPolicy("AllowFrontend", policy => {
                 policy
                     .WithOrigins(allowedOrigins)
                     .WithMethods("GET", "POST", "PUT", "DELETE") // Explicit methods only

@@ -8,17 +8,14 @@ namespace MotorcycleRag.WebUI.BFF.Configuration.Services;
 /// <summary>
 /// Configuration for Data Protection services in the BFF.
 /// </summary>
-internal static class DataProtectionServiceConfiguration
-{
+internal static class DataProtectionServiceConfiguration {
     public static IServiceCollection AddBffDataProtection(
-        this IServiceCollection services, 
+        this IServiceCollection services,
         IConfiguration configuration,
-        IWebHostEnvironment env)
-    {
+        IWebHostEnvironment env) {
         var dpBlobUri = configuration["DataProtection:BlobUri"];
 
-        if (env.IsDevelopment())
-        {
+        if (env.IsDevelopment()) {
             var localKeyDirectory = new DirectoryInfo(Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "MotorcycleRag.WebUI.BFF",
@@ -28,21 +25,18 @@ internal static class DataProtectionServiceConfiguration
                 .SetApplicationName("MotorcycleRag.WebUI.BFF")
                 .PersistKeysToFileSystem(localKeyDirectory);
         }
-        else if (!string.IsNullOrEmpty(dpBlobUri))
-        {
+        else if (!string.IsNullOrEmpty(dpBlobUri)) {
             services.AddDataProtection()
                 .SetApplicationName("MotorcycleRag.WebUI.BFF")
                 .PersistKeysToAzureBlobStorage(new Uri(dpBlobUri), new DefaultAzureCredential());
         }
-        else
-        {
+        else {
             // Ephemeral keys — sessions will not survive container restarts
             services.AddDataProtection()
                 .SetApplicationName("MotorcycleRag.WebUI.BFF");
-            
+
             // Fail fast in production if blob URI is not configured
-            if (env.IsProduction())
-            {
+            if (env.IsProduction()) {
                 throw new InvalidOperationException(
                     "DataProtection:BlobUri is required in production. " +
                     "Configure 'DataProtection:BlobUri' in App Configuration to persist encryption keys.");

@@ -31,6 +31,67 @@
             }
         },
         {
+            "name": ".NET Core Launch (BFF)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build: bff",
+            "program": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI.BFF/bin/Debug/net10.0/MotorcycleRag.WebUI.BFF.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI.BFF",
+            "stopAtEntry": false,
+            "console": "integratedTerminal",
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "https://localhost:7216;http://localhost:5216"
+            }
+        },
+        {
+            "name": ".NET Core Launch (API, no browser)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build: api",
+            "program": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API/bin/Debug/net10.0/MotorcycleRAG.API.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API",
+            "stopAtEntry": false,
+            "console": "integratedTerminal",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "DOTNET_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "https://localhost:7215"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/Views"
+            }
+        },
+        {
+            "name": ".NET Core Launch (BFF, no browser)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build: bff",
+            "program": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI.BFF/bin/Debug/net10.0/MotorcycleRag.WebUI.BFF.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI.BFF",
+            "stopAtEntry": false,
+            "console": "integratedTerminal",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "https://localhost:7216;http://localhost:5216"
+            }
+        },
+        {
+            "name": "Chrome: Launch WebUI",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI",
+            "preLaunchTask": "npm: dev"
+        },
+        {
             "name": ".NET MAUI Admin (Windows)",
             "type": "coreclr",
             "request": "launch",
@@ -48,6 +109,16 @@
         }
     ],
     "compounds": [
+        {
+            "name": "WebUI + BFF + API (Full Stack)",
+            "configurations": [
+                ".NET Core Launch (API, no browser)",
+                ".NET Core Launch (BFF, no browser)",
+                "Chrome: Launch WebUI"
+            ],
+            "preLaunchTask": "build: full-stack",
+            "stopAll": true
+        },
         {
             "name": "Admin + API (Windows)",
             "configurations": [

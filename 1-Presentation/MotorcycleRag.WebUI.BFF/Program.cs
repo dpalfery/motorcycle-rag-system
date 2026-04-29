@@ -39,11 +39,17 @@ builder.Services.PostConfigure<Microsoft.AspNetCore.HostFiltering.HostFilteringO
 });
 
 // 3. Service Configuration Extensions
-builder.Services.AddBffCors(builder.Configuration);
+builder.Services.AddBffCors(builder.Configuration, builder.Environment);
 builder.Services.AddBffTelemetry(builder.Configuration);
 
-builder.Services.AddHealthChecks()
-    .AddCheck<DataProtectionHealthCheck>("data_protection_blob");
+var dpBlobUri = builder.Configuration["DataProtection:BlobUri"];
+var hasBlobDataProtectionUri = Uri.TryCreate(dpBlobUri, UriKind.Absolute, out var dpBlobStorageUri);
+var usesBlobDataProtection = !builder.Environment.IsDevelopment() && hasBlobDataProtectionUri;
+
+var healthChecks = builder.Services.AddHealthChecks();
+if (usesBlobDataProtection) {
+    healthChecks.AddCheck<DataProtectionHealthCheck>("data_protection_blob");
+}
 
 builder.Services.AddDataProtectionMonitoring();
 builder.Services.AddBffReverseProxy(builder.Configuration);
@@ -55,10 +61,9 @@ var app = builder.Build();
 
 // Monitoring & Logging
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-var dpBlobUri = builder.Configuration["DataProtection:BlobUri"];
-if (Uri.TryCreate(dpBlobUri, UriKind.Absolute, out var dpBlobStorageUri)) {
+if (usesBlobDataProtection) {
     logger.LogInformation("Data Protection keys persisted to Azure Blob Storage: {BlobUri}", dpBlobUri);
-    app.Services.GetService<DataProtectionMonitoringService>()?.TrackKeysInitialized(dpBlobStorageUri);
+    app.Services.GetService<DataProtectionMonitoringService>()?.TrackKeysInitialized(dpBlobStorageUri!);
 }
 
 app.UseMotorcycleRagBffMiddleware();

@@ -930,12 +930,63 @@ internal class ApiClient {
         var response = await ExecuteWithResilienceAsync(() =>
             _httpClient.PostAsJsonAsync(relativePath, request, _jsonOptions, cancellationToken)).ConfigureAwait(false);
         EnsureAuthorizedResponse(response);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode) {
+            var message = await ReadAdminActionErrorMessageAsync(response, cancellationToken).ConfigureAwait(false);
+            throw new HttpRequestException(message, null, response.StatusCode);
+        }
 
         var actionResponse = await response.Content.ReadFromJsonAsync<AdminActionResponseDto>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                             ?? throw new InvalidOperationException("Failed to deserialize admin action response");
 
         return actionResponse.Row;
+    }
+
+    private static async Task<string> ReadAdminActionErrorMessageAsync(HttpResponseMessage response, CancellationToken cancellationToken) {
+        if (response.Content is null) {
+            return CreateAdminActionFallbackMessage(response);
+        }
+
+        var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(content)) {
+            return CreateAdminActionFallbackMessage(response);
+        }
+
+        try {
+            using var document = JsonDocument.Parse(content);
+            var root = document.RootElement;
+
+            if (TryReadJsonString(root, "error", out var error) ||
+                TryReadJsonString(root, "message", out error) ||
+                TryReadJsonString(root, "title", out error)) {
+                return error;
+            }
+        }
+        catch (JsonException) {
+            // Fall through to the plain-text response body.
+        }
+
+        return content;
+    }
+
+    private static bool TryReadJsonString(JsonElement element, string propertyName, out string value) {
+        value = string.Empty;
+        if (!element.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.String) {
+            return false;
+        }
+
+        var propertyValue = property.GetString();
+        if (string.IsNullOrWhiteSpace(propertyValue)) {
+            return false;
+        }
+
+        value = propertyValue;
+        return true;
+    }
+
+    private static string CreateAdminActionFallbackMessage(HttpResponseMessage response) {
+        return !string.IsNullOrWhiteSpace(response.ReasonPhrase)
+            ? response.ReasonPhrase
+            : $"Admin action failed with status code {(int)response.StatusCode}.";
     }
 
     private static void ValidateManagementIdentifier(string identifier, string paramName) {

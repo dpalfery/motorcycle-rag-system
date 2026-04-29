@@ -1,3 +1,5 @@
+using System.IO;
+
 using Azure.Identity;
 using Microsoft.AspNetCore.DataProtection;
 
@@ -15,7 +17,18 @@ internal static class DataProtectionServiceConfiguration
     {
         var dpBlobUri = configuration["DataProtection:BlobUri"];
 
-        if (!string.IsNullOrEmpty(dpBlobUri))
+        if (env.IsDevelopment())
+        {
+            var localKeyDirectory = new DirectoryInfo(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MotorcycleRag.WebUI.BFF",
+                "DataProtection-Keys"));
+
+            services.AddDataProtection()
+                .SetApplicationName("MotorcycleRag.WebUI.BFF")
+                .PersistKeysToFileSystem(localKeyDirectory);
+        }
+        else if (!string.IsNullOrEmpty(dpBlobUri))
         {
             services.AddDataProtection()
                 .SetApplicationName("MotorcycleRag.WebUI.BFF")

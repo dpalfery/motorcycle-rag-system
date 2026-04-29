@@ -9,23 +9,32 @@ namespace MotorcycleRAG.API.Configuration;
 /// </summary>
 public static class AppConfigurationExtensions {
     public static WebApplicationBuilder AddAzureAppConfigurationWithKeyVault(this WebApplicationBuilder builder) {
+        var appConfigConnectionString = builder.Configuration["AppConfig:ConnectionString"];
         var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
 
-        if (!string.IsNullOrEmpty(appConfigEndpoint)) {
+        if (!string.IsNullOrEmpty(appConfigConnectionString) || !string.IsNullOrEmpty(appConfigEndpoint)) {
             // Use ManagedIdentityCredential in non-development environments
             TokenCredential credential = builder.Environment.IsDevelopment()
                 ? new DefaultAzureCredential()
                 : new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
 
             // Pre-warm the managed identity token before loading App Config in non-dev envs
-            if (!builder.Environment.IsDevelopment()) {
+            if (string.IsNullOrEmpty(appConfigConnectionString) &&
+                !string.IsNullOrEmpty(appConfigEndpoint) &&
+                !builder.Environment.IsDevelopment()) {
                 PreWarmManagedIdentityTokenAsync(credential).GetAwaiter().GetResult();
                 EnsureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
             }
 
             builder.Configuration.AddAzureAppConfiguration(options => {
-                options.Connect(new Uri(appConfigEndpoint), credential)
-                       .Select(KeyFilter.Any)
+                if (!string.IsNullOrEmpty(appConfigConnectionString)) {
+                    options.Connect(appConfigConnectionString);
+                }
+                else {
+                    options.Connect(new Uri(appConfigEndpoint!), credential);
+                }
+
+                options.Select(KeyFilter.Any)
                        .Select(KeyFilter.Any, "api")
                        .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
                        .ConfigureKeyVault(kv => kv.SetCredential(credential))

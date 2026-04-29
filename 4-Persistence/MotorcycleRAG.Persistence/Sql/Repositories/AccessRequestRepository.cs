@@ -159,7 +159,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                     inserted.[OnboardingAttemptCount],
                     inserted.[LastFailureCode],
                     inserted.[LastFailureMessage],
-                    sys.fn_varbintohexstr(inserted.[RowVersion])
+                    CONVERT(NVARCHAR(260), CONVERT(VARBINARY(8), inserted.[RowVersion]), 1)
                 INTO @Updated
                 WHERE [AccessRequestId] = @AccessRequestId
                   AND [RowVersion] = CONVERT(VARBINARY(8), @ExpectedRowVersion, 1)
@@ -196,7 +196,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                     inserted.[OnboardingAttemptCount],
                     inserted.[LastFailureCode],
                     inserted.[LastFailureMessage],
-                    sys.fn_varbintohexstr(inserted.[RowVersion])
+                    CONVERT(NVARCHAR(260), CONVERT(VARBINARY(8), inserted.[RowVersion]), 1)
                 INTO @Updated
                 WHERE [AccessRequestId] = @AccessRequestId
                   AND [RowVersion] = CONVERT(VARBINARY(8), @ExpectedRowVersion, 1)
@@ -256,7 +256,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                     inserted.[OnboardingAttemptCount],
                     inserted.[LastFailureCode],
                     inserted.[LastFailureMessage],
-                    sys.fn_varbintohexstr(inserted.[RowVersion])
+                    CONVERT(NVARCHAR(260), CONVERT(VARBINARY(8), inserted.[RowVersion]), 1)
                 INTO @Updated
                 WHERE [AccessRequestId] = @AccessRequestId;
 
@@ -319,7 +319,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                     inserted.[OnboardingAttemptCount],
                     inserted.[LastFailureCode],
                     inserted.[LastFailureMessage],
-                    sys.fn_varbintohexstr(inserted.[RowVersion])
+                    CONVERT(NVARCHAR(260), CONVERT(VARBINARY(8), inserted.[RowVersion]), 1)
                 INTO @Updated
                 WHERE [AccessRequestId] = @AccessRequestId;
 
@@ -364,7 +364,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                     inserted.[OnboardingAttemptCount],
                     inserted.[LastFailureCode],
                     inserted.[LastFailureMessage],
-                    sys.fn_varbintohexstr(inserted.[RowVersion])
+                    CONVERT(NVARCHAR(260), CONVERT(VARBINARY(8), inserted.[RowVersion]), 1)
                 INTO @Updated
                 WHERE [AccessRequestId] = @AccessRequestId
                   AND [RowVersion] = CONVERT(VARBINARY(8), @ExpectedRowVersion, 1)
@@ -410,7 +410,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                     inserted.[OnboardingExecutionState],
                     inserted.[RequestedAtUtc],
                     inserted.[CorrelationId],
-                    sys.fn_varbintohexstr(inserted.[RowVersion])
+                    CONVERT(NVARCHAR(260), CONVERT(VARBINARY(8), inserted.[RowVersion]), 1)
                 INTO @Created
                 VALUES (
                     @Email,

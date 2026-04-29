@@ -219,6 +219,28 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     }
 
     [Fact]
+    public async Task UpdateScheduleAsync_WithSixFieldCronExpression_ShouldUpdateSuccessfully() {
+        // Arrange
+        var newConfig = new ProcessingScheduleConfig {
+            CronExpression = "0 0 2 * * *", // Daily at 2 AM including seconds
+            IsEnabled = true,
+            ProcessingWindow = TimeSpan.FromHours(2),
+            MaxConcurrentJobs = 5,
+            ProcessingDirectory = "custom-scheduled"
+        };
+
+        // Act
+        await _service.UpdateScheduleAsync(newConfig);
+
+        // Assert
+        var nextExecution = await _service.GetNextExecutionTimeAsync();
+        Assert.NotNull(nextExecution);
+        Assert.Equal(2, nextExecution.Value.Hour);
+        Assert.Equal(0, nextExecution.Value.Minute);
+        Assert.Equal(0, nextExecution.Value.Second);
+    }
+
+    [Fact]
     public async Task UpdateScheduleAsync_WithInvalidCronExpression_ShouldHandleGracefully() {
         // Arrange
         var invalidConfig = new ProcessingScheduleConfig {

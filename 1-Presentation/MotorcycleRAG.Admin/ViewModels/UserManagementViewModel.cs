@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Net;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -252,6 +253,14 @@ internal partial class UserManagementViewModel : ObservableObject {
                 return Task.CompletedTask;
             }).ConfigureAwait(false);
             await _showSuccessAsync("User Management", successMessage).ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Conflict) {
+            var sanitized = ErrorPresenter.SanitizeErrorMessage(ex.Message);
+            _logger.LogWarning(ex, "User-management action conflicted for row {RowId}", row.RowId);
+
+            await LoadRowsAsync().ConfigureAwait(false);
+            await SetErrorAsync(sanitized).ConfigureAwait(false);
+            await _showErrorAsync("User Management", ErrorMessage ?? sanitized).ConfigureAwait(false);
         }
         catch (Exception ex) {
             var sanitized = ErrorPresenter.SanitizeErrorMessage(ex.Message);

@@ -136,6 +136,82 @@ public class UserManagementViewModelTests {
     }
 
     [Fact]
+    public async Task ApproveAsync_WhenConflict_RefreshesRows_AndShowsApiErrorMessage() {
+        var requestCount = 0;
+        using var handler = new StubHttpMessageHandler(request => {
+            requestCount++;
+
+            return Task.FromResult(requestCount switch {
+                1 => CreateJsonResponse(new UserManagementListResponseDto {
+                    Page = 1,
+                    PageSize = 100,
+                    TotalCount = 1,
+                    Rows = [
+                        new UserManagementRowDto {
+                            RowId = "row-request",
+                            RowType = "AccessRequest",
+                            AccessRequestId = "request-1",
+                            Email = "pending@example.com",
+                            Provider = IdentityProvider.Microsoft,
+                            AssignedTier = TierLabel.Trial,
+                            RowState = UserManagementRowState.PendingApproval,
+                            RequestDecisionState = RequestDecisionState.Pending,
+                            OnboardingExecutionState = OnboardingExecutionState.NotStarted,
+                            ManagedUserAccessState = ManagedUserAccessState.None,
+                            AllowedActions = ["Approve", "Cancel"],
+                            RowVersion = "rv-1"
+                        }
+                    ]
+                }),
+                2 => CreateJsonResponse(
+                    new { error = "Access request is no longer pending approval. Refresh and try again." },
+                    HttpStatusCode.Conflict),
+                3 => CreateJsonResponse(new UserManagementListResponseDto {
+                    Page = 1,
+                    PageSize = 100,
+                    TotalCount = 1,
+                    Rows = [
+                        new UserManagementRowDto {
+                            RowId = "row-request",
+                            RowType = "AccessRequest",
+                            AccessRequestId = "request-1",
+                            Email = "pending@example.com",
+                            Provider = IdentityProvider.Microsoft,
+                            AssignedTier = TierLabel.Trial,
+                            RowState = UserManagementRowState.OnboardingInProgress,
+                            RequestDecisionState = RequestDecisionState.Approved,
+                            OnboardingExecutionState = OnboardingExecutionState.InProgress,
+                            ManagedUserAccessState = ManagedUserAccessState.None,
+                            AllowedActions = ["RetryOnboarding"],
+                            RowVersion = "rv-2"
+                        }
+                    ]
+                }),
+                _ => throw new InvalidOperationException($"Unexpected request #{requestCount}: {request.Method} {request.RequestUri}")
+            });
+        });
+
+        var errorMessages = new List<string>();
+        using var harness = CreateHarness(handler, errorMessages: errorMessages);
+        var viewModel = harness.ViewModel;
+
+        await viewModel.InitializeAsync();
+        viewModel.Rows.Should().HaveCount(1);
+
+        await viewModel.ApproveAsync(viewModel.Rows[0]);
+
+        requestCount.Should().Be(3);
+        viewModel.ErrorMessage.Should().Be("Access request is no longer pending approval. Refresh and try again.");
+        errorMessages.Should().ContainSingle(message => message == "Access request is no longer pending approval. Refresh and try again.");
+
+        viewModel.Rows.Should().HaveCount(1);
+        viewModel.Rows[0].RowState.Should().Be(UserManagementRowState.OnboardingInProgress);
+        viewModel.Rows[0].OnboardingExecutionState.Should().Be(OnboardingExecutionState.InProgress);
+        viewModel.Rows[0].CanApprove.Should().BeFalse();
+        viewModel.Rows[0].CanRetry.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task RetryOnboardingAsync_UsesCurrentRowVersion_AndUpdatesState() {
         string? capturedBody = null;
         using var handler = new StubHttpMessageHandler(async request => {
@@ -315,9 +391,9 @@ public class UserManagementViewModelTests {
         return new ViewModelHarness(viewModel, httpClient);
     }
 
-    private static HttpResponseMessage CreateJsonResponse<T>(T payload) {
+    private static HttpResponseMessage CreateJsonResponse<T>(T payload, HttpStatusCode statusCode = HttpStatusCode.OK) {
         var json = JsonSerializer.Serialize(payload, JsonOptions);
-        return new HttpResponseMessage(HttpStatusCode.OK) {
+        return new HttpResponseMessage(statusCode) {
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
     }

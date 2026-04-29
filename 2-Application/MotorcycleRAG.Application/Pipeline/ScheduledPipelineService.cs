@@ -306,10 +306,25 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         }
     }
 
+    private static CrontabSchedule ParseCronExpression(string cronExpression) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(cronExpression);
+
+        var parts = cronExpression.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var normalizedCronExpression = string.Join(' ', parts);
+
+        return parts.Length switch {
+            5 => CrontabSchedule.Parse(normalizedCronExpression),
+            6 => CrontabSchedule.Parse(
+                normalizedCronExpression,
+                new CrontabSchedule.ParseOptions { IncludingSeconds = true }),
+            _ => throw new ArgumentException("Cron expression must contain 5 fields, or 6 fields when including seconds.", nameof(cronExpression))
+        };
+    }
+
     private void UpdateScheduleInternal() {
         try {
             if (_scheduleConfig.IsEnabled && !string.IsNullOrWhiteSpace(_scheduleConfig.CronExpression)) {
-                _schedule = CrontabSchedule.Parse(_scheduleConfig.CronExpression);
+                _schedule = ParseCronExpression(_scheduleConfig.CronExpression);
                 _nextExecutionTime = GetNextScheduledTime(DateTime.UtcNow);
 
                 _logger.LogDebug("Schedule updated successfully. Next execution: {NextExecution}", _nextExecutionTime);
@@ -363,7 +378,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
 /// Configuration for scheduled processing
 /// </summary>
 public class ScheduledProcessingConfiguration {
-    public string DefaultCronExpression { get; set; } = "0 0 2 * * *"; // Daily at 2 AM
+    public string DefaultCronExpression { get; set; } = "0 2 * * *"; // Daily at 2 AM
     public bool IsEnabledByDefault { get; set; } = true;
     public TimeSpan DefaultProcessingWindow { get; set; } = TimeSpan.FromHours(4);
     public int DefaultMaxConcurrentJobs { get; set; } = 3;

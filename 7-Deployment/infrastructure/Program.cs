@@ -294,15 +294,8 @@ namespace MotorcycleRAG.Infrastructure {
                     Ingress = new IngressArgs {
                         External = true,
                         TargetPort = 8080 // Standard .NET 8/10 port
-                    },
-                    Registries = new[]
-                    {
-                    new RegistryCredentialsArgs
-                    {
-                        Server = registry.LoginServer
-                        // No username/password - uses managed identity for ACR pull
                     }
-                }
+                    // No Registries config - managed identity with AcrPull role handles ACR auth
                 },
                 Template = new TemplateArgs {
                     Containers = new[]
@@ -349,15 +342,8 @@ namespace MotorcycleRAG.Infrastructure {
                     Ingress = new IngressArgs {
                         External = true,
                         TargetPort = 8080
-                    },
-                    Registries = new[]
-                    {
-                    new RegistryCredentialsArgs
-                    {
-                        Server = registry.LoginServer
-                        // No username/password - uses managed identity for ACR pull
                     }
-                }
+                    // No Registries config - managed identity with AcrPull role handles ACR auth
                 },
                 Template = new TemplateArgs {
                     Containers = new[]

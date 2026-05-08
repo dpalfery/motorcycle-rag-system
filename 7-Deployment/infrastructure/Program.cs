@@ -256,6 +256,12 @@ namespace MotorcycleRAG.Infrastructure {
                 AdminUserEnabled = false // Use managed identity for ACR access instead of admin user
             });
 
+            // 8b. User-assigned managed identity for Container Apps (ACR pull)
+            var containerAppIdentity = new Pulumi.AzureNative.ManagedIdentity.UserAssignedIdentity($"{namePrefix}-identity", new Pulumi.AzureNative.ManagedIdentity.UserAssignedIdentityArgs {
+                ResourceGroupName = resourceGroup.Name,
+                Location = location
+            });
+
             // 9. Managed Environment (ACA Environment)
             var managedEnvironment = new ManagedEnvironment($"{namePrefix}-env", new ManagedEnvironmentArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -288,7 +294,8 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 ManagedEnvironmentId = managedEnvironment.Id,
                 Identity = new ManagedServiceIdentityArgs {
-                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned,
+                    UserAssignedIdentities = new[] { containerAppIdentity.Id }
                 },
                 Configuration = new ConfigurationArgs {
                     Ingress = new IngressArgs {
@@ -299,8 +306,8 @@ namespace MotorcycleRAG.Infrastructure {
                     {
                         new RegistryCredentialsArgs
                         {
-                            Server = registry.LoginServer
-                            // System-assigned managed identity used automatically (AcrPull role required)
+                            Server = registry.LoginServer,
+                            Identity = containerAppIdentity.Id // Use user-assigned managed identity for ACR auth
                         }
                     }
                 },
@@ -343,7 +350,8 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 ManagedEnvironmentId = managedEnvironment.Id,
                 Identity = new ManagedServiceIdentityArgs {
-                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned,
+                    UserAssignedIdentities = new[] { containerAppIdentity.Id }
                 },
                 Configuration = new ConfigurationArgs {
                     Ingress = new IngressArgs {
@@ -354,8 +362,8 @@ namespace MotorcycleRAG.Infrastructure {
                     {
                         new RegistryCredentialsArgs
                         {
-                            Server = registry.LoginServer
-                            // System-assigned managed identity used automatically (AcrPull role required)
+                            Server = registry.LoginServer,
+                            Identity = containerAppIdentity.Id // Use user-assigned managed identity for ACR auth
                         }
                     }
                 },
@@ -781,17 +789,9 @@ namespace MotorcycleRAG.Infrastructure {
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
 
-            // RBAC: AcrPull for API Container App to pull images from ACR
-            _ = new RoleAssignment($"{namePrefix}-api-acr-pull-role", new RoleAssignmentArgs {
-                PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
-                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d", // AcrPull
-                Scope = registry.Id,
-                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
-            });
-
-            // RBAC: AcrPull for UI Container App to pull images from ACR
-            _ = new RoleAssignment($"{namePrefix}-ui-acr-pull-role", new RoleAssignmentArgs {
-                PrincipalId = uiApp.Identity.Apply(i => i!.PrincipalId),
+            // RBAC: AcrPull for Container Apps to pull images from ACR
+            _ = new RoleAssignment($"{namePrefix}-acr-pull-role", new RoleAssignmentArgs {
+                PrincipalId = containerAppIdentity.PrincipalId,
                 RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d", // AcrPull
                 Scope = registry.Id,
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal

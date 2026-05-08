@@ -294,8 +294,15 @@ namespace MotorcycleRAG.Infrastructure {
                     Ingress = new IngressArgs {
                         External = true,
                         TargetPort = 8080 // Standard .NET 8/10 port
+                    },
+                    Registries = new[]
+                    {
+                        new RegistryCredentialsArgs
+                        {
+                            Server = registry.LoginServer
+                            // Uses system-assigned managed identity for ACR auth (AcrPull role required)
+                        }
                     }
-                    // No Registries config - managed identity with AcrPull role handles ACR auth
                 },
                 Template = new TemplateArgs {
                     Containers = new[]
@@ -342,8 +349,15 @@ namespace MotorcycleRAG.Infrastructure {
                     Ingress = new IngressArgs {
                         External = true,
                         TargetPort = 8080
+                    },
+                    Registries = new[]
+                    {
+                        new RegistryCredentialsArgs
+                        {
+                            Server = registry.LoginServer
+                            // Uses system-assigned managed identity for ACR auth (AcrPull role required)
+                        }
                     }
-                    // No Registries config - managed identity with AcrPull role handles ACR auth
                 },
                 Template = new TemplateArgs {
                     Containers = new[]
@@ -351,7 +365,7 @@ namespace MotorcycleRAG.Infrastructure {
                     new ContainerArgs
                     {
                         Name = "ui",
-                        Image = Output.Format($"{registry.LoginServer}/motorcycle-rag-ui:latest"),
+                        Image = "mcr.microsoft.com/k8se/quickstart:latest", // Placeholder - pipeline will update with real image
                         Resources = new ContainerResourcesArgs
                         {
                             Cpu = 0.25,

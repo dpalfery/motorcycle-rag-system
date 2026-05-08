@@ -272,12 +272,6 @@ namespace MotorcycleRAG.Infrastructure {
                 }
             });
 
-            // Get Registry Credentials
-            var registryCredentials = ListRegistryCredentials.Invoke(new ListRegistryCredentialsInvokeArgs {
-                ResourceGroupName = resourceGroup.Name,
-                RegistryName = registry.Name
-            });
-
             // Define generic settings for ACA
             // ConnectionStrings__ApplicationInsights is injected directly (not via App Config / Key Vault)
             // so that the bootstrap TelemetryClient can capture App Config load failures and other
@@ -293,6 +287,9 @@ namespace MotorcycleRAG.Infrastructure {
             var apiApp = new ContainerApp($"{namePrefix}-api", new ContainerAppArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ManagedEnvironmentId = managedEnvironment.Id,
+                Identity = new ManagedServiceIdentityArgs {
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+                },
                 Configuration = new ConfigurationArgs {
                     Ingress = new IngressArgs {
                         External = true,
@@ -302,14 +299,9 @@ namespace MotorcycleRAG.Infrastructure {
                     {
                     new RegistryCredentialsArgs
                     {
-                        Server = registry.LoginServer,
-                        Username = registryCredentials.Apply(c => c.Username ?? ""),
-                        PasswordSecretRef = "acr-password"
+                        Server = registry.LoginServer
+                        // No username/password - uses managed identity for ACR pull
                     }
-                },
-                    Secrets = new[]
-                    {
-                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
                 },
                 Template = new TemplateArgs {
@@ -343,9 +335,6 @@ namespace MotorcycleRAG.Infrastructure {
                         MinReplicas = 0,
                         MaxReplicas = 10
                     }
-                },
-                Identity = new ManagedServiceIdentityArgs {
-                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
                 }
             });
 
@@ -353,6 +342,9 @@ namespace MotorcycleRAG.Infrastructure {
             var uiApp = new ContainerApp($"{namePrefix}-ui", new ContainerAppArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ManagedEnvironmentId = managedEnvironment.Id,
+                Identity = new ManagedServiceIdentityArgs {
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
+                },
                 Configuration = new ConfigurationArgs {
                     Ingress = new IngressArgs {
                         External = true,
@@ -362,14 +354,9 @@ namespace MotorcycleRAG.Infrastructure {
                     {
                     new RegistryCredentialsArgs
                     {
-                        Server = registry.LoginServer,
-                        Username = registryCredentials.Apply(c => c.Username ?? ""),
-                        PasswordSecretRef = "acr-password"
+                        Server = registry.LoginServer
+                        // No username/password - uses managed identity for ACR pull
                     }
-                },
-                    Secrets = new[]
-                    {
-                    new Pulumi.AzureNative.App.Inputs.SecretArgs { Name = "acr-password", Value = registryCredentials.Apply(c => c.Passwords[0].Value ?? "") }
                 }
                 },
                 Template = new TemplateArgs {
@@ -408,9 +395,6 @@ namespace MotorcycleRAG.Infrastructure {
                         MinReplicas = 1,
                         MaxReplicas = 10
                     }
-                },
-                Identity = new ManagedServiceIdentityArgs {
-                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned
                 }
             });
 
@@ -794,6 +778,22 @@ namespace MotorcycleRAG.Infrastructure {
                 PrincipalId = uiApp.Identity.Apply(i => i!.PrincipalId),
                 RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/ba92f5b4-2d11-453d-a403-e96b0029c9fe", // Storage Blob Data Contributor
                 Scope = dpBlobContainer.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
+
+            // RBAC: AcrPull for API Container App to pull images from ACR
+            _ = new RoleAssignment($"{namePrefix}-api-acr-pull-role", new RoleAssignmentArgs {
+                PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d", // AcrPull
+                Scope = registry.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
+
+            // RBAC: AcrPull for UI Container App to pull images from ACR
+            _ = new RoleAssignment($"{namePrefix}-ui-acr-pull-role", new RoleAssignmentArgs {
+                PrincipalId = uiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/7f951dda-4ed3-4680-a7ca-43fe172d538d", // AcrPull
+                Scope = registry.Id,
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
 

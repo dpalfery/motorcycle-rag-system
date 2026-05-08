@@ -1,7 +1,8 @@
 using Azure.AI.Agents.Persistent;
+using Azure;
 using Microsoft.Extensions.Logging;
 using Moq;
-using MotorcycleRAG.Persistence.Azure;
+using MotorcycleRAG.AgentProvisioning.Azure;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Services.AgentProvisioning;
@@ -52,7 +53,7 @@ public class AgentProvisioningServiceTests {
 
         _mockOps.Verify(o => o.CreateAgentAsync(
             AgentDefinitions.OrchestratorAgentName,
-            AgentDefinitions.OrchestratorModel,
+            AgentDefinitions.Qwen36DeploymentName,
             AgentDefinitions.OrchestratorSystemPrompt,
             It.IsAny<ToolDefinition[]>(),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -100,7 +101,7 @@ public class AgentProvisioningServiceTests {
         _mockOps.Setup(o => o.UpdateAgentAsync(
                 "existing-orchestrator-id",
                 AgentDefinitions.OrchestratorAgentName,
-                AgentDefinitions.OrchestratorModel,
+                AgentDefinitions.Qwen36DeploymentName,
                 AgentDefinitions.OrchestratorSystemPrompt,
                 It.IsAny<ToolDefinition[]>(),
                 It.IsAny<CancellationToken>()))
@@ -122,7 +123,7 @@ public class AgentProvisioningServiceTests {
         _mockOps.Verify(o => o.UpdateAgentAsync(
             "existing-orchestrator-id",
             AgentDefinitions.OrchestratorAgentName,
-            AgentDefinitions.OrchestratorModel,
+            AgentDefinitions.Qwen36DeploymentName,
             AgentDefinitions.OrchestratorSystemPrompt,
             It.IsAny<ToolDefinition[]>(),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -194,6 +195,66 @@ public class AgentProvisioningServiceTests {
     // -------------------------------------------------------------------------
     // Guard: missing system prompt
     // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ProvisionAllAgentsAsync_ShouldFallback_WhenPreferredOrchestratorModelsAreRejected() {
+        _mockOps.Setup(o => o.CreateAgentAsync(
+                AgentDefinitions.OrchestratorAgentName,
+                AgentDefinitions.Qwen36DeploymentName,
+                AgentDefinitions.OrchestratorSystemPrompt,
+                It.IsAny<ToolDefinition[]>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(400, "Model deployment is not supported by Foundry Agents"));
+
+        _mockOps.Setup(o => o.CreateAgentAsync(
+                AgentDefinitions.OrchestratorAgentName,
+                AgentDefinitions.Qwen35DeploymentName,
+                AgentDefinitions.OrchestratorSystemPrompt,
+                It.IsAny<ToolDefinition[]>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(400, "Model deployment is not supported by Foundry Agents"));
+
+        _mockOps.Setup(o => o.CreateAgentAsync(
+                AgentDefinitions.OrchestratorAgentName,
+                AgentDefinitions.OrchestratorFallbackModel,
+                AgentDefinitions.OrchestratorSystemPrompt,
+                It.IsAny<ToolDefinition[]>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("orchestrator-id");
+
+        _mockOps.Setup(o => o.CreateAgentAsync(
+                It.Is<string>(name => name != AgentDefinitions.OrchestratorAgentName),
+                AgentDefinitions.SubAgentModel,
+                It.IsAny<string>(),
+                It.IsAny<ToolDefinition[]>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string name, string _, string __, ToolDefinition[] ___, CancellationToken ____) => $"{name}-id");
+
+        var result = await _service.ProvisionAllAgentsAsync();
+
+        Assert.Equal("orchestrator-id", result.OrchestratorAgentId);
+
+        _mockOps.Verify(o => o.CreateAgentAsync(
+            AgentDefinitions.OrchestratorAgentName,
+            AgentDefinitions.OrchestratorFallbackModel,
+            AgentDefinitions.OrchestratorSystemPrompt,
+            It.IsAny<ToolDefinition[]>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void FromEnvironment_ShouldUseConfiguredModelDeployments_WhenProvided() {
+        var values = new Dictionary<string, string?>
+        {
+            ["ORCHESTRATOR_MODEL_DEPLOYMENTS"] = "qwen-a, qwen-b; gpt-fallback",
+            ["SUBAGENT_MODEL_DEPLOYMENT"] = "gpt-mini"
+        };
+
+        var options = AgentProvisioningModelOptions.FromEnvironment(key => values.GetValueOrDefault(key));
+
+        Assert.Equal(new[] { "qwen-a", "qwen-b", "gpt-fallback" }, options.OrchestratorModelCandidates);
+        Assert.Equal("gpt-mini", options.SubAgentModel);
+    }
 
     [Fact]
     public async Task ProvisionAllAgentsAsync_ShouldThrow_WhenOrchestratorSystemPromptIsEmpty() {

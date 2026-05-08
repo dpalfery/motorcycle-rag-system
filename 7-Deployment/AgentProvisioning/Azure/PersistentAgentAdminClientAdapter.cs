@@ -1,6 +1,6 @@
 using Azure.AI.Agents.Persistent;
 
-namespace MotorcycleRAG.Persistence.Azure;
+namespace MotorcycleRAG.AgentProvisioning.Azure;
 
 /// <summary>
 /// Implements <see cref="IAgentAdminOperations"/> using <see cref="PersistentAgentsClient"/>

@@ -39,7 +39,7 @@
     "chat.agentSessionsViewLocation": "view",
     "chat.viewSessions.enabled": true,
     "inlineChat.enableV2": true,
-    "chat.viewSessions.orientation": "stacked",
+    "chat.viewSessions.orientation": "sideBySide",
     "specstory.cloudSync.enabled": "always",
     "specstory.derivedRules.enabled": true,
     "airun.settings": {

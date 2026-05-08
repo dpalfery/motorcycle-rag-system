@@ -38,6 +38,7 @@
     <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj" />
     <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts.Models\MotorcycleRAG.Contracts.Models.csproj" />
     <ProjectReference Include="..\..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\7-Deployment\AgentProvisioning\MotorcycleRAG.AgentProvisioning.csproj" />
     <ProjectReference Include="..\..\..\0-Base\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
   </ItemGroup>
 

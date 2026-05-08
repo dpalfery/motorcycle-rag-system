@@ -97,6 +97,8 @@ jobs:
           echo "API_APP_NAME=${API_APP}"              >> "$GITHUB_ENV"
           echo "UI_APP_NAME=${UI_APP}"                >> "$GITHUB_ENV"
           FOUNDRY_ENDPOINT=$(pulumi stack output foundryProjectEndpoint --stack ${{ env.PULUMI_STACK }})
+          ORCHESTRATOR_MODEL_DEPLOYMENTS=$(pulumi stack output orchestratorModelDeploymentCandidates --stack ${{ env.PULUMI_STACK }})
+          SUBAGENT_MODEL_DEPLOYMENT=$(pulumi stack output subAgentModelDeploymentName --stack ${{ env.PULUMI_STACK }})
           KEY_VAULT_URI=$(pulumi stack output keyVaultUri --stack ${{ env.PULUMI_STACK }})
           KEY_VAULT_NAME="${KEY_VAULT_URI#https://}"
           KEY_VAULT_NAME="${KEY_VAULT_NAME%.vault.azure.net}"
@@ -105,6 +107,8 @@ jobs:
           echo "SQL_SERVER=${SQL_SERVER}"             >> "$GITHUB_ENV"
           echo "SQL_DATABASE=${SQL_DATABASE}"         >> "$GITHUB_ENV"
           echo "FOUNDRY_ENDPOINT=${FOUNDRY_ENDPOINT}" >> "$GITHUB_ENV"
+          echo "ORCHESTRATOR_MODEL_DEPLOYMENTS=${ORCHESTRATOR_MODEL_DEPLOYMENTS}" >> "$GITHUB_ENV"
+          echo "SUBAGENT_MODEL_DEPLOYMENT=${SUBAGENT_MODEL_DEPLOYMENT}" >> "$GITHUB_ENV"
           echo "KEY_VAULT_NAME=${KEY_VAULT_NAME}"     >> "$GITHUB_ENV"
         env:
           PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
@@ -215,6 +219,8 @@ jobs:
           echo "PDFSEARCH_AGENT_ID=${PDFSEARCH_AGENT_ID}"       >> "$GITHUB_ENV"
         env:
           AZURE_FOUNDRY_ENDPOINT: ${{ env.FOUNDRY_ENDPOINT }}
+          ORCHESTRATOR_MODEL_DEPLOYMENTS: ${{ env.ORCHESTRATOR_MODEL_DEPLOYMENTS }}
+          SUBAGENT_MODEL_DEPLOYMENT: ${{ env.SUBAGENT_MODEL_DEPLOYMENT }}
 
       # ── Write Agent IDs to Key Vault ────────────────────────────────
       - name: Write Agent IDs to Key Vault

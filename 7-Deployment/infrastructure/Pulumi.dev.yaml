@@ -15,3 +15,4 @@ config:
     secure: v1:qbrD1sv44dj7YjRd:zk2GZw5/iOO6xQ9UlGU4JxoHTCrvIKMZ9w2FSjUpBc5zqFRsePmDCILA3RPckhwbDxx1DYCvcPg=
   motorcycle-rag-infra:bffClientId: 03415674-de3a-4269-aebe-f21c116835b8
   motorcycle-rag-infra:bffCiamInstance: https://palfery.ciamlogin.com/
+  motorcycle-rag-infra:foundryLocation: eastus

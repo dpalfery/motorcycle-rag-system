@@ -1,6 +1,6 @@
 using Azure.AI.Agents.Persistent;
 
-namespace MotorcycleRAG.Persistence.Azure;
+namespace MotorcycleRAG.AgentProvisioning.Azure;
 
 /// <summary>
 /// Abstraction over Azure AI Agents persistent-agent CRUD operations.

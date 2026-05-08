@@ -1,6 +1,6 @@
 using Azure.AI.Agents.Persistent;
 
-namespace MotorcycleRAG.Persistence.Azure;
+namespace MotorcycleRAG.AgentProvisioning.Azure;
 
 /// <summary>
 /// Static definitions for all four Foundry agents: system prompts (verbatim from
@@ -13,8 +13,17 @@ public static class AgentDefinitions
     // Model names
     // -------------------------------------------------------------------------
 
-    public const string OrchestratorModel = "o4-mini";
-    public const string SubAgentModel = "Phi-4-mini-flash-reasoning";
+    public const string Qwen36DeploymentName = "qwen3-6-35b-a3b-fp8";
+    public const string Qwen35DeploymentName = "qwen3-5-35b-a3b";
+    public const string OrchestratorFallbackModel = "gpt-4-1";
+    public const string SubAgentModel = "gpt-4-1-mini";
+
+    public static readonly string[] DefaultOrchestratorModelCandidates =
+    [
+        Qwen36DeploymentName,
+        Qwen35DeploymentName,
+        OrchestratorFallbackModel
+    ];
 
     // -------------------------------------------------------------------------
     // Agent names — used as the stable lookup key for upsert logic

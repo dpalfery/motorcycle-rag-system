@@ -1,4 +1,4 @@
-namespace MotorcycleRAG.Persistence.Azure;
+namespace MotorcycleRAG.AgentProvisioning.Azure;
 
 /// <summary>
 /// Agent IDs returned by <see cref="AgentProvisioningService.ProvisionAllAgentsAsync"/>

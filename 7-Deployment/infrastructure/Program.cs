@@ -48,7 +48,19 @@ namespace MotorcycleRAG.Infrastructure {
 
             // General
             var location = cfg.Get("location") ?? "centralus";
-            var foundryLocation = cfg.Get("foundryLocation") ?? "eastus2";
+            var foundryLocation = cfg.Get("foundryLocation") ?? "eastus";
+            var qwen36DeploymentName = cfg.Get("qwen36DeploymentName") ?? "qwen3-6-35b-a3b-fp8";
+            var qwen35DeploymentName = cfg.Get("qwen35DeploymentName") ?? "qwen3-5-35b-a3b";
+            var orchestratorFallbackDeploymentName = cfg.Get("orchestratorFallbackDeploymentName") ?? "gpt-4-1";
+            var orchestratorFallbackModelName = cfg.Get("orchestratorFallbackModelName") ?? "gpt-4.1";
+            var orchestratorFallbackModelVersion = cfg.Get("orchestratorFallbackModelVersion") ?? "2025-04-14";
+            var orchestratorFallbackModelSku = cfg.Get("orchestratorFallbackModelSku") ?? "GlobalStandard";
+            var orchestratorFallbackModelCapacity = cfg.GetInt32("orchestratorFallbackModelCapacity") ?? 1;
+            var subAgentDeploymentName = cfg.Get("subAgentDeploymentName") ?? "gpt-4-1-mini";
+            var subAgentModelName = cfg.Get("subAgentModelName") ?? "gpt-4.1-mini";
+            var subAgentModelVersion = cfg.Get("subAgentModelVersion") ?? "2025-04-14";
+            var subAgentModelSku = cfg.Get("subAgentModelSku") ?? "GlobalStandard";
+            var subAgentModelCapacity = cfg.GetInt32("subAgentModelCapacity") ?? 1;
 
             // Naming convention: <org>-<workload>-<env>-<loc>-<resType>[<instance>]
             const string org = "mcr";           // motorcycle
@@ -202,6 +214,37 @@ namespace MotorcycleRAG.Infrastructure {
 
                 return $"https://{accountName}.services.ai.azure.com/api/projects/{foundryProjectName}";
             });
+
+            _ = CreateFoundryModelDeployment(
+                $"{foundryNamePrefix}-orchestrator-fallback-model",
+                resourceGroup.Name,
+                foundryAiServices.Name,
+                orchestratorFallbackDeploymentName,
+                "OpenAI",
+                orchestratorFallbackModelName,
+                orchestratorFallbackModelVersion,
+                orchestratorFallbackModelSku,
+                orchestratorFallbackModelCapacity,
+                foundryAiServices);
+
+            _ = CreateFoundryModelDeployment(
+                $"{foundryNamePrefix}-subagent-model",
+                resourceGroup.Name,
+                foundryAiServices.Name,
+                subAgentDeploymentName,
+                "OpenAI",
+                subAgentModelName,
+                subAgentModelVersion,
+                subAgentModelSku,
+                subAgentModelCapacity,
+                foundryAiServices);
+
+            // Qwen catalog endpoints are preferred candidates for the orchestrator, but Persistent
+            // Agents may reject them. The provisioning CLI validates them by attempting the agent
+            // upsert and falls back to the Pulumi-managed OpenAI deployment below.
+            var orchestratorModelDeploymentCandidates = string.Join(
+                ",",
+                new[] { qwen36DeploymentName, qwen35DeploymentName, orchestratorFallbackDeploymentName });
 
             // 8. Azure Container Registry
             var registry = new Registry($"{org}{workload}{env}acr", new RegistryArgs {
@@ -746,11 +789,50 @@ namespace MotorcycleRAG.Infrastructure {
             this.ApiAppName = apiApp.Name;
             this.UiAppName = uiApp.Name;
             this.AppConfigEndpoint = appConfig.Endpoint;
+            this.OrchestratorModelDeploymentCandidates = Output.Create(orchestratorModelDeploymentCandidates);
+            this.SubAgentModelDeploymentName = Output.Create(subAgentDeploymentName);
         }
 #pragma warning restore S138 // Functions should not have too many lines of code
 #pragma warning restore S1200 // Pulumi stacks naturally have many dependencies; splitting would require major refactor
 #pragma warning restore S3059 // Pulumi requires public class for deployment
 #pragma warning restore CA1515 // Pulumi requires public class for deployment
+
+        private static Pulumi.AzureNative.CognitiveServices.Deployment CreateFoundryModelDeployment(
+            string resourceName,
+            Input<string> resourceGroupName,
+            Input<string> accountName,
+            string deploymentName,
+            string modelFormat,
+            string modelName,
+            string modelVersion,
+            string skuName,
+            int capacity,
+            Pulumi.AzureNative.Resources.Resource dependsOn)
+        {
+            return new Pulumi.AzureNative.CognitiveServices.Deployment(resourceName, new Pulumi.AzureNative.CognitiveServices.DeploymentArgs
+            {
+                ResourceGroupName = resourceGroupName,
+                AccountName = accountName,
+                DeploymentName = deploymentName,
+                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs
+                {
+                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentModelArgs
+                    {
+                        Format = modelFormat,
+                        Name = modelName,
+                        Version = modelVersion
+                    }
+                },
+                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs
+                {
+                    Name = skuName,
+                    Capacity = capacity
+                }
+            }, new CustomResourceOptions
+            {
+                DependsOn = dependsOn
+            });
+        }
 
         [Output("aiServicesEndpoint")]
         public Output<string> AiServicesEndpoint { get; set; }
@@ -801,6 +883,12 @@ namespace MotorcycleRAG.Infrastructure {
 
         [Output("appConfigEndpoint")]
         public Output<string> AppConfigEndpoint { get; set; }
+
+        [Output("orchestratorModelDeploymentCandidates")]
+        public Output<string> OrchestratorModelDeploymentCandidates { get; set; }
+
+        [Output("subAgentModelDeploymentName")]
+        public Output<string> SubAgentModelDeploymentName { get; set; }
     }
 #pragma warning restore CA1506 // Avoid excessive class coupling
 }

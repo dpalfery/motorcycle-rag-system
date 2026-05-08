@@ -1,8 +1,5 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Persistence.Azure;
+using MotorcycleRAG.AgentProvisioning.Azure;
 using System.Text.Json;
 
 // -------------------------------------------------------------------------
@@ -14,7 +11,10 @@ using System.Text.Json;
 // IDs to stdout as JSON for the pipeline to capture and store in Key Vault.
 //
 // Required environment variable:
-//   AZURE_FOUNDRY_ENDPOINT  — Azure AI Foundry project endpoint URL
+//   AZURE_FOUNDRY_ENDPOINT          — Azure AI Foundry project endpoint URL
+// Optional environment variables:
+//   ORCHESTRATOR_MODEL_DEPLOYMENTS  — Comma-separated deployment names, preferred first
+//   SUBAGENT_MODEL_DEPLOYMENT       — Deployment name for vector/web/pdf agents
 //
 // Outputs (stdout, JSON):
 //   {
@@ -39,12 +39,6 @@ var logger = loggerFactory.CreateLogger("AgentProvisioning");
 
 try
 {
-    // Build configuration from environment variables only
-    // Secrets never in source — all values from env / Key Vault
-    var configuration = new ConfigurationBuilder()
-        .AddEnvironmentVariables()
-        .Build();
-
     var foundryEndpoint = Environment.GetEnvironmentVariable("AZURE_FOUNDRY_ENDPOINT");
     if (string.IsNullOrWhiteSpace(foundryEndpoint))
     {
@@ -52,27 +46,16 @@ try
         Environment.Exit(1);
     }
 
-    var options = Options.Create(new AzureFoundryOptions
-    {
-        FoundryEndpoint = foundryEndpoint,
-        // Other options are not needed for agent provisioning
-        SearchServiceEndpoint = Environment.GetEnvironmentVariable("AZURE_SEARCH_ENDPOINT") ?? string.Empty,
-        DocumentIntelligenceEndpoint = Environment.GetEnvironmentVariable("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT") ?? string.Empty,
-        Models = new ModelOptions
-        {
-            MaxTokens = 4096,
-            Temperature = 0.1f
-        },
-        Retry = new RetryOptions
-        {
-            MaxRetries = 3
-        }
-    });
+    var modelOptions = AgentProvisioningModelOptions.FromEnvironment(Environment.GetEnvironmentVariable);
 
     var provisioningLogger = loggerFactory.CreateLogger<AgentProvisioningService>();
-    var service = new AgentProvisioningService(options, provisioningLogger);
+    var service = new AgentProvisioningService(foundryEndpoint, modelOptions, provisioningLogger);
 
-    logger.LogInformation("Starting agent provisioning against {Endpoint}", foundryEndpoint);
+    logger.LogInformation(
+        "Starting agent provisioning against {Endpoint} with orchestrator model candidates {OrchestratorCandidates} and subagent model {SubAgentModel}",
+        foundryEndpoint,
+        string.Join(",", modelOptions.OrchestratorModelCandidates),
+        modelOptions.SubAgentModel);
 
     var agentIds = await service.ProvisionAllAgentsAsync();
 

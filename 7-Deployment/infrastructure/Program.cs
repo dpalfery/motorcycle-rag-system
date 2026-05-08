@@ -299,8 +299,8 @@ namespace MotorcycleRAG.Infrastructure {
                     {
                         new RegistryCredentialsArgs
                         {
-                            Server = registry.LoginServer,
-                            Identity = "systemAssigned" // Use system-assigned managed identity for ACR auth
+                            Server = registry.LoginServer
+                            // System-assigned managed identity used automatically (AcrPull role required)
                         }
                     }
                 },
@@ -354,8 +354,8 @@ namespace MotorcycleRAG.Infrastructure {
                     {
                         new RegistryCredentialsArgs
                         {
-                            Server = registry.LoginServer,
-                            Identity = "systemAssigned" // Use system-assigned managed identity for ACR auth
+                            Server = registry.LoginServer
+                            // System-assigned managed identity used automatically (AcrPull role required)
                         }
                     }
                 },

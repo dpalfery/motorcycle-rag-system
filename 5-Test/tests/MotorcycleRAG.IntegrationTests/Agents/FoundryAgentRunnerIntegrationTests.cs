@@ -30,10 +30,10 @@ public class FoundryAgentRunnerIntegrationTests
             FoundryEndpoint = endpoint,
             SearchServiceEndpoint = "https://placeholder.search.windows.net/",
             DocumentIntelligenceEndpoint = "https://placeholder.cognitiveservices.azure.com/",
-            OrchestratorAgentId = configuration["AzureAI:OrchestratorAgentId"] ?? string.Empty,
-            VectorSearchAgentId = configuration["AzureAI:VectorSearchAgentId"] ?? string.Empty,
-            WebSearchAgentId = configuration["AzureAI:WebSearchAgentId"] ?? string.Empty,
-            PDFSearchAgentId = configuration["AzureAI:PDFSearchAgentId"] ?? string.Empty,
+            OrchestratorAgentName = configuration["AzureAI:OrchestratorAgentName"] ?? string.Empty,
+            VectorSearchAgentName = configuration["AzureAI:VectorSearchAgentName"] ?? string.Empty,
+            WebSearchAgentName = configuration["AzureAI:WebSearchAgentName"] ?? string.Empty,
+            PDFSearchAgentName = configuration["AzureAI:PDFSearchAgentName"] ?? string.Empty,
             Models = new ModelOptions { MaxTokens = 4096, Temperature = 0.1f },
             Retry = new RetryOptions { MaxRetries = 3 }
         });
@@ -48,7 +48,7 @@ public class FoundryAgentRunnerIntegrationTests
     }
 
     [Fact(Skip = "Integration test - requires AzureAI:FoundryEndpoint configuration and az login")]
-    public async Task CreateThreadAsync_WithLiveFoundry_ReturnsNonEmptyThreadId()
+    public async Task CreateConversationAsync_WithLiveFoundry_ReturnsNonEmptyConversationId()
     {
         var runner = CreateRunner();
         if (runner == null)
@@ -57,18 +57,15 @@ public class FoundryAgentRunnerIntegrationTests
             return;
         }
 
-        // Act
-        var threadId = await runner.CreateThreadAsync();
+        var conversationId = await runner.CreateConversationAsync();
 
-        // Assert
-        Assert.False(string.IsNullOrWhiteSpace(threadId));
+        Assert.False(string.IsNullOrWhiteSpace(conversationId));
 
-        // Cleanup
-        await runner.DeleteThreadAsync(threadId);
+        await runner.DeleteConversationAsync(conversationId);
     }
 
-    [Fact(Skip = "Integration test - requires AzureAI:FoundryEndpoint configuration and az login")]
-    public async Task AddUserMessageAsync_WithLiveFoundry_DoesNotThrow()
+    [Fact(Skip = "Integration test - requires AzureAI:FoundryEndpoint and AzureAI:OrchestratorAgentName configuration plus az login")]
+    public async Task SendAgentMessageAsync_WithLiveOrchestratorAgent_ReturnsCompletedOrRequiresAction()
     {
         var runner = CreateRunner();
         if (runner == null)
@@ -77,57 +74,36 @@ public class FoundryAgentRunnerIntegrationTests
             return;
         }
 
-        var threadId = await runner.CreateThreadAsync();
-        try
+        var orchestratorAgentName = LoadIntegrationConfiguration()["AzureAI:OrchestratorAgentName"];
+        if (string.IsNullOrWhiteSpace(orchestratorAgentName))
         {
-            // Act & Assert — no exception
-            await runner.AddUserMessageAsync(threadId, "What is the oil capacity of a Honda CBR1000RR?");
-        }
-        finally
-        {
-            await runner.DeleteThreadAsync(threadId);
-        }
-    }
-
-    [Fact(Skip = "Integration test - requires AzureAI:FoundryEndpoint and AzureAI:OrchestratorAgentId configuration plus az login")]
-    public async Task CreateRunAsync_WithLiveOrchestratorAgent_ReturnsCompletedOrRequiresAction()
-    {
-        var runner = CreateRunner();
-        if (runner == null)
-        {
-            Assert.Fail("AzureAI:FoundryEndpoint is not configured");
+            Assert.Fail("AzureAI:OrchestratorAgentName is not configured");
             return;
         }
 
-        var orchestratorAgentId = LoadIntegrationConfiguration()["AzureAI:OrchestratorAgentId"];
-        if (string.IsNullOrWhiteSpace(orchestratorAgentId))
-        {
-            Assert.Fail("AzureAI:OrchestratorAgentId is not configured");
-            return;
-        }
-
-        var threadId = await runner.CreateThreadAsync();
+        var conversationId = await runner.CreateConversationAsync();
         try
         {
-            await runner.AddUserMessageAsync(threadId, "Honda CBR1000RR engine specifications");
-            var status = await runner.CreateRunAsync(threadId, orchestratorAgentId);
+            var status = await runner.SendAgentMessageAsync(
+                conversationId,
+                orchestratorAgentName,
+                "Honda CBR1000RR engine specifications");
 
-            // Assert — run must be in a valid terminal or action-required state
             Assert.True(
                 status.State == AgentRunState.Completed ||
                 status.State == AgentRunState.RequiresAction,
                 $"Expected Completed or RequiresAction but got {status.State}");
 
-            Assert.False(string.IsNullOrWhiteSpace(status.RunId));
+            Assert.False(string.IsNullOrWhiteSpace(status.ResponseId));
         }
         finally
         {
-            await runner.DeleteThreadAsync(threadId);
+            await runner.DeleteConversationAsync(conversationId);
         }
     }
 
     [Fact(Skip = "Integration test - requires AzureAI:FoundryEndpoint configuration and az login")]
-    public async Task DeleteThreadAsync_WithValidThread_DoesNotThrow()
+    public async Task DeleteConversationAsync_WithValidConversation_DoesNotThrow()
     {
         var runner = CreateRunner();
         if (runner == null)
@@ -136,9 +112,8 @@ public class FoundryAgentRunnerIntegrationTests
             return;
         }
 
-        var threadId = await runner.CreateThreadAsync();
+        var conversationId = await runner.CreateConversationAsync();
 
-        // Act & Assert — deletion should not throw
-        await runner.DeleteThreadAsync(threadId);
+        await runner.DeleteConversationAsync(conversationId);
     }
 }

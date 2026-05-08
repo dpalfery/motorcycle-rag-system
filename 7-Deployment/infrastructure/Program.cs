@@ -253,7 +253,7 @@ namespace MotorcycleRAG.Infrastructure {
                 Sku = new Pulumi.AzureNative.ContainerRegistry.Inputs.SkuArgs {
                     Name = Pulumi.AzureNative.ContainerRegistry.SkuName.Basic
                 },
-                AdminUserEnabled = true
+                AdminUserEnabled = false // Use managed identity for ACR access instead of admin user
             });
 
             // 9. Managed Environment (ACA Environment)
@@ -433,6 +433,8 @@ namespace MotorcycleRAG.Infrastructure {
             });
 
             // Allow Azure services (Container Apps) to connect to SQL Server
+            // NOTE: Using 0.0.0.0 allows ALL Azure services - acceptable for dev environment
+            // In production, this should be restricted to specific VNet subnet or managed identity
             _ = new Pulumi.AzureNative.Sql.FirewallRule("sql-allow-azure-services", new Pulumi.AzureNative.Sql.FirewallRuleArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ServerName = sqlServer.Name,
@@ -647,38 +649,70 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = kvSecretDeepinfraKey.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
             });
 
-            // Foundry agent IDs are written by the deploy pipeline into Key Vault after provisioning.
+            // Foundry agent references are written by the deploy pipeline into Key Vault after provisioning.
             // App Configuration resolves these versionless secret URIs at runtime for the API.
-            _ = new KeyValue("appconfig-kvref-orchestrator-agent-id", new KeyValueArgs {
+            _ = new KeyValue("appconfig-kvref-orchestrator-agent-name", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "AzureAI:OrchestratorAgentId",
+                KeyValueName = "AzureAI:OrchestratorAgentName",
                 ContentType = kvRefContentType,
-                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-ORCHESTRATOR-AGENT-ID\"}}")
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-ORCHESTRATOR-AGENT-NAME\"}}")
             });
 
-            _ = new KeyValue("appconfig-kvref-vectorsearch-agent-id", new KeyValueArgs {
+            _ = new KeyValue("appconfig-kvref-orchestrator-agent-version", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "AzureAI:VectorSearchAgentId",
+                KeyValueName = "AzureAI:OrchestratorAgentVersion",
                 ContentType = kvRefContentType,
-                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-VECTORSEARCH-AGENT-ID\"}}")
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-ORCHESTRATOR-AGENT-VERSION\"}}")
             });
 
-            _ = new KeyValue("appconfig-kvref-websearch-agent-id", new KeyValueArgs {
+            _ = new KeyValue("appconfig-kvref-vectorsearch-agent-name", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "AzureAI:WebSearchAgentId",
+                KeyValueName = "AzureAI:VectorSearchAgentName",
                 ContentType = kvRefContentType,
-                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-WEBSEARCH-AGENT-ID\"}}")
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-VECTORSEARCH-AGENT-NAME\"}}")
             });
 
-            _ = new KeyValue("appconfig-kvref-pdfsearch-agent-id", new KeyValueArgs {
+            _ = new KeyValue("appconfig-kvref-vectorsearch-agent-version", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "AzureAI:PDFSearchAgentId",
+                KeyValueName = "AzureAI:VectorSearchAgentVersion",
                 ContentType = kvRefContentType,
-                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-PDFSEARCH-AGENT-ID\"}}")
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-VECTORSEARCH-AGENT-VERSION\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-websearch-agent-name", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:WebSearchAgentName",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-WEBSEARCH-AGENT-NAME\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-websearch-agent-version", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:WebSearchAgentVersion",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-WEBSEARCH-AGENT-VERSION\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-pdfsearch-agent-name", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:PDFSearchAgentName",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-PDFSEARCH-AGENT-NAME\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-pdfsearch-agent-version", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:PDFSearchAgentVersion",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-PDFSEARCH-AGENT-VERSION\"}}")
             });
 
             // RBAC: Key Vault Secrets User for both apps

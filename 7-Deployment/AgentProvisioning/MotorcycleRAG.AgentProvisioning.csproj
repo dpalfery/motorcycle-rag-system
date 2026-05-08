@@ -7,10 +7,14 @@
     <Nullable>enable</Nullable>
     <RootNamespace>MotorcycleRAG.AgentProvisioning</RootNamespace>
     <AssemblyName>MotorcycleRAG.AgentProvisioning</AssemblyName>
+    <NoWarn>$(NoWarn);OPENAI001</NoWarn>
+    <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.AI.Agents.Persistent" Version="1.2.0-beta.2" />
+    <PackageReference Include="Azure.AI.Projects" Version="2.0.0" />
+    <PackageReference Include="Azure.AI.Projects.Agents" Version="2.0.0" />
+    <PackageReference Include="Azure.AI.Extensions.OpenAI" Version="2.0.0" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.7" />

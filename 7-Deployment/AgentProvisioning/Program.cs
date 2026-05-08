@@ -1,6 +1,7 @@
 using Azure;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.AgentProvisioning.Azure;
+using System.ClientModel;
 using System.Text.Json;
 
 // -------------------------------------------------------------------------
@@ -9,7 +10,7 @@ using System.Text.Json;
 // CLI entry point for the GitHub Actions deploy pipeline.
 // Reads Foundry configuration from environment variables, provisions all four
 // Foundry agents via AgentProvisioningService, then writes the assigned agent
-// IDs to stdout as JSON for the pipeline to capture and store in Key Vault.
+// names and versions to stdout as JSON for the pipeline to capture.
 //
 // Required environment variable:
 //   AZURE_FOUNDRY_ENDPOINT          — Azure AI Foundry project endpoint URL
@@ -19,10 +20,14 @@ using System.Text.Json;
 //
 // Outputs (stdout, JSON):
 //   {
-//     "orchestratorAgentId": "...",
-//     "vectorSearchAgentId": "...",
-//     "webSearchAgentId":    "...",
-//     "pdfSearchAgentId":    "..."
+//     "orchestratorAgentName": "...",
+//     "orchestratorAgentVersion": "...",
+//     "vectorSearchAgentName": "...",
+//     "vectorSearchAgentVersion": "...",
+//     "webSearchAgentName": "...",
+//     "webSearchAgentVersion": "...",
+//     "pdfSearchAgentName": "...",
+//     "pdfSearchAgentVersion": "..."
 //   }
 //
 // Exit codes:
@@ -58,17 +63,21 @@ try
         string.Join(",", modelOptions.OrchestratorModelCandidates),
         modelOptions.SubAgentModel);
 
-    var agentIds = await ProvisionWithPermissionRetryAsync(service, logger);
+    var agentReferences = await ProvisionWithPermissionRetryAsync(service, logger);
 
     logger.LogInformation("Provisioning complete");
 
-    // Write agent IDs as JSON to stdout — captured by the pipeline
+    // Write agent references as JSON to stdout — captured by the pipeline
     var output = new
     {
-        orchestratorAgentId = agentIds.OrchestratorAgentId,
-        vectorSearchAgentId = agentIds.VectorSearchAgentId,
-        webSearchAgentId = agentIds.WebSearchAgentId,
-        pdfSearchAgentId = agentIds.PDFSearchAgentId
+        orchestratorAgentName = agentReferences.Orchestrator.Name,
+        orchestratorAgentVersion = agentReferences.Orchestrator.Version,
+        vectorSearchAgentName = agentReferences.VectorSearch.Name,
+        vectorSearchAgentVersion = agentReferences.VectorSearch.Version,
+        webSearchAgentName = agentReferences.WebSearch.Name,
+        webSearchAgentVersion = agentReferences.WebSearch.Version,
+        pdfSearchAgentName = agentReferences.PDFSearch.Name,
+        pdfSearchAgentVersion = agentReferences.PDFSearch.Version
     };
 
     Console.WriteLine(JsonSerializer.Serialize(output));
@@ -81,7 +90,7 @@ catch (Exception ex)
     Environment.Exit(1);
 }
 
-static async Task<ProvisionedAgentIds> ProvisionWithPermissionRetryAsync(
+static async Task<ProvisionedAgentReferences> ProvisionWithPermissionRetryAsync(
     AgentProvisioningService service,
     ILogger logger)
 {
@@ -94,10 +103,7 @@ static async Task<ProvisionedAgentIds> ProvisionWithPermissionRetryAsync(
         {
             return await service.ProvisionAllAgentsAsync();
         }
-        catch (RequestFailedException ex) when (
-            attempt < maxAttempts &&
-            ex.Status == 401 &&
-            string.Equals(ex.ErrorCode, "PermissionDenied", StringComparison.OrdinalIgnoreCase))
+        catch (Exception ex) when (attempt < maxAttempts && IsPermissionPropagationFailure(ex))
         {
             logger.LogWarning(
                 ex,
@@ -110,4 +116,21 @@ static async Task<ProvisionedAgentIds> ProvisionWithPermissionRetryAsync(
     }
 
     throw new InvalidOperationException("Agent provisioning retry loop exhausted unexpectedly.");
+}
+
+static bool IsPermissionPropagationFailure(Exception ex)
+{
+    if (ex is RequestFailedException requestFailed)
+    {
+        return requestFailed.Status == 401
+            && string.Equals(requestFailed.ErrorCode, "PermissionDenied", StringComparison.OrdinalIgnoreCase);
+    }
+
+    if (ex is ClientResultException clientResult)
+    {
+        return clientResult.Status == 401
+            && clientResult.Message.Contains("PermissionDenied", StringComparison.OrdinalIgnoreCase);
+    }
+
+    return false;
 }

@@ -61,21 +61,21 @@ public sealed class OrchestratorToolHandlers
     // -------------------------------------------------------------------------
 
     public Task<AgentToolOutput> HandleVectorSearchAsync(AgentToolCall call, CancellationToken ct)
-        => RunSubAgentAsync(call, _options.VectorSearchAgentId, "vector_search", ct);
+        => RunSubAgentAsync(call, _options.VectorSearchAgentName, "vector_search", ct);
 
     // -------------------------------------------------------------------------
     // web_search
     // -------------------------------------------------------------------------
 
     public Task<AgentToolOutput> HandleWebSearchAsync(AgentToolCall call, CancellationToken ct)
-        => RunSubAgentAsync(call, _options.WebSearchAgentId, "web_search", ct);
+        => RunSubAgentAsync(call, _options.WebSearchAgentName, "web_search", ct);
 
     // -------------------------------------------------------------------------
     // pdf_search
     // -------------------------------------------------------------------------
 
     public Task<AgentToolOutput> HandlePDFSearchAsync(AgentToolCall call, CancellationToken ct)
-        => RunSubAgentAsync(call, _options.PDFSearchAgentId, "pdf_search", ct);
+        => RunSubAgentAsync(call, _options.PDFSearchAgentName, "pdf_search", ct);
 
     // -------------------------------------------------------------------------
     // Core sub-agent run loop
@@ -83,81 +83,78 @@ public sealed class OrchestratorToolHandlers
 
     private async Task<AgentToolOutput> RunSubAgentAsync(
         AgentToolCall call,
-        string agentId,
+        string agentName,
         string toolName,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(agentId))
+        if (string.IsNullOrWhiteSpace(agentName))
         {
-            _logger.LogError("Agent ID for '{ToolName}' is not configured", toolName);
+            _logger.LogError("Agent name for '{ToolName}' is not configured", toolName);
             return new AgentToolOutput(call.CallId,
-                JsonSerializer.Serialize(new { error = $"Agent ID for '{toolName}' is not configured" }));
+                JsonSerializer.Serialize(new { error = $"Agent name for '{toolName}' is not configured" }));
         }
 
-        var threadId = await _runner.CreateThreadAsync(ct);
+        var conversationId = await _runner.CreateConversationAsync(ct);
         _logger.LogInformation(
-            "Sub-agent run started: tool={Tool} agentId={AgentId} subThreadId={ThreadId}",
-            toolName, agentId, threadId);
+            "Sub-agent response started: tool={Tool} agentName={AgentName} subConversationId={ConversationId}",
+            toolName, agentName, conversationId);
 
         try
         {
             // Pass the entire tool call arguments as the user message to the sub-agent
-            await _runner.AddUserMessageAsync(threadId, call.ArgumentsJson, ct);
-
-            var status = await _runner.CreateRunAsync(threadId, agentId, ct);
+            var status = await _runner.SendAgentMessageAsync(conversationId, agentName, call.ArgumentsJson, ct);
             var rounds = 0;
 
             while (status.State == AgentRunState.RequiresAction && rounds < MaxSubAgentRounds)
             {
                 rounds++;
                 _logger.LogDebug(
-                    "Sub-run {RunId} on thread {ThreadId}: RequiresAction (round {Round}), dispatching {Count} tool calls",
-                    status.RunId, threadId, rounds, status.RequiredToolCalls?.Count ?? 0);
+                    "Sub-response {ResponseId} on conversation {ConversationId}: RequiresAction (round {Round}), dispatching {Count} tool calls",
+                    status.ResponseId, conversationId, rounds, status.RequiredToolCalls?.Count ?? 0);
 
                 var subOutputs = await _subAgentDispatcher.DispatchAsync(
                     status.RequiredToolCalls ?? [], ct);
 
                 status = await _runner.SubmitToolOutputsAsync(
-                    threadId, status.RunId, subOutputs, ct);
+                    conversationId, agentName, subOutputs, ct);
             }
 
             if (status.State != AgentRunState.Completed)
             {
                 var errorMsg = $"Sub-agent run ended with state {status.State}";
                 _logger.LogWarning(
-                    "Sub-agent run ended in non-completed state {State} (tool={Tool}, subRunId={RunId})",
-                    status.State, toolName, status.RunId);
+                    "Sub-agent response ended in non-completed state {State} (tool={Tool}, responseId={ResponseId})",
+                    status.State, toolName, status.ResponseId);
                 _degradedModeTracker.TrackFoundrySubRunResult(toolName, succeeded: false, errorMessage: errorMsg);
                 return new AgentToolOutput(call.CallId,
                     JsonSerializer.Serialize(new { error = errorMsg }));
             }
 
-            var answer = await _runner.GetLastAssistantMessageAsync(threadId, ct);
             _logger.LogInformation(
-                "Sub-agent run completed: tool={Tool} subRunId={RunId} answerLength={Length}",
-                toolName, status.RunId, answer.Length);
-            _degradedModeTracker.TrackFoundrySubRunResult(toolName, succeeded: true, resultSize: answer.Length);
+                "Sub-agent response completed: tool={Tool} responseId={ResponseId} answerLength={Length}",
+                toolName, status.ResponseId, status.OutputText.Length);
+            _degradedModeTracker.TrackFoundrySubRunResult(toolName, succeeded: true, resultSize: status.OutputText.Length);
 
             return new AgentToolOutput(call.CallId,
-                JsonSerializer.Serialize(new { result = answer }));
+                JsonSerializer.Serialize(new { result = status.OutputText }));
         }
         finally
         {
-            await SafeDeleteThreadAsync(threadId, toolName, ct);
+            await SafeDeleteConversationAsync(conversationId, toolName, ct);
         }
     }
 
-    private async Task SafeDeleteThreadAsync(string threadId, string toolName, CancellationToken ct)
+    private async Task SafeDeleteConversationAsync(string conversationId, string toolName, CancellationToken ct)
     {
         try
         {
-            await _runner.DeleteThreadAsync(threadId, ct);
+            await _runner.DeleteConversationAsync(conversationId, ct);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "Failed to delete sub-agent thread {ThreadId} for tool '{ToolName}'",
-                threadId, toolName);
+                "Failed to delete sub-agent conversation {ConversationId} for tool '{ToolName}'",
+                conversationId, toolName);
         }
     }
 }

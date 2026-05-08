@@ -8,9 +8,9 @@ using MotorcycleRAG.Core.Options;
 namespace MotorcycleRAG.Application.Services;
 
 /// <summary>
-/// Coordinates the Foundry OrchestratorAgent run loop: creates a thread, adds the user query,
-/// drives the run (dispatching tool calls to <see cref="OrchestratorToolHandlers"/>) until
-/// the run completes, and returns the synthesized answer embedded in a single <see cref="SearchResult"/>.
+/// Coordinates the Foundry OrchestratorAgent response loop: creates a conversation,
+/// drives responses (dispatching tool calls to <see cref="OrchestratorToolHandlers"/>) until
+/// the response completes, and returns the synthesized answer embedded in a single <see cref="SearchResult"/>.
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Split this class into smaller and more specialized ones", Justification = "Orchestrator naturally depends on multiple service types")]
 public sealed class AgentOrchestrator : IAgentOrchestrator
@@ -49,11 +49,11 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
 
     /// <inheritdoc />
     /// <remarks>
-    /// Drives the Foundry OrchestratorAgent run:
-    /// 1. Create thread + add user query
-    /// 2. Create run on <see cref="AzureFoundryOptions.OrchestratorAgentId"/>
-    /// 3. On <see cref="AgentRunState.RequiresAction"/> → dispatch tool calls → submit outputs
-    /// 4. On <see cref="AgentRunState.Completed"/> → extract final answer
+    /// Drives the Foundry OrchestratorAgent response loop:
+    /// 1. Create conversation
+    /// 2. Send user query to <see cref="AzureFoundryOptions.OrchestratorAgentName"/>
+    /// 3. On <see cref="AgentRunState.RequiresAction"/> → dispatch function tool calls → submit outputs
+    /// 4. On <see cref="AgentRunState.Completed"/> → return final answer text
     /// Returns the answer as a single synthetic <see cref="SearchResult"/>.
     /// </remarks>
     public async Task<SearchResult[]> ExecuteSequentialSearchAsync(string query, SearchContext context)
@@ -66,71 +66,69 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
 
         context ??= new SearchContext();
 
-        if (string.IsNullOrWhiteSpace(_options.OrchestratorAgentId))
+        if (string.IsNullOrWhiteSpace(_options.OrchestratorAgentName))
         {
-            _logger.LogError("OrchestratorAgentId is not configured — cannot start Foundry run");
-            throw new InvalidOperationException("AzureAI:OrchestratorAgentId is not configured");
+            _logger.LogError("OrchestratorAgentName is not configured — cannot start Foundry response");
+            throw new InvalidOperationException("AzureAI:OrchestratorAgentName is not configured");
         }
 
-        var threadId = await _runner.CreateThreadAsync();
+        var conversationId = await _runner.CreateConversationAsync();
 
         using var scope = _correlationService.CreateLoggingScope(new Dictionary<string, object>
         {
-            ["ThreadId"] = threadId,
+            ["ConversationId"] = conversationId,
             ["SessionId"] = context.SessionId ?? "none"
         });
 
-        _logger.LogInformation("Foundry run started: threadId={ThreadId} agentId={AgentId}", threadId, _options.OrchestratorAgentId);
+        _logger.LogInformation("Foundry response started: conversationId={ConversationId} agentName={AgentName}", conversationId, _options.OrchestratorAgentName);
 
         try
         {
-            await _runner.AddUserMessageAsync(threadId, query);
-            var status = await _runner.CreateRunAsync(threadId, _options.OrchestratorAgentId);
+            var status = await _runner.SendAgentMessageAsync(conversationId, _options.OrchestratorAgentName, query);
             var rounds = 0;
 
             while (status.State == AgentRunState.RequiresAction && rounds < MaxOrchestratorRounds)
             {
                 rounds++;
                 _logger.LogDebug(
-                    "Orchestrator run {RunId}: RequiresAction (round {Round}/{Max}), {Count} tool calls",
-                    status.RunId, rounds, MaxOrchestratorRounds, status.RequiredToolCalls?.Count ?? 0);
+                    "Orchestrator response {ResponseId}: RequiresAction (round {Round}/{Max}), {Count} tool calls",
+                    status.ResponseId, rounds, MaxOrchestratorRounds, status.RequiredToolCalls?.Count ?? 0);
 
                 var outputs = await _dispatcher.DispatchAsync(status.RequiredToolCalls ?? [], CancellationToken.None);
-                status = await _runner.SubmitToolOutputsAsync(threadId, status.RunId, outputs);
+                status = await _runner.SubmitToolOutputsAsync(conversationId, _options.OrchestratorAgentName, outputs);
             }
 
             if (status.State != AgentRunState.Completed)
             {
                 _logger.LogError(
-                    "Orchestrator run {RunId} ended in state {State} (threadId={ThreadId})",
-                    status.RunId, status.State, threadId);
+                    "Orchestrator response {ResponseId} ended in state {State} (conversationId={ConversationId})",
+                    status.ResponseId, status.State, conversationId);
                 throw new InvalidOperationException(
-                    $"Foundry orchestrator run ended with unexpected state: {status.State}");
+                    $"Foundry orchestrator response ended with unexpected state: {status.State}");
             }
 
-            var answer = await _runner.GetLastAssistantMessageAsync(threadId);
             _logger.LogInformation(
-                "Foundry run completed: runId={RunId} answerLength={Length}",
-                status.RunId, answer.Length);
+                "Foundry response completed: responseId={ResponseId} answerLength={Length}",
+                status.ResponseId, status.OutputText.Length);
 
             return
             [
                 new SearchResult
                 {
-                    Id = status.RunId,
-                    Content = answer,
+                    Id = status.ResponseId,
+                    Content = status.OutputText,
                     RelevanceScore = 1.0f,
                     Source = new SearchSource
                     {
                         AgentType = SearchAgentType.QueryPlanner,
                         SourceName = "Azure AI Foundry OrchestratorAgent",
-                        DocumentId = threadId
+                        DocumentId = conversationId
                     },
                     Metadata = new Dictionary<string, object>
                     {
                         ["FoundryAnswer"] = true,
-                        ["ThreadId"] = threadId,
-                        ["RunId"] = status.RunId,
+                        ["ConversationId"] = conversationId,
+                        ["ResponseId"] = status.ResponseId,
                         ["Rounds"] = rounds
                     }
                 }
@@ -138,7 +136,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         }
         finally
         {
-            await SafeDeleteThreadAsync(threadId);
+            await SafeDeleteConversationAsync(conversationId);
         }
     }
 
@@ -200,15 +198,15 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     // Helpers
     // -------------------------------------------------------------------------
 
-    private async Task SafeDeleteThreadAsync(string threadId)
+    private async Task SafeDeleteConversationAsync(string conversationId)
     {
         try
         {
-            await _runner.DeleteThreadAsync(threadId);
+            await _runner.DeleteConversationAsync(conversationId);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to delete orchestrator thread {ThreadId}", threadId);
+            _logger.LogWarning(ex, "Failed to delete orchestrator conversation {ConversationId}", conversationId);
         }
     }
 }

@@ -1,14 +1,15 @@
-using Azure.AI.Agents.Persistent;
 using Azure;
+using Azure.AI.Projects;
 using Azure.Identity;
 using Microsoft.Extensions.Logging;
+using OpenAI.Responses;
+using System.ClientModel;
 
 namespace MotorcycleRAG.AgentProvisioning.Azure;
 
 /// <summary>
-/// Creates or updates all four Foundry agent definitions (OrchestratorAgent, VectorSearchAgent,
-/// WebSearchAgent, PDFSearchAgent) using the Azure AI Agents Persistent SDK.
-/// Upsert logic: finds existing agents by name, updates them if found, creates them if not.
+/// Creates new versions for all four Foundry agent definitions (OrchestratorAgent, VectorSearchAgent,
+/// WebSearchAgent, PDFSearchAgent) using the Microsoft Foundry Agents SDK.
 /// Called exclusively from the <c>MotorcycleRAG.AgentProvisioning</c> CLI during the deploy pipeline.
 /// </summary>
 public sealed class AgentProvisioningService {
@@ -20,7 +21,7 @@ public sealed class AgentProvisioningService {
     private readonly string _webSearchSystemPrompt;
     private readonly string _pdfSearchSystemPrompt;
 
-    /// <summary>Production constructor — creates a <see cref="PersistentAgentsClient"/> from options.</summary>
+    /// <summary>Production constructor — creates an <see cref="AIProjectClient"/> from options.</summary>
     public AgentProvisioningService(
         string foundryEndpoint,
         AgentProvisioningModelOptions modelOptions,
@@ -30,8 +31,8 @@ public sealed class AgentProvisioningService {
         if (string.IsNullOrWhiteSpace(foundryEndpoint))
             throw new InvalidOperationException("AzureAI:FoundryEndpoint is required for AgentProvisioningService");
 
-        var client = new PersistentAgentsAdministrationClient(foundryEndpoint, new DefaultAzureCredential());
-        _adminOps = new PersistentAgentAdminClientAdapter(client);
+        var client = new AIProjectClient(new Uri(foundryEndpoint), new DefaultAzureCredential());
+        _adminOps = new FoundryAgentAdminClientAdapter(client.AgentAdministrationClient);
         _logger = logger;
         _modelOptions = modelOptions;
         _orchestratorSystemPrompt = AgentDefinitions.OrchestratorSystemPrompt;
@@ -61,31 +62,31 @@ public sealed class AgentProvisioningService {
     /// <summary>
     /// Creates or updates all four Foundry agents and returns their assigned IDs.
     /// </summary>
-    public async Task<ProvisionedAgentIds> ProvisionAllAgentsAsync(CancellationToken ct = default) {
+    public async Task<ProvisionedAgentReferences> ProvisionAllAgentsAsync(CancellationToken ct = default) {
         _logger.LogInformation("Starting Foundry agent provisioning");
 
-        var orchestratorId = await UpsertAgentWithFallbackAsync(
+        var orchestrator = await CreateAgentVersionWithFallbackAsync(
             AgentDefinitions.OrchestratorAgentName,
             _modelOptions.OrchestratorModelCandidates,
             _orchestratorSystemPrompt,
             AgentDefinitions.OrchestratorTools,
             ct);
 
-        var vectorSearchId = await UpsertAgentAsync(
+        var vectorSearch = await CreateAgentVersionAsync(
             AgentDefinitions.VectorSearchAgentName,
             _modelOptions.SubAgentModel,
             _vectorSearchSystemPrompt,
             AgentDefinitions.VectorSearchTools,
             ct);
 
-        var webSearchId = await UpsertAgentAsync(
+        var webSearch = await CreateAgentVersionAsync(
             AgentDefinitions.WebSearchAgentName,
             _modelOptions.SubAgentModel,
             _webSearchSystemPrompt,
             AgentDefinitions.WebSearchTools,
             ct);
 
-        var pdfSearchId = await UpsertAgentAsync(
+        var pdfSearch = await CreateAgentVersionAsync(
             AgentDefinitions.PDFSearchAgentName,
             _modelOptions.SubAgentModel,
             _pdfSearchSystemPrompt,
@@ -93,21 +94,24 @@ public sealed class AgentProvisioningService {
             ct);
 
         _logger.LogInformation(
-            "Agent provisioning complete: orchestrator={OrchestratorId} vectorSearch={VectorId} webSearch={WebId} pdfSearch={PdfId}",
-            orchestratorId, vectorSearchId, webSearchId, pdfSearchId);
+            "Agent provisioning complete: orchestrator={OrchestratorName}@{OrchestratorVersion} vectorSearch={VectorName}@{VectorVersion} webSearch={WebName}@{WebVersion} pdfSearch={PdfName}@{PdfVersion}",
+            orchestrator.Name, orchestrator.Version,
+            vectorSearch.Name, vectorSearch.Version,
+            webSearch.Name, webSearch.Version,
+            pdfSearch.Name, pdfSearch.Version);
 
-        return new ProvisionedAgentIds(orchestratorId, vectorSearchId, webSearchId, pdfSearchId);
+        return new ProvisionedAgentReferences(orchestrator, vectorSearch, webSearch, pdfSearch);
     }
 
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
-    private async Task<string> UpsertAgentWithFallbackAsync(
+    private async Task<ProvisionedAgentReference> CreateAgentVersionWithFallbackAsync(
         string name,
         IReadOnlyList<string> modelCandidates,
         string instructions,
-        ToolDefinition[] tools,
+        ResponseTool[] tools,
         CancellationToken ct) {
         if (modelCandidates.Count == 0)
             throw new InvalidOperationException($"No model deployment candidates configured for agent '{name}'");
@@ -115,9 +119,9 @@ public sealed class AgentProvisioningService {
         Exception? lastRejectedModel = null;
         foreach (var model in modelCandidates) {
             try {
-                return await UpsertAgentAsync(name, model, instructions, tools, ct);
+                return await CreateAgentVersionAsync(name, model, instructions, tools, ct);
             }
-            catch (RequestFailedException ex) when (ShouldTryNextModel(ex)) {
+            catch (Exception ex) when (ShouldTryNextModel(ex)) {
                 lastRejectedModel = ex;
                 _logger.LogWarning(
                     ex,
@@ -132,33 +136,38 @@ public sealed class AgentProvisioningService {
             lastRejectedModel);
     }
 
-    private async Task<string> UpsertAgentAsync(
+    private async Task<ProvisionedAgentReference> CreateAgentVersionAsync(
         string name,
         string model,
         string instructions,
-        ToolDefinition[] tools,
+        ResponseTool[] tools,
         CancellationToken ct) {
         if (string.IsNullOrWhiteSpace(instructions))
             throw new InvalidOperationException($"System prompt for agent '{name}' is missing or empty");
 
-        var existingAgents = await _adminOps.GetAgentsAsync(ct);
+        var existingAgentNames = await _adminOps.GetAgentNamesAsync(ct);
+        var operation = existingAgentNames.Contains(name, StringComparer.Ordinal)
+            ? "Creating new version for existing"
+            : "Creating first version for";
 
-        foreach (var (id, existingName) in existingAgents) {
-            if (existingName == name) {
-                _logger.LogInformation("Updating existing agent '{AgentName}' (id={AgentId})", name, id);
-                return await _adminOps.UpdateAgentAsync(id, name, model, instructions, tools, ct);
-            }
-        }
-
-        _logger.LogInformation("Creating new agent '{AgentName}'", name);
-        return await _adminOps.CreateAgentAsync(name, model, instructions, tools, ct);
+        _logger.LogInformation("{Operation} agent '{AgentName}' with model deployment '{ModelDeployment}'", operation, name, model);
+        return await _adminOps.CreateAgentVersionAsync(name, model, instructions, tools, ct);
     }
 
-    private static bool ShouldTryNextModel(RequestFailedException ex) {
-        if (ex.Status is not (400 or 404))
+    private static bool ShouldTryNextModel(Exception ex) {
+        if (ex is RequestFailedException requestFailed)
+            return IsModelRejection(requestFailed.Status, requestFailed.Message);
+
+        if (ex is ClientResultException clientResult)
+            return IsModelRejection(clientResult.Status, clientResult.Message);
+
+        return false;
+    }
+
+    private static bool IsModelRejection(int status, string message) {
+        if (status is not (400 or 404))
             return false;
 
-        var message = ex.Message;
         return message.Contains("model", StringComparison.OrdinalIgnoreCase)
             || message.Contains("deployment", StringComparison.OrdinalIgnoreCase)
             || message.Contains("not supported", StringComparison.OrdinalIgnoreCase)

@@ -1,24 +1,27 @@
-using Azure.AI.Agents.Persistent;
+using Azure.AI.Extensions.OpenAI;
+using Azure.AI.Projects;
 using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using OpenAI.Responses;
+using System.Collections.Concurrent;
+using System.ClientModel;
 
 namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
-/// Implements <see cref="IFoundryAgentRunner"/> using the Azure AI Agents Persistent SDK.
-/// All LLM reasoning occurs inside Foundry; this class only drives the thread/run lifecycle
-/// and executes I/O tool calls.
+/// Implements <see cref="IFoundryAgentRunner"/> using the new Microsoft Foundry
+/// conversations and responses API.
 /// </summary>
 public sealed class FoundryAgentRunner : IFoundryAgentRunner
 {
-    private static readonly TimeSpan PollingInterval = TimeSpan.FromMilliseconds(500);
-    private const int MaxPollIterations = 120; // 60 seconds max
-
-    private readonly PersistentAgentsClient _agentsClient;
+    private readonly ProjectConversationsClient _conversationsClient;
+    private readonly ProjectOpenAIClient _openAIClient;
+    private readonly IReadOnlyDictionary<string, string> _agentVersions;
+    private readonly ConcurrentDictionary<string, List<ResponseItem>> _conversationItems = new();
     private readonly ILogger<FoundryAgentRunner> _logger;
 
     public FoundryAgentRunner(
@@ -32,177 +35,169 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
         if (string.IsNullOrWhiteSpace(config.FoundryEndpoint))
             throw new InvalidOperationException("AzureAI:FoundryEndpoint is required for FoundryAgentRunner");
 
-        _agentsClient = new PersistentAgentsClient(config.FoundryEndpoint, new DefaultAzureCredential());
+        var projectClient = new AIProjectClient(new Uri(config.FoundryEndpoint), new DefaultAzureCredential());
+        _openAIClient = projectClient.ProjectOpenAIClient;
+        _conversationsClient = _openAIClient.GetProjectConversationsClient();
+        _agentVersions = BuildAgentVersionMap(config);
         _logger = logger;
     }
 
     /// <inheritdoc />
-    public async Task<string> CreateThreadAsync(CancellationToken ct = default)
+    public async Task<string> CreateConversationAsync(CancellationToken ct = default)
     {
-        _logger.LogDebug("Creating Foundry thread");
-        var thread = await _agentsClient.Threads.CreateThreadAsync(cancellationToken: ct);
-        _logger.LogDebug("Created Foundry thread {ThreadId}", thread.Value.Id);
-        return thread.Value.Id;
+        _logger.LogDebug("Creating Foundry conversation");
+        var conversation = await _conversationsClient.CreateProjectConversationAsync(
+            new ProjectConversationCreationOptions(),
+            ct);
+
+        _conversationItems[conversation.Value.Id] = [];
+        _logger.LogDebug("Created Foundry conversation {ConversationId}", conversation.Value.Id);
+        return conversation.Value.Id;
     }
 
     /// <inheritdoc />
-    public async Task AddUserMessageAsync(string threadId, string content, CancellationToken ct = default)
+    public Task<AgentResponseStatus> SendAgentMessageAsync(
+        string conversationId,
+        string agentName,
+        string content,
+        CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        ArgumentNullException.ThrowIfNull(content);
-
-        _logger.LogDebug("Adding user message to thread {ThreadId}", threadId);
-        await _agentsClient.Messages.CreateMessageAsync(
-            threadId,
-            MessageRole.User,
-            content,
-            cancellationToken: ct);
+        ArgumentException.ThrowIfNullOrWhiteSpace(content);
+        return CreateAgentResponseAsync(
+            conversationId,
+            agentName,
+            [ResponseItem.CreateUserMessageItem(content)],
+            ct);
     }
 
     /// <inheritdoc />
-    public async Task<AgentRunStatus> CreateRunAsync(string threadId, string agentId, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(agentId);
-
-        _logger.LogDebug("Creating run on thread {ThreadId} for agent {AgentId}", threadId, agentId);
-        var run = await _agentsClient.Runs.CreateRunAsync(threadId, agentId, cancellationToken: ct);
-
-        return await PollUntilTerminalOrRequiresActionAsync(threadId, run.Value, ct);
-    }
-
-    /// <inheritdoc />
-    public async Task<AgentRunStatus> GetRunStatusAsync(string threadId, string runId, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(runId);
-
-        var run = await _agentsClient.Runs.GetRunAsync(threadId, runId, ct);
-        return MapToAgentRunStatus(run.Value);
-    }
-
-    /// <inheritdoc />
-    public async Task<AgentRunStatus> SubmitToolOutputsAsync(
-        string threadId,
-        string runId,
+    public Task<AgentResponseStatus> SubmitToolOutputsAsync(
+        string conversationId,
+        string agentName,
         IEnumerable<AgentToolOutput> outputs,
         CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(runId);
         ArgumentNullException.ThrowIfNull(outputs);
 
-        var toolOutputList = outputs
-            .Select(o => new ToolOutput(o.CallId, o.Output))
-            .ToList();
+        var outputItems = outputs
+            .Select(o => ResponseItem.CreateFunctionCallOutputItem(o.CallId, o.Output))
+            .Cast<ResponseItem>()
+            .ToArray();
 
         _logger.LogDebug(
-            "Submitting {Count} tool outputs for run {RunId} on thread {ThreadId}",
-            toolOutputList.Count, runId, threadId);
+            "Submitting {Count} tool outputs for conversation {ConversationId} to agent {AgentName}",
+            outputItems.Length,
+            conversationId,
+            agentName);
 
-        var run = await _agentsClient.Runs.SubmitToolOutputsToRunAsync(
-            threadId, runId, toolOutputList, cancellationToken: ct);
-
-        return await PollUntilTerminalOrRequiresActionAsync(threadId, run.Value, ct);
+        return CreateAgentResponseAsync(conversationId, agentName, outputItems, ct);
     }
 
     /// <inheritdoc />
-    public async Task<string> GetLastAssistantMessageAsync(string threadId, CancellationToken ct = default)
+    public async Task DeleteConversationAsync(string conversationId, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
 
-        _logger.LogDebug("Retrieving last assistant message from thread {ThreadId}", threadId);
-        await foreach (var message in _agentsClient.Messages.GetMessagesAsync(threadId, cancellationToken: ct))
+        _conversationItems.TryRemove(conversationId, out _);
+
+        try
         {
-            if (message.Role == MessageRole.Agent)
-            {
-                var text = message.ContentItems
-                    .OfType<MessageTextContent>()
-                    .FirstOrDefault()?.Text ?? string.Empty;
-                _logger.LogDebug("Found assistant message ({Length} chars) in thread {ThreadId}", text.Length, threadId);
-                return text;
-            }
+            await _conversationsClient.DeleteConversationAsync(conversationId, options: null);
+            _logger.LogDebug("Deleted Foundry conversation {ConversationId}", conversationId);
         }
-
-        _logger.LogWarning("No assistant message found in thread {ThreadId}", threadId);
-        return string.Empty;
+        catch (ClientResultException ex) when (ex.Status == 404)
+        {
+            _logger.LogDebug("Foundry conversation {ConversationId} was already deleted", conversationId);
+        }
     }
 
-    /// <inheritdoc />
-    public async Task DeleteThreadAsync(string threadId, CancellationToken ct = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-
-        _logger.LogDebug("Deleting thread {ThreadId}", threadId);
-        await _agentsClient.Threads.DeleteThreadAsync(threadId, ct);
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private async Task<AgentRunStatus> PollUntilTerminalOrRequiresActionAsync(
-        string threadId,
-        ThreadRun run,
+    private async Task<AgentResponseStatus> CreateAgentResponseAsync(
+        string conversationId,
+        string agentName,
+        IReadOnlyList<ResponseItem> newItems,
         CancellationToken ct)
     {
-        var iterations = 0;
-        while (IsActiveRunState(run.Status) && iterations < MaxPollIterations)
-        {
-            await Task.Delay(PollingInterval, ct);
-            var updated = await _agentsClient.Runs.GetRunAsync(threadId, run.Id, ct);
-            run = updated.Value;
-            iterations++;
+        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(agentName);
 
-            _logger.LogDebug(
-                "Run {RunId} on thread {ThreadId}: state={State} (iteration {Iteration})",
-                run.Id, threadId, run.Status, iterations);
+        var inputItems = _conversationItems.GetOrAdd(conversationId, _ => []);
+        lock (inputItems)
+        {
+            inputItems.AddRange(newItems);
         }
 
-        if (iterations >= MaxPollIterations)
+        var requestItems = SnapshotItems(inputItems);
+        _agentVersions.TryGetValue(agentName, out var configuredVersion);
+        var responsesClient = _openAIClient.GetProjectResponsesClientForAgent(
+            new AgentReference(agentName, string.IsNullOrWhiteSpace(configuredVersion) ? null : configuredVersion),
+            null!);
+
+        _logger.LogDebug(
+            "Creating Foundry response for conversation {ConversationId} with agent {AgentName} and {ItemCount} input items",
+            conversationId,
+            agentName,
+            requestItems.Count);
+
+        var response = await responsesClient.CreateResponseAsync(requestItems, conversationId, ct);
+        var status = MapToAgentResponseStatus(response.Value);
+
+        lock (inputItems)
         {
-            _logger.LogWarning(
-                "Run {RunId} did not reach terminal state within {MaxIterations} poll iterations",
-                run.Id, MaxPollIterations);
+            inputItems.AddRange(response.Value.OutputItems);
         }
 
-        return MapToAgentRunStatus(run);
+        _logger.LogDebug(
+            "Foundry response {ResponseId} for conversation {ConversationId}: state={State}, toolCalls={ToolCallCount}",
+            status.ResponseId,
+            conversationId,
+            status.State,
+            status.RequiredToolCalls?.Count ?? 0);
+
+        return status;
     }
 
-    private static bool IsActiveRunState(RunStatus status) =>
-        status == RunStatus.Queued || status == RunStatus.InProgress;
-
-    private static AgentRunStatus MapToAgentRunStatus(ThreadRun run)
+    private static IReadOnlyList<ResponseItem> SnapshotItems(List<ResponseItem> items)
     {
-        AgentRunState state;
-        if (run.Status == RunStatus.Queued)
-            state = AgentRunState.Queued;
-        else if (run.Status == RunStatus.InProgress)
-            state = AgentRunState.InProgress;
-        else if (run.Status == RunStatus.RequiresAction)
-            state = AgentRunState.RequiresAction;
-        else if (run.Status == RunStatus.Completed)
-            state = AgentRunState.Completed;
-        else if (run.Status == RunStatus.Failed)
-            state = AgentRunState.Failed;
-        else if (run.Status == RunStatus.Cancelled)
-            state = AgentRunState.Cancelled;
-        else if (run.Status == RunStatus.Expired)
-            state = AgentRunState.Expired;
-        else
-            state = AgentRunState.Failed;
-
-        IReadOnlyList<AgentToolCall>? toolCalls = null;
-
-        if (state == AgentRunState.RequiresAction && run.RequiredAction is SubmitToolOutputsAction submitAction)
+        lock (items)
         {
-            toolCalls = submitAction.ToolCalls
-                .OfType<RequiredFunctionToolCall>()
-                .Select(tc => new AgentToolCall(tc.Id, tc.Name, tc.Arguments))
-                .ToList()
-                .AsReadOnly();
+            return items.ToArray();
         }
+    }
 
-        return new AgentRunStatus(run.Id, state, toolCalls);
+    private static AgentResponseStatus MapToAgentResponseStatus(ResponseResult response)
+    {
+        var toolCalls = response.OutputItems
+            .OfType<FunctionCallResponseItem>()
+            .Select(tc => new AgentToolCall(
+                tc.CallId,
+                tc.FunctionName,
+                tc.FunctionArguments.ToString()))
+            .ToList()
+            .AsReadOnly();
+
+        if (toolCalls.Count > 0)
+            return new AgentResponseStatus(response.Id, AgentRunState.RequiresAction, toolCalls, response.GetOutputText());
+
+        var state = response.Status == ResponseStatus.Completed
+            ? AgentRunState.Completed
+            : AgentRunState.Failed;
+
+        return new AgentResponseStatus(response.Id, state, null, response.GetOutputText());
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildAgentVersionMap(AzureFoundryOptions config)
+    {
+        var versions = new Dictionary<string, string>(StringComparer.Ordinal);
+        AddVersion(config.OrchestratorAgentName, config.OrchestratorAgentVersion, versions);
+        AddVersion(config.VectorSearchAgentName, config.VectorSearchAgentVersion, versions);
+        AddVersion(config.WebSearchAgentName, config.WebSearchAgentVersion, versions);
+        AddVersion(config.PDFSearchAgentName, config.PDFSearchAgentVersion, versions);
+        return versions;
+    }
+
+    private static void AddVersion(string name, string version, IDictionary<string, string> versions)
+    {
+        if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(version))
+            versions[name] = version;
     }
 }

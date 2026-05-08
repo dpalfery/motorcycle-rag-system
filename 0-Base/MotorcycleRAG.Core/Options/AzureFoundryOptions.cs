@@ -22,8 +22,13 @@ public class AzureFoundryOptions
 
     public RetryOptions Retry { get; set; } = new();
 
-    public string OrchestratorAgentId { get; set; } = string.Empty;
-    public string VectorSearchAgentId { get; set; } = string.Empty;
-    public string WebSearchAgentId { get; set; } = string.Empty;
-    public string PDFSearchAgentId { get; set; } = string.Empty;
+    public string OrchestratorAgentName { get; set; } = string.Empty;
+    public string VectorSearchAgentName { get; set; } = string.Empty;
+    public string WebSearchAgentName { get; set; } = string.Empty;
+    public string PDFSearchAgentName { get; set; } = string.Empty;
+
+    public string OrchestratorAgentVersion { get; set; } = string.Empty;
+    public string VectorSearchAgentVersion { get; set; } = string.Empty;
+    public string WebSearchAgentVersion { get; set; } = string.Empty;
+    public string PDFSearchAgentVersion { get; set; } = string.Empty;
 }

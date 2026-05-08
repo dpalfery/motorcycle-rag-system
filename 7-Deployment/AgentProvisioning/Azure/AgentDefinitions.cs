@@ -1,4 +1,4 @@
-using Azure.AI.Agents.Persistent;
+using OpenAI.Responses;
 
 namespace MotorcycleRAG.AgentProvisioning.Azure;
 
@@ -132,9 +132,9 @@ public static class AgentDefinitions
     // Tool definitions — JSON schemas matching specs/develop/data-model.md
     // -------------------------------------------------------------------------
 
-    public static readonly ToolDefinition[] OrchestratorTools =
+    public static readonly ResponseTool[] OrchestratorTools =
     [
-        new FunctionToolDefinition("vector_search", "Searches the internal motorcycle knowledge base (indexed manuals, specs, reviews).", BinaryData.FromObjectAsJson(new
+        CreateFunctionTool("vector_search", "Searches the internal motorcycle knowledge base (indexed manuals, specs, reviews).", new
         {
             type = "object",
             properties = new
@@ -143,8 +143,8 @@ public static class AgentDefinitions
                 max_results = new { type = "integer", description = "Maximum number of results to return", @default = 10 }
             },
             required = new[] { "query" }
-        })),
-        new FunctionToolDefinition("web_search", "Searches trusted motorcycle websites for current, broad, or opinion-based information.", BinaryData.FromObjectAsJson(new
+        }),
+        CreateFunctionTool("web_search", "Searches trusted motorcycle websites for current, broad, or opinion-based information.", new
         {
             type = "object",
             properties = new
@@ -153,8 +153,8 @@ public static class AgentDefinitions
                 max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
             },
             required = new[] { "query" }
-        })),
-        new FunctionToolDefinition("pdf_search", "Searches technical motorcycle manuals stored as PDFs.", BinaryData.FromObjectAsJson(new
+        }),
+        CreateFunctionTool("pdf_search", "Searches technical motorcycle manuals stored as PDFs.", new
         {
             type = "object",
             properties = new
@@ -163,12 +163,12 @@ public static class AgentDefinitions
                 max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
             },
             required = new[] { "query" }
-        }))
+        })
     ];
 
-    public static readonly ToolDefinition[] VectorSearchTools =
+    public static readonly ResponseTool[] VectorSearchTools =
     [
-        new FunctionToolDefinition("execute_azure_search", "Executes a query against the Azure AI Search index for the motorcycle knowledge base.", BinaryData.FromObjectAsJson(new
+        CreateFunctionTool("execute_azure_search", "Executes a query against the Azure AI Search index for the motorcycle knowledge base.", new
         {
             type = "object",
             properties = new
@@ -177,18 +177,18 @@ public static class AgentDefinitions
                 max_results = new { type = "integer", description = "Maximum number of results to return", @default = 10 }
             },
             required = new[] { "query" }
-        }))
+        })
     ];
 
-    public static readonly ToolDefinition[] WebSearchTools =
+    public static readonly ResponseTool[] WebSearchTools =
     [
-        new FunctionToolDefinition("get_trusted_sources", "Retrieves the list of trusted motorcycle websites configured by the admin.", BinaryData.FromObjectAsJson(new
+        CreateFunctionTool("get_trusted_sources", "Retrieves the list of trusted motorcycle websites configured by the admin.", new
         {
             type = "object",
             properties = new { },
             required = Array.Empty<string>()
-        })),
-        new FunctionToolDefinition("fetch_web_content", "Fetches and extracts content from a source URL using a search term.", BinaryData.FromObjectAsJson(new
+        }),
+        CreateFunctionTool("fetch_web_content", "Fetches and extracts content from a source URL using a search term.", new
         {
             type = "object",
             properties = new
@@ -197,8 +197,8 @@ public static class AgentDefinitions
                 search_term = new { type = "string", description = "The search term to use for content extraction" }
             },
             required = new[] { "url", "search_term" }
-        })),
-        new FunctionToolDefinition("score_content", "Scores content quality and applies trust weighting based on source tier.", BinaryData.FromObjectAsJson(new
+        }),
+        CreateFunctionTool("score_content", "Scores content quality and applies trust weighting based on source tier.", new
         {
             type = "object",
             properties = new
@@ -208,12 +208,12 @@ public static class AgentDefinitions
                 trust_tier = new { type = "integer", description = "Trust tier of the source (1=highest, 5=lowest)" }
             },
             required = new[] { "content", "source_url", "trust_tier" }
-        }))
+        })
     ];
 
-    public static readonly ToolDefinition[] PDFSearchTools =
+    public static readonly ResponseTool[] PDFSearchTools =
     [
-        new FunctionToolDefinition("search_pdf_index", "Searches the indexed PDF motorcycle manuals.", BinaryData.FromObjectAsJson(new
+        CreateFunctionTool("search_pdf_index", "Searches the indexed PDF motorcycle manuals.", new
         {
             type = "object",
             properties = new
@@ -222,6 +222,13 @@ public static class AgentDefinitions
                 max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
             },
             required = new[] { "query" }
-        }))
+        })
     ];
+
+    private static ResponseTool CreateFunctionTool(string name, string description, object parameters)
+        => ResponseTool.CreateFunctionTool(
+            name,
+            BinaryData.FromObjectAsJson(parameters),
+            false,
+            description);
 }

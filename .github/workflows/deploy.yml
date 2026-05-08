@@ -207,42 +207,58 @@ jobs:
             exit "${DOTNET_STATUS}"
           fi
 
-          AGENT_IDS_JSON=$(grep -E '^\{.*"orchestratorAgentId".*\}$' "${AGENT_PROVISIONING_LOG}" | tail -n 1)
-          if [ -z "${AGENT_IDS_JSON}" ]; then
+          AGENT_REFS_JSON=$(grep -E '^\{.*"orchestratorAgentName".*\}$' "${AGENT_PROVISIONING_LOG}" | tail -n 1)
+          if [ -z "${AGENT_REFS_JSON}" ]; then
             echo "Agent provisioning CLI completed but did not emit the expected JSON output."
             exit 1
           fi
 
-          ORCHESTRATOR_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.orchestratorAgentId')
-          VECTORSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.vectorSearchAgentId')
-          WEBSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.webSearchAgentId')
-          PDFSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.pdfSearchAgentId')
+          ORCHESTRATOR_AGENT_NAME=$(echo "${AGENT_REFS_JSON}" | jq -er '.orchestratorAgentName')
+          ORCHESTRATOR_AGENT_VERSION=$(echo "${AGENT_REFS_JSON}" | jq -er '.orchestratorAgentVersion')
+          VECTORSEARCH_AGENT_NAME=$(echo "${AGENT_REFS_JSON}" | jq -er '.vectorSearchAgentName')
+          VECTORSEARCH_AGENT_VERSION=$(echo "${AGENT_REFS_JSON}" | jq -er '.vectorSearchAgentVersion')
+          WEBSEARCH_AGENT_NAME=$(echo "${AGENT_REFS_JSON}" | jq -er '.webSearchAgentName')
+          WEBSEARCH_AGENT_VERSION=$(echo "${AGENT_REFS_JSON}" | jq -er '.webSearchAgentVersion')
+          PDFSEARCH_AGENT_NAME=$(echo "${AGENT_REFS_JSON}" | jq -er '.pdfSearchAgentName')
+          PDFSEARCH_AGENT_VERSION=$(echo "${AGENT_REFS_JSON}" | jq -er '.pdfSearchAgentVersion')
 
-          for agent_id in \
-            "${ORCHESTRATOR_AGENT_ID}" \
-            "${VECTORSEARCH_AGENT_ID}" \
-            "${WEBSEARCH_AGENT_ID}" \
-            "${PDFSEARCH_AGENT_ID}"; do
-            if [ -z "${agent_id}" ] || [ "${agent_id}" = "null" ]; then
-              echo "Agent provisioning returned an empty agent ID"
+          for agent_ref in \
+            "${ORCHESTRATOR_AGENT_NAME}" \
+            "${ORCHESTRATOR_AGENT_VERSION}" \
+            "${VECTORSEARCH_AGENT_NAME}" \
+            "${VECTORSEARCH_AGENT_VERSION}" \
+            "${WEBSEARCH_AGENT_NAME}" \
+            "${WEBSEARCH_AGENT_VERSION}" \
+            "${PDFSEARCH_AGENT_NAME}" \
+            "${PDFSEARCH_AGENT_VERSION}"; do
+            if [ -z "${agent_ref}" ] || [ "${agent_ref}" = "null" ]; then
+              echo "Agent provisioning returned an empty agent reference"
               exit 1
             fi
           done
 
-          echo "ORCHESTRATOR_AGENT_ID=${ORCHESTRATOR_AGENT_ID}" >> "$GITHUB_ENV"
-          echo "VECTORSEARCH_AGENT_ID=${VECTORSEARCH_AGENT_ID}" >> "$GITHUB_ENV"
-          echo "WEBSEARCH_AGENT_ID=${WEBSEARCH_AGENT_ID}"       >> "$GITHUB_ENV"
-          echo "PDFSEARCH_AGENT_ID=${PDFSEARCH_AGENT_ID}"       >> "$GITHUB_ENV"
+          echo "ORCHESTRATOR_AGENT_NAME=${ORCHESTRATOR_AGENT_NAME}" >> "$GITHUB_ENV"
+          echo "ORCHESTRATOR_AGENT_VERSION=${ORCHESTRATOR_AGENT_VERSION}" >> "$GITHUB_ENV"
+          echo "VECTORSEARCH_AGENT_NAME=${VECTORSEARCH_AGENT_NAME}" >> "$GITHUB_ENV"
+          echo "VECTORSEARCH_AGENT_VERSION=${VECTORSEARCH_AGENT_VERSION}" >> "$GITHUB_ENV"
+          echo "WEBSEARCH_AGENT_NAME=${WEBSEARCH_AGENT_NAME}" >> "$GITHUB_ENV"
+          echo "WEBSEARCH_AGENT_VERSION=${WEBSEARCH_AGENT_VERSION}" >> "$GITHUB_ENV"
+          echo "PDFSEARCH_AGENT_NAME=${PDFSEARCH_AGENT_NAME}" >> "$GITHUB_ENV"
+          echo "PDFSEARCH_AGENT_VERSION=${PDFSEARCH_AGENT_VERSION}" >> "$GITHUB_ENV"
         env:
           AZURE_FOUNDRY_ENDPOINT: ${{ env.FOUNDRY_ENDPOINT }}
           ORCHESTRATOR_MODEL_DEPLOYMENTS: ${{ env.ORCHESTRATOR_MODEL_DEPLOYMENTS }}
           SUBAGENT_MODEL_DEPLOYMENT: ${{ env.SUBAGENT_MODEL_DEPLOYMENT }}
 
-      # ── Write Agent IDs to Key Vault ────────────────────────────────
-      - name: Write Agent IDs to Key Vault
+      # ── Write Agent References to Key Vault ────────────────────────
+      - name: Write Agent References to Key Vault
         run: |
           set -euo pipefail
-          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-ORCHESTRATOR-AGENT-ID" --value "${{ env.ORCHESTRATOR_AGENT_ID }}"
-          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-VECTORSEARCH-AGENT-ID" --value "${{ env.VECTORSEARCH_AGENT_ID }}"
-          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-WEBSEARCH-AGENT-ID"    --value "${{ env.WEBSEARCH_AGENT_ID }}"
-          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-PDFSEARCH-AGENT-ID"    --value "${{ env.PDFSEARCH_AGENT_ID }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-ORCHESTRATOR-AGENT-NAME" --value "${{ env.ORCHESTRATOR_AGENT_NAME }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-ORCHESTRATOR-AGENT-VERSION" --value "${{ env.ORCHESTRATOR_AGENT_VERSION }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-VECTORSEARCH-AGENT-NAME" --value "${{ env.VECTORSEARCH_AGENT_NAME }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-VECTORSEARCH-AGENT-VERSION" --value "${{ env.VECTORSEARCH_AGENT_VERSION }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-WEBSEARCH-AGENT-NAME" --value "${{ env.WEBSEARCH_AGENT_NAME }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-WEBSEARCH-AGENT-VERSION" --value "${{ env.WEBSEARCH_AGENT_VERSION }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-PDFSEARCH-AGENT-NAME" --value "${{ env.PDFSEARCH_AGENT_NAME }}"
+          az keyvault secret set --vault-name "${{ env.KEY_VAULT_NAME }}" --name "MCR-PDFSEARCH-AGENT-VERSION" --value "${{ env.PDFSEARCH_AGENT_VERSION }}"

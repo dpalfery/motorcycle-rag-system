@@ -188,6 +188,30 @@ namespace MotorcycleRAG.Infrastructure {
                 }
             });
 
+            var orchestratorFallbackModelDeployment = CreateFoundryModelDeployment(
+                $"{foundryNamePrefix}-orchestrator-fallback-model",
+                resourceGroup.Name,
+                foundryAiServices.Name,
+                orchestratorFallbackDeploymentName,
+                "OpenAI",
+                orchestratorFallbackModelName,
+                orchestratorFallbackModelVersion,
+                orchestratorFallbackModelSku,
+                orchestratorFallbackModelCapacity,
+                new Pulumi.Resource[] { foundryAiServices });
+
+            var subAgentModelDeployment = CreateFoundryModelDeployment(
+                $"{foundryNamePrefix}-subagent-model",
+                resourceGroup.Name,
+                foundryAiServices.Name,
+                subAgentDeploymentName,
+                "OpenAI",
+                subAgentModelName,
+                subAgentModelVersion,
+                subAgentModelSku,
+                subAgentModelCapacity,
+                new Pulumi.Resource[] { orchestratorFallbackModelDeployment });
+
             const string foundryProjectName = "motorcycle-rag";
             var foundryProject = new Project($"{foundryNamePrefix}-foundry-project", new ProjectArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -202,7 +226,7 @@ namespace MotorcycleRAG.Infrastructure {
                     Description = "Azure AI Foundry project for the Motorcycle RAG system."
                 }
             }, new CustomResourceOptions {
-                DependsOn = new[] { foundryAiServices }
+                DependsOn = new Pulumi.Resource[] { subAgentModelDeployment }
             });
 
             var foundryProjectEndpoint = Output.Tuple(foundryAiServices.Name, foundryProject.Properties).Apply(values => {
@@ -214,30 +238,6 @@ namespace MotorcycleRAG.Infrastructure {
 
                 return $"https://{accountName}.services.ai.azure.com/api/projects/{foundryProjectName}";
             });
-
-            _ = CreateFoundryModelDeployment(
-                $"{foundryNamePrefix}-orchestrator-fallback-model",
-                resourceGroup.Name,
-                foundryAiServices.Name,
-                orchestratorFallbackDeploymentName,
-                "OpenAI",
-                orchestratorFallbackModelName,
-                orchestratorFallbackModelVersion,
-                orchestratorFallbackModelSku,
-                orchestratorFallbackModelCapacity,
-                foundryAiServices);
-
-            _ = CreateFoundryModelDeployment(
-                $"{foundryNamePrefix}-subagent-model",
-                resourceGroup.Name,
-                foundryAiServices.Name,
-                subAgentDeploymentName,
-                "OpenAI",
-                subAgentModelName,
-                subAgentModelVersion,
-                subAgentModelSku,
-                subAgentModelCapacity,
-                foundryAiServices);
 
             // Qwen catalog endpoints are preferred candidates for the orchestrator, but Persistent
             // Agents may reject them. The provisioning CLI validates them by attempting the agent
@@ -807,7 +807,7 @@ namespace MotorcycleRAG.Infrastructure {
             string modelVersion,
             string skuName,
             int capacity,
-            Pulumi.AzureNative.Resources.Resource dependsOn)
+            Pulumi.Resource[] dependsOn)
         {
             return new Pulumi.AzureNative.CognitiveServices.Deployment(resourceName, new Pulumi.AzureNative.CognitiveServices.DeploymentArgs
             {

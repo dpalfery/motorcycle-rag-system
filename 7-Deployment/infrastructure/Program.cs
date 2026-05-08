@@ -700,6 +700,14 @@ namespace MotorcycleRAG.Infrastructure {
                 Scope = keyVault.Id,
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
+            _ = new RoleAssignment($"{namePrefix}-pulumi-sp-foundry-agent-role", new RoleAssignmentArgs {
+                PrincipalId = "6e42ecfc-2f4a-4c08-b518-5aec4fffd355", // Pulumi service principal OID
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/53ca6127-db72-4b80-b1b0-d745d6d5456d", // Azure AI User
+                Scope = foundryProject.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            }, new CustomResourceOptions {
+                DependsOn = new Pulumi.Resource[] { foundryProject }
+            });
 
             // RBAC: App Configuration Data Reader for both apps
             _ = new RoleAssignment($"{namePrefix}-api-appconfig-role", new RoleAssignmentArgs {

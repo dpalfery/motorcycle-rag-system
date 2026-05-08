@@ -1,3 +1,4 @@
+using Azure;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.AgentProvisioning.Azure;
 using System.Text.Json;
@@ -57,7 +58,7 @@ try
         string.Join(",", modelOptions.OrchestratorModelCandidates),
         modelOptions.SubAgentModel);
 
-    var agentIds = await service.ProvisionAllAgentsAsync();
+    var agentIds = await ProvisionWithPermissionRetryAsync(service, logger);
 
     logger.LogInformation("Provisioning complete");
 
@@ -78,4 +79,35 @@ catch (Exception ex)
 {
     logger.LogError(ex, "Agent provisioning failed");
     Environment.Exit(1);
+}
+
+static async Task<ProvisionedAgentIds> ProvisionWithPermissionRetryAsync(
+    AgentProvisioningService service,
+    ILogger logger)
+{
+    const int maxAttempts = 6;
+    var delay = TimeSpan.FromSeconds(30);
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            return await service.ProvisionAllAgentsAsync();
+        }
+        catch (RequestFailedException ex) when (
+            attempt < maxAttempts &&
+            ex.Status == 401 &&
+            string.Equals(ex.ErrorCode, "PermissionDenied", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                ex,
+                "Foundry data-plane RBAC is not available yet. Retrying agent provisioning in {DelaySeconds} seconds ({Attempt}/{MaxAttempts}).",
+                delay.TotalSeconds,
+                attempt,
+                maxAttempts);
+            await Task.Delay(delay);
+        }
+    }
+
+    throw new InvalidOperationException("Agent provisioning retry loop exhausted unexpectedly.");
 }

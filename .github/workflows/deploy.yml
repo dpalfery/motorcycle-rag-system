@@ -195,7 +195,23 @@ jobs:
         id: provision-agents
         run: |
           set -euo pipefail
-          AGENT_IDS_JSON=$(dotnet run --project 7-Deployment/AgentProvisioning -- | tail -n 1)
+          AGENT_PROVISIONING_LOG="$(mktemp)"
+
+          set +e
+          dotnet run --project 7-Deployment/AgentProvisioning -- 2>&1 | tee "${AGENT_PROVISIONING_LOG}"
+          DOTNET_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          if [ "${DOTNET_STATUS}" -ne 0 ]; then
+            echo "Agent provisioning CLI failed. Full output is shown above."
+            exit "${DOTNET_STATUS}"
+          fi
+
+          AGENT_IDS_JSON=$(grep -E '^\{.*"orchestratorAgentId".*\}$' "${AGENT_PROVISIONING_LOG}" | tail -n 1)
+          if [ -z "${AGENT_IDS_JSON}" ]; then
+            echo "Agent provisioning CLI completed but did not emit the expected JSON output."
+            exit 1
+          fi
 
           ORCHESTRATOR_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.orchestratorAgentId')
           VECTORSEARCH_AGENT_ID=$(echo "${AGENT_IDS_JSON}" | jq -er '.vectorSearchAgentId')

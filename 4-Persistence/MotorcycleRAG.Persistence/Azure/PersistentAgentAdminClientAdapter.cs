@@ -5,16 +5,13 @@ namespace MotorcycleRAG.Persistence.Azure;
 /// <summary>
 /// Implements <see cref="IAgentAdminOperations"/> using <see cref="PersistentAgentsClient"/>
 /// from the <c>Azure.AI.Agents.Persistent</c> SDK.
-/// NOTE: Azure.AI.Agents.Persistent 1.2.0-beta.2 has significant API changes.
-/// Agent CRUD operations are not currently available in this beta version via PersistentAgentsClient.
-/// This class is a stub to maintain interface compatibility.
 /// Used by <see cref="AgentProvisioningService"/> in production.
 /// </summary>
 internal sealed class PersistentAgentAdminClientAdapter : IAgentAdminOperations
 {
-    private readonly PersistentAgentsClient _client;
+    private readonly PersistentAgentsAdministrationClient _client;
 
-    public PersistentAgentAdminClientAdapter(PersistentAgentsClient client)
+    public PersistentAgentAdminClientAdapter(PersistentAgentsAdministrationClient client)
     {
         ArgumentNullException.ThrowIfNull(client);
         _client = client;
@@ -23,11 +20,14 @@ internal sealed class PersistentAgentAdminClientAdapter : IAgentAdminOperations
     /// <inheritdoc />
     public async Task<IReadOnlyList<(string Id, string Name)>> GetAgentsAsync(CancellationToken ct = default)
     {
-        // Azure.AI.Agents.Persistent 1.2.0-beta.2 does not expose agent management via PersistentAgentsClient
-        // This is a stub implementation that returns an empty list
-        // Agent management should be handled through the Azure SDK's project/deployment APIs
-        await Task.Delay(0, ct);
-        return new List<(string Id, string Name)>().AsReadOnly();
+        var agents = new List<(string Id, string Name)>();
+
+        await foreach (var agent in _client.GetAgentsAsync(limit: 100, cancellationToken: ct))
+        {
+            agents.Add((agent.Id, agent.Name));
+        }
+
+        return agents.AsReadOnly();
     }
 
     /// <inheritdoc />
@@ -38,13 +38,15 @@ internal sealed class PersistentAgentAdminClientAdapter : IAgentAdminOperations
         ToolDefinition[] tools,
         CancellationToken ct = default)
     {
-        // Azure.AI.Agents.Persistent 1.2.0-beta.2 does not expose agent creation via PersistentAgentsClient
-        // Agent creation should be handled through the Azure SDK's project/deployment APIs
-        await Task.Delay(0, ct);
+        var agent = await _client.CreateAgentAsync(
+            model: model,
+            name: name,
+            description: $"Motorcycle RAG {name}",
+            instructions: instructions,
+            tools: tools,
+            cancellationToken: ct);
 
-        // Return a placeholder ID - in production, this should be properly implemented
-        // via the Azure Foundry SDK when the stable API becomes available
-        return $"agent-{Guid.NewGuid()}";
+        return agent.Value.Id;
     }
 
     /// <inheritdoc />
@@ -56,9 +58,15 @@ internal sealed class PersistentAgentAdminClientAdapter : IAgentAdminOperations
         ToolDefinition[] tools,
         CancellationToken ct = default)
     {
-        // Azure.AI.Agents.Persistent 1.2.0-beta.2 does not expose agent updates via PersistentAgentsClient
-        // Agent updates should be handled through the Azure SDK's project/deployment APIs
-        await Task.Delay(0, ct);
-        return agentId;
+        var agent = await _client.UpdateAgentAsync(
+            assistantId: agentId,
+            model: model,
+            name: name,
+            description: $"Motorcycle RAG {name}",
+            instructions: instructions,
+            tools: tools,
+            cancellationToken: ct);
+
+        return agent.Value.Id;
     }
 }

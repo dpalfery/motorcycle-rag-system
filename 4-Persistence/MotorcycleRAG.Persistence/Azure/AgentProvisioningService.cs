@@ -31,7 +31,7 @@ public sealed class AgentProvisioningService {
         if (string.IsNullOrWhiteSpace(config.FoundryEndpoint))
             throw new InvalidOperationException("AzureAI:FoundryEndpoint is required for AgentProvisioningService");
 
-        var client = new PersistentAgentsClient(config.FoundryEndpoint, new DefaultAzureCredential());
+        var client = new PersistentAgentsAdministrationClient(config.FoundryEndpoint, new DefaultAzureCredential());
         _adminOps = new PersistentAgentAdminClientAdapter(client);
         _logger = logger;
         _orchestratorSystemPrompt = AgentDefinitions.OrchestratorSystemPrompt;

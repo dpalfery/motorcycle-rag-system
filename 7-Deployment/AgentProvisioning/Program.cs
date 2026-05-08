@@ -29,7 +29,7 @@ using System.Text.Json;
 //   1 — configuration error or provisioning failure
 // -------------------------------------------------------------------------
 
-var loggerFactory = LoggerFactory.Create(builder =>
+using var loggerFactory = LoggerFactory.Create(builder =>
 {
     builder.AddConsole();
     builder.SetMinimumLevel(LogLevel.Information);

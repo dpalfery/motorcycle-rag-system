@@ -290,6 +290,25 @@ namespace MotorcycleRAG.Infrastructure {
                 new EnvironmentVarArgs { Name = "ConnectionStrings__ApplicationInsights", Value = appInsights.ConnectionString }
             };
 
+            // Custom Domain Certificates
+            var apiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-api-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
+                ResourceGroupName = resourceGroup.Name,
+                EnvironmentName = managedEnvironment.Name,
+                Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
+                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.TXT,
+                    SubjectName = "motorag.api.palfery.com"
+                }
+            });
+
+            var uiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-ui-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
+                ResourceGroupName = resourceGroup.Name,
+                EnvironmentName = managedEnvironment.Name,
+                Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
+                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.TXT,
+                    SubjectName = "motorag.palfery.com"
+                }
+            });
+
             // 10. API Container App
             var apiApp = new ContainerApp($"{namePrefix}-api", new ContainerAppArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -301,7 +320,14 @@ namespace MotorcycleRAG.Infrastructure {
                 Configuration = new ConfigurationArgs {
                     Ingress = new IngressArgs {
                         External = true,
-                        TargetPort = 8080 // Standard .NET 8/10 port
+                        TargetPort = 8080, // Standard .NET 8/10 port
+                        CustomDomains = new[] {
+                            new CustomDomainArgs {
+                                Name = "motorag.api.palfery.com",
+                                CertificateId = apiCert.Id,
+                                BindingType = Pulumi.AzureNative.App.BindingType.SniEnabled
+                            }
+                        }
                     },
                     Registries = new[]
                     {
@@ -357,7 +383,14 @@ namespace MotorcycleRAG.Infrastructure {
                 Configuration = new ConfigurationArgs {
                     Ingress = new IngressArgs {
                         External = true,
-                        TargetPort = 8080
+                        TargetPort = 8080,
+                        CustomDomains = new[] {
+                            new CustomDomainArgs {
+                                Name = "motorag.palfery.com",
+                                CertificateId = uiCert.Id,
+                                BindingType = Pulumi.AzureNative.App.BindingType.SniEnabled
+                            }
+                        }
                     },
                     Registries = new[]
                     {

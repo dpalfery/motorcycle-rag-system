@@ -294,7 +294,7 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 ManagedEnvironmentId = managedEnvironment.Id,
                 Identity = new ManagedServiceIdentityArgs {
-                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned,
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned_UserAssigned,
                     UserAssignedIdentities = new[] { containerAppIdentity.Id }
                 },
                 Configuration = new ConfigurationArgs {
@@ -350,7 +350,7 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 ManagedEnvironmentId = managedEnvironment.Id,
                 Identity = new ManagedServiceIdentityArgs {
-                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned,
+                    Type = Pulumi.AzureNative.App.ManagedServiceIdentityType.SystemAssigned_UserAssigned,
                     UserAssignedIdentities = new[] { containerAppIdentity.Id }
                 },
                 Configuration = new ConfigurationArgs {

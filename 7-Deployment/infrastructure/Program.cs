@@ -290,31 +290,26 @@ namespace MotorcycleRAG.Infrastructure {
                 new EnvironmentVarArgs { Name = "ConnectionStrings__ApplicationInsights", Value = appInsights.ConnectionString }
             };
 
-            // Custom Domain: Two-phase deployment
-            // Phase 1: Register hostnames with Disabled binding (no cert needed).
-            // Phase 2: After Phase 1 deploys, uncomment ManagedCertificate resources,
-            //          switch BindingType to SniEnabled, and add CertificateId references.
-            //
-            // TODO(phase2): Uncomment the ManagedCertificate blocks below and update
-            // CustomDomainArgs to use SniEnabled + CertificateId after Phase 1 has deployed.
-            //
-            // var apiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-api-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
-            //     ResourceGroupName = resourceGroup.Name,
-            //     EnvironmentName = managedEnvironment.Name,
-            //     Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
-            //         DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.TXT,
-            //         SubjectName = "motorag.api.palfery.com"
-            //     }
-            // }, new CustomResourceOptions { DependsOn = new Pulumi.Resource[] { apiApp } });
-            //
-            // var uiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-ui-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
-            //     ResourceGroupName = resourceGroup.Name,
-            //     EnvironmentName = managedEnvironment.Name,
-            //     Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
-            //         DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.TXT,
-            //         SubjectName = "motorag.palfery.com"
-            //     }
-            // }, new CustomResourceOptions { DependsOn = new Pulumi.Resource[] { uiApp } });
+            // Custom Domain: Managed Certificates
+            // Phase 1 (completed) registered hostnames with Disabled binding.
+            // Phase 2 (active) creates managed certs and enables SNI binding.
+            var apiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-api-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
+                ResourceGroupName = resourceGroup.Name,
+                EnvironmentName = managedEnvironment.Name,
+                Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
+                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.TXT,
+                    SubjectName = "motorag.api.palfery.com"
+                }
+            });
+
+            var uiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-ui-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
+                ResourceGroupName = resourceGroup.Name,
+                EnvironmentName = managedEnvironment.Name,
+                Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
+                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.TXT,
+                    SubjectName = "motorag.palfery.com"
+                }
+            });
 
             // 10. API Container App
             var apiApp = new ContainerApp($"{namePrefix}-api", new ContainerAppArgs {
@@ -331,8 +326,8 @@ namespace MotorcycleRAG.Infrastructure {
                         CustomDomains = new[] {
                             new Pulumi.AzureNative.App.Inputs.CustomDomainArgs {
                                 Name = "motorag.api.palfery.com",
-                                BindingType = Pulumi.AzureNative.App.BindingType.Disabled
-                                // TODO(phase2): Add CertificateId = apiCert.Id, switch to SniEnabled
+                                CertificateId = apiCert.Id,
+                                BindingType = Pulumi.AzureNative.App.BindingType.SniEnabled
                             }
                         }
                     },
@@ -394,8 +389,8 @@ namespace MotorcycleRAG.Infrastructure {
                         CustomDomains = new[] {
                             new Pulumi.AzureNative.App.Inputs.CustomDomainArgs {
                                 Name = "motorag.palfery.com",
-                                BindingType = Pulumi.AzureNative.App.BindingType.Disabled
-                                // TODO(phase2): Add CertificateId = uiCert.Id, switch to SniEnabled
+                                CertificateId = uiCert.Id,
+                                BindingType = Pulumi.AzureNative.App.BindingType.SniEnabled
                             }
                         }
                     },

@@ -26,9 +26,11 @@ public class AzureFoundryOptions
     public string VectorSearchAgentName { get; set; } = string.Empty;
     public string WebSearchAgentName { get; set; } = string.Empty;
     public string PDFSearchAgentName { get; set; } = string.Empty;
+    public string GraphQueryAgentName { get; set; } = string.Empty;
 
     public string OrchestratorAgentVersion { get; set; } = string.Empty;
     public string VectorSearchAgentVersion { get; set; } = string.Empty;
     public string WebSearchAgentVersion { get; set; } = string.Empty;
     public string PDFSearchAgentVersion { get; set; } = string.Empty;
+    public string GraphQueryAgentVersion { get; set; } = string.Empty;
 }

@@ -192,6 +192,7 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
         AddVersion(config.VectorSearchAgentName, config.VectorSearchAgentVersion, versions);
         AddVersion(config.WebSearchAgentName, config.WebSearchAgentVersion, versions);
         AddVersion(config.PDFSearchAgentName, config.PDFSearchAgentVersion, versions);
+        AddVersion(config.GraphQueryAgentName, config.GraphQueryAgentVersion, versions);
         return versions;
     }
 

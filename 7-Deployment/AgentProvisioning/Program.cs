@@ -77,7 +77,9 @@ try
         webSearchAgentName = agentReferences.WebSearch.Name,
         webSearchAgentVersion = agentReferences.WebSearch.Version,
         pdfSearchAgentName = agentReferences.PDFSearch.Name,
-        pdfSearchAgentVersion = agentReferences.PDFSearch.Version
+        pdfSearchAgentVersion = agentReferences.PDFSearch.Version,
+        graphQueryAgentName = agentReferences.GraphQuery.Name,
+        graphQueryAgentVersion = agentReferences.GraphQuery.Version
     };
 
     Console.WriteLine(JsonSerializer.Serialize(output));

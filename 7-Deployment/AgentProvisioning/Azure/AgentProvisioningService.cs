@@ -8,8 +8,8 @@ using System.ClientModel;
 namespace MotorcycleRAG.AgentProvisioning.Azure;
 
 /// <summary>
-/// Creates new versions for all four Foundry agent definitions (OrchestratorAgent, VectorSearchAgent,
-/// WebSearchAgent, PDFSearchAgent) using the Microsoft Foundry Agents SDK.
+/// Creates new versions for all five Foundry agent definitions (OrchestratorAgent, VectorSearchAgent,
+/// WebSearchAgent, PDFSearchAgent, GraphQueryAgent) using the Microsoft Foundry Agents SDK.
 /// Called exclusively from the <c>MotorcycleRAG.AgentProvisioning</c> CLI during the deploy pipeline.
 /// </summary>
 public sealed class AgentProvisioningService {
@@ -20,6 +20,7 @@ public sealed class AgentProvisioningService {
     private readonly string _vectorSearchSystemPrompt;
     private readonly string _webSearchSystemPrompt;
     private readonly string _pdfSearchSystemPrompt;
+    private readonly string _graphQuerySystemPrompt;
 
     /// <summary>Production constructor — creates an <see cref="AIProjectClient"/> from options.</summary>
     public AgentProvisioningService(
@@ -39,6 +40,7 @@ public sealed class AgentProvisioningService {
         _vectorSearchSystemPrompt = AgentDefinitions.VectorSearchSystemPrompt;
         _webSearchSystemPrompt = AgentDefinitions.WebSearchSystemPrompt;
         _pdfSearchSystemPrompt = AgentDefinitions.PDFSearchSystemPrompt;
+        _graphQuerySystemPrompt = AgentDefinitions.GraphQuerySystemPrompt;
     }
 
     /// <summary>Test constructor — injects a mock <see cref="IAgentAdminOperations"/>.</summary>
@@ -49,7 +51,8 @@ public sealed class AgentProvisioningService {
         string? orchestratorSystemPrompt = null,
         string? vectorSearchSystemPrompt = null,
         string? webSearchSystemPrompt = null,
-        string? pdfSearchSystemPrompt = null) {
+        string? pdfSearchSystemPrompt = null,
+        string? graphQuerySystemPrompt = null) {
         _adminOps = adminOps ?? throw new ArgumentNullException(nameof(adminOps));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _modelOptions = modelOptions ?? AgentProvisioningModelOptions.Default;
@@ -57,6 +60,7 @@ public sealed class AgentProvisioningService {
         _vectorSearchSystemPrompt = vectorSearchSystemPrompt ?? AgentDefinitions.VectorSearchSystemPrompt;
         _webSearchSystemPrompt = webSearchSystemPrompt ?? AgentDefinitions.WebSearchSystemPrompt;
         _pdfSearchSystemPrompt = pdfSearchSystemPrompt ?? AgentDefinitions.PDFSearchSystemPrompt;
+        _graphQuerySystemPrompt = graphQuerySystemPrompt ?? AgentDefinitions.GraphQuerySystemPrompt;
     }
 
     /// <summary>
@@ -93,14 +97,22 @@ public sealed class AgentProvisioningService {
             AgentDefinitions.PDFSearchTools,
             ct);
 
+        var graphQuery = await CreateAgentVersionAsync(
+            AgentDefinitions.GraphQueryAgentName,
+            AgentDefinitions.GraphQueryModel,
+            _graphQuerySystemPrompt,
+            AgentDefinitions.GraphQueryTools,
+            ct);
+
         _logger.LogInformation(
-            "Agent provisioning complete: orchestrator={OrchestratorName}@{OrchestratorVersion} vectorSearch={VectorName}@{VectorVersion} webSearch={WebName}@{WebVersion} pdfSearch={PdfName}@{PdfVersion}",
+            "Agent provisioning complete: orchestrator={OrchestratorName}@{OrchestratorVersion} vectorSearch={VectorName}@{VectorVersion} webSearch={WebName}@{WebVersion} pdfSearch={PdfName}@{PdfVersion} graphQuery={GraphName}@{GraphVersion}",
             orchestrator.Name, orchestrator.Version,
             vectorSearch.Name, vectorSearch.Version,
             webSearch.Name, webSearch.Version,
-            pdfSearch.Name, pdfSearch.Version);
+            pdfSearch.Name, pdfSearch.Version,
+            graphQuery.Name, graphQuery.Version);
 
-        return new ProvisionedAgentReferences(orchestrator, vectorSearch, webSearch, pdfSearch);
+        return new ProvisionedAgentReferences(orchestrator, vectorSearch, webSearch, pdfSearch, graphQuery);
     }
 
     // -------------------------------------------------------------------------

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Application.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
 using System.Text.Json;
 
@@ -17,18 +18,22 @@ public sealed class SubAgentToolHandlers
 {
     private readonly IAzureSearchClient _searchClient;
     private readonly ITrustedSourcesLoader _trustedSourcesLoader;
+    private readonly IGraphRepository _graphRepository;
     private readonly ILogger<SubAgentToolHandlers> _logger;
 
     public SubAgentToolHandlers(
         IAzureSearchClient searchClient,
         ITrustedSourcesLoader trustedSourcesLoader,
+        IGraphRepository graphRepository,
         ILogger<SubAgentToolHandlers> logger)
     {
         ArgumentNullException.ThrowIfNull(searchClient);
         ArgumentNullException.ThrowIfNull(trustedSourcesLoader);
+        ArgumentNullException.ThrowIfNull(graphRepository);
         ArgumentNullException.ThrowIfNull(logger);
         _searchClient = searchClient;
         _trustedSourcesLoader = trustedSourcesLoader;
+        _graphRepository = graphRepository;
         _logger = logger;
     }
 
@@ -43,6 +48,10 @@ public sealed class SubAgentToolHandlers
         dispatcher.RegisterHandler("score_content", HandleScoreContentAsync);
         dispatcher.RegisterHandler("get_trusted_sources", HandleGetTrustedSourcesAsync);
         dispatcher.RegisterHandler("search_pdf_index", HandleSearchPdfIndexAsync);
+        dispatcher.RegisterHandler("search_graph_nodes", HandleSearchGraphNodesAsync);
+        dispatcher.RegisterHandler("get_neighbours", HandleGetNeighboursAsync);
+        dispatcher.RegisterHandler("find_paths", HandleFindPathsAsync);
+        dispatcher.RegisterHandler("get_edges_by_type", HandleGetEdgesByTypeAsync);
     }
 
     // -------------------------------------------------------------------------
@@ -214,6 +223,118 @@ public sealed class SubAgentToolHandlers
             document_id = r.Source.DocumentId
         });
 
+        return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
+    }
+
+    // -------------------------------------------------------------------------
+    // search_graph_nodes — called by GraphQueryAgent
+    // -------------------------------------------------------------------------
+
+    public async Task<AgentToolOutput> HandleSearchGraphNodesAsync(
+        AgentToolCall call, CancellationToken ct)
+    {
+        var args = ParseArgs(call.ArgumentsJson);
+        var searchTerm = args.TryGetProperty("search_term", out var st) ? st.GetString() ?? string.Empty : string.Empty;
+        var typeFilter = args.TryGetProperty("type_filter", out var tf) ? tf.GetString() : null;
+        var maxResults = args.TryGetProperty("max_results", out var mr) ? mr.GetInt32() : 10;
+
+        _logger.LogDebug("search_graph_nodes: term={SearchTerm} type={TypeFilter}", searchTerm, typeFilter ?? "any");
+
+        var nodes = await _graphRepository.SearchNodesAsync(searchTerm, typeFilter, maxResults, ct);
+
+        _logger.LogInformation("search_graph_nodes completed: term={SearchTerm} count={Count}", searchTerm, nodes.Count);
+
+        var payload = nodes.Select(n => new { id = n.Id, name = n.Name, type = n.Type, description = n.Description });
+        return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
+    }
+
+    // -------------------------------------------------------------------------
+    // get_neighbours — called by GraphQueryAgent
+    // -------------------------------------------------------------------------
+
+    public async Task<AgentToolOutput> HandleGetNeighboursAsync(
+        AgentToolCall call, CancellationToken ct)
+    {
+        var args = ParseArgs(call.ArgumentsJson);
+        var nodeIdStr = args.TryGetProperty("node_id", out var ni) ? ni.GetString() ?? string.Empty : string.Empty;
+        var relFilter = args.TryGetProperty("relationship_type_filter", out var rf) ? rf.GetString() : null;
+
+        if (!Guid.TryParse(nodeIdStr, out var nodeId))
+            return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(new { error = $"Invalid node_id: {nodeIdStr}" }));
+
+        _logger.LogDebug("get_neighbours: nodeId={NodeId} filter={Filter}", nodeId, relFilter ?? "any");
+
+        var results = await _graphRepository.GetNeighboursAsync(nodeId, relFilter, ct);
+
+        _logger.LogInformation("get_neighbours completed: nodeId={NodeId} count={Count}", nodeId, results.Count);
+
+        var payload = results.Select(r => new
+        {
+            from = new { id = r.FromNode.Id, name = r.FromNode.Name, type = r.FromNode.Type },
+            relationship = r.RelationshipType,
+            weight = r.Weight,
+            context = r.Context,
+            to = new { id = r.ToNode.Id, name = r.ToNode.Name, type = r.ToNode.Type }
+        });
+        return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
+    }
+
+    // -------------------------------------------------------------------------
+    // find_paths — called by GraphQueryAgent
+    // -------------------------------------------------------------------------
+
+    public async Task<AgentToolOutput> HandleFindPathsAsync(
+        AgentToolCall call, CancellationToken ct)
+    {
+        var args = ParseArgs(call.ArgumentsJson);
+        var sourceIdStr = args.TryGetProperty("source_node_id", out var si) ? si.GetString() ?? string.Empty : string.Empty;
+        var maxDepth = args.TryGetProperty("max_depth", out var md) ? md.GetInt32() : 3;
+        var maxResults = args.TryGetProperty("max_results", out var mr) ? mr.GetInt32() : 20;
+
+        if (!Guid.TryParse(sourceIdStr, out var sourceNodeId))
+            return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(new { error = $"Invalid source_node_id: {sourceIdStr}" }));
+
+        _logger.LogDebug("find_paths: source={SourceId} maxDepth={MaxDepth}", sourceNodeId, maxDepth);
+
+        var paths = await _graphRepository.FindPathsAsync(sourceNodeId, maxDepth, maxResults, ct);
+
+        _logger.LogInformation("find_paths completed: source={SourceId} count={Count}", sourceNodeId, paths.Count);
+
+        var payload = paths.Select(p => new
+        {
+            source = new { id = p.SourceNode.Id, name = p.SourceNode.Name, type = p.SourceNode.Type },
+            first_relationship = p.FirstRelationship,
+            intermediate = new { id = p.IntermediateNode.Id, name = p.IntermediateNode.Name, type = p.IntermediateNode.Type },
+            second_relationship = p.SecondRelationship,
+            target = new { id = p.TargetNode.Id, name = p.TargetNode.Name, type = p.TargetNode.Type }
+        });
+        return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
+    }
+
+    // -------------------------------------------------------------------------
+    // get_edges_by_type — called by GraphQueryAgent
+    // -------------------------------------------------------------------------
+
+    public async Task<AgentToolOutput> HandleGetEdgesByTypeAsync(
+        AgentToolCall call, CancellationToken ct)
+    {
+        var args = ParseArgs(call.ArgumentsJson);
+        var relType = args.TryGetProperty("relationship_type", out var rt) ? rt.GetString() ?? string.Empty : string.Empty;
+        var maxResults = args.TryGetProperty("max_results", out var mr) ? mr.GetInt32() : 50;
+
+        _logger.LogDebug("get_edges_by_type: type={RelType}", relType);
+
+        var results = await _graphRepository.GetEdgesByTypeAsync(relType, maxResults, ct);
+
+        _logger.LogInformation("get_edges_by_type completed: type={RelType} count={Count}", relType, results.Count);
+
+        var payload = results.Select(r => new
+        {
+            from = new { id = r.FromNode.Id, name = r.FromNode.Name, type = r.FromNode.Type },
+            relationship = r.RelationshipType,
+            weight = r.Weight,
+            to = new { id = r.ToNode.Id, name = r.ToNode.Name, type = r.ToNode.Type }
+        });
         return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
     }
 

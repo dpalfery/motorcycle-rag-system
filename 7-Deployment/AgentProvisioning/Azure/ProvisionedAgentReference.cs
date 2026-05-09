@@ -7,10 +7,11 @@ public record ProvisionedAgentReference(string Name, string Version);
 
 /// <summary>
 /// Agent references returned by <see cref="AgentProvisioningService.ProvisionAllAgentsAsync"/>
-/// after all four Foundry agents have been versioned.
+/// after all five Foundry agents have been versioned.
 /// </summary>
 public record ProvisionedAgentReferences(
     ProvisionedAgentReference Orchestrator,
     ProvisionedAgentReference VectorSearch,
     ProvisionedAgentReference WebSearch,
-    ProvisionedAgentReference PDFSearch);
+    ProvisionedAgentReference PDFSearch,
+    ProvisionedAgentReference GraphQuery);

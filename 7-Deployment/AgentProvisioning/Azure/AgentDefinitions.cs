@@ -33,6 +33,9 @@ public static class AgentDefinitions
     public const string VectorSearchAgentName = "MCR-VectorSearchAgent";
     public const string WebSearchAgentName = "MCR-WebSearchAgent";
     public const string PDFSearchAgentName = "MCR-PDFSearchAgent";
+    public const string GraphQueryAgentName = "MCR-GraphQueryAgent";
+
+    public const string GraphQueryModel = "deepseek-v4-flash";
 
     // -------------------------------------------------------------------------
     // System prompts — copied verbatim from specs/develop/contracts/
@@ -41,9 +44,9 @@ public static class AgentDefinitions
     public static readonly string OrchestratorSystemPrompt =
         """
         You are a motorcycle knowledge assistant. Your job is to answer user questions about motorcycles
-        accurately and completely by coordinating three specialised search agents.
+        accurately and completely by coordinating four specialised search agents.
 
-        You have three tools:
+        You have four tools:
 
         - vector_search: Searches the internal motorcycle knowledge base (indexed manuals, specs, reviews).
           Use this first for any motorcycle question.
@@ -57,11 +60,18 @@ public static class AgentDefinitions
           Use this for precise technical questions: torque specs, valve clearances, service intervals,
           wiring diagrams, fault codes.
 
+        - graph_query: Explores the structured knowledge graph of motorcycle entities and relationships.
+          Use this for questions about how components relate, what procedures require, what parts are
+          shared across models, or any question where understanding entity relationships adds value.
+          Especially useful for: "what parts does X procedure need?", "what procedures are related to
+          component Y?", "what bikes share this component?"
+
         Decision guidance:
         - Always start with vector_search.
         - After reviewing results, decide if they are sufficient to answer well.
         - If results feel thin, outdated, or the question needs broader context, call web_search.
         - If the question is clearly technical or maintenance-related, also call pdf_search.
+        - If the question is about relationships, dependencies, or shared components, call graph_query.
         - Stop calling tools once you have enough information to give a thorough answer.
         - If you reach the tool call limit, synthesise the best answer from what you have gathered.
 
@@ -128,6 +138,40 @@ public static class AgentDefinitions
         If no relevant manual content is found, state this clearly.
         """;
 
+    public static readonly string GraphQuerySystemPrompt =
+        """
+        You are a motorcycle knowledge graph expert. Given a user query, you explore the
+        structured relationship graph of motorcycles, components, procedures, specifications,
+        and warnings to find connected information that text search alone would miss.
+
+        You have four tools:
+
+        - search_graph_nodes(search_term, type_filter, max_results): Finds entities in the
+          knowledge graph by name. Use this first to locate the starting node(s) for traversal.
+          Types: Motorcycle, Component, Procedure, Specification, Warning.
+
+        - get_neighbours(node_id, relationship_type_filter): Returns all entities directly
+          connected to a node. Relationship types: REQUIRES, PART_OF, RELATED_TO, PRECEDES,
+          REFERENCES. Omit filter to see all connections.
+
+        - find_paths(source_node_id, max_depth, max_results): Discovers multi-hop paths from
+          a node through intermediates. Set max_depth as high as needed to find the
+          relationships you are looking for.
+
+        - get_edges_by_type(relationship_type, max_results): Returns all relationships of a
+          specific type across the entire graph.
+
+        Process:
+        - Start with search_graph_nodes to find relevant entities.
+        - Use get_neighbours to explore direct connections.
+        - If deeper relationships are needed, use find_paths with an appropriate depth.
+        - Synthesise the graph structure into a human-readable answer showing how
+          entities are connected.
+        - If the graph contains no relevant data, state this clearly.
+
+        Present relationships clearly, e.g.: "Honda CBR600RR → PART_OF → Fuel System → REQUIRES → Main Jet (108)"
+        """;
+
     // -------------------------------------------------------------------------
     // Tool definitions — JSON schemas matching specs/develop/data-model.md
     // -------------------------------------------------------------------------
@@ -161,6 +205,16 @@ public static class AgentDefinitions
             {
                 query = new { type = "string", description = "The technical search query" },
                 max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
+            },
+            required = new[] { "query" }
+        }),
+        CreateFunctionTool("graph_query", "Explores the structured knowledge graph of motorcycle entities and relationships. Use for questions about how components relate, what procedures require, what parts are shared across models.", new
+        {
+            type = "object",
+            properties = new
+            {
+                query = new { type = "string", description = "The relationship or entity query" },
+                max_results = new { type = "integer", description = "Maximum number of results to return", @default = 10 }
             },
             required = new[] { "query" }
         })
@@ -222,6 +276,52 @@ public static class AgentDefinitions
                 max_results = new { type = "integer", description = "Maximum number of results to return", @default = 5 }
             },
             required = new[] { "query" }
+        })
+    ];
+
+    public static readonly ResponseTool[] GraphQueryTools =
+    [
+        CreateFunctionTool("search_graph_nodes", "Finds entities in the motorcycle knowledge graph by name with optional type filtering.", new
+        {
+            type = "object",
+            properties = new
+            {
+                search_term = new { type = "string", description = "The entity name to search for" },
+                type_filter = new { type = "string", description = "Optional entity type filter: Motorcycle, Component, Procedure, Specification, Warning" },
+                max_results = new { type = "integer", description = "Maximum number of results", @default = 10 }
+            },
+            required = new[] { "search_term" }
+        }),
+        CreateFunctionTool("get_neighbours", "Returns all entities directly connected to a node via graph edges.", new
+        {
+            type = "object",
+            properties = new
+            {
+                node_id = new { type = "string", description = "The GUID of the node to explore" },
+                relationship_type_filter = new { type = "string", description = "Optional: REQUIRES, PART_OF, RELATED_TO, PRECEDES, REFERENCES" }
+            },
+            required = new[] { "node_id" }
+        }),
+        CreateFunctionTool("find_paths", "Discovers multi-hop paths from a source node through intermediates in the knowledge graph.", new
+        {
+            type = "object",
+            properties = new
+            {
+                source_node_id = new { type = "string", description = "The GUID of the starting node" },
+                max_depth = new { type = "integer", description = "Maximum traversal depth (number of hops)", @default = 3 },
+                max_results = new { type = "integer", description = "Maximum number of path results", @default = 20 }
+            },
+            required = new[] { "source_node_id" }
+        }),
+        CreateFunctionTool("get_edges_by_type", "Returns all relationships of a specific type across the entire knowledge graph.", new
+        {
+            type = "object",
+            properties = new
+            {
+                relationship_type = new { type = "string", description = "The relationship type: REQUIRES, PART_OF, RELATED_TO, PRECEDES, REFERENCES" },
+                max_results = new { type = "integer", description = "Maximum number of results", @default = 50 }
+            },
+            required = new[] { "relationship_type" }
         })
     ];
 

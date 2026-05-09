@@ -54,6 +54,7 @@ public sealed class OrchestratorToolHandlers
         dispatcher.RegisterHandler("vector_search", HandleVectorSearchAsync);
         dispatcher.RegisterHandler("web_search", HandleWebSearchAsync);
         dispatcher.RegisterHandler("pdf_search", HandlePDFSearchAsync);
+        dispatcher.RegisterHandler("graph_query", HandleGraphQueryAsync);
     }
 
     // -------------------------------------------------------------------------
@@ -76,6 +77,13 @@ public sealed class OrchestratorToolHandlers
 
     public Task<AgentToolOutput> HandlePDFSearchAsync(AgentToolCall call, CancellationToken ct)
         => RunSubAgentAsync(call, _options.PDFSearchAgentName, "pdf_search", ct);
+
+    // -------------------------------------------------------------------------
+    // graph_query
+    // -------------------------------------------------------------------------
+
+    public Task<AgentToolOutput> HandleGraphQueryAsync(AgentToolCall call, CancellationToken ct)
+        => RunSubAgentAsync(call, _options.GraphQueryAgentName, "graph_query", ct);
 
     // -------------------------------------------------------------------------
     // Core sub-agent run loop

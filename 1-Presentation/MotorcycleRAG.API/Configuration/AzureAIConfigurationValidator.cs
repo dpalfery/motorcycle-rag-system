@@ -52,6 +52,9 @@ internal class AzureAIConfigurationValidator : IValidateOptions<AzureFoundryOpti
         if (string.IsNullOrWhiteSpace(options.PDFSearchAgentName))
             failures.Add("AzureAI:PDFSearchAgentName is required (written by deploy pipeline to Key Vault)");
 
+        if (string.IsNullOrWhiteSpace(options.GraphQueryAgentName))
+            failures.Add("AzureAI:GraphQueryAgentName is required (written by deploy pipeline to Key Vault)");
+
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;

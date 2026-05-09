@@ -44,15 +44,10 @@ public sealed class FoundryToolDispatcher
     {
         ArgumentNullException.ThrowIfNull(calls);
 
-        var outputs = new List<AgentToolOutput>();
+        var tasks = calls.Select(call => DispatchSingleAsync(call, ct));
+        var outputs = await Task.WhenAll(tasks);
 
-        foreach (var call in calls)
-        {
-            var output = await DispatchSingleAsync(call, ct);
-            outputs.Add(output);
-        }
-
-        return outputs.AsReadOnly();
+        return Array.AsReadOnly(outputs);
     }
 
     private async Task<AgentToolOutput> DispatchSingleAsync(AgentToolCall call, CancellationToken ct)

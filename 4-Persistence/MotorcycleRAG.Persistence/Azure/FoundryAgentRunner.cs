@@ -138,7 +138,7 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
             agentName,
             requestItems.Count);
 
-        var response = await responsesClient.CreateResponseAsync(requestItems, conversationId, ct);
+        var response = await responsesClient.CreateResponseAsync(requestItems, previousResponseId: null, cancellationToken: ct);
         var status = MapToAgentResponseStatus(response.Value);
 
         lock (inputItems)

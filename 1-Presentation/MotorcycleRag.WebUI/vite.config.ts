@@ -29,12 +29,12 @@ export default defineConfig({
     https: httpsConfig,
     proxy: {
       '/api': {
-        target: 'https://localhost:5216',
+        target: 'https://localhost:7216',
         secure: false,
         changeOrigin: true,
       },
       '/auth': {
-        target: 'https://localhost:5216',
+        target: 'https://localhost:7216',
         secure: false,
         changeOrigin: true,
       },

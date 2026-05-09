@@ -16,3 +16,4 @@ config:
   motorcycle-rag-infra:bffClientId: 03415674-de3a-4269-aebe-f21c116835b8
   motorcycle-rag-infra:bffCiamInstance: https://palfery.ciamlogin.com/
   motorcycle-rag-infra:foundryLocation: eastus
+  motorcycle-rag-infra:developerObjectId: 86c2539f-5ffe-4de4-9b29-7ff209573e0a

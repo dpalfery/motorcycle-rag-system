@@ -15,7 +15,7 @@ namespace MotorcycleRAG.Application.Services;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1200:Split this class into smaller and more specialized ones", Justification = "Orchestrator naturally depends on multiple service types")]
 public sealed class AgentOrchestrator : IAgentOrchestrator
 {
-    private const int MaxOrchestratorRounds = 4; // Foundry-enforced limit
+    private const int MaxOrchestratorRounds = 10; // Foundry-enforced limit is typically higher, increasing to 10 for deep graph queries
 
     private readonly IReadOnlyList<ISearchAgent> _agents;
     private readonly ILogger<AgentOrchestrator> _logger;

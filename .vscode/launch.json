@@ -87,7 +87,7 @@
             "name": "Chrome: Launch WebUI",
             "type": "chrome",
             "request": "launch",
-            "url": "http://localhost:5173",
+            "url": "https://localhost:5173",
             "webRoot": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI",
             "preLaunchTask": "npm: dev"
         },

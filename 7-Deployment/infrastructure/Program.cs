@@ -45,6 +45,7 @@ namespace MotorcycleRAG.Infrastructure {
             var bffCiamInstance = cfg.Require("bffCiamInstance"); // e.g. https://palfery.ciamlogin.com/
             var deepinfraApiKey = cfg.RequireSecret("deepinfraApiKey");
             var bffClientSecret = cfg.RequireSecret("bffClientSecret");
+            var developerObjectId = cfg.Get("developerObjectId");
 
             // General
             var location = cfg.Get("location") ?? "centralus";
@@ -796,6 +797,22 @@ namespace MotorcycleRAG.Infrastructure {
                 Scope = registry.Id,
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
+
+            if (!string.IsNullOrEmpty(developerObjectId)) {
+                // RBAC: Local developer access for debugging
+                _ = new RoleAssignment($"{namePrefix}-dev-search-role", new RoleAssignmentArgs {
+                    PrincipalId = developerObjectId,
+                    RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/1407120a-92aa-4202-b7e9-c0e197c71c8f", // Search Index Data Reader
+                    Scope = searchService.Id,
+                    PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.User
+                });
+                _ = new RoleAssignment($"{namePrefix}-dev-aiservices-role", new RoleAssignmentArgs {
+                    PrincipalId = developerObjectId,
+                    RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/a97b65f3-24c7-4388-baec-2e87135dc908", // Cognitive Services User
+                    Scope = foundryAiServices.Id,
+                    PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.User
+                });
+            }
 
             // App Config: BFF DataProtection blob URI
             _ = new KeyValue("appconfig-kv-dp-blob-uri", new KeyValueArgs {

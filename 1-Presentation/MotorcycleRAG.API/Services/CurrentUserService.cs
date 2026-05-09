@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -51,7 +51,10 @@ public class CurrentUserService : ICurrentUserService {
     /// <summary>
     /// Gets the current user's email from claims
     /// </summary>
-    public string? Email => GetClaimValue(ClaimTypes.Email) ?? GetClaimValue("email");
+    public string? Email => GetClaimValue(ClaimTypes.Email) ?? 
+                            GetClaimValue("email") ?? 
+                            GetClaimValue("preferred_username") ?? 
+                            GetClaimValue("emails");
 
     /// <summary>
     /// Gets the current user's display name from claims

@@ -322,7 +322,7 @@ namespace MotorcycleRAG.Infrastructure {
                         External = true,
                         TargetPort = 8080, // Standard .NET 8/10 port
                         CustomDomains = new[] {
-                            new CustomDomainArgs {
+                            new Pulumi.AzureNative.App.Inputs.CustomDomainArgs {
                                 Name = "motorag.api.palfery.com",
                                 CertificateId = apiCert.Id,
                                 BindingType = Pulumi.AzureNative.App.BindingType.SniEnabled
@@ -385,7 +385,7 @@ namespace MotorcycleRAG.Infrastructure {
                         External = true,
                         TargetPort = 8080,
                         CustomDomains = new[] {
-                            new CustomDomainArgs {
+                            new Pulumi.AzureNative.App.Inputs.CustomDomainArgs {
                                 Name = "motorag.palfery.com",
                                 CertificateId = uiCert.Id,
                                 BindingType = Pulumi.AzureNative.App.BindingType.SniEnabled

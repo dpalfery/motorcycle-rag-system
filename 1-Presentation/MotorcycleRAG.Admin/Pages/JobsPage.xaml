@@ -49,7 +49,7 @@
                            Padding="15"
                            CornerRadius="8">
                         <VerticalStackLayout Spacing="12">
-                            <Label Text="Start, stop, and monitor the Python processor that runs on this machine. Local graph jobs keep the raw CSV on this device and only upload the processed graph artifact."
+                            <Label Text="Start, stop, and monitor the Python processor that runs on this machine. CSV graph seeding keeps the raw CSV on this device and uploads only the extracted graph artifact."
                                    FontSize="12"
                                    TextColor="Gray"/>
 
@@ -99,7 +99,7 @@
                             <BoxView HeightRequest="1"
                                      Opacity="0.2"/>
 
-                            <Label Text="Start Local Graph Job"
+                            <Label Text="Start CSV Graph Seeding Job"
                                    FontSize="16"
                                    FontAttributes="Bold"/>
 
@@ -288,7 +288,7 @@
                     <Label Text="Pending Storage Files"
                            FontSize="20"
                            FontAttributes="Bold"/>
-                    <Label Text="Blob-backed source files appear here while search ingestion or graph import is still outstanding."
+                    <Label Text="Blob-backed PDF and specification CSV uploads appear here while the remaining ingestion and graph import workflows are outstanding."
                            FontSize="12"
                            TextColor="Gray"/>
 

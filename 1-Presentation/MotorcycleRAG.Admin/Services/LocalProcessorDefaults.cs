@@ -4,6 +4,9 @@ internal static class LocalProcessorDefaults
 {
     internal const string DefaultEndpoint = "http://localhost:8100";
     internal const string DefaultStartCommand = "py -3 src/main.py";
+    internal const int DefaultPdfChunkerMaxTokens = 512;
+    internal const int DefaultCsvChunkMaxTokens = 512;
+    internal const string DefaultPdfChunkerTokenizer = "BAAI/bge-small-en-v1.5";
 
     internal static string? TryFindWorkingDirectory()
     {

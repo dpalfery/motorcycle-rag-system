@@ -315,6 +315,18 @@ internal sealed class LocalProcessorService : ILocalProcessorService {
             variables["EMBEDDING_MODEL"] = _configurationStateService.EmbeddingModel;
         }
 
+        if (_configurationStateService.PdfChunkerMaxTokens > 0) {
+            variables["PDF_CHUNKER_MAX_TOKENS"] = _configurationStateService.PdfChunkerMaxTokens.ToString();
+        }
+
+        if (_configurationStateService.CsvChunkMaxTokens > 0) {
+            variables["MAX_CHUNK_SIZE_TOKENS"] = _configurationStateService.CsvChunkMaxTokens.ToString();
+        }
+
+        if (!string.IsNullOrWhiteSpace(_configurationStateService.PdfChunkerTokenizer)) {
+            variables["PDF_CHUNKER_TOKENIZER"] = _configurationStateService.PdfChunkerTokenizer;
+        }
+
         if (!string.IsNullOrWhiteSpace(_configurationStateService.LocalProcessorUploadJobSecret)) {
             variables["PYTHON_UPLOAD_JOB_SECRET"] = _configurationStateService.LocalProcessorUploadJobSecret;
         }

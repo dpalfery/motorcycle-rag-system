@@ -67,6 +67,21 @@ internal interface IConfigurationStateService {
     string? LocalProcessorStartCommand { get; }
 
     /// <summary>
+    /// Gets the configured maximum token size for PDF chunking.
+    /// </summary>
+    int PdfChunkerMaxTokens { get; }
+
+    /// <summary>
+    /// Gets the configured maximum token size for CSV chunking.
+    /// </summary>
+    int CsvChunkMaxTokens { get; }
+
+    /// <summary>
+    /// Gets the configured tokenizer used by the PDF chunker.
+    /// </summary>
+    string? PdfChunkerTokenizer { get; }
+
+    /// <summary>
     /// Gets the securely stored client secret used by the local processor to upload artifacts.
     /// </summary>
     string? LocalProcessorUploadJobSecret { get; }
@@ -104,13 +119,23 @@ internal interface IConfigurationStateService {
     Task SaveEmbeddingConfigurationAsync(string? providerEndpoint, string? model);
 
     /// <summary>
-    /// Saves local processor startup configuration to settings.
+    /// Saves local processor startup and chunking configuration to settings.
     /// </summary>
     /// <param name="endpoint">The local processor endpoint.</param>
     /// <param name="workingDirectory">The local processor working directory.</param>
     /// <param name="startCommand">The command used to start the processor.</param>
     /// <param name="uploadJobSecret">The client secret used by the local processor for artifact uploads.</param>
-    Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand, string? uploadJobSecret);
+    /// <param name="pdfChunkerMaxTokens">The maximum token count for PDF chunking.</param>
+    /// <param name="csvChunkMaxTokens">The maximum token count for CSV chunking.</param>
+    /// <param name="pdfChunkerTokenizer">The tokenizer identifier used for PDF chunking.</param>
+    Task SaveLocalProcessorConfigurationAsync(
+        Uri? endpoint,
+        string? workingDirectory,
+        string? startCommand,
+        string? uploadJobSecret,
+        int pdfChunkerMaxTokens,
+        int csvChunkMaxTokens,
+        string? pdfChunkerTokenizer);
 
     /// <summary>
     /// Clears all configuration settings.

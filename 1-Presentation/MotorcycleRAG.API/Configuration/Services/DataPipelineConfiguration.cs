@@ -37,23 +37,10 @@ internal static class DataPipelineConfiguration {
 
         // Register concrete pipeline service implementations
         services.AddScoped<MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>();
-#pragma warning disable CS0618 // FabricPipelineService intentionally kept as Fabric-mode fallback
-        services.AddScoped<MotorcycleRAG.Persistence.ExternalServices.FabricPipelineService>();
-#pragma warning restore CS0618
 
-        // Register a single ILocalPipelineService that delegates to the appropriate
-        // concrete implementation based on configured ProcessingMode.
-        services.AddScoped<ILocalPipelineService>(serviceProvider => {
-            var opts = serviceProvider.GetRequiredService<IOptions<IngestionOptions>>().Value;
-            if (opts.Mode == MotorcycleRAG.Core.Options.ProcessingMode.Local) {
-                return serviceProvider.GetRequiredService<MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>();
-            }
-
-            // For Fabric mode, use FabricPipelineService which now implements ILocalPipelineService
-#pragma warning disable CS0618 // FabricPipelineService intentionally kept as Fabric-mode fallback
-            return serviceProvider.GetRequiredService<MotorcycleRAG.Persistence.ExternalServices.FabricPipelineService>();
-#pragma warning restore CS0618
-        });
+        // Register a single ILocalPipelineService using the local Python processing service.
+        services.AddScoped<ILocalPipelineService>(serviceProvider =>
+            serviceProvider.GetRequiredService<MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>());
         services.AddScoped<IGraphEntityIngestionService, MotorcycleRAG.Application.Pipeline.GraphEntityIngestionService>();
 
         // Register named HTTP clients for pipeline services with resilience policies

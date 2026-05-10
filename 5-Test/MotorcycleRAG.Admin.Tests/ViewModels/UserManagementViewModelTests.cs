@@ -468,6 +468,12 @@ public class UserManagementViewModelTests {
 
         public string? LocalProcessorStartCommand => null;
 
+        public int PdfChunkerMaxTokens => 512;
+
+        public int CsvChunkMaxTokens => 512;
+
+        public string? PdfChunkerTokenizer => "BAAI/bge-small-en-v1.5";
+
         public string? LocalProcessorUploadJobSecret => null;
 
         public bool IsLocalProcessorConfigured => false;
@@ -484,7 +490,14 @@ public class UserManagementViewModelTests {
 
         public Task SaveEmbeddingConfigurationAsync(string? providerEndpoint, string? model) => Task.CompletedTask;
 
-        public Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand, string? uploadJobSecret) => Task.CompletedTask;
+        public Task SaveLocalProcessorConfigurationAsync(
+            Uri? endpoint,
+            string? workingDirectory,
+            string? startCommand,
+            string? uploadJobSecret,
+            int pdfChunkerMaxTokens,
+            int csvChunkMaxTokens,
+            string? pdfChunkerTokenizer) => Task.CompletedTask;
 
         public Task ClearConfigurationAsync() => Task.CompletedTask;
     }

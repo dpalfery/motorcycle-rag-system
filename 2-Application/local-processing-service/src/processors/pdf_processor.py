@@ -20,6 +20,9 @@ from search.azure_search_uploader import AzureSearchDirectUploader
 logger = logging.getLogger(__name__)
 _ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
 
+PDF_CHUNKER_MAX_TOKENS = int(os.getenv("PDF_CHUNKER_MAX_TOKENS", "512"))
+PDF_CHUNKER_TOKENIZER = os.getenv("PDF_CHUNKER_TOKENIZER", "BAAI/bge-small-en-v1.5")
+
 _jobs: dict[str, dict] = {}
 
 
@@ -111,7 +114,7 @@ class PDFProcessor:
             converter = DocumentConverter()
             result = await asyncio.to_thread(converter.convert, str(tmp_path))
 
-            chunker = HybridChunker(tokenizer="BAAI/bge-small-en-v1.5", max_tokens=512)
+            chunker = HybridChunker(tokenizer=PDF_CHUNKER_TOKENIZER, max_tokens=PDF_CHUNKER_MAX_TOKENS)
             chunks = list(await asyncio.to_thread(chunker.chunk, result.document))
 
             if not chunks:

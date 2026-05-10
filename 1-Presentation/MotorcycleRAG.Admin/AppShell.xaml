@@ -94,11 +94,11 @@
                       Route="dashboardpage"/>
     </FlyoutItem>
 
-    <FlyoutItem Title="Upload"
+    <FlyoutItem Title="Manual PDF"
                 Icon="upload.png"
                 Route="upload">
         <ShellContent x:Name="UploadContent"
-                      Title="Upload and Process"
+                      Title="Manual PDF Upload"
                       Route="uploadpage"/>
     </FlyoutItem>
 

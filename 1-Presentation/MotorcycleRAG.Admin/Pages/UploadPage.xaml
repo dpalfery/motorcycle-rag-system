@@ -9,108 +9,80 @@
     
     <ScrollView>
         <VerticalStackLayout Padding="20" Spacing="15">
-            
-            <!-- File Selection Section -->
+
             <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
-                <VerticalStackLayout Spacing="10">
-                    <Label Text="Select File" FontSize="18" FontAttributes="Bold" />
-                    
-                    <Button Text="Choose File" 
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="Manual PDF Upload" FontSize="20" FontAttributes="Bold" />
+                    <Label Text="Upload a large motorcycle service manual PDF for local chunking, embedding, and search ingestion. The backend will queue a local processor job for this document."
+                           FontSize="12"
+                           TextColor="Gray" />
+
+                    <Button Text="Choose PDF"
                             Command="{Binding SelectFileCommand}"
                             BackgroundColor="{StaticResource Primary}"
                             TextColor="White" />
-                    
-                    <Label Text="{Binding SelectedFilePath}" 
+
+                    <Label Text="{Binding SelectedFilePath}"
                            FontSize="12"
                            LineBreakMode="TailTruncation"
                            IsVisible="{Binding SelectedFilePath, Converter={StaticResource StringNotEmptyConverter}}" />
-                    
-                    <Label Text="Supported formats: PDF, CSV" 
-                           FontSize="11" 
+
+                    <Label Text="Supported format: PDF"
+                           FontSize="11"
                            TextColor="Gray" />
                 </VerticalStackLayout>
             </Frame>
 
-            <!-- Processing Options -->
-            <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
-                <VerticalStackLayout Spacing="10">
-                    <Label Text="Processing Options" FontSize="18" FontAttributes="Bold" />
-                    
-                    <HorizontalStackLayout Spacing="10">
-                        <CheckBox IsChecked="{Binding EnableLocalProcessing}" />
-                        <Label Text="Enable local processing (chunking + embeddings)" 
-                               VerticalOptions="Center" />
-                    </HorizontalStackLayout>
-                    
-                    <Label Text="Note: Local processing requires ONNX model in Resources/Raw/" 
-                           FontSize="10" 
-                           TextColor="Orange"
-                           IsVisible="{Binding EnableLocalProcessing}" />
-                </VerticalStackLayout>
-            </Frame>
-
-            <!-- Process Button -->
-            <Button Text="Process File" 
+            <Button Text="Upload and Queue Local Ingestion"
                     Command="{Binding ProcessFileCommand}"
                     BackgroundColor="{StaticResource Secondary}"
                     TextColor="White"
                     FontAttributes="Bold"
                     HeightRequest="50"
-                    IsEnabled="{Binding IsProcessing, Converter={StaticResource InverseBoolConverter}}" />
+                    IsEnabled="{Binding CanProcessFile}" />
 
-            <!-- Progress Section -->
             <Frame BorderColor="LightGray" CornerRadius="8" Padding="15"
                    IsVisible="{Binding IsProcessing}">
                 <VerticalStackLayout Spacing="10">
                     <Label Text="Processing..." FontSize="16" FontAttributes="Bold" />
-                    
+
                     <ProgressBar Progress="{Binding ProgressPercentage, Converter={StaticResource PercentageConverter}}"
                                  ProgressColor="{StaticResource Primary}" />
-                    
-                    <Label Text="{Binding ProgressPercentage, StringFormat='{0:F0}%'}" 
+
+                    <Label Text="{Binding ProgressPercentage, StringFormat='{0:F0}%'}"
                            HorizontalOptions="End" />
-                    
-                    <Label Text="{Binding StatusMessage}" 
-                           FontSize="12" 
+
+                    <Label Text="{Binding StatusMessage}"
+                           FontSize="12"
                            TextColor="Gray" />
                 </VerticalStackLayout>
             </Frame>
 
-            <!-- Processed Files List -->
             <Frame BorderColor="LightGray" CornerRadius="8" Padding="15">
                 <VerticalStackLayout Spacing="10">
-                    <Label Text="Processed Files" FontSize="18" FontAttributes="Bold" />
-                    
+                    <Label Text="Upload History" FontSize="18" FontAttributes="Bold" />
+
                     <CollectionView ItemsSource="{Binding ProcessedFiles}"
-                                    EmptyView="No files processed yet">
+                                    EmptyView="No uploads yet">
                         <CollectionView.ItemTemplate>
                             <DataTemplate>
                                 <Frame BorderColor="LightGray" Margin="0,5" Padding="10">
                                     <VerticalStackLayout Spacing="5">
-                                        <Label Text="{Binding FileName}" 
+                                        <Label Text="{Binding FileName}"
                                                FontAttributes="Bold" />
                                         
                                         <Label FontSize="11">
                                             <Label.Text>
-                                                <MultiBinding StringFormat="Status: {0} | Chunks: {1} | Embeddings: {2}">
+                                                <MultiBinding StringFormat="Status: {0} | Job ID: {1}">
                                                     <Binding Path="Status" />
-                                                    <Binding Path="ChunkCount" />
-                                                    <Binding Path="EmbeddingCount" />
+                                                    <Binding Path="ExecutionId" />
                                                 </MultiBinding>
                                             </Label.Text>
                                         </Label>
                                         
-                                        <Label Text="{Binding Metadata}" 
-                                               FontSize="10" 
+                                        <Label Text="{Binding Metadata}"
+                                               FontSize="10"
                                                TextColor="Gray" />
-                                        
-                                        <Label FontSize="10" TextColor="Gray">
-                                            <Label.Text>
-                                                <MultiBinding StringFormat="Started: {0:g}">
-                                                    <Binding Path="StartTime" />
-                                                </MultiBinding>
-                                            </Label.Text>
-                                        </Label>
                                     </VerticalStackLayout>
                                 </Frame>
                             </DataTemplate>
@@ -118,7 +90,6 @@
                     </CollectionView>
                 </VerticalStackLayout>
             </Frame>
-
         </VerticalStackLayout>
     </ScrollView>
     

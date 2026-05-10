@@ -90,6 +90,15 @@ internal partial class SettingsViewModel : ObservableObject {
     private string _localProcessorStartCommand = string.Empty;
 
     [ObservableProperty]
+    private int _pdfChunkerMaxTokens = LocalProcessorDefaults.DefaultPdfChunkerMaxTokens;
+
+    [ObservableProperty]
+    private int _csvChunkMaxTokens = LocalProcessorDefaults.DefaultCsvChunkMaxTokens;
+
+    [ObservableProperty]
+    private string _pdfChunkerTokenizer = LocalProcessorDefaults.DefaultPdfChunkerTokenizer;
+
+    [ObservableProperty]
     private string _localProcessorUploadJobSecret = string.Empty;
 
     [ObservableProperty]
@@ -154,6 +163,13 @@ internal partial class SettingsViewModel : ObservableObject {
             LocalProcessorEndpoint = _configService.LocalProcessorEndpoint?.ToString() ?? LocalProcessorDefaults.DefaultEndpoint;
             LocalProcessorWorkingDirectory = _configService.LocalProcessorWorkingDirectory ?? string.Empty;
             LocalProcessorStartCommand = _configService.LocalProcessorStartCommand ?? LocalProcessorDefaults.DefaultStartCommand;
+            PdfChunkerMaxTokens = _configService.PdfChunkerMaxTokens > 0
+                ? _configService.PdfChunkerMaxTokens
+                : LocalProcessorDefaults.DefaultPdfChunkerMaxTokens;
+            CsvChunkMaxTokens = _configService.CsvChunkMaxTokens > 0
+                ? _configService.CsvChunkMaxTokens
+                : LocalProcessorDefaults.DefaultCsvChunkMaxTokens;
+            PdfChunkerTokenizer = _configService.PdfChunkerTokenizer ?? LocalProcessorDefaults.DefaultPdfChunkerTokenizer;
             LocalProcessorUploadJobSecret = _configService.LocalProcessorUploadJobSecret ?? string.Empty;
         }
         finally {
@@ -219,6 +235,12 @@ internal partial class SettingsViewModel : ObservableObject {
     partial void OnLocalProcessorStartCommandChanged(string value) => OnLocalProcessorSettingChanged();
 
     partial void OnLocalProcessorUploadJobSecretChanged(string value) => OnLocalProcessorSettingChanged();
+
+    partial void OnPdfChunkerMaxTokensChanged(int value) => OnLocalProcessorSettingChanged();
+
+    partial void OnCsvChunkMaxTokensChanged(int value) => OnLocalProcessorSettingChanged();
+
+    partial void OnPdfChunkerTokenizerChanged(string value) => OnLocalProcessorSettingChanged();
 
     private void OnLocalProcessorSettingChanged() {
         QueueLocalProcessorValidation();
@@ -310,7 +332,10 @@ internal partial class SettingsViewModel : ObservableObject {
             () => BuildLocalProcessorValidation(
                 LocalProcessorEndpoint,
                 LocalProcessorWorkingDirectory,
-                LocalProcessorStartCommand)).ConfigureAwait(false);
+                LocalProcessorStartCommand,
+                PdfChunkerMaxTokens,
+                CsvChunkMaxTokens,
+                PdfChunkerTokenizer)).ConfigureAwait(false);
 
         await MauiThreading.RunOnMainThreadAsync(() => {
             if (validationVersion != _localProcessorValidationVersion) {
@@ -325,7 +350,10 @@ internal partial class SettingsViewModel : ObservableObject {
     private static (bool IsValid, string Message) BuildLocalProcessorValidation(
         string endpointValue,
         string workingDirectoryValue,
-        string startCommandValue) {
+        string startCommandValue,
+        int pdfChunkerMaxTokens,
+        int csvChunkMaxTokens,
+        string pdfChunkerTokenizerValue) {
         var issues = new List<string>();
 
         if (string.IsNullOrWhiteSpace(endpointValue)) {
@@ -351,6 +379,18 @@ internal partial class SettingsViewModel : ObservableObject {
 
         if (string.IsNullOrWhiteSpace(startCommandValue)) {
             issues.Add("Start command required");
+        }
+
+        if (pdfChunkerMaxTokens <= 0) {
+            issues.Add("PDF chunk size must be a positive integer");
+        }
+
+        if (csvChunkMaxTokens <= 0) {
+            issues.Add("CSV chunk size must be a positive integer");
+        }
+
+        if (string.IsNullOrWhiteSpace(pdfChunkerTokenizerValue)) {
+            issues.Add("PDF tokenizer is required");
         }
 
         if (issues.Count > 0) {
@@ -419,6 +459,9 @@ internal partial class SettingsViewModel : ObservableObject {
             var localProcessorWorkingDirectory = LocalProcessorWorkingDirectory;
             var localProcessorStartCommand = LocalProcessorStartCommand;
             var localProcessorUploadJobSecret = LocalProcessorUploadJobSecret;
+            var pdfChunkerMaxTokens = PdfChunkerMaxTokens;
+            var csvChunkMaxTokens = CsvChunkMaxTokens;
+            var pdfChunkerTokenizer = PdfChunkerTokenizer;
 
             await MauiThreading.RunOffMainThreadAsync(async () => {
                 Uri? apiUri = string.IsNullOrWhiteSpace(apiBaseUrl) ? null : new Uri(apiBaseUrl);
@@ -433,7 +476,10 @@ internal partial class SettingsViewModel : ObservableObject {
                     string.IsNullOrWhiteSpace(localProcessorEndpoint) ? null : new Uri(localProcessorEndpoint),
                     localProcessorWorkingDirectory,
                     localProcessorStartCommand,
-                    localProcessorUploadJobSecret).ConfigureAwait(false);
+                    localProcessorUploadJobSecret,
+                    pdfChunkerMaxTokens,
+                    csvChunkMaxTokens,
+                    pdfChunkerTokenizer).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
             await MauiThreading.RunOnMainThreadAsync(() => {

@@ -66,6 +66,24 @@ internal static class SettingsKeys {
     internal const string LocalProcessorStartCommand = "config_local_processor_start_command";
 
     /// <summary>
+    /// Maximum token count used for PDF chunking in the local processor.
+    /// Stored in regular preferences (not sensitive).
+    /// </summary>
+    internal const string PdfChunkerMaxTokens = "config_pdf_chunker_max_tokens";
+
+    /// <summary>
+    /// Maximum token count used for CSV chunking in the local processor.
+    /// Stored in regular preferences (not sensitive).
+    /// </summary>
+    internal const string CsvChunkMaxTokens = "config_csv_chunk_max_tokens";
+
+    /// <summary>
+    /// Tokenizer identifier used by the local processor PDF chunker.
+    /// Stored in regular preferences (not sensitive).
+    /// </summary>
+    internal const string PdfChunkerTokenizer = "config_pdf_chunker_tokenizer";
+
+    /// <summary>
     /// Client secret used by the local Python processing service when uploading artifacts to the API.
     /// Stored in secure storage (sensitive credential).
     /// </summary>

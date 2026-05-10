@@ -109,6 +109,12 @@ public sealed class LocalProcessorServiceTests {
 
         public string? LocalProcessorStartCommand { get; init; }
 
+        public int PdfChunkerMaxTokens { get; init; }
+
+        public int CsvChunkMaxTokens { get; init; }
+
+        public string? PdfChunkerTokenizer { get; init; }
+
         public string? LocalProcessorUploadJobSecret { get; init; }
 
         public bool IsLocalProcessorConfigured { get; init; }
@@ -123,7 +129,14 @@ public sealed class LocalProcessorServiceTests {
 
         public Task SaveEmbeddingConfigurationAsync(string? providerEndpoint, string? model) => Task.CompletedTask;
 
-        public Task SaveLocalProcessorConfigurationAsync(Uri? endpoint, string? workingDirectory, string? startCommand, string? uploadJobSecret) => Task.CompletedTask;
+        public Task SaveLocalProcessorConfigurationAsync(
+            Uri? endpoint,
+            string? workingDirectory,
+            string? startCommand,
+            string? uploadJobSecret,
+            int pdfChunkerMaxTokens,
+            int csvChunkMaxTokens,
+            string? pdfChunkerTokenizer) => Task.CompletedTask;
 
         public Task ClearConfigurationAsync() => Task.CompletedTask;
 

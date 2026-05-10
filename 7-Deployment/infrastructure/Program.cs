@@ -841,12 +841,12 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = Output.Format($"https://{storageAccount.Name}.blob.core.windows.net/dataprotection-keys/bff-keys.xml")
             });
 
-            // AllowedHosts for HostHeaderValidationMiddleware (depends on Container App FQDNs)
+            // AllowedHosts for HostHeaderValidationMiddleware (allow all since ACA uses multiple hostnames including custom domains)
             _ = new KeyValue("appconfig-kv-allowed-hosts", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
                 KeyValueName = "AllowedHosts",
-                Value = Output.Format($"localhost;127.0.0.1;::1;{apiApp.Configuration.Apply(c => c!.Ingress!.Fqdn)};{uiApp.Configuration.Apply(c => c!.Ingress!.Fqdn)}")
+                Value = "*"
             });
 
             // Outputs

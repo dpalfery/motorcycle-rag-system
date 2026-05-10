@@ -22,18 +22,18 @@ internal static class SecurityHeadersExtensions
             var cspPolicy = env.IsDevelopment()
                 ? "default-src 'self'; " +
                   "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-                  "style-src 'self' 'unsafe-inline'; " +
+                  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
                   "img-src 'self' data: https:; " +
-                  "font-src 'self' data:; " +
+                  "font-src 'self' data: https://fonts.gstatic.com; " +
                   "connect-src 'self' ws: wss:; " +
                   "frame-ancestors 'none'; " +
                   "base-uri 'self'; " +
                   "form-action 'self';"
                 : "default-src 'none'; " +
                   "script-src 'self'; " +
-                  "style-src 'self'; " +
+                  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
                   "img-src 'self' data: https:; " +
-                  "font-src 'self' data:; " +
+                  "font-src 'self' data: https://fonts.gstatic.com; " +
                   "connect-src 'self'; " +
                   "frame-ancestors 'none'; " +
                   "base-uri 'self'; " +

@@ -50,28 +50,22 @@ internal static class SecurityHeadersExtensions
                 "accelerometer=(), " +
                 "ambient-light-sensor=(), " +
                 "autoplay=(), " +
-                "battery=(), " +
                 "camera=(), " +
                 "cross-origin-isolated=(), " +
                 "display-capture=(), " +
-                "document-domain=(), " +
                 "encrypted-media=(), " +
-                "execution-while-not-rendered=(), " +
-                "execution-while-out-of-viewport=(), " +
                 "fullscreen=(), " +
                 "geolocation=(), " +
                 "gyroscope=(), " +
                 "magnetometer=(), " +
                 "microphone=(), " +
                 "midi=(), " +
-                "navigation-override=(), " +
                 "payment=(), " +
                 "picture-in-picture=(), " +
                 "publickey-credentials-get=(), " +
-                "speaker-selection=(), " +
                 "sync-xhr=(), " +
+                "unload=(), " +
                 "usb=(), " +
-                "vr=(), " +
                 "xr-spatial-tracking=()");
 
             await next().ConfigureAwait(false);

@@ -55,6 +55,37 @@ These instructions govern all work in `7-Deployment/infrastructure/` (Pulumi, Az
 - Any `az` write action during debugging must be flagged to the user and approved first.
 
 
+## Pulumi State Backend
+
+The Pulumi state is stored in an **Azure Blob Storage** self-managed backend (not Pulumi Cloud).
+
+| Setting | Value |
+|---------|-------|
+| Storage Account | `pulumibackendstore` |
+| Container | `pulumi-state` |
+| Subscription | EPAM MSDN (Visual Studio Professional Subscription) |
+| Backend URL | Set via `PULUMI_BACKEND_URL` GitHub Secret |
+
+### Clearing Stale Locks
+
+If a pipeline run fails or times out, it may leave a stale lock on the stack. Lock blobs live at:
+
+```
+.pulumi/locks/organization/motorcycle-rag-infra/<stack>/<guid>.json
+```
+
+To clear a stale lock:
+
+```bash
+# List locks
+az storage blob list --account-name pulumibackendstore --container-name pulumi-state --auth-mode login --prefix ".pulumi/locks/organization/motorcycle-rag-infra/dev/" --query "[].name" -o tsv
+
+# Delete a specific lock
+az storage blob delete --account-name pulumibackendstore --container-name pulumi-state --auth-mode login --name "<blob-name-from-above>"
+```
+
+> **Note:** Ensure the previous Pulumi operation is truly dead (not still running in a GitHub Actions workflow) before deleting a lock.
+
 ## Technical Requirements
 - Follow cloud provider best practices (AWS Well-Architected, Azure, GCP)
 - Use component resources for standard patterns

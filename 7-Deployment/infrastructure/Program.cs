@@ -290,30 +290,11 @@ namespace MotorcycleRAG.Infrastructure {
                 new EnvironmentVarArgs { Name = "ConnectionStrings__ApplicationInsights", Value = appInsights.ConnectionString }
             };
 
-            // Custom Domain: Managed Certificates
-            // Uses CNAME validation (faster/more reliable than TXT since CNAMEs already resolve correctly).
-            // CustomTimeouts allow up to 30 minutes for DigiCert to issue the certificate.
-            var apiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-api-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
-                ResourceGroupName = resourceGroup.Name,
-                EnvironmentName = managedEnvironment.Name,
-                Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
-                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.CNAME,
-                    SubjectName = "motorag.api.palfery.com"
-                }
-            }, new CustomResourceOptions {
-                CustomTimeouts = new CustomTimeouts { Create = System.TimeSpan.FromMinutes(30), Update = System.TimeSpan.FromMinutes(30) }
-            });
-
-            var uiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-ui-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
-                ResourceGroupName = resourceGroup.Name,
-                EnvironmentName = managedEnvironment.Name,
-                Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
-                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.CNAME,
-                    SubjectName = "motorag.palfery.com"
-                }
-            }, new CustomResourceOptions {
-                CustomTimeouts = new CustomTimeouts { Create = System.TimeSpan.FromMinutes(30), Update = System.TimeSpan.FromMinutes(30) }
-            });
+            // Custom Domain: Managed certificates are handled by the pipeline (deploy.yml)
+            // rather than Pulumi, to avoid the chicken-and-egg problem where Azure requires
+            // hostnames to be registered on apps before certs can be created, but apps need
+            // cert IDs for SniEnabled binding. Pulumi registers hostnames with Disabled binding;
+            // the pipeline creates certs via az CLI, polls for issuance, and binds with SniEnabled.
 
             // 10. API Container App
             var apiApp = new ContainerApp($"{namePrefix}-api", new ContainerAppArgs {
@@ -330,8 +311,7 @@ namespace MotorcycleRAG.Infrastructure {
                         CustomDomains = new[] {
                             new Pulumi.AzureNative.App.Inputs.CustomDomainArgs {
                                 Name = "motorag.api.palfery.com",
-                                CertificateId = apiCert.Id,
-                                BindingType = Pulumi.AzureNative.App.BindingType.SniEnabled
+                                BindingType = Pulumi.AzureNative.App.BindingType.Disabled
                             }
                         }
                     },
@@ -393,8 +373,7 @@ namespace MotorcycleRAG.Infrastructure {
                         CustomDomains = new[] {
                             new Pulumi.AzureNative.App.Inputs.CustomDomainArgs {
                                 Name = "motorag.palfery.com",
-                                CertificateId = uiCert.Id,
-                                BindingType = Pulumi.AzureNative.App.BindingType.SniEnabled
+                                BindingType = Pulumi.AzureNative.App.BindingType.Disabled
                             }
                         }
                     },

@@ -25,11 +25,11 @@ jobs:
     steps:
       # ── Source ──────────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ── Frontend build (no Azure deps, run early to fail fast) ─────
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -46,13 +46,13 @@ jobs:
 
       # ── .NET (needed for Pulumi C# runtime) ────────────────────────
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       # ── Azure Auth ─────────────────────────────────────────────────
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -62,7 +62,7 @@ jobs:
 
       # ── Pulumi Up (creates ACR and all infrastructure) ─────────────
       - name: Pulumi Up
-        uses: pulumi/actions@v4
+        uses: pulumi/actions@v5
         with:
           command: up
           stack-name: ${{ env.PULUMI_STACK }}
@@ -189,6 +189,85 @@ jobs:
             --name "${{ env.UI_APP_NAME }}" \
             --resource-group "${{ env.RESOURCE_GROUP }}" \
             --image "${UI_IMAGE_SHA}"
+
+      # ── Custom Domain Managed Certificates ──────────────────────────
+      # Pulumi deploys apps with custom hostnames + Disabled binding.
+      # This step creates managed certs (requires hostnames to exist on apps),
+      # waits for cert issuance, then binds with SniEnabled. Idempotent.
+      - name: Provision Custom Domain Certificates
+        run: |
+          set -euo pipefail
+
+          ENV_NAME=$(az containerapp env list -g "${{ env.RESOURCE_GROUP }}" --query "[0].name" -o tsv)
+
+          provision_cert() {
+            local APP_NAME="$1"
+            local HOSTNAME="$2"
+            local CERT_NAME="$3"
+
+            # Check if cert already exists and is succeeded
+            CERT_STATE=$(az containerapp env certificate list \
+              -g "${{ env.RESOURCE_GROUP }}" -n "${ENV_NAME}" \
+              --query "[?properties.subjectName=='${HOSTNAME}'].properties.provisioningState" -o tsv 2>/dev/null || echo "")
+
+            if [ "${CERT_STATE}" = "Succeeded" ]; then
+              echo "Certificate for ${HOSTNAME} already provisioned. Binding..."
+            else
+              # Delete any failed/pending cert first
+              if [ -n "${CERT_STATE}" ]; then
+                echo "Cleaning up ${CERT_STATE} cert for ${HOSTNAME}..."
+                az containerapp env certificate delete \
+                  -g "${{ env.RESOURCE_GROUP }}" -n "${ENV_NAME}" \
+                  --certificate "${CERT_NAME}" --yes 2>/dev/null || true
+                sleep 10
+              fi
+
+              # Create managed certificate (CNAME validation)
+              echo "Creating managed certificate for ${HOSTNAME}..."
+              az containerapp env certificate create \
+                -g "${{ env.RESOURCE_GROUP }}" -n "${ENV_NAME}" \
+                --hostname "${HOSTNAME}" \
+                --validation-method CNAME \
+                -c "${CERT_NAME}"
+
+              # Poll for cert to become Succeeded (up to 20 minutes)
+              echo "Waiting for certificate issuance..."
+              for i in $(seq 1 40); do
+                CERT_STATE=$(az containerapp env certificate list \
+                  -g "${{ env.RESOURCE_GROUP }}" -n "${ENV_NAME}" \
+                  --query "[?properties.subjectName=='${HOSTNAME}'].properties.provisioningState" -o tsv 2>/dev/null || echo "")
+                echo "  Attempt ${i}/40: ${CERT_STATE}"
+                if [ "${CERT_STATE}" = "Succeeded" ]; then break; fi
+                if [ "${CERT_STATE}" = "Failed" ]; then
+                  echo "Certificate provisioning failed for ${HOSTNAME}"
+                  exit 1
+                fi
+                sleep 30
+              done
+
+              if [ "${CERT_STATE}" != "Succeeded" ]; then
+                echo "Certificate for ${HOSTNAME} did not complete in time"
+                exit 1
+              fi
+            fi
+
+            # Bind certificate with SniEnabled
+            CERT_ID=$(az containerapp env certificate list \
+              -g "${{ env.RESOURCE_GROUP }}" -n "${ENV_NAME}" \
+              --query "[?properties.subjectName=='${HOSTNAME}'].id" -o tsv)
+
+            echo "Binding certificate to ${APP_NAME} for ${HOSTNAME}..."
+            az containerapp hostname bind \
+              -g "${{ env.RESOURCE_GROUP }}" -n "${APP_NAME}" \
+              --hostname "${HOSTNAME}" \
+              --certificate "${CERT_ID}" \
+              --environment "${ENV_NAME}"
+          }
+
+          provision_cert "${{ env.API_APP_NAME }}" "motorag.api.palfery.com" "mcr-rag-dev-cus-api-cert"
+          provision_cert "${{ env.UI_APP_NAME }}" "motorag.palfery.com" "mcr-rag-dev-cus-ui-cert"
+
+          echo "✅ Custom domain certificates provisioned and bound."
 
       # ── Provision Foundry Agents ────────────────────────────────────
       - name: Provision Foundry Agents

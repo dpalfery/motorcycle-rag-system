@@ -287,7 +287,8 @@ namespace MotorcycleRAG.Infrastructure {
             var commonEnvs = new[]
             {
                 new EnvironmentVarArgs { Name = "AppConfig__Endpoint", Value = appConfig.Endpoint },
-                new EnvironmentVarArgs { Name = "ConnectionStrings__ApplicationInsights", Value = appInsights.ConnectionString }
+                new EnvironmentVarArgs { Name = "ConnectionStrings__ApplicationInsights", Value = appInsights.ConnectionString },
+                new EnvironmentVarArgs { Name = "AllowedHosts", Value = "*" }
             };
 
             // Custom Domain: Managed certificates are handled by the pipeline (deploy.yml)

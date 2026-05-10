@@ -291,24 +291,28 @@ namespace MotorcycleRAG.Infrastructure {
             };
 
             // Custom Domain: Managed Certificates
-            // Phase 1 (completed) registered hostnames with Disabled binding.
-            // Phase 2 (active) creates managed certs and enables SNI binding.
+            // Uses CNAME validation (faster/more reliable than TXT since CNAMEs already resolve correctly).
+            // CustomTimeouts allow up to 30 minutes for DigiCert to issue the certificate.
             var apiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-api-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
                 ResourceGroupName = resourceGroup.Name,
                 EnvironmentName = managedEnvironment.Name,
                 Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
-                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.TXT,
+                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.CNAME,
                     SubjectName = "motorag.api.palfery.com"
                 }
+            }, new CustomResourceOptions {
+                CustomTimeouts = new CustomTimeouts { Create = System.TimeSpan.FromMinutes(30), Update = System.TimeSpan.FromMinutes(30) }
             });
 
             var uiCert = new Pulumi.AzureNative.App.ManagedCertificate($"{namePrefix}-ui-cert", new Pulumi.AzureNative.App.ManagedCertificateArgs {
                 ResourceGroupName = resourceGroup.Name,
                 EnvironmentName = managedEnvironment.Name,
                 Properties = new Pulumi.AzureNative.App.Inputs.ManagedCertificatePropertiesArgs {
-                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.TXT,
+                    DomainControlValidation = Pulumi.AzureNative.App.ManagedCertificateDomainControlValidation.CNAME,
                     SubjectName = "motorag.palfery.com"
                 }
+            }, new CustomResourceOptions {
+                CustomTimeouts = new CustomTimeouts { Create = System.TimeSpan.FromMinutes(30), Update = System.TimeSpan.FromMinutes(30) }
             });
 
             // 10. API Container App

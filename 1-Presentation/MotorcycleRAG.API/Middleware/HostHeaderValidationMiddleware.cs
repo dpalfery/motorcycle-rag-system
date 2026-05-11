@@ -17,6 +17,7 @@ public sealed class HostHeaderValidationMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<HostHeaderValidationMiddleware> _logger;
     private readonly HashSet<string> _allowedHosts;
+    private readonly bool _allowAll;
     private static readonly char[] HostSeparators = { ',', ';' };
 
     /// <summary>
@@ -36,11 +37,15 @@ public sealed class HostHeaderValidationMiddleware
 
         // Parse AllowedHosts from configuration
         var allowedHostsConfig = configuration["AllowedHosts"] ?? "localhost";
-        _allowedHosts = new HashSet<string>(
-            allowedHostsConfig
-                .Split(HostSeparators, StringSplitOptions.RemoveEmptyEntries)
-                .Select(h => h.Trim().ToUpperInvariant()),
-            StringComparer.OrdinalIgnoreCase);
+        _allowAll = allowedHostsConfig.Trim() == "*";
+
+        _allowedHosts = _allowAll 
+            ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(
+                allowedHostsConfig
+                    .Split(HostSeparators, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(h => h.Trim().ToUpperInvariant()),
+                StringComparer.OrdinalIgnoreCase);
 
         // Fail fast if AllowedHosts is empty - this indicates a misconfiguration
         if (_allowedHosts.Count == 0)
@@ -205,6 +210,12 @@ public sealed class HostHeaderValidationMiddleware
         if (string.IsNullOrWhiteSpace(hostname))
         {
             return false;
+        }
+
+        // '*' in AllowedHosts means allow all hosts
+        if (_allowAll)
+        {
+            return true;
         }
 
         // HashSet uses StringComparer.OrdinalIgnoreCase, so Contains handles case-insensitive comparison

@@ -43,7 +43,7 @@ export default function ChatInterface() {
         setIsLoading(true);
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // Increased to 120s for RAG queries
 
         try {
             const response = await fetch('/api/motorcycles/query', {
@@ -97,7 +97,7 @@ export default function ChatInterface() {
             <div className="h-14 border-b border-white/5 flex items-center px-6 justify-between bg-[#1f1f1f]">
                 <h2 className="font-semibold text-gray-200">New Conversation</h2>
                 <div className="flex gap-2 text-xs text-gray-500">
-                    <span>Model: <span className="text-primary">GPT-4o</span></span>
+                    <span>Model: <span className="text-primary">DeepSeek-V4-Flash</span></span>
                 </div>
             </div>
 

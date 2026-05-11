@@ -358,7 +358,7 @@ namespace MotorcycleRAG.Infrastructure {
                     }
                 }
             }, new CustomResourceOptions {
-                IgnoreChanges = new[] {
+                IgnoreChanges = new List<string> {
                     "configuration.ingress.customDomains",
                     "template.containers[0].image"
                 }
@@ -430,7 +430,7 @@ namespace MotorcycleRAG.Infrastructure {
                     }
                 }
             }, new CustomResourceOptions {
-                IgnoreChanges = new[] {
+                IgnoreChanges = new List<string> {
                     "configuration.ingress.customDomains",
                     "template.containers[0].image"
                 }

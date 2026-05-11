@@ -18,4 +18,6 @@ public class MotorcycleQueryResponse {
     public string QueryId { get; set; } = string.Empty;
 
     public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+
+    public string ModelUsed { get; set; } = string.Empty;
 }

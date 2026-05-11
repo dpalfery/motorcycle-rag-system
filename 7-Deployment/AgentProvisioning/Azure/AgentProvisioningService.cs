@@ -69,12 +69,25 @@ public sealed class AgentProvisioningService {
     public async Task<ProvisionedAgentReferences> ProvisionAllAgentsAsync(CancellationToken ct = default) {
         _logger.LogInformation("Starting Foundry agent provisioning");
 
-        var orchestrator = await CreateAgentVersionWithFallbackAsync(
-            AgentDefinitions.OrchestratorAgentName,
-            _modelOptions.OrchestratorModelCandidates,
-            _orchestratorSystemPrompt,
-            AgentDefinitions.OrchestratorTools,
-            ct);
+        ProvisionedAgentReference orchestrator = null!;
+        foreach (var model in _modelOptions.OrchestratorModelCandidates) {
+            try {
+                orchestrator = await CreateAgentVersionAsync(
+                    AgentDefinitions.OrchestratorAgentName,
+                    model,
+                    _orchestratorSystemPrompt,
+                    AgentDefinitions.OrchestratorTools,
+                    ct);
+                _logger.LogInformation("Successfully created agent version for model {Model}", model);
+            }
+            catch (Exception ex) {
+                _logger.LogWarning(ex, "Failed to create agent version for model {Model}", model);
+            }
+        }
+        
+        if (orchestrator == null) {
+            throw new InvalidOperationException("Failed to create any orchestrator agent versions.");
+        }
 
         var vectorSearch = await CreateAgentVersionAsync(
             AgentDefinitions.VectorSearchAgentName,

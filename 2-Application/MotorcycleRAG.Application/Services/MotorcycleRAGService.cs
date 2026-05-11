@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Application.Services.Citations;
@@ -174,7 +174,8 @@ public sealed class MotorcycleRagService : IMotorcycleRagService
             Response = responseWithLimitations,
             Sources = citedResultsArray,
             Metrics = metrics,
-            GeneratedAt = DateTime.UtcNow
+            GeneratedAt = DateTime.UtcNow,
+            ModelUsed = "DeepSeek-V4-Flash"
         };
 
         // Cache if appropriate

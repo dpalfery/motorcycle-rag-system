@@ -19,6 +19,8 @@ export default function ChatInterface() {
         }
     ]);
 
+    const [currentModel, setCurrentModel] = useState<string>('DeepSeek-V4-Flash');
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
@@ -62,6 +64,10 @@ export default function ChatInterface() {
             if (!response.ok) throw new Error('Failed to get response');
 
             const data = await response.json();
+            
+            if (data.modelUsed) {
+                setCurrentModel(data.modelUsed);
+            }
 
             const aiMsg: Message = {
                 id: (Date.now() + 1).toString(),
@@ -97,7 +103,7 @@ export default function ChatInterface() {
             <div className="h-14 border-b border-white/5 flex items-center px-6 justify-between bg-[#1f1f1f]">
                 <h2 className="font-semibold text-gray-200">New Conversation</h2>
                 <div className="flex gap-2 text-xs text-gray-500">
-                    <span>Model: <span className="text-primary">DeepSeek-V4-Flash</span></span>
+                    <span>Model: <span className="text-primary">{currentModel}</span></span>
                 </div>
             </div>
 

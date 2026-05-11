@@ -18,6 +18,8 @@ public static class AgentDefinitions
 
     public static readonly string[] DefaultOrchestratorModelCandidates =
     [
+        "gpt-4-1",
+        "grok-4-20-reasoning",
         DeepSeekModel
     ];
 

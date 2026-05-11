@@ -357,6 +357,11 @@ namespace MotorcycleRAG.Infrastructure {
                         MaxReplicas = 10
                     }
                 }
+            }, new CustomResourceOptions {
+                IgnoreChanges = new[] {
+                    "configuration.ingress.customDomains",
+                    "template.containers[0].image"
+                }
             });
 
             // 11. UI Container App (BFF)
@@ -423,6 +428,11 @@ namespace MotorcycleRAG.Infrastructure {
                         MinReplicas = 1,
                         MaxReplicas = 10
                     }
+                }
+            }, new CustomResourceOptions {
+                IgnoreChanges = new[] {
+                    "configuration.ingress.customDomains",
+                    "template.containers[0].image"
                 }
             });
 

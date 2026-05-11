@@ -287,8 +287,7 @@ namespace MotorcycleRAG.Infrastructure {
             var commonEnvs = new[]
             {
                 new EnvironmentVarArgs { Name = "AppConfig__Endpoint", Value = appConfig.Endpoint },
-                new EnvironmentVarArgs { Name = "ConnectionStrings__ApplicationInsights", Value = appInsights.ConnectionString },
-                new EnvironmentVarArgs { Name = "AllowedHosts", Value = "*" }
+                new EnvironmentVarArgs { Name = "ConnectionStrings__ApplicationInsights", Value = appInsights.ConnectionString }
             };
 
             // Custom Domain: Managed certificates are handled by the pipeline (deploy.yml)
@@ -851,12 +850,12 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = Output.Format($"https://{storageAccount.Name}.blob.core.windows.net/dataprotection-keys/bff-keys.xml")
             });
 
-            // AllowedHosts for HostHeaderValidationMiddleware (allow all since ACA uses multiple hostnames including custom domains)
+            // AllowedHosts for HostHeaderValidationMiddleware (explicitly allowlist all valid hostnames)
             _ = new KeyValue("appconfig-kv-allowed-hosts", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
                 KeyValueName = "AllowedHosts",
-                Value = "*"
+                Value = Output.Format($"localhost;127.0.0.1;::1;motorag.palfery.com;motorag.api.palfery.com;{apiApp.Configuration.Apply(c => c!.Ingress!.Fqdn)};{uiApp.Configuration.Apply(c => c!.Ingress!.Fqdn)}")
             });
 
             // Outputs

@@ -2,6 +2,7 @@
 import { cn } from '../../lib/utils';
 import type { Message } from '../../types/chat';
 import { User, Bot, FileText, FileBarChart } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface MessageBubbleProps {
     message: Message;
@@ -25,7 +26,21 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                     ? "bg-secondary text-gray-200 rounded-tr-sm"
                     : "bg-[#252525] text-gray-100 border-l-2 border-primary rounded-tl-sm shadow-md"
             )}>
-                <div className="whitespace-pre-wrap">{message.content}</div>
+                <div className="text-sm">
+                    <ReactMarkdown
+                        components={{
+                            p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                            ul: ({ ...props }) => <ul className="list-disc pl-4 mb-2" {...props} />,
+                            ol: ({ ...props }) => <ol className="list-decimal pl-4 mb-2" {...props} />,
+                            li: ({ ...props }) => <li className="mb-1" {...props} />,
+                            h1: ({ ...props }) => <h1 className="text-lg font-bold mb-2" {...props} />,
+                            h2: ({ ...props }) => <h2 className="text-md font-bold mb-2" {...props} />,
+                            code: ({ ...props }) => <code className="bg-black/20 px-1 rounded" {...props} />
+                        }}
+                    >
+                        {message.content}
+                    </ReactMarkdown>
+                </div>
 
                 {/* Attachments / Actions */}
                 {message.actions && (

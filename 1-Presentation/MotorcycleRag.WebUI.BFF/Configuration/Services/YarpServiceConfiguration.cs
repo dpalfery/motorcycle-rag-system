@@ -16,6 +16,13 @@ internal static class YarpServiceConfiguration
             .LoadFromConfig(configuration.GetSection("ReverseProxy"))
             .AddTransforms(builderContext =>
             {
+                // Override Host header to match API custom domain for internal routing
+                builderContext.AddRequestTransform(transformContext =>
+                {
+                    transformContext.ProxyRequest.Headers.Host = "motorag.api.palfery.com";
+                    return ValueTask.CompletedTask;
+                });
+
                 // Attach Bearer Token from User Identity to downstream requests
                 builderContext.AddRequestTransform(async transformContext =>
                 {

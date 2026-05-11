@@ -876,8 +876,8 @@ namespace MotorcycleRAG.Infrastructure {
             this.ApiAppName = apiApp.Name;
             this.UiAppName = uiApp.Name;
             this.AppConfigEndpoint = appConfig.Endpoint;
-            this.OrchestratorModelDeploymentCandidates = Output.Create(orchestratorModelDeploymentCandidates);
-            this.SubAgentModelDeploymentName = Output.Create(subAgentDeploymentName);
+            this.OrchestratorModelDeploymentCandidates = Output.Create("DeepSeek-V4-Flash");
+            this.SubAgentModelDeploymentName = Output.Create("DeepSeek-V4-Flash");
         }
 #pragma warning restore S138 // Functions should not have too many lines of code
 #pragma warning restore S1200 // Pulumi stacks naturally have many dependencies; splitting would require major refactor

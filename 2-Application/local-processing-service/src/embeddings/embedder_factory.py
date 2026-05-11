@@ -18,6 +18,19 @@ _VALID_BACKENDS = {"ollama", "foundry_local", "deepinfra"}
 _embedder_instance: EmbedderType | None = None
 
 
+def _select_default_model(models: list[str]) -> str:
+    if not models:
+        raise ValueError("No models were discovered for the configured embedding provider endpoint")
+
+    if len(models) > 1:
+        raise ValueError(
+            "Multiple models were discovered for the configured embedding provider endpoint. "
+            "Set EMBEDDING_MODEL explicitly."
+        )
+
+    return models[0]
+
+
 def get_embedder() -> EmbedderType:
     """Return the singleton embedder for the configured backend.
 
@@ -46,13 +59,13 @@ def get_embedder() -> EmbedderType:
 
         if discovery.provider == "ollama":
             _embedder_instance = OllamaEmbedder(
-                host=provider_endpoint,
-                model=selected_model or discovery.models[0],
+                host=discovery.endpoint,
+                model=selected_model or _select_default_model(discovery.models),
             )
         else:
             _embedder_instance = AzureFoundryLocalEmbedder(
-                endpoint=provider_endpoint,
-                model=selected_model or discovery.models[0],
+                endpoint=discovery.endpoint,
+                model=selected_model or _select_default_model(discovery.models),
             )
 
         return _embedder_instance

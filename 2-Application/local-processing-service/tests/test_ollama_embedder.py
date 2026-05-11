@@ -17,7 +17,7 @@ class TestOllamaEmbedderInstantiation:
         from embeddings.ollama_embedder import OllamaEmbedder
 
         embedder = OllamaEmbedder()
-        assert embedder._dims == 3584
+        assert embedder._dims is None
         MockAsyncClient.assert_called_once()
 
 
@@ -40,8 +40,9 @@ class TestGenerateEmbedding:
 
 
     @patch("embeddings.ollama_embedder.ollama.AsyncClient")
+    @patch.dict("os.environ", {"OLLAMA_EMBEDDING_DIMS": "3584"}, clear=False)
     async def test_raises_value_error_on_wrong_dimensions(self, MockAsyncClient):
-        """768-dim vector (less than 1536) should raise ValueError."""
+        """768-dim vector should raise ValueError when OLLAMA_EMBEDDING_DIMS=3584."""
         from embeddings.ollama_embedder import OllamaEmbedder
 
         mock_client = MockAsyncClient.return_value

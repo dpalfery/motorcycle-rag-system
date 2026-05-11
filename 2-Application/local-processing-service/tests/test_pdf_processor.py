@@ -40,6 +40,14 @@ def blob_writer():
 
 
 @pytest.fixture()
+def api_client():
+    ac = MagicMock()
+    ac.is_configured = MagicMock(return_value=False)
+    ac.upload_artifact = AsyncMock(return_value=None)
+    return ac
+
+
+@pytest.fixture()
 def embedder():
     em = MagicMock()
     em.generate_embedding = AsyncMock(return_value=[0.1] * 1536)
@@ -59,11 +67,12 @@ def metadata():
 
 
 @pytest.fixture()
-def processor(blob_writer, embedder, graph_extractor):
+def processor(blob_writer, embedder, graph_extractor, api_client):
     return PDFProcessor(
         blob_writer=blob_writer,
         embedder=embedder,
         graph_extractor=graph_extractor,
+        api_client=api_client,
     )
 
 
@@ -74,12 +83,13 @@ def processor(blob_writer, embedder, graph_extractor):
 
 class TestPDFProcessorInstantiation:
     def test_instantiates_with_mocked_deps(
-        self, blob_writer, embedder, graph_extractor
+        self, blob_writer, embedder, graph_extractor, api_client
     ):
         proc = PDFProcessor(
             blob_writer=blob_writer,
             embedder=embedder,
             graph_extractor=graph_extractor,
+            api_client=api_client,
         )
         assert proc._blob_writer is blob_writer
         assert proc._embedder is embedder

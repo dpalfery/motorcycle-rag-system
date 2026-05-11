@@ -20,7 +20,7 @@ class TestAzureFoundryLocalEmbedderInstantiation:
             embedder = mod.AzureFoundryLocalEmbedder()
 
         assert embedder._dims == 3584
-        assert embedder._endpoint == "http://localhost:5272"
+        assert embedder._endpoint == "http://localhost:5272/v1"
         assert embedder._model == "qwen3-embedding"
 
     def test_instantiates_with_custom_endpoint(self, monkeypatch):
@@ -36,6 +36,48 @@ class TestAzureFoundryLocalEmbedderInstantiation:
             embedder = mod.AzureFoundryLocalEmbedder()
 
         assert embedder._endpoint == "http://myserver:9999"
+
+    def test_preserves_explicit_v1_suffix(self, monkeypatch):
+        """An endpoint that already includes /v1 is not modified."""
+        monkeypatch.setenv("AZURE_FOUNDRY_LOCAL_ENDPOINT", "http://127.0.0.1:1234/v1")
+
+        with patch("embeddings.foundry_local_embedder.openai.AsyncOpenAI"):
+            from importlib import reload
+            import embeddings.foundry_local_embedder as mod
+
+            reload(mod)
+
+            embedder = mod.AzureFoundryLocalEmbedder()
+
+        assert embedder._endpoint == "http://127.0.0.1:1234/v1"
+
+    def test_normalizes_model_list_url_to_base_v1_endpoint(self, monkeypatch):
+        """A pasted /v1/models URL is normalized back to the base OpenAI-compatible endpoint."""
+        monkeypatch.setenv("AZURE_FOUNDRY_LOCAL_ENDPOINT", "http://127.0.0.1:1234/v1/models")
+
+        with patch("embeddings.foundry_local_embedder.openai.AsyncOpenAI"):
+            from importlib import reload
+            import embeddings.foundry_local_embedder as mod
+
+            reload(mod)
+
+            embedder = mod.AzureFoundryLocalEmbedder()
+
+        assert embedder._endpoint == "http://127.0.0.1:1234/v1"
+
+    def test_preserves_non_root_v1_path(self, monkeypatch):
+        """A provider-specific base URL that already contains /v1/ remains unchanged."""
+        monkeypatch.setenv("AZURE_FOUNDRY_LOCAL_ENDPOINT", "https://api.deepinfra.com/v1/openai")
+
+        with patch("embeddings.foundry_local_embedder.openai.AsyncOpenAI"):
+            from importlib import reload
+            import embeddings.foundry_local_embedder as mod
+
+            reload(mod)
+
+            embedder = mod.AzureFoundryLocalEmbedder()
+
+        assert embedder._endpoint == "https://api.deepinfra.com/v1/openai"
 
 
 class TestAzureFoundryLocalEmbedderGenerateEmbedding:

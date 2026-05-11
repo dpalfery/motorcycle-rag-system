@@ -197,13 +197,15 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
 
     /// <inheritdoc/>
     public async Task SaveEmbeddingConfigurationAsync(string? providerEndpoint, string? model) {
-        if (!string.IsNullOrWhiteSpace(providerEndpoint) && !Uri.TryCreate(providerEndpoint, UriKind.Absolute, out _)) {
-            throw new ArgumentException("Invalid embedding provider endpoint format", nameof(providerEndpoint));
+        if (!string.IsNullOrWhiteSpace(providerEndpoint)
+            && (!Uri.TryCreate(providerEndpoint, UriKind.Absolute, out var providerUri)
+                || !IsValidEmbeddingProviderEndpoint(providerUri))) {
+            throw new ArgumentException("Invalid embedding provider endpoint format or protocol", nameof(providerEndpoint));
         }
 
         var normalizedProviderEndpoint = string.IsNullOrWhiteSpace(providerEndpoint)
             ? string.Empty
-            : new Uri(providerEndpoint).AbsoluteUri.TrimEnd('/');
+            : NormalizeEmbeddingProviderEndpoint(providerEndpoint);
         var normalizedModel = model?.Trim() ?? string.Empty;
 
         await _settingsService.SetAsync(SettingsKeys.EmbeddingProviderEndpoint, normalizedProviderEndpoint).ConfigureAwait(false);
@@ -307,6 +309,27 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
         }
 
         return uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsValidEmbeddingProviderEndpoint(Uri uri) {
+        if (uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)) {
+            return uri.IsLoopback;
+        }
+
+        return uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeEmbeddingProviderEndpoint(string providerEndpoint) {
+        var normalized = new Uri(providerEndpoint).AbsoluteUri.TrimEnd('/');
+
+        foreach (var suffix in new[] { "/models", "/embeddings", "/chat/completions", "/api/tags" }) {
+            if (normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) {
+                normalized = normalized[..^suffix.Length];
+                break;
+            }
+        }
+
+        return normalized;
     }
 
     /// <summary>

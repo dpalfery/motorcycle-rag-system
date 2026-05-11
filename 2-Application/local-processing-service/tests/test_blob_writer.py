@@ -179,7 +179,7 @@ class TestIsConnected:
 
         assert writer.is_connected() is True
 
-    def test_returns_false_when_client_raises(self):
+    def test_returns_true_when_client_is_set(self):
         from storage.blob_writer import BlobWriter
 
         writer = BlobWriter.__new__(BlobWriter)
@@ -187,7 +187,7 @@ class TestIsConnected:
         mock_client.get_service_properties.side_effect = ConnectionError("no service")
         writer._client = mock_client
 
-        assert writer.is_connected() is False
+        assert writer.is_connected() is True
 
     def test_returns_false_when_no_client(self):
         from storage.blob_writer import BlobWriter

@@ -43,6 +43,14 @@ def _clear_jobs():
 
 
 @pytest.fixture()
+def api_client():
+    ac = MagicMock()
+    ac.is_configured = MagicMock(return_value=False)
+    ac.upload_artifact = AsyncMock(return_value=None)
+    return ac
+
+
+@pytest.fixture()
 def blob_writer():
     bw = MagicMock()
     bw.upload_json = AsyncMock(return_value=None)
@@ -51,8 +59,8 @@ def blob_writer():
 
 
 @pytest.fixture()
-def processor(blob_writer):
-    return BikeGraphProcessor(blob_writer=blob_writer)
+def processor(blob_writer, api_client):
+    return BikeGraphProcessor(blob_writer=blob_writer, api_client=api_client)
 
 
 def _write_csv(content: str) -> Path:
@@ -72,8 +80,8 @@ def _write_csv(content: str) -> Path:
 
 
 class TestInstantiation:
-    def test_requires_blob_writer(self, blob_writer):
-        proc = BikeGraphProcessor(blob_writer=blob_writer)
+    def test_requires_blob_writer(self, blob_writer, api_client):
+        proc = BikeGraphProcessor(blob_writer=blob_writer, api_client=api_client)
         assert proc.blob_writer is blob_writer
 
 
@@ -141,7 +149,7 @@ async def _wait_for_job(processor, job_id: str, timeout: float = 5.0):
 
 
 class TestBackgroundProcessing:
-    async def test_completes_successfully(self, processor, blob_writer):
+    async def test_completes_successfully(self, processor, blob_writer, api_client):
         csv_path = _write_csv(MINIMAL_CSV)
         upload_id = str(uuid.uuid4())
         job_id = await processor.process_async(
@@ -152,9 +160,9 @@ class TestBackgroundProcessing:
         assert status["status"] == "completed"
         assert status["nodes_created"] > 0
         assert status["edges_created"] > 0
-        blob_writer.upload_json.assert_awaited_once()
+        api_client.upload_artifact.assert_awaited_once()
 
-    async def test_blob_path_uses_upload_id(self, processor, blob_writer):
+    async def test_blob_path_uses_upload_id(self, processor, api_client):
         csv_path = _write_csv(MINIMAL_CSV)
         upload_id = str(uuid.uuid4())
         await processor.process_async(
@@ -162,12 +170,12 @@ class TestBackgroundProcessing:
         )
         await _wait_for_job(processor, "dummy")  # allow background to finish
 
-        call_args = blob_writer.upload_json.call_args
+        call_args = api_client.upload_artifact.call_args
         assert call_args is not None
-        container, blob_path, _ = call_args.args
-        assert container == "raw-uploads"
-        assert blob_path == f"graph-entities/{upload_id}/entities.json"
-        assert upload_id in blob_path
+        entities_bytes, called_upload_id, artifact_type, content_type = call_args.args
+        assert called_upload_id == upload_id
+        assert artifact_type == "graph-entities"
+        assert content_type == "application/json"
 
     async def test_empty_csv_results_in_failed(self, processor):
         csv_path = _write_csv(EMPTY_CSV)

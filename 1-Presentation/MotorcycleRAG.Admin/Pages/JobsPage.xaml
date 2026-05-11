@@ -7,13 +7,13 @@
              x:DataType="viewmodels:JobsViewModel"
              Title="Pipeline Jobs">
 
-    <Grid RowDefinitions="Auto,Auto,*"
-            Padding="20">
+    <Grid RowDefinitions="Auto,Auto,Auto,*"
+          Padding="20">
 
         <HorizontalStackLayout Grid.Row="0"
-                Spacing="10"
-                Margin="0,0,0,15">
-            <Label Text="Pipeline Jobs"
+                               Spacing="10"
+                               Margin="0,0,0,10">
+            <Label Text="Jobs"
                    FontSize="24"
                    FontAttributes="Bold"
                    VerticalOptions="Center"
@@ -27,7 +27,13 @@
                     HorizontalOptions="End"/>
         </HorizontalStackLayout>
 
-        <Frame Grid.Row="1"
+        <Label Grid.Row="1"
+               Text="Monitor all processing jobs across workflow types. Use the Manual Ingestion and Graph Seeding pages to launch new processing work."
+               FontSize="12"
+               TextColor="Gray"
+               Margin="0,0,0,10"/>
+
+        <Frame Grid.Row="2"
                Margin="0,0,0,15"
                Padding="12"
                BorderColor="#D9A441"
@@ -38,7 +44,7 @@
                    TextColor="#FFD27A"/>
         </Frame>
 
-        <ScrollView Grid.Row="2">
+        <ScrollView Grid.Row="3">
             <VerticalStackLayout Spacing="18">
 
                 <VerticalStackLayout Spacing="6">
@@ -96,44 +102,10 @@
                                                    VerticalOptions="Center"/>
                             </Grid>
 
-                            <BoxView HeightRequest="1"
-                                     Opacity="0.2"/>
-
-                            <Label Text="Start CSV Graph Seeding Job"
-                                   FontSize="16"
-                                   FontAttributes="Bold"/>
-
-                            <HorizontalStackLayout Spacing="10">
-                                <Button Text="Choose CSV"
-                                        Clicked="OnChooseCsvClicked"
-                                        BackgroundColor="{StaticResource Primary}"
-                                        TextColor="White"
-                                        IsEnabled="{Binding CanSelectLocalGraphFile}"/>
-
-                                <Button Text="Start Local Graph Job"
-                                        Command="{Binding StartLocalGraphJobCommand}"
-                                        BackgroundColor="DarkSlateBlue"
-                                        TextColor="White"
-                                        IsEnabled="{Binding CanStartLocalGraphJob}"/>
-
-                                <ActivityIndicator IsRunning="{Binding IsStartingLocalGraphJob}"
-                                                   IsVisible="{Binding IsStartingLocalGraphJob}"
-                                                   VerticalOptions="Center"/>
-                            </HorizontalStackLayout>
-
-                            <Label Text="{Binding SelectedLocalGraphFilePath}"
-                                   FontSize="11"
-                                   LineBreakMode="MiddleTruncation"
-                                   IsVisible="{Binding HasSelectedLocalGraphFile}"/>
-
-                            <Label Text="{Binding LocalGraphStatusMessage}"
-                                   FontSize="11"
-                                   TextColor="Gray"
-                                   IsVisible="{Binding HasLocalGraphStatusMessage}"/>
-
+                            
                             <!-- Diagnostic Output -->
                             <BoxView HeightRequest="1"
-                                    Opacity="0.2"
+                                     Opacity="0.2"
                                      IsVisible="{Binding ShowLocalProcessorDiagnosticPanel}"/>
 
                             <Label Text="Recent Process Output"
@@ -191,9 +163,9 @@
                                     SelectionMode="None">
                         <CollectionView.EmptyView>
                             <VerticalStackLayout HorizontalOptions="Center"
-                                    VerticalOptions="Center"
-                                    Spacing="8"
-                                    Padding="20">
+                                                 VerticalOptions="Center"
+                                                 Spacing="8"
+                                                 Padding="20">
                                 <Label Text="No local processor jobs found"
                                        FontSize="16"
                                        HorizontalOptions="Center"/>
@@ -296,9 +268,9 @@
                                     SelectionMode="None">
                         <CollectionView.EmptyView>
                             <VerticalStackLayout HorizontalOptions="Center"
-                                    VerticalOptions="Center"
-                                    Spacing="8"
-                                    Padding="20">
+                                                 VerticalOptions="Center"
+                                                 Spacing="8"
+                                                 Padding="20">
                                 <Label Text="No pending storage files found"
                                        FontSize="16"
                                        HorizontalOptions="Center"/>
@@ -318,8 +290,8 @@
                                           ColumnDefinitions="*,Auto">
 
                                         <VerticalStackLayout Grid.Row="0"
-                                                Grid.Column="0"
-                                                Spacing="5">
+                                                             Grid.Column="0"
+                                                             Spacing="5">
                                             <Label Text="{Binding BlobName}"
                                                    FontAttributes="Bold"
                                                    FontSize="14"/>
@@ -338,8 +310,8 @@
                                         </VerticalStackLayout>
 
                                         <VerticalStackLayout Grid.Row="0"
-                                                Grid.Column="1"
-                                                Spacing="6">
+                                                             Grid.Column="1"
+                                                             Spacing="6">
                                             <Button Text="{Binding ProcessButtonText}"
                                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ProcessPendingStorageFileCommand}"
                                                     CommandParameter="{Binding .}"
@@ -361,9 +333,9 @@
                                         </VerticalStackLayout>
 
                                         <VerticalStackLayout Grid.Row="1"
-                                                Grid.ColumnSpan="2"
-                                                Spacing="3"
-                                                Margin="0,10,0,0">
+                                                             Grid.ColumnSpan="2"
+                                                             Spacing="3"
+                                                             Margin="0,10,0,0">
                                             <Label Text="{Binding UploadId, StringFormat='Upload ID: {0}'}"
                                                    FontSize="11"
                                                    TextColor="Gray"/>
@@ -371,7 +343,7 @@
                                                    FontSize="11"
                                                    TextColor="Gray"/>
                                             <Label FontSize="11"
-                                                    TextColor="Gray">
+                                                   TextColor="Gray">
                                                 <Label.Text>
                                                     <MultiBinding StringFormat="Last modified: {0:g}">
                                                         <Binding Path="LastModifiedUtc"/>
@@ -381,7 +353,7 @@
                                         </VerticalStackLayout>
 
                                         <Label Grid.Row="2"
-                                                Grid.ColumnSpan="2"
+                                               Grid.ColumnSpan="2"
                                                Text="{Binding FailureReason, StringFormat='Last failure: {0}'}"
                                                FontSize="11"
                                                TextColor="Orange"
@@ -389,9 +361,9 @@
                                                IsVisible="{Binding HasFailureReason}"/>
 
                                         <VerticalStackLayout Grid.Row="3"
-                                                Grid.ColumnSpan="2"
-                                                Spacing="3"
-                                                Margin="0,8,0,0"
+                                                             Grid.ColumnSpan="2"
+                                                             Spacing="3"
+                                                             Margin="0,8,0,0"
                                                              IsVisible="{Binding HasGraphWorkflow}">
                                             <Label Text="{Binding GraphWorkflowStatusText}"
                                                    FontSize="11"
@@ -420,9 +392,9 @@
                                     SelectionMode="None">
                         <CollectionView.EmptyView>
                             <VerticalStackLayout HorizontalOptions="Center"
-                                    VerticalOptions="Center"
-                                    Spacing="8"
-                                    Padding="20">
+                                                 VerticalOptions="Center"
+                                                 Spacing="8"
+                                                 Padding="20">
                                 <Label Text="No ingestion jobs found"
                                        FontSize="16"
                                        HorizontalOptions="Center"/>
@@ -442,7 +414,7 @@
                                           ColumnDefinitions="*">
 
                                         <VerticalStackLayout Grid.Row="0"
-                                                Spacing="5">
+                                                             Spacing="5">
                                             <Label Text="{Binding JobId}"
                                                    FontAttributes="Bold"
                                                    FontSize="14"/>
@@ -461,14 +433,14 @@
                                         </VerticalStackLayout>
 
                                         <VerticalStackLayout Grid.Row="1"
-                                                Spacing="3"
-                                                Margin="0,10,0,0">
+                                                             Spacing="3"
+                                                             Margin="0,10,0,0">
                                             <Label Text="{Binding InputRef, StringFormat='Input: {0}'}"
                                                    FontSize="11"
                                                    TextColor="Gray"/>
 
                                             <Label FontSize="11"
-                                                    TextColor="Gray">
+                                                   TextColor="Gray">
                                                 <Label.Text>
                                                     <MultiBinding StringFormat="Created: {0:g}">
                                                         <Binding Path="CreatedAtUtc"/>
@@ -477,7 +449,7 @@
                                             </Label>
 
                                             <Label FontSize="11"
-                                                    TextColor="Gray"
+                                                   TextColor="Gray"
                                                    IsVisible="{Binding StartedAtUtc, Converter={StaticResource HasValueConverter}}">
                                                 <Label.Text>
                                                     <MultiBinding StringFormat="Started: {0:g}">
@@ -487,7 +459,7 @@
                                             </Label>
 
                                             <Label FontSize="11"
-                                                    TextColor="Gray"
+                                                   TextColor="Gray"
                                                    IsVisible="{Binding CompletedAtUtc, Converter={StaticResource HasValueConverter}}">
                                                 <Label.Text>
                                                     <MultiBinding StringFormat="Completed: {0:g}">
@@ -529,9 +501,9 @@
                                     SelectionMode="None">
                         <CollectionView.EmptyView>
                             <VerticalStackLayout HorizontalOptions="Center"
-                                    VerticalOptions="Center"
-                                    Spacing="10"
-                                    Padding="20">
+                                                 VerticalOptions="Center"
+                                                 Spacing="10"
+                                                 Padding="20">
                                 <Label Text="No pipeline executions found"
                                        FontSize="16"
                                        HorizontalOptions="Center"/>
@@ -551,8 +523,8 @@
                                           ColumnDefinitions="*,Auto">
 
                                         <VerticalStackLayout Grid.Row="0"
-                                                Grid.Column="0"
-                                                Spacing="5">
+                                                             Grid.Column="0"
+                                                             Spacing="5">
                                             <Label Text="{Binding ExecutionId}"
                                                    FontAttributes="Bold"
                                                    FontSize="14"/>
@@ -582,11 +554,11 @@
                                                 IsVisible="{Binding IsRunning}"/>
 
                                         <VerticalStackLayout Grid.Row="1"
-                                                Grid.ColumnSpan="2"
-                                                Spacing="3"
-                                                Margin="0,10,0,0">
+                                                             Grid.ColumnSpan="2"
+                                                             Spacing="3"
+                                                             Margin="0,10,0,0">
                                             <Label FontSize="11"
-                                                    TextColor="Gray">
+                                                   TextColor="Gray">
                                                 <Label.Text>
                                                     <MultiBinding StringFormat="Started: {0:g}">
                                                         <Binding Path="StartTime"/>
@@ -595,7 +567,7 @@
                                             </Label>
 
                                             <Label FontSize="11"
-                                                    TextColor="Gray"
+                                                   TextColor="Gray"
                                                    IsVisible="{Binding EndTime, Converter={StaticResource HasValueConverter}}">
                                                 <Label.Text>
                                                     <MultiBinding StringFormat="Ended: {0:g}">
@@ -606,7 +578,7 @@
                                         </VerticalStackLayout>
 
                                         <Label Grid.Row="2"
-                                                Grid.ColumnSpan="2"
+                                               Grid.ColumnSpan="2"
                                                Text="{Binding CreatedBy, StringFormat='Created by: {0}'}"
                                                FontSize="10"
                                                TextColor="Gray"
@@ -614,9 +586,9 @@
                                                IsVisible="{Binding HasCreatedBy}"/>
 
                                         <VerticalStackLayout Grid.Row="3"
-                                                Grid.ColumnSpan="2"
-                                                Spacing="5"
-                                                Margin="0,10,0,0"
+                                                             Grid.ColumnSpan="2"
+                                                             Spacing="5"
+                                                             Margin="0,10,0,0"
                                                              IsVisible="{Binding HasErrors}">
                                             <Label Text="Errors:"
                                                    FontSize="11"
@@ -637,9 +609,9 @@
                                         </VerticalStackLayout>
 
                                         <VerticalStackLayout Grid.Row="3"
-                                                Grid.ColumnSpan="2"
-                                                Spacing="5"
-                                                Margin="0,5,0,0"
+                                                             Grid.ColumnSpan="2"
+                                                             Spacing="5"
+                                                             Margin="0,5,0,0"
                                                              IsVisible="{Binding HasWarnings}">
                                             <Label Text="Warnings:"
                                                    FontSize="11"

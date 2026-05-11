@@ -94,19 +94,27 @@
                       Route="dashboardpage"/>
     </FlyoutItem>
 
-    <FlyoutItem Title="Manual PDF"
+    <FlyoutItem Title="Manual Ingestion"
                 Icon="upload.png"
                 Route="upload">
         <ShellContent x:Name="UploadContent"
-                      Title="Manual PDF Upload"
+                      Title="Manual Ingestion"
                       Route="uploadpage"/>
     </FlyoutItem>
 
-    <FlyoutItem Title="Pipeline Jobs"
+    <FlyoutItem Title="Graph Seeding"
+                Icon="graph.png"
+                Route="graphseeding">
+        <ShellContent x:Name="GraphSeedingContent"
+                      Title="Graph Seeding"
+                      Route="graphseedingpage"/>
+    </FlyoutItem>
+
+    <FlyoutItem Title="Jobs"
                 Icon="tasks.png"
                 Route="jobs">
         <ShellContent x:Name="JobsContent"
-                      Title="Pipeline Jobs"
+                      Title="Jobs"
                       Route="jobspage"/>
     </FlyoutItem>
 

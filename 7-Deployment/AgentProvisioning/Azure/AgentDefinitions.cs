@@ -13,16 +13,12 @@ public static class AgentDefinitions
     // Model names
     // -------------------------------------------------------------------------
 
-    public const string Qwen36DeploymentName = "qwen3-6-35b-a3b-fp8";
-    public const string Qwen35DeploymentName = "qwen3-5-35b-a3b";
-    public const string OrchestratorFallbackModel = "gpt-4-1";
-    public const string SubAgentModel = "gpt-4-1-mini";
+    public const string DeepSeekModel = "DeepSeek-V4-Flash";
+    public const string SubAgentModel = DeepSeekModel;
 
     public static readonly string[] DefaultOrchestratorModelCandidates =
     [
-        Qwen36DeploymentName,
-        Qwen35DeploymentName,
-        OrchestratorFallbackModel
+        DeepSeekModel
     ];
 
     // -------------------------------------------------------------------------
@@ -35,7 +31,7 @@ public static class AgentDefinitions
     public const string PDFSearchAgentName = "MCR-PDFSearchAgent";
     public const string GraphQueryAgentName = "MCR-GraphQueryAgent";
 
-    public const string GraphQueryModel = "deepseek-v4-flash";
+    public const string GraphQueryModel = DeepSeekModel;
 
     // -------------------------------------------------------------------------
     // System prompts — copied verbatim from specs/develop/contracts/

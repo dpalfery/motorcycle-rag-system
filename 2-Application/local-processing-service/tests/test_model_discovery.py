@@ -76,7 +76,8 @@ async def test_discover_embedding_models_prefers_openai_compatible_payload():
         result = await discover_embedding_models("http://localhost:5272")
 
     assert result.provider == "openai-compatible"
-    assert result.models == ["qwen3-embedding"]
+    assert result.endpoint == "http://localhost:5272"
+    assert result.models == ["qwen3-embedding", "gpt-4o-mini"]
 
 
 def test_discover_embedding_models_sync_falls_back_to_ollama():
@@ -95,6 +96,45 @@ def test_discover_embedding_models_sync_falls_back_to_ollama():
         result = discover_embedding_models_sync("http://localhost:11434")
 
     assert result.provider == "ollama"
+    assert result.endpoint == "http://localhost:11434"
+    assert result.models == ["qwen3-embedding", "qwen3:4b"]
+
+
+def test_discover_embedding_models_sync_accepts_pasted_openai_model_list_url():
+    responses = {
+        "http://localhost:1234/v1/models": _FakeResponse(
+            {"data": [{"id": "text-embedding-qwen"}]}
+        )
+    }
+
+    with patch(
+        "embeddings.model_discovery.httpx.Client",
+        side_effect=lambda timeout=None: _FakeSyncClient(responses, timeout=timeout),
+    ):
+        result = discover_embedding_models_sync("http://localhost:1234/v1/models")
+
+    assert result.provider == "openai-compatible"
+    assert result.endpoint == "http://localhost:1234/v1"
+    assert result.models == ["text-embedding-qwen"]
+
+
+def test_discover_embedding_models_sync_accepts_pasted_ollama_tags_url():
+    responses = {
+        "http://localhost:11434/models": RuntimeError("not openai-compatible"),
+        "http://localhost:11434/v1/models": RuntimeError("not openai-compatible"),
+        "http://localhost:11434/api/tags": _FakeResponse(
+            {"models": [{"model": "qwen3-embedding"}]}
+        ),
+    }
+
+    with patch(
+        "embeddings.model_discovery.httpx.Client",
+        side_effect=lambda timeout=None: _FakeSyncClient(responses, timeout=timeout),
+    ):
+        result = discover_embedding_models_sync("http://localhost:11434/api/tags")
+
+    assert result.provider == "ollama"
+    assert result.endpoint == "http://localhost:11434"
     assert result.models == ["qwen3-embedding"]
 
 

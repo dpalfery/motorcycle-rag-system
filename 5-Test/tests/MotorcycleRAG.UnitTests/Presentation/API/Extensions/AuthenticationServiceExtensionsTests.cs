@@ -51,7 +51,7 @@ public class AuthenticationServiceExtensionsTests
         AuthenticationBuilder builder,
         IConfiguration configuration)
     {
-        var extensionType = typeof(Program).Assembly.GetType(
+        var extensionType = typeof(MotorcycleRAG.API.Program).Assembly.GetType(
             "MotorcycleRAG.API.Extensions.AuthenticationServiceExtensions",
             throwOnError: true)!;
         var method = extensionType.GetMethod(

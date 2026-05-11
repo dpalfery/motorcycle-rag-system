@@ -35,6 +35,7 @@ internal partial class AppShell : Shell {
         // Setting ShellContent.Content directly after InitializeComponent is the correct pattern.
         DashboardContent.Content = serviceProvider.GetRequiredService<Pages.DashboardPage>();
         UploadContent.Content = serviceProvider.GetRequiredService<Pages.UploadPage>();
+        GraphSeedingContent.Content = serviceProvider.GetRequiredService<Pages.GraphSeedingPage>();
         JobsContent.Content = serviceProvider.GetRequiredService<Pages.JobsPage>();
         UserManagementContent.Content = serviceProvider.GetRequiredService<Pages.UserManagementPage>();
         WebSourcesContent.Content = serviceProvider.GetRequiredService<Pages.WebSourcesPage>();

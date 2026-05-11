@@ -51,6 +51,26 @@ public class IngestionJob
     /// </summary>
     public Guid? ManualDocumentId { get; set; }
 
+    // --- Legacy and additional fields ---
+
+    public string? JobId { get; set; }
+    public string? JobType { get; set; }
+    public string? SourceFilePath { get; set; }
+    public string? SourceFileName { get; set; }
+    public DateTimeOffset? StartTime { get; set; }
+    public DateTimeOffset? EndTime { get; set; }
+    public string? UserId { get; set; }
+    public string? UserEmail { get; set; }
+    public int TotalRecordsProcessed { get; set; }
+    public int RecordsIndexed { get; set; }
+    public int RecordsFailed { get; set; }
+    public int RecordsWithWarnings { get; set; }
+    public string? ErrorsJson { get; set; }
+    public string? ErrorMessage { get; set; }
+    public string? MetadataJson { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
+
     // --- Coverage fields (populated by Fabric pipeline upon completion) ---
 
     /// <summary>Total pages in the ingested PDF. Null for non-PDF jobs or until pipeline reports.</summary>

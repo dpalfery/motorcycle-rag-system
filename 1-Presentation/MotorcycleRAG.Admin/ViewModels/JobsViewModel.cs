@@ -22,7 +22,6 @@ namespace MotorcycleRAG.Admin.ViewModels;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "Internal patterns")]
 internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private const int RecentIngestionJobCount = 50;
-    private const long LocalGraphMaxFileSizeBytes = 2L * 1024 * 1024 * 1024;
     private const int MaxAutomaticApiSectionFailures = 5;
     private const string PendingStorageFilesSectionName = "Pending storage files";
     private const string IngestionJobsSectionName = "Ingestion jobs";
@@ -36,8 +35,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private readonly object _automaticApiPollingSync = new();
     private readonly object _loadJobsCancellationSync = new();
     private bool _isLoading;
-    private bool _isPickingLocalGraphFile;
-    private bool _isStartingLocalGraphJob;
     private bool _isStartingLocalProcessor;
     private bool _isStoppingLocalProcessor;
     private bool _isClearingLocalProcessorJobs;
@@ -50,8 +47,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     private int _ingestionJobsFailureCount;
     private int _pipelineExecutionsFailureCount;
     private int _localProcessorActiveJobs;
-    private string _selectedLocalGraphFilePath = string.Empty;
-    private string _localGraphStatusMessage = string.Empty;
     private string _localProcessorStatusMessage = "Local processor is not running.";
     private string _localProcessorDiagnosticOutput = string.Empty;
     private string _apiPollingProblemMessage = string.Empty;
@@ -81,7 +76,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         ProcessPendingStorageFileCommand = new AsyncRelayCommand<PendingStorageFileViewModel>(ProcessPendingStorageFileAsync);
         ProcessPendingStorageFileAsGraphCommand = new AsyncRelayCommand<PendingStorageFileViewModel>(
             pendingFile => ProcessPendingStorageFileAsync(pendingFile, "bike-graph"));
-        StartLocalGraphJobCommand = new AsyncRelayCommand(StartLocalGraphJobAsync);
         StartLocalProcessorCommand = new AsyncRelayCommand(StartLocalProcessorAsync);
         StopLocalProcessorCommand = new AsyncRelayCommand(StopLocalProcessorAsync);
         ClearLocalProcessorJobsCommand = new AsyncRelayCommand(ClearLocalProcessorJobsAsync);
@@ -105,26 +99,10 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             if (_isLoading != value) {
                 _isLoading = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsLoading)));
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSelectLocalGraphFile)));
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalGraphJob)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalProcessor)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStopLocalProcessor)));
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanClearLocalProcessorJobs)));
             }
-        }
-    }
-
-    public bool IsStartingLocalGraphJob {
-        get => _isStartingLocalGraphJob;
-        private set {
-            if (_isStartingLocalGraphJob == value) {
-                return;
-            }
-
-            _isStartingLocalGraphJob = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsStartingLocalGraphJob)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSelectLocalGraphFile)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalGraphJob)));
         }
     }
 
@@ -214,33 +192,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         }
     }
 
-    public string SelectedLocalGraphFilePath {
-        get => _selectedLocalGraphFilePath;
-        private set {
-            if (string.Equals(_selectedLocalGraphFilePath, value, StringComparison.Ordinal)) {
-                return;
-            }
-
-            _selectedLocalGraphFilePath = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedLocalGraphFilePath)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSelectedLocalGraphFile)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartLocalGraphJob)));
-        }
-    }
-
-    public string LocalGraphStatusMessage {
-        get => _localGraphStatusMessage;
-        private set {
-            if (string.Equals(_localGraphStatusMessage, value, StringComparison.Ordinal)) {
-                return;
-            }
-
-            _localGraphStatusMessage = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LocalGraphStatusMessage)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasLocalGraphStatusMessage)));
-        }
-    }
-
     public string LocalProcessorStatusMessage {
         get => _localProcessorStatusMessage;
         private set {
@@ -296,18 +247,9 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
                 ? $"Stopping ({LocalProcessorActiveJobs} active jobs)"
                 : $"Running ({LocalProcessorActiveJobs} active jobs)";
 
-    public bool HasSelectedLocalGraphFile => !string.IsNullOrWhiteSpace(SelectedLocalGraphFilePath);
-
-    public bool HasLocalGraphStatusMessage => !string.IsNullOrWhiteSpace(LocalGraphStatusMessage);
-
     public bool HasLocalProcessorDiagnosticOutput => !string.IsNullOrWhiteSpace(LocalProcessorDiagnosticOutput);
 
     public bool HasApiPollingProblemMessage => !string.IsNullOrWhiteSpace(ApiPollingProblemMessage);
-
-    public bool CanSelectLocalGraphFile => !IsStartingLocalGraphJob && !_isPickingLocalGraphFile;
-
-    public bool CanStartLocalGraphJob =>
-        !IsLoading && !IsStartingLocalGraphJob && !string.IsNullOrWhiteSpace(SelectedLocalGraphFilePath);
 
     public bool CanStartLocalProcessor =>
         !IsLoading &&
@@ -342,8 +284,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     public ICommand ProcessPendingStorageFileAsGraphCommand { get; }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
-    public ICommand StartLocalGraphJobCommand { get; }
-
     public ICommand StartLocalProcessorCommand { get; }
 
     public ICommand StopLocalProcessorCommand { get; }
@@ -359,10 +299,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
     internal Task RefreshAsync() => LoadJobsAsync(forceApiRetry: false, showBusyIndicator: false);
 
     private async Task LoadJobsAsync(bool forceApiRetry, bool showBusyIndicator = true) {
-        if (_isPickingLocalGraphFile) {
-            return;
-        }
-
         if (!await _loadJobsSemaphore.WaitAsync(0).ConfigureAwait(false)) {
             return;
         }
@@ -637,32 +573,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         await ProcessPendingStorageFileAsync(pendingFile, pendingFile?.DocumentType ?? string.Empty);
     }
 
-    internal async Task<bool> BeginLocalGraphFileSelectionAsync() {
-        if (IsStartingLocalGraphJob || _isPickingLocalGraphFile) {
-            return false;
-        }
-
-        _isPickingLocalGraphFile = true;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSelectLocalGraphFile)));
-        CancelLoadJobs();
-        await WaitForLoadJobsIdleAsync();
-        return true;
-    }
-
-    internal void ApplySelectedLocalGraphFile(string filePath) {
-        SelectedLocalGraphFilePath = filePath;
-        LocalGraphStatusMessage = $"Selected CSV: {Path.GetFileName(filePath)}";
-    }
-
-    internal void EndLocalGraphFileSelection() {
-        if (!_isPickingLocalGraphFile) {
-            return;
-        }
-
-        _isPickingLocalGraphFile = false;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSelectLocalGraphFile)));
-    }
-
     private async Task StartLocalProcessorAsync() {
         await RunOnUiThreadAsync(() => {
             IsStartingLocalProcessor = true;
@@ -764,54 +674,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         }
     }
 
-    private async Task StartLocalGraphJobAsync() {
-        if (IsStartingLocalGraphJob || string.IsNullOrWhiteSpace(SelectedLocalGraphFilePath)) {
-            return;
-        }
-
-        var selectedPath = SelectedLocalGraphFilePath;
-        var fileName = Path.GetFileName(selectedPath);
-
-        try {
-            await RunOffUiThreadAsync(() => ValidateLocalGraphFile(selectedPath)).ConfigureAwait(false);
-        }
-        catch (Exception ex) {
-            await ErrorPresenter.ShowErrorAsync(
-                "Invalid CSV",
-                ErrorPresenter.SanitizeErrorMessage(ex.Message)).ConfigureAwait(false);
-            return;
-        }
-
-        await RunOnUiThreadAsync(() => IsStartingLocalGraphJob = true).ConfigureAwait(false);
-
-        try {
-            var health = await RunOffUiThreadAsync(() => _localProcessorService.GetHealthAsync()).ConfigureAwait(false);
-            if (health is null) {
-                await RunOnUiThreadAsync(() => LocalGraphStatusMessage = "Starting local processor...").ConfigureAwait(false);
-                await RunOffUiThreadAsync(() => _localProcessorService.StartAsync()).ConfigureAwait(false);
-            }
-
-            await RunOnUiThreadAsync(() => LocalGraphStatusMessage = $"Starting local graph job for {fileName}...").ConfigureAwait(false);
-            var result = await RunOffUiThreadAsync(() => _localProcessorService.StartBikeGraphJobAsync(selectedPath)).ConfigureAwait(false);
-
-            await RunOnUiThreadAsync(() => {
-                SelectedLocalGraphFilePath = string.Empty;
-                LocalGraphStatusMessage = $"Local graph job {result.JobId} started for {fileName}.";
-            }).ConfigureAwait(false);
-            await RefreshLocalProcessorSectionAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex) {
-            await RunOnUiThreadAsync(() => LocalGraphStatusMessage = "Failed to start the local graph job.").ConfigureAwait(false);
-            await ErrorPresenter.ShowErrorAsync(
-                "Local Graph Job Failed",
-                ErrorPresenter.SanitizeErrorMessage(ex.Message)).ConfigureAwait(false);
-            _logger.LogError(ex, "Failed to start a local graph job for {FileName}", fileName);
-        }
-        finally {
-            await RunOnUiThreadAsync(() => IsStartingLocalGraphJob = false).ConfigureAwait(false);
-        }
-    }
-
     private async Task ImportLocalProcessorJobAsync(LocalProcessorJobViewModel? job) {
         if (job is null || job.IsImporting) {
             return;
@@ -830,7 +692,6 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             await RunOnUiThreadAsync(() => {
                 job.GraphImportStatus = result.Status;
                 job.GraphImportFailureReason = result.FailureReason;
-                LocalGraphStatusMessage = $"Imported processed graph artifact for upload {job.UploadId}.";
             }).ConfigureAwait(false);
             await LoadJobsAsync(forceApiRetry: true).ConfigureAwait(false);
         }
@@ -1288,29 +1149,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         };
     }
 
-    private static void ValidateLocalGraphFile(string filePath) {
-        if (string.IsNullOrWhiteSpace(filePath)) {
-            throw new InvalidOperationException("Choose a CSV file before starting a graph import.");
-        }
-
-        if (!File.Exists(filePath)) {
-            throw new FileNotFoundException("The selected CSV file no longer exists.", filePath);
-        }
-
-        if (!string.Equals(Path.GetExtension(filePath), ".csv", StringComparison.OrdinalIgnoreCase)) {
-            throw new InvalidOperationException("Only CSV files can be used for graph import.");
-        }
-
-        var fileInfo = new FileInfo(filePath);
-        if (fileInfo.Length == 0) {
-            throw new InvalidOperationException("The selected CSV file is empty.");
-        }
-
-        if (fileInfo.Length > LocalGraphMaxFileSizeBytes) {
-            throw new InvalidOperationException("The selected CSV exceeds the 2 GB graph import limit.");
-        }
-    }
-
+    
     private static Task RunOnUiThreadAsync(Action action) => MauiThreading.RunOnMainThreadAsync(action);
 
     private static Task RunOnUiThreadAsync(Func<Task> action) => MauiThreading.RunOnMainThreadAsync(action);

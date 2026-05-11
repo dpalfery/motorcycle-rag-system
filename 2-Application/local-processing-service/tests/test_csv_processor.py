@@ -31,6 +31,14 @@ def blob_writer():
 
 
 @pytest.fixture()
+def api_client():
+    ac = MagicMock()
+    ac.is_configured = MagicMock(return_value=False)
+    ac.upload_artifact = AsyncMock(return_value=None)
+    return ac
+
+
+@pytest.fixture()
 def embedder():
     em = MagicMock()
     em.generate_embedding = AsyncMock(return_value=[0.1] * 1536)
@@ -38,8 +46,8 @@ def embedder():
 
 
 @pytest.fixture()
-def processor(blob_writer, embedder):
-    return CSVProcessor(blob_writer=blob_writer, embedder=embedder)
+def processor(blob_writer, embedder, api_client):
+    return CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
 
 
 # ---------------------------------------------------------------------------
@@ -48,8 +56,8 @@ def processor(blob_writer, embedder):
 
 
 class TestCSVProcessorInstantiation:
-    def test_instantiates_with_mock_dependencies(self, blob_writer, embedder):
-        proc = CSVProcessor(blob_writer=blob_writer, embedder=embedder)
+    def test_instantiates_with_mock_dependencies(self, blob_writer, embedder, api_client):
+        proc = CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
         assert proc.blob_writer is blob_writer
         assert proc.embedder is embedder
 
@@ -91,7 +99,7 @@ class TestGetJobStatus:
 
 class TestCSVBackgroundProcessing:
     async def test_completed_after_background_runs(
-        self, processor, blob_writer, embedder
+        self, processor, blob_writer, embedder, api_client
     ):
         """Wait for background task to finish and verify completed status."""
         job_id = await processor.process_csv_async(
@@ -112,13 +120,13 @@ class TestCSVBackgroundProcessing:
         status = await processor.get_job_status(job_id)
         assert status["status"] == "completed"
         assert status["chunks_processed"] >= 1
-        blob_writer.upload_jsonl.assert_awaited_once()
+        api_client.upload_artifact.assert_awaited_once()
         embedder.generate_embedding.assert_awaited()
 
     async def test_empty_csv_results_in_failed(self, blob_writer, embedder):
         """An empty CSV (headers only, no data rows) should result in 'failed'."""
         blob_writer.download_blob = AsyncMock(return_value=b"make,model,year\n")
-        proc = CSVProcessor(blob_writer=blob_writer, embedder=embedder)
+        proc = CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
         job_id = await proc.process_csv_async(
             upload_id="upload-empty",
             blob_container="raw-uploads",

@@ -15,6 +15,7 @@ class ModelDiscoveryError(RuntimeError):
 @dataclass(frozen=True)
 class ModelDiscoveryResult:
     provider: str
+    endpoint: str
     models: list[str]
 
 
@@ -22,6 +23,12 @@ def _normalize_endpoint(endpoint: str) -> str:
     normalized = endpoint.strip().rstrip("/")
     if not normalized:
         raise ValueError("Embedding provider endpoint is required")
+
+    for suffix in ("/models", "/embeddings", "/chat/completions", "/api/tags"):
+        if normalized.lower().endswith(suffix):
+            normalized = normalized[: -len(suffix)]
+            break
+
     return normalized
 
 
@@ -35,23 +42,21 @@ def _unique(values: list[str]) -> list[str]:
     return unique_values
 
 
-def _prefer_embedding_models(models: list[str]) -> list[str]:
-    embedding_models = [
-        model for model in models if "embed" in model.lower() or "embedding" in model.lower()
-    ]
-    return embedding_models if embedding_models else models
-
-
 def _openai_candidate_urls(endpoint: str) -> list[str]:
     base = _normalize_endpoint(endpoint)
-    candidates = [f"{base}/models"]
+    candidates: list[str] = []
     if not base.lower().endswith("/v1"):
         candidates.append(f"{base}/v1/models")
+    candidates.append(f"{base}/models")
     return _unique(candidates)
 
 
 def _ollama_candidate_urls(endpoint: str) -> list[str]:
     return [f"{_normalize_endpoint(endpoint)}/api/tags"]
+
+
+def _candidate_base_url(url: str, suffix: str) -> str:
+    return url[: -len(suffix)] if url.lower().endswith(suffix.lower()) else url
 
 
 def _parse_openai_payload(payload: Any) -> list[str]:
@@ -67,7 +72,7 @@ def _parse_openai_payload(payload: Any) -> list[str]:
         for item in data
         if isinstance(item, dict) and str(item.get("id", "")).strip()
     ]
-    return _prefer_embedding_models(_unique(models))
+    return _unique(models)
 
 
 def _parse_ollama_payload(payload: Any) -> list[str]:
@@ -83,7 +88,7 @@ def _parse_ollama_payload(payload: Any) -> list[str]:
         for item in data
         if isinstance(item, dict) and str(item.get("model") or item.get("name") or "").strip()
     ]
-    return _prefer_embedding_models(_unique(models))
+    return _unique(models)
 
 
 def _sync_get_json(client: httpx.Client, url: str, headers: dict[str, str] | None = None) -> Any:
@@ -109,7 +114,7 @@ def _discover_with_sync_client(client: httpx.Client, endpoint: str) -> ModelDisc
                 payload = _sync_get_json(client, url, headers=headers)
                 models = _parse_openai_payload(payload)
                 if models:
-                    return ModelDiscoveryResult("openai-compatible", models)
+                    return ModelDiscoveryResult("openai-compatible", _candidate_base_url(url, "/models"), models)
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
 
@@ -118,7 +123,7 @@ def _discover_with_sync_client(client: httpx.Client, endpoint: str) -> ModelDisc
             payload = _sync_get_json(client, url)
             models = _parse_ollama_payload(payload)
             if models:
-                return ModelDiscoveryResult("ollama", models)
+                return ModelDiscoveryResult("ollama", _candidate_base_url(url, "/api/tags"), models)
         except Exception as exc:  # noqa: BLE001
             last_error = exc
 
@@ -136,7 +141,7 @@ async def _discover_with_async_client(client: httpx.AsyncClient, endpoint: str) 
                 payload = await _async_get_json(client, url, headers=headers)
                 models = _parse_openai_payload(payload)
                 if models:
-                    return ModelDiscoveryResult("openai-compatible", models)
+                    return ModelDiscoveryResult("openai-compatible", _candidate_base_url(url, "/models"), models)
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
 
@@ -145,7 +150,7 @@ async def _discover_with_async_client(client: httpx.AsyncClient, endpoint: str) 
             payload = await _async_get_json(client, url)
             models = _parse_ollama_payload(payload)
             if models:
-                return ModelDiscoveryResult("ollama", models)
+                return ModelDiscoveryResult("ollama", _candidate_base_url(url, "/api/tags"), models)
         except Exception as exc:  # noqa: BLE001
             last_error = exc
 

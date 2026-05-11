@@ -104,8 +104,19 @@ public class ModelValidationService {
         bool hasValidPageRange = !string.IsNullOrWhiteSpace(locator.PageRange);
 
         if (!hasValidPageNumber && !hasValidPageRange) {
-            errors.Add($"{prefix}Manual citation must have either PageNumber (> 0) or PageRange (non-empty). DocumentId: {LogSanitizer.Sanitize(locator.DocumentId, 48)}");
+            var docId = FormatDocumentIdForError(locator.DocumentId);
+            errors.Add($"{prefix}Manual citation must have either PageNumber (> 0) or PageRange (non-empty). DocumentId: {docId}");
         }
+    }
+
+    private static string FormatDocumentIdForError(string? documentId) {
+        if (string.IsNullOrEmpty(documentId))
+            return "[empty]";
+
+        var sanitized = LogSanitizer.Sanitize(documentId, 48);
+        return sanitized.Length < (documentId?.Length ?? 0)
+            ? sanitized + "..."
+            : sanitized;
     }
 
     private void ValidateHeadings(ManualPdfCitationLocator locator, string prefix, List<string> errors) {
@@ -117,7 +128,7 @@ public class ModelValidationService {
 
             if (emptyHeadingIndices.Count > 0) {
                 errors.Add($"{prefix}SectionHeadings contains empty or whitespace-only strings at indices: {string.Join(", ", emptyHeadingIndices)}. " +
-                           $"DocumentId: {LogSanitizer.Sanitize(locator.DocumentId, 48)}");
+                           $"DocumentId: {FormatDocumentIdForError(locator.DocumentId)}");
             }
         }
     }
@@ -129,7 +140,7 @@ public class ModelValidationService {
 
             if (locator.SectionLevel.Value < minSectionLevel || locator.SectionLevel.Value > maxSectionLevel) {
                 errors.Add($"{prefix}SectionLevel must be between {minSectionLevel} and {maxSectionLevel}. " +
-                           $"Actual: {locator.SectionLevel.Value}. DocumentId: {LogSanitizer.Sanitize(locator.DocumentId, 48)}");
+                           $"Actual: {locator.SectionLevel.Value}. DocumentId: {FormatDocumentIdForError(locator.DocumentId)}");
             }
         }
     }

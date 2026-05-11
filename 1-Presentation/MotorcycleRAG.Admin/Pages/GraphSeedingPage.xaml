@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:MotorcycleRAG.Admin.ViewModels"
+             x:Class="MotorcycleRAG.Admin.Pages.GraphSeedingPage"
+             x:ClassModifier="Internal"
+             x:DataType="viewmodels:GraphSeedingViewModel"
+             Title="Graph Seeding">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20"
+                             Spacing="15">
+
+            <!-- CSV Upload Section -->
+            <Frame BorderColor="LightGray"
+                   CornerRadius="8"
+                   Padding="15">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="CSV Graph Seeding"
+                           FontSize="20"
+                           FontAttributes="Bold"/>
+                    <Label Text="Upload a CSV file to seed the motorcycle knowledge graph. The file is processed locally and only the extracted graph artifact is uploaded to the backend."
+                           FontSize="12"
+                           TextColor="Gray"/>
+
+                    <Button Text="Choose CSV"
+                            Clicked="OnChooseCsvClicked"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            IsEnabled="{Binding CanSelectFile}"/>
+
+                    <Label Text="{Binding SelectedFilePath}"
+                           FontSize="12"
+                           LineBreakMode="MiddleTruncation"
+                           IsVisible="{Binding HasSelectedFile}"/>
+
+                    <Label Text="Supported format: CSV (up to 2 GB)"
+                           FontSize="11"
+                           TextColor="Gray"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <Button Text="Start Graph Seeding Job"
+                    Command="{Binding StartGraphJobCommand}"
+                    BackgroundColor="DarkSlateBlue"
+                    TextColor="White"
+                    FontAttributes="Bold"
+                    HeightRequest="50"
+                    IsEnabled="{Binding CanStartGraphJob}"/>
+
+            <!-- Job Progress Indicator -->
+            <Frame BorderColor="LightGray"
+                   CornerRadius="8"
+                   Padding="15"
+                   IsVisible="{Binding IsStartingGraphJob}">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Starting Graph Job..."
+                           FontSize="16"
+                           FontAttributes="Bold"/>
+
+                    <ActivityIndicator IsRunning="{Binding IsStartingGraphJob}"
+                                       IsVisible="{Binding IsStartingGraphJob}"
+                                       VerticalOptions="Center"/>
+
+                    <Label Text="{Binding StatusMessage}"
+                           FontSize="12"
+                           TextColor="Gray"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Status Feedback -->
+            <Label Text="{Binding StatusMessage}"
+                   FontSize="13"
+                   IsVisible="{Binding HasStatusMessage}"
+                   Padding="0,5"/>
+
+            <!-- Graph Seeding Jobs List -->
+            <VerticalStackLayout Spacing="6">
+                <Grid ColumnDefinitions="*,Auto,Auto"
+                      ColumnSpacing="10">
+                    <Label Grid.Column="0"
+                           Text="Graph Seeding Jobs"
+                           FontSize="20"
+                           FontAttributes="Bold"/>
+
+                    <Button Grid.Column="1"
+                            Text="Refresh"
+                            Command="{Binding RefreshJobsCommand}"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            FontSize="11"
+                            Padding="12,6"/>
+
+                    <ActivityIndicator Grid.Column="2"
+                                       IsRunning="{Binding IsLoadingJobs}"
+                                       IsVisible="{Binding IsLoadingJobs}"
+                                       VerticalOptions="Center"/>
+                </Grid>
+                <Label Text="Local graph processing runs appear here. Once a run completes with graph nodes and edges, use 'Import To Graph' to upload the extracted artifact to the backend."
+                       FontSize="12"
+                       TextColor="Gray"/>
+
+                <CollectionView ItemsSource="{Binding LocalProcessorJobs}"
+                                SelectionMode="None">
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout HorizontalOptions="Center"
+                                             VerticalOptions="Center"
+                                             Spacing="8"
+                                             Padding="20">
+                            <Label Text="No graph seeding jobs found"
+                                   FontSize="16"
+                                   HorizontalOptions="Center"/>
+                            <Label Text="Select a CSV and start a graph seeding job to see results here."
+                                   FontSize="12"
+                                   TextColor="Gray"
+                                   HorizontalOptions="Center"/>
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="viewmodels:LocalProcessorJobViewModel">
+                            <Frame BorderColor="LightGray"
+                                   Margin="0,5"
+                                   Padding="15"
+                                   CornerRadius="8">
+                                <Grid RowDefinitions="Auto,Auto,Auto"
+                                      ColumnDefinitions="*,Auto">
+
+                                    <VerticalStackLayout Grid.Row="0"
+                                                         Grid.Column="0"
+                                                         Spacing="5">
+                                        <Label Text="{Binding JobId}"
+                                               FontAttributes="Bold"
+                                               FontSize="14"/>
+                                        <HorizontalStackLayout Spacing="10">
+                                            <Label Text="{Binding DocumentTypeLabel}"
+                                                   FontSize="12"
+                                                   TextColor="Gray"/>
+                                            <Label Text="|"
+                                                   FontSize="12"
+                                                   TextColor="Gray"/>
+                                            <Label Text="{Binding Status}"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"/>
+                                            <Label Text="{Binding ProgressLabel}"
+                                                   FontSize="12"
+                                                   TextColor="Gray"/>
+                                        </HorizontalStackLayout>
+                                    </VerticalStackLayout>
+
+                                    <VerticalStackLayout Grid.Row="0"
+                                                         Grid.Column="1"
+                                                         Spacing="6">
+                                        <Button Text="{Binding ImportButtonText}"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ImportGraphJobCommand}"
+                                                CommandParameter="{Binding .}"
+                                                BackgroundColor="{StaticResource Tertiary}"
+                                                TextColor="White"
+                                                FontSize="11"
+                                                Padding="10,5"
+                                                IsEnabled="{Binding CanImportProcessedGraph}"/>
+                                    </VerticalStackLayout>
+
+                                    <VerticalStackLayout Grid.Row="1"
+                                                         Grid.ColumnSpan="2"
+                                                         Spacing="3"
+                                                         Margin="0,10,0,0">
+                                        <Label Text="{Binding UploadId, StringFormat='Upload ID: {0}'}"
+                                               FontSize="11"
+                                               TextColor="Gray"/>
+                                        <Label Text="{Binding Message}"
+                                               FontSize="11"
+                                               TextColor="Gray"/>
+                                        <Label Text="{Binding GraphMetricsLabel}"
+                                               FontSize="11"
+                                               TextColor="Gray"
+                                               IsVisible="{Binding HasGraphMetrics}"/>
+                                    </VerticalStackLayout>
+
+                                    <Label Grid.Row="2"
+                                           Grid.ColumnSpan="2"
+                                           Text="{Binding GraphImportStatus, StringFormat='Graph import: {0}'}"
+                                           FontSize="11"
+                                           TextColor="Gray"
+                                           Margin="0,8,0,0"
+                                           IsVisible="{Binding HasGraphImportStatus}"/>
+
+                                    <Label Grid.Row="2"
+                                           Grid.ColumnSpan="2"
+                                           Text="{Binding GraphImportFailureReason, StringFormat='Last import failure: {0}'}"
+                                           FontSize="11"
+                                           TextColor="Orange"
+                                           Margin="0,12,0,0"
+                                           IsVisible="{Binding HasGraphImportFailureReason}"/>
+                                </Grid>
+                            </Frame>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

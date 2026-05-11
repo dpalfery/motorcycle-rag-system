@@ -126,13 +126,22 @@ public class AgentProvisioningServiceTests
             .ReturnsAsync(new ProvisionedAgentReference(AgentDefinitions.OrchestratorAgentName, "fallback-v1"));
 
         _mockOps.Setup(o => o.CreateAgentVersionAsync(
-                It.Is<string>(name => name != AgentDefinitions.OrchestratorAgentName),
+                It.Is<string>(name => name != AgentDefinitions.OrchestratorAgentName
+                    && name != AgentDefinitions.GraphQueryAgentName),
                 AgentDefinitions.SubAgentModel,
                 It.IsAny<string>(),
                 It.IsAny<ResponseTool[]>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((string name, string _, string __, ResponseTool[] ___, CancellationToken ____) =>
                 new ProvisionedAgentReference(name, "sub-v1"));
+
+        _mockOps.Setup(o => o.CreateAgentVersionAsync(
+                AgentDefinitions.GraphQueryAgentName,
+                AgentDefinitions.GraphQueryModel,
+                It.IsAny<string>(),
+                It.IsAny<ResponseTool[]>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProvisionedAgentReference(AgentDefinitions.GraphQueryAgentName, "graph-v1"));
 
         var result = await _service.ProvisionAllAgentsAsync();
 

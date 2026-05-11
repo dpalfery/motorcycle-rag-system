@@ -1,19 +1,15 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <UseMaui>true</UseMaui>
-    <MauiEnableResizetizer>false</MauiEnableResizetizer>
-    <EnableDefaultMauiItems>false</EnableDefaultMauiItems>
-    <ResizetizerIncludePicture>false</ResizetizerIncludePicture>
-    <ResizetizerIncludeSplashScreen>false</ResizetizerIncludeSplashScreen>
-    <ResizetizerIncludeFont>false</ResizetizerIncludeFont>
-    <EnableMauiAssetProcessing>false</EnableMauiAssetProcessing>
-    <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
-    <SkipResizetizer>true</SkipResizetizer>
+    <UseMaui>false</UseMaui>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <EnableMauiImageProcessing>false</EnableMauiImageProcessing>
+    <EnableMauiAssetProcessing>false</EnableMauiAssetProcessing>
+    <EnableMauiFontProcessing>false</EnableMauiFontProcessing>
+    <EnableMauiSplashScreenProcessing>false</EnableMauiSplashScreenProcessing>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,33 +19,14 @@
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
-    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.10" />
-  </ItemGroup>
+    </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
   <ItemGroup>
-    <MauiIcon Remove="**" />
-    <MauiSplashScreen Remove="**" />
-    <MauiImage Remove="**" />
-    <MauiAsset Remove="**" />
-    <MauiFont Remove="**" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\1-Presentation\MotorcycleRAG.MobileApp\MotorcycleRAG.MobileApp.csproj" />
   </ItemGroup>
-
-  <Target Name="RemoveMauiIcons" BeforeTargets="_ResizetizerCollectImages">
-    <ItemGroup>
-        <MauiIcon Remove="@(MauiIcon)" />
-        <MauiSplashScreen Remove="@(MauiSplashScreen)" />
-        <MauiImage Remove="@(MauiImage)" />
-        <MauiAsset Remove="@(MauiAsset)" />
-        <MauiFont Remove="@(MauiFont)" />
-    </ItemGroup>
-  </Target>
 
 </Project>

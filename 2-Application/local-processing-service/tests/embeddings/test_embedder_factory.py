@@ -7,6 +7,7 @@ import pytest
 from embeddings.embedder_factory import get_embedder, reset_embedder
 from embeddings.deepinfra_embedder import DeepInfraEmbedder
 from embeddings.foundry_local_embedder import AzureFoundryLocalEmbedder
+from embeddings.model_discovery import ModelDiscoveryResult
 from embeddings.ollama_embedder import OllamaEmbedder
 
 
@@ -53,6 +54,22 @@ class TestGetEmbedderBackendSelection:
 
         with pytest.raises(ValueError, match="Unknown EMBEDDING_BACKEND"):
             get_embedder()
+
+    def test_provider_endpoint_requires_explicit_model_when_multiple_models_are_discovered(self, monkeypatch):
+        """A provider endpoint with multiple models requires EMBEDDING_MODEL to avoid arbitrary selection."""
+        monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "http://127.0.0.1:1234")
+        monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
+
+        with patch(
+            "embeddings.embedder_factory.discover_embedding_models_sync",
+            return_value=ModelDiscoveryResult(
+                provider="openai-compatible",
+                endpoint="http://127.0.0.1:1234/v1",
+                models=["text-embedding-qwen", "gpt-4o-mini"],
+            ),
+        ):
+            with pytest.raises(ValueError, match="Set EMBEDDING_MODEL explicitly"):
+                get_embedder()
 
 
 class TestGetEmbedderSingleton:

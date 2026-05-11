@@ -9,7 +9,7 @@
 
        <ScrollView>
               <VerticalStackLayout Padding="20"
-                            Spacing="15">
+                                   Spacing="15">
 
                      <!-- Page Header -->
                      <Label Text="Application Settings"
@@ -136,7 +136,7 @@
                                           FontAttributes="Bold"
                                           Margin="0,10,0,0"/>
                                    <Grid ColumnDefinitions="*,Auto"
-                                                 ColumnSpacing="10">
+                                         ColumnSpacing="10">
                                           <Entry Grid.Column="0"
                                                  Text="{Binding EmbeddingProviderEndpoint}"
                                                  Placeholder="http://localhost:5272"
@@ -262,7 +262,7 @@
                             CornerRadius="8"
                             Padding="15">
                             <HorizontalStackLayout Spacing="15"
-                                          HorizontalOptions="End">
+                                                   HorizontalOptions="End">
                                    <Button Text="Reset All"
                                            Command="{Binding ResetSettingsCommand}"
                                            BackgroundColor="#FF6B6B"

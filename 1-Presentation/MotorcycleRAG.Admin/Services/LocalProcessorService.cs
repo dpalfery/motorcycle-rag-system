@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -39,16 +40,151 @@ internal sealed class LocalProcessorService : ILocalProcessorService {
     internal LocalProcessorService(
         IConfigurationStateService configurationStateService,
         ILogger<LocalProcessorService> logger,
-        string processorLogDirectory) {
+        string processorLogDirectory,
+        HttpMessageHandler? httpMessageHandler = null) {
         _configurationStateService = configurationStateService ?? throw new ArgumentNullException(nameof(configurationStateService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _processorLogDirectory = string.IsNullOrWhiteSpace(processorLogDirectory)
             ? GetDefaultLogDirectory()
             : processorLogDirectory;
         _processorLogFilePath = Path.Combine(_processorLogDirectory, "local-processor.log");
-        _httpClient = new HttpClient {
-            Timeout = TimeSpan.FromSeconds(10)
-        };
+        _httpClient = httpMessageHandler is null
+            ? new HttpClient()
+            : new HttpClient(httpMessageHandler, disposeHandler: true);
+        _httpClient.Timeout = TimeSpan.FromSeconds(10);
+    }
+
+    private static string NormalizeProviderEndpoint(string providerEndpoint) {
+        var normalized = providerEndpoint.Trim().TrimEnd('/');
+
+        foreach (var suffix in new[] { "/models", "/embeddings", "/chat/completions", "/api/tags" }) {
+            if (normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) {
+                normalized = normalized[..^suffix.Length];
+                break;
+            }
+        }
+
+        return normalized;
+    }
+
+    private static IReadOnlyList<string> BuildOpenAiCandidateUrls(string providerEndpoint) {
+        var normalized = NormalizeProviderEndpoint(providerEndpoint);
+        var candidates = new List<string>();
+
+        if (!normalized.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)) {
+            candidates.Add($"{normalized}/v1/models");
+        }
+
+        candidates.Add($"{normalized}/models");
+
+        return candidates.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static string BuildOllamaCandidateUrl(string providerEndpoint) {
+        return $"{NormalizeProviderEndpoint(providerEndpoint)}/api/tags";
+    }
+
+    private static IReadOnlyList<string> DistinctModels(IEnumerable<string> models) {
+        return models
+            .Where(model => !string.IsNullOrWhiteSpace(model))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> ParseOpenAiModels(string payload) {
+        using var document = JsonDocument.Parse(payload);
+        if (!document.RootElement.TryGetProperty("data", out var dataElement) || dataElement.ValueKind != JsonValueKind.Array) {
+            return [];
+        }
+
+        return DistinctModels(
+            dataElement.EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.Object && item.TryGetProperty("id", out _))
+                .Select(item => item.GetProperty("id").GetString() ?? string.Empty));
+    }
+
+    private static IReadOnlyList<string> ParseOllamaModels(string payload) {
+        using var document = JsonDocument.Parse(payload);
+        if (!document.RootElement.TryGetProperty("models", out var modelsElement) || modelsElement.ValueKind != JsonValueKind.Array) {
+            return [];
+        }
+
+        return DistinctModels(
+            modelsElement.EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.Object)
+                .Select(item => {
+                    if (item.TryGetProperty("model", out var modelElement) && modelElement.ValueKind == JsonValueKind.String) {
+                        return modelElement.GetString() ?? string.Empty;
+                    }
+
+                    if (item.TryGetProperty("name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String) {
+                        return nameElement.GetString() ?? string.Empty;
+                    }
+
+                    return string.Empty;
+                }));
+    }
+
+    private async Task<EmbeddingModelDiscoveryResponse> DiscoverEmbeddingModelsAsync(string providerEndpoint, CancellationToken cancellationToken) {
+        Exception? lastError = null;
+        var normalizedEndpoint = NormalizeProviderEndpoint(providerEndpoint);
+
+        foreach (var candidateUrl in BuildOpenAiCandidateUrls(providerEndpoint)) {
+            foreach (var sendBearerHeader in new[] { false, true }) {
+                try {
+                    using var request = new HttpRequestMessage(HttpMethod.Get, candidateUrl);
+                    if (sendBearerHeader) {
+                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "local");
+                    }
+
+                    using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                    response.EnsureSuccessStatusCode();
+
+                    var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                    var models = ParseOpenAiModels(payload);
+                    if (models.Count > 0) {
+                        var resolvedEndpoint = candidateUrl[..^"/models".Length];
+                        return new EmbeddingModelDiscoveryResponse {
+                            Provider = "openai-compatible",
+                            Endpoint = resolvedEndpoint,
+                            Models = models.ToList()
+                        };
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    throw;
+                }
+                catch (Exception ex) {
+                    lastError = ex;
+                }
+            }
+        }
+
+        try {
+            using var response = await _httpClient.GetAsync(new Uri(BuildOllamaCandidateUrl(providerEndpoint)), cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            var models = ParseOllamaModels(payload);
+            if (models.Count > 0) {
+                var resolvedEndpoint = BuildOllamaCandidateUrl(providerEndpoint)[..^"/api/tags".Length];
+                return new EmbeddingModelDiscoveryResponse {
+                    Provider = "ollama",
+                    Endpoint = resolvedEndpoint,
+                    Models = models.ToList()
+                };
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        }
+        catch (Exception ex) {
+            lastError = ex;
+        }
+
+        throw new InvalidOperationException(
+            $"Unable to detect an embedding model provider at {normalizedEndpoint}.",
+            lastError);
     }
 
     public async Task<LocalProcessorHealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default) {
@@ -86,21 +222,11 @@ internal sealed class LocalProcessorService : ILocalProcessorService {
             throw new ArgumentException("An embedding provider endpoint is required.", nameof(providerEndpoint));
         }
 
-        var endpoint = GetEndpoint();
-        var requestUri = new Uri(endpoint, $"/embedding/models?endpoint={Uri.EscapeDataString(providerEndpoint.Trim())}");
-
-        using var response = await _httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode) {
-            var detail = await ReadErrorDetailAsync(response, cancellationToken).ConfigureAwait(false);
-            throw new InvalidOperationException(detail ?? $"Embedding model discovery failed with status code {(int)response.StatusCode}.");
+        if (!Uri.TryCreate(providerEndpoint, UriKind.Absolute, out _)) {
+            throw new ArgumentException("Invalid embedding provider endpoint format.", nameof(providerEndpoint));
         }
 
-        var payload = await response.Content.ReadFromJsonAsync<EmbeddingModelDiscoveryResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (payload is null) {
-            throw new InvalidOperationException("The local processor returned an empty embedding model discovery response.");
-        }
-
-        return payload;
+        return await DiscoverEmbeddingModelsAsync(providerEndpoint, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<LocalProcessorJobResponse>> GetJobsAsync(CancellationToken cancellationToken = default) {

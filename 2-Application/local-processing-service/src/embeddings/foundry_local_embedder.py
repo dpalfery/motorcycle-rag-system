@@ -11,6 +11,19 @@ logger = logging.getLogger(__name__)
 _MAX_RETRIES = 3
 
 
+def _normalize_openai_base_url(endpoint: str) -> str:
+    normalized = endpoint.strip().rstrip("/")
+    if not normalized:
+        return ""
+
+    for suffix in ("/models", "/embeddings", "/chat/completions"):
+        if normalized.lower().endswith(suffix):
+            normalized = normalized[: -len(suffix)]
+            break
+
+    return normalized
+
+
 class AzureFoundryLocalEmbedder:
     """Generates 3584-dim embeddings via Azure AI Foundry Local (OpenAI-compatible server).
 
@@ -27,9 +40,9 @@ class AzureFoundryLocalEmbedder:
     """
 
     def __init__(self, endpoint: str | None = None, model: str | None = None) -> None:
-        self._endpoint: str = (endpoint or os.getenv(
-            "AZURE_FOUNDRY_LOCAL_ENDPOINT", "http://localhost:5272"
-        )).rstrip("/")
+        self._endpoint: str = _normalize_openai_base_url(
+            endpoint or os.getenv("AZURE_FOUNDRY_LOCAL_ENDPOINT", "http://localhost:5272/v1")
+        )
         self._model: str = model or os.getenv(
             "AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL", "qwen3-embedding"
         )

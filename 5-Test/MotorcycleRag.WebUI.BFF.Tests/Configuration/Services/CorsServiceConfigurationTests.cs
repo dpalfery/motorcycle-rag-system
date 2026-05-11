@@ -1,8 +1,10 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Cors.Infrastructure;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Moq;
 using MotorcycleRag.WebUI.BFF.Configuration.Services;
 using Xunit;
 
@@ -25,8 +27,11 @@ public class CorsServiceConfigurationTests {
             .AddInMemoryCollection(configDict)
             .Build();
 
+        var env = new Mock<IWebHostEnvironment>();
+        env.Setup(e => e.EnvironmentName).Returns("Production");
+
         var services = new ServiceCollection();
-        services.AddBffCors(config);
+        services.AddBffCors(config, env.Object);
         var provider = services.BuildServiceProvider();
         return provider.GetRequiredService<IOptions<CorsOptions>>().Value;
     }

@@ -44,6 +44,7 @@ public static class ServiceCollectionExtensions {
         services.AddScoped<IUsageRepository, UsageRepository>();
         services.AddScoped<IPlanRepository, PlanRepository>();
         services.AddScoped<IWebSourceRepository, WebSourceRepository>();
+        services.AddScoped<IManualDocumentRepository, ManualDocumentRepository>();
 
         // Register web trust policy store for domain allowlist enforcement
         services.AddSingleton<WebTrustPolicyStore>();

@@ -1,6 +1,9 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Admin.Services;
+using System.Net;
+using System.Text;
 
 namespace MotorcycleRAG.Admin.Tests.Services;
 
@@ -15,8 +18,7 @@ public sealed class LocalProcessorServiceTests {
             LocalProcessorUploadJobSecret = "test-upload-secret"
         };
 
-        var logger = LoggerFactory.Create(builder => { }).CreateLogger<LocalProcessorService>();
-        var sut = new LocalProcessorService(configurationStateService, logger, processorLogDirectory);
+        var sut = new LocalProcessorService(configurationStateService, NullLogger<LocalProcessorService>.Instance, processorLogDirectory);
 
         var variables = sut.BuildChildEnvironmentVariables();
 
@@ -42,8 +44,7 @@ public sealed class LocalProcessorServiceTests {
         var processorLogDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var configurationStateService = new TestConfigurationStateService();
 
-        var logger = LoggerFactory.Create(builder => { }).CreateLogger<LocalProcessorService>();
-        var sut = new LocalProcessorService(configurationStateService, logger, processorLogDirectory);
+        var sut = new LocalProcessorService(configurationStateService, NullLogger<LocalProcessorService>.Instance, processorLogDirectory);
 
         var variables = sut.BuildChildEnvironmentVariables();
 
@@ -72,14 +73,91 @@ public sealed class LocalProcessorServiceTests {
             ]);
 
         var configurationStateService = new TestConfigurationStateService();
-        var logger = LoggerFactory.Create(builder => { }).CreateLogger<LocalProcessorService>();
-        var sut = new LocalProcessorService(configurationStateService, logger, processorLogDirectory);
+        var sut = new LocalProcessorService(configurationStateService, NullLogger<LocalProcessorService>.Instance, processorLogDirectory);
 
         sut.RecentProcessOutput.Should().ContainInOrder(
             "2026-04-23 08:15:26,199 INFO     httpx - upload started",
             "2026-04-23 08:15:36,399 ERROR    processors.bike_graph_processor - Artifact upload failed");
 
         Directory.Delete(processorLogDirectory, recursive: true);
+    }
+
+    [Fact]
+    public async Task GetEmbeddingModelsAsync_DiscoversOpenAiCompatibleProviderWithoutLocalProcessor() {
+        using var handler = new StubHttpMessageHandler(request => request.RequestUri?.AbsoluteUri switch {
+            "http://127.0.0.1:1234/models" => new HttpResponseMessage(HttpStatusCode.NotFound),
+            "http://127.0.0.1:1234/v1/models" => new HttpResponseMessage(HttpStatusCode.OK) {
+                Content = new StringContent(
+                    "{\"data\":[{\"id\":\"text-embedding-qwen\"},{\"id\":\"chat-model\"}]}",
+                    Encoding.UTF8,
+                    "application/json")
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+
+        var sut = CreateSubject(handler);
+
+        var result = await sut.GetEmbeddingModelsAsync("http://127.0.0.1:1234");
+
+        result.Provider.Should().Be("openai-compatible");
+        result.Endpoint.Should().Be("http://127.0.0.1:1234/v1");
+        result.Models.Should().Equal("text-embedding-qwen", "chat-model");
+    }
+
+    [Fact]
+    public async Task GetEmbeddingModelsAsync_AcceptsModelListUrlAndNormalizesIt() {
+        using var handler = new StubHttpMessageHandler(request => request.RequestUri?.AbsoluteUri switch {
+            "http://127.0.0.1:1234/v1/models" => new HttpResponseMessage(HttpStatusCode.OK) {
+                Content = new StringContent(
+                    "{\"data\":[{\"id\":\"text-embedding-qwen\"}]}",
+                    Encoding.UTF8,
+                    "application/json")
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+
+        var sut = CreateSubject(handler);
+
+        var result = await sut.GetEmbeddingModelsAsync("http://127.0.0.1:1234/v1/models");
+
+        result.Provider.Should().Be("openai-compatible");
+        result.Endpoint.Should().Be("http://127.0.0.1:1234/v1");
+        result.Models.Should().ContainSingle().Which.Should().Be("text-embedding-qwen");
+    }
+
+    [Fact]
+    public async Task GetEmbeddingModelsAsync_AcceptsOllamaTagsUrlAndNormalizesIt() {
+        using var handler = new StubHttpMessageHandler(request => request.RequestUri?.AbsoluteUri switch {
+            "http://localhost:11434/models" => new HttpResponseMessage(HttpStatusCode.NotFound),
+            "http://localhost:11434/v1/models" => new HttpResponseMessage(HttpStatusCode.NotFound),
+            "http://localhost:11434/api/tags" => new HttpResponseMessage(HttpStatusCode.OK) {
+                Content = new StringContent(
+                    "{\"models\":[{\"model\":\"qwen3-embedding\"},{\"model\":\"qwen3:4b\"}]}",
+                    Encoding.UTF8,
+                    "application/json")
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+
+        var sut = CreateSubject(handler);
+
+        var result = await sut.GetEmbeddingModelsAsync("http://localhost:11434/api/tags");
+
+        result.Provider.Should().Be("ollama");
+        result.Endpoint.Should().Be("http://localhost:11434");
+        result.Models.Should().Equal("qwen3-embedding", "qwen3:4b");
+    }
+
+    private static LocalProcessorService CreateSubject(HttpMessageHandler? httpMessageHandler = null) {
+        var processorLogDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var configurationStateService = new TestConfigurationStateService();
+        return new LocalProcessorService(configurationStateService, NullLogger<LocalProcessorService>.Instance, processorLogDirectory, httpMessageHandler);
+    }
+
+    private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler) : HttpMessageHandler {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
+            return Task.FromResult(handler(request));
+        }
     }
 
     private sealed class TestConfigurationStateService : IConfigurationStateService {

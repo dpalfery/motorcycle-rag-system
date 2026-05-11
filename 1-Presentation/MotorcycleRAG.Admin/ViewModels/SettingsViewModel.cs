@@ -434,6 +434,11 @@ internal partial class SettingsViewModel : ObservableObject {
             errorMessages.Add($"Local Processor: {LocalProcessorValidationMessage}");
         }
 
+        if (!string.IsNullOrWhiteSpace(EmbeddingProviderEndpoint) && string.IsNullOrWhiteSpace(EmbeddingModel)) {
+            hasValidationErrors = true;
+            errorMessages.Add("Embedding: Select an embedding model for the configured provider endpoint");
+        }
+
         if (hasValidationErrors) {
             await MauiThreading.RunOnMainThreadAsync(() =>
                 StatusMessage = "Please fix validation errors before saving.").ConfigureAwait(false);
@@ -567,6 +572,25 @@ internal partial class SettingsViewModel : ObservableObject {
             return;
         }
 
+        if (!Uri.TryCreate(EmbeddingProviderEndpoint, UriKind.Absolute, out var providerUri)) {
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                EmbeddingModelsStatusMessage = "Embedding provider endpoint must be a valid absolute URL.").ConfigureAwait(false);
+            return;
+        }
+
+        if (providerUri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) && !providerUri.IsLoopback) {
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                EmbeddingModelsStatusMessage = "HTTPS is required for non-local embedding provider endpoints.").ConfigureAwait(false);
+            return;
+        }
+
+        if (!providerUri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
+            && !providerUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)) {
+            await MauiThreading.RunOnMainThreadAsync(() =>
+                EmbeddingModelsStatusMessage = "Embedding provider endpoint must use HTTP or HTTPS.").ConfigureAwait(false);
+            return;
+        }
+
         await MauiThreading.RunOnMainThreadAsync(() => {
             IsLoadingEmbeddingModels = true;
             EmbeddingModelsStatusMessage = "Loading embedding models...";
@@ -578,19 +602,25 @@ internal partial class SettingsViewModel : ObservableObject {
                 () => _localProcessorService.GetEmbeddingModelsAsync(providerEndpoint)).ConfigureAwait(false);
 
             await MauiThreading.RunOnMainThreadAsync(() => {
+                EmbeddingProviderEndpoint = discovery.Endpoint;
                 EmbeddingProvider = discovery.Provider;
                 SetEmbeddingModels(discovery.Models);
 
                 if (EmbeddingModels.Count == 0) {
                     EmbeddingModel = string.Empty;
-                    EmbeddingModelsStatusMessage = $"No embedding models found for {discovery.Provider}.";
+                    EmbeddingModelsStatusMessage = $"No models were returned by {discovery.Provider}.";
                 }
                 else {
-                    if (string.IsNullOrWhiteSpace(EmbeddingModel) || !EmbeddingModels.Contains(EmbeddingModel)) {
+                    if (EmbeddingModels.Count == 1) {
                         EmbeddingModel = EmbeddingModels[0];
                     }
+                    else if (!EmbeddingModels.Contains(EmbeddingModel)) {
+                        EmbeddingModel = string.Empty;
+                    }
 
-                    EmbeddingModelsStatusMessage = $"Loaded {EmbeddingModels.Count} model(s) from {discovery.Provider}.";
+                    EmbeddingModelsStatusMessage = string.IsNullOrWhiteSpace(EmbeddingModel)
+                        ? $"Loaded {EmbeddingModels.Count} model(s) from {discovery.Provider}. Select the embedding model to use."
+                        : $"Loaded {EmbeddingModels.Count} model(s) from {discovery.Provider}.";
                 }
             }).ConfigureAwait(false);
 
@@ -616,9 +646,7 @@ internal partial class SettingsViewModel : ObservableObject {
 
     private bool CanLoadEmbeddingModels() =>
         !IsLoadingEmbeddingModels
-        && !string.IsNullOrWhiteSpace(EmbeddingProviderEndpoint)
-        && !string.IsNullOrWhiteSpace(LocalProcessorEndpoint)
-        && Uri.TryCreate(LocalProcessorEndpoint, UriKind.Absolute, out _);
+        && !string.IsNullOrWhiteSpace(EmbeddingProviderEndpoint);
 
     [RelayCommand]
     private async Task ResetSettingsAsync() {

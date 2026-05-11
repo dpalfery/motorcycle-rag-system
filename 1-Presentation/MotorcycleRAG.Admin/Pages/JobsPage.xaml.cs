@@ -11,12 +11,10 @@ namespace MotorcycleRAG.Admin.Pages;
     "Design", "S3059:Types should not have members with visibility set higher than the type's visibility",
     Justification = "Internal class has public constructor required by MAUI DI framework")]
 internal partial class JobsPage : ContentPage {
-    private static readonly string[] CsvExtensions = [".csv"];
     private readonly JobsViewModel _viewModel;
     private readonly ILogger<JobsPage> _logger;
     private IDispatcherTimer? _pollTimer;
     private bool _hasInitialized;
-    private bool _isPickerOpen;
 
     public JobsPage(JobsViewModel viewModel, ILogger<JobsPage> logger) {
         InitializeComponent();
@@ -34,13 +32,11 @@ internal partial class JobsPage : ContentPage {
                 await _viewModel.InitializeAsync();
                 _hasInitialized = true;
             }
-            else if (!_isPickerOpen) {
+            else {
                 await _viewModel.RefreshAsync();
             }
 
-            if (!_isPickerOpen) {
-                _pollTimer.Start();
-            }
+            _pollTimer.Start();
         }
         catch (Exception ex) {
                 _logger.LogError(ex, "Failed to initialize Jobs page");
@@ -74,44 +70,6 @@ internal partial class JobsPage : ContentPage {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Jobs page polling failed.");
-        }
-    }
-
-    private async void OnChooseCsvClicked(object? sender, EventArgs e) {
-        _isPickerOpen = true;
-        _pollTimer?.Stop();
-
-        if (!await _viewModel.BeginLocalGraphFileSelectionAsync()) {
-            _isPickerOpen = false;
-            _pollTimer?.Start();
-            return;
-        }
-
-        try {
-            var result = await FilePicker.Default.PickAsync(new PickOptions {
-                PickerTitle = "Select a CSV file for graph import",
-                FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
-                {
-                    { DevicePlatform.WinUI, CsvExtensions }
-                })
-            });
-
-            if (result is null) {
-                return;
-            }
-
-            _viewModel.ApplySelectedLocalGraphFile(result.FullPath);
-        }
-        catch (Exception ex) {
-            _logger.LogWarning(ex, "Failed to select a local CSV for graph import.");
-            await Utilities.ErrorPresenter.ShowErrorAsync(
-                "File Selection Error",
-                Utilities.ErrorPresenter.SanitizeErrorMessage(ex.Message));
-        }
-        finally {
-            _viewModel.EndLocalGraphFileSelection();
-            _isPickerOpen = false;
-            _pollTimer?.Start();
         }
     }
 }

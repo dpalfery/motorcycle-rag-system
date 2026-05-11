@@ -34,6 +34,7 @@ internal static class DataPipelineConfiguration {
 
         // Register ingestion job service for Fabric pipeline integration
         services.AddScoped<IIngestionJobService, MotorcycleRAG.Application.Pipeline.IngestionJobService>();
+        services.AddScoped<IManualIngestionService, MotorcycleRAG.Application.Pipeline.ManualIngestionService>();
 
         // Register concrete pipeline service implementations
         services.AddScoped<MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>();

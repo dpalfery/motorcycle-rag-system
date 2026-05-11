@@ -408,6 +408,7 @@ namespace MotorcycleRAG.Infrastructure {
                             new EnvironmentVarArgs { Name = "API_URL", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") },
                             new EnvironmentVarArgs { Name = "ASPNETCORE_HTTP_PORTS", Value = "8080" },
                             new EnvironmentVarArgs { Name = "ReverseProxy__Clusters__api-cluster__Destinations__destination1__Address", Value = apiApp.Configuration.Apply(c => $"https://{c!.Ingress!.Fqdn}") },
+                            new EnvironmentVarArgs { Name = "ReverseProxy__Clusters__api-cluster__HttpClient__ActivityTimeout", Value = "00:02:00" },
                         }).ToArray(),
                         Probes = new[]
                         {
@@ -440,7 +441,12 @@ namespace MotorcycleRAG.Infrastructure {
                 ResourceGroupName = resourceGroup.Name,
                 Location = location,
                 Sku = new Pulumi.AzureNative.Search.Inputs.SkuArgs { Name = "free" },
-                HostingMode = Pulumi.AzureNative.Search.HostingMode.Default
+                HostingMode = Pulumi.AzureNative.Search.HostingMode.Default,
+                AuthOptions = new Pulumi.AzureNative.Search.Inputs.DataPlaneAuthOptionsArgs {
+                    AadOrApiKey = new Pulumi.AzureNative.Search.Inputs.DataPlaneAadOrApiKeyAuthOptionArgs {
+                        AadAuthFailureMode = Pulumi.AzureNative.Search.AadAuthFailureMode.Http403
+                    }
+                }
             });
 
             // 13. Azure SQL Server
@@ -736,6 +742,22 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-PDFSEARCH-AGENT-VERSION\"}}")
             });
 
+            _ = new KeyValue("appconfig-kvref-graphquery-agent-name", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:GraphQueryAgentName",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-GRAPHQUERY-AGENT-NAME\"}}")
+            });
+
+            _ = new KeyValue("appconfig-kvref-graphquery-agent-version", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "AzureAI:GraphQueryAgentVersion",
+                ContentType = kvRefContentType,
+                Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-GRAPHQUERY-AGENT-VERSION\"}}")
+            });
+
             // RBAC: Key Vault Secrets User for both apps
             _ = new RoleAssignment($"{namePrefix}-api-kv-role", new RoleAssignmentArgs {
                 PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
@@ -790,6 +812,12 @@ namespace MotorcycleRAG.Infrastructure {
             _ = new RoleAssignment($"{namePrefix}-api-search-role", new RoleAssignmentArgs {
                 PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
                 RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/8ebe5a00-799e-43f5-93ac-243d3dce84a7", // Search Index Data Contributor
+                Scope = searchService.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
+            _ = new RoleAssignment($"{namePrefix}-api-search-reader-role", new RoleAssignmentArgs {
+                PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/1407120a-92aa-4202-b7e9-c0e197c71c8f", // Search Index Data Reader
                 Scope = searchService.Id,
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });

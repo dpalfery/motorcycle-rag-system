@@ -121,7 +121,7 @@ export default function ChatInterface() {
                             <Loader2 className="w-4 h-4 text-primary animate-spin" />
                         </div>
                         <div className="bg-[#252525] p-3 rounded-2xl rounded-tl-none border-l-2 border-primary/50 text-gray-400 text-sm flex items-center gap-2">
-                            <span>Analysis in progress...</span>
+                            <span>I was sleeping! give me a minute to finish booting, Like John I boot slow</span>
                         </div>
                     </div>
                 )}

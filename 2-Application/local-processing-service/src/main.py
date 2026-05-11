@@ -156,6 +156,7 @@ async def health_check():
             status_code=200,
         )
     except Exception as e:
+        logger.exception("Health check failed")
         return JSONResponse(
             content={
                 "status": "unhealthy",
@@ -163,7 +164,6 @@ async def health_check():
                 "shutdown_requested": shutdown_requested,
                 "active_jobs": 0,
                 "message": "Processor health check failed",
-                "error": str(e),
                 "services": {
                     "embedding_provider": "unknown",
                     "blob_storage": "unknown",

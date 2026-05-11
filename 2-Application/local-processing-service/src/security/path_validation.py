@@ -29,12 +29,26 @@ def resolve_local_csv_path(local_file_path: str) -> Path:
 
     try:
         resolved_path = Path(local_file_path).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="local_file_path contains invalid path components",
+        ) from exc
+
+    # Verify the resolved path is inside the input root (prevents symlink traversal)
+    try:
         resolved_path.relative_to(input_root)
-    except (OSError, RuntimeError, ValueError) as exc:
+    except ValueError as exc:
         raise HTTPException(
             status_code=400,
             detail="local_file_path must be inside the configured input directory",
         ) from exc
+
+    if not str(resolved_path).startswith(str(input_root)):
+        raise HTTPException(
+            status_code=400,
+            detail="local_file_path must be inside the configured input directory",
+        )
 
     if not resolved_path.is_file():
         raise HTTPException(

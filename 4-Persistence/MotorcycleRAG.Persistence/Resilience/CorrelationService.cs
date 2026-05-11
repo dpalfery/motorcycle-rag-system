@@ -81,8 +81,10 @@ public class CorrelationService : ICorrelationService
             throw new ArgumentException("Correlation ID cannot be null or empty", nameof(correlationId));
         }
 
-        _correlationId.Value = correlationId;
-        _logger.LogDebug("Set correlation ID: {CorrelationId}", correlationId);
+        // Sanitize correlation ID to prevent log injection
+        var sanitizedId = correlationId.Replace("\n", "").Replace("\r", "").Replace("\t", "");
+        _correlationId.Value = sanitizedId;
+        _logger.LogDebug("Set correlation ID: {CorrelationId}", sanitizedId);
     }
 
     /// <summary>

@@ -63,7 +63,7 @@ jobs:
           --settings coverlet.runsettings
     
     - name: Upload test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: unit-test-results
@@ -105,7 +105,7 @@ jobs:
           --filter "Category!=AzureIntegration"
     
     - name: Upload integration test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: integration-test-results
@@ -155,7 +155,7 @@ jobs:
         TestConfiguration__MockServerUrl: http://localhost:1080
     
     - name: Upload E2E test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: e2e-test-results
@@ -203,7 +203,7 @@ jobs:
         AzureAI__DocumentIntelligenceEndpoint: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT }}
     
     - name: Upload Azure integration test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: azure-integration-test-results
@@ -251,14 +251,14 @@ jobs:
         LoadTest__ConcurrentUsers: 20   # Reduced for CI environment
     
     - name: Upload load test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: load-test-results
         path: TestResults/LoadTests/
     
     - name: Upload NBomber reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: nbomber-reports
@@ -329,7 +329,7 @@ jobs:
         python analyze_performance.py
     
     - name: Upload performance report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: performance-report
@@ -371,7 +371,7 @@ jobs:
         echo "Generated on: $(date)" >> test-summary.md
     
     - name: Upload test summary
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-summary
         path: test-summary.md

@@ -114,7 +114,7 @@ public class ModelValidationService {
             return "[empty]";
 
         var sanitized = LogSanitizer.Sanitize(documentId, 48);
-        return sanitized.Length < (documentId?.Length ?? 0)
+        return sanitized.Length < documentId.Length
             ? sanitized + "..."
             : sanitized;
     }

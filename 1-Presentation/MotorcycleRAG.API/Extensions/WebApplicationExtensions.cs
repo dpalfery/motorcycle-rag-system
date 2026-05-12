@@ -1,5 +1,6 @@
 using MotorcycleRAG.API.Middleware;
 using MotorcycleRAG.API.Services;
+using MotorcycleRAG.API.Configuration;
 
 namespace MotorcycleRAG.API.Extensions;
 
@@ -25,7 +26,8 @@ internal static class WebApplicationExtensions
         }
 
         // Enable automatic refresh of configuration values from Azure App Configuration
-        if (!string.IsNullOrEmpty(app.Configuration["AppConfig:Endpoint"]))
+        if (bool.TryParse(app.Configuration[AppConfigurationExtensions.AppConfigurationEnabledKey], out var appConfigEnabled) &&
+            appConfigEnabled)
         {
             app.UseAzureAppConfiguration();
         }

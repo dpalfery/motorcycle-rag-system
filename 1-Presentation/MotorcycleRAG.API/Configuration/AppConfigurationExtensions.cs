@@ -1,3 +1,4 @@
+using Azure;
 using Azure.Core;
 using Azure.Identity;
 using Microsoft.Extensions.Configuration.AzureAppConfiguration;
@@ -8,6 +9,8 @@ namespace MotorcycleRAG.API.Configuration;
 /// Extension methods for <see cref="WebApplicationBuilder"/> to configure Azure App Configuration and Key Vault.
 /// </summary>
 public static class AppConfigurationExtensions {
+    internal const string AppConfigurationEnabledKey = "AppConfig:Enabled";
+
     public static WebApplicationBuilder AddAzureAppConfigurationWithKeyVault(this WebApplicationBuilder builder) {
         var appConfigConnectionString = builder.Configuration["AppConfig:ConnectionString"];
         var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
@@ -26,25 +29,34 @@ public static class AppConfigurationExtensions {
                 EnsureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
             }
 
-            builder.Configuration.AddAzureAppConfiguration(options => {
-                if (!string.IsNullOrEmpty(appConfigConnectionString)) {
-                    options.Connect(appConfigConnectionString);
-                }
-                else {
-                    options.Connect(new Uri(appConfigEndpoint!), credential);
-                }
+            try {
+                builder.Configuration.AddAzureAppConfiguration(options => {
+                    if (!string.IsNullOrEmpty(appConfigConnectionString)) {
+                        options.Connect(appConfigConnectionString);
+                    }
+                    else {
+                        options.Connect(new Uri(appConfigEndpoint!), credential);
+                    }
 
-                options.Select(KeyFilter.Any)
-                       .Select(KeyFilter.Any, "api")
-                       .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
-                       .ConfigureKeyVault(kv => kv.SetCredential(credential))
-                       .ConfigureRefresh(refreshOptions => {
-                           refreshOptions.Register("Settings:Sentinel", refreshAll: true)
-                                         .SetRefreshInterval(TimeSpan.FromSeconds(30));
-                       });
-            });
+                    options.Select(KeyFilter.Any)
+                           .Select(KeyFilter.Any, "api")
+                           .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
+                           .ConfigureKeyVault(kv => kv.SetCredential(credential))
+                           .ConfigureRefresh(refreshOptions => {
+                               refreshOptions.Register("Settings:Sentinel", refreshAll: true)
+                                             .SetRefreshInterval(TimeSpan.FromSeconds(30));
+                           });
+                });
 
-            builder.Services.AddAzureAppConfiguration();
+                builder.Services.AddAzureAppConfiguration();
+                builder.Configuration[AppConfigurationEnabledKey] = bool.TrueString;
+            }
+            catch (Exception ex) when (CanSkipAzureAppConfigurationFailure(builder, appConfigConnectionString, ex)) {
+                Console.WriteLine(
+                    "Azure App Configuration skipped in Development because remote configuration could not be loaded. " +
+                    $"Reason: {ex.GetType().Name}. Configure an Azure developer login or unset AppConfig:Endpoint to use local settings only.");
+                builder.Configuration[AppConfigurationEnabledKey] = bool.FalseString;
+            }
         }
 
         // Validate and derive configuration values (when config is built to IConfigurationRoot)
@@ -55,6 +67,16 @@ public static class AppConfigurationExtensions {
         }
 
         return builder;
+    }
+
+    private static bool CanSkipAzureAppConfigurationFailure(WebApplicationBuilder builder, string? appConfigConnectionString, Exception exception) {
+        if (!builder.Environment.IsDevelopment() || !string.IsNullOrEmpty(appConfigConnectionString)) {
+            return false;
+        }
+
+        return exception is CredentialUnavailableException or AuthenticationFailedException or RequestFailedException or TimeoutException ||
+               exception is AggregateException aggregateException &&
+               aggregateException.InnerExceptions.Any(inner => CanSkipAzureAppConfigurationFailure(builder, appConfigConnectionString, inner));
     }
 
     private static async Task PreWarmManagedIdentityTokenAsync(TokenCredential credential) {

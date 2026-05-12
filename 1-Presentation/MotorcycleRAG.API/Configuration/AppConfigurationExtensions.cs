@@ -16,46 +16,57 @@ public static class AppConfigurationExtensions {
         var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
 
         if (!string.IsNullOrEmpty(appConfigConnectionString) || !string.IsNullOrEmpty(appConfigEndpoint)) {
-            // Use ManagedIdentityCredential in non-development environments
-            TokenCredential credential = builder.Environment.IsDevelopment()
-                ? new DefaultAzureCredential()
-                : new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
-
-            // Pre-warm the managed identity token before loading App Config in non-dev envs
-            if (string.IsNullOrEmpty(appConfigConnectionString) &&
-                !string.IsNullOrEmpty(appConfigEndpoint) &&
-                !builder.Environment.IsDevelopment()) {
-                PreWarmManagedIdentityTokenAsync(credential).GetAwaiter().GetResult();
-                EnsureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
-            }
-
-            try {
-                builder.Configuration.AddAzureAppConfiguration(options => {
-                    if (!string.IsNullOrEmpty(appConfigConnectionString)) {
-                        options.Connect(appConfigConnectionString);
-                    }
-                    else {
-                        options.Connect(new Uri(appConfigEndpoint!), credential);
-                    }
-
-                    options.Select(KeyFilter.Any)
-                           .Select(KeyFilter.Any, "api")
-                           .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
-                           .ConfigureKeyVault(kv => kv.SetCredential(credential))
-                           .ConfigureRefresh(refreshOptions => {
-                               refreshOptions.Register("Settings:Sentinel", refreshAll: true)
-                                             .SetRefreshInterval(TimeSpan.FromSeconds(30));
-                           });
-                });
-
-                builder.Services.AddAzureAppConfiguration();
-                builder.Configuration[AppConfigurationEnabledKey] = bool.TrueString;
-            }
-            catch (Exception ex) when (CanSkipAzureAppConfigurationFailure(builder, appConfigConnectionString, ex)) {
+            var useRemoteInDevelopment = IsEnabled(builder.Configuration["AppConfig:UseRemoteInDevelopment"]);
+            if (builder.Environment.IsDevelopment() &&
+                string.IsNullOrEmpty(appConfigConnectionString) &&
+                !useRemoteInDevelopment) {
                 Console.WriteLine(
-                    "Azure App Configuration skipped in Development because remote configuration could not be loaded. " +
-                    $"Reason: {ex.GetType().Name}. Configure an Azure developer login or unset AppConfig:Endpoint to use local settings only.");
+                    "Azure App Configuration skipped in Development. " +
+                    "Set AppConfig:UseRemoteInDevelopment=true and sign in with Azure CLI to load remote configuration locally.");
                 builder.Configuration[AppConfigurationEnabledKey] = bool.FalseString;
+            }
+            else {
+                // Use ManagedIdentityCredential in non-development environments
+                TokenCredential credential = builder.Environment.IsDevelopment()
+                    ? new AzureCliCredential()
+                    : new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
+
+                // Pre-warm the managed identity token before loading App Config in non-dev envs
+                if (string.IsNullOrEmpty(appConfigConnectionString) &&
+                    !string.IsNullOrEmpty(appConfigEndpoint) &&
+                    !builder.Environment.IsDevelopment()) {
+                    PreWarmManagedIdentityTokenAsync(credential).GetAwaiter().GetResult();
+                    EnsureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
+                }
+
+                try {
+                    builder.Configuration.AddAzureAppConfiguration(options => {
+                        if (!string.IsNullOrEmpty(appConfigConnectionString)) {
+                            options.Connect(appConfigConnectionString);
+                        }
+                        else {
+                            options.Connect(new Uri(appConfigEndpoint!), credential);
+                        }
+
+                        options.Select(KeyFilter.Any)
+                               .Select(KeyFilter.Any, "api")
+                               .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
+                               .ConfigureKeyVault(kv => kv.SetCredential(credential))
+                               .ConfigureRefresh(refreshOptions => {
+                                   refreshOptions.Register("Settings:Sentinel", refreshAll: true)
+                                                 .SetRefreshInterval(TimeSpan.FromSeconds(30));
+                               });
+                    });
+
+                    builder.Services.AddAzureAppConfiguration();
+                    builder.Configuration[AppConfigurationEnabledKey] = bool.TrueString;
+                }
+                catch (Exception ex) when (CanSkipAzureAppConfigurationFailure(builder, appConfigConnectionString, ex)) {
+                    Console.WriteLine(
+                        "Azure App Configuration skipped in Development because remote configuration could not be loaded. " +
+                        $"Reason: {ex.GetType().Name}. Configure an Azure developer login or unset AppConfig:Endpoint to use local settings only.");
+                    builder.Configuration[AppConfigurationEnabledKey] = bool.FalseString;
+                }
             }
         }
 
@@ -68,6 +79,9 @@ public static class AppConfigurationExtensions {
 
         return builder;
     }
+
+    private static bool IsEnabled(string? value) =>
+        bool.TryParse(value, out var enabled) && enabled;
 
     private static bool CanSkipAzureAppConfigurationFailure(WebApplicationBuilder builder, string? appConfigConnectionString, Exception exception) {
         if (!builder.Environment.IsDevelopment() || !string.IsNullOrEmpty(appConfigConnectionString)) {

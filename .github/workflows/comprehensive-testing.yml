@@ -21,6 +21,12 @@ on:
         default: 'false'
         type: boolean
 
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
+
 env:
   DOTNET_VERSION: '9.0.x'
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

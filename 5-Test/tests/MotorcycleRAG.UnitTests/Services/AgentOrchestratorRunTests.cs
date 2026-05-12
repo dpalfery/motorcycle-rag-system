@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Agents.Orchestration;
 using MotorcycleRAG.Application.Services;
+using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
@@ -17,6 +18,7 @@ public class AgentOrchestratorRunTests
     private readonly Mock<ILogger<FoundryToolDispatcher>> _mockDispatcherLogger = new();
     private readonly Mock<IOptions<AzureFoundryOptions>> _mockOptions = new();
     private readonly Mock<ICorrelationService> _mockCorrelation = new();
+    private readonly QuestionValidationState _questionValidationState = new();
 
     private const string ConversationId = "conversation-abc";
     private const string ResponseId = "response-xyz";
@@ -46,7 +48,8 @@ public class AgentOrchestratorRunTests
             _mockRunner.Object,
             dispatcher,
             _mockOptions.Object,
-            _mockCorrelation.Object);
+            _mockCorrelation.Object,
+            _questionValidationState);
     }
 
     private sealed class MockDisposable : IDisposable

@@ -15,12 +15,15 @@ public static class AgentDefinitions
 
     public const string DeepSeekModel = "DeepSeek-V4-Flash";
     public const string SubAgentModel = DeepSeekModel;
+    public const string Qwen36DeploymentName = "gpt-4-1";
+    public const string Qwen35DeploymentName = "grok-4-20-reasoning";
+    public const string OrchestratorFallbackModel = DeepSeekModel;
 
     public static readonly string[] DefaultOrchestratorModelCandidates =
     [
-        "gpt-4-1",
-        "grok-4-20-reasoning",
-        DeepSeekModel
+        Qwen36DeploymentName,
+        Qwen35DeploymentName,
+        OrchestratorFallbackModel
     ];
 
     // -------------------------------------------------------------------------
@@ -42,12 +45,16 @@ public static class AgentDefinitions
     public static readonly string OrchestratorSystemPrompt =
         """
         You are a motorcycle knowledge assistant. Your job is to answer user questions about motorcycles
-        accurately and completely by coordinating four specialised search agents.
+        accurately and completely by validating the question first, then coordinating four specialised search agents.
 
-        You have four tools:
+        You have five tools:
+
+        - validate_question: Classifies the question, validates referenced motorcycle entities,
+          identifies trip-planning questions, and returns whether search tools may be used.
+          You MUST call this before any other tool for every user query.
 
         - vector_search: Searches the internal motorcycle knowledge base (indexed manuals, specs, reviews).
-          Use this first for any motorcycle question.
+          Use this after validate_question approves searching for a motorcycle question.
 
         - web_search: Searches trusted motorcycle websites for current, broad, or opinion-based information.
           Use this when vector_search results feel incomplete, the question is about current models, prices,
@@ -65,7 +72,11 @@ public static class AgentDefinitions
           component Y?", "what bikes share this component?"
 
         Decision guidance:
-        - Always start with vector_search.
+        - Always start with validate_question.
+        - If validate_question returns maySearch=false or responseType=Clarification, do not call
+          any search tools. Ask the clarification question and include the suggested choices.
+        - If validate_question returns a normalizedQuery, use that normalized query for later tool calls.
+        - After validation, start motorcycle retrieval with vector_search.
         - After reviewing results, decide if they are sufficient to answer well.
         - If results feel thin, outdated, or the question needs broader context, call web_search.
         - If the question is clearly technical or maintenance-related, also call pdf_search.
@@ -176,6 +187,15 @@ public static class AgentDefinitions
 
     public static readonly ResponseTool[] OrchestratorTools =
     [
+        CreateFunctionTool("validate_question", "Classifies and validates the user's question before any search tool runs. Returns whether retrieval may proceed or whether clarification is required.", new
+        {
+            type = "object",
+            properties = new
+            {
+                query = new { type = "string", description = "The current user query to validate" }
+            },
+            required = new[] { "query" }
+        }),
         CreateFunctionTool("vector_search", "Searches the internal motorcycle knowledge base (indexed manuals, specs, reviews).", new
         {
             type = "object",

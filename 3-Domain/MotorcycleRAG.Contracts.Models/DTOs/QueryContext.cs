@@ -10,6 +10,7 @@ namespace MotorcycleRAG.Contracts.Models.DTOs;
 public class QueryContext {
     public string SessionId { get; set; } = string.Empty;
     public Collection<string> PreviousQueries { get; } = new();
+    public Collection<QueryRecentMessage> RecentMessages { get; } = new();
     public Dictionary<string, object> UserPreferences { get; } = new();
     public string Language { get; set; } = "en";
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;

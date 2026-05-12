@@ -2,6 +2,7 @@
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Agents.Orchestration;
 using MotorcycleRAG.Application.Services.Telemetry;
+using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Application.Services.TrustedSources;
 using MotorcycleRAG.Persistence.Azure;
@@ -41,7 +42,16 @@ internal static class SearchAgentsConfiguration
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureFoundryOptions>>();
             var logger = sp.GetRequiredService<ILogger<OrchestratorToolHandlers>>();
             var degradedModeTracker = sp.GetRequiredService<DegradedModeTracker>();
-            return new OrchestratorToolHandlers(runner, subAgentDispatcher, options, logger, degradedModeTracker);
+            var questionValidationService = sp.GetRequiredService<QuestionValidationService>();
+            var questionValidationState = sp.GetRequiredService<QuestionValidationState>();
+            return new OrchestratorToolHandlers(
+                runner,
+                subAgentDispatcher,
+                options,
+                logger,
+                degradedModeTracker,
+                questionValidationService,
+                questionValidationState);
         });
 
         // Wire up the main orchestrator dispatcher with orchestrator tool handlers
@@ -57,7 +67,15 @@ internal static class SearchAgentsConfiguration
 
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AzureFoundryOptions>>();
             var correlationService = sp.GetRequiredService<ICorrelationService>();
-            return new MotorcycleRAG.Application.Services.AgentOrchestrator(agents, logger, runner, mainDispatcher, options, correlationService);
+            var questionValidationState = sp.GetRequiredService<QuestionValidationState>();
+            return new MotorcycleRAG.Application.Services.AgentOrchestrator(
+                agents,
+                logger,
+                runner,
+                mainDispatcher,
+                options,
+                correlationService,
+                questionValidationState);
         });
 
         services.AddScoped<IAgentOrchestrator>(sp =>

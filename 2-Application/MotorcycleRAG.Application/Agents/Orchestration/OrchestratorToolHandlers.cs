@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Application.Services.Telemetry;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -18,31 +19,40 @@ namespace MotorcycleRAG.Application.Agents.Orchestration;
 public sealed class OrchestratorToolHandlers
 {
     private const int MaxSubAgentRounds = 8;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IFoundryAgentRunner _runner;
     private readonly FoundryToolDispatcher _subAgentDispatcher;
     private readonly AzureFoundryOptions _options;
     private readonly ILogger<OrchestratorToolHandlers> _logger;
     private readonly DegradedModeTracker _degradedModeTracker;
+    private readonly QuestionValidationService _questionValidationService;
+    private readonly QuestionValidationState _questionValidationState;
 
     public OrchestratorToolHandlers(
         IFoundryAgentRunner runner,
         FoundryToolDispatcher subAgentDispatcher,
         IOptions<AzureFoundryOptions> options,
         ILogger<OrchestratorToolHandlers> logger,
-        DegradedModeTracker degradedModeTracker)
+        DegradedModeTracker degradedModeTracker,
+        QuestionValidationService questionValidationService,
+        QuestionValidationState questionValidationState)
     {
         ArgumentNullException.ThrowIfNull(runner);
         ArgumentNullException.ThrowIfNull(subAgentDispatcher);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(degradedModeTracker);
+        ArgumentNullException.ThrowIfNull(questionValidationService);
+        ArgumentNullException.ThrowIfNull(questionValidationState);
 
         _runner = runner;
         _subAgentDispatcher = subAgentDispatcher;
         _options = options.Value;
         _logger = logger;
         _degradedModeTracker = degradedModeTracker;
+        _questionValidationService = questionValidationService;
+        _questionValidationState = questionValidationState;
     }
 
     /// <summary>
@@ -51,10 +61,36 @@ public sealed class OrchestratorToolHandlers
     public void RegisterOn(FoundryToolDispatcher dispatcher)
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
+        dispatcher.RegisterHandler("validate_question", HandleValidateQuestionAsync);
         dispatcher.RegisterHandler("vector_search", HandleVectorSearchAsync);
         dispatcher.RegisterHandler("web_search", HandleWebSearchAsync);
         dispatcher.RegisterHandler("pdf_search", HandlePDFSearchAsync);
         dispatcher.RegisterHandler("graph_query", HandleGraphQueryAsync);
+    }
+
+    public async Task<AgentToolOutput> HandleValidateQuestionAsync(AgentToolCall call, CancellationToken ct)
+    {
+        var args = ParseArgs(call.ArgumentsJson);
+        var query = args.TryGetProperty("query", out var q) ? q.GetString() ?? string.Empty : string.Empty;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            query = _questionValidationState.OriginalQuery;
+        }
+
+        _logger.LogInformation("validate_question started: queryLength={QueryLength}", query.Length);
+        var result = await _questionValidationService
+            .ValidateAsync(query, _questionValidationState.RecentMessages, ct)
+            .ConfigureAwait(false);
+
+        _questionValidationState.Record(result);
+
+        _logger.LogInformation(
+            "validate_question completed: subject={Subject} maySearch={MaySearch} suggestionCount={SuggestionCount}",
+            result.Subject,
+            result.MaySearch,
+            result.Suggestions.Length);
+
+        return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(result, JsonOptions));
     }
 
     // -------------------------------------------------------------------------
@@ -95,6 +131,12 @@ public sealed class OrchestratorToolHandlers
         string toolName,
         CancellationToken ct)
     {
+        var guardOutput = ValidateSearchMayRun(call);
+        if (guardOutput != null)
+        {
+            return guardOutput;
+        }
+
         if (string.IsNullOrWhiteSpace(agentName))
         {
             _logger.LogError("Agent name for '{ToolName}' is not configured", toolName);
@@ -152,6 +194,40 @@ public sealed class OrchestratorToolHandlers
         }
     }
 
+    private AgentToolOutput? ValidateSearchMayRun(AgentToolCall call)
+    {
+        if (!_questionValidationState.IsValidated)
+        {
+            _logger.LogWarning(
+                "Search tool {ToolName} called before validate_question completed",
+                call.FunctionName);
+
+            return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(new
+            {
+                error = "validation_required",
+                message = "validate_question must be called before search tools."
+            }, JsonOptions));
+        }
+
+        var result = _questionValidationState.Result;
+        if (result?.MaySearch != false)
+        {
+            return null;
+        }
+
+        _logger.LogInformation(
+            "Search tool {ToolName} blocked because query requires clarification",
+            call.FunctionName);
+
+        return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(new
+        {
+            error = "clarification_required",
+            response_type = result.ResponseType,
+            clarification_question = result.ClarificationQuestion,
+            suggestions = result.Suggestions
+        }, JsonOptions));
+    }
+
     private async Task SafeDeleteConversationAsync(string conversationId, string toolName, CancellationToken ct)
     {
         try
@@ -163,6 +239,23 @@ public sealed class OrchestratorToolHandlers
             _logger.LogWarning(ex,
                 "Failed to delete sub-agent conversation {ConversationId} for tool '{ToolName}'",
                 conversationId, toolName);
+        }
+    }
+
+    private static JsonElement ParseArgs(string argumentsJson)
+    {
+        if (string.IsNullOrWhiteSpace(argumentsJson))
+        {
+            return JsonDocument.Parse("{}").RootElement;
+        }
+
+        try
+        {
+            return JsonDocument.Parse(argumentsJson).RootElement;
+        }
+        catch
+        {
+            return JsonDocument.Parse("{}").RootElement;
         }
     }
 }

@@ -1,14 +1,15 @@
 
 import { cn } from '../../lib/utils';
-import type { Message } from '../../types/chat';
+import type { Action, Message } from '../../types/chat';
 import { User, Bot, FileText, FileBarChart } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface MessageBubbleProps {
     message: Message;
+    onAction?: (action: Action) => void;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, onAction }: MessageBubbleProps) {
     const isUser = message.role === 'user';
 
     return (
@@ -48,7 +49,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                         {message.actions.map((action, idx) => (
                             <button
                                 key={idx}
+                                type="button"
+                                onClick={() => onAction?.(action)}
                                 className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-md text-xs font-semibold transition-colors border border-primary/20"
+                                title={action.reason}
                             >
                                 {action.icon === 'manuals' && <FileText className="w-3.5 h-3.5" />}
                                 {action.icon === 'specs' && <FileBarChart className="w-3.5 h-3.5" />}

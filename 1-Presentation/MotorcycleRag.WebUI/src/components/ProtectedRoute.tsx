@@ -11,7 +11,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     if (isLoading) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-background">
-                <div className="text-gray-400">Loading...</div>
+                <div className="text-gray-400">I was sleeping! give me a minute to finish booting, Like John I boot slow</div>
             </div>
         );
     }

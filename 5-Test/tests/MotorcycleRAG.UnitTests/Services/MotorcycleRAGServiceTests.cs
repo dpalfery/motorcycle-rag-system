@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Application.Caching;
+using MotorcycleRAG.Application.Services.QueryValidation;
 using Xunit;
 using System.Linq;
 
@@ -48,6 +49,7 @@ public class MotorcycleRagServiceTests {
             _mockCacheConfig.Object,
             citationService,
             refinementService,
+            new QuestionValidationState(),
             limitationAnalyzer,
             costCalculator);
 
@@ -80,6 +82,7 @@ public class MotorcycleRagServiceTests {
             _mockCacheConfig.Object,
             citationService,
             refinementService,
+            new QuestionValidationState(),
             limitationAnalyzer,
             costCalculator);
 
@@ -109,6 +112,7 @@ public class MotorcycleRagServiceTests {
             _mockCacheConfig.Object,
             citationService,
             refinementService,
+            new QuestionValidationState(),
             limitationAnalyzer,
             costCalculator);
 
@@ -140,6 +144,7 @@ public class MotorcycleRagServiceTests {
                 _mockCacheConfig.Object,
                 citationService,
                 refinementService,
+                new QuestionValidationState(),
                 limitationAnalyzer,
                 costCalculator));
     }

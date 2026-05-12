@@ -45,5 +45,14 @@
     "airun.settings": {
         "workspaceId": "926a5f0b-21d8-4aee-8742-9052005f81d3"
     },
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "terminal.integrated.env.windows": {
+        "AZURE_CONFIG_DIR": "${workspaceFolder}/.azure-local"
+    },
+    "terminal.integrated.env.osx": {
+        "AZURE_CONFIG_DIR": "${workspaceFolder}/.azure-local"
+    },
+    "terminal.integrated.env.linux": {
+        "AZURE_CONFIG_DIR": "${workspaceFolder}/.azure-local"
+    }
 }

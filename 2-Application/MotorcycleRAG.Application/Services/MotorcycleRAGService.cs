@@ -143,6 +143,11 @@ public sealed class MotorcycleRagService : IMotorcycleRagService
         string answer,
         TimeSpan duration)
     {
+        if (_dependencies.QuestionValidationState.Result?.MaySearch == false)
+        {
+            return FinalizeClarificationResponse(request, queryId, duration, answer);
+        }
+
         // Calculate cost (delegated)
         var estimatedCost = _dependencies.CostCalculator.CalculateEstimatedCost(results, answer);
 
@@ -188,6 +193,45 @@ public sealed class MotorcycleRagService : IMotorcycleRagService
 
         _dependencies.TelemetryService.TrackQuery(queryId, request.Query, duration, results.Length, estimatedCost);
         return response;
+    }
+
+    private MotorcycleQueryResponse FinalizeClarificationResponse(
+        MotorcycleQueryRequest request,
+        string queryId,
+        TimeSpan duration,
+        string fallbackAnswer)
+    {
+        var validation = _dependencies.QuestionValidationState.Result;
+        var responseText = validation?.ClarificationQuestion;
+        if (string.IsNullOrWhiteSpace(responseText))
+        {
+            responseText = string.IsNullOrWhiteSpace(fallbackAnswer)
+                ? "I need a little more detail before I can answer accurately."
+                : fallbackAnswer;
+        }
+
+        var metrics = new QueryMetrics
+        {
+            ProcessingTimeMs = (int)duration.TotalMilliseconds,
+            TotalDuration = duration,
+            ResultsFound = 0,
+            CacheHit = false,
+            EstimatedCost = 0
+        };
+
+        _dependencies.TelemetryService.TrackQuery(queryId, request.Query, duration, 0, 0);
+
+        return new MotorcycleQueryResponse
+        {
+            QueryId = queryId,
+            ResponseType = "Clarification",
+            Response = responseText,
+            Suggestions = validation?.Suggestions ?? Array.Empty<QueryClarificationSuggestion>(),
+            Sources = Array.Empty<SearchResult>(),
+            Metrics = metrics,
+            GeneratedAt = DateTime.UtcNow,
+            ModelUsed = "DeepSeek-V4-Flash"
+        };
     }
 
     /// <inheritdoc />

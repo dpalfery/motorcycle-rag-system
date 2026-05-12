@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Application.Services;
+using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -153,6 +154,7 @@ public class MotorcycleManualCitationComponentTests {
             cacheConfig,
             citationService,
             refinementService,
+            new QuestionValidationState(),
             limitationAnalyzer,
             costCalculator);
 
@@ -666,5 +668,4 @@ public class MotorcycleManualCitationComponentTests {
         return embedding;
     }
 }
-
 

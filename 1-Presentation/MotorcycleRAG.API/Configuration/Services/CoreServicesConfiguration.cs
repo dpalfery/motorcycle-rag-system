@@ -3,6 +3,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Application.Services.Citations;
+using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Application.Services.QueryProcessing;
 using MotorcycleRAG.Application.Services.ResponseProcessing;
 using MotorcycleRAG.Application.Services.Metrics;
@@ -24,6 +25,8 @@ internal static class CoreServicesConfiguration {
         // Register extracted services for MotorcycleRagService
         services.AddScoped<ClaimCitationService>();
         services.AddScoped<QueryRefinementService>();
+        services.AddScoped<QuestionValidationService>();
+        services.AddScoped<QuestionValidationState>();
         services.AddScoped<ResponseLimitationAnalyzer>();
         services.AddScoped<QueryCostCalculator>();
 

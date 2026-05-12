@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Agents.Orchestration;
+using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
@@ -23,6 +24,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
     private readonly FoundryToolDispatcher _dispatcher;
     private readonly AzureFoundryOptions _options;
     private readonly ICorrelationService _correlationService;
+    private readonly QuestionValidationState _questionValidationState;
 
     public AgentOrchestrator(
         IEnumerable<ISearchAgent> agents,
@@ -30,7 +32,8 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         IFoundryAgentRunner runner,
         FoundryToolDispatcher dispatcher,
         IOptions<AzureFoundryOptions> options,
-        ICorrelationService correlationService)
+        ICorrelationService correlationService,
+        QuestionValidationState questionValidationState)
     {
         ArgumentNullException.ThrowIfNull(agents);
         ArgumentNullException.ThrowIfNull(logger);
@@ -38,6 +41,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         ArgumentNullException.ThrowIfNull(dispatcher);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(correlationService);
+        ArgumentNullException.ThrowIfNull(questionValidationState);
 
         _agents = agents.ToList();
         _logger = logger;
@@ -45,6 +49,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         _dispatcher = dispatcher;
         _options = options.Value;
         _correlationService = correlationService;
+        _questionValidationState = questionValidationState;
     }
 
     /// <inheritdoc />
@@ -65,6 +70,7 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
         }
 
         context ??= new SearchContext();
+        _questionValidationState.Initialize(query, context.QueryContext?.RecentMessages);
 
         if (string.IsNullOrWhiteSpace(_options.OrchestratorAgentName))
         {
@@ -84,7 +90,10 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
 
         try
         {
-            var status = await _runner.SendAgentMessageAsync(conversationId, _options.OrchestratorAgentName, query);
+            var status = await _runner.SendAgentMessageAsync(
+                conversationId,
+                _options.OrchestratorAgentName,
+                BuildOrchestratorMessage(query, context.QueryContext?.RecentMessages));
             var rounds = 0;
 
             while (status.State == AgentRunState.RequiresAction && rounds < MaxOrchestratorRounds)
@@ -209,4 +218,30 @@ public sealed class AgentOrchestrator : IAgentOrchestrator
             _logger.LogWarning(ex, "Failed to delete orchestrator conversation {ConversationId}", conversationId);
         }
     }
+
+    private static string BuildOrchestratorMessage(
+        string query,
+        IReadOnlyCollection<QueryRecentMessage>? recentMessages)
+    {
+        if (recentMessages == null || recentMessages.Count == 0)
+        {
+            return $"Current user query:\n{query}";
+        }
+
+        var clippedMessages = recentMessages
+            .Where(m => !string.IsNullOrWhiteSpace(m.Content))
+            .TakeLast(6)
+            .Select(m => $"{m.Role}: {Clip(m.Content, 1000)}");
+
+        return $"""
+            Current user query:
+            {query}
+
+            Recent conversation context:
+            {string.Join('\n', clippedMessages)}
+            """;
+    }
+
+    private static string Clip(string value, int maxLength) =>
+        value.Length <= maxLength ? value : value[..maxLength];
 }

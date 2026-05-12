@@ -7,8 +7,12 @@ namespace MotorcycleRAG.Contracts.Models.DTOs;
 /// Response model for motorcycle queries
 /// </summary>
 public class MotorcycleQueryResponse {
+    public string ResponseType { get; set; } = "Answer";
+
     [Required]
     public string Response { get; set; } = string.Empty;
+
+    public QueryClarificationSuggestion[] Suggestions { get; set; } = Array.Empty<QueryClarificationSuggestion>();
 
     public SearchResult[] Sources { get; set; } = Array.Empty<SearchResult>();
 

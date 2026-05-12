@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Plus, Loader2 } from 'lucide-react';
 import { MessageBubble } from '../molecules/MessageBubble';
-import type { Message } from '../../types/chat';
+import type { Action, Message } from '../../types/chat';
 
 export default function ChatInterface() {
     const [input, setInput] = useState('');
@@ -29,14 +29,19 @@ export default function ChatInterface() {
         scrollToBottom();
     }, [messages]);
 
-    const handleSend = async (e?: React.FormEvent) => {
-        e?.preventDefault();
-        if (!input.trim() || isLoading) return;
+    const sendMessage = async (messageText: string) => {
+        const trimmedInput = messageText.trim();
+        if (!trimmedInput || isLoading) return;
+
+        const recentMessages = messages.slice(-6).map((msg) => ({
+            role: msg.role,
+            content: msg.content.slice(0, 1000)
+        }));
 
         const userMsg: Message = {
             id: Date.now().toString(),
             role: 'user',
-            content: input,
+            content: trimmedInput,
             timestamp: new Date()
         };
 
@@ -55,7 +60,9 @@ export default function ChatInterface() {
                     query: userMsg.content,
                     preferences: {},
                     userId: "user", // TODO: Get from AuthContext
-                    context: {}
+                    context: {
+                        recentMessages
+                    }
                 }),
                 signal: controller.signal
             });
@@ -74,9 +81,19 @@ export default function ChatInterface() {
                 role: 'assistant',
                 content: data.response, // Adjust based on actual API response field
                 timestamp: new Date(),
-                actions: data.sources?.length > 0 ? [
-                    { label: 'SOURCES', type: 'link', value: '#', icon: 'specs' }
-                ] : []
+                actions: [
+                    ...(data.suggestions?.map((suggestion: { label: string; query: string; reason?: string; subject?: string }) => ({
+                        label: suggestion.label,
+                        type: 'callback' as const,
+                        value: suggestion.query,
+                        icon: 'specs',
+                        reason: suggestion.reason,
+                        subject: suggestion.subject
+                    })) ?? []),
+                    ...(data.sources?.length > 0 ? [
+                        { label: 'SOURCES', type: 'link' as const, value: '#', icon: 'specs' }
+                    ] : [])
+                ]
             };
             setMessages(prev => [...prev, aiMsg]);
         } catch (error) {
@@ -97,6 +114,17 @@ export default function ChatInterface() {
         }
     };
 
+    const handleSend = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        await sendMessage(input);
+    };
+
+    const handleAction = async (action: Action) => {
+        if (action.type === 'callback') {
+            await sendMessage(action.value);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-[#1a1a1a]">
             {/* Header */}
@@ -111,7 +139,7 @@ export default function ChatInterface() {
             <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
                 {messages.map((msg) => (
                     <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <MessageBubble message={msg} />
+                        <MessageBubble message={msg} onAction={handleAction} />
                     </div>
                 ))}
 
@@ -121,7 +149,7 @@ export default function ChatInterface() {
                             <Loader2 className="w-4 h-4 text-primary animate-spin" />
                         </div>
                         <div className="bg-[#252525] p-3 rounded-2xl rounded-tl-none border-l-2 border-primary/50 text-gray-400 text-sm flex items-center gap-2">
-                            <span>I was sleeping! give me a minute to finish booting, Like John I boot slow</span>
+                            <span>Analysis in progress...</span>
                         </div>
                     </div>
                 )}

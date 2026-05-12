@@ -61,10 +61,13 @@ The Pulumi state is stored in an **Azure Blob Storage** self-managed backend (no
 
 | Setting | Value |
 |---------|-------|
-| Storage Account | `pulumibackendstore` |
+| Storage Account | `pulumibackendstore` (Physical name: `stpulumistateeverest`) |
 | Container | `pulumi-state` |
 | Subscription | EPAM MSDN (Visual Studio Professional Subscription) |
 | Backend URL | Set via `PULUMI_BACKEND_URL` GitHub Secret |
+
+> [!NOTE]
+> The physical name of the storage account is `stpulumistateeverest`. If you encounter authentication errors (e.g., "Issuer validation failed"), ensure you are logged into the correct tenant (EPAM tenant) and subscription.
 
 ### Clearing Stale Locks
 

@@ -3,6 +3,7 @@ using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Application.Services.Citations;
 using MotorcycleRAG.Application.Services.Metrics;
 using MotorcycleRAG.Application.Services.QueryProcessing;
+using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Application.Services.ResponseProcessing;
 using MotorcycleRAG.Contracts.Interfaces;
 
@@ -19,6 +20,7 @@ public sealed class MotorcycleRagServiceDependencies
 
     public ClaimCitationService CitationService { get; }
     public QueryRefinementService RefinementService { get; }
+    public QuestionValidationState QuestionValidationState { get; }
     public ResponseLimitationAnalyzer LimitationAnalyzer { get; }
     public QueryCostCalculator CostCalculator { get; }
 
@@ -28,6 +30,7 @@ public sealed class MotorcycleRagServiceDependencies
         IOptions<CacheConfiguration> cacheConfig,
         ClaimCitationService citationService,
         QueryRefinementService refinementService,
+        QuestionValidationState questionValidationState,
         ResponseLimitationAnalyzer limitationAnalyzer,
         QueryCostCalculator costCalculator)
     {
@@ -37,6 +40,7 @@ public sealed class MotorcycleRagServiceDependencies
 
         CitationService = citationService ?? throw new ArgumentNullException(nameof(citationService));
         RefinementService = refinementService ?? throw new ArgumentNullException(nameof(refinementService));
+        QuestionValidationState = questionValidationState ?? throw new ArgumentNullException(nameof(questionValidationState));
         LimitationAnalyzer = limitationAnalyzer ?? throw new ArgumentNullException(nameof(limitationAnalyzer));
         CostCalculator = costCalculator ?? throw new ArgumentNullException(nameof(costCalculator));
     }

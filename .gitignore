@@ -407,3 +407,6 @@ local-utils/
 
 # Codemie
 .codemie/
+
+# Local Azure CLI credentials (isolated per workspace)
+.azure-local/

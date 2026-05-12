@@ -19,4 +19,6 @@ export interface Action {
     type: 'link' | 'callback';
     value: string; // URL or payload
     icon?: string; // Icon name
+    reason?: string;
+    subject?: string;
 }

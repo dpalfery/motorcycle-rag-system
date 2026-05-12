@@ -13,7 +13,7 @@ export default function LoginPage() {
     const [requestError, setRequestError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    if (isLoading) return <div className="h-screen w-full flex items-center justify-center bg-background"><div className="text-gray-400">Loading...</div></div>;
+    if (isLoading) return <div className="h-screen w-full flex items-center justify-center bg-background"><div className="text-gray-400">I was sleeping! give me a minute to finish booting, Like John I boot slow</div></div>;
     if (user?.authenticated) return <Navigate to="/" replace />;
 
     const hasApprovalState = user?.sessionAuthenticated && user?.accessApproved === false;

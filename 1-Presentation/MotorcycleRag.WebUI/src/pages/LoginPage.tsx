@@ -39,13 +39,13 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="h-screen w-full flex items-center justify-center bg-background">
-            <div className="w-full max-w-xl p-8 bg-card border border-border rounded-lg shadow-2xl text-center">
-                <div className="flex justify-center mb-6">
-                    <Bike className="w-16 h-16 text-primary" />
+        <div className="h-dvh w-full flex items-center justify-center bg-background px-4">
+            <div className="w-full max-w-xl p-5 sm:p-8 bg-card border border-border rounded-lg shadow-2xl text-center">
+                <div className="flex justify-center mb-4 sm:mb-6">
+                    <Bike className="w-12 h-12 sm:w-16 sm:h-16 text-primary" />
                 </div>
-                <h1 className="text-2xl font-bold mb-2">Welcome to MotoRAG</h1>
-                <p className="text-gray-400 mb-8">Please sign in to access the system.</p>
+                <h1 className="text-xl sm:text-2xl font-bold mb-2">Welcome to MotoRAG</h1>
+                <p className="text-sm sm:text-base text-gray-400 mb-6 sm:mb-8">Please sign in to access the system.</p>
 
                 {hasApprovalState && (
                     <div className="mb-6 rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-left text-sm text-amber-100">

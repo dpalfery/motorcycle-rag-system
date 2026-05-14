@@ -71,8 +71,6 @@ You are a strict code reviewer. Focus heavily on OWASP top 10 vulnerabilities...
            - **Verify no CAxxxx or Sxxxx rule violations exist**
            - **Check for specific analyzer violations by rule ID** (e.g., CA1062, S1135, etc.)
          - No Warnings of any kind. Un resolved warning make me cranky
-         - Be sure to review the .specify\Constitution\memory\constitution.md file and ensure the code follows the rules in it.
-         - Review the spec folder for the current spec (mathces the branch name) for alignment with the plan.md and any other files in the spec folder.
 
       10. **Security**
          - When reviewing code, act as a security auditor. For each function or endpoint, ask these questions:

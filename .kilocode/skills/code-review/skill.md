@@ -21,3 +21,5 @@ Before taking the final step, you MUST:
 5. **Code Quality**
 - No build errors
 - no Warnings of any kind. Un resolved warning make me cranky
+- Be sure to review the .specify\Constitution\memory\constitution.md file and ensure the code follows the rules in it.
+- Review the spec folder for the current spec (mathces the branch name) for alignment with the plan.md and any other files in the spec folder.

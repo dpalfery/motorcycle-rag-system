@@ -62,7 +62,7 @@ jobs:
 
       # ── Pulumi Up (creates ACR and all infrastructure) ─────────────
       - name: Pulumi Up
-        uses: pulumi/actions@v5
+        uses: pulumi/actions@v7
         with:
           command: up
           stack-name: ${{ env.PULUMI_STACK }}

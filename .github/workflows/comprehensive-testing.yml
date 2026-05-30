@@ -39,10 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
@@ -63,7 +63,7 @@ jobs:
           --settings coverlet.runsettings
     
     - name: Upload test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: unit-test-results
@@ -82,10 +82,10 @@ jobs:
     needs: unit-tests
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
@@ -105,7 +105,7 @@ jobs:
           --filter "Category!=AzureIntegration"
     
     - name: Upload integration test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: integration-test-results
@@ -124,10 +124,10 @@ jobs:
           - 1080:1080
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
@@ -155,7 +155,7 @@ jobs:
         TestConfiguration__MockServerUrl: http://localhost:1080
     
     - name: Upload E2E test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: e2e-test-results
@@ -169,15 +169,15 @@ jobs:
     environment: testing
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
     - name: Azure Login
-      uses: azure/login@v2
+      uses: azure/login@v3
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
     
@@ -203,7 +203,7 @@ jobs:
         AzureAI__DocumentIntelligenceEndpoint: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT }}
     
     - name: Upload Azure integration test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: azure-integration-test-results
@@ -216,10 +216,10 @@ jobs:
     if: github.event.inputs.run_load_tests == 'true' || github.event_name == 'schedule'
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
@@ -251,14 +251,14 @@ jobs:
         LoadTest__ConcurrentUsers: 20   # Reduced for CI environment
     
     - name: Upload load test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: load-test-results
         path: TestResults/LoadTests/
     
     - name: Upload NBomber reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: nbomber-reports
@@ -271,10 +271,10 @@ jobs:
     if: always() && (needs.load-tests.result == 'success' || needs.load-tests.result == 'skipped')
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Download test results
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         path: TestResults/
     
@@ -329,7 +329,7 @@ jobs:
         python analyze_performance.py
     
     - name: Upload performance report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: performance-report
@@ -343,7 +343,7 @@ jobs:
     
     steps:
     - name: Download all test results
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         path: TestResults/
     
@@ -371,7 +371,7 @@ jobs:
         echo "Generated on: $(date)" >> test-summary.md
     
     - name: Upload test summary
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-summary
         path: test-summary.md

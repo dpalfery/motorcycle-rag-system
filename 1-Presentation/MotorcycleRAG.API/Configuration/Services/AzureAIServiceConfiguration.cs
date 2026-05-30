@@ -11,16 +11,14 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for Azure AI services
 /// </summary>
-internal static class AzureAIServiceConfiguration
-{
+internal static class AzureAIServiceConfiguration {
     /// <summary>
     /// Configure Azure AI services
     /// </summary>
     internal static IServiceCollection AddAzureAIServices(
         this IServiceCollection services,
         IConfiguration configuration,
-        IHostEnvironment environment)
-    {
+        IHostEnvironment environment) {
         var azureFoundryOptions = services.AddOptions<AzureFoundryOptions>()
             .Bind(configuration.GetSection("AzureAI"));
 
@@ -29,8 +27,7 @@ internal static class AzureAIServiceConfiguration
             bool.TryParse(configuration[AppConfigurationExtensions.AppConfigurationEnabledKey], out var appConfigurationEnabled) &&
             !appConfigurationEnabled;
 
-        if (!appConfigurationExplicitlySkipped)
-        {
+        if (!appConfigurationExplicitlySkipped) {
             azureFoundryOptions.ValidateOnStart();
         }
 
@@ -56,8 +53,7 @@ internal static class AzureAIServiceConfiguration
     /// <summary>
     /// Configure health checks for Azure AI services
     /// </summary>
-    internal static IHealthChecksBuilder AddAzureAIHealthChecks(this IHealthChecksBuilder builder, IConfiguration configuration)
-    {
+    internal static IHealthChecksBuilder AddAzureAIHealthChecks(this IHealthChecksBuilder builder, IConfiguration configuration) {
         // Add dependency-specific health checks
         builder.AddCheck<AzureSearchHealthCheck>("azure_ai_search");
 

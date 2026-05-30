@@ -32,7 +32,7 @@ public class Program {
         // 1. Core Configuration & Logging
         builder.Logging.AddStructuredLogging(builder.Environment);
         builder.AddAzureAppConfigurationWithKeyVault();
-        
+
         if (builder.Environment.IsDevelopment()) {
             // Ensure local secrets and env vars override App Config in development
             builder.Configuration.AddUserSecrets<Program>(optional: true);

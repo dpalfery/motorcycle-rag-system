@@ -13,16 +13,13 @@ namespace MotorcycleRAG.API.Extensions;
     "Maintainability",
     "CA1506:Avoid excessive class coupling",
     Justification = "The API middleware composition root intentionally wires documentation, security, auth, and endpoint middleware in one place.")]
-internal static class WebApplicationExtensions
-{
+internal static class WebApplicationExtensions {
     /// <summary>
     /// Configures the Motorcycle RAG API middleware pipeline in the correct security-critical order.
     /// </summary>
-    public static WebApplication UseMotorcycleRagMiddleware(this WebApplication app)
-    {
+    public static WebApplication UseMotorcycleRagMiddleware(this WebApplication app) {
         // Configure development-time API documentation endpoints.
-        if (app.Environment.IsDevelopment())
-        {
+        if (app.Environment.IsDevelopment()) {
             app.MapOpenApi("/swagger/{documentName}/swagger.json")
                 .AllowAnonymous()
                 .RequireRateLimiting("public");
@@ -31,8 +28,7 @@ internal static class WebApplicationExtensions
                 .AllowAnonymous()
                 .RequireRateLimiting("public");
 
-            app.MapScalarApiReference(options =>
-            {
+            app.MapScalarApiReference(options => {
                 options.WithTitle("Motorcycle RAG API");
                 options.WithOpenApiRoutePattern("/swagger/{documentName}/swagger.json");
                 options.AddDocument("v1", "Motorcycle RAG API v1");
@@ -43,8 +39,7 @@ internal static class WebApplicationExtensions
 
         // Enable automatic refresh of configuration values from Azure App Configuration
         if (bool.TryParse(app.Configuration[AppConfigurationExtensions.AppConfigurationEnabledKey], out var appConfigEnabled) &&
-            appConfigEnabled)
-        {
+            appConfigEnabled) {
             app.UseAzureAppConfiguration();
         }
 
@@ -74,8 +69,7 @@ internal static class WebApplicationExtensions
         app.MapControllers().RequireRateLimiting("authenticated");
 
         // Map global health check endpoint
-        app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-        {
+        app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions {
             ResponseWriter = HealthCheckResponseWriter.WriteResponse,
             AllowCachingResponses = false
         }).AllowAnonymous().RequireRateLimiting("public");
@@ -86,30 +80,25 @@ internal static class WebApplicationExtensions
     /// <summary>
     /// Pre-warms the JWT signing key cache to avoid blocking on the first request.
     /// </summary>
-    public static async Task PreWarmJwtSigningKeysAsync(this WebApplication app)
-    {
+    public static async Task PreWarmJwtSigningKeysAsync(this WebApplication app) {
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Program");
-        
-        try
-        {
+
+        try {
             var authConfig = app.Configuration.GetSection("Authentication:Issuers");
             var workforceIssuer = authConfig["Workforce"];
             var externalIdIssuer = authConfig["ExternalId"];
 
-            if (!string.IsNullOrEmpty(workforceIssuer))
-            {
+            if (!string.IsNullOrEmpty(workforceIssuer)) {
                 var signingKeyCache = app.Services.GetRequiredService<SigningKeyCache>();
                 logger.LogInformation("Pre-warming JWT signing key cache...");
                 await signingKeyCache.PreWarmCacheAsync(workforceIssuer, externalIdIssuer);
                 logger.LogInformation("JWT signing key cache pre-warming completed");
             }
-            else
-            {
+            else {
                 logger.LogWarning("Workforce issuer not configured - signing key cache will not be pre-warmed");
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             logger.LogError(ex, "Error pre-warming JWT signing key cache. Application will continue but JWT validation may fail on first request.");
         }
     }

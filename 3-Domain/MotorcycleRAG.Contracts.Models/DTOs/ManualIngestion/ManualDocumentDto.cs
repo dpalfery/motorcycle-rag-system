@@ -1,4 +1,5 @@
 namespace MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion;
+
 public record ManualDocumentDto(
     Guid DocumentId,
     string SourceFileName,

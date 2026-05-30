@@ -35,11 +35,6 @@ namespace MotorcycleRAG.MobileApp.Tests.ViewModels
             _mockPdfService.Setup(s => s.RenderPageToStreamAsync(localPath, page))
                 .ReturnsAsync(stream);
 
-            // We return null because instantiating ImageSource in unit tests might fail due to UI thread requirements
-            // We will verify the factory was called instead
-            _mockImageFactory.Setup(f => f.FromStream(It.IsAny<System.Func<Stream>>()))
-                .Returns((Microsoft.Maui.Controls.ImageSource)null);
-
             // Act
             await _viewModel.LoadPageCommand.ExecuteAsync((url, page));
 
@@ -55,7 +50,7 @@ namespace MotorcycleRAG.MobileApp.Tests.ViewModels
         {
             // Arrange
             _mockPdfService.Setup(s => s.DownloadPdfAsync(It.IsAny<string>()))
-                .ThrowsAsync(new System.Exception("Download failed"));
+                .ThrowsAsync(new InvalidOperationException("Download failed"));
 
             // Act
             await _viewModel.LoadPageCommand.ExecuteAsync(("http://example.com/fail.pdf", 1));

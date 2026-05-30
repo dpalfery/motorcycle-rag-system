@@ -12,6 +12,7 @@ namespace MotorcycleRAG.Admin.Services;
 /// </summary>
 public class MsalAdminAuthService : IAdminAuthService {
     private static readonly TimeSpan AccessTokenRefreshSkew = TimeSpan.FromMinutes(5);
+    private static readonly string[] AdminRoles = ["mcr-api-admin"];
     private readonly string _clientId;
     private readonly string _authority;
     private readonly string[] _scopes;
@@ -175,15 +176,15 @@ public class MsalAdminAuthService : IAdminAuthService {
         }
     }
 
-    public async Task<IEnumerable<string>> GetUserRolesAsync() {
+    public Task<IEnumerable<string>> GetUserRolesAsync() {
         // MSAL access tokens don't directly expose roles in the public API easily without decoding
         // For admin app logic, we rely on the API to enforce role permissions
         // This is a simplified implementation - in a real app we might decode the JWT or query Graph
-        if (!IsSignedIn()) return Enumerable.Empty<string>();
+        if (!IsSignedIn()) return Task.FromResult(Enumerable.Empty<string>());
 
         // We assume if they can sign in to this app config, they are at least an Admin candidate
         // The API will reject them if they don't have the claim
-        return await Task.FromResult(new[] { "mcr-api-admin" });
+        return Task.FromResult<IEnumerable<string>>(AdminRoles);
     }
 
     public async Task<bool> IsAuthorizedAdminAsync() {

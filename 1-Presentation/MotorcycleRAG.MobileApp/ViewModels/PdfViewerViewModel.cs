@@ -45,12 +45,11 @@ namespace MotorcycleRAG.MobileApp.ViewModels
             string? url = null;
             int page = 1;
 
-            if (query.ContainsKey("url"))
-                url = query["url"] as string;
+            if (query.TryGetValue("url", out var urlValue))
+                url = urlValue as string;
 
-            if (query.ContainsKey("page"))
+            if (query.TryGetValue("page", out var pageObj))
             {
-                var pageObj = query["page"];
                 if (pageObj is int p) page = p;
                 else if (pageObj is string s && int.TryParse(s, out int parsed)) page = parsed;
             }

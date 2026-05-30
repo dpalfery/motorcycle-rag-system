@@ -12,13 +12,14 @@ namespace MotorcycleRAG.UnitTests.Pipeline;
 /// Unit tests for <see cref="LocalPipelineService"/>.
 /// Verifies HTTP routing by document type, error handling, and constructor null checks.
 /// </summary>
-public sealed class LocalPipelineServiceTests {
+public sealed class LocalPipelineServiceTests : IDisposable {
     private const string LocalEndpoint = "http://localhost:8100";
 
     private readonly Mock<HttpMessageHandler> _handler;
     private readonly Mock<IHttpClientFactory> _factory;
     private readonly Mock<ILogger<LocalPipelineService>> _logger;
     private readonly IOptions<IngestionOptions> _options;
+    private readonly HttpClient _httpClient;
 
     public LocalPipelineServiceTests() {
         _handler = new Mock<HttpMessageHandler>();
@@ -27,13 +28,17 @@ public sealed class LocalPipelineServiceTests {
             LocalEndpoint = LocalEndpoint
         });
 
-        var httpClient = _handler.CreateClient();
-        httpClient.BaseAddress = new Uri(LocalEndpoint);
+        _httpClient = _handler.CreateClient();
+        _httpClient.BaseAddress = new Uri(LocalEndpoint);
 
         _factory = new Mock<IHttpClientFactory>();
         _factory
             .Setup(f => f.CreateClient(It.IsAny<string>()))
-            .Returns(httpClient);
+            .Returns(_httpClient);
+    }
+
+    public void Dispose() {
+        _httpClient.Dispose();
     }
 
     #region Constructor null checks

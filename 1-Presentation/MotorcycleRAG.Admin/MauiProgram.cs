@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Pages;
 using MotorcycleRAG.Admin.ViewModels;
@@ -14,6 +15,9 @@ namespace MotorcycleRAG.Admin;
     "Design", "S3059:Types should not have members with visibility set higher than the type's visibility",
     Justification = "Allowed: composition root has internal type with internal members by design for MAUI startup")]
 internal static class MauiProgram {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Maintainability", "CA1506:Avoid excessive class coupling",
+        Justification = "MAUI composition root intentionally wires pages, view models, logging, and HTTP clients in one place.")]
     internal static MauiApp CreateMauiApp() {
         var builder = MauiApp.CreateBuilder();
         builder
@@ -35,7 +39,7 @@ internal static class MauiProgram {
             LogDirectory = logDirectory,
             MinimumLevel = LogLevel.Trace
         };
-        builder.Logging.AddProvider(new Services.Logging.FileLoggerProvider(fileLoggerOptions));
+        builder.Services.AddSingleton<ILoggerProvider>(_ => new Services.Logging.FileLoggerProvider(fileLoggerOptions));
 
 #if DEBUG
         builder.Logging.SetMinimumLevel(LogLevel.Trace);

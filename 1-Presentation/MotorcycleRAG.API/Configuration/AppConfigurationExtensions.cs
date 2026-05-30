@@ -17,9 +17,7 @@ public static class AppConfigurationExtensions {
 
         if (!string.IsNullOrEmpty(appConfigConnectionString) || !string.IsNullOrEmpty(appConfigEndpoint)) {
             var useRemoteInDevelopment = IsEnabled(builder.Configuration["AppConfig:UseRemoteInDevelopment"]);
-            if (builder.Environment.IsDevelopment() &&
-                string.IsNullOrEmpty(appConfigConnectionString) &&
-                !useRemoteInDevelopment) {
+            if (builder.Environment.IsDevelopment() && !useRemoteInDevelopment) {
                 Console.WriteLine(
                     "Azure App Configuration skipped in Development. " +
                     "Set AppConfig:UseRemoteInDevelopment=true and sign in with Azure CLI to load remote configuration locally.");

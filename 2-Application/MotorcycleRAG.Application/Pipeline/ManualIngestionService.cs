@@ -93,7 +93,7 @@ public class ManualIngestionService : IManualIngestionService
         if (doc != null)
         {
             doc.CurrentStatus = Domain.Enums.ManualDocumentStatus.Processing;
-            doc.CurrentStage = request.StartedFromStage ?? ManualIngestionConstants.Stages.Source;
+            doc.CurrentStage = request.StartedFromStage ?? ManualIngestionStages.Source;
             await _repository.UpdateDocumentAsync(doc, ct);
         }
 
@@ -162,7 +162,7 @@ public class ManualIngestionService : IManualIngestionService
             await _repository.UpdateStageAsync(stage, ct);
         }
 
-        if (stageName == ManualIngestionConstants.Stages.Complete)
+        if (stageName == ManualIngestionStages.Complete)
         {
             var run = await _repository.GetRunByIdAsync(runId, ct);
             if (run != null)
@@ -222,10 +222,10 @@ public class ManualIngestionService : IManualIngestionService
         if (run != null)
         {
             // Update metrics based on artifact registration
-            if (request.ArtifactType == ManualIngestionConstants.ArtifactTypes.Chunks) run.ChunkCount = request.ItemCount;
-            if (request.ArtifactType == ManualIngestionConstants.ArtifactTypes.Entities) run.GraphEntityCount = request.ItemCount;
-            if (request.ArtifactType == ManualIngestionConstants.ArtifactTypes.Relationships) run.GraphRelationCount = request.ItemCount;
-            if (request.ArtifactType == ManualIngestionConstants.ArtifactTypes.Vectors) run.VectorCount = request.ItemCount;
+            if (request.ArtifactType == ManualIngestionArtifactTypes.Chunks) run.ChunkCount = request.ItemCount;
+            if (request.ArtifactType == ManualIngestionArtifactTypes.Entities) run.GraphEntityCount = request.ItemCount;
+            if (request.ArtifactType == ManualIngestionArtifactTypes.Relationships) run.GraphRelationCount = request.ItemCount;
+            if (request.ArtifactType == ManualIngestionArtifactTypes.Vectors) run.VectorCount = request.ItemCount;
             
             await _repository.UpdateRunAsync(run, ct);
         }
@@ -287,7 +287,7 @@ public class ManualIngestionService : IManualIngestionService
             doc.DocumentId,
             doc.SourceFileName,
             doc.CanonicalBlobPath,
-            doc.CanonicalBlobUri,
+            CreateCanonicalBlobUri(doc.CanonicalBlobUri),
             doc.SourceContentHash,
             doc.DocumentType,
             doc.Make,
@@ -299,6 +299,11 @@ public class ManualIngestionService : IManualIngestionService
             doc.LastSuccessfulRunId,
             doc.LastFailure
         );
+    }
+
+    private static Uri? CreateCanonicalBlobUri(string? canonicalBlobUri)
+    {
+        return Uri.TryCreate(canonicalBlobUri, UriKind.Absolute, out var uri) ? uri : null;
     }
 
     private ManualRunDto Map(ManualProcessingRun run)

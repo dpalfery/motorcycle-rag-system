@@ -204,7 +204,7 @@ public class MotorcycleRagServiceTests {
         Assert.NotNull(response);
         // Response should contain the final answer (may have limitation messages prepended)
         Assert.Contains("Final answer", response.Response);
-        Assert.Equal(0, response.Sources.Length); // FoundryAnswer result is stripped from sources
+        Assert.Empty(response.Sources); // FoundryAnswer result is stripped from sources
         Assert.Equal(0, response.Metrics.ResultsFound); // FoundryAnswer result is stripped from sources
         Assert.False(string.IsNullOrWhiteSpace(response.QueryId));
 

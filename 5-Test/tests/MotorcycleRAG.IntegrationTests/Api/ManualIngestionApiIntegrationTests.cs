@@ -136,7 +136,7 @@ public class ManualIngestionApiIntegrationTests : IClassFixture<TestWebApplicati
         var request = new ManualStageStartRequest(null);
 
         // Act
-        var response = await client.PostAsJsonAsync($"/api/manual-ingestion/manual-runs/{runId}/stages/{ManualIngestionConstants.Stages.Source}/start", request);
+        var response = await client.PostAsJsonAsync($"/api/manual-ingestion/manual-runs/{runId}/stages/{ManualIngestionStages.Source}/start", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

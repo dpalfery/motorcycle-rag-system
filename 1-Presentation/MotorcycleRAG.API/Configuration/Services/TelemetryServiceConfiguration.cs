@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
 using MotorcycleRAG.API.Services;
 
 namespace MotorcycleRAG.API.Configuration.Services;
@@ -32,13 +34,15 @@ internal static class TelemetryServiceConfiguration
             services.AddApplicationInsightsTelemetry(options =>
             {
                 options.ConnectionString = appInsightsConnectionString;
-                options.EnableAdaptiveSampling = true;
+                options.ApplicationVersion = typeof(Program).Assembly.GetName().Version?.ToString() ?? "Unknown";
                 options.EnableQuickPulseMetricStream = true;
                 options.EnablePerformanceCounterCollectionModule = configuration.GetValue<bool>("ApplicationInsights:EnablePerformanceCounters", true);
             });
-
-            // Add custom telemetry initializer
-            services.AddSingleton<Microsoft.ApplicationInsights.Extensibility.ITelemetryInitializer, CustomTelemetryInitializer>();
+        }
+        else
+        {
+            services.AddSingleton<TelemetryConfiguration>();
+            services.AddSingleton(sp => new TelemetryClient(sp.GetRequiredService<TelemetryConfiguration>()));
         }
 
         return services;

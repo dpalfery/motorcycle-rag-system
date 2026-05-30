@@ -1,10 +1,9 @@
 namespace MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion;
-
 public record ManualDocumentDto(
     Guid DocumentId,
     string SourceFileName,
     string CanonicalBlobPath,
-    string? CanonicalBlobUri,
+    Uri? CanonicalBlobUri,
     string? ContentHash,
     string DocumentType,
     string? Make,

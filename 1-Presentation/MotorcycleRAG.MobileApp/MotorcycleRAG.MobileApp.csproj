@@ -12,6 +12,8 @@
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<!-- MAUI/XAML DTOs intentionally expose mutable List<string> and string URL properties for binding, JSON, and SQLite mapping. -->
+		<NoWarn>$(NoWarn);CA1002;CA1054;CA1056;CA1501;CA5392</NoWarn>
 
 		<!-- Display name -->
 		<ApplicationTitle>MotorcycleRAG.MobileApp</ApplicationTitle>

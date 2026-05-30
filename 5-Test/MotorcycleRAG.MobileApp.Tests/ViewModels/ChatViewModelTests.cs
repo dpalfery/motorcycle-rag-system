@@ -71,7 +71,7 @@ namespace MotorcycleRAG.MobileApp.Tests.ViewModels
             _viewModel.QuestionText = question;
 
             _mockConversationService.Setup(s => s.SendMessageAsync(conversationId, question))
-                .ThrowsAsync(new Exception("API Error"));
+                .ThrowsAsync(new InvalidOperationException("API Error"));
 
             // Act
             await _viewModel.SendQuestionCommand.ExecuteAsync(null);

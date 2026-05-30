@@ -1,4 +1,5 @@
 using System.Net;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -77,6 +78,7 @@ public class UserManagementViewModelTests {
     }
 
     [Fact]
+    [SuppressMessage("Maintainability", "CA1506:Avoid excessive class coupling", Justification = "This integration-style view model test constructs a realistic approval response and request payload in one scenario.")]
     public async Task ApproveAsync_SendsSelectedTier_AndAppliesUpdatedRow() {
         string? capturedBody = null;
         using var handler = new StubHttpMessageHandler(async request => {

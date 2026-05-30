@@ -21,11 +21,14 @@ namespace MotorcycleRAG.MobileApp.Services
                 if (index < 0 || index >= document.PageCount) return null;
 
                 using var page = document.GetPage((uint)index);
-                var stream = new InMemoryRandomAccessStream();
+                using var stream = new InMemoryRandomAccessStream();
 
                 await page.RenderToStreamAsync(stream);
 
-                return stream.AsStreamForRead();
+                var result = new MemoryStream();
+                await stream.AsStreamForRead().CopyToAsync(result);
+                result.Position = 0;
+                return result;
             }
             catch (Exception ex)
             {

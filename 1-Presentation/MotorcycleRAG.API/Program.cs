@@ -70,7 +70,7 @@ public class Program {
         });
 
         // 5. Domain & Infrastructure Services (Existing Extensions)
-        builder.Services.AddAzureAIServices(configuration);
+        builder.Services.AddAzureAIServices(configuration, builder.Environment);
         builder.Services.AddCoreServices();
         builder.Services.AddSearchAgents(configuration);
         builder.Services.AddDataProcessors(configuration);

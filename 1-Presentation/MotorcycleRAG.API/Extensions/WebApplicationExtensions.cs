@@ -1,12 +1,18 @@
 using MotorcycleRAG.API.Middleware;
 using MotorcycleRAG.API.Services;
 using MotorcycleRAG.API.Configuration;
+using Scalar.AspNetCore;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MotorcycleRAG.API.Extensions;
 
 /// <summary>
 /// Extension methods for <see cref="WebApplication"/> to configure the HTTP request pipeline.
 /// </summary>
+[SuppressMessage(
+    "Maintainability",
+    "CA1506:Avoid excessive class coupling",
+    Justification = "The API middleware composition root intentionally wires documentation, security, auth, and endpoint middleware in one place.")]
 internal static class WebApplicationExtensions
 {
     /// <summary>
@@ -14,15 +20,25 @@ internal static class WebApplicationExtensions
     /// </summary>
     public static WebApplication UseMotorcycleRagMiddleware(this WebApplication app)
     {
-        // Configure the HTTP request pipeline
+        // Configure development-time API documentation endpoints.
         if (app.Environment.IsDevelopment())
         {
-            app.UseSwagger();
-            app.UseSwaggerUI(c =>
+            app.MapOpenApi("/swagger/{documentName}/swagger.json")
+                .AllowAnonymous()
+                .RequireRateLimiting("public");
+
+            app.MapGet("/", () => Results.Redirect("/scalar/v1"))
+                .AllowAnonymous()
+                .RequireRateLimiting("public");
+
+            app.MapScalarApiReference(options =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Motorcycle RAG API v1");
-                c.RoutePrefix = string.Empty; // Serve Swagger UI at root
-            });
+                options.WithTitle("Motorcycle RAG API");
+                options.WithOpenApiRoutePattern("/swagger/{documentName}/swagger.json");
+                options.AddDocument("v1", "Motorcycle RAG API v1");
+            })
+                .AllowAnonymous()
+                .RequireRateLimiting("public");
         }
 
         // Enable automatic refresh of configuration values from Azure App Configuration

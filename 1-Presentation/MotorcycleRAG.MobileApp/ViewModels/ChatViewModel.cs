@@ -57,9 +57,8 @@ namespace MotorcycleRAG.MobileApp.ViewModels
 
         public void ApplyQueryAttributes(IDictionary<string, object> query)
         {
-            if (query.ContainsKey("conversationId")) // Note: Query parameters are case-sensitive usually, but Shell handles it. Let's check case.
+            if (query.TryGetValue("conversationId", out var idObj)) // Note: Query parameters are case-sensitive usually, but Shell handles it. Let's check case.
             {
-                var idObj = query["conversationId"];
                 if (idObj is string idString && Guid.TryParse(idString, out var id))
                 {
                     ConversationId = id;
@@ -201,9 +200,11 @@ namespace MotorcycleRAG.MobileApp.ViewModels
             {
                 if (!string.IsNullOrEmpty(citation.Url))
                 {
-                    var navigationParameter = new Dictionary<string, object>();
-                    navigationParameter["url"] = citation.Url ?? string.Empty;
-                    navigationParameter["page"] = citation.PageNumber;
+                    var navigationParameter = new Dictionary<string, object>
+                    {
+                        ["url"] = citation.Url,
+                        ["page"] = citation.PageNumber ?? 1
+                    };
 
                     await Shell.Current.GoToAsync("PdfViewerPage", navigationParameter);
                 }

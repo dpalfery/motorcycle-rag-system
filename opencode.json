@@ -3,6 +3,9 @@
     "permission": {
         "skill": {
             "*": "allow"
+        },
+        "bash": {
+            "*": "allow"
         }
     },
     "agent": {

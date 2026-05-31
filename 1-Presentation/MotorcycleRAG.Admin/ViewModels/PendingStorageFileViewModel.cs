@@ -39,6 +39,7 @@ internal sealed class PendingStorageFileViewModel : INotifyPropertyChanged {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsProcessing)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartPrimaryAction)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartGraphImport)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanDelete)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProcessButtonText)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GraphImportButtonText)));
         }
@@ -71,6 +72,8 @@ internal sealed class PendingStorageFileViewModel : INotifyPropertyChanged {
     public bool CanStartPrimaryAction => !IsProcessing && CanStartWorkflow(LastKnownJobStatus);
 
     public bool CanStartGraphImport => HasGraphWorkflow && !IsProcessing && CanStartWorkflow(GraphImportStatus);
+
+    public bool CanDelete => !IsProcessing;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Vis", Justification = "For binding")]
     public event PropertyChangedEventHandler? PropertyChanged;

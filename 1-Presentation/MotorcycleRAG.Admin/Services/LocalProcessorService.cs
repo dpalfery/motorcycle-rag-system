@@ -202,10 +202,9 @@ internal sealed class LocalProcessorService : ILocalProcessorService {
             using var response = await _httpClient.GetAsync(new Uri(endpoint, "/health"), cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode) {
                 _logger.LogDebug("Local processor health check returned non-success status {StatusCode} for {Endpoint}", response.StatusCode, endpoint);
-                return null;
             }
 
-            return await response.Content.ReadFromJsonAsync<LocalProcessorHealthResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
+            return await TryReadHealthResponseAsync(response, cancellationToken).ConfigureAwait(false);
         }
         catch (HttpRequestException) {
             _logger.LogTrace("Local processor health check failed with HTTP exception for {Endpoint}", endpoint);
@@ -213,6 +212,16 @@ internal sealed class LocalProcessorService : ILocalProcessorService {
         }
         catch (TaskCanceledException) {
             _logger.LogTrace("Local processor health check timed out for {Endpoint}", endpoint);
+            return null;
+        }
+    }
+
+    private async Task<LocalProcessorHealthResponse?> TryReadHealthResponseAsync(HttpResponseMessage response, CancellationToken cancellationToken) {
+        try {
+            return await response.Content.ReadFromJsonAsync<LocalProcessorHealthResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch (JsonException ex) {
+            _logger.LogTrace(ex, "Local processor health response body could not be parsed as JSON");
             return null;
         }
     }

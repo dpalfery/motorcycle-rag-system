@@ -6,6 +6,7 @@ using Moq;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Options;
 using Xunit;
 
 
@@ -20,6 +21,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     private readonly Mock<IDataPipelineOrchestrator> _orchestratorMock;
     private readonly Mock<ILogger<ScheduledPipelineService>> _loggerMock;
     private readonly Mock<IOptions<ScheduledProcessingConfiguration>> _configMock;
+    private readonly Mock<IOptions<AzureFoundryOptions>> _azureFoundryOptionsMock;
     private readonly ScheduledPipelineService _service;
     private readonly string _testDirectory;
     private readonly IServiceProvider _serviceProvider;
@@ -30,6 +32,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         _orchestratorMock = new Mock<IDataPipelineOrchestrator>();
         _loggerMock = new Mock<ILogger<ScheduledPipelineService>>();
         _configMock = new Mock<IOptions<ScheduledProcessingConfiguration>>();
+        _azureFoundryOptionsMock = new Mock<IOptions<AzureFoundryOptions>>();
 
         // Create a temporary directory for testing
         _testDirectory = Path.Combine(Path.GetTempPath(), $"ScheduledPipelineTest_{Guid.NewGuid()}");
@@ -44,6 +47,9 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         };
 
         _configMock.Setup(x => x.Value).Returns(config);
+        _azureFoundryOptionsMock.Setup(x => x.Value).Returns(new AzureFoundryOptions {
+            DocumentIntelligenceEndpoint = string.Empty
+        });
 
         // Setup service scope factory
         _serviceScopeFactoryMock.Setup(x => x.CreateScope()).Returns(_serviceScopeMock.Object);
@@ -58,6 +64,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         _service = new ScheduledPipelineService(
             _serviceScopeFactoryMock.Object,
             _configMock.Object,
+            _azureFoundryOptionsMock.Object,
             _loggerMock.Object);
     }
 
@@ -98,7 +105,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     }
 
     [Fact]
-    public async Task ExecuteImmediateRunAsync_WithValidFiles_ShouldProcessSuccessfully() {
+    public async Task ExecuteImmediateRunAsync_WithCsvAndPdfFiles_ShouldSkipLegacyPdfAndProcessCsv() {
         // Arrange
         var scheduledDir = Path.Combine(_testDirectory, "scheduled");
         Directory.CreateDirectory(scheduledDir);
@@ -111,8 +118,8 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         await File.WriteAllTextAsync(pdfFile, "%PDF-1.4 test content");
 
         var batchResult = new BatchPipelineResult {
-            TotalFiles = 2,
-            ProcessedSuccessfully = 2,
+            TotalFiles = 1,
+            ProcessedSuccessfully = 1,
             Failed = 0,
             EndTime = DateTime.UtcNow
         };
@@ -125,16 +132,55 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(PipelineStatus.Completed, result.Status);
-        Assert.Contains("Processed 2 files successfully", result.Message);
+        Assert.Equal(PipelineStatus.PartiallyCompleted, result.Status);
+        Assert.Contains("Processed 1 files successfully", result.Message);
+        Assert.Contains("Skipped 1 legacy scheduled PDF file(s)", result.Message);
+        Assert.Contains(result.Warnings, warning => warning.Contains("local Python processor", StringComparison.OrdinalIgnoreCase));
 
         // Verify orchestrator was called with correct requests
         _orchestratorMock.Verify(x => x.ProcessBatchAsync(
             It.Is<IEnumerable<DataPipelineRequest>>(requests =>
-                requests.Count() == 2 &&
-                requests.Any(r => r.FileType == FileType.CSV) &&
-                requests.Any(r => r.FileType == FileType.PDF)),
+                requests.Count() == 1 &&
+                requests.All(r => r.FileType == FileType.CSV)),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteImmediateRunAsync_WithOnlyPdfFiles_ShouldSkipLegacyPdfBeforeOrchestrator() {
+        // Arrange
+        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
+        Directory.CreateDirectory(scheduledDir);
+        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "manual.pdf"), "%PDF-1.4 test content");
+
+        // Act
+        var result = await _service.ExecuteImmediateRunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(PipelineStatus.Completed, result.Status);
+        Assert.Contains("Skipped 1 legacy scheduled PDF file(s)", result.Message);
+        Assert.Contains(result.Warnings, warning => warning.Contains("ingestion jobs/local Python processor", StringComparison.OrdinalIgnoreCase));
+        _orchestratorMock.Verify(x => x.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteImmediateRunAsync_WithOnlyPdfFiles_ShouldCountRunAsSuccessfulSkip() {
+        // Arrange
+        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
+        Directory.CreateDirectory(scheduledDir);
+        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "manual.pdf"), "%PDF-1.4 test content");
+
+        // Act
+        await _service.ExecuteImmediateRunAsync(CancellationToken.None);
+
+        // Assert
+        var stats = await _service.GetProcessingStatsAsync();
+        Assert.Equal(1, stats.TotalScheduledRuns);
+        Assert.Equal(1, stats.SuccessfulRuns);
+        Assert.Equal(0, stats.FailedRuns);
+        Assert.Equal(0, stats.FilesProcessedInLastRun);
+        Assert.Equal(PipelineStatus.Completed, stats.LastExecutionStatus);
+        Assert.True(stats.AverageProcessingTime >= TimeSpan.Zero);
     }
 
     [Fact]
@@ -274,16 +320,15 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
 
     [Theory]
     [InlineData("test.csv", FileType.CSV)]
-    [InlineData("manual.pdf", FileType.PDF)]
     [InlineData("unknown.txt", FileType.Unknown)]
-    public async Task ExecuteImmediateRunAsync_ShouldDetectCorrectFileTypes(string fileName, FileType expectedType) {
+    public async Task ExecuteImmediateRunAsync_ShouldDetectSupportedFileTypes(string fileName, FileType expectedType) {
         ArgumentNullException.ThrowIfNull(fileName);
 
         // Arrange
         var scheduledDir = Path.Combine(_testDirectory, "scheduled");
         Directory.CreateDirectory(scheduledDir);
 
-        var content = fileName.EndsWith(".pdf") ? "%PDF-1.4 content" : "test,content";
+        var content = "test,content";
         await File.WriteAllTextAsync(Path.Combine(scheduledDir, fileName), content);
 
         var batchResult = new BatchPipelineResult {
@@ -311,6 +356,50 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
                     requests.Any(r => r.FileType == expectedType)),
                 It.IsAny<CancellationToken>()), Times.Once);
         }
+    }
+
+    [Fact]
+    public async Task ExecuteImmediateRunAsync_WithPdfFileAndDocumentIntelligenceEnabled_ShouldProcessPdf() {
+        // Arrange
+        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
+        Directory.CreateDirectory(scheduledDir);
+        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "manual.pdf"), "%PDF-1.4 content");
+
+        var services = new ServiceCollection();
+        services.AddSingleton(_orchestratorMock.Object);
+        var serviceProvider = services.BuildServiceProvider();
+        _serviceScopeMock.Setup(x => x.ServiceProvider).Returns(serviceProvider);
+        _azureFoundryOptionsMock.Setup(x => x.Value).Returns(new AzureFoundryOptions {
+            DocumentIntelligenceEndpoint = "https://example.cognitiveservices.azure.com/"
+        });
+
+        using var enabledService = new ScheduledPipelineService(
+            _serviceScopeFactoryMock.Object,
+            _configMock.Object,
+            _azureFoundryOptionsMock.Object,
+            _loggerMock.Object);
+
+        var batchResult = new BatchPipelineResult {
+            TotalFiles = 1,
+            ProcessedSuccessfully = 1,
+            Failed = 0,
+            EndTime = DateTime.UtcNow
+        };
+
+        _orchestratorMock.Setup(x => x.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(batchResult);
+
+        // Act
+        var result = await enabledService.ExecuteImmediateRunAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(PipelineStatus.Completed, result.Status);
+        Assert.DoesNotContain(result.Warnings, warning => warning.Contains("legacy scheduled PDF", StringComparison.OrdinalIgnoreCase));
+        _orchestratorMock.Verify(x => x.ProcessBatchAsync(
+            It.Is<IEnumerable<DataPipelineRequest>>(requests =>
+                requests.Count() == 1 &&
+                requests.Single().FileType == FileType.PDF),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

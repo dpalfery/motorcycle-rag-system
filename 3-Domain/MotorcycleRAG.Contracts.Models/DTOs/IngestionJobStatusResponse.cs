@@ -24,6 +24,8 @@ public sealed record IngestionJobStatusResponse
     public IngestionWorkloadLimits? WorkloadLimits { get; init; }
     public string? Message { get; init; }
     public string? FailureReason { get; init; }
-    public string? FabricRunId { get; init; }
+    public string? DocIngestionRunId { get; init; }
+    public int? ExpectedChunkCount { get; init; }
+    public int? IndexedChunkCount { get; init; }
     public string? StatusUrl { get; init; }
 }

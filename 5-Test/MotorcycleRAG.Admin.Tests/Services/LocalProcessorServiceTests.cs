@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Admin.Services;
+using MotorcycleRAG.Admin.Services.Dtos;
 using System.Net;
 using System.Text;
 
@@ -148,9 +149,64 @@ public sealed class LocalProcessorServiceTests {
         result.Models.Should().Equal("qwen3-embedding", "qwen3:4b");
     }
 
-    private static LocalProcessorService CreateSubject(HttpMessageHandler? httpMessageHandler = null) {
+    [Fact]
+    public async Task GetHealthAsync_ReturnsPayload_WhenHealthEndpointReturnsNonSuccessWithValidJson() {
+        using var handler = new StubHttpMessageHandler(request => request.RequestUri?.AbsoluteUri switch {
+            "http://processor.test:8100/health" => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) {
+                Content = new StringContent(
+                    """
+                    {
+                      "status": "degraded",
+                      "accepting_work": false,
+                      "shutdown_requested": false,
+                      "active_jobs": 2,
+                      "message": "warming up"
+                    }
+                    """,
+                    Encoding.UTF8,
+                    "application/json")
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+
+        var sut = CreateSubject(
+            handler,
+            localProcessorEndpoint: new Uri("http://processor.test:8100"));
+
+        var result = await sut.GetHealthAsync();
+
+        result.Should().BeEquivalentTo(new LocalProcessorHealthResponse {
+            Status = "degraded",
+            AcceptingWork = false,
+            ShutdownRequested = false,
+            ActiveJobs = 2,
+            Message = "warming up"
+        });
+    }
+
+    [Fact]
+    public async Task GetHealthAsync_ReturnsNull_WhenHealthEndpointReturnsNonSuccessWithInvalidBody() {
+        using var handler = new StubHttpMessageHandler(request => request.RequestUri?.AbsoluteUri switch {
+            "http://processor.test:8100/health" => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) {
+                Content = new StringContent("not-json", Encoding.UTF8, "text/plain")
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+        });
+
+        var sut = CreateSubject(
+            handler,
+            localProcessorEndpoint: new Uri("http://processor.test:8100"));
+
+        var result = await sut.GetHealthAsync();
+
+        result.Should().BeNull();
+    }
+
+    private static LocalProcessorService CreateSubject(HttpMessageHandler? httpMessageHandler = null, Uri? localProcessorEndpoint = null) {
         var processorLogDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        var configurationStateService = new TestConfigurationStateService();
+        var configurationStateService = new TestConfigurationStateService {
+            LocalProcessorEndpoint = localProcessorEndpoint
+        };
         return new LocalProcessorService(configurationStateService, NullLogger<LocalProcessorService>.Instance, processorLogDirectory, httpMessageHandler);
     }
 

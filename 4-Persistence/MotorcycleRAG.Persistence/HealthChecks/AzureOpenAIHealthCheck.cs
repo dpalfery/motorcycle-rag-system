@@ -10,7 +10,7 @@ namespace MotorcycleRAG.Persistence.HealthChecks;
 /// </summary>
 public class AzureOpenAIHealthCheck : IHealthCheck
 {
-    private readonly AzureFoundryOptions _options;
+    private readonly IOptions<AzureFoundryOptions> _options;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AzureOpenAIHealthCheck> _logger;
 
@@ -19,21 +19,32 @@ public class AzureOpenAIHealthCheck : IHealthCheck
         IHttpClientFactory httpClientFactory,
         ILogger<AzureOpenAIHealthCheck> logger)
     {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
+        AzureFoundryOptions resolvedOptions;
         try
         {
-            if (string.IsNullOrWhiteSpace(_options.FoundryEndpoint))
+            resolvedOptions = _options.Value;
+        }
+        catch (OptionsValidationException ex)
+        {
+            _logger.LogWarning(ex, "Azure OpenAI is not configured for this environment");
+            return HealthCheckResult.Degraded("Azure OpenAI is not configured for this environment");
+        }
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(resolvedOptions.FoundryEndpoint))
             {
                 return HealthCheckResult.Unhealthy("Azure Foundry endpoint is not configured");
             }
 
-            if (!Uri.TryCreate(_options.FoundryEndpoint, UriKind.Absolute, out var uri))
+            if (!Uri.TryCreate(resolvedOptions.FoundryEndpoint, UriKind.Absolute, out var uri))
             {
                 return HealthCheckResult.Unhealthy("Azure OpenAI endpoint is not a valid URL");
             }

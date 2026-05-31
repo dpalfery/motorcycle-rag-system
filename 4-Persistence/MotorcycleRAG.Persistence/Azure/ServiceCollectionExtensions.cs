@@ -12,6 +12,7 @@ using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Search;
 using MotorcycleRAG.Persistence.Telemetry;
 using MotorcycleRAG.Persistence.Azure.Blob;
+using MotorcycleRAG.Persistence.Azure.Search;
 using MotorcycleRAG.Core.Options;
 using Polly;
 
@@ -73,7 +74,12 @@ public static class ServiceCollectionExtensions {
                 options, logger, resilience, correlation, httpFactory, config);
         });
         services.AddScoped<IAzureSearchClient, MotorcycleRAG.Persistence.Azure.AzureSearchClientWrapper>();
-        services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
+        if (HasDocumentIntelligenceEndpoint(configuration)) {
+            services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
+        }
+        else {
+            services.AddSingleton<IDocumentIntelligenceClient, DisabledDocumentIntelligenceClient>();
+        }
         
         // Register extracted Azure Search services
         services.AddScoped<MotorcycleRAG.Contracts.Interfaces.IAzureSearchQueryService, MotorcycleRAG.Persistence.Azure.Search.AzureSearchQueryService>();
@@ -94,8 +100,9 @@ public static class ServiceCollectionExtensions {
             return new AzureSearchClient(new Uri(azureConfig.SearchServiceEndpoint), searchConfig.IndexName, credential);
         });
 
-        // Register indexing service
+        // Register indexing services
         services.AddScoped<IMotorcycleIndexingService, MotorcycleIndexingService>();
+        services.AddScoped<IChunkIndexingService, ChunkIndexingService>();
 
         // Configure HTTP clients for external services
         // NOTE: Resilience policies (retry + circuit breaker) are applied in the Presentation layer
@@ -107,6 +114,9 @@ public static class ServiceCollectionExtensions {
 
         return services;
     }
+
+    private static bool HasDocumentIntelligenceEndpoint(IConfiguration configuration) =>
+        Uri.TryCreate(configuration["AzureAI:DocumentIntelligenceEndpoint"], UriKind.Absolute, out _);
 
     public static IServiceCollection AddPipelineHttpClients(this IServiceCollection services) {
         services.AddTransient<HttpResilienceDelegatingHandler>();
@@ -142,9 +152,8 @@ public class AzureFoundryConfigurationValidator : IValidateOptions<AzureFoundryO
         else if (!Uri.TryCreate(options.SearchServiceEndpoint, UriKind.Absolute, out _))
             failures.Add("AzureAI:SearchServiceEndpoint must be a valid URI");
 
-        if (string.IsNullOrWhiteSpace(options.DocumentIntelligenceEndpoint))
-            failures.Add("AzureAI:DocumentIntelligenceEndpoint is required");
-        else if (!Uri.TryCreate(options.DocumentIntelligenceEndpoint, UriKind.Absolute, out _))
+        if (!string.IsNullOrWhiteSpace(options.DocumentIntelligenceEndpoint) &&
+            !Uri.TryCreate(options.DocumentIntelligenceEndpoint, UriKind.Absolute, out _))
             failures.Add("AzureAI:DocumentIntelligenceEndpoint must be a valid URI");
 
         if (options.Models.MaxTokens <= 0)

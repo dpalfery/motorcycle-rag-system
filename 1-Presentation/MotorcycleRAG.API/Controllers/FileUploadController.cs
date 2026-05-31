@@ -95,6 +95,11 @@ public class FileUploadController : ControllerBase
             return BadRequest("No file provided or file is empty");
         }
 
+        if (processImmediately && LegacyPdfIngestionGuard.IsLegacyPdfFile(file))
+        {
+            return BadRequest(LegacyPdfIngestionGuard.CreateProblemDetails());
+        }
+
         try
         {
             var options = new FileUploadOptions
@@ -225,6 +230,11 @@ public class FileUploadController : ControllerBase
                 Detail = $"Maximum {constraints.MaxFilesPerBatch} files allowed per batch. Requested: {files.Count}",
                 Status = 400
             });
+        }
+
+        if (processImmediately && LegacyPdfIngestionGuard.HasLegacyPdfFiles(files))
+        {
+            return BadRequest(LegacyPdfIngestionGuard.CreateProblemDetails());
         }
 
         try

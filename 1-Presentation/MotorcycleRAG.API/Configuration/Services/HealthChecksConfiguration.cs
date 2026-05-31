@@ -22,8 +22,11 @@ internal static class HealthChecksConfiguration
         // Azure OpenAI health check
         builder.AddCheck<AzureOpenAIHealthCheck>("azure_openai");
 
-        // Azure Document Intelligence health check
-        builder.AddCheck<DocumentIntelligenceHealthCheck>("azure_document_intelligence");
+        if (Uri.TryCreate(configuration["AzureAI:DocumentIntelligenceEndpoint"], UriKind.Absolute, out _))
+        {
+            // Azure Document Intelligence health check
+            builder.AddCheck<DocumentIntelligenceHealthCheck>("azure_document_intelligence");
+        }
 
         // Azure Foundry health check
         builder.AddCheck<AzureFoundryHealthCheck>("azure_foundry");
@@ -56,8 +59,7 @@ internal static class HealthChecksConfiguration
                 issues.Add("Search configuration section is missing");
 
             // Check Application Insights configuration
-            var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights")
-                ?? configuration["ApplicationInsights:ConnectionString"];
+            var appInsightsConnectionString = configuration["ApplicationInsights:ConnectionString"];
 
             if (string.IsNullOrWhiteSpace(appInsightsConnectionString))
                 issues.Add("Application Insights connection string is not configured");

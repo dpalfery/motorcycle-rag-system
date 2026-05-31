@@ -127,33 +127,67 @@ async def _wait_for_graceful_shutdown() -> None:
         uvicorn_server.should_exit = True
 
 
+def _build_health_response(
+    *,
+    embedding_provider_status: str,
+    active_jobs: int,
+) -> JSONResponse:
+    blob_storage_connected = blob_writer.is_connected()
+    api_client_configured = api_client.is_configured()
+
+    if embedding_provider_status != "connected":
+        return JSONResponse(
+            content={
+                "status": "unhealthy",
+                "accepting_work": False,
+                "shutdown_requested": shutdown_requested,
+                "active_jobs": active_jobs,
+                "message": (
+                    "Embedding provider unavailable. Start an embedding provider "
+                    "before submitting work."
+                ),
+                "api_client_configured": api_client_configured,
+                "services": {
+                    "embedding_provider": embedding_provider_status,
+                    "blob_storage": blob_storage_connected,
+                    "service_uptime": "running",
+                },
+            },
+            status_code=503,
+        )
+
+    return JSONResponse(
+        content={
+            "status": "healthy",
+            "accepting_work": not shutdown_requested,
+            "shutdown_requested": shutdown_requested,
+            "active_jobs": active_jobs,
+            "message": (
+                "Shutdown requested - waiting for active jobs to finish"
+                if shutdown_requested
+                else "Processor ready"
+            ),
+            "api_client_configured": api_client_configured,
+            "services": {
+                "embedding_provider": embedding_provider_status,
+                "blob_storage": blob_storage_connected,
+                "service_uptime": "running",
+            },
+        },
+        status_code=200,
+    )
+
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
     """Check service health and dependencies"""
     try:
         embedding_provider_status = await embedder.check_status()
-
         active_jobs = await _count_active_jobs()
-        return JSONResponse(
-            content={
-                "status": "healthy",
-                "accepting_work": not shutdown_requested,
-                "shutdown_requested": shutdown_requested,
-                "active_jobs": active_jobs,
-                "message": (
-                    "Shutdown requested - waiting for active jobs to finish"
-                    if shutdown_requested
-                    else "Processor ready"
-                ),
-                "api_client_configured": api_client.is_configured(),
-                "services": {
-                    "embedding_provider": embedding_provider_status,
-                    "blob_storage": blob_writer.is_connected(),
-                    "service_uptime": "running",
-                },
-            },
-            status_code=200,
+        return _build_health_response(
+            embedding_provider_status=embedding_provider_status,
+            active_jobs=active_jobs,
         )
     except Exception as e:
         logger.exception("Health check failed")

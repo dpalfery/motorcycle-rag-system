@@ -59,7 +59,7 @@ public static class IngestionJobStatusMapper
             MissingPages = missingPages.AsReadOnly(),
             Coverage = CoverageCalculator.Calculate(job),
             FailureReason = job.FailureReason,
-            FabricRunId = job.FabricRunId
+            DocIngestionRunId = job.DocIngestionRunId
         };
     }
 }

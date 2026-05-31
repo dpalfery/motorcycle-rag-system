@@ -59,7 +59,10 @@ internal static class AzureAIServiceConfiguration {
 
         builder.AddCheck<AzureFoundryHealthCheck>("azure_foundry");
 
-        builder.AddCheck<DocumentIntelligenceHealthCheck>("azure_document_intelligence");
+        if (Uri.TryCreate(configuration["AzureAI:DocumentIntelligenceEndpoint"], UriKind.Absolute, out _))
+        {
+            builder.AddCheck<DocumentIntelligenceHealthCheck>("azure_document_intelligence");
+        }
 
         return builder;
     }

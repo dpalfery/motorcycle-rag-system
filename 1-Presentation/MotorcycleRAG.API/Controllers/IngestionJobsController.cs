@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MotorcycleRAG.Application.Pipeline;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Pipeline.Validators;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
-using Microsoft.Extensions.Options;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -30,6 +31,7 @@ public sealed class IngestionJobsController : ControllerBase {
     private readonly IngestionJobValidator _validator;
     private readonly IBlobStorageService _blobStorageService;
     private readonly BlobStorageOptions _blobStorageOptions;
+    private readonly IChunkReprocessService _reprocessService;
     private readonly ILogger<IngestionJobsController> _logger;
     /// <summary>Maximum upload size in bytes (2 GB).</summary>
     private const long MaxFileSizeBytes = 2L * 1024 * 1024 * 1024;
@@ -39,11 +41,13 @@ public sealed class IngestionJobsController : ControllerBase {
         IngestionJobValidator validator,
         IBlobStorageService blobStorageService,
         IOptions<BlobStorageOptions> blobStorageOptions,
+        IChunkReprocessService reprocessService,
         ILogger<IngestionJobsController> logger) {
         _ingestionJobService = ingestionJobService ?? throw new ArgumentNullException(nameof(ingestionJobService));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
+        _reprocessService = reprocessService ?? throw new ArgumentNullException(nameof(reprocessService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -221,7 +225,7 @@ public sealed class IngestionJobsController : ControllerBase {
 
         try {
             var result = await _ingestionJobService.GetRecentIngestionJobsAsync(top, ct).ConfigureAwait(false);
-            return Ok(result);
+            return Accepted((Uri?)null, result);
         }
         catch (InvalidOperationException ex) {
             _logger.LogError(ex, "Failed to load recent ingestion jobs.");
@@ -244,7 +248,7 @@ public sealed class IngestionJobsController : ControllerBase {
         CancellationToken ct) {
         try {
             var result = await _ingestionJobService.GetPendingStorageFilesAsync(ct).ConfigureAwait(false);
-            return Ok(result);
+            return Accepted((Uri?)null, result);
         }
         catch (InvalidOperationException ex) {
             _logger.LogError(ex, "Failed to load pending storage files.");
@@ -254,6 +258,46 @@ public sealed class IngestionJobsController : ControllerBase {
                 Status = StatusCodes.Status500InternalServerError
             });
         }
+    }
+
+    /// <summary>
+    /// Deletes every pending storage file and its associated ingestion history.
+    /// Route: DELETE /api/ingestion/jobs/pending-files
+    /// </summary>
+    [HttpDelete("jobs/pending-files")]
+    [ProducesResponseType(typeof(IngestionCleanupResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IngestionCleanupResponse>> ClearPendingFilesAsync(
+        CancellationToken ct) {
+        var deletedCount = await _ingestionJobService.ClearPendingStorageFilesAsync(ct).ConfigureAwait(false);
+        return Ok(new IngestionCleanupResponse {
+            Scope = "pending-files",
+            DeletedCount = deletedCount
+        });
+    }
+
+    /// <summary>
+    /// Deletes a single pending storage file and its associated ingestion history.
+    /// Route: DELETE /api/ingestion/jobs/pending-files/{uploadId}
+    /// </summary>
+    [HttpDelete("jobs/pending-files/{uploadId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> DeletePendingFileAsync(
+        string uploadId,
+        [FromQuery] string? documentType,
+        CancellationToken ct) {
+        if (string.IsNullOrWhiteSpace(uploadId)) {
+            return BadRequest(new ProblemDetails {
+                Title = "uploadId is required",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        await _ingestionJobService.DeletePendingStorageFileAsync(
+            uploadId,
+            documentType ?? string.Empty,
+            ct).ConfigureAwait(false);
+        return NoContent();
     }
 
     /// <summary>
@@ -283,11 +327,250 @@ public sealed class IngestionJobsController : ControllerBase {
         return Ok(result);
     }
 
+    /// <summary>
+    /// Deletes a single terminal ingestion job.
+    /// Route: DELETE /api/ingestion/jobs/{jobId}
+    /// </summary>
+    [HttpDelete("jobs/{jobId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteJobAsync(
+        Guid jobId,
+        CancellationToken ct) {
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+        var job = await _ingestionJobService.GetJobStatusAsync(jobId, userId, ct).ConfigureAwait(false);
+        if (job is null) {
+            return NotFound(new ProblemDetails {
+                Title = "Ingestion job not found",
+                Detail = $"No ingestion job with ID '{jobId}' was found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        if (!IsTerminalJobStatus(job.Status)) {
+            return Conflict(new ProblemDetails {
+                Title = "Only terminal jobs can be deleted",
+                Detail = "Queued, processing, and indexing jobs cannot be deleted.",
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+
+        try {
+            await _ingestionJobService.DeleteJobAsync(jobId, userId, ct).ConfigureAwait(false);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex) {
+            _logger.LogWarning(ex, "Deletion rejected for ingestion job {JobId}.", jobId);
+            return Conflict(new ProblemDetails {
+                Title = "Job deletion rejected",
+                Detail = "The selected ingestion job could not be deleted.",
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+    }
+
+    /// <summary>
+    /// Deletes all failed and cancelled ingestion jobs.
+    /// Route: DELETE /api/ingestion/jobs/failed
+    /// </summary>
+    [HttpDelete("jobs/failed")]
+    [ProducesResponseType(typeof(IngestionCleanupResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IngestionCleanupResponse>> ClearFailedJobsAsync(
+        CancellationToken ct) {
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+        var deletedCount = await _ingestionJobService.ClearFailedJobsAsync(userId, ct).ConfigureAwait(false);
+        return Ok(new IngestionCleanupResponse {
+            Scope = "failed-jobs",
+            DeletedCount = deletedCount
+        });
+    }
+
+    /// <summary>
+    /// Deletes all completed and partially completed ingestion jobs and their source artifacts.
+    /// Route: DELETE /api/ingestion/jobs/finished
+    /// </summary>
+    [HttpDelete("jobs/finished")]
+    [ProducesResponseType(typeof(IngestionCleanupResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IngestionCleanupResponse>> ClearFinishedJobsAsync(
+        CancellationToken ct) {
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+        var deletedCount = await _ingestionJobService.ClearFinishedJobsAsync(userId, ct).ConfigureAwait(false);
+        return Ok(new IngestionCleanupResponse {
+            Scope = "finished-jobs",
+            DeletedCount = deletedCount
+        });
+    }
+
+    /// <summary>
+    /// Retries a failed or cancelled ingestion job.
+    /// Route: POST /api/ingestion/jobs/{jobId}/retry
+    /// </summary>
+    [HttpPost("jobs/{jobId:guid}/retry")]
+    [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RetryJobAsync(
+        Guid jobId,
+        CancellationToken ct) {
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+        var job = await _ingestionJobService.GetJobStatusAsync(jobId, userId, ct).ConfigureAwait(false);
+        if (job is null) {
+            return NotFound(new ProblemDetails {
+                Title = "Ingestion job not found",
+                Detail = $"No ingestion job with ID '{jobId}' was found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        if (!IsFailedJobStatus(job.Status)) {
+            return Conflict(new ProblemDetails {
+                Title = "Only failed jobs can be retried",
+                Detail = "Completed, partially completed, queued, processing, and indexing jobs cannot be retried.",
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+
+        try {
+            var result = await _ingestionJobService.RetryJobAsync(jobId, userId, ct).ConfigureAwait(false);
+            return Accepted(result);
+        }
+        catch (InvalidOperationException ex) {
+            _logger.LogWarning(ex, "Retry rejected for ingestion job {JobId}.", jobId);
+            return Conflict(new ProblemDetails {
+                Title = "Job retry rejected",
+                Detail = "The selected ingestion job could not be retried.",
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+    }
+
+    /// <summary>
+    /// Reprocess a specific ingestion job.
+    /// Route: POST /api/ingestion/jobs/{jobId}/reprocess
+    /// </summary>
+    [HttpPost("jobs/{jobId:guid}/reprocess")]
+    [ProducesResponseType(typeof(ReprocessResultDto), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReprocessJobAsync(
+        Guid jobId,
+        CancellationToken ct)
+    {
+        _logger.LogInformation("Reprocessing ingestion job {JobId}.", jobId);
+
+        try
+        {
+            var result = await _reprocessService.ReprocessByJobIdAsync(jobId, ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Reprocess job {JobId}: {Processed} processed, {Succeeded} succeeded, {PartiallyIndexed} partially indexed, {Failed} failed.",
+                jobId,
+                result.ArtifactsProcessed,
+                result.ArtifactsSucceeded,
+                result.ArtifactsPartiallyIndexed,
+                result.ArtifactsFailed);
+
+            return Accepted((Uri?)null, result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reprocess operation failed for job {JobId}.", jobId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+            {
+                Title = "Reprocess operation failed",
+                Detail = "The reprocess operation could not be completed.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
+    }
+
+    /// <summary>
+    /// Reprocess all ingestion jobs that have not succeeded.
+    /// Route: POST /api/ingestion/jobs/reprocess/not-succeeded
+    /// </summary>
+    [HttpPost("jobs/reprocess/not-succeeded")]
+    [ProducesResponseType(typeof(ReprocessResultDto), StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> ReprocessNotSucceededAsync(
+        CancellationToken ct)
+    {
+        _logger.LogInformation("Reprocessing all not-succeeded ingestion jobs.");
+
+        try
+        {
+            var result = await _reprocessService.ReprocessAllNotSucceededAsync(ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Reprocess not-succeeded: {Processed} processed, {Succeeded} succeeded, {PartiallyIndexed} partially indexed, {Failed} failed.",
+                result.ArtifactsProcessed,
+                result.ArtifactsSucceeded,
+                result.ArtifactsPartiallyIndexed,
+                result.ArtifactsFailed);
+
+            return Accepted((Uri?)null, result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reprocess not-succeeded operation failed.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+            {
+                Title = "Reprocess operation failed",
+                Detail = "The reprocess operation could not be completed.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
+    }
+
+    /// <summary>
+    /// Reprocess all ingestion jobs.
+    /// Route: POST /api/ingestion/jobs/reprocess/all
+    /// </summary>
+    [HttpPost("jobs/reprocess/all")]
+    [ProducesResponseType(typeof(ReprocessResultDto), StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> ReprocessAllAsync(
+        CancellationToken ct)
+    {
+        _logger.LogInformation("Reprocessing all ingestion jobs.");
+
+        try
+        {
+            var result = await _reprocessService.ReprocessAllAsync(ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Reprocess all: {Processed} processed, {Succeeded} succeeded, {PartiallyIndexed} partially indexed, {Failed} failed.",
+                result.ArtifactsProcessed,
+                result.ArtifactsSucceeded,
+                result.ArtifactsPartiallyIndexed,
+                result.ArtifactsFailed);
+
+            return Accepted((Uri?)null, result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reprocess all operation failed.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+            {
+                Title = "Reprocess operation failed",
+                Detail = "The reprocess operation could not be completed.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
+    }
+
     /// <summary>Returns true when the document type is on the allowlist.</summary>
     private static bool IsAllowedDocumentType(string documentType) =>
         string.Equals(documentType, "manual-pdf", StringComparison.OrdinalIgnoreCase)
         || string.Equals(documentType, "spec-dataset", StringComparison.OrdinalIgnoreCase)
         || string.Equals(documentType, "bike-graph", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTerminalJobStatus(string status) =>
+        string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(status, "PartiallyCompleted", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(status, "Cancelled", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsFailedJobStatus(string status) =>
+        string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(status, "Cancelled", StringComparison.OrdinalIgnoreCase);
 
     private static bool HasExpectedExtension(string fileName, string documentType) =>
         string.Equals(

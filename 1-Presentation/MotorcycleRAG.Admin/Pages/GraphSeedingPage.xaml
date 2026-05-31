@@ -45,8 +45,7 @@
                     BackgroundColor="DarkSlateBlue"
                     TextColor="White"
                     FontAttributes="Bold"
-                    HeightRequest="50"
-                    IsEnabled="{Binding CanStartGraphJob}"/>
+                    HeightRequest="50"/>
 
             <!-- Job Progress Indicator -->
             <Frame BorderColor="LightGray"
@@ -156,8 +155,7 @@
                                                 BackgroundColor="{StaticResource Tertiary}"
                                                 TextColor="White"
                                                 FontSize="11"
-                                                Padding="10,5"
-                                                IsEnabled="{Binding CanImportProcessedGraph}"/>
+                                                Padding="10,5"/>
                                     </VerticalStackLayout>
 
                                     <VerticalStackLayout Grid.Row="1"

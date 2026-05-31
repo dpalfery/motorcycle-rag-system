@@ -11,7 +11,7 @@ namespace MotorcycleRAG.Persistence.HealthChecks;
 public class AzureFoundryHealthCheck : IHealthCheck
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly AzureFoundryOptions _options;
+    private readonly IOptions<AzureFoundryOptions> _options;
     private readonly ILogger<AzureFoundryHealthCheck> _logger;
 
     public AzureFoundryHealthCheck(
@@ -20,22 +20,33 @@ public class AzureFoundryHealthCheck : IHealthCheck
         ILogger<AzureFoundryHealthCheck> logger)
     {
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
+        AzureFoundryOptions resolvedOptions;
+        try
+        {
+            resolvedOptions = _options.Value;
+        }
+        catch (OptionsValidationException ex)
+        {
+            _logger.LogWarning(ex, "Azure Foundry is not configured for this environment");
+            return HealthCheckResult.Degraded("Azure Foundry is not configured for this environment");
+        }
+
         try
         {
             // Validate that the endpoint is configured
-            if (string.IsNullOrWhiteSpace(_options.FoundryEndpoint))
+            if (string.IsNullOrWhiteSpace(resolvedOptions.FoundryEndpoint))
             {
                 return HealthCheckResult.Unhealthy("Azure Foundry endpoint is not configured");
             }
 
             // Validate endpoint format
-            if (!Uri.TryCreate(_options.FoundryEndpoint, UriKind.Absolute, out var uri))
+            if (!Uri.TryCreate(resolvedOptions.FoundryEndpoint, UriKind.Absolute, out var uri))
             {
                 return HealthCheckResult.Unhealthy("Azure Foundry endpoint is not a valid URL");
             }

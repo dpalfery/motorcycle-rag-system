@@ -1,8 +1,8 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.Extensibility;
 using MotorcycleRAG.API.Services;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.API.Configuration.Services;
 
@@ -12,31 +12,26 @@ namespace MotorcycleRAG.API.Configuration.Services;
 internal static class TelemetryServiceConfiguration
 {
     public static IServiceCollection AddMotorcycleRagTelemetry(
-        this IServiceCollection services, 
-        IConfiguration configuration)
+        this IServiceCollection services,
+        TelemetryOptions options)
     {
-        // Validate Application Insights configuration early
-        var appInsightsSection = configuration.GetSection("ApplicationInsights");
-        var enableTelemetry = appInsightsSection.GetValue<bool>("EnableTelemetry", false);
-        var appInsightsConnectionString = configuration.GetConnectionString("ApplicationInsights");
-
         // Fail fast if telemetry is enabled but connection string is not configured
-        if (enableTelemetry && string.IsNullOrWhiteSpace(appInsightsConnectionString))
+        if (options.EnableTelemetry && string.IsNullOrWhiteSpace(options.ConnectionString))
         {
             throw new InvalidOperationException(
                 "Application Insights is enabled (EnableTelemetry=true) but ConnectionString is not configured. " +
-                "Provide ConnectionStrings:ApplicationInsights through Azure App Configuration with a Key Vault reference.");
+                "Provide ApplicationInsights:ConnectionString through Azure App Configuration with a Key Vault reference.");
         }
 
         // Add Application Insights telemetry only if connection string is provided
-        if (!string.IsNullOrEmpty(appInsightsConnectionString))
+        if (!string.IsNullOrEmpty(options.ConnectionString))
         {
-            services.AddApplicationInsightsTelemetry(options =>
+            services.AddApplicationInsightsTelemetry(aiOptions =>
             {
-                options.ConnectionString = appInsightsConnectionString;
-                options.ApplicationVersion = typeof(Program).Assembly.GetName().Version?.ToString() ?? "Unknown";
-                options.EnableQuickPulseMetricStream = true;
-                options.EnablePerformanceCounterCollectionModule = configuration.GetValue<bool>("ApplicationInsights:EnablePerformanceCounters", true);
+                aiOptions.ConnectionString = options.ConnectionString;
+                aiOptions.ApplicationVersion = typeof(Program).Assembly.GetName().Version?.ToString() ?? "Unknown";
+                aiOptions.EnableQuickPulseMetricStream = true;
+                aiOptions.EnablePerformanceCounterCollectionModule = options.EnablePerformanceCounters;
             });
         }
         else

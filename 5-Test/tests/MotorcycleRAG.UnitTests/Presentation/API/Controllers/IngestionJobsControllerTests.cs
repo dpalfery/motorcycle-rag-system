@@ -141,6 +141,112 @@ public sealed class IngestionJobsControllerTests
             .Which.Title.Should().Be("Failed to load pending storage files");
     }
 
+    [Fact]
+    public async Task ClearPendingFilesAsync_ReturnsDeletedCountResponse() {
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.ClearPendingStorageFilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(2);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.ClearPendingFilesAsync(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(new IngestionCleanupResponse {
+            Scope = "pending-files",
+            DeletedCount = 2
+        });
+    }
+
+    [Fact]
+    public async Task DeleteJobAsync_WhenJobIsRunning_ReturnsConflict() {
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJobStatusResponse {
+                JobId = jobId,
+                Status = "Processing",
+                InputType = "StructuredSpecification",
+                InputRef = "upload-123"
+            });
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
+
+        var conflict = result.Should().BeOfType<ConflictObjectResult>().Subject;
+        conflict.Value.Should().BeOfType<ProblemDetails>()
+            .Which.Title.Should().Be("Only terminal jobs can be deleted");
+        ingestionJobs.Verify(
+            service => service.DeleteJobAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task RetryJobAsync_WhenJobIsFailed_ReturnsAccepted() {
+        var jobId = Guid.NewGuid();
+        var existing = new IngestionJobStatusResponse {
+            JobId = jobId,
+            Status = "Failed",
+            InputType = "BikeGraph",
+            InputRef = "upload-graph-123"
+        };
+        var retried = new IngestionJobStatusResponse {
+            JobId = Guid.NewGuid(),
+            Status = "Processing",
+            InputType = "BikeGraph",
+            InputRef = "upload-graph-123"
+        };
+
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+        ingestionJobs
+            .Setup(service => service.RetryJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(retried);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.RetryJobAsync(jobId, CancellationToken.None);
+
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(retried);
+    }
+
+    [Fact]
+    public async Task ClearFinishedJobsAsync_ReturnsDeletedCountResponse() {
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.ClearFinishedJobsAsync("test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(3);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.ClearFinishedJobsAsync(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(new IngestionCleanupResponse {
+            Scope = "finished-jobs",
+            DeletedCount = 3
+        });
+    }
+
+    [Fact]
+    public async Task DeletePendingFileAsync_WithoutDocumentType_StillDeletesUpload() {
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.DeletePendingFileAsync("upload-123", null, CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        ingestionJobs.Verify(
+            service => service.DeletePendingStorageFileAsync("upload-123", string.Empty, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static IngestionJobsController CreateController(
         IBlobStorageService blobStorageService,
         IIngestionJobService? ingestionJobService = null)
@@ -154,6 +260,7 @@ public sealed class IngestionJobsControllerTests
                 AccountEndpoint = "https://storage.example",
                 RawUploadsContainer = "raw-uploads"
             }),
+            Mock.Of<IChunkReprocessService>(),
             NullLogger<IngestionJobsController>.Instance);
 
         controller.ControllerContext = new ControllerContext {

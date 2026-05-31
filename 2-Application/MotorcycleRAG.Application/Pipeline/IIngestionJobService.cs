@@ -11,9 +11,41 @@ public interface IIngestionJobService {
     Task<IReadOnlyList<PendingStorageFileDto>> GetPendingStorageFilesAsync(
         CancellationToken ct = default);
 
+    /// <summary>Deletes a pending upload and any associated ingestion history.</summary>
+    Task DeletePendingStorageFileAsync(
+        string uploadId,
+        string documentType,
+        CancellationToken ct = default);
+
+    /// <summary>Deletes every currently pending upload and its associated ingestion history.</summary>
+    Task<int> ClearPendingStorageFilesAsync(
+        CancellationToken ct = default);
+
     /// <summary>Lists recent ingestion jobs for status/history views.</summary>
     Task<IReadOnlyList<IngestionJobStatusResponse>> GetRecentIngestionJobsAsync(
         int maxCount = 50,
+        CancellationToken ct = default);
+
+    /// <summary>Deletes a terminal ingestion job from history.</summary>
+    Task DeleteJobAsync(
+        Guid jobId,
+        string userId,
+        CancellationToken ct = default);
+
+    /// <summary>Deletes failed and cancelled ingestion jobs from history.</summary>
+    Task<int> ClearFailedJobsAsync(
+        string userId,
+        CancellationToken ct = default);
+
+    /// <summary>Deletes completed and partially completed ingestion jobs from history and storage.</summary>
+    Task<int> ClearFinishedJobsAsync(
+        string userId,
+        CancellationToken ct = default);
+
+    /// <summary>Retries a failed or cancelled ingestion job.</summary>
+    Task<IngestionJobStatusResponse> RetryJobAsync(
+        Guid jobId,
+        string userId,
         CancellationToken ct = default);
 
     /// <summary>Creates a new ingestion job, persists it, and triggers the Fabric pipeline.</summary>

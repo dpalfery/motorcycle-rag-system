@@ -42,6 +42,7 @@ public class ServiceCollectionExtensionsTests {
         });
         _configuration = configurationBuilder.Build();
         _services = new ServiceCollection();
+        _services.AddLogging();
         _services.AddSingleton<IConfiguration>(_configuration);
     }
 
@@ -98,6 +99,46 @@ public class ServiceCollectionExtensionsTests {
         var httpClientFactory = serviceProvider.GetService<IHttpClientFactory>();
         httpClientFactory.Should().NotBeNull();
     }
+
+    [Fact]
+    public void AddAzureServices_WithoutDocumentIntelligenceEndpoint_ShouldRegisterDisabledClient() {
+        // Arrange
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> {
+                ["AzureAI:FoundryEndpoint"] = "https://test-foundry.cognitiveservices.azure.com/",
+                ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
+                ["AzureAI:Models:ChatModel"] = "gpt-4o-mini",
+                ["AzureAI:Models:EmbeddingModel"] = "text-embedding-3-large",
+                ["AzureAI:Models:QueryPlannerModel"] = "gpt-4o",
+                ["AzureAI:Models:VisionModel"] = "gpt-4-vision-preview",
+                ["AzureAI:Models:MaxTokens"] = "4096",
+                ["AzureAI:Models:Temperature"] = "0.1",
+                ["AzureAI:Models:TopP"] = "1.0",
+                ["AzureAI:Retry:MaxRetries"] = "3",
+                ["AzureAI:Retry:BaseDelaySeconds"] = "2",
+                ["AzureAI:Retry:MaxDelaySeconds"] = "60",
+                ["AzureAI:Retry:UseExponentialBackoff"] = "true",
+                ["Search:IndexName"] = "test-index",
+                ["Search:BatchSize"] = "100",
+                ["Search:MaxSearchResults"] = "50",
+                ["ApplicationInsights:ConnectionString"] = "InstrumentationKey=test-key",
+                ["ApplicationInsights:EnableTelemetry"] = "true",
+                ["ApplicationInsights:ApplicationName"] = "MotorcycleRAG"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddAzureServices(configuration);
+        var serviceProvider = services.BuildServiceProvider();
+
+        // Assert
+        serviceProvider.GetRequiredService<IDocumentIntelligenceClient>()
+            .Should()
+            .BeOfType<DisabledDocumentIntelligenceClient>();
+    }
 }
 
 public class AzureFoundryConfigurationValidatorTests {
@@ -130,6 +171,19 @@ public class AzureFoundryConfigurationValidatorTests {
                 UseExponentialBackoff = true
             }
         };
+
+        // Act
+        var result = _validator.Validate(null, config);
+
+        // Assert
+        result.Should().Be(ValidateOptionsResult.Success);
+    }
+
+    [Fact]
+    public void Validate_WithoutDocumentIntelligenceEndpoint_ShouldReturnSuccess() {
+        // Arrange
+        var config = CreateValidConfiguration();
+        config.DocumentIntelligenceEndpoint = string.Empty;
 
         // Act
         var result = _validator.Validate(null, config);

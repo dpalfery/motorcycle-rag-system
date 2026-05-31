@@ -15,7 +15,6 @@ from typing import Any
 from api.api_client import ApiClient
 from extraction.graph_extractor import GraphExtractor
 from storage.blob_writer import BlobWriter
-from search.azure_search_uploader import AzureSearchDirectUploader
 
 logger = logging.getLogger(__name__)
 _ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
@@ -191,10 +190,6 @@ class PDFProcessor:
             await self._api_client.upload_artifact(
                 chunks_bytes, upload_id, "search-chunks", "application/x-ndjson"
             )
-
-            # Direct push to Azure AI Search (no-op if AZURE_SEARCH_ENDPOINT not set)
-            uploader = AzureSearchDirectUploader()
-            uploader.upload(records)
 
             # ---- Extract graph entities ----
             _jobs[job_id]["progress"] = 0.9

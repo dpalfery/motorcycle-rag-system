@@ -1,3 +1,5 @@
+using MotorcycleRAG.Admin.Utilities;
+
 namespace MotorcycleRAG.Admin.Services;
 
 /// <summary>
@@ -37,7 +39,7 @@ internal class SettingsService : ISettingsService
     {
         try
         {
-            var value = await SecureStorage.GetAsync(key);
+            var value = await MauiThreading.RunOnMainThreadAsync(() => SecureStorage.GetAsync(key)).ConfigureAwait(false);
             return value ?? string.Empty;
         }
         catch (Exception ex)
@@ -55,7 +57,12 @@ internal class SettingsService : ISettingsService
     {
         try
         {
-            await SecureStorage.SetAsync(key, value);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            await MauiThreading.RunOnMainThreadAsync(() => SecureStorage.SetAsync(key, value)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -80,7 +87,7 @@ internal class SettingsService : ISettingsService
     {
         try
         {
-            await Task.Run(() => SecureStorage.Remove(key));
+            await MauiThreading.RunOnMainThreadAsync(() => SecureStorage.Remove(key)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

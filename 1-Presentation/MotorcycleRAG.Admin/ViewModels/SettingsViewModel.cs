@@ -19,6 +19,7 @@ namespace MotorcycleRAG.Admin.ViewModels;
     Justification = "Instantiated by MAUI framework via DI")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3059:Visibility", Justification = "For data binding")]
 internal partial class SettingsViewModel : ObservableObject {
+    private const string MaskedSecretValue = "*****";
     private readonly IConfigurationStateService _configService;
     private readonly ILocalProcessorService _localProcessorService;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0052:Remove unread private members", Justification = "Reserved for future use")]
@@ -28,6 +29,9 @@ internal partial class SettingsViewModel : ObservableObject {
     private readonly FileLoggerOptions _fileLoggerOptions;
     private int _localProcessorValidationVersion;
     private bool _isHydratingConfiguration;
+    private bool _isUpdatingSecretDisplay;
+    private bool _hasPersistedLocalProcessorUploadJobSecret;
+    private string _storedLocalProcessorUploadJobSecret = string.Empty;
 
     // ========== API Configuration ==========
 
@@ -102,6 +106,9 @@ internal partial class SettingsViewModel : ObservableObject {
     private string _localProcessorUploadJobSecret = string.Empty;
 
     [ObservableProperty]
+    private bool _isLocalProcessorUploadJobSecretRevealed;
+
+    [ObservableProperty]
     private bool _isLocalProcessorValid;
 
     [ObservableProperty]
@@ -170,7 +177,10 @@ internal partial class SettingsViewModel : ObservableObject {
                 ? _configService.CsvChunkMaxTokens
                 : LocalProcessorDefaults.DefaultCsvChunkMaxTokens;
             PdfChunkerTokenizer = _configService.PdfChunkerTokenizer ?? LocalProcessorDefaults.DefaultPdfChunkerTokenizer;
-            LocalProcessorUploadJobSecret = _configService.LocalProcessorUploadJobSecret ?? string.Empty;
+            _storedLocalProcessorUploadJobSecret = _configService.LocalProcessorUploadJobSecret ?? string.Empty;
+            _hasPersistedLocalProcessorUploadJobSecret = !string.IsNullOrWhiteSpace(_storedLocalProcessorUploadJobSecret);
+            IsLocalProcessorUploadJobSecretRevealed = false;
+            RefreshLocalProcessorUploadJobSecretDisplay();
         }
         finally {
             _isHydratingConfiguration = false;
@@ -234,7 +244,31 @@ internal partial class SettingsViewModel : ObservableObject {
 
     partial void OnLocalProcessorStartCommandChanged(string value) => OnLocalProcessorSettingChanged();
 
-    partial void OnLocalProcessorUploadJobSecretChanged(string value) => OnLocalProcessorSettingChanged();
+    partial void OnLocalProcessorUploadJobSecretChanged(string value) {
+        if (_isHydratingConfiguration || _isUpdatingSecretDisplay) {
+            return;
+        }
+
+        if (IsLocalProcessorUploadJobSecretReadOnly) {
+            RefreshLocalProcessorUploadJobSecretDisplay();
+            return;
+        }
+
+        if (IsLocalProcessorUploadJobSecretRevealed || !HasStoredLocalProcessorUploadJobSecret) {
+            _storedLocalProcessorUploadJobSecret = value;
+        }
+
+        OnPropertyChanged(nameof(HasStoredLocalProcessorUploadJobSecret));
+        OnPropertyChanged(nameof(IsLocalProcessorUploadJobSecretReadOnly));
+        OnLocalProcessorSettingChanged();
+    }
+
+    partial void OnIsLocalProcessorUploadJobSecretRevealedChanged(bool value) {
+        RefreshLocalProcessorUploadJobSecretDisplay();
+        OnPropertyChanged(nameof(IsLocalProcessorUploadJobSecretHidden));
+        OnPropertyChanged(nameof(IsLocalProcessorUploadJobSecretReadOnly));
+        OnPropertyChanged(nameof(LocalProcessorUploadJobSecretRevealButtonText));
+    }
 
     partial void OnPdfChunkerMaxTokensChanged(int value) => OnLocalProcessorSettingChanged();
 
@@ -250,6 +284,32 @@ internal partial class SettingsViewModel : ObservableObject {
     }
 
     partial void OnIsLoadingEmbeddingModelsChanged(bool value) => LoadEmbeddingModelsCommand.NotifyCanExecuteChanged();
+
+    public bool HasStoredLocalProcessorUploadJobSecret => _hasPersistedLocalProcessorUploadJobSecret;
+
+    public bool IsLocalProcessorUploadJobSecretHidden => !IsLocalProcessorUploadJobSecretRevealed;
+
+    public bool IsLocalProcessorUploadJobSecretReadOnly =>
+        HasStoredLocalProcessorUploadJobSecret && !IsLocalProcessorUploadJobSecretRevealed;
+
+    public string LocalProcessorUploadJobSecretRevealButtonText =>
+        IsLocalProcessorUploadJobSecretRevealed ? "Hide" : "👁";
+
+    private void RefreshLocalProcessorUploadJobSecretDisplay() {
+        _isUpdatingSecretDisplay = true;
+        try {
+            LocalProcessorUploadJobSecret = IsLocalProcessorUploadJobSecretReadOnly
+                ? MaskedSecretValue
+                : _storedLocalProcessorUploadJobSecret;
+        }
+        finally {
+            _isUpdatingSecretDisplay = false;
+        }
+
+        OnPropertyChanged(nameof(HasStoredLocalProcessorUploadJobSecret));
+        OnPropertyChanged(nameof(IsLocalProcessorUploadJobSecretReadOnly));
+        OnPropertyChanged(nameof(LocalProcessorUploadJobSecretRevealButtonText));
+    }
 
     // ========== Validation ==========
 
@@ -463,7 +523,7 @@ internal partial class SettingsViewModel : ObservableObject {
             var localProcessorEndpoint = LocalProcessorEndpoint;
             var localProcessorWorkingDirectory = LocalProcessorWorkingDirectory;
             var localProcessorStartCommand = LocalProcessorStartCommand;
-            var localProcessorUploadJobSecret = LocalProcessorUploadJobSecret;
+            var localProcessorUploadJobSecret = ResolveLocalProcessorUploadJobSecretForSave();
             var pdfChunkerMaxTokens = PdfChunkerMaxTokens;
             var csvChunkMaxTokens = CsvChunkMaxTokens;
             var pdfChunkerTokenizer = PdfChunkerTokenizer;
@@ -488,6 +548,10 @@ internal partial class SettingsViewModel : ObservableObject {
             }).ConfigureAwait(false);
 
             await MauiThreading.RunOnMainThreadAsync(() => {
+                _storedLocalProcessorUploadJobSecret = localProcessorUploadJobSecret;
+                _hasPersistedLocalProcessorUploadJobSecret = !string.IsNullOrWhiteSpace(localProcessorUploadJobSecret);
+                IsLocalProcessorUploadJobSecretRevealed = false;
+                RefreshLocalProcessorUploadJobSecretDisplay();
                 HasUnsavedChanges = false;
                 StatusMessage = "Settings saved successfully.";
             }).ConfigureAwait(false);
@@ -509,6 +573,21 @@ internal partial class SettingsViewModel : ObservableObject {
     }
 
     private bool CanSaveSettings() => HasUnsavedChanges && !IsSaving;
+
+    private string ResolveLocalProcessorUploadJobSecretForSave() {
+        if (HasStoredLocalProcessorUploadJobSecret &&
+            (string.Equals(LocalProcessorUploadJobSecret, MaskedSecretValue, StringComparison.Ordinal) ||
+             string.IsNullOrWhiteSpace(LocalProcessorUploadJobSecret))) {
+            return _storedLocalProcessorUploadJobSecret;
+        }
+
+        return LocalProcessorUploadJobSecret;
+    }
+
+    [RelayCommand]
+    private void ToggleLocalProcessorUploadJobSecretVisibility() {
+        IsLocalProcessorUploadJobSecretRevealed = !IsLocalProcessorUploadJobSecretRevealed;
+    }
 
     [RelayCommand(CanExecute = nameof(CanTestApi))]
     private async Task TestApiConnectionAsync() {
@@ -681,7 +760,10 @@ internal partial class SettingsViewModel : ObservableObject {
                 LocalProcessorEndpoint = resetState.LocalProcessorEndpoint;
                 LocalProcessorWorkingDirectory = resetState.LocalProcessorWorkingDirectory;
                 LocalProcessorStartCommand = resetState.LocalProcessorStartCommand;
-                LocalProcessorUploadJobSecret = string.Empty;
+                _storedLocalProcessorUploadJobSecret = string.Empty;
+                _hasPersistedLocalProcessorUploadJobSecret = false;
+                IsLocalProcessorUploadJobSecretRevealed = false;
+                RefreshLocalProcessorUploadJobSecretDisplay();
                 HasUnsavedChanges = false;
                 StatusMessage = "Settings cleared.";
             }).ConfigureAwait(false);

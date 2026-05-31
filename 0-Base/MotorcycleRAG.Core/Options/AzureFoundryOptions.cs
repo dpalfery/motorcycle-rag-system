@@ -14,7 +14,7 @@ public class AzureFoundryOptions
     [Required, Url]
     public string SearchServiceEndpoint { get; set; } = string.Empty;
 
-    [Required, Url]
+    [Url]
     public string DocumentIntelligenceEndpoint { get; set; } = string.Empty;
 
     [Required]

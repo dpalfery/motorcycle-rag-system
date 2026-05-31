@@ -19,6 +19,8 @@ namespace MotorcycleRAG.Application.Pipeline;
 public sealed class IngestionJobService : IIngestionJobService {
     private const string PdfSourceFileName = "source.pdf";
     private const string GraphEntitiesPrefix = "graph-entities";
+    private static readonly IngestionJobStatus[] FailedStatuses = [IngestionJobStatus.Failed, IngestionJobStatus.Cancelled];
+    private static readonly IngestionJobStatus[] FinishedStatuses = [IngestionJobStatus.Completed, IngestionJobStatus.PartiallyCompleted];
 
     private readonly IIngestionJobRepository _repository;
     private readonly IBlobStorageService _blobStorageService;
@@ -102,6 +104,43 @@ public sealed class IngestionJobService : IIngestionJobService {
     }
 
     /// <inheritdoc />
+    public async Task DeletePendingStorageFileAsync(
+        string uploadId,
+        string documentType,
+        CancellationToken ct = default) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
+
+        await _repository.DeleteByInputRefAsync(uploadId, ct).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Deleted pending ingestion upload {UploadId} for document type {DocumentType}.",
+            LogSanitizer.Sanitize(uploadId),
+            LogSanitizer.Sanitize(documentType));
+    }
+
+    /// <inheritdoc />
+    public async Task<int> ClearPendingStorageFilesAsync(
+        CancellationToken ct = default) {
+        var pendingFiles = await GetPendingStorageFilesAsync(ct).ConfigureAwait(false);
+        if (pendingFiles.Count == 0) {
+            return 0;
+        }
+
+        var deletedCount = 0;
+        var processedUploadIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pendingFile in pendingFiles) {
+            if (!processedUploadIds.Add(pendingFile.UploadId)) {
+                continue;
+            }
+
+            await DeletePendingStorageFileAsync(pendingFile.UploadId, pendingFile.DocumentType, ct).ConfigureAwait(false);
+            deletedCount++;
+        }
+
+        return deletedCount;
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<IngestionJobStatusResponse>> GetRecentIngestionJobsAsync(
         int maxCount = 50,
         CancellationToken ct = default) {
@@ -116,6 +155,84 @@ public sealed class IngestionJobService : IIngestionJobService {
         }
 
         return refreshedJobs.Select(MapToResponse).ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteJobAsync(
+        Guid jobId,
+        string userId,
+        CancellationToken ct = default) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
+        var job = await _repository.GetByIdAsync(jobId, ct).ConfigureAwait(false);
+        if (job is null) {
+            throw new InvalidOperationException($"Ingestion job '{jobId}' not found.");
+        }
+
+        if (!IsTerminalStatus(job.Status)) {
+            throw new InvalidOperationException("Only terminal ingestion jobs can be deleted.");
+        }
+
+        var deleted = await _repository.DeleteAsync(jobId, ct).ConfigureAwait(false);
+        if (!deleted) {
+            throw new InvalidOperationException($"Ingestion job '{jobId}' could not be deleted.");
+        }
+
+        _logger.LogInformation("Deleted ingestion job {JobId} in status {Status}.", jobId, job.Status);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> ClearFailedJobsAsync(
+        string userId,
+        CancellationToken ct = default) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        return await _repository.DeleteByStatusesAsync(FailedStatuses, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> ClearFinishedJobsAsync(
+        string userId,
+        CancellationToken ct = default) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
+        var finishedJobs = await _repository.GetByStatusesAsync(FinishedStatuses, ct).ConfigureAwait(false);
+        if (finishedJobs.Count == 0) {
+            return 0;
+        }
+
+        var finishedJobIds = finishedJobs
+            .Select(static job => job.IngestionJobId)
+            .Distinct()
+            .ToArray();
+
+        return await _repository.DeleteByIdsAsync(finishedJobIds, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IngestionJobStatusResponse> RetryJobAsync(
+        Guid jobId,
+        string userId,
+        CancellationToken ct = default) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
+        var job = await _repository.GetByIdAsync(jobId, ct).ConfigureAwait(false);
+        if (job is null) {
+            throw new InvalidOperationException($"Ingestion job '{jobId}' not found.");
+        }
+
+        if (!IsFailedStatus(job.Status)) {
+            throw new InvalidOperationException("Only failed or cancelled ingestion jobs can be retried.");
+        }
+
+        return job.InputType == IngestionJobType.BikeGraph
+            ? await ImportGraphArtifactsAsync(new GraphImportStartRequest { UploadId = job.InputRef }, userId, ct).ConfigureAwait(false)
+            : await StartJobAsync(
+                new IngestionJobStartRequest {
+                    UploadId = job.InputRef,
+                    DocumentType = MapJobTypeToDocumentType(job.InputType)
+                },
+                userId,
+                ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -169,7 +286,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             return MapToResponse(job);
         }
 
-        job.FabricRunId = runId;
+        job.DocIngestionRunId = runId;
         job.Status = IngestionJobStatus.Processing;
         job.StartedAtUtc = DateTimeOffset.UtcNow;
 
@@ -312,7 +429,7 @@ public sealed class IngestionJobService : IIngestionJobService {
                 MaxRuntimeMinutes = _options.PipelineTimeoutMinutes
             },
             FailureReason = job.FailureReason,
-            FabricRunId = job.FabricRunId
+            DocIngestionRunId = job.DocIngestionRunId
         };
     }
 
@@ -326,7 +443,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         string externalStatus;
         try {
             externalStatus = await _pipelineService.GetRunStatusAsync(
-                job.FabricRunId!,
+                job.DocIngestionRunId!,
                 GetPipelineId(job.InputType),
                 ct).ConfigureAwait(false);
         }
@@ -335,7 +452,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             return job;
         }
 
-        var refreshedStatus = MapPipelineStatus(externalStatus, job.Status);
+        var refreshedStatus = MapPipelineStatus(externalStatus, job);
 
         if (job.InputType == IngestionJobType.BikeGraph && refreshedStatus == IngestionJobStatus.Completed) {
             try {
@@ -384,7 +501,7 @@ public sealed class IngestionJobService : IIngestionJobService {
     }
 
     private bool CanRefreshStatus(IngestionJob job) =>
-        !string.IsNullOrWhiteSpace(job.FabricRunId) && !IsTerminalStatus(job.Status);
+        !string.IsNullOrWhiteSpace(job.DocIngestionRunId) && !IsTerminalStatus(job.Status);
 
     private IngestionJobType MapDocumentType(string documentType) => documentType switch {
         "manual-pdf" => IngestionJobType.PDFManual,
@@ -400,18 +517,33 @@ public sealed class IngestionJobService : IIngestionJobService {
         _ => throw new InvalidOperationException($"No pipeline configured for input type '{inputType}'.")
     };
 
+    private static string MapJobTypeToDocumentType(IngestionJobType inputType) => inputType switch {
+        IngestionJobType.PDFManual => "manual-pdf",
+        IngestionJobType.StructuredSpecification => "spec-dataset",
+        _ => throw new ArgumentException($"Unsupported input type '{inputType}' for retry.", nameof(inputType))
+    };
+
+    private static bool ProducesSearchChunks(IngestionJobType type) =>
+        type == IngestionJobType.PDFManual || type == IngestionJobType.StructuredSpecification;
+
+    private static bool IsFailedStatus(IngestionJobStatus status) =>
+        status is IngestionJobStatus.Failed or IngestionJobStatus.Cancelled;
+
+    private static bool IsFinishedStatus(IngestionJobStatus status) =>
+        status is IngestionJobStatus.Completed or IngestionJobStatus.PartiallyCompleted;
+
     private static IngestionJobType GetPrimaryInputType(string documentType) => documentType switch {
         "manual-pdf" => IngestionJobType.PDFManual,
         "spec-dataset" => IngestionJobType.StructuredSpecification,
         _ => throw new ArgumentException($"Unsupported pending document type '{documentType}'.", nameof(documentType))
     };
 
-    private static IngestionJobStatus MapPipelineStatus(string externalStatus, IngestionJobStatus fallbackStatus) {
+    private static IngestionJobStatus MapPipelineStatus(string externalStatus, IngestionJob job) {
         if (string.IsNullOrWhiteSpace(externalStatus)) {
-            return fallbackStatus;
+            return job.Status;
         }
 
-        return externalStatus.Trim() switch {
+        var mappedStatus = externalStatus.Trim() switch {
             var status when status.Equals("queued", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Queued,
             var status when status.Equals("processing", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
             var status when status.Equals("running", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
@@ -427,8 +559,14 @@ public sealed class IngestionJobService : IIngestionJobService {
             var status when status.Equals("canceled", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Cancelled,
             var status when status.Equals("partiallycompleted", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.PartiallyCompleted,
             var status when status.Equals("partially_completed", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.PartiallyCompleted,
-            _ => fallbackStatus
+            _ => job.Status
         };
+
+        if (ProducesSearchChunks(job.InputType) && mappedStatus == IngestionJobStatus.Completed) {
+            return IngestionJobStatus.Indexing;
+        }
+
+        return mappedStatus;
     }
 
     private static bool IsTerminalStatus(IngestionJobStatus status) =>

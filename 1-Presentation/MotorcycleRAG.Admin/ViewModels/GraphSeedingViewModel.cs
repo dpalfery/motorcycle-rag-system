@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
@@ -28,6 +27,7 @@ internal class GraphSeedingViewModel : IDisposable, INotifyPropertyChanged {
     private readonly SemaphoreSlim _loadJobsSemaphore = new(1, 1);
     private bool _isStartingGraphJob;
     private bool _isLoadingJobs;
+    private IReadOnlyList<LocalProcessorJobViewModel> _localProcessorJobs = Array.Empty<LocalProcessorJobViewModel>();
     private string _selectedFilePath = string.Empty;
     private string _statusMessage = string.Empty;
 
@@ -43,15 +43,23 @@ internal class GraphSeedingViewModel : IDisposable, INotifyPropertyChanged {
         _localProcessorService = localProcessorService ?? throw new ArgumentNullException(nameof(localProcessorService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        LocalProcessorJobs = new ObservableCollection<LocalProcessorJobViewModel>();
-        StartGraphJobCommand = new AsyncRelayCommand(StartGraphJobAsync);
-        RefreshJobsCommand = new AsyncRelayCommand(() => LoadJobsAsync(forceRefresh: true));
-        ImportGraphJobCommand = new AsyncRelayCommand<LocalProcessorJobViewModel>(ImportGraphJobAsync);
+        StartGraphJobCommand = new AsyncRelayCommand(StartGraphJobAsync, () => CanStartGraphJob);
+        RefreshJobsCommand = new AsyncRelayCommand(() => LoadJobsAsync(forceRefresh: true), () => CanRefreshJobs);
+        ImportGraphJobCommand = new AsyncRelayCommand<LocalProcessorJobViewModel>(
+            ImportGraphJobAsync,
+            CanImportGraphJob);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public ObservableCollection<LocalProcessorJobViewModel> LocalProcessorJobs { get; }
+    public IReadOnlyList<LocalProcessorJobViewModel> LocalProcessorJobs {
+        get => _localProcessorJobs;
+        private set {
+            if (SetProperty(ref _localProcessorJobs, value, nameof(LocalProcessorJobs))) {
+                NotifyCommandCanExecuteChanged();
+            }
+        }
+    }
 
     public bool IsStartingGraphJob {
         get => _isStartingGraphJob;
@@ -61,6 +69,8 @@ internal class GraphSeedingViewModel : IDisposable, INotifyPropertyChanged {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsStartingGraphJob)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanSelectFile)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartGraphJob)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanRefreshJobs)));
+            NotifyCommandCanExecuteChanged();
         }
     }
 
@@ -70,6 +80,9 @@ internal class GraphSeedingViewModel : IDisposable, INotifyPropertyChanged {
             if (_isLoadingJobs == value) return;
             _isLoadingJobs = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsLoadingJobs)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartGraphJob)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanRefreshJobs)));
+            NotifyCommandCanExecuteChanged();
         }
     }
 
@@ -81,6 +94,7 @@ internal class GraphSeedingViewModel : IDisposable, INotifyPropertyChanged {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedFilePath)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSelectedFile)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanStartGraphJob)));
+            NotifyCommandCanExecuteChanged();
         }
     }
 
@@ -101,21 +115,45 @@ internal class GraphSeedingViewModel : IDisposable, INotifyPropertyChanged {
     public bool CanSelectFile => !IsStartingGraphJob;
 
     public bool CanStartGraphJob =>
-        !IsStartingGraphJob && !string.IsNullOrWhiteSpace(SelectedFilePath);
+        !IsStartingGraphJob &&
+        !IsLoadingJobs &&
+        !string.IsNullOrWhiteSpace(SelectedFilePath);
+
+    public bool CanRefreshJobs => !IsLoadingJobs && !IsStartingGraphJob;
 
     public ICommand StartGraphJobCommand { get; }
     public ICommand RefreshJobsCommand { get; }
     public ICommand ImportGraphJobCommand { get; }
+
+    private void NotifyCommandCanExecuteChanged() {
+        if (StartGraphJobCommand is IRelayCommand startCmd) startCmd.NotifyCanExecuteChanged();
+        if (RefreshJobsCommand is IRelayCommand refreshCmd) refreshCmd.NotifyCanExecuteChanged();
+        if (ImportGraphJobCommand is IRelayCommand importCmd) importCmd.NotifyCanExecuteChanged();
+    }
+
+    private static bool CanImportGraphJob(LocalProcessorJobViewModel? job) =>
+        job?.CanImportProcessedGraph == true;
+
+    private void RaisePropertyChanged(string propertyName) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private bool SetProperty<T>(ref T field, T value, string propertyName) {
+        if (EqualityComparer<T>.Default.Equals(field, value)) {
+            return false;
+        }
+
+        field = value;
+        RaisePropertyChanged(propertyName);
+        return true;
+    }
 
     internal void ApplySelectedFile(string filePath) {
         SelectedFilePath = filePath;
         StatusMessage = $"Selected CSV: {Path.GetFileName(filePath)}";
     }
 
-    internal async Task<bool> BeginFileSelectionAsync() {
-        if (IsStartingGraphJob) return false;
-        return true;
-    }
+    internal Task<bool> BeginFileSelectionAsync() =>
+        Task.FromResult(CanSelectFile);
 
     internal void EndFileSelection() { }
 
@@ -132,30 +170,25 @@ internal class GraphSeedingViewModel : IDisposable, INotifyPropertyChanged {
             var jobs = await RunOffUiThreadAsync(
                 () => _localProcessorService.GetJobsAsync(default)).ConfigureAwait(false);
 
-            // Filter for bike-graph jobs only (graph seeding)
             var graphJobs = jobs
                 .Where(j => string.Equals(j.DocumentType, "bike-graph", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(j => j.CreatedAtUtc)
                 .ThenBy(j => j.JobId, StringComparer.OrdinalIgnoreCase)
+                .Select(job => new LocalProcessorJobViewModel {
+                    JobId = job.JobId,
+                    UploadId = job.UploadId,
+                    DocumentType = job.DocumentType,
+                    Status = job.Status,
+                    Message = job.Message,
+                    Progress = job.Progress,
+                    CreatedAtUtc = job.CreatedAtUtc,
+                    UpdatedAtUtc = job.UpdatedAtUtc,
+                    NodesCreated = job.NodesCreated,
+                    EdgesCreated = job.EdgesCreated
+                })
                 .ToList();
 
-            await RunOnUiThreadAsync(() => {
-                LocalProcessorJobs.Clear();
-                foreach (var job in graphJobs) {
-                    LocalProcessorJobs.Add(new LocalProcessorJobViewModel {
-                        JobId = job.JobId,
-                        UploadId = job.UploadId,
-                        DocumentType = job.DocumentType,
-                        Status = job.Status,
-                        Message = job.Message,
-                        Progress = job.Progress,
-                        CreatedAtUtc = job.CreatedAtUtc,
-                        UpdatedAtUtc = job.UpdatedAtUtc,
-                        NodesCreated = job.NodesCreated,
-                        EdgesCreated = job.EdgesCreated
-                    });
-                }
-            }).ConfigureAwait(false);
+            await RunOnUiThreadAsync(() => LocalProcessorJobs = graphJobs).ConfigureAwait(false);
         }
         catch (Exception ex) {
             _logger.LogDebug(ex, "Failed to load local processor graph jobs.");
@@ -172,7 +205,10 @@ internal class GraphSeedingViewModel : IDisposable, INotifyPropertyChanged {
         var authorized = await EnsureAuthorizedAsync(showErrors: true).ConfigureAwait(false);
         if (!authorized) return;
 
-        await RunOnUiThreadAsync(() => job.IsImporting = true).ConfigureAwait(false);
+        await RunOnUiThreadAsync(() => {
+            job.IsImporting = true;
+            NotifyCommandCanExecuteChanged();
+        }).ConfigureAwait(false);
         try {
             var request = new GraphImportStartRequest { UploadId = job.UploadId };
             var result = await RunOffUiThreadAsync(
@@ -192,7 +228,10 @@ internal class GraphSeedingViewModel : IDisposable, INotifyPropertyChanged {
             _logger.LogError(ex, "Failed to import graph artifact for upload {UploadId}", job.UploadId);
         }
         finally {
-            await RunOnUiThreadAsync(() => job.IsImporting = false).ConfigureAwait(false);
+            await RunOnUiThreadAsync(() => {
+                job.IsImporting = false;
+                NotifyCommandCanExecuteChanged();
+            }).ConfigureAwait(false);
         }
     }
 

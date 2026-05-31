@@ -430,6 +430,59 @@ internal class ApiClient {
     }
 
     /// <summary>
+    /// Deletes a pending storage file from the queue.
+    /// </summary>
+    internal Task DeletePendingStorageFileAsync(string uploadId) {
+        return DeletePendingStorageFileAsync(uploadId, default);
+    }
+
+    /// <summary>
+    /// Deletes a pending storage file from the queue with cancellation.
+    /// </summary>
+    internal async Task DeletePendingStorageFileAsync(string uploadId, CancellationToken cancellationToken) {
+        if (string.IsNullOrWhiteSpace(uploadId)) {
+            throw new ArgumentException("Upload ID cannot be null or empty.", nameof(uploadId));
+        }
+
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var relativePath = $"api/ingestion/jobs/pending-files/{Uri.EscapeDataString(uploadId)}";
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.DeleteAsync(uri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Clears all pending storage files from the queue.
+    /// </summary>
+    internal Task ClearPendingStorageFilesAsync() {
+        return ClearPendingStorageFilesAsync(default);
+    }
+
+    /// <summary>
+    /// Clears all pending storage files from the queue with cancellation.
+    /// </summary>
+    internal async Task ClearPendingStorageFilesAsync(CancellationToken cancellationToken) {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var requestUri = new Uri(_httpClient.BaseAddress!, "api/ingestion/jobs/pending-files");
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.DeleteAsync(requestUri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
     /// Gets recent ingestion jobs for the admin status view.
     /// </summary>
     internal async Task<List<IngestionJobStatusResponse>> GetIngestionJobsAsync(int top, CancellationToken cancellationToken) {
@@ -449,6 +502,115 @@ internal class ApiClient {
 
         return await response.Content.ReadFromJsonAsync<List<IngestionJobStatusResponse>>(_jsonOptions, cancellationToken).ConfigureAwait(false)
                ?? new List<IngestionJobStatusResponse>();
+    }
+
+    /// <summary>
+    /// Deletes a terminal ingestion job from history.
+    /// </summary>
+    internal Task DeleteIngestionJobAsync(Guid jobId) {
+        return DeleteIngestionJobAsync(jobId, default);
+    }
+
+    /// <summary>
+    /// Deletes a terminal ingestion job from history with cancellation.
+    /// </summary>
+    internal async Task DeleteIngestionJobAsync(Guid jobId, CancellationToken cancellationToken) {
+        if (jobId == Guid.Empty) {
+            throw new ArgumentException("Job ID cannot be empty.", nameof(jobId));
+        }
+
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var relativePath = $"api/ingestion/jobs/{Uri.EscapeDataString(jobId.ToString())}";
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.DeleteAsync(uri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Clears failed terminal ingestion jobs.
+    /// </summary>
+    internal Task ClearFailedIngestionJobsAsync() {
+        return ClearFailedIngestionJobsAsync(default);
+    }
+
+    /// <summary>
+    /// Clears failed terminal ingestion jobs with cancellation.
+    /// </summary>
+    internal async Task ClearFailedIngestionJobsAsync(CancellationToken cancellationToken) {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var requestUri = new Uri(_httpClient.BaseAddress!, "api/ingestion/jobs/failed");
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.DeleteAsync(requestUri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Clears finished terminal ingestion jobs.
+    /// </summary>
+    internal Task ClearFinishedIngestionJobsAsync() {
+        return ClearFinishedIngestionJobsAsync(default);
+    }
+
+    /// <summary>
+    /// Clears finished terminal ingestion jobs with cancellation.
+    /// </summary>
+    internal async Task ClearFinishedIngestionJobsAsync(CancellationToken cancellationToken) {
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var requestUri = new Uri(_httpClient.BaseAddress!, "api/ingestion/jobs/finished");
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.DeleteAsync(requestUri, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Retries a failed terminal ingestion job.
+    /// </summary>
+    internal Task<IngestionJobStatusResponse> RetryIngestionJobAsync(Guid jobId) {
+        return RetryIngestionJobAsync(jobId, default);
+    }
+
+    /// <summary>
+    /// Retries a failed terminal ingestion job with cancellation.
+    /// </summary>
+    internal async Task<IngestionJobStatusResponse> RetryIngestionJobAsync(Guid jobId, CancellationToken cancellationToken) {
+        if (jobId == Guid.Empty) {
+            throw new ArgumentException("Job ID cannot be empty.", nameof(jobId));
+        }
+
+        await EnsureAuthenticatedAsync().ConfigureAwait(false);
+
+        var relativePath = $"api/ingestion/jobs/{Uri.EscapeDataString(jobId.ToString())}/retry";
+        var uri = new Uri(_httpClient.BaseAddress!, relativePath);
+        var response = await ExecuteWithResilienceAsync(() => _httpClient.PostAsync(uri, null, cancellationToken)).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+            response.StatusCode == System.Net.HttpStatusCode.Forbidden) {
+            throw new UnauthorizedAccessException(
+                $"Access denied ({(int)response.StatusCode}). Please check your permissions and try signing in again.");
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<IngestionJobStatusResponse>(_jsonOptions, cancellationToken).ConfigureAwait(false)
+               ?? throw new InvalidOperationException("Failed to deserialize retry response");
     }
 
     /// <summary>

@@ -375,7 +375,7 @@ BEGIN
         [InputType] NVARCHAR(50) NOT NULL DEFAULT N'StructuredSpecification',
         [InputRef] NVARCHAR(500) NOT NULL DEFAULT N'',
         [ComputeProvider] NVARCHAR(128) NOT NULL DEFAULT N'Unknown',
-        [FabricRunId] NVARCHAR(128) NULL,
+        [DocIngestionRunId] NVARCHAR(128) NULL,
         [ManualDocumentId] UNIQUEIDENTIFIER NULL,
         [TotalPages] INT NULL,
         [PagesCapturedViewableCount] INT NULL,
@@ -446,8 +446,17 @@ BEGIN
     IF COL_LENGTH('dbo.IngestionJobs', 'ComputeProvider') IS NULL
         ALTER TABLE [dbo].[IngestionJobs] ADD [ComputeProvider] NVARCHAR(128) NULL;
 
-    IF COL_LENGTH('dbo.IngestionJobs', 'FabricRunId') IS NULL
-        ALTER TABLE [dbo].[IngestionJobs] ADD [FabricRunId] NVARCHAR(128) NULL;
+    IF COL_LENGTH('dbo.IngestionJobs', 'DocIngestionRunId') IS NULL
+    BEGIN
+        IF COL_LENGTH('dbo.IngestionJobs', 'FabricRunId') IS NOT NULL
+        BEGIN
+            EXEC sp_rename 'dbo.IngestionJobs.FabricRunId', 'DocIngestionRunId', 'COLUMN';
+        END
+        ELSE
+        BEGIN
+            ALTER TABLE [dbo].[IngestionJobs] ADD [DocIngestionRunId] NVARCHAR(128) NULL;
+        END
+    END
 
     IF COL_LENGTH('dbo.IngestionJobs', 'ManualDocumentId') IS NULL
         ALTER TABLE [dbo].[IngestionJobs] ADD [ManualDocumentId] UNIQUEIDENTIFIER NULL;
@@ -469,6 +478,12 @@ BEGIN
 
     IF COL_LENGTH('dbo.IngestionJobs', 'MissingPagesJson') IS NULL
         ALTER TABLE [dbo].[IngestionJobs] ADD [MissingPagesJson] NVARCHAR(MAX) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'ExpectedChunkCount') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [ExpectedChunkCount] INT NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'IndexedChunkCount') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [IndexedChunkCount] INT NULL;
 END
 GO
 
@@ -765,6 +780,59 @@ BEGIN
         ORDER BY [StartTime] DESC
     END
     ')
+END
+GO
+
+-- Create IndexedArtifacts table (per-blob/artifact catalog)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'IndexedArtifacts')
+BEGIN
+    CREATE TABLE [dbo].[IndexedArtifacts] (
+        [IndexedArtifactId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWSEQUENTIALID(),
+        [IngestionJobId] UNIQUEIDENTIFIER NOT NULL,
+        [UploadId] NVARCHAR(64) NOT NULL,
+        [ArtifactType] NVARCHAR(50) NOT NULL,
+        [BlobContainer] NVARCHAR(256) NOT NULL,
+        [BlobPath] NVARCHAR(1024) NOT NULL,
+        [SourceFileName] NVARCHAR(512) NULL,
+        [State] NVARCHAR(50) NOT NULL,
+        [ExpectedChunkCount] INT NULL,
+        [IndexedChunkCount] INT NULL,
+        [FailedChunkCount] INT NULL,
+        [LastProcessedAtUtc] DATETIME2(7) NULL,
+        [FailureReason] NVARCHAR(2000) NULL,
+        [CreatedAtUtc] DATETIME2(7) NOT NULL DEFAULT SYSUTCDATETIME(),
+        [UpdatedAtUtc] DATETIME2(7) NULL,
+        CONSTRAINT [FK_IndexedArtifacts_IngestionJobs] FOREIGN KEY ([IngestionJobId]) REFERENCES [dbo].[IngestionJobs]([IngestionJobId])
+    );
+
+    CREATE UNIQUE INDEX [UQ_IndexedArtifacts_Upload_Type] ON [dbo].[IndexedArtifacts]([UploadId], [ArtifactType]);
+    CREATE INDEX [IX_IndexedArtifacts_IngestionJobId] ON [dbo].[IndexedArtifacts]([IngestionJobId]);
+    CREATE INDEX [IX_IndexedArtifacts_State] ON [dbo].[IndexedArtifacts]([State]);
+END
+GO
+
+-- Create IndexedChunks table (per-chunk tracking)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'IndexedChunks')
+BEGIN
+    CREATE TABLE [dbo].[IndexedChunks] (
+        [ChunkId] NVARCHAR(128) NOT NULL PRIMARY KEY,
+        [IndexedArtifactId] UNIQUEIDENTIFIER NOT NULL,
+        [IngestionJobId] UNIQUEIDENTIFIER NOT NULL,
+        [UploadId] NVARCHAR(64) NOT NULL,
+        [SourceFileName] NVARCHAR(512) NULL,
+        [PageNumber] INT NULL,
+        [ChunkIndex] INT NULL,
+        [Stage] NVARCHAR(100) NULL,
+        [Status] NVARCHAR(20) NOT NULL,
+        [ProcessedAtUtc] DATETIME2(7) NULL,
+        [FailureReason] NVARCHAR(1000) NULL,
+        CONSTRAINT [FK_IndexedChunks_IndexedArtifacts] FOREIGN KEY ([IndexedArtifactId]) REFERENCES [dbo].[IndexedArtifacts]([IndexedArtifactId])
+    );
+
+    CREATE INDEX [IX_IndexedChunks_IndexedArtifactId] ON [dbo].[IndexedChunks]([IndexedArtifactId]);
+    CREATE INDEX [IX_IndexedChunks_IngestionJobId] ON [dbo].[IndexedChunks]([IngestionJobId]);
+    CREATE INDEX [IX_IndexedChunks_Status] ON [dbo].[IndexedChunks]([Status]);
+    CREATE INDEX [IX_IndexedChunks_UploadId] ON [dbo].[IndexedChunks]([UploadId]);
 END
 GO
 

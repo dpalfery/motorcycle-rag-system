@@ -36,18 +36,18 @@ public class IngestionJobRepository : IIngestionJobRepository
             INSERT INTO [dbo].[IngestionJobs] (
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
-                [ComputeProvider], [FabricRunId], [ManualDocumentId],
+                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson]
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
             )
             VALUES (
                 @IngestionJobId, @CreatedAtUtc, @StartedAtUtc, @CompletedAtUtc,
                 @CreatedBySubject, @Status, @FailureReason, @InputType, @InputRef,
-                @ComputeProvider, @FabricRunId, @ManualDocumentId,
+                @ComputeProvider, @DocIngestionRunId, @ManualDocumentId,
                 @TotalPages, @PagesCapturedViewableCount, @PagesWithSearchableTextCount,
                 @PagesWithOcrTextCount, @PagesWithNativeTextCount,
-                @MissingPagesJson, @MetricsJson
+                @MissingPagesJson, @MetricsJson, @ExpectedChunkCount, @IndexedChunkCount
             );
         ";
 
@@ -66,7 +66,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 InputType = job.InputType.ToString(),
                 job.InputRef,
                 job.ComputeProvider,
-                job.FabricRunId,
+                job.DocIngestionRunId,
                 job.ManualDocumentId,
                 job.TotalPages,
                 job.PagesCapturedViewableCount,
@@ -74,7 +74,9 @@ public class IngestionJobRepository : IIngestionJobRepository
                 job.PagesWithOcrTextCount,
                 job.PagesWithNativeTextCount,
                 job.MissingPagesJson,
-                job.MetricsJson
+                job.MetricsJson,
+                job.ExpectedChunkCount,
+                job.IndexedChunkCount
             }, cancellationToken: cancellationToken));
 
             _logger.LogInformation("Created ingestion job {IngestionJobId}", job.IngestionJobId);
@@ -93,10 +95,10 @@ public class IngestionJobRepository : IIngestionJobRepository
         const string sql = @"
             SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                    [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
-                   [ComputeProvider], [FabricRunId], [ManualDocumentId],
+                   [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                    [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                    [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                   [MissingPagesJson], [MetricsJson]
+                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
             FROM [dbo].[IngestionJobs]
             WHERE [IngestionJobId] = @IngestionJobId;
         ";
@@ -129,7 +131,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [InputType] = @InputType,
                 [InputRef] = @InputRef,
                 [ComputeProvider] = @ComputeProvider,
-                [FabricRunId] = @FabricRunId,
+                [DocIngestionRunId] = @DocIngestionRunId,
                 [ManualDocumentId] = @ManualDocumentId,
                 [TotalPages] = @TotalPages,
                 [PagesCapturedViewableCount] = @PagesCapturedViewableCount,
@@ -137,7 +139,9 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [PagesWithOcrTextCount] = @PagesWithOcrTextCount,
                 [PagesWithNativeTextCount] = @PagesWithNativeTextCount,
                 [MissingPagesJson] = @MissingPagesJson,
-                [MetricsJson] = @MetricsJson
+                [MetricsJson] = @MetricsJson,
+                [ExpectedChunkCount] = @ExpectedChunkCount,
+                [IndexedChunkCount] = @IndexedChunkCount
             WHERE [IngestionJobId] = @IngestionJobId;
         ";
 
@@ -155,7 +159,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 InputType = job.InputType.ToString(),
                 job.InputRef,
                 job.ComputeProvider,
-                job.FabricRunId,
+                job.DocIngestionRunId,
                 job.ManualDocumentId,
                 job.TotalPages,
                 job.PagesCapturedViewableCount,
@@ -163,7 +167,9 @@ public class IngestionJobRepository : IIngestionJobRepository
                 job.PagesWithOcrTextCount,
                 job.PagesWithNativeTextCount,
                 job.MissingPagesJson,
-                job.MetricsJson
+                job.MetricsJson,
+                job.ExpectedChunkCount,
+                job.IndexedChunkCount
             }, cancellationToken: cancellationToken));
 
             _logger.LogInformation("Updated ingestion job {IngestionJobId}", job.IngestionJobId);
@@ -218,10 +224,10 @@ public class IngestionJobRepository : IIngestionJobRepository
             SELECT TOP 1
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
-                [ComputeProvider], [FabricRunId], [ManualDocumentId],
+                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson]
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
@@ -252,10 +258,10 @@ public class IngestionJobRepository : IIngestionJobRepository
             SELECT TOP 1
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
-                [ComputeProvider], [FabricRunId], [ManualDocumentId],
+                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson]
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
               AND [InputType] = @InputType
@@ -287,10 +293,10 @@ public class IngestionJobRepository : IIngestionJobRepository
             SELECT TOP (@MaxCount)
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
-                [ComputeProvider], [FabricRunId], [ManualDocumentId],
+                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson]
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
             FROM [dbo].[IngestionJobs]
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
@@ -317,10 +323,10 @@ public class IngestionJobRepository : IIngestionJobRepository
         const string sql = @"
             SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                    [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
-                   [ComputeProvider], [FabricRunId], [ManualDocumentId],
+                   [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                    [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                    [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                   [MissingPagesJson], [MetricsJson]
+                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
             FROM [dbo].[IngestionJobs]
             WHERE [ManualDocumentId] = @ManualDocumentId
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
@@ -343,4 +349,220 @@ public class IngestionJobRepository : IIngestionJobRepository
             throw new InvalidOperationException($"Failed to get ingestion jobs for manual document {manualDocumentId}", ex);
         }
     }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<IngestionJob>> GetByStatusesAsync(
+        IReadOnlyCollection<IngestionJobStatus> statuses,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(statuses);
+        if (statuses.Count == 0)
+        {
+            return Array.Empty<IngestionJob>();
+        }
+
+        const string sql = @"
+            SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                   [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                   [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
+                   [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
+                   [PagesWithOcrTextCount], [PagesWithNativeTextCount],
+                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
+            FROM [dbo].[IngestionJobs]
+            WHERE [Status] IN @Statuses
+            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var results = await connection.QueryAsync<IngestionJob>(
+                new CommandDefinition(
+                    sql,
+                    new { Statuses = statuses.Select(static status => status.ToString()).ToArray() },
+                    cancellationToken: cancellationToken));
+
+            return results.ToList().AsReadOnly();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get ingestion jobs by status");
+            throw new InvalidOperationException("Failed to get ingestion jobs by status", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> DeleteAsync(
+        Guid ingestionJobId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            DELETE FROM [dbo].[IngestionJobs]
+            WHERE [IngestionJobId] = @IngestionJobId;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var affectedRows = await connection.ExecuteAsync(
+                new CommandDefinition(sql, new { IngestionJobId = ingestionJobId }, cancellationToken: cancellationToken));
+
+            return affectedRows > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete ingestion job {IngestionJobId}", ingestionJobId);
+            throw new InvalidOperationException($"Failed to delete ingestion job {ingestionJobId}", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> DeleteByInputRefAsync(
+        string inputRef,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputRef);
+
+        const string sql = @"
+            DELETE FROM [dbo].[IngestionJobs]
+            WHERE [InputRef] = @InputRef;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            return await connection.ExecuteAsync(
+                new CommandDefinition(sql, new { InputRef = inputRef }, cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete ingestion jobs for input ref {InputRef}", inputRef);
+            throw new InvalidOperationException("Failed to delete ingestion jobs by input ref", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> DeleteByStatusesAsync(
+        IReadOnlyCollection<IngestionJobStatus> statuses,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(statuses);
+        if (statuses.Count == 0)
+        {
+            return 0;
+        }
+
+        const string sql = @"
+            DELETE FROM [dbo].[IngestionJobs]
+            WHERE [Status] IN @Statuses;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            return await connection.ExecuteAsync(
+                new CommandDefinition(
+                    sql,
+                    new { Statuses = statuses.Select(static status => status.ToString()).ToArray() },
+                    cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete ingestion jobs by status");
+            throw new InvalidOperationException("Failed to delete ingestion jobs by status", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> DeleteByIdsAsync(
+        IReadOnlyCollection<Guid> ingestionJobIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ingestionJobIds);
+        if (ingestionJobIds.Count == 0)
+        {
+            return 0;
+        }
+
+        const string sql = @"
+            DELETE FROM [dbo].[IngestionJobs]
+            WHERE [IngestionJobId] IN @IngestionJobIds;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            return await connection.ExecuteAsync(
+                new CommandDefinition(
+                    sql,
+                    new { IngestionJobIds = ingestionJobIds.ToArray() },
+                    cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete ingestion jobs by identifier batch");
+            throw new InvalidOperationException("Failed to delete ingestion jobs by identifier batch", ex);
+        }
+    }
+
+    /// <summary>
+    /// Atomically transitions a job to a terminal status only if it currently matches fromStatus.
+    /// Returns true if the update succeeded (WHERE clause matched), false otherwise (replay-safe).
+    /// </summary>
+    public async Task<bool> TryTransitionToTerminalAsync(
+        Guid jobId,
+        IngestionJobStatus fromStatus,
+        IngestionJobStatus toStatus,
+        int? expectedChunkCount,
+        int? indexedChunkCount,
+        string? failureReason,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE [dbo].[IngestionJobs] SET
+                [Status] = @ToStatus,
+                [ExpectedChunkCount] = @ExpectedChunkCount,
+                [IndexedChunkCount] = @IndexedChunkCount,
+                [CompletedAtUtc] = SYSUTCDATETIME(),
+                [FailureReason] = @FailureReason
+            WHERE [IngestionJobId] = @IngestionJobId
+              AND [Status] = @FromStatus;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var affectedRows = await connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IngestionJobId = jobId,
+                FromStatus = fromStatus.ToString(),
+                ToStatus = toStatus.ToString(),
+                ExpectedChunkCount = expectedChunkCount,
+                IndexedChunkCount = indexedChunkCount,
+                FailureReason = failureReason
+            }, cancellationToken: cancellationToken));
+
+            var success = affectedRows > 0;
+            if (success)
+            {
+                _logger.LogInformation(
+                    "Successfully transitioned ingestion job {IngestionJobId} from {FromStatus} to {ToStatus}",
+                    jobId, fromStatus, toStatus);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Failed to transition ingestion job {IngestionJobId}: status mismatch (expected {FromStatus})",
+                    jobId, fromStatus);
+            }
+
+            return success;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to transition ingestion job {IngestionJobId} to terminal status", jobId);
+            throw new InvalidOperationException($"Failed to transition ingestion job {jobId} to terminal status", ex);
+        }
+    }
 }
+

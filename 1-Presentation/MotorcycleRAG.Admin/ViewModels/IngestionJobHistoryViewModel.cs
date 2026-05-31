@@ -11,7 +11,8 @@ internal sealed class IngestionJobHistoryViewModel : INotifyPropertyChanged {
     private DateTimeOffset? _startedAtUtc;
     private DateTimeOffset? _completedAtUtc;
     private string? _failureReason;
-    private string? _fabricRunId;
+    private string? _docIngestionRunId;
+    private bool _isActionInProgress;
 
     public Guid JobId { get; set; }
 
@@ -25,6 +26,11 @@ internal sealed class IngestionJobHistoryViewModel : INotifyPropertyChanged {
             _status = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsRunning)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsFailedTerminal)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsFinishedTerminal)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsTerminal)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanDelete)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanRetry)));
         }
     }
 
@@ -71,16 +77,30 @@ internal sealed class IngestionJobHistoryViewModel : INotifyPropertyChanged {
         }
     }
 
-    public string? FabricRunId {
-        get => _fabricRunId;
+    public string? DocIngestionRunId {
+        get => _docIngestionRunId;
         set {
-            if (_fabricRunId == value) {
+            if (_docIngestionRunId == value) {
                 return;
             }
 
-            _fabricRunId = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(FabricRunId)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasFabricRunId)));
+            _docIngestionRunId = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DocIngestionRunId)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasDocIngestionRunId)));
+        }
+    }
+
+    public bool IsActionInProgress {
+        get => _isActionInProgress;
+        set {
+            if (_isActionInProgress == value) {
+                return;
+            }
+
+            _isActionInProgress = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsActionInProgress)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanDelete)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanRetry)));
         }
     }
 
@@ -88,9 +108,21 @@ internal sealed class IngestionJobHistoryViewModel : INotifyPropertyChanged {
                              || string.Equals(Status, "Processing", StringComparison.OrdinalIgnoreCase)
                              || string.Equals(Status, "Indexing", StringComparison.OrdinalIgnoreCase);
 
+    public bool IsFailedTerminal => string.Equals(Status, "Failed", StringComparison.OrdinalIgnoreCase)
+                                   || string.Equals(Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsFinishedTerminal => string.Equals(Status, "Completed", StringComparison.OrdinalIgnoreCase)
+                                     || string.Equals(Status, "PartiallyCompleted", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsTerminal => IsFailedTerminal || IsFinishedTerminal;
+
+    public bool CanDelete => IsTerminal && !IsActionInProgress;
+
+    public bool CanRetry => IsFailedTerminal && !IsActionInProgress;
+
     public bool HasFailureReason => !string.IsNullOrWhiteSpace(FailureReason);
 
-    public bool HasFabricRunId => !string.IsNullOrWhiteSpace(FabricRunId);
+    public bool HasDocIngestionRunId => !string.IsNullOrWhiteSpace(DocIngestionRunId);
 
     public string InputTypeLabel => InputType switch {
         "PDFManual" => "Manual PDF",

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Options;
 using NCrontab;
 
 namespace MotorcycleRAG.Application.Pipeline;
@@ -18,10 +19,15 @@ namespace MotorcycleRAG.Application.Pipeline;
     Justification = "Scheduled processing service orchestrates multiple dependencies by design.")]
 #pragma warning restore S103 // Lines should not be too long
 public class ScheduledPipelineService : BackgroundService, IScheduledPipelineService {
+    private const string LegacyPdfProcessingDisabledMessage =
+        "Legacy scheduled PDF processing is disabled when Azure Document Intelligence is not configured. " +
+        "Use the ingestion jobs/local Python processor flow instead.";
+
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger<ScheduledPipelineService> _logger;
     private readonly ScheduledProcessingConfiguration _config;
     private readonly SemaphoreSlim _executionSemaphore;
+    private readonly bool _isDocumentIntelligenceEnabled;
 
     private ProcessingScheduleConfig _scheduleConfig;
     private CrontabSchedule? _schedule;
@@ -32,13 +38,19 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     public ScheduledPipelineService(
         IServiceScopeFactory serviceScopeFactory,
         IOptions<ScheduledProcessingConfiguration> config,
+        IOptions<AzureFoundryOptions> azureFoundryOptions,
         ILogger<ScheduledPipelineService> logger) {
         ArgumentNullException.ThrowIfNull(serviceScopeFactory);
         ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(azureFoundryOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
         _serviceScopeFactory = serviceScopeFactory;
         _config = config.Value;
+        _isDocumentIntelligenceEnabled = Uri.TryCreate(
+            azureFoundryOptions.Value.DocumentIntelligenceEndpoint,
+            UriKind.Absolute,
+            out _);
         _logger = logger;
 
         _executionSemaphore = new SemaphoreSlim(1, 1);
@@ -178,30 +190,52 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             _stats.LastExecutionTime = startTime;
             _stats.LastExecutionStatus = PipelineStatus.Processing;
 
-            var orchestrator = serviceProvider.GetRequiredService<IDataPipelineOrchestrator>();
-
             // Find files to process
-            var filesToProcess = await DiscoverFilesToProcessAsync();
-            _logger.LogInformation("Found {FileCount} files to process", filesToProcess.Count);
+            var discoveryResult = await DiscoverFilesToProcessAsync();
+            _logger.LogInformation("Found {FileCount} files to process", discoveryResult.Requests.Count);
 
-            if (filesToProcess.Count == 0) {
+            if (discoveryResult.SkippedLegacyPdfFiles.Count > 0) {
+                var skipMessage = BuildLegacyPdfSkipMessage(discoveryResult.SkippedLegacyPdfFiles.Count);
+                result.Warnings.Add(skipMessage);
+
+                foreach (var skippedFile in discoveryResult.SkippedLegacyPdfFiles) {
+                    result.Warnings.Add($"Skipped legacy scheduled PDF file: {skippedFile}");
+                }
+
+                _logger.LogWarning(
+                    "Skipped {SkippedPdfCount} legacy scheduled PDF file(s) because Azure Document Intelligence is not configured",
+                    discoveryResult.SkippedLegacyPdfFiles.Count);
+            }
+
+            if (discoveryResult.Requests.Count == 0) {
                 result.Status = PipelineStatus.Completed;
-                result.Message = "No files found to process";
+                result.Message = discoveryResult.SkippedLegacyPdfFiles.Count > 0
+                    ? BuildLegacyPdfSkipMessage(discoveryResult.SkippedLegacyPdfFiles.Count)
+                    : "No files found to process";
                 result.EndTime = DateTime.UtcNow;
 
+                _stats.SuccessfulRuns++;
                 _stats.LastExecutionStatus = PipelineStatus.Completed;
                 _stats.FilesProcessedInLastRun = 0;
+                _stats.AverageProcessingTime = TimeSpan.FromMilliseconds(
+                    (_stats.AverageProcessingTime.TotalMilliseconds * (_stats.TotalScheduledRuns - 1) + result.Duration.TotalMilliseconds) / _stats.TotalScheduledRuns);
 
                 return result;
             }
 
             // Process files in batch
-            var batchResult = await orchestrator.ProcessBatchAsync(filesToProcess, cancellationToken);
+            var orchestrator = serviceProvider.GetRequiredService<IDataPipelineOrchestrator>();
+            var batchResult = await orchestrator.ProcessBatchAsync(discoveryResult.Requests, cancellationToken);
 
             // Update result based on batch processing
             result.Status = batchResult.HasErrors ? PipelineStatus.PartiallyCompleted : PipelineStatus.Completed;
             result.EndTime = batchResult.EndTime;
             result.Message = $"Processed {batchResult.ProcessedSuccessfully} files successfully, {batchResult.Failed} failed";
+
+            if (discoveryResult.SkippedLegacyPdfFiles.Count > 0) {
+                result.Status = PipelineStatus.PartiallyCompleted;
+                result.Message = $"{result.Message}. {BuildLegacyPdfSkipMessage(discoveryResult.SkippedLegacyPdfFiles.Count)}";
+            }
 
             if (batchResult.HasErrors) {
                 foreach (var e in batchResult.Results.SelectMany(r => r.Errors)) {
@@ -246,15 +280,15 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         }
     }
 
-    private async Task<List<DataPipelineRequest>> DiscoverFilesToProcessAsync() {
-        var requests = new List<DataPipelineRequest>();
+    private async Task<FileDiscoveryResult> DiscoverFilesToProcessAsync() {
+        var discoveryResult = new FileDiscoveryResult();
 
         try {
             var processingDirectory = Path.Combine(_config.BaseDirectory, _scheduleConfig.ProcessingDirectory);
 
             if (!Directory.Exists(processingDirectory)) {
                 Directory.CreateDirectory(processingDirectory);
-                return requests;
+                return discoveryResult;
             }
 
             var files = Directory.GetFiles(processingDirectory, "*.*", SearchOption.TopDirectoryOnly);
@@ -263,6 +297,11 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
                 var fileName = Path.GetFileName(filePath);
                 var extension = Path.GetExtension(fileName).ToUpperInvariant();
 
+                if (string.Equals(extension, ".PDF", StringComparison.OrdinalIgnoreCase) && !_isDocumentIntelligenceEnabled) {
+                    discoveryResult.SkippedLegacyPdfFiles.Add(fileName);
+                    continue;
+                }
+
                 var fileType = extension switch {
                     ".CSV" => FileType.CSV,
                     ".PDF" => FileType.PDF,
@@ -270,7 +309,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
                 };
 
                 if (fileType != FileType.Unknown) {
-                    requests.Add(new DataPipelineRequest {
+                    discoveryResult.Requests.Add(new DataPipelineRequest {
                         FileName = fileName,
                         FilePath = filePath,
                         FileType = fileType,
@@ -284,14 +323,17 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
                 }
             }
 
-            _logger.LogDebug("Discovered {FileCount} files for processing in {Directory}", requests.Count, processingDirectory);
+            _logger.LogDebug("Discovered {FileCount} files for processing in {Directory}", discoveryResult.Requests.Count, processingDirectory);
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error discovering files to process");
         }
 
-        return requests;
+        return discoveryResult;
     }
+
+    private static string BuildLegacyPdfSkipMessage(int skippedPdfCount) =>
+        $"Skipped {skippedPdfCount} legacy scheduled PDF file(s). {LegacyPdfProcessingDisabledMessage}";
 
     private DateTime? GetNextScheduledTime(DateTime fromTime) {
         try {
@@ -372,6 +414,11 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         return false;
     }
 
+    private sealed class FileDiscoveryResult {
+        public List<DataPipelineRequest> Requests { get; } = [];
+
+        public List<string> SkippedLegacyPdfFiles { get; } = [];
+    }
 }
 
 /// <summary>
@@ -384,4 +431,3 @@ public class ScheduledProcessingConfiguration {
     public int DefaultMaxConcurrentJobs { get; set; } = 3;
     public string BaseDirectory { get; set; } = "data";
 }
-

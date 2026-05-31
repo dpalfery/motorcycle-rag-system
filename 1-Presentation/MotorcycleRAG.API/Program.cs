@@ -7,6 +7,7 @@ using MotorcycleRAG.API.Services;
 using MotorcycleRAG.Application.Extensions;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Interfaces;
+using TelemetryOptions = MotorcycleRAG.Core.Options.TelemetryOptions;
 
 namespace MotorcycleRAG.API;
 
@@ -40,7 +41,8 @@ public class Program {
         }
 
         // 2. Telemetry & Monitoring
-        builder.Services.AddMotorcycleRagTelemetry(configuration);
+        var telemetryOptions = builder.Configuration.GetSection("ApplicationInsights").Get<TelemetryOptions>() ?? new TelemetryOptions();
+        builder.Services.AddMotorcycleRagTelemetry(telemetryOptions);
 
         // 3. MVC & Core Services
         builder.Services.AddControllers();

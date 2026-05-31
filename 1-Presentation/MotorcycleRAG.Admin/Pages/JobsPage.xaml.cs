@@ -15,6 +15,8 @@ internal partial class JobsPage : ContentPage {
     private readonly ILogger<JobsPage> _logger;
     private IDispatcherTimer? _pollTimer;
     private bool _hasInitialized;
+    private bool _isPageVisible;
+    private bool _pollRefreshInProgress;
 
     public JobsPage(JobsViewModel viewModel, ILogger<JobsPage> logger) {
         InitializeComponent();
@@ -25,10 +27,16 @@ internal partial class JobsPage : ContentPage {
 
     protected override async void OnAppearing() {
         base.OnAppearing();
+        _isPageVisible = true;
         try {
             _pollTimer ??= CreatePollTimer();
 
             if (!_hasInitialized) {
+                await Task.Delay(100);
+                if (!_isPageVisible) {
+                    return;
+                }
+
                 await _viewModel.InitializeAsync();
                 _hasInitialized = true;
             }
@@ -36,7 +44,9 @@ internal partial class JobsPage : ContentPage {
                 await _viewModel.RefreshAsync();
             }
 
-            _pollTimer.Start();
+            if (_isPageVisible) {
+                _pollTimer.Start();
+            }
         }
         catch (Exception ex) {
                 _logger.LogError(ex, "Failed to initialize Jobs page");
@@ -47,9 +57,19 @@ internal partial class JobsPage : ContentPage {
             }
         }
 
-    protected override void OnDisappearing() {
+    protected override async void OnDisappearing() {
         base.OnDisappearing();
+        _isPageVisible = false;
         _pollTimer?.Stop();
+        try {
+            await _viewModel.StopRefreshAsync();
+        }
+        catch (ObjectDisposedException ex) {
+            _logger.LogDebug(ex, "Jobs page refresh state was already disposed.");
+        }
+        catch (Exception ex) {
+            _logger.LogDebug(ex, "Jobs page refresh did not stop cleanly.");
+        }
     }
 
     private IDispatcherTimer CreatePollTimer() {
@@ -62,6 +82,11 @@ internal partial class JobsPage : ContentPage {
     }
 
     private async void OnPollTimerTick(object? sender, EventArgs e) {
+        if (!_isPageVisible || _pollRefreshInProgress) {
+            return;
+        }
+
+        _pollRefreshInProgress = true;
         try {
             await _viewModel.RefreshAsync();
         }
@@ -70,6 +95,9 @@ internal partial class JobsPage : ContentPage {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Jobs page polling failed.");
+        }
+        finally {
+            _pollRefreshInProgress = false;
         }
     }
 }

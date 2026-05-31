@@ -20,9 +20,8 @@ internal class AzureAIConfigurationValidator : IValidateOptions<AzureFoundryOpti
         else if (!Uri.TryCreate(options.SearchServiceEndpoint, UriKind.Absolute, out _))
             failures.Add("AzureAI:SearchServiceEndpoint must be a valid URL");
 
-        if (string.IsNullOrWhiteSpace(options.DocumentIntelligenceEndpoint))
-            failures.Add("AzureAI:DocumentIntelligenceEndpoint is required");
-        else if (!Uri.TryCreate(options.DocumentIntelligenceEndpoint, UriKind.Absolute, out _))
+        if (!string.IsNullOrWhiteSpace(options.DocumentIntelligenceEndpoint) &&
+            !Uri.TryCreate(options.DocumentIntelligenceEndpoint, UriKind.Absolute, out _))
             failures.Add("AzureAI:DocumentIntelligenceEndpoint must be a valid URL");
 
         if (options.Models == null)

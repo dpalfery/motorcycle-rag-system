@@ -68,7 +68,7 @@
     },
     {
       "label": "build: full-stack",
-      "command": "powershell",
+      "command": "pwsh",
       "type": "shell",
       "args": [
         "-NoProfile",
@@ -135,7 +135,7 @@
     {
       "label": "Git: Smart Commit",
       "type": "shell",
-      "command": "powershell",
+      "command": "pwsh",
       "args": [
         "-Command",
         "$changes = git diff --cached --name-status; if ($changes) { $msg = 'Update: ' + ($changes | ForEach-Object { $_.Split()[1] } | Select-Object -First 3 | Join-String -Separator ', '); git commit -m \"$msg\" } else { echo 'No changes to commit' }"

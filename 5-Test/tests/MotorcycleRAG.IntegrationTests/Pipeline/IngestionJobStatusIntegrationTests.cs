@@ -5,7 +5,7 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using Xunit;
-using MotorcycleRAG.Application.Mapping;
+using MotorcycleRAG.Application.Features.Ingestion.Mappers;
 
 namespace MotorcycleRAG.IntegrationTests.Pipeline;
 

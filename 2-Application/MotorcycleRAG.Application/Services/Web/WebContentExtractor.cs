@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Contracts.Models.DTOs.Web;
 
 namespace MotorcycleRAG.Application.Services.Web;
 
@@ -104,11 +105,4 @@ public class WebContentExtractor
 
         return text;
     }
-}
-
-public class ExtractedContent
-{
-    public string Text { get; init; } = string.Empty;
-    public string NodePath { get; init; } = string.Empty;
-    public bool IsFallback { get; init; }
 }

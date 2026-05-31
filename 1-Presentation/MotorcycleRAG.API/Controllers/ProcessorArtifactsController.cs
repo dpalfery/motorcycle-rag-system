@@ -203,7 +203,7 @@ public sealed class ProcessorArtifactsController : ControllerBase
 
             var artifactState = ComputeArtifactState(indexed, expected);
 
-            var job = await _jobRepository.GetLatestByInputAsync(uploadId, IngestionJobType.Batch, ct).ConfigureAwait(false);
+            var job = await FindLatestSearchChunkJobAsync(uploadId, ct).ConfigureAwait(false);
 
             if (job is null)
             {
@@ -242,14 +242,21 @@ public sealed class ProcessorArtifactsController : ControllerBase
                 }
 
                 var failureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null;
-                await _jobRepository.TryTransitionToTerminalAsync(
+                var transitioned = await TryTransitionSearchChunkJobToTerminalAsync(
                     job.IngestionJobId,
-                    IngestionJobStatus.Indexing,
                     MapArtifactStateToJobStatus(artifactState),
                     expected,
                     indexed,
                     failureReason,
                     ct).ConfigureAwait(false);
+
+                if (!transitioned)
+                {
+                    _logger.LogInformation(
+                        "Search chunk artifact for upload {UploadId} was indexed, but ingestion job {JobId} was not in an active transition state.",
+                        LogSanitizer.Sanitize(uploadId),
+                        job.IngestionJobId);
+                }
             }
 
             try
@@ -286,6 +293,67 @@ public sealed class ProcessorArtifactsController : ControllerBase
                 "Chunk indexing into Azure AI Search failed for upload {UploadId}. Artifact is stored in blob.",
                 LogSanitizer.Sanitize(uploadId));
         }
+    }
+
+    private async Task<IngestionJob?> FindLatestSearchChunkJobAsync(
+        string uploadId,
+        CancellationToken ct)
+    {
+        var candidates = new List<IngestionJob>();
+        var expectedTypes = new[]
+        {
+            IngestionJobType.PDFManual,
+            IngestionJobType.StructuredSpecification,
+            IngestionJobType.Batch
+        };
+
+        foreach (var inputType in expectedTypes)
+        {
+            var candidate = await _jobRepository.GetLatestByInputAsync(uploadId, inputType, ct).ConfigureAwait(false);
+            if (candidate is not null)
+            {
+                candidates.Add(candidate);
+            }
+        }
+
+        return candidates
+            .OrderByDescending(static job => job.CreatedAtUtc)
+            .FirstOrDefault();
+    }
+
+    private async Task<bool> TryTransitionSearchChunkJobToTerminalAsync(
+        Guid jobId,
+        IngestionJobStatus terminalStatus,
+        int expectedChunkCount,
+        int indexedChunkCount,
+        string? failureReason,
+        CancellationToken ct)
+    {
+        var activeStatuses = new[]
+        {
+            IngestionJobStatus.Indexing,
+            IngestionJobStatus.Processing,
+            IngestionJobStatus.Queued
+        };
+
+        foreach (var activeStatus in activeStatuses)
+        {
+            var transitioned = await _jobRepository.TryTransitionToTerminalAsync(
+                jobId,
+                activeStatus,
+                terminalStatus,
+                expectedChunkCount,
+                indexedChunkCount,
+                failureReason,
+                ct).ConfigureAwait(false);
+
+            if (transitioned)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IndexedArtifactState ComputeArtifactState(int indexed, int expected)

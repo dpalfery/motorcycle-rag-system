@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Web;
 using MotorcycleRAG.Contracts.Interfaces;
 
 namespace MotorcycleRAG.Application.Services.Web;
@@ -109,7 +110,7 @@ public class WebSourceValidator
         }
     }
 
-    private async Task<ValidationResult> ValidateSingleResultAsync(
+    private async Task<WebSourceValidationResult> ValidateSingleResultAsync(
         SearchResult result,
         CancellationToken cancellationToken)
     {
@@ -126,25 +127,25 @@ public class WebSourceValidator
 
             if (!policyCheck.IsAllowed)
             {
-                return ValidationResult.Rejected(policyCheck.Reason ?? "Policy check failed");
+                return WebSourceValidationResult.Rejected(policyCheck.Reason ?? "Policy check failed");
             }
 
             // Check credibility score
             var credibilityScore = GetCredibilityScore(result);
             if (credibilityScore < _minCredibilityScore)
             {
-                return ValidationResult.Rejected($"Credibility score {credibilityScore} below threshold {_minCredibilityScore}");
+                return WebSourceValidationResult.Rejected($"Credibility score {credibilityScore} below threshold {_minCredibilityScore}");
             }
 
             // AI-based content quality validation
             var contentValidation = await ValidateContentQualityAsync(result.Content, cancellationToken);
 
-            return ValidationResult.Approved(contentValidation, policyCheck.Tier);
+            return WebSourceValidationResult.Approved(contentValidation, policyCheck.Tier);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Validation failed for result, including anyway");
-            return ValidationResult.ApprovedWithError(ex.Message);
+            return WebSourceValidationResult.ApprovedWithError(ex.Message);
         }
     }
 
@@ -196,7 +197,7 @@ public class WebSourceValidator
             : 0.5f;
     }
 
-    private void EnhanceResultWithValidationMetadata(SearchResult result, ValidationResult validation)
+    private void EnhanceResultWithValidationMetadata(SearchResult result, WebSourceValidationResult validation)
     {
         result.Metadata["contentQuality"] = validation.QualityScore;
         result.Metadata["validationPassed"] = validation.IsValid;
@@ -206,61 +207,4 @@ public class WebSourceValidator
         result.RelevanceScore *= validation.TierMultiplier;
         result.RelevanceScore *= Math.Max(validation.QualityMultiplier, 0.7f);
     }
-}
-
-public class ValidationResult
-{
-    public bool IsValid { get; init; }
-    public string? RejectionReason { get; init; }
-    public float QualityScore { get; init; }
-    public float QualityMultiplier => Math.Max(0.5f, QualityScore);
-    public WebTrustTier Tier { get; init; }
-    public float TierMultiplier { get; init; }
-
-    public static ValidationResult Approved(ContentValidation contentValidation, WebTrustTier tier)
-    {
-        ArgumentNullException.ThrowIfNull(contentValidation);
-
-        return new ValidationResult
-        {
-            IsValid = true,
-            QualityScore = contentValidation.QualityScore,
-            Tier = tier,
-            TierMultiplier = GetTierMultiplier(tier)
-        };
-    }
-
-    public static ValidationResult Rejected(string reason)
-    {
-        return new ValidationResult { IsValid = false, RejectionReason = reason };
-    }
-
-    public static ValidationResult ApprovedWithError(string error)
-    {
-        return new ValidationResult
-        {
-            IsValid = true,
-            QualityScore = 0.7f,
-            Tier = WebTrustTier.None,
-            TierMultiplier = 1.0f
-        };
-    }
-
-    private static float GetTierMultiplier(WebTrustTier tier)
-    {
-        return tier switch
-        {
-            WebTrustTier.TierA => 1.5f,
-            WebTrustTier.TierB => 1.1f,
-            WebTrustTier.TierC => 0.9f,
-            _ => 1.0f
-        };
-    }
-}
-
-public class ContentValidation
-{
-    public bool IsValid { get; set; }
-    public float QualityScore { get; set; }
-    public string Reasoning { get; set; } = string.Empty;
 }

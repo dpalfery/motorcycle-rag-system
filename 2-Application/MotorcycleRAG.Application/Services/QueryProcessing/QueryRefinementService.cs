@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.Application.Services.QueryProcessing;
 
@@ -110,11 +111,4 @@ I couldn't find information for: "{query}"
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return words.Length > 0 ? words[0] : "motorcycle";
     }
-}
-
-public class QueryRefinementAnalysis
-{
-    public string OriginalQuery { get; set; } = string.Empty;
-    public IReadOnlyList<string> Suggestions { get; init; } = Array.Empty<string>();
-    public IReadOnlyList<string> ExampleQueries { get; init; } = Array.Empty<string>();
 }

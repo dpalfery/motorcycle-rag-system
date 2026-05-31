@@ -1,9 +1,8 @@
-﻿using System.Text;
+using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -102,7 +101,7 @@ public class MotorcycleManualCitationComponentTests {
             BatchSize = 100
         });
 
-        var cacheConfig = Options.Create(new MotorcycleRAG.Application.Caching.CacheConfiguration {
+        var cacheConfig = Options.Create(new MotorcycleRAG.Core.Options.CacheConfiguration {
             EnableCaching = false
         });
 
@@ -668,4 +667,3 @@ public class MotorcycleManualCitationComponentTests {
         return embedding;
     }
 }
-

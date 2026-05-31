@@ -47,6 +47,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
 
         _serviceScopeFactory = serviceScopeFactory;
         _config = config.Value;
+
         _isDocumentIntelligenceEnabled = Uri.TryCreate(
             azureFoundryOptions.Value.DocumentIntelligenceEndpoint,
             UriKind.Absolute,

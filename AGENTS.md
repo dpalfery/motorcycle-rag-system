@@ -32,13 +32,21 @@ Multi-agent RAG system for motorcycle information retrieval. OWASP ASVS Level 2 
 
 # 4. Architecture
 
-**Use the `clean-architecture` skill** for all folder structure, layer dependency, and DTO placement rules.
+Before creating, moving, renaming, or choosing placement for any source or test file, read the architecture placement rules first.
+
+Read the first existing file in this order:
+1. `6-Docs/rules/architecture-general.md`
+2. `.kilocode/rules-old/architecture-general.md`
+
+Also read the architecture placement rules before changing namespaces, project references, DTO placement, interface placement, or layer boundaries.
 
 **Key rules always in effect:**
 - 1 class or interface per file in C#
 - Dependency Rule: inner layers never depend on outer layers
 - `MotorcycleRAG.Contracts` = interfaces only (no DTOs/models)
 - `MotorcycleRAG.Contracts.Models` = shared DTOs only (no interfaces, no implementations, no infrastructure deps)
+- Application services belong in the Application `Services` folder unless an explicit architecture rule or user approval says otherwise.
+- Do not create new feature/random folders such as `Pipeline` without explicit approval.
 - If a type enforces business rules/invariants → Domain. If it's for transport/serialization → Contracts.Models DTO.
 
 # 5. Security Directives
@@ -70,5 +78,4 @@ These are **non-optional** and apply to all code, tests, config, scripts, and do
 
 At the beginning of each task/response, include:
 `[******Working Agreement: Active******]`
-
 

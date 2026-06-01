@@ -187,12 +187,10 @@ public sealed class IngestionJobServiceDualModeTests {
         var response = await sut.GetJobStatusAsync(jobId, TestUserId);
 
         response.Should().NotBeNull();
-        response!.Status.Should().Be(IngestionJobStatus.Completed.ToString());
-        response.CompletedAtUtc.Should().NotBeNull();
+        response!.Status.Should().Be(IngestionJobStatus.Indexing.ToString());
         _repository.Verify(r => r.UpdateAsync(It.Is<IngestionJob>(j =>
             j.IngestionJobId == jobId &&
-            j.Status == IngestionJobStatus.Completed &&
-            j.CompletedAtUtc.HasValue), It.IsAny<CancellationToken>()), Times.Once);
+            j.Status == IngestionJobStatus.Indexing), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -241,7 +239,7 @@ public sealed class IngestionJobServiceDualModeTests {
     }
 
     [Fact]
-    public async Task DeletePendingStorageFileAsync_ShouldDeleteArtifactsAndAssociatedHistory() {
+    public async Task DeletePendingStorageFileAsync_ShouldDeleteHistoryRecords() {
         _repository
             .Setup(r => r.DeleteByInputRefAsync("upload-pending-001", It.IsAny<CancellationToken>()))
             .ReturnsAsync(2);
@@ -250,15 +248,6 @@ public sealed class IngestionJobServiceDualModeTests {
 
         await sut.DeletePendingStorageFileAsync("upload-pending-001", "spec-dataset", CancellationToken.None);
 
-        _blobStorage.Verify(
-            b => b.DeleteIfExistsAsync("raw-uploads", "upload-pending-001/source.pdf", It.IsAny<CancellationToken>()),
-            Times.Once);
-        _blobStorage.Verify(
-            b => b.DeleteIfExistsAsync("raw-uploads", "upload-pending-001.csv", It.IsAny<CancellationToken>()),
-            Times.Once);
-        _blobStorage.Verify(
-            b => b.DeleteIfExistsAsync("raw-uploads", "graph-entities/upload-pending-001/entities.json", It.IsAny<CancellationToken>()),
-            Times.Once);
         _repository.Verify(
             r => r.DeleteByInputRefAsync("upload-pending-001", It.IsAny<CancellationToken>()),
             Times.Once);
@@ -307,7 +296,7 @@ public sealed class IngestionJobServiceDualModeTests {
     }
 
     [Fact]
-    public async Task GetPendingStorageFilesAsync_WhenGraphOnlyWorkflowCompleted_ShouldNotReturnPendingUpload() {
+    public async Task GetPendingStorageFilesAsync_WhenGraphOnlyWorkflowCompleted_ShouldReturnPendingWithGraphStatus() {
         _blobStorage
             .Setup(b => b.ListAsync("raw-uploads", It.IsAny<CancellationToken>()))
             .ReturnsAsync([
@@ -334,7 +323,9 @@ public sealed class IngestionJobServiceDualModeTests {
 
         var result = await sut.GetPendingStorageFilesAsync(CancellationToken.None);
 
-        result.Should().BeEmpty();
+        result.Should().ContainSingle();
+        result[0].UploadId.Should().Be("upload-graph-complete-001");
+        result[0].GraphImportStatus.Should().Be("Completed");
     }
 
     [Fact]
@@ -359,7 +350,7 @@ public sealed class IngestionJobServiceDualModeTests {
     }
 
     [Fact]
-    public async Task DeleteJobAsync_WhenJobIsFinished_ShouldDeleteArtifactsBeforeRemovingHistoryRow() {
+    public async Task DeleteJobAsync_WhenJobIsFinished_ShouldDeleteHistoryRow() {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -378,20 +369,11 @@ public sealed class IngestionJobServiceDualModeTests {
 
         await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
 
-        _blobStorage.Verify(
-            b => b.DeleteIfExistsAsync("raw-uploads", "upload-finished-001/source.pdf", It.IsAny<CancellationToken>()),
-            Times.Once);
-        _blobStorage.Verify(
-            b => b.DeleteIfExistsAsync("raw-uploads", "upload-finished-001.csv", It.IsAny<CancellationToken>()),
-            Times.Once);
-        _blobStorage.Verify(
-            b => b.DeleteIfExistsAsync("raw-uploads", "graph-entities/upload-finished-001/entities.json", It.IsAny<CancellationToken>()),
-            Times.Once);
         _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task ClearFinishedJobsAsync_ShouldDeleteArtifactsOncePerUploadAndRemoveFinishedRows() {
+    public async Task ClearFinishedJobsAsync_ShouldRemoveFinishedRows() {
         var firstJobId = Guid.NewGuid();
         var secondJobId = Guid.NewGuid();
 
@@ -429,18 +411,9 @@ public sealed class IngestionJobServiceDualModeTests {
         var deletedCount = await sut.ClearFinishedJobsAsync(TestUserId, CancellationToken.None);
 
         deletedCount.Should().Be(2);
-        _blobStorage.Verify(
-            b => b.DeleteIfExistsAsync("raw-uploads", "upload-finished-002/source.pdf", It.IsAny<CancellationToken>()),
-            Times.Once);
-        _blobStorage.Verify(
-            b => b.DeleteIfExistsAsync("raw-uploads", "upload-finished-002.csv", It.IsAny<CancellationToken>()),
-            Times.Once);
-        _blobStorage.Verify(
-            b => b.DeleteIfExistsAsync("raw-uploads", "graph-entities/upload-finished-002/entities.json", It.IsAny<CancellationToken>()),
-            Times.Once);
         _repository.Verify(
-            r => r.DeleteByStatusesAsync(It.IsAny<IReadOnlyCollection<IngestionJobStatus>>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+            r => r.DeleteByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -509,7 +482,7 @@ public sealed class IngestionJobServiceDualModeTests {
     }
 
     [Fact]
-    public async Task ImportGraphArtifactsAsync_WhenArtifactsAreMissing_ShouldNotCreateHistoryRow() {
+    public async Task ImportGraphArtifactsAsync_WhenArtifactsAreMissing_ShouldThrowAndNotIngest() {
         _blobStorage
             .Setup(b => b.ExistsAsync("raw-uploads", "graph-entities/upload-missing-graph/entities.json", It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -523,7 +496,7 @@ public sealed class IngestionJobServiceDualModeTests {
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*graph-entities/upload-missing-graph/entities.json*");
-        _repository.Verify(r => r.CreateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+        _graphEntityIngestionService.Verify(g => g.IngestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     #region Manual PDF end-to-end
@@ -575,12 +548,11 @@ public sealed class IngestionJobServiceDualModeTests {
         var statusResponse = await sut.GetJobStatusAsync(jobId, TestUserId);
 
         statusResponse.Should().NotBeNull();
-        statusResponse!.Status.Should().Be(IngestionJobStatus.Completed.ToString());
-        statusResponse.CompletedAtUtc.Should().NotBeNull();
+        statusResponse!.Status.Should().Be(IngestionJobStatus.Indexing.ToString());
         statusResponse.FailureReason.Should().BeNull();
         _repository.Verify(
             r => r.UpdateAsync(
-                It.Is<IngestionJob>(j => j.IngestionJobId == jobId && j.Status == IngestionJobStatus.Completed),
+                It.Is<IngestionJob>(j => j.IngestionJobId == jobId && j.Status == IngestionJobStatus.Indexing),
                 It.IsAny<CancellationToken>()),
             Times.AtLeastOnce);
     }
@@ -663,3 +635,4 @@ public sealed class IngestionJobServiceDualModeTests {
             CsvPipelineId = "csv-pipeline-id"
         });
 }
+

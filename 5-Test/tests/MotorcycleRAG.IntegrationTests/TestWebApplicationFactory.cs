@@ -50,7 +50,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program> {
                 ["AppConfig:Endpoint"] = string.Empty,
 
                 // Disable Application Insights for tests
-                ["ApplicationInsights:ConnectionString"] = "InstrumentationKey=test-key",
+                ["ApplicationInsights:ConnectionString"] = string.Empty,
                 ["ApplicationInsights:EnableTelemetry"] = "false",
 
                 ["AzureAI:OpenAIEndpoint"] = "https://test-openai.openai.azure.com/",

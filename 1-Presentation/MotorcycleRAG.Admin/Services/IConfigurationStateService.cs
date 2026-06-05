@@ -62,11 +62,6 @@ internal interface IConfigurationStateService {
     string? LocalProcessorWorkingDirectory { get; }
 
     /// <summary>
-    /// Gets the configured local processor start command, or the in-app default if none was saved.
-    /// </summary>
-    string? LocalProcessorStartCommand { get; }
-
-    /// <summary>
     /// Gets the configured maximum token size for PDF chunking.
     /// </summary>
     int PdfChunkerMaxTokens { get; }
@@ -123,7 +118,6 @@ internal interface IConfigurationStateService {
     /// </summary>
     /// <param name="endpoint">The local processor endpoint.</param>
     /// <param name="workingDirectory">The local processor working directory.</param>
-    /// <param name="startCommand">The command used to start the processor.</param>
     /// <param name="uploadJobSecret">The client secret used by the local processor for artifact uploads.</param>
     /// <param name="pdfChunkerMaxTokens">The maximum token count for PDF chunking.</param>
     /// <param name="csvChunkMaxTokens">The maximum token count for CSV chunking.</param>
@@ -131,7 +125,6 @@ internal interface IConfigurationStateService {
     Task SaveLocalProcessorConfigurationAsync(
         Uri? endpoint,
         string? workingDirectory,
-        string? startCommand,
         string? uploadJobSecret,
         int pdfChunkerMaxTokens,
         int csvChunkMaxTokens,

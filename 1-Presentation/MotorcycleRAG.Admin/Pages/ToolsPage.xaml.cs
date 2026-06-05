@@ -16,9 +16,10 @@ internal partial class ToolsPage : ContentPage {
     private readonly ILogger<ToolsPage>? _logger;
 
     [SupportedOSPlatform("windows10.0.17763.0")]
+    [SupportedOSPlatform("maccatalyst")]
     public ToolsPage(MotorcycleRAG.Admin.ViewModels.ToolsViewModel viewModel, ILogger<ToolsPage> logger) {
         InitializeComponent();
-#if WINDOWS
+#if WINDOWS || MACCATALYST
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         BindingContext = _viewModel;
@@ -27,8 +28,8 @@ internal partial class ToolsPage : ContentPage {
 
     protected override async void OnAppearing() {
         base.OnAppearing();
-        
-#if WINDOWS
+
+#if WINDOWS || MACCATALYST
         if (_viewModel != null) {
             try {
                 await _viewModel.InitializeAsync();

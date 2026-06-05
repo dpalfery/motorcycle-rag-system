@@ -91,6 +91,48 @@
       "problemMatcher": "$msCompile"
     },
     {
+      "label": "build: admin-tests",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
+        "/p:Configuration=Debug",
+        "/p:TargetFramework=net10.0-maccatalyst26.5"
+      ],
+      "windows": {
+        "args": [
+          "build",
+          "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
+          "/p:Configuration=Debug",
+          "/p:TargetFramework=net10.0-windows10.0.19041.0"
+        ]
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test: admin-tests",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
+        "/p:Configuration=Debug",
+        "/p:TargetFramework=net10.0-maccatalyst26.5"
+      ],
+      "windows": {
+        "args": [
+          "test",
+          "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
+          "/p:Configuration=Debug",
+          "/p:TargetFramework=net10.0-windows10.0.19041.0"
+        ]
+      },
+      "group": "test",
+      "problemMatcher": "$msCompile"
+    },
+    {
       "label": "Git: Complete Push Workflow",
       "type": "shell",
       "command": "git",

@@ -468,8 +468,6 @@ public class UserManagementViewModelTests {
 
         public string? LocalProcessorWorkingDirectory => null;
 
-        public string? LocalProcessorStartCommand => null;
-
         public int PdfChunkerMaxTokens => 512;
 
         public int CsvChunkMaxTokens => 512;
@@ -495,7 +493,6 @@ public class UserManagementViewModelTests {
         public Task SaveLocalProcessorConfigurationAsync(
             Uri? endpoint,
             string? workingDirectory,
-            string? startCommand,
             string? uploadJobSecret,
             int pdfChunkerMaxTokens,
             int csvChunkMaxTokens,

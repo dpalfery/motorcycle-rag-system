@@ -496,8 +496,13 @@ internal sealed class LocalProcessorService : ILocalProcessorService {
 
     private Process BuildProcess(string startCommand, string workingDirectory, TaskCompletionSource<bool> startupSignal) {
         var startInfo = new ProcessStartInfo {
+#if MACCATALYST
+            FileName = "/bin/zsh",
+            Arguments = $"-c \"{startCommand}\"",
+#else
             FileName = "cmd.exe",
             Arguments = $"/c {startCommand}",
+#endif
             WorkingDirectory = workingDirectory,
             RedirectStandardError = true,
             RedirectStandardOutput = true,
@@ -559,14 +564,7 @@ internal sealed class LocalProcessorService : ILocalProcessorService {
         return workingDirectory;
     }
 
-    private string GetStartCommand() {
-        var startCommand = _configurationStateService.LocalProcessorStartCommand;
-        if (string.IsNullOrWhiteSpace(startCommand)) {
-            throw new InvalidOperationException("Local processor start command is not configured. Open Settings to configure it.");
-        }
-
-        return startCommand;
-    }
+    private static string GetStartCommand() => LocalProcessorDefaults.DefaultStartCommand;
 
     private static bool IsStartupReadyMessage(string message) {
         return message.Contains("Application startup complete.", StringComparison.OrdinalIgnoreCase) ||

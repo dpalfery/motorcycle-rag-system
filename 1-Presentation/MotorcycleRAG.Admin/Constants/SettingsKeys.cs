@@ -60,12 +60,6 @@ internal static class SettingsKeys {
     internal const string LocalProcessorWorkingDirectory = "config_local_processor_working_directory";
 
     /// <summary>
-    /// Command used to start the local Python processing service.
-    /// Stored in regular preferences (not sensitive).
-    /// </summary>
-    internal const string LocalProcessorStartCommand = "config_local_processor_start_command";
-
-    /// <summary>
     /// Maximum token count used for PDF chunking in the local processor.
     /// Stored in regular preferences (not sensitive).
     /// </summary>

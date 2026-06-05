@@ -42,7 +42,8 @@ internal partial class GraphSeedingPage : ContentPage {
                 PickerTitle = "Select a CSV file for graph import",
                 FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
                 {
-                    { DevicePlatform.WinUI, CsvExtensions }
+                    { DevicePlatform.WinUI, CsvExtensions },
+                    { DevicePlatform.macOS, CsvExtensions }
                 })
             });
 

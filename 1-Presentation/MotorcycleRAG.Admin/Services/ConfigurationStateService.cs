@@ -25,7 +25,6 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
     private string? _embeddingModel;
     private Uri? _localProcessorEndpoint;
     private string? _localProcessorWorkingDirectory;
-    private string? _localProcessorStartCommand;
     private string? _pdfChunkerTokenizer;
     private int _pdfChunkerMaxTokens;
     private int _csvChunkMaxTokens;
@@ -69,9 +68,6 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
     public string? LocalProcessorWorkingDirectory => _localProcessorWorkingDirectory;
 
     /// <inheritdoc/>
-    public string? LocalProcessorStartCommand => _localProcessorStartCommand;
-
-    /// <inheritdoc/>
     public int PdfChunkerMaxTokens => _pdfChunkerMaxTokens;
 
     /// <inheritdoc/>
@@ -109,7 +105,6 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
             _embeddingModel = await _settingsService.GetAsync(SettingsKeys.EmbeddingModel).ConfigureAwait(false);
             var localProcessorEndpointString = await _settingsService.GetAsync(SettingsKeys.LocalProcessorEndpoint).ConfigureAwait(false);
             _localProcessorWorkingDirectory = await _settingsService.GetAsync(SettingsKeys.LocalProcessorWorkingDirectory).ConfigureAwait(false);
-            _localProcessorStartCommand = await _settingsService.GetAsync(SettingsKeys.LocalProcessorStartCommand).ConfigureAwait(false);
             _pdfChunkerTokenizer = await _settingsService.GetAsync(SettingsKeys.PdfChunkerTokenizer).ConfigureAwait(false);
             _pdfChunkerMaxTokens = int.TryParse(await _settingsService.GetAsync(SettingsKeys.PdfChunkerMaxTokens).ConfigureAwait(false), out var pdfTokens)
                 ? pdfTokens
@@ -138,7 +133,6 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
             _embeddingProviderEndpoint = NullIfEmpty(_embeddingProviderEndpoint);
             _embeddingModel = NullIfEmpty(_embeddingModel);
             _localProcessorWorkingDirectory = NullIfEmpty(_localProcessorWorkingDirectory) ?? LocalProcessorDefaults.TryFindWorkingDirectory();
-            _localProcessorStartCommand = NullIfEmpty(_localProcessorStartCommand) ?? LocalProcessorDefaults.DefaultStartCommand;
             _pdfChunkerTokenizer = NullIfEmpty(_pdfChunkerTokenizer) ?? LocalProcessorDefaults.DefaultPdfChunkerTokenizer;
             _pdfChunkerMaxTokens = _pdfChunkerMaxTokens == 0 ? LocalProcessorDefaults.DefaultPdfChunkerMaxTokens : _pdfChunkerMaxTokens;
             _csvChunkMaxTokens = _csvChunkMaxTokens == 0 ? LocalProcessorDefaults.DefaultCsvChunkMaxTokens : _csvChunkMaxTokens;
@@ -221,7 +215,6 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
     public async Task SaveLocalProcessorConfigurationAsync(
         Uri? endpoint,
         string? workingDirectory,
-        string? startCommand,
         string? uploadJobSecret,
         int pdfChunkerMaxTokens,
         int csvChunkMaxTokens,
@@ -236,7 +229,6 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
 
         await _settingsService.SetAsync(SettingsKeys.LocalProcessorEndpoint, endpoint?.ToString() ?? string.Empty).ConfigureAwait(false);
         await _settingsService.SetAsync(SettingsKeys.LocalProcessorWorkingDirectory, workingDirectory ?? string.Empty).ConfigureAwait(false);
-        await _settingsService.SetAsync(SettingsKeys.LocalProcessorStartCommand, startCommand ?? string.Empty).ConfigureAwait(false);
         await _settingsService.SetAsync(SettingsKeys.PdfChunkerMaxTokens, pdfChunkerMaxTokens.ToString()).ConfigureAwait(false);
         await _settingsService.SetAsync(SettingsKeys.CsvChunkMaxTokens, csvChunkMaxTokens.ToString()).ConfigureAwait(false);
         await _settingsService.SetAsync(SettingsKeys.PdfChunkerTokenizer, pdfChunkerTokenizer ?? string.Empty).ConfigureAwait(false);
@@ -244,7 +236,6 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
 
         _localProcessorEndpoint = endpoint ?? new Uri(LocalProcessorDefaults.DefaultEndpoint);
         _localProcessorWorkingDirectory = NullIfEmpty(workingDirectory);
-        _localProcessorStartCommand = NullIfEmpty(startCommand) ?? LocalProcessorDefaults.DefaultStartCommand;
         _pdfChunkerMaxTokens = pdfChunkerMaxTokens <= 0 ? LocalProcessorDefaults.DefaultPdfChunkerMaxTokens : pdfChunkerMaxTokens;
         _csvChunkMaxTokens = csvChunkMaxTokens <= 0 ? LocalProcessorDefaults.DefaultCsvChunkMaxTokens : csvChunkMaxTokens;
         _pdfChunkerTokenizer = NullIfEmpty(pdfChunkerTokenizer) ?? LocalProcessorDefaults.DefaultPdfChunkerTokenizer;
@@ -265,7 +256,6 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
         await _settingsService.RemoveAsync(SettingsKeys.EmbeddingModel).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.LocalProcessorEndpoint).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.LocalProcessorWorkingDirectory).ConfigureAwait(false);
-        await _settingsService.RemoveAsync(SettingsKeys.LocalProcessorStartCommand).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.PdfChunkerMaxTokens).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.CsvChunkMaxTokens).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.PdfChunkerTokenizer).ConfigureAwait(false);
@@ -279,7 +269,6 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
         _embeddingModel = null;
         _localProcessorEndpoint = new Uri(LocalProcessorDefaults.DefaultEndpoint);
         _localProcessorWorkingDirectory = LocalProcessorDefaults.TryFindWorkingDirectory();
-        _localProcessorStartCommand = LocalProcessorDefaults.DefaultStartCommand;
         _pdfChunkerTokenizer = LocalProcessorDefaults.DefaultPdfChunkerTokenizer;
         _pdfChunkerMaxTokens = LocalProcessorDefaults.DefaultPdfChunkerMaxTokens;
         _csvChunkMaxTokens = LocalProcessorDefaults.DefaultCsvChunkMaxTokens;
@@ -344,8 +333,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
             && IsValidLocalProcessorEndpoint(_localProcessorEndpoint)
             && !string.IsNullOrWhiteSpace(_localProcessorWorkingDirectory)
             && Directory.Exists(_localProcessorWorkingDirectory)
-            && File.Exists(Path.Combine(_localProcessorWorkingDirectory, "src", "main.py"))
-            && !string.IsNullOrWhiteSpace(_localProcessorStartCommand);
+            && File.Exists(Path.Combine(_localProcessorWorkingDirectory, "src", "main.py"));
     }
 
     /// <summary>

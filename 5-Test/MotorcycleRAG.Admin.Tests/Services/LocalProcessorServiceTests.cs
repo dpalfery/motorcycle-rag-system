@@ -241,8 +241,6 @@ public sealed class LocalProcessorServiceTests {
 
         public string? LocalProcessorWorkingDirectory { get; init; }
 
-        public string? LocalProcessorStartCommand { get; init; }
-
         public int PdfChunkerMaxTokens { get; init; }
 
         public int CsvChunkMaxTokens { get; init; }
@@ -266,7 +264,6 @@ public sealed class LocalProcessorServiceTests {
         public Task SaveLocalProcessorConfigurationAsync(
             Uri? endpoint,
             string? workingDirectory,
-            string? startCommand,
             string? uploadJobSecret,
             int pdfChunkerMaxTokens,
             int csvChunkMaxTokens,

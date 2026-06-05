@@ -91,9 +91,6 @@ internal partial class SettingsViewModel : ObservableObject {
     private string _localProcessorWorkingDirectory = string.Empty;
 
     [ObservableProperty]
-    private string _localProcessorStartCommand = string.Empty;
-
-    [ObservableProperty]
     private int _pdfChunkerMaxTokens = LocalProcessorDefaults.DefaultPdfChunkerMaxTokens;
 
     [ObservableProperty]
@@ -169,7 +166,6 @@ internal partial class SettingsViewModel : ObservableObject {
                 : [EmbeddingModel]);
             LocalProcessorEndpoint = _configService.LocalProcessorEndpoint?.ToString() ?? LocalProcessorDefaults.DefaultEndpoint;
             LocalProcessorWorkingDirectory = _configService.LocalProcessorWorkingDirectory ?? string.Empty;
-            LocalProcessorStartCommand = _configService.LocalProcessorStartCommand ?? LocalProcessorDefaults.DefaultStartCommand;
             PdfChunkerMaxTokens = _configService.PdfChunkerMaxTokens > 0
                 ? _configService.PdfChunkerMaxTokens
                 : LocalProcessorDefaults.DefaultPdfChunkerMaxTokens;
@@ -241,8 +237,6 @@ internal partial class SettingsViewModel : ObservableObject {
     partial void OnLocalProcessorEndpointChanged(string value) => OnLocalProcessorSettingChanged();
 
     partial void OnLocalProcessorWorkingDirectoryChanged(string value) => OnLocalProcessorSettingChanged();
-
-    partial void OnLocalProcessorStartCommandChanged(string value) => OnLocalProcessorSettingChanged();
 
     partial void OnLocalProcessorUploadJobSecretChanged(string value) {
         if (_isHydratingConfiguration || _isUpdatingSecretDisplay) {
@@ -390,12 +384,11 @@ internal partial class SettingsViewModel : ObservableObject {
     private async Task ValidateLocalProcessorSettingsAsync(int validationVersion) {
         var validationResult = await MauiThreading.RunOffMainThreadAsync(
             () => BuildLocalProcessorValidation(
-                LocalProcessorEndpoint,
-                LocalProcessorWorkingDirectory,
-                LocalProcessorStartCommand,
-                PdfChunkerMaxTokens,
-                CsvChunkMaxTokens,
-                PdfChunkerTokenizer)).ConfigureAwait(false);
+            LocalProcessorEndpoint,
+            LocalProcessorWorkingDirectory,
+            PdfChunkerMaxTokens,
+            CsvChunkMaxTokens,
+            PdfChunkerTokenizer)).ConfigureAwait(false);
 
         await MauiThreading.RunOnMainThreadAsync(() => {
             if (validationVersion != _localProcessorValidationVersion) {
@@ -410,7 +403,6 @@ internal partial class SettingsViewModel : ObservableObject {
     private static (bool IsValid, string Message) BuildLocalProcessorValidation(
         string endpointValue,
         string workingDirectoryValue,
-        string startCommandValue,
         int pdfChunkerMaxTokens,
         int csvChunkMaxTokens,
         string pdfChunkerTokenizerValue) {
@@ -435,10 +427,6 @@ internal partial class SettingsViewModel : ObservableObject {
         }
         else if (!File.Exists(Path.Combine(workingDirectoryValue, "src", "main.py"))) {
             issues.Add("src/main.py not found in working directory");
-        }
-
-        if (string.IsNullOrWhiteSpace(startCommandValue)) {
-            issues.Add("Start command required");
         }
 
         if (pdfChunkerMaxTokens <= 0) {
@@ -522,7 +510,6 @@ internal partial class SettingsViewModel : ObservableObject {
             var embeddingModel = EmbeddingModel;
             var localProcessorEndpoint = LocalProcessorEndpoint;
             var localProcessorWorkingDirectory = LocalProcessorWorkingDirectory;
-            var localProcessorStartCommand = LocalProcessorStartCommand;
             var localProcessorUploadJobSecret = ResolveLocalProcessorUploadJobSecretForSave();
             var pdfChunkerMaxTokens = PdfChunkerMaxTokens;
             var csvChunkMaxTokens = CsvChunkMaxTokens;
@@ -540,7 +527,6 @@ internal partial class SettingsViewModel : ObservableObject {
                 await _configService.SaveLocalProcessorConfigurationAsync(
                     string.IsNullOrWhiteSpace(localProcessorEndpoint) ? null : new Uri(localProcessorEndpoint),
                     localProcessorWorkingDirectory,
-                    localProcessorStartCommand,
                     localProcessorUploadJobSecret,
                     pdfChunkerMaxTokens,
                     csvChunkMaxTokens,
@@ -743,7 +729,6 @@ internal partial class SettingsViewModel : ObservableObject {
                 return new {
                     LocalProcessorEndpoint = LocalProcessorDefaults.DefaultEndpoint,
                     LocalProcessorWorkingDirectory = LocalProcessorDefaults.TryFindWorkingDirectory() ?? string.Empty,
-                    LocalProcessorStartCommand = LocalProcessorDefaults.DefaultStartCommand
                 };
             }).ConfigureAwait(false);
 
@@ -759,7 +744,6 @@ internal partial class SettingsViewModel : ObservableObject {
                 SetEmbeddingModels([]);
                 LocalProcessorEndpoint = resetState.LocalProcessorEndpoint;
                 LocalProcessorWorkingDirectory = resetState.LocalProcessorWorkingDirectory;
-                LocalProcessorStartCommand = resetState.LocalProcessorStartCommand;
                 _storedLocalProcessorUploadJobSecret = string.Empty;
                 _hasPersistedLocalProcessorUploadJobSecret = false;
                 IsLocalProcessorUploadJobSecretRevealed = false;

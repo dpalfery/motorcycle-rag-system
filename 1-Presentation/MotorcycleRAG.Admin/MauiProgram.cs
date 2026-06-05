@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Admin.Services;
 using MotorcycleRAG.Admin.Pages;
 using MotorcycleRAG.Admin.ViewModels;
-using MotorcycleRAG.Admin.Processing;
 
 namespace MotorcycleRAG.Admin;
 
@@ -116,11 +115,6 @@ internal static class MauiProgram {
                 options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(90); // must be >= 2x AttemptTimeout (30s)
                 options.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(2);
             });
-
-        // ========== Local Processing Services ==========
-
-        builder.Services.AddSingleton<PdfChunker>(_ => new PdfChunker());
-        builder.Services.AddSingleton<CsvChunker>(_ => new CsvChunker());
 
         // ========== Pages ==========
         // Shell ContentTemplate caches the page instance for the Shell lifetime,

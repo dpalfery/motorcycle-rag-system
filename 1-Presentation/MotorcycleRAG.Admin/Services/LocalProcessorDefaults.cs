@@ -2,7 +2,16 @@ namespace MotorcycleRAG.Admin.Services;
 
 internal static class LocalProcessorDefaults {
     internal const string DefaultEndpoint = "http://localhost:8100";
+
+    /// <summary>
+    /// Platform-specific command to start the local Python processor.
+    /// Windows uses the Python Launcher (py -3); macOS uses python3 directly.
+    /// </summary>
+#if MACCATALYST
+    internal const string DefaultStartCommand = "python3 src/main.py";
+#else
     internal const string DefaultStartCommand = "py -3 src/main.py";
+#endif
     internal const int DefaultPdfChunkerMaxTokens = 512;
     internal const int DefaultCsvChunkMaxTokens = 512;
     internal const string DefaultPdfChunkerTokenizer = "BAAI/bge-small-en-v1.5";

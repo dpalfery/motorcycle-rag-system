@@ -573,8 +573,8 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
             IReadOnlyDictionary<string, GraphImportState> existingGraphImportsByUpload =
                 new Dictionary<string, GraphImportState>(StringComparer.OrdinalIgnoreCase);
             await RunOnUiThreadAsync(() => {
-                    existingGraphImportsByUpload = BuildCurrentGraphImportStatusMap();
-                })
+                existingGraphImportsByUpload = BuildCurrentGraphImportStatusMap();
+            })
                 .ConfigureAwait(false);
 
             var loadResult = await RunOffUiThreadAsync(
@@ -1715,7 +1715,7 @@ internal class JobsViewModel : IDisposable, INotifyPropertyChanged {
         };
     }
 
-    
+
     private static Task RunOnUiThreadAsync(Action action) => MauiThreading.RunOnMainThreadAsync(action);
 
     private static Task RunOnUiThreadAsync(Func<Task> action) => MauiThreading.RunOnMainThreadAsync(action);

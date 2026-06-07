@@ -11,7 +11,7 @@
     "git.autofetchPeriod": 180,
     "kiroAgent.configureMCP": "Enabled",
     "zencoder.mcpServers": {
-        "microsoft-learn\"": {
+        "microsoft-learn": {
             "type": "http",
             "url": "https://learn.microsoft.com/api/mcp",
             "tools": [
@@ -54,5 +54,8 @@
     },
     "terminal.integrated.env.linux": {
         "AZURE_CONFIG_DIR": "${workspaceFolder}/.azure-local"
-    }
+    },
+    "json.schemaDownload.allowList": [
+        "https://opencode.ai/config.json"
+    ]
 }

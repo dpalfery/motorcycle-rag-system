@@ -37,7 +37,7 @@ internal static class AzureAIServiceConfiguration {
             .Bind(configuration.GetSection("ApplicationInsights"));
 
         // Add options validation
-        services.AddSingleton<IValidateOptions<AzureFoundryOptions>, AzureFoundryConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<AzureFoundryOptions>, AzureAIConfigurationValidator>();
         services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
         services.AddSingleton<IValidateOptions<TelemetryOptions>, TelemetryConfigurationValidator>();
 

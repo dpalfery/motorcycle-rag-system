@@ -86,9 +86,98 @@
         "build",
         "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
         "/p:Configuration=Debug",
-        "/p:TargetFramework=net10.0-windows10.0.19041.0"
+        "/p:TargetFramework=net10.0-maccatalyst",
+        "/p:RuntimeIdentifier=maccatalyst-arm64"
+      ],
+      "windows": {
+        "args": [
+          "build",
+          "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
+          "/p:Configuration=Debug",
+          "/p:TargetFramework=net10.0-windows10.0.19041.0"
+        ]
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "open: admin-only",
+      "type": "shell",
+      "command": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app/Contents/MacOS/MotorcycleRAG.Admin",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "wait: admin",
+      "command": "sleep",
+      "type": "process",
+      "args": [
+        "2"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "launch: admin",
+      "dependsOn": [
+        "build: admin",
+        "open: admin-only",
+        "wait: admin"
+      ],
+      "dependsOrder": "sequence",
+      "command": "echo",
+      "type": "shell",
+      "args": [
+        "Admin app ready for debugger attach"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "launch: admin-no-build",
+      "dependsOn": [
+        "open: admin-only",
+        "wait: admin"
+      ],
+      "dependsOrder": "sequence",
+      "command": "echo",
+      "type": "shell",
+      "args": [
+        "Admin app ready for debugger attach"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "build: admin+api",
+      "dependsOn": [
+        "build: api",
+        "build: admin"
+      ],
+      "dependsOrder": "parallel",
+      "command": "echo",
+      "type": "shell",
+      "args": [
+        "Admin and API build complete"
       ],
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "run: admin",
+      "dependsOn": "build: admin",
+      "type": "shell",
+      "command": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app/Contents/MacOS/MotorcycleRAG.Admin",
+      "osx": {
+        "command": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app/Contents/MacOS/MotorcycleRAG.Admin"
+      },
+      "windows": {
+        "command": "dotnet",
+        "args": [
+          "run",
+          "--project",
+          "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
+          "-f",
+          "net10.0-windows10.0.19041.0"
+        ]
+      },
+      "problemMatcher": []
     },
     {
       "label": "build: admin-tests",

@@ -13,7 +13,7 @@ internal static class SettingsKeys {
 
     /// <summary>
     /// Microsoft Entra ID / Azure AD Client ID for authentication.
-    /// Stored in secure storage (sensitive credential).
+    /// Stored in regular preferences (public app identifier, not a secret).
     /// </summary>
     internal const string AuthClientId = "config_auth_client_id";
 

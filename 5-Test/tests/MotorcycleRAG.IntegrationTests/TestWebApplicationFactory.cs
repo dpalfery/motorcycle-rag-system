@@ -57,6 +57,11 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program> {
                 ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
                 ["AzureAI:DocumentIntelligenceEndpoint"] = "https://test-docint.cognitiveservices.azure.com/",
                 ["AzureAI:FoundryEndpoint"] = "https://test-foundry.services.ai.azure.com/",
+                ["AzureAI:OrchestratorAgentName"] = "test-orchestrator",
+                ["AzureAI:VectorSearchAgentName"] = "test-vector-search",
+                ["AzureAI:WebSearchAgentName"] = "test-web-search",
+                ["AzureAI:PDFSearchAgentName"] = "test-pdf-search",
+                ["AzureAI:GraphQueryAgentName"] = "test-graph-query",
                 ["BlobStorage:AccountEndpoint"] = "https://teststorage.blob.core.windows.net/",
 
                 ["Sql:ConnectionString"] = "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Integrated Security=true;TrustServerCertificate=true;",
@@ -190,6 +195,15 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program> {
                 .ReturnsAsync((string userId, string planId) => new UserDTO { Id = userId, PlanId = planId, Email = "test@example.com" });
             userAdmin.Setup(s => s.GetAllUsersAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Array.Empty<UserDTO>());
             services.AddSingleton(userAdmin.Object);
+
+            // Mock Telemetry Service to prevent AppInsights SDK from crashing in tests
+            var telemetryServiceDesc = services.FirstOrDefault(d => d.ServiceType == typeof(ITelemetryService));
+            if (telemetryServiceDesc != null)
+            {
+                services.Remove(telemetryServiceDesc);
+            }
+            var telemetry = new Mock<ITelemetryService>();
+            services.AddSingleton(telemetry.Object);
         });
     }
 

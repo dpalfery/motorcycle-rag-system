@@ -4,7 +4,8 @@
 		<!-- Suppress code analysis rules that are less critical for a MAUI client application -->
 		<!-- See AGENTS.md for architectural rules that take precedence -->
 		<!-- MAUI admin app: target Windows and Mac Catalyst -->
-		<TargetFrameworks>net10.0-windows10.0.19041.0;net10.0-maccatalyst</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">net10.0-windows10.0.19041.0;net10.0-maccatalyst</TargetFrameworks>
+		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('windows'))">net10.0-maccatalyst</TargetFrameworks>
 		<!-- Enable cross-platform targeting (required for WSL2 development) -->
 		<EnableWindowsTargeting>true</EnableWindowsTargeting>
 
@@ -36,7 +37,7 @@
 		<ApplicationTitle>MotorcycleRAG.Admin</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>com.companyname.motorcyclerag.admin</ApplicationId>
+		<ApplicationId>com.palfery.motorcyclerag.admin</ApplicationId>
 
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
@@ -51,6 +52,14 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+	</PropertyGroup>
+
+	<!-- Code signing setup for Mac Catalyst -->
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+		<CodesignKey>Apple Development: DAVID RICH PALFERY (YYR79483FR)</CodesignKey>
+		<!-- Mac Catalyst needs iOS-style profiles, not macOS App Development profiles. -->
+		<CodesignEntitlements Condition="'$(Configuration)' == 'Debug'">Platforms/MacCatalyst/Entitlements.Debug.plist</CodesignEntitlements>
+		<CodesignEntitlements Condition="'$(Configuration)' != 'Debug'">Platforms/MacCatalyst/Entitlements.plist</CodesignEntitlements>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -75,7 +84,7 @@
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
 		<PackageReference Include="Microsoft.Identity.Client" Version="4.81.0" />
 		<PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.81.0" />
-		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.30" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.30" />
 		<PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.2.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.2" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />

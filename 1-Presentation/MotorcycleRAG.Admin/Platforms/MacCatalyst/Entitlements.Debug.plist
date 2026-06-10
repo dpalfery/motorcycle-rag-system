@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <!-- Debug entitlements for local Mac Catalyst development.
+         No provisioning profile required. SecureStorage uses the standard macOS keychain.
+         get-task-allow is required for the VS Code debugger to attach. -->
+    <dict>
+        <key>com.apple.security.network.client</key>
+        <true/>
+        <key>com.apple.security.get-task-allow</key>
+        <true/>
+    </dict>
+</plist>

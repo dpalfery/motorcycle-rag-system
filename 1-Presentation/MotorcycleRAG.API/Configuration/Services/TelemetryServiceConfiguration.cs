@@ -36,8 +36,9 @@ internal static class TelemetryServiceConfiguration
         }
         else
         {
-            services.AddSingleton<TelemetryConfiguration>();
-            services.AddSingleton(sp => new TelemetryClient(sp.GetRequiredService<TelemetryConfiguration>()));
+            var config = new TelemetryConfiguration { DisableTelemetry = true };
+            services.AddSingleton(config);
+            services.AddSingleton(new TelemetryClient(config));
         }
 
         return services;

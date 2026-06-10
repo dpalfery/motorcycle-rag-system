@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Admin.Services;
+using MotorcycleRAG.Admin.Services.Logging;
 using MotorcycleRAG.Admin.Utilities;
 
 namespace MotorcycleRAG.Admin.ViewModels;
@@ -13,6 +14,7 @@ internal partial class LandingViewModel : ObservableObject
     private readonly IConfigurationStateService _configurationStateService;
     private readonly IAppFlowCoordinator _appFlowCoordinator;
     private readonly ILogger<LandingViewModel> _logger;
+    private readonly FileLoggerOptions _fileLoggerOptions;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -34,12 +36,14 @@ internal partial class LandingViewModel : ObservableObject
         IApiWarmupService apiWarmupService,
         IConfigurationStateService configurationStateService,
         IAppFlowCoordinator appFlowCoordinator,
+        FileLoggerOptions fileLoggerOptions,
         ILogger<LandingViewModel> logger)
     {
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _apiWarmupService = apiWarmupService ?? throw new ArgumentNullException(nameof(apiWarmupService));
         _configurationStateService = configurationStateService ?? throw new ArgumentNullException(nameof(configurationStateService));
         _appFlowCoordinator = appFlowCoordinator ?? throw new ArgumentNullException(nameof(appFlowCoordinator));
+        _fileLoggerOptions = fileLoggerOptions ?? throw new ArgumentNullException(nameof(fileLoggerOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -99,18 +103,23 @@ internal partial class LandingViewModel : ObservableObject
             IsBusy = true;
             StatusMessage = IsSignedIn
                 ? "Opening the admin workspace..."
-                : "Starting sign-in...";
+                : GetSignInStatusMessage();
         }).ConfigureAwait(false);
 
         try
         {
-            var signedIn = IsSignedIn || await MauiThreading.RunOffMainThreadAsync(() => _authService.SignInAsync()).ConfigureAwait(false);
+            var signedIn = IsSignedIn
+                || await MauiThreading.RunOffMainThreadAsync(() => _authService.SignInAsync()).ConfigureAwait(false);
             await MauiThreading.RunOnMainThreadAsync(RefreshState).ConfigureAwait(false);
 
             if (!signedIn)
             {
+                var authError = _authService.LastAuthErrorMessage;
+                var logHint = $" Log file: {_fileLoggerOptions.LogDirectory}";
                 await MauiThreading.RunOnMainThreadAsync(() =>
-                    StatusMessage = "Sign-in did not complete. Check your saved settings and try again.").ConfigureAwait(false);
+                    StatusMessage = string.IsNullOrWhiteSpace(authError)
+                        ? $"Sign-in did not complete. Check your saved settings and try again.{logHint}"
+                        : $"Sign-in failed: {authError}{logHint}").ConfigureAwait(false);
                 return;
             }
 
@@ -130,6 +139,15 @@ internal partial class LandingViewModel : ObservableObject
     }
 
     private bool CanSignIn() => !IsBusy;
+
+    private static string GetSignInStatusMessage()
+    {
+#if MACCATALYST
+        return "Opening Microsoft sign-in inside the app. Complete login in that window.";
+#else
+        return "Starting sign-in...";
+#endif
+    }
 
     [RelayCommand]
     private async Task OpenSettingsAsync()

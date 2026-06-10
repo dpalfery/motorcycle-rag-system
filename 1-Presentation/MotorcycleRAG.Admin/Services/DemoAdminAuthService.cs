@@ -67,4 +67,8 @@ internal sealed class DemoAdminAuthService : IAdminAuthService
 
     /// <inheritdoc/>
     public bool IsAuthenticated => false;
+
+    /// <inheritdoc/>
+    public string? LastAuthErrorMessage =>
+        "Authentication is not configured. Open Settings and save Client ID, Authority, and Scope.";
 }

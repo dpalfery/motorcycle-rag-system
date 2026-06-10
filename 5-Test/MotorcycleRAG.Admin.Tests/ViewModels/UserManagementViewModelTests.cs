@@ -443,6 +443,8 @@ public class UserManagementViewModelTests {
         public Task<bool> IsAuthorizedAdminAsync() => Task.FromResult(true);
 
         public bool IsAuthenticated => true;
+
+        public string? LastAuthErrorMessage => null;
     }
 
     private sealed class TestConfigurationStateService : IConfigurationStateService {

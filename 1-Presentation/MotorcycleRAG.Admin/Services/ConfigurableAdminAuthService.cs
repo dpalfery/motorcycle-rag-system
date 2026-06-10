@@ -37,6 +37,8 @@ internal sealed class ConfigurableAdminAuthService : IAdminAuthService
 
     public Task<bool> IsAuthorizedAdminAsync() => CurrentService.IsAuthorizedAdminAsync();
 
+    public string? LastAuthErrorMessage => CurrentService.LastAuthErrorMessage;
+
     private IAdminAuthService CurrentService
     {
         get

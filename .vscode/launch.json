@@ -92,15 +92,31 @@
             "preLaunchTask": "npm: dev"
         },
         {
-            "name": ".NET MAUI Admin (Windows)",
+            "name": ".NET MAUI Admin",
             "type": "coreclr",
+            "request": "attach",
+            "preLaunchTask": "launch: admin",
+            "processName": "MotorcycleRAG.Admin"
+        },
+        {
+            "name": ".NET MAUI Admin (compound)",
+            "type": "coreclr",
+            "request": "attach",
+            "preLaunchTask": "launch: admin-no-build",
+            "processName": "MotorcycleRAG.Admin"
+        },
+        {
+            "name": ".NET MAUI Admin (MAUI Extension)",
+            "type": "maui",
             "request": "launch",
-            "preLaunchTask": "build: admin",
-            "program": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-windows10.0.19041.0/win-x64/MotorcycleRAG.Admin.exe",
-            "args": [],
-            "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin",
-            "stopAtEntry": false,
-            "console": "internalConsole"
+            "configuration": "Debug",
+            "project": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj"
+        },
+        {
+            "name": ".NET MAUI Admin (Attach)",
+            "type": "coreclr",
+            "request": "attach",
+            "processName": "MotorcycleRAG.Admin"
         },
         {
             "name": ".NET Core Attach",
@@ -120,11 +136,12 @@
             "stopAll": true
         },
         {
-            "name": "Admin + API (Windows)",
+            "name": "Admin + API",
             "configurations": [
-                ".NET Core Launch (API)",
-                ".NET MAUI Admin (Windows)"
+                ".NET Core Launch (API, no browser)",
+                ".NET MAUI Admin (compound)"
             ],
+            "preLaunchTask": "build: admin+api",
             "stopAll": true
         }
     ]

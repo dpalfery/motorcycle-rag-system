@@ -44,4 +44,9 @@ internal interface IAdminAuthService {
     /// Gets a value indicating whether the user is currently authenticated
     /// </summary>
     bool IsAuthenticated { get; }
+
+    /// <summary>
+    /// Gets the most recent authentication error message, if sign-in failed.
+    /// </summary>
+    string? LastAuthErrorMessage { get; }
 }

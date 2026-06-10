@@ -5,6 +5,7 @@
 3. **Communication protocol** — Present options with trade-offs. Wait for user confirmation on architectural decisions.
 4. **No files in project root** — Agent-generated files (status, plan, summary, build output, etc.) go in `6-Docs/agent-notes/` (git-ignored).
 5. **Git commands require approval** — Only read-only (`git status`, `git diff`, `git log`) and staging (`git add`) are allowed without asking. Never run `git commit`, `git push`, `git reset`, `git restore`, `git checkout`, `git clean`, or `git rebase` without explicit approval. Don't ask to do commits — the human does them manually.
+6. **No fallbacks or workarounds without explicit user consent** — Never implement a degraded fallback, stub, or platform-specific workaround to avoid fixing the real problem. Fix the root cause. If a workaround is genuinely the right trade-off, present it to the user with clear rationale and wait for explicit approval before implementing.
 6. **DevOps** — All deployments go through GitHub Actions. The pipeline (`deploy.yml`) is the **only** permitted path to deploy infrastructure or application changes.
    - **`pulumi up` is FORBIDDEN** for agents — never run it directly. IaC changes deploy automatically when commits are pushed to `develop` or `main`.
    - **`az` CLI is read-only** — agents may use `az` only to read state and diagnose issues (e.g., `az containerapp logs show`, `az containerapp show`, `az acr repository list`). Never use `az` to create, update, or delete any Azure resource.
@@ -32,7 +33,7 @@ Before running any `az` command, **always** verify the active subscription is in
 
 - **EPAM tenant**: compute and hosting tenant for this solution. This is where the Azure hosting resources for the repo live, including the subscription backed by MSDN credits.
 - **`palfery.onmicrosoft.com` tenant**: David's primary Entra ID tenant and the home for personal Azure subscriptions.
-- **`0f8f8a52-f135-43af-af88-e0b54ca9ff91` tenant**: the Entra External ID tenant associated with `palfery.onmicrosoft.com`.
+- **`0f8f8a52-f135-43af-af88-e0b54ca9ff91` tenant**: the Entra External ID tenant associated with `palfery.onmicrosoft.com`. **All app registrations for this solution (API, Admin, BFF, Mobile) live in this tenant.**
 - **Do not assume** Azure hosting resources, personal subscriptions, workforce app registrations, and External ID objects live in the same tenant.
 - Before using `az` or checking Entra objects, verify which tenant actually owns the target resource or identity.
 

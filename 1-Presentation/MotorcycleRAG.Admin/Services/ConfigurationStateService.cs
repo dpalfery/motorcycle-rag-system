@@ -113,8 +113,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
                 ? csvTokens
                 : LocalProcessorDefaults.DefaultCsvChunkMaxTokens;
 
-            // Load secure settings
-            _authClientId = await _settingsService.GetSecureAsync(SettingsKeys.AuthClientId).ConfigureAwait(false);
+            _authClientId = await _settingsService.GetAsync(SettingsKeys.AuthClientId).ConfigureAwait(false);
             _localProcessorUploadJobSecret = await _settingsService.GetSecureAsync(SettingsKeys.LocalProcessorUploadJobSecret).ConfigureAwait(false);
 
             // Parse API URL
@@ -176,8 +175,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
             throw new ArgumentException("Invalid authority URL format", nameof(authority));
         }
 
-        // Client ID is stored securely
-        await _settingsService.SetSecureAsync(SettingsKeys.AuthClientId, clientId).ConfigureAwait(false);
+        await _settingsService.SetAsync(SettingsKeys.AuthClientId, clientId).ConfigureAwait(false);
         await _settingsService.SetAsync(SettingsKeys.AuthAuthority, authority).ConfigureAwait(false);
         await _settingsService.SetAsync(SettingsKeys.AuthScope, scope).ConfigureAwait(false);
 
@@ -249,7 +247,7 @@ internal sealed class ConfigurationStateService : IConfigurationStateService {
     /// <inheritdoc/>
     public async Task ClearConfigurationAsync() {
         await _settingsService.RemoveAsync(SettingsKeys.ApiBaseUrl).ConfigureAwait(false);
-        await _settingsService.RemoveSecureAsync(SettingsKeys.AuthClientId).ConfigureAwait(false);
+        await _settingsService.RemoveAsync(SettingsKeys.AuthClientId).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.AuthAuthority).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.AuthScope).ConfigureAwait(false);
         await _settingsService.RemoveAsync(SettingsKeys.EmbeddingProviderEndpoint).ConfigureAwait(false);

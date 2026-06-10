@@ -1,14 +1,22 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
     <!-- See https://aka.ms/maui-publish-app-store#add-entitlements for more information about adding entitlements.-->
     <dict>
-        <!-- App Sandbox must be enabled to distribute a MacCatalyst app through the Mac App Store. -->
+        <!-- App Sandbox must be enabled to distribute a MacCatalyst app through the Mac App Store.
+             We disable it for local debugging so we don't need a provisioning profile for Keychain access. -->
         <key>com.apple.security.app-sandbox</key>
-        <true/>
-        <!-- When App Sandbox is enabled, this value is required to open outgoing network connections. -->
-        <key>com.apple.security.network.client</key>
+        <false/>
+        <!-- Required for SecureStorage (Keychain) access on Mac Catalyst.
+             Must be prefixed with the Team ID (J2UNNQ466J) to pass AMFI validation without a provisioning profile. -->
+        <key>keychain-access-groups</key>
+        <array>
+            <string>J2UNNQ466J.com.palfery.motorcyclerag.admin</string>
+        </array>
+        <!-- Required for the VS Code debugger (or any debugger) to attach to a signed Mac Catalyst app -->
+        <key>com.apple.security.get-task-allow</key>
         <true/>
     </dict>
 </plist>
+
 

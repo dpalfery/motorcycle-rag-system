@@ -372,6 +372,8 @@ internal class AdminAuthService : IAdminAuthService, IDisposable
     /// </summary>
     public bool IsAuthenticated => IsSignedIn();
 
+    public string? LastAuthErrorMessage => null;
+
     /// <summary>
     /// Gets the current user's display name
     /// </summary>

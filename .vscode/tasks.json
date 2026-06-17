@@ -82,12 +82,18 @@
       "label": "build: admin",
       "command": "dotnet",
       "type": "process",
+      "options": {
+        "env": {
+          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
+        }
+      },
       "args": [
         "build",
         "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
         "/p:Configuration=Debug",
         "/p:TargetFramework=net10.0-maccatalyst",
-        "/p:RuntimeIdentifier=maccatalyst-arm64"
+        "/p:RuntimeIdentifier=maccatalyst-arm64",
+        "--disable-build-servers"
       ],
       "windows": {
         "args": [
@@ -103,8 +109,15 @@
     {
       "label": "open: admin-only",
       "type": "shell",
-      "command": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app/Contents/MacOS/MotorcycleRAG.Admin",
-      "isBackground": true,
+      "options": {
+        "env": {
+          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
+        }
+      },
+      "command": "open",
+      "args": [
+        "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app"
+      ],
       "problemMatcher": []
     },
     {
@@ -112,7 +125,7 @@
       "command": "sleep",
       "type": "process",
       "args": [
-        "2"
+        "5"
       ],
       "problemMatcher": []
     },
@@ -160,13 +173,33 @@
       "problemMatcher": "$msCompile"
     },
     {
+      "label": "build-and-launch: admin+api",
+      "dependsOn": [
+        "build: admin+api",
+        "open: admin-only",
+        "wait: admin"
+      ],
+      "dependsOrder": "sequence",
+      "command": "echo",
+      "type": "shell",
+      "args": [
+        "Admin app launched and ready for attach"
+      ],
+      "problemMatcher": []
+    },
+    {
       "label": "run: admin",
       "dependsOn": "build: admin",
       "type": "shell",
-      "command": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app/Contents/MacOS/MotorcycleRAG.Admin",
-      "osx": {
-        "command": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app/Contents/MacOS/MotorcycleRAG.Admin"
+      "options": {
+        "env": {
+          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
+        }
       },
+      "command": "open",
+      "args": [
+        "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app"
+      ],
       "windows": {
         "command": "dotnet",
         "args": [
@@ -183,6 +216,11 @@
       "label": "build: admin-tests",
       "command": "dotnet",
       "type": "process",
+      "options": {
+        "env": {
+          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
+        }
+      },
       "args": [
         "build",
         "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
@@ -201,16 +239,45 @@
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "test: admin-tests",
+      "label": "tools: restore",
       "command": "dotnet",
       "type": "process",
       "args": [
+        "tool",
+        "restore"
+      ],
+      "problemMatcher": []
+    },
+    {
+      // macOS: a net10.0-maccatalyst build is a self-contained .app that the VSTest host
+      // can't launch, so run the xUnit tests on the Catalyst runtime via the XHarness
+      // device runner (see Platforms/MacCatalyst/*). Windows builds run normally via VSTest.
+      "label": "test: admin-tests",
+      "type": "shell",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "tools: restore",
+        "build: admin-tests"
+      ],
+      "options": {
+        "env": {
+          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
+        }
+      },
+      "command": "dotnet",
+      "args": [
+        "xharness",
+        "apple",
         "test",
-        "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
-        "/p:Configuration=Debug",
-        "/p:TargetFramework=net10.0-maccatalyst26.5"
+        "--app",
+        "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/bin/Debug/net10.0-maccatalyst26.5/maccatalyst-arm64/MotorcycleRAG.Admin.Tests.app",
+        "--target",
+        "maccatalyst",
+        "--output-directory",
+        "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/bin/xharness-results"
       ],
       "windows": {
+        "command": "dotnet",
         "args": [
           "test",
           "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
@@ -219,7 +286,7 @@
         ]
       },
       "group": "test",
-      "problemMatcher": "$msCompile"
+      "problemMatcher": []
     },
     {
       "label": "Git: Complete Push Workflow",

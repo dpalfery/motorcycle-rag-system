@@ -55,6 +55,7 @@
     "terminal.integrated.env.linux": {
         "AZURE_CONFIG_DIR": "${workspaceFolder}/.azure-local"
     },
+    "maui.configuration.useLaunchJsonConfigurations": true,
     "json.schemaDownload.allowList": [
         "https://opencode.ai/config.json"
     ]

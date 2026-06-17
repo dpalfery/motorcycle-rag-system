@@ -5,11 +5,33 @@
     <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('windows'))">net10.0-maccatalyst26.5</TargetFrameworks>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ApplicationId>com.companyname.motorcyclerag.admin.tests</ApplicationId>
+    <ApplicationTitle>MotorcycleRAG.Admin.Tests</ApplicationTitle>
     <RuntimeIdentifier Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">maccatalyst-arm64</RuntimeIdentifier>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- Mac Catalyst tests can't be executed by the VSTest host (a Catalyst build is a
+         self-contained .app). Instead this project is built as a Catalyst app whose entry
+         point is the XHarness xUnit device-test runner, launched via `xharness apple test`.
+         OutputType=Exe + a custom AppDelegate provide that entry point. -->
+    <OutputType>Exe</OutputType>
+    <!-- We provide our own Main (Platforms/MacCatalyst/Program.cs); stop Microsoft.NET.Test.Sdk
+         from emitting a second entry point. -->
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <!-- Not a MAUI single-project app head: don't let Resizetizer re-process the
+         referenced Admin app's image/font/splash assets (they collide here). -->
+    <EnableMauiImageProcessing>false</EnableMauiImageProcessing>
+    <EnableMauiAssetProcessing>false</EnableMauiAssetProcessing>
+    <EnableMauiFontProcessing>false</EnableMauiFontProcessing>
+    <EnableMauiSplashScreenProcessing>false</EnableMauiSplashScreenProcessing>
+    <!-- MacCatalyst requires PublishTrimmed=true + a self-contained app, but actual
+         trimming would strip xUnit's reflection-based test discovery. MtouchLink=None
+         keeps the linker infrastructure happy while trimming no assemblies. -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <SelfContained>true</SelfContained>
+    <MtouchLink>None</MtouchLink>
+    <RunAOTCompilation>false</RunAOTCompilation>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,6 +42,8 @@
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <!-- XHarness on-device xUnit runner (Mac Catalyst). From the dotnet-eng feed; see NuGet.config. -->
+    <PackageReference Include="Microsoft.DotNet.XHarness.TestRunners.Xunit" Version="10.0.0-prerelease.26310.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,6 +52,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\1-Presentation\MotorcycleRAG.Admin\MotorcycleRAG.Admin.csproj" />
+  </ItemGroup>
+
+  <!-- The XHarness Catalyst test-host (Program/AppDelegate/entry point/Info.plist) only
+       applies to the maccatalyst target; exclude it from the Windows target. -->
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'maccatalyst'">
+    <Compile Remove="Platforms/**/*.cs" />
   </ItemGroup>
 
 </Project>

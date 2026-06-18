@@ -50,10 +50,6 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\1-Presentation\MotorcycleRAG.Admin\MotorcycleRAG.Admin.csproj" />
-  </ItemGroup>
-
   <!-- The XHarness Catalyst test-host (Program/AppDelegate/entry point/Info.plist) only
        applies to the maccatalyst target; exclude it from the Windows target. -->
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'maccatalyst'">

@@ -58,5 +58,14 @@
     "maui.configuration.useLaunchJsonConfigurations": true,
     "json.schemaDownload.allowList": [
         "https://opencode.ai/config.json"
-    ]
+    ],
+    "chat.agentSkillsLocations": {
+        ".claude/skills": false,
+        ".agents/skills": false,
+        "~/.agents/skills": false,
+        "~/.claude/skills": false
+    },
+    "chat.experimental.useSkillAdherencePrompt": true,
+    "github.copilot.chat.skillTool.enabled": true,
+    "jsts-chat-features.skills.enabled": true
 }

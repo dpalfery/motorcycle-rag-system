@@ -23,7 +23,12 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    // Bind to 127.0.0.1 (not "localhost"). The .NET API's HSTS header poisoned the
+    // localhost HSTS cache with includeSubDomains, so the webview force-upgrades
+    // http://localhost:1420 -> https and the dev server fails to load. 127.0.0.1 is a
+    // separate host unaffected by that entry.
+    host: host || "127.0.0.1",
+    https: false,
     hmr: host
       ? {
           protocol: "ws",

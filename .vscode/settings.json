@@ -9,16 +9,6 @@
     "editor.formatOnSave": true,
     "git.autofetch": true,
     "git.autofetchPeriod": 180,
-    "kiroAgent.configureMCP": "Enabled",
-    "zencoder.mcpServers": {
-        "microsoft-learn": {
-            "type": "http",
-            "url": "https://learn.microsoft.com/api/mcp",
-            "tools": [
-                "*"
-            ]
-        }
-    },
     "chat.promptFilesRecommendations": {
         "speckit.constitution": true,
         "speckit.specify": true,
@@ -32,7 +22,7 @@
     },
     "chat.useNestedAgentsMdFiles": true,
     "github.copilot.chat.cli.customAgents.enabled": true,
-    "github.copilot.chat.customAgents.showOrganizationAndEnterpriseAgents": true,
+    "github.copilot.chat.customAgents.showOrganizationAndEnterpriseAgents": false,
     "chat.useAgentSkills": true,
     "chat.customAgentInSubagent.enabled": true,
     "github.copilot.chat.cli.mcp.enabled": true,
@@ -61,11 +51,35 @@
     ],
     "chat.agentSkillsLocations": {
         ".claude/skills": false,
-        ".agents/skills": false,
-        "~/.agents/skills": false,
+        ".agents/skills": true,
+        "~/.agents/skills": true,
         "~/.claude/skills": false
     },
     "chat.experimental.useSkillAdherencePrompt": true,
     "github.copilot.chat.skillTool.enabled": true,
-    "jsts-chat-features.skills.enabled": true
+    "jsts-chat-features.skills.enabled": true,
+    "chat.hookFilesLocations": {
+        "~/.claude/settings.json": false,
+        ".claude/settings.json": false,
+        ".claude/settings.local.json": false
+    },
+    "chat.useClaudeMdFile": false,
+    "github.copilot.chat.claudeAgent.enabled": false,
+    "github.copilot.chat.claude47OpusPrompt.enabled": false,
+    "chat.agentHost.claudeAgent.enabled": false,
+    "chat.agentFilesLocations": {
+        ".claude/agents": false
+    },
+    "lmstudio-copilot.reasoningEffort": "medium",
+    "chat.planAgent.defaultModel": "GPT-5.4 (copilot)",
+    "kilo-code.new.autocomplete.model": "inception/mercury-next-edit",
+    "chat.agent.maxRequests": 500,
+    "github.copilot.completions.chat.enabled": true,
+    "github.copilot.chat.claudeAgent.allowAutoPermissions": true,
+    "github.copilot.chat.codesearch.enabled": true,
+    "github.copilot.chat.agent.longToolCallCachePreservation.enabled": true,
+    "github.copilot.chat.anthropic.promptCaching.extendedTtl": true,
+    "github.copilot.chat.anthropic.promptCaching.extendedTtlMessages": true,
+    "github.copilot.chat.cli.autoCommit.enabled": false,
+    "inlineChat.defaultModel": "Auto (copilot)"
 }

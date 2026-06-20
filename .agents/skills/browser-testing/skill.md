@@ -217,5 +217,5 @@ When tests fail:
 ## References
 
 - **Playwright MCP Documentation**: https://github.com/microsoft/playwright-mcp
-- **Codex Skills**: https://code.Codex.com/docs/en/skills
-- **Agent Skills Overview**: https://platform.Codex.com/docs/en/agents-and-tools/agent-skills/overview
+- **Codex Skills**: https://developers.openai.com/codex/skills
+- **Agent Skills Overview**: https://agentskills.io/specification

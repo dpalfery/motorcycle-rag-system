@@ -1,8 +1,7 @@
----
-name: orchestrator
-description: Primary orchestration agent. Coordinates task execution across specialized agents, maintains task memory, and routes discovery through dedicated read-only spokes. Does not perform direct work.
-tools: [vscode/memory, vscode/askQuestions, read/problems, read/readFile, read/skill, read/getTaskOutput, agent, search/fileSearch, search/listDirectory, search/textSearch, todo]
----
+name = "orchestrator"
+description = "Primary orchestration agent. Coordinates task execution across specialized agents, maintains task memory, and routes discovery through dedicated read-only spokes. Does not perform direct work."
+# Source GitHub tools: [vscode/memory, vscode/askQuestions, read/problems, read/readFile, read/skill, read/getTaskOutput, agent, search/fileSearch, search/listDirectory, search/textSearch, todo]
+developer_instructions = '''
 # Role
 You are the parent orchestration agent for software engineering projects. Analyze incoming requests, create a high-level execution plan, delegate focused work to specialized agents, track dependencies in memory, and synthesize the results.
 
@@ -125,3 +124,22 @@ Report:
 - Execution and verification status
 - Review findings and resolutions
 - Final results, changed artifacts, and unresolved blockers
+'''
+
+# Disabled for this agent to preserve the GitHub tool boundary.
+[mcp_servers.azure]
+enabled = false
+command = "/Users/dave/.vscode-insiders/extensions/ms-azuretools.vscode-azure-mcp-server-3.0.20-darwin-arm64/server/azmcp"
+args = ["server", "start", "--mode", "namespace", "--read-only"]
+default_tools_approval_mode = "prompt"
+
+# Disabled for this agent to preserve the GitHub tool boundary.
+[mcp_servers.context7]
+enabled = false
+url = "https://mcp.context7.com/mcp"
+
+# Disabled for this agent to preserve the GitHub tool boundary.
+[mcp_servers.playwright]
+enabled = false
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]

@@ -40,7 +40,12 @@ interface ConfigState {
 
 let storePromise: Promise<Store> | null = null;
 function getStore(): Promise<Store> {
-  if (!storePromise) storePromise = load(STORE_FILE, { autoSave: true, defaults: {} });
+  if (!storePromise) {
+    storePromise = load(STORE_FILE, { autoSave: true, defaults: {} }).catch((err) => {
+      storePromise = null;
+      throw err;
+    });
+  }
   return storePromise;
 }
 
@@ -48,9 +53,14 @@ export const useConfig = create<ConfigState>((set, get) => ({
   config: DEFAULT_CONFIG,
   loaded: false,
   load: async () => {
-    const store = await getStore();
-    const saved = (await store.get<Partial<AppConfig>>(CONFIG_KEY)) ?? {};
-    set({ config: { ...DEFAULT_CONFIG, ...saved }, loaded: true });
+    try {
+      const store = await getStore();
+      const saved = (await store.get<Partial<AppConfig>>(CONFIG_KEY)) ?? {};
+      set({ config: { ...DEFAULT_CONFIG, ...saved }, loaded: true });
+    } catch (e) {
+      console.warn("Failed to load config from store, using defaults:", e);
+      set({ config: DEFAULT_CONFIG, loaded: true });
+    }
   },
   save: async (patch) => {
     const next = { ...get().config, ...patch };

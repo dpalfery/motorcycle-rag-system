@@ -41,6 +41,29 @@ async fn processor_start(
         return Ok(());
     }
 
+    // Validate working directory
+    if config.working_dir.trim().is_empty() {
+        return Err("Local processor working directory is not configured. Please set it in Settings.".into());
+    }
+
+    let working_dir = std::path::Path::new(&config.working_dir);
+    if !working_dir.exists() {
+        return Err(format!("Working directory does not exist: {}", config.working_dir));
+    }
+    if !working_dir.is_dir() {
+        return Err(format!("Working directory is not a directory: {}", config.working_dir));
+    }
+
+    let src_dir = working_dir.join("src");
+    if !src_dir.exists() || !src_dir.is_dir() {
+        return Err(format!("Expected 'src' directory not found in: {}", config.working_dir));
+    }
+
+    let main_py = src_dir.join("main.py");
+    if !main_py.exists() {
+        return Err(format!("Processor entry point 'main.py' not found in: {}", src_dir.display()));
+    }
+
     let mut envs: HashMap<String, String> = HashMap::new();
     envs.insert("PORT".into(), config.port.to_string());
     envs.insert("PYTHONUNBUFFERED".into(), "1".into());
@@ -67,7 +90,7 @@ async fn processor_start(
             "--port",
             &port,
         ])
-        .current_dir(format!("{}/src", config.working_dir))
+        .current_dir(src_dir)
         .envs(envs);
 
     let (_rx, child) = command.spawn().map_err(|e| e.to_string())?;

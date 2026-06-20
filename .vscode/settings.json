@@ -9,6 +9,10 @@
     "editor.formatOnSave": true,
     "git.autofetch": true,
     "git.autofetchPeriod": 180,
+    "chat.utilitySmallModel": "customendpoint/rogueone//qwen3.5-9bt",
+    "chat.utilityModel": "customendpoint/overlord/qwen3.6-27b-mtp",
+    "github.copilot.nextEditSuggestions.preferredModel": "rogueone//qwen3.5-9bt",
+    "github.copilot.chat.completions.preferredModel": "overlord/qwen3.6-27b-mtp",
     "chat.promptFilesRecommendations": {
         "speckit.constitution": true,
         "speckit.specify": true,
@@ -30,8 +34,6 @@
     "chat.viewSessions.enabled": true,
     "inlineChat.enableV2": true,
     "chat.viewSessions.orientation": "stacked",
-    "specstory.cloudSync.enabled": "always",
-    "specstory.derivedRules.enabled": true,
     "airun.settings": {
         "workspaceId": "926a5f0b-21d8-4aee-8742-9052005f81d3"
     },
@@ -81,5 +83,7 @@
     "github.copilot.chat.anthropic.promptCaching.extendedTtl": true,
     "github.copilot.chat.anthropic.promptCaching.extendedTtlMessages": true,
     "github.copilot.chat.cli.autoCommit.enabled": false,
-    "inlineChat.defaultModel": "Auto (copilot)"
+    "inlineChat.defaultModel": "rogueone//qwen3.5-9bt (customendpoint)",
+    "chat.exploreAgent.defaultModel": "rogueone//qwen3.5-9bt (customendpoint)",
+    "chat.newSession.defaultMode": "orchestrator"
 }

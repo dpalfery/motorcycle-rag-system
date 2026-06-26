@@ -89,9 +89,33 @@ export default function SettingsScreen() {
       </Card>
 
       <Card>
-        <div className="mb-3 text-sm font-medium">Local processor</div>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-medium">Local processor</div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="auto-resolve"
+              checked={draft.autoResolveProcessor}
+              onChange={(e) => set({ autoResolveProcessor: e.target.checked })}
+              className="h-3.5 w-3.5 rounded border-border bg-background/40"
+            />
+            <label htmlFor="auto-resolve" className="text-xs text-muted">
+              Auto-resolve location
+            </label>
+          </div>
+        </div>
+        <div className="mb-3 text-xs text-muted">
+          The application resolves the processor location automatically in development and packaged runs. 
+          Use the field below only to override the default discovery.
+        </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Field label="Working directory" value={draft.localProcessorWorkingDir} mono placeholder="…/2-Application/local-processing-service" onChange={(v) => set({ localProcessorWorkingDir: v })} />
+          <Field 
+            label="Working directory override" 
+            value={draft.localProcessorWorkingDir} 
+            mono 
+            placeholder={draft.autoResolveProcessor ? "Auto-resolving..." : "Paste directory path..."} 
+            onChange={(v) => set({ localProcessorWorkingDir: v })} 
+          />
           <Field label="Port" value={String(draft.localProcessorPort)} mono onChange={(v) => set({ localProcessorPort: Number(v) || 8100 })} />
         </div>
       </Card>

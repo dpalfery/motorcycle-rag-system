@@ -71,7 +71,13 @@ setTokenProvider(getAccessToken);
 void useConfig
   .getState()
   .load()
-  .then(() => setApiBaseUrl(useConfig.getState().config.apiBaseUrl))
+  .then(async () => {
+    const state = useConfig.getState();
+    setApiBaseUrl(state.config.apiBaseUrl);
+
+    // Auto-resolve local processor path if empty and enabled.
+    await state.autoResolveIfNeeded();
+  })
   .catch((err) => {
     // This should usually be handled by load() itself now, but top-level catch prevents white-screen hangs.
     console.error("Configuration boot failure:", err);

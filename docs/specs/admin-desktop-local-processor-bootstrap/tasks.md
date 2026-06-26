@@ -1,6 +1,6 @@
  # Implementation Plan
  
- - [ ] 1. Finalize processor bootstrap configuration contracts and safe defaults in the Admin Desktop host
+ - [x] 1. Finalize processor bootstrap configuration contracts and safe defaults in the Admin Desktop host
    - Update the Admin Desktop startup/composition root, processor configuration models, and bootstrap option binding so packaged installs and repository runs resolve the local processor location without manual path entry.
    - Add automated tests for configuration precedence, missing-value handling, and safe-by-default startup behavior.
    - Requirements: 2, 3, 7
@@ -30,7 +30,7 @@
    - Add tests verifying that each failure path produces a non-ambiguous state, preserves diagnostic detail, and does not collapse distinct failure modes into the same user-facing outcome.
    - Requirements: 5, 7, 8
  
- - [ ] 7. Eliminate manual path entry for repository and development execution paths
+ - [x] 7. Eliminate manual path entry for repository and development execution paths
    - Implement repository-aware path discovery and development bootstrap resolution in the Admin Desktop startup path so local-processing-service runs can be launched from a checked-out repository without manual configuration.
    - Add tests for repository-root discovery, development path resolution, and failure handling when expected development assets are absent.
    - Requirements: 3, 5, 7

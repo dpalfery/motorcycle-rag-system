@@ -35,6 +35,18 @@ export interface ProcessorJob {
   created_at?: string;
 }
 
+/**
+ * Attempts to resolve the local processor path using the backend's deterministic resolver.
+ */
+export async function discoverProcessorWorkingDir(): Promise<string> {
+  try {
+    return await invoke<string>("resolve_processor_path", { configuredOverride: "" });
+  } catch (e) {
+    console.warn("Path auto-resolution failed:", e);
+    return "";
+  }
+}
+
 export function toStartConfig(c: AppConfig, uploadJobSecret?: string): ProcessorStartConfig {
   return {
     port: c.localProcessorPort,

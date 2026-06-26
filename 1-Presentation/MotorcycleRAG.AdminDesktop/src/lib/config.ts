@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { load, type Store } from "@tauri-apps/plugin-store";
+import { discoverProcessorWorkingDir } from "./processor";
 
 /**
  * Persisted operator configuration. Replaces the MAUI ConfigurationStateService /
@@ -15,6 +16,8 @@ export interface AppConfig {
   embeddingModel: string;
   localProcessorPort: number;
   localProcessorWorkingDir: string;
+  /** If true, the app will try to auto-resolve the processor path on startup if empty. */
+  autoResolveProcessor: boolean;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -26,6 +29,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   embeddingModel: "qwen3-embedding",
   localProcessorPort: 8100,
   localProcessorWorkingDir: "",
+  autoResolveProcessor: true,
 };
 
 const STORE_FILE = "config.json";
@@ -36,6 +40,8 @@ interface ConfigState {
   loaded: boolean;
   load: () => Promise<void>;
   save: (patch: Partial<AppConfig>) => Promise<void>;
+  /** Auto-resolves processor path only if it's currently empty and enabled. */
+  autoResolveIfNeeded: () => Promise<void>;
 }
 
 let storePromise: Promise<Store> | null = null;
@@ -68,5 +74,17 @@ export const useConfig = create<ConfigState>((set, get) => ({
     const store = await getStore();
     await store.set(CONFIG_KEY, next);
     await store.save();
+  },
+  autoResolveIfNeeded: async () => {
+    const { config } = get();
+    if (config.autoResolveProcessor && !config.localProcessorWorkingDir) {
+      const resolved = await discoverProcessorWorkingDir();
+      if (resolved) {
+        console.log("Auto-resolved local processor path:", resolved);
+        set((state) => ({
+          config: { ...state.config, localProcessorWorkingDir: resolved },
+        }));
+      }
+    }
   },
 }));

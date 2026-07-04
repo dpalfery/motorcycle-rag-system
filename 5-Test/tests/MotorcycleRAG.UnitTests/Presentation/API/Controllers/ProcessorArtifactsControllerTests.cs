@@ -125,7 +125,8 @@ public sealed class ProcessorArtifactsControllerTests
         IChunkIndexingService chunkIndexingService,
         IIngestionJobRepository jobRepository,
         IIndexedArtifactRepository artifactRepository,
-        IIndexedChunkRepository chunkRepository)
+        IIndexedChunkRepository chunkRepository,
+        IIngestionJobService? ingestionJobService = null)
     {
         return new ProcessorArtifactsController(
             blobStorageService,
@@ -137,6 +138,8 @@ public sealed class ProcessorArtifactsControllerTests
             jobRepository,
             artifactRepository,
             chunkRepository,
+            new Mock<IIngestionSourceAccessTokenService>().Object,
+            ingestionJobService ?? new Mock<IIngestionJobService>().Object,
             NullLogger<ProcessorArtifactsController>.Instance);
     }
 

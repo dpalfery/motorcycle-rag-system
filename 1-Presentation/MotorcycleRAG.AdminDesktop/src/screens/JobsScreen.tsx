@@ -1,18 +1,19 @@
+import { Fragment, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
+import axios from "axios";
 import { api } from "@/lib/apiClient";
 import { Button, PageHeader, Empty } from "@/components/ui";
-import { cn } from "@/lib/utils";
-
-interface IngestionJob {
-  jobId: string;
-  fileName?: string;
-  documentType?: string;
-  status: string;
-  createdAt: string;
-  updatedAt?: string;
-  error?: string;
-}
+import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
+import {
+  filterSupersededIngestionJobs,
+  isIngestionFailed,
+  markIngestionJobRetrying,
+  replaceRetriedIngestionJob,
+  type IngestionJobStatus,
+  updateIngestionJobInList,
+} from "@/lib/ingestionJob";
+import { cn, formatLocalDateTime, parseUtcIso } from "@/lib/utils";
 
 const STATUS_COLOR: Record<string, string> = {
   completed:   "bg-success/15 text-success",
@@ -37,7 +38,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function relativeTime(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
+  const diff = Date.now() - parseUtcIso(iso).getTime();
   const m = Math.floor(diff / 60_000);
   if (m < 1) return "just now";
   if (m < 60) return `${m}m ago`;
@@ -46,13 +47,21 @@ function relativeTime(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function formatJobLabel(job: IngestionJobStatus) {
+  const name = job.inputRef || job.jobId;
+  return job.inputType ? `${name} (${job.inputType})` : name;
+}
+
 export default function JobsScreen() {
   const qc = useQueryClient();
+  const [supersededRetryJobIds, setSupersededRetryJobIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const jobs = useQuery({
     queryKey: ["jobs", "cloud"],
     queryFn: async () => {
-      const res = await api.get<{ items?: IngestionJob[] } | IngestionJob[]>(
+      const res = await api.get<{ items?: IngestionJobStatus[] } | IngestionJobStatus[]>(
         "/api/ingestion/jobs"
       );
       return Array.isArray(res.data) ? res.data : (res.data.items ?? []);
@@ -61,16 +70,57 @@ export default function JobsScreen() {
   });
 
   const retry = useMutation({
-    mutationFn: (id: string) => api.put(`/api/ingestion/jobs/${id}/retry`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    mutationFn: (id: string) => api.post<IngestionJobStatus>(`/api/ingestion/jobs/${id}/retry`),
+    onMutate: async (id) => {
+      await Promise.all([
+        qc.cancelQueries({ queryKey: ["jobs"] }),
+        qc.cancelQueries({ queryKey: ["ingestion", "upload-jobs"] }),
+      ]);
+      qc.setQueriesData<IngestionJobStatus[]>({ queryKey: ["jobs"] }, (old) =>
+        updateIngestionJobInList(old, id, (job) => markIngestionJobRetrying(job)),
+      );
+      qc.setQueryData<IngestionJobStatus[]>(["ingestion", "upload-jobs"], (old) =>
+        updateIngestionJobInList(old, id, (job) => markIngestionJobRetrying(job)),
+      );
+    },
+    onSuccess: (res, id) => {
+      const retriedJob = res.data;
+      if (retriedJob.jobId !== id) {
+        setSupersededRetryJobIds((prev) => new Set(prev).add(id));
+      }
+      qc.setQueriesData<IngestionJobStatus[]>({ queryKey: ["jobs"] }, (old) =>
+        replaceRetriedIngestionJob(old, id, retriedJob),
+      );
+      qc.setQueryData<IngestionJobStatus[]>(["ingestion", "upload-jobs"], (old) =>
+        replaceRetriedIngestionJob(old, id, retriedJob),
+      );
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["jobs"] });
+      void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
+    },
   });
+
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/ingestion/jobs/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    onSuccess: () => {
+      setDeleteError(null);
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+    },
+    onError: (err: unknown) => {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setDeleteError(err.response.data?.detail ?? "Only terminal jobs can be deleted.");
+        return;
+      }
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to delete job."
+      );
+    },
   });
 
-  const jobList = jobs.data ?? [];
+  const jobList = filterSupersededIngestionJobs(jobs.data, supersededRetryJobIds);
   const active = jobList.filter((j) =>
     ["processing", "queued", "pending"].includes(j.status.toLowerCase())
   ).length;
@@ -86,6 +136,18 @@ export default function JobsScreen() {
           </Button>
         }
       />
+
+      {deleteError && (
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+          <span className="flex-1">{deleteError}</span>
+          <button
+            className="shrink-0 rounded p-0.5 text-danger hover:bg-danger/20"
+            onClick={() => setDeleteError(null)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       <div className="mb-4 flex gap-3">
         <div className="rounded-lg bg-secondary/60 px-4 py-2.5">
@@ -119,45 +181,45 @@ export default function JobsScreen() {
             </thead>
             <tbody>
               {jobList.map((j) => (
-                <tr
-                  key={j.jobId}
-                  className="border-b border-border last:border-b-0 hover:bg-secondary/30"
-                >
-                  <td className="max-w-[280px] px-4 py-3">
-                    <div className="truncate">{j.fileName ?? j.jobId}</div>
-                    {j.error && (
-                      <div className="truncate text-xs text-danger">{j.error}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={j.status} />
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted">
-                    {relativeTime(j.createdAt)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1">
-                      {["failed", "error"].includes(j.status.toLowerCase()) && (
+                <Fragment key={j.jobId}>
+                  <tr className="border-b border-border hover:bg-secondary/30">
+                    <td className="max-w-[480px] px-4 py-3 align-top">
+                      <div className="truncate">{formatJobLabel(j)}</div>
+                      {isIngestionFailed(j.status) && <IngestionJobFailurePanel job={j} />}
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <StatusBadge status={j.status} />
+                    </td>
+                    <td
+                      className="px-4 py-3 align-top text-xs text-muted"
+                      title={formatLocalDateTime(j.createdAtUtc)}
+                    >
+                      {relativeTime(j.createdAtUtc)}
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex justify-end gap-1">
+                        {isIngestionFailed(j.status) && (
+                          <button
+                            title="Retry"
+                            disabled={retry.isPending}
+                            onClick={() => retry.mutate(j.jobId)}
+                            className="rounded p-1 text-muted hover:text-primary disabled:opacity-50"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
-                          title="Retry"
-                          disabled={retry.isPending}
-                          onClick={() => retry.mutate(j.jobId)}
-                          className="rounded p-1 text-muted hover:text-primary disabled:opacity-50"
+                          title="Delete"
+                          disabled={remove.isPending}
+                          onClick={() => remove.mutate(j.jobId)}
+                          className="rounded p-1 text-muted hover:text-danger disabled:opacity-50"
                         >
-                          <RotateCcw className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" />
                         </button>
-                      )}
-                      <button
-                        title="Delete"
-                        disabled={remove.isPending}
-                        onClick={() => remove.mutate(j.jobId)}
-                        className="rounded p-1 text-muted hover:text-danger disabled:opacity-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                      </div>
+                    </td>
+                  </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -8,13 +9,11 @@ use sha2::{Digest, Sha256};
 use tauri::path::BaseDirectory;
 use tauri::{Manager, State};
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_shell::process::CommandChild;
-use tauri_plugin_shell::ShellExt;
 
 /// Supervises the local Python processor child process and remembers its port.
 #[derive(Default)]
 struct ProcessorState {
-    child: Mutex<Option<CommandChild>>,
+    child: Mutex<Option<Child>>,
     port: Mutex<u16>,
 }
 
@@ -30,9 +29,17 @@ struct ProcessorStartConfig {
     #[serde(default = "default_embedding_model")]
     embedding_model: String,
     #[serde(default)]
+    tokenizer_model_path: String,
+    #[serde(default)]
     upload_job_secret: Option<String>,
+    #[serde(default = "default_graph_extraction_endpoint")]
+    graph_extraction_endpoint: String,
+    #[serde(default = "default_graph_extraction_model")]
+    graph_extraction_model: String,
     #[serde(default = "default_api_base_url")]
     api_base_url: String,
+    #[serde(default = "default_azure_storage_account_url")]
+    azure_storage_account_url: String,
 }
 
 const DEFAULT_PROCESSOR_PORT: u16 = 8100;
@@ -51,6 +58,18 @@ fn default_embedding_model() -> String {
 
 fn default_api_base_url() -> String {
     "https://localhost:7215".to_string()
+}
+
+fn default_azure_storage_account_url() -> String {
+    "https://mcrragdevst0125c2ea3c.blob.core.windows.net/".to_string()
+}
+
+fn default_graph_extraction_endpoint() -> String {
+    "http://localhost:1234/v1".to_string()
+}
+
+fn default_graph_extraction_model() -> String {
+    "qwen3.5-0.8b".to_string()
 }
 
 #[derive(Clone, Copy)]
@@ -173,6 +192,121 @@ fn resolve_processor_from_candidates(
 
 fn looks_like_repo_root(root: &Path) -> bool {
     root.join("MotorcycleRAG.sln").is_file() && root.join("AGENTS.md").is_file()
+}
+
+struct PythonLaunch {
+    program: String,
+    args: Vec<String>,
+    working_dir: PathBuf,
+}
+
+fn processor_venv_python(processor_root: &Path) -> Option<PathBuf> {
+    #[cfg(windows)]
+    let venv_python = processor_root
+        .join(".venv")
+        .join("Scripts")
+        .join("python.exe");
+    #[cfg(not(windows))]
+    let venv_python = processor_root.join(".venv").join("bin").join("python");
+
+    venv_python.is_file().then_some(venv_python)
+}
+
+fn resolve_python_launch(processor_root: &Path, port: u16) -> PythonLaunch {
+    let src_dir = processor_root.join("src");
+    let host = "127.0.0.1";
+    let port_value = port.to_string();
+    let mut uvicorn_args = vec![
+        "main:app".to_string(),
+        "--host".to_string(),
+        host.to_string(),
+        "--port".to_string(),
+        port_value,
+    ];
+
+    if let Some(venv_python) = processor_venv_python(processor_root) {
+        let mut args = vec!["-m".to_string(), "uvicorn".to_string()];
+        args.append(&mut uvicorn_args);
+        return PythonLaunch {
+            program: venv_python.to_string_lossy().into_owned(),
+            args,
+            working_dir: src_dir,
+        };
+    }
+
+    if processor_root.join("pyproject.toml").is_file() {
+        let mut args = vec!["run".to_string(), "uvicorn".to_string()];
+        args.append(&mut uvicorn_args);
+        return PythonLaunch {
+            program: "poetry".to_string(),
+            args,
+            working_dir: processor_root.to_path_buf(),
+        };
+    }
+
+    let mut args = vec!["-m".to_string(), "uvicorn".to_string()];
+    args.append(&mut uvicorn_args);
+    PythonLaunch {
+        program: "python3".to_string(),
+        args,
+        working_dir: src_dir,
+    }
+}
+
+async fn processor_is_listening_on_port(port: u16) -> bool {
+    if port == 0 {
+        return false;
+    }
+
+    let url = format!("http://127.0.0.1:{port}/health");
+    match reqwest::Client::new().get(url).send().await {
+        Ok(response) => {
+            response.status().is_success() || response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE
+        }
+        Err(_) => false,
+    }
+}
+
+async fn wait_for_processor_listening(
+    port: u16,
+    child: &mut Child,
+    timeout_secs: u64,
+) -> Result<(), String> {
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.max(1));
+
+    while std::time::Instant::now() < deadline {
+        if processor_is_listening_on_port(port).await {
+            return Ok(());
+        }
+        if let Some(reason) = child_exit_description(child) {
+            return Err(reason);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+
+    if let Some(reason) = child_exit_description(child) {
+        return Err(reason);
+    }
+
+    Err(format!(
+        "local processor did not start listening on port {port} within {timeout_secs}s"
+    ))
+}
+
+fn child_exit_description(child: &mut Child) -> Option<String> {
+    child
+        .try_wait()
+        .ok()
+        .flatten()
+        .map(|status| format!("processor process exited early with {status}"))
+}
+
+fn clear_child_process(child: &mut Option<Child>) {
+    if let Some(mut existing) = child.take() {
+        let _ = existing.kill();
+        let _ = existing.wait();
+    }
 }
 
 fn validate_processor_layout(path: &Path) -> Result<(), String> {
@@ -341,23 +475,31 @@ async fn processor_start(
     state: State<'_, ProcessorState>,
     config: ProcessorStartConfig,
 ) -> Result<(), String> {
-    if state
-        .child
-        .lock()
-        .map_err(|_| "processor state lock poisoned".to_string())?
-        .is_some()
-    {
-        return Ok(());
-    }
-
-    let resolved = resolve_processor_working_dir(&app, &config.working_dir)?;
-    let src_dir = resolved.path.join("src");
-
     let port_value = if config.port == 0 {
         DEFAULT_PROCESSOR_PORT
     } else {
         config.port
     };
+
+    if processor_is_listening_on_port(port_value).await {
+        *state
+            .port
+            .lock()
+            .map_err(|_| "processor state lock poisoned".to_string())? = port_value;
+        return Err(format!(
+            "local processor is already listening on port {port_value}; stop it before starting with new settings"
+        ));
+    }
+
+    {
+        let mut child_guard = state
+            .child
+            .lock()
+            .map_err(|_| "processor state lock poisoned".to_string())?;
+        clear_child_process(&mut child_guard);
+    }
+
+    let resolved = resolve_processor_working_dir(&app, &config.working_dir)?;
     let embedding_provider_endpoint = if config.embedding_provider_endpoint.trim().is_empty() {
         default_embedding_provider_endpoint()
     } else {
@@ -382,34 +524,56 @@ async fn processor_start(
         embedding_provider_endpoint,
     );
     envs.insert("EMBEDDING_MODEL".into(), embedding_model);
+    if !config.tokenizer_model_path.trim().is_empty() {
+        envs.insert("TOKENIZER_MODEL_PATH".into(), config.tokenizer_model_path);
+    }
     envs.insert("MCR_API_BASE_URL".into(), api_base_url);
+    let azure_storage_account_url = if config.azure_storage_account_url.trim().is_empty() {
+        default_azure_storage_account_url()
+    } else {
+        config.azure_storage_account_url
+    };
+    envs.insert(
+        "AZURE_STORAGE_ACCOUNT_URL".into(),
+        azure_storage_account_url,
+    );
     if let Some(secret) = config.upload_job_secret {
         envs.insert("PYTHON_UPLOAD_JOB_SECRET".into(), secret);
     }
+    envs.insert(
+        "GRAPH_EXTRACTION_ENDPOINT".into(),
+        config.graph_extraction_endpoint,
+    );
+    envs.insert(
+        "GRAPH_EXTRACTION_MODEL".into(),
+        config.graph_extraction_model,
+    );
 
-    let port = port_value.to_string();
-    let command = app
-        .shell()
-        .command("python3")
-        .args([
-            "-m",
-            "uvicorn",
-            "main:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            &port,
-        ])
-        .current_dir(src_dir)
-        .envs(envs);
+    let launch = resolve_python_launch(&resolved.path, port_value);
+    let mut command = Command::new(&launch.program);
+    command
+        .args(&launch.args)
+        .current_dir(&launch.working_dir)
+        .envs(envs)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
 
-    let (_rx, child) = command.spawn().map_err(|e| {
+    let mut child = command.spawn().map_err(|e| {
         format!(
-            "failed to start processor (mode={}, source={}): {e}",
+            "failed to start processor using {} (mode={}, source={}): {e}",
+            launch.program,
             resolved.mode.as_str(),
             resolved.source
         )
     })?;
+
+    if let Err(err) = wait_for_processor_listening(port_value, &mut child, 45).await {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(err);
+    }
+
     *state
         .child
         .lock()
@@ -422,25 +586,100 @@ async fn processor_start(
     Ok(())
 }
 
+/// Force-stop any process listening on the given TCP port (orphaned uvicorn, etc.).
+fn force_kill_listeners_on_port(port: u16) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        let port_arg = format!("tcp:{port}");
+        let output = Command::new("lsof")
+            .args(["-ti", &port_arg])
+            .output()
+            .map_err(|e| format!("failed to run lsof for port {port}: {e}"))?;
+
+        let pids = String::from_utf8_lossy(&output.stdout);
+        let mut killed = false;
+        for pid in pids.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            let status = Command::new("kill")
+                .args(["-9", pid])
+                .status()
+                .map_err(|e| format!("failed to kill pid {pid} on port {port}: {e}"))?;
+            if status.success() {
+                killed = true;
+            }
+        }
+
+        if killed {
+            return Ok(());
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        let _ = port;
+        return Err("force stop by port is not implemented on Windows".into());
+    }
+
+    #[cfg(unix)]
+    Ok(())
+}
+
+async fn wait_for_processor_stopped(port: u16, timeout_secs: u64) -> bool {
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.max(1));
+
+    while std::time::Instant::now() < deadline {
+        if !processor_is_listening_on_port(port).await {
+            return true;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+
+    !processor_is_listening_on_port(port).await
+}
+
 /// Gracefully drain the processor (POST /control/shutdown) then kill the child.
 #[tauri::command]
-async fn processor_stop(state: State<'_, ProcessorState>) -> Result<(), String> {
-    let port = *state
+async fn processor_stop(state: State<'_, ProcessorState>, port: Option<u16>) -> Result<(), String> {
+    let stored_port = *state
         .port
         .lock()
         .map_err(|_| "processor state lock poisoned".to_string())?;
-    if port != 0 {
-        let url = format!("http://127.0.0.1:{port}/control/shutdown");
-        let _ = reqwest::Client::new().post(url).send().await;
-    }
+    let port_to_stop = port
+        .filter(|value| *value != 0)
+        .or_else(|| (stored_port != 0).then_some(stored_port))
+        .unwrap_or(DEFAULT_PROCESSOR_PORT);
+
+    let shutdown_url = format!("http://127.0.0.1:{port_to_stop}/control/shutdown");
+    let _ = reqwest::Client::new()
+        .post(shutdown_url)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await;
+
     let child = state
         .child
         .lock()
         .map_err(|_| "processor state lock poisoned".to_string())?
         .take();
-    if let Some(child) = child {
+    if let Some(mut child) = child {
         let _ = child.kill();
+        let _ = child.wait();
     }
+
+    if !wait_for_processor_stopped(port_to_stop, 8).await {
+        force_kill_listeners_on_port(port_to_stop)?;
+        if !wait_for_processor_stopped(port_to_stop, 3).await {
+            return Err(format!(
+                "local processor is still listening on port {port_to_stop} after stop was requested"
+            ));
+        }
+    }
+
+    *state
+        .port
+        .lock()
+        .map_err(|_| "processor state lock poisoned".to_string())? = 0;
+
     Ok(())
 }
 
@@ -451,6 +690,18 @@ fn processor_running(state: State<'_, ProcessorState>) -> bool {
         .lock()
         .map(|guard| guard.is_some())
         .unwrap_or(false)
+}
+
+#[tauri::command]
+async fn processor_is_listening(port: Option<u16>, state: State<'_, ProcessorState>) -> Result<bool, String> {
+    let configured_port = port.unwrap_or_else(|| {
+        state
+            .port
+            .lock()
+            .map(|guard| *guard)
+            .unwrap_or(DEFAULT_PROCESSOR_PORT)
+    });
+    Ok(processor_is_listening_on_port(configured_port).await)
 }
 
 /// Proxy an HTTP request to the local processor on 127.0.0.1. Routing requests through
@@ -704,6 +955,7 @@ pub fn run() {
             processor_start,
             processor_stop,
             processor_running,
+            processor_is_listening,
             processor_request,
             auth_sign_in,
         ])
@@ -731,6 +983,36 @@ mod tests {
     fn create_processor_layout(root: &Path) {
         fs::create_dir_all(root.join("src")).expect("create src directory");
         fs::write(root.join("src").join("main.py"), "print('ok')\n").expect("create main.py");
+    }
+
+    #[test]
+    fn resolve_python_launch_prefers_project_venv() {
+        let base = temp_path("python-launch-venv");
+        create_processor_layout(&base);
+        let venv_bin = base.join(".venv").join("bin");
+        fs::create_dir_all(&venv_bin).expect("create venv bin directory");
+        let venv_python = venv_bin.join("python");
+        fs::write(&venv_python, "#!/bin/sh\n").expect("create venv python stub");
+
+        let launch = resolve_python_launch(&base, 8100);
+        assert_eq!(launch.program, venv_python.to_string_lossy());
+        assert_eq!(launch.args[0..3], ["-m", "uvicorn", "main:app"]);
+        assert_eq!(launch.working_dir, base.join("src"));
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn resolve_python_launch_falls_back_to_python3_without_venv() {
+        let base = temp_path("python-launch-system");
+        create_processor_layout(&base);
+
+        let launch = resolve_python_launch(&base, 8100);
+        assert_eq!(launch.program, "python3");
+        assert_eq!(launch.args[0..3], ["-m", "uvicorn", "main:app"]);
+        assert_eq!(launch.working_dir, base.join("src"));
+
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]

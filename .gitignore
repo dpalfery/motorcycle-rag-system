@@ -409,5 +409,21 @@ local-utils/
 # Codemie
 .codemie/
 
+# macOS metadata (also covered by global gitignore)
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# Local device identity files (also covered by global gitignore)
+deviceid
+device-id
+*.deviceid
+*.device-id
+
 # Local Azure CLI credentials (isolated per workspace)
 .azure-local/
+2-Application/local-processing-service/uv.lock

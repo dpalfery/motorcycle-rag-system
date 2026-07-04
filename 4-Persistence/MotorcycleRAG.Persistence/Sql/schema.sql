@@ -484,6 +484,12 @@ BEGIN
 
     IF COL_LENGTH('dbo.IngestionJobs', 'IndexedChunkCount') IS NULL
         ALTER TABLE [dbo].[IngestionJobs] ADD [IndexedChunkCount] INT NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'CurrentStage') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [CurrentStage] NVARCHAR(50) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'StageSetAtUtc') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [StageSetAtUtc] DATETIME2(7) NULL;
 END
 GO
 

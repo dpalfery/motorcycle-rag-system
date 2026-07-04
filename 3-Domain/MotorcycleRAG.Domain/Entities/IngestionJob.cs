@@ -108,4 +108,15 @@ public class IngestionJob
 
     /// <summary>Number of chunks successfully indexed into Azure Search. Null until indexing is attempted.</summary>
     public int? IndexedChunkCount { get; set; }
+
+    // --- Stage tracking (reported by local processor during processing) ---
+
+    /// <summary>
+    /// Current pipeline stage reported by the local processor.
+    /// Values: copying, parsing, chunking, embedding, uploading-chunks, extracting-graph, uploading-graph, completed.
+    /// </summary>
+    public string? CurrentStage { get; set; }
+
+    /// <summary>UTC timestamp when the current stage was last updated.</summary>
+    public DateTimeOffset? StageSetAtUtc { get; set; }
 }

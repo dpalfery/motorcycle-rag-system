@@ -1,5 +1,6 @@
 using System.Text;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -79,6 +80,143 @@ public sealed class IngestionJobsControllerTests
     }
 
     [Fact]
+    public void GetUploadConstraints_ReturnsBlobBackedIngestionLimits()
+    {
+        var sut = CreateController(Mock.Of<IBlobStorageService>());
+
+        var result = sut.GetUploadConstraints();
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var constraints = ok.Value.Should().BeOfType<FileUploadConstraints>().Subject;
+        constraints.MaxFileSizeBytes.Should().Be(2_000_000_000L);
+        constraints.MaxFilesPerBatch.Should().Be(1);
+        constraints.SupportedFileTypes.Should().Contain(["manual-pdf", "spec-dataset", "bike-graph"]);
+        constraints.SupportedExtensions.Should().Contain([".pdf", ".csv"]);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithMixedCaseDocumentType_ReturnsNormalizedDocumentType()
+    {
+        var blobStorage = new Mock<IBlobStorageService>();
+        blobStorage
+            .Setup(service => service.UploadAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<Stream>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("https://storage.example/raw-uploads/source.pdf");
+
+        var sut = CreateController(blobStorage.Object);
+        await using var stream = new MemoryStream("%PDF-1.7"u8.ToArray());
+        var file = CreateFormFile(stream, "manual.pdf", "application/pdf");
+
+        var result = await sut.UploadAsync(file, "Manual-Pdf", CancellationToken.None);
+
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        var response = accepted.Value.Should().BeOfType<IngestionUploadResponse>().Subject;
+        response.DocumentType.Should().Be("manual-pdf");
+
+        blobStorage.Verify(service => service.UploadAsync(
+            "raw-uploads",
+            $"{response.UploadId}/source.pdf",
+            It.IsAny<Stream>(),
+            "application/pdf",
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WhenFileExceedsConfiguredLimit_ReturnsBadRequest()
+    {
+        var blobStorage = new Mock<IBlobStorageService>();
+        var sut = CreateController(blobStorage.Object, ingestionOptions: new IngestionOptions
+        {
+            MaxInputBytes = 4
+        });
+        await using var stream = new MemoryStream("too-large"u8.ToArray());
+        var file = CreateFormFile(stream, "manual.pdf", "application/pdf");
+
+        var result = await sut.UploadAsync(file, "manual-pdf", CancellationToken.None);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().BeOfType<ProblemDetails>()
+            .Which.Title.Should().Be("File too large");
+        blobStorage.Verify(service => service.UploadAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<Stream>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void UploadAsync_DoesNotOverrideConfiguredHostMultipartLimit()
+    {
+        var method = typeof(IngestionJobsController).GetMethod(nameof(IngestionJobsController.UploadAsync));
+
+        method.Should().NotBeNull();
+        method!.GetCustomAttributes(typeof(RequestFormLimitsAttribute), inherit: false)
+            .Should()
+            .BeEmpty();
+        method.GetCustomAttributes(typeof(RequestSizeLimitAttribute), inherit: false)
+            .Should()
+            .BeEmpty();
+    }
+
+    [Fact]
+    public void UploadAsync_DisablesAntiforgeryForAuthenticatedMultipartApiUpload()
+    {
+        var method = typeof(IngestionJobsController).GetMethod(nameof(IngestionJobsController.UploadAsync));
+
+        method.Should().NotBeNull();
+        method!.GetCustomAttributes(typeof(IgnoreAntiforgeryTokenAttribute), inherit: false)
+            .Should()
+            .ContainSingle();
+        method.GetCustomAttributes(typeof(RequireAntiforgeryTokenAttribute), inherit: false)
+            .Should()
+            .ContainSingle()
+            .Which
+            .As<RequireAntiforgeryTokenAttribute>()
+            .RequiresValidation.Should().BeFalse();
+        method.GetCustomAttributes(typeof(ConsumesAttribute), inherit: false)
+            .Should()
+            .ContainSingle()
+            .Which
+            .As<ConsumesAttribute>()
+            .ContentTypes.Should().ContainSingle("multipart/form-data");
+    }
+
+    [Fact]
+    public async Task StartJobAsync_WhenServiceThrowsInvalidOperation_ReturnsInternalServerError()
+    {
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.StartJobAsync(
+                It.IsAny<IngestionJobStartRequest>(),
+                "test-user",
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Failed to create ingestion job"));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+        var request = new IngestionJobStartRequest
+        {
+            UploadId = Guid.NewGuid().ToString(),
+            DocumentType = "manual-pdf",
+            Configuration = new IngestionJobConfiguration { ExtractGraphRelationships = false, OcrEnabled = false }
+        };
+
+        var result = await sut.StartJobAsync(request, CancellationToken.None);
+
+        var statusCode = result.Should().BeOfType<ObjectResult>().Subject;
+        statusCode.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        var problem = statusCode.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Title.Should().Be("Failed to start ingestion job");
+        problem.Detail.Should().Be("The ingestion job could not be created.");
+        problem.Status.Should().Be(StatusCodes.Status500InternalServerError);
+        problem.Detail.Should().NotContain("Failed to create ingestion job");
+    }
+
+    [Fact]
     public async Task ImportGraphAsync_WithUploadId_ReturnsAccepted()
     {
         var ingestionJobs = new Mock<IIngestionJobService>();
@@ -124,6 +262,33 @@ public sealed class IngestionJobsControllerTests
     }
 
     [Fact]
+    public async Task GetRecentJobsAsync_WhenServiceReturnsJobs_ReturnsOk()
+    {
+        var expected = new[]
+        {
+            new IngestionJobStatusResponse
+            {
+                JobId = Guid.NewGuid(),
+                Status = "Completed",
+                InputType = "ManualPdf",
+                InputRef = "upload-123",
+                CreatedAtUtc = DateTimeOffset.UtcNow
+            }
+        };
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.GetRecentIngestionJobsAsync(25, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.GetRecentJobsAsync(25, CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(expected);
+    }
+
+    [Fact]
     public async Task GetPendingFilesAsync_WhenServiceThrowsInvalidOperation_ReturnsInternalServerError()
     {
         var ingestionJobs = new Mock<IIngestionJobService>();
@@ -139,6 +304,33 @@ public sealed class IngestionJobsControllerTests
         statusCode.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
         statusCode.Value.Should().BeOfType<ProblemDetails>()
             .Which.Title.Should().Be("Failed to load pending storage files");
+    }
+
+    [Fact]
+    public async Task GetPendingFilesAsync_WhenServiceReturnsFiles_ReturnsOk()
+    {
+        var expected = new[]
+        {
+            new PendingStorageFileDto
+            {
+                UploadId = "upload-123",
+                BlobName = "raw-uploads/upload-123/source.pdf",
+                DocumentType = "manual-pdf",
+                SizeBytes = 42,
+                LastModifiedUtc = DateTimeOffset.UtcNow
+            }
+        };
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.GetPendingStorageFilesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.GetPendingFilesAsync(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(expected);
     }
 
     [Fact]
@@ -249,7 +441,8 @@ public sealed class IngestionJobsControllerTests
 
     private static IngestionJobsController CreateController(
         IBlobStorageService blobStorageService,
-        IIngestionJobService? ingestionJobService = null)
+        IIngestionJobService? ingestionJobService = null,
+        IngestionOptions? ingestionOptions = null)
     {
         var controller = new IngestionJobsController(
             ingestionJobService ?? Mock.Of<IIngestionJobService>(),
@@ -259,6 +452,10 @@ public sealed class IngestionJobsControllerTests
             {
                 AccountEndpoint = "https://storage.example",
                 RawUploadsContainer = "raw-uploads"
+            }),
+            Options.Create(ingestionOptions ?? new IngestionOptions
+            {
+                MaxInputBytes = 2_000_000_000L
             }),
             Mock.Of<IChunkReprocessService>(),
             NullLogger<IngestionJobsController>.Instance);

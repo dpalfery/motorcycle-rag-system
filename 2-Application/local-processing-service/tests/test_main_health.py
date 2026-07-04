@@ -1,6 +1,7 @@
 import importlib
 import json
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -14,8 +15,15 @@ def _load_main(monkeypatch: pytest.MonkeyPatch):
 
 
 class _FakeEmbedder:
-    def __init__(self, status: str):
+    def __init__(
+        self,
+        status: str,
+        endpoint: str = "http://localhost:1234/v1",
+        model: str = "qwen3-embedding",
+    ):
         self._status = status
+        self._endpoint = endpoint
+        self._model = model
 
     async def check_status(self) -> str:
         return self._status
@@ -47,6 +55,11 @@ async def test_health_check_returns_unhealthy_when_embedding_provider_disconnect
     monkeypatch.setattr(main, "blob_writer", _FakeBlobWriter(True))
     monkeypatch.setattr(main, "api_client", _FakeApiClient(True))
     monkeypatch.setattr(main, "shutdown_requested", False)
+    monkeypatch.setattr(
+        main,
+        "describe_chunker_tokenizer",
+        lambda: {"tokenizer_status": "configured", "tokenizer_model": "m", "tokenizer_source": "s", "tokenizer_path": None},
+    )
 
     async def _count_active_jobs() -> int:
         return 0
@@ -64,6 +77,37 @@ async def test_health_check_returns_unhealthy_when_embedding_provider_disconnect
 
 
 @pytest.mark.asyncio
+async def test_health_check_returns_unhealthy_when_blob_storage_disconnected(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    main = _load_main(monkeypatch)
+
+    monkeypatch.setattr(main, "embedder", _FakeEmbedder("connected"))
+    monkeypatch.setattr(main, "blob_writer", _FakeBlobWriter(False))
+    monkeypatch.setattr(main, "api_client", _FakeApiClient(True))
+    monkeypatch.setattr(main, "shutdown_requested", False)
+    monkeypatch.setattr(
+        main,
+        "describe_chunker_tokenizer",
+        lambda: {"tokenizer_status": "configured", "tokenizer_model": "m", "tokenizer_source": "s", "tokenizer_path": None},
+    )
+
+    async def _count_active_jobs() -> int:
+        return 0
+
+    monkeypatch.setattr(main, "_count_active_jobs", _count_active_jobs)
+
+    response = await main.health_check()
+    payload = json.loads(response.body)
+
+    assert response.status_code == 503
+    assert payload["status"] == "unhealthy"
+    assert payload["accepting_work"] is False
+    assert payload["services"]["blob_storage"] is False
+    assert "Blob storage is not configured" in payload["message"]
+
+
+@pytest.mark.asyncio
 async def test_health_check_returns_healthy_when_embedding_provider_connected(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -73,6 +117,11 @@ async def test_health_check_returns_healthy_when_embedding_provider_connected(
     monkeypatch.setattr(main, "blob_writer", _FakeBlobWriter(True))
     monkeypatch.setattr(main, "api_client", _FakeApiClient(True))
     monkeypatch.setattr(main, "shutdown_requested", False)
+    monkeypatch.setattr(
+        main,
+        "describe_chunker_tokenizer",
+        lambda: {"tokenizer_status": "configured", "tokenizer_model": "m", "tokenizer_source": "s", "tokenizer_path": None},
+    )
 
     async def _count_active_jobs() -> int:
         return 0
@@ -87,3 +136,116 @@ async def test_health_check_returns_healthy_when_embedding_provider_connected(
     assert payload["accepting_work"] is True
     assert payload["services"]["embedding_provider"] == "connected"
     assert payload["message"] == "Processor ready"
+
+
+@pytest.mark.asyncio
+async def test_health_check_includes_active_embedding_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    main = _load_main(monkeypatch)
+
+    monkeypatch.setattr(
+        main,
+        "embedder",
+        _FakeEmbedder(
+            "connected",
+            endpoint="http://localhost:1234/v1",
+            model="text-embedding-qwen",
+        ),
+    )
+    monkeypatch.setattr(main, "blob_writer", _FakeBlobWriter(True))
+    monkeypatch.setattr(main, "api_client", _FakeApiClient(True))
+    monkeypatch.setattr(main, "shutdown_requested", False)
+    monkeypatch.setattr(
+        main,
+        "describe_chunker_tokenizer",
+        lambda: {"tokenizer_status": "configured", "tokenizer_model": "m", "tokenizer_source": "s", "tokenizer_path": None},
+    )
+
+    async def _count_active_jobs() -> int:
+        return 0
+
+    monkeypatch.setattr(main, "_count_active_jobs", _count_active_jobs)
+
+    response = await main.health_check()
+    payload = json.loads(response.body)
+
+    assert response.status_code == 200
+    assert payload["services"]["embedding_endpoint"] == "http://localhost:1234/v1"
+    assert payload["services"]["embedding_model"] == "text-embedding-qwen"
+
+
+@pytest.mark.asyncio
+async def test_health_check_returns_degraded_when_tokenizer_missing(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """200/degraded is returned when the tokenizer cannot be resolved.
+
+    CSV and bike-graph operators should not be blocked by a missing PDF tokenizer.
+    """
+    main = _load_main(monkeypatch)
+
+    monkeypatch.setattr(main, "embedder", _FakeEmbedder("connected"))
+    monkeypatch.setattr(main, "blob_writer", _FakeBlobWriter(True))
+    monkeypatch.setattr(main, "api_client", _FakeApiClient(True))
+    monkeypatch.setattr(main, "shutdown_requested", False)
+    monkeypatch.setattr(
+        main,
+        "describe_chunker_tokenizer",
+        lambda: {
+            "tokenizer_status": "missing",
+            "tokenizer_model": None,
+            "tokenizer_source": None,
+            "tokenizer_path": None,
+            "tokenizer_error": "No tokenizer model is configured.",
+        },
+    )
+
+    async def _count_active_jobs() -> int:
+        return 0
+
+    monkeypatch.setattr(main, "_count_active_jobs", _count_active_jobs)
+
+    response = await main.health_check()
+    payload = json.loads(response.body)
+
+    assert response.status_code == 200
+    assert payload["status"] == "degraded"
+    assert payload["accepting_work"] is True
+    assert "Tokenizer is not configured" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_health_check_includes_tokenizer_metadata_in_services(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The tokenizer resolution fields should be present in services when healthy."""
+    main = _load_main(monkeypatch)
+
+    monkeypatch.setattr(main, "embedder", _FakeEmbedder("connected"))
+    monkeypatch.setattr(main, "blob_writer", _FakeBlobWriter(True))
+    monkeypatch.setattr(main, "api_client", _FakeApiClient(True))
+    monkeypatch.setattr(main, "shutdown_requested", False)
+    monkeypatch.setattr(
+        main,
+        "describe_chunker_tokenizer",
+        lambda: {
+            "tokenizer_status": "configured",
+            "tokenizer_model": "/home/user/.lmstudio/models/Qwen3-Embedding",
+            "tokenizer_source": "LM_STUDIO_MODELS_DIR",
+            "tokenizer_path": "/home/user/.lmstudio/models/Qwen3-Embedding",
+        },
+    )
+
+    async def _count_active_jobs() -> int:
+        return 0
+
+    monkeypatch.setattr(main, "_count_active_jobs", _count_active_jobs)
+
+    response = await main.health_check()
+    payload = json.loads(response.body)
+
+    assert response.status_code == 200
+    assert payload["services"]["tokenizer_status"] == "configured"
+    assert payload["services"]["tokenizer_source"] == "LM_STUDIO_MODELS_DIR"
+    assert "Qwen3-Embedding" in payload["services"]["tokenizer_model"]

@@ -4,8 +4,8 @@ import { discoverProcessorWorkingDir } from "./processor";
 
 /**
  * Persisted operator configuration. Replaces the MAUI ConfigurationStateService /
- * SettingsService (Preferences). The upload-job secret is the one sensitive value and
- * is kept out of this store (handled separately via the OS keychain in the auth task).
+ * SettingsService (Preferences). The upload-job secret is handled alongside the
+ * other settings so operators can manage it from the Settings screen.
  */
 export interface AppConfig {
   apiBaseUrl: string;
@@ -14,10 +14,19 @@ export interface AppConfig {
   authScope: string;
   embeddingProviderEndpoint: string;
   embeddingModel: string;
+  tokenizerModelPath: string;
+  /** OpenAI-compatible endpoint for graph entity extraction (defaults to same as embedding). */
+  graphExtractionEndpoint: string;
+  /** Chat model used to extract graph entities and relationships. */
+  graphExtractionModel: string;
   localProcessorPort: number;
   localProcessorWorkingDir: string;
+  /** Azure Blob Storage account URL used by the local processor to read uploads. */
+  azureStorageAccountUrl: string;
   /** If true, the app will try to auto-resolve the processor path on startup if empty. */
   autoResolveProcessor: boolean;
+  /** Client secret for the Python-Upload-Job Entra app registration. */
+  pythonUploadJobSecret: string;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -27,9 +36,14 @@ export const DEFAULT_CONFIG: AppConfig = {
   authScope: "api://motorcyclerag-api/admin",
   embeddingProviderEndpoint: "http://localhost:11434",
   embeddingModel: "qwen3-embedding",
+  tokenizerModelPath: "/Users/dave/.lmstudio/models/mlx-community/Qwen3.5-9B-8bit",
+  graphExtractionEndpoint: "http://localhost:1234/v1",
+  graphExtractionModel: "qwen3.5-0.8b",
   localProcessorPort: 8100,
   localProcessorWorkingDir: "",
+  azureStorageAccountUrl: "https://mcrragdevst0125c2ea3c.blob.core.windows.net/",
   autoResolveProcessor: true,
+  pythonUploadJobSecret: "",
 };
 
 const STORE_FILE = "config.json";

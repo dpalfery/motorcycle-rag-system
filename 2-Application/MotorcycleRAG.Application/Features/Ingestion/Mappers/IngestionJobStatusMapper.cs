@@ -50,6 +50,7 @@ public static class IngestionJobStatusMapper
             CompletedAtUtc = job.CompletedAtUtc,
             InputType = job.InputType.ToString(),
             InputRef = job.InputRef,
+            ComputeProvider = job.ComputeProvider,
             ManualDocumentId = job.ManualDocumentId,
             TotalPages = job.TotalPages,
             PagesCapturedViewableCount = job.PagesCapturedViewableCount,
@@ -58,7 +59,8 @@ public static class IngestionJobStatusMapper
             PagesWithNativeTextCount = job.PagesWithNativeTextCount,
             MissingPages = missingPages.AsReadOnly(),
             Coverage = CoverageCalculator.Calculate(job),
-            FailureReason = job.FailureReason,
+            FailureReason = job.ErrorsJson ?? job.FailureReason,
+            FailureDetail = job.ErrorsJson,
             DocIngestionRunId = job.DocIngestionRunId
         };
     }

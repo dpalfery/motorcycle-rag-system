@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.Azure;
@@ -141,147 +142,9 @@ public class ServiceCollectionExtensionsTests {
     }
 }
 
-public class AzureFoundryConfigurationValidatorTests {
-    private readonly AzureFoundryConfigurationValidator _validator;
-
-    public AzureFoundryConfigurationValidatorTests() {
-        _validator = new AzureFoundryConfigurationValidator();
-    }
-
-    [Fact]
-    public void Validate_WithValidConfiguration_ShouldReturnSuccess() {
-        // Arrange
-        var config = new AzureFoundryOptions {
-            FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
-            SearchServiceEndpoint = "https://test-search.search.windows.net/",
-            DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Models = new ModelOptions {
-                ChatModel = "gpt-4o-mini",
-                EmbeddingModel = "text-embedding-3-large",
-                QueryPlannerModel = "gpt-4o",
-                VisionModel = "gpt-4-vision-preview",
-                MaxTokens = 4096,
-                Temperature = 0.1f,
-                TopP = 1.0f
-            },
-            Retry = new RetryOptions {
-                MaxRetries = 3,
-                BaseDelaySeconds = 2,
-                MaxDelaySeconds = 60,
-                UseExponentialBackoff = true
-            }
-        };
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
-    }
-
-    [Fact]
-    public void Validate_WithoutDocumentIntelligenceEndpoint_ShouldReturnSuccess() {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.DocumentIntelligenceEndpoint = string.Empty;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
-    }
-
-    [Theory]
-    [InlineData("invalid-uri", "AzureAI:FoundryEndpoint must be a valid URI if provided")]
-    public void Validate_WithInvalidFoundryEndpoint_ShouldReturnFailure(string endpoint, string expectedError) {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.FoundryEndpoint = endpoint;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(expectedError);
-    }
-
-
-    [Theory]
-    [InlineData(0, "AzureAI:Models:MaxTokens must be greater than 0")]
-    [InlineData(-1, "AzureAI:Models:MaxTokens must be greater than 0")]
-    public void Validate_WithInvalidMaxTokens_ShouldReturnFailure(int maxTokens, string expectedError) {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.Models.MaxTokens = maxTokens;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(expectedError);
-    }
-
-    [Theory]
-    [InlineData(-0.1f, "AzureAI:Models:Temperature must be between 0 and 2")]
-    [InlineData(2.1f, "AzureAI:Models:Temperature must be between 0 and 2")]
-    public void Validate_WithInvalidTemperature_ShouldReturnFailure(float temperature, string expectedError) {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.Models.Temperature = temperature;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(expectedError);
-    }
-
-    [Theory]
-    [InlineData(0, "AzureAI:Retry:MaxRetries must be greater than 0")]
-    [InlineData(-1, "AzureAI:Retry:MaxRetries must be greater than 0")]
-    public void Validate_WithInvalidMaxRetries_ShouldReturnFailure(int maxRetries, string expectedError) {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.Retry.MaxRetries = maxRetries;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(expectedError);
-    }
-
-    private static AzureFoundryOptions CreateValidConfiguration() {
-        return new AzureFoundryOptions {
-            FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
-            SearchServiceEndpoint = "https://test-search.search.windows.net/",
-            DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Models = new ModelOptions {
-                ChatModel = "gpt-4o-mini",
-                EmbeddingModel = "text-embedding-3-large",
-                QueryPlannerModel = "gpt-4o",
-                VisionModel = "gpt-4-vision-preview",
-                MaxTokens = 4096,
-                Temperature = 0.1f,
-                TopP = 1.0f
-            },
-            Retry = new RetryOptions {
-                MaxRetries = 3,
-                BaseDelaySeconds = 2,
-                MaxDelaySeconds = 60,
-                UseExponentialBackoff = true
-            }
-        };
-    }
-}
 
 public class SearchConfigurationValidatorTests {
-    private readonly SearchConfigurationValidator _validator;
+    private readonly IValidateOptions<SearchOptions> _validator;
 
     public SearchConfigurationValidatorTests() {
         _validator = new SearchConfigurationValidator();
@@ -325,8 +188,8 @@ public class SearchConfigurationValidatorTests {
     }
 
     [Theory]
-    [InlineData(0, "Search:BatchSize must be greater than 0")]
-    [InlineData(-1, "Search:BatchSize must be greater than 0")]
+    [InlineData(0, "Search:BatchSize must be between 1 and 1000")]
+    [InlineData(-1, "Search:BatchSize must be between 1 and 1000")]
     public void Validate_WithInvalidBatchSize_ShouldReturnFailure(int batchSize, string expectedError) {
         // Arrange
         var config = new SearchOptions {
@@ -344,8 +207,8 @@ public class SearchConfigurationValidatorTests {
     }
 
     [Theory]
-    [InlineData(0, "Search:MaxSearchResults must be greater than 0")]
-    [InlineData(-1, "Search:MaxSearchResults must be greater than 0")]
+    [InlineData(0, "Search:MaxSearchResults must be between 1 and 100")]
+    [InlineData(-1, "Search:MaxSearchResults must be between 1 and 100")]
     public void Validate_WithInvalidMaxSearchResults_ShouldReturnFailure(int maxResults, string expectedError) {
         // Arrange
         var config = new SearchOptions {

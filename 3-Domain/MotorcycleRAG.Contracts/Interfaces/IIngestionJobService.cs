@@ -71,4 +71,10 @@ public interface IIngestionJobService {
         Guid jobId,
         string userId,
         CancellationToken ct = default);
+
+    /// <summary>Updates the current pipeline stage and progress for an active job.</summary>
+    Task<IngestionJobStatusResponse> TransitionStageAsync(
+        Guid jobId,
+        IngestionJobStageRequest request,
+        CancellationToken ct = default);
 }

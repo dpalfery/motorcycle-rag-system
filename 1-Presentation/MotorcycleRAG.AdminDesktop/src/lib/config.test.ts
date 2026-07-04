@@ -27,6 +27,7 @@ describe("config store", () => {
 
   it("has correct defaults for processor auto-resolution", () => {
     expect(DEFAULT_CONFIG.localProcessorWorkingDir).toBe("");
+    expect(DEFAULT_CONFIG.tokenizerModelPath).toBe("/Users/dave/.lmstudio/models/mlx-community/Qwen3.5-9B-8bit");
     expect(DEFAULT_CONFIG.autoResolveProcessor).toBe(true);
   });
 
@@ -45,6 +46,7 @@ describe("config store", () => {
       expect(state.localProcessorPort).toBe(9999);
       // Ensure other fields preserved from defaults
       expect(state.embeddingModel).toBe(DEFAULT_CONFIG.embeddingModel);
+      expect(state.tokenizerModelPath).toBe(DEFAULT_CONFIG.tokenizerModelPath);
       expect(state.autoResolveProcessor).toBe(DEFAULT_CONFIG.autoResolveProcessor);
     });
 

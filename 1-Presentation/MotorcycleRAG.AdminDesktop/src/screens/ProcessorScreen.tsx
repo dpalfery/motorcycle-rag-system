@@ -15,14 +15,29 @@ function isDone(s: string) {
   return ["completed", "complete", "done"].includes(s.toLowerCase());
 }
 
+function stageLabel(job: ProcessorJob): string {
+  if (isDone(job.status)) return "Done";
+  const stage = job.stage ?? job.status;
+  return stage
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function chunksLabel(job: ProcessorJob): string | null {
+  const done = job.chunks_processed ?? 0;
+  const total = job.total_chunks ?? 0;
+  if (total <= 0) return null;
+  return `${done}/${total} chunks`;
+}
+
 export default function ProcessorScreen() {
   const { config } = useConfig();
   const qc = useQueryClient();
   const port = config.localProcessorPort;
 
-  const running = useQuery({
-    queryKey: ["proc", "running"],
-    queryFn: () => processor.isRunning(),
+  const listening = useQuery({
+    queryKey: ["proc", "listening", port],
+    queryFn: () => processor.isListening(port),
     refetchInterval: 5000,
   });
 
@@ -30,7 +45,7 @@ export default function ProcessorScreen() {
     queryKey: ["proc", "health", port],
     queryFn: () => processor.health(port),
     refetchInterval: 15000,
-    enabled: !!running.data,
+    enabled: !!listening.data,
     retry: 0,
   });
 
@@ -38,7 +53,7 @@ export default function ProcessorScreen() {
     queryKey: ["proc", "jobs", port],
     queryFn: () => processor.jobs(port),
     refetchInterval: 15000,
-    enabled: !!running.data,
+    enabled: !!listening.data,
     retry: 0,
   });
 
@@ -50,13 +65,16 @@ export default function ProcessorScreen() {
     mutationFn: () => processor.start(toStartConfig(config)),
     onSuccess: invalidate,
   });
-  const stop = useMutation({ mutationFn: () => processor.stop(), onSuccess: invalidate });
+  const stop = useMutation({
+    mutationFn: () => processor.stop(port),
+    onSuccess: invalidate,
+  });
   const cleanup = useMutation({
     mutationFn: () => processor.cleanupJobs(port),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["proc", "jobs"] }),
   });
 
-  const isRunning = !!running.data;
+  const isRunning = !!listening.data;
   const healthy = (health.data?.status ?? "").toLowerCase() === "healthy";
   const jobList = jobs.data ?? [];
 
@@ -87,6 +105,12 @@ export default function ProcessorScreen() {
       {start.isError && (
         <div className="mb-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           Could not start the processor: {start.error instanceof Error ? start.error.message : String(start.error)}
+        </div>
+      )}
+
+      {stop.isError && (
+        <div className="mb-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+          Could not stop the processor: {stop.error instanceof Error ? stop.error.message : String(stop.error)}
         </div>
       )}
 
@@ -136,11 +160,16 @@ export default function ProcessorScreen() {
         ) : (
           jobList.map((job) => {
             const pct = isDone(job.status) ? 100 : Math.round((job.progress ?? 0) * 100);
+            const chunks = chunksLabel(job);
             return (
               <div key={job.job_id} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0">
                 {jobIcon(job)}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{job.job_id}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="truncate text-sm font-mono">{job.job_id.slice(0, 8)}</div>
+                    <div className="text-xs text-muted">{stageLabel(job)}</div>
+                    {chunks && <div className="text-xs text-muted">· {chunks}</div>}
+                  </div>
                   <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-secondary">
                     <div
                       className={isDone(job.status) ? "h-full bg-success" : "h-full bg-primary"}
@@ -148,9 +177,7 @@ export default function ProcessorScreen() {
                     />
                   </div>
                 </div>
-                <span className="w-20 text-right text-xs text-muted">
-                  {isDone(job.status) ? "Done" : `${pct}% · ${job.status}`}
-                </span>
+                <StatusPill ok={isDone(job.status)} label={isDone(job.status) ? "Done" : `${pct}%`} />
               </div>
             );
           })

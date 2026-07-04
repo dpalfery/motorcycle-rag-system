@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from datetime import datetime
 
 
@@ -27,6 +27,11 @@ class ProcessPDFRequest(BaseModel):
         description='Type of document being processed (e.g., "manual-pdf", "spec-dataset")',
     )
     blob_container: str = Field(..., description="Azure Blob Storage container name")
+    source_access_token: Optional[str] = Field(
+        None,
+        description="Short-lived API token for downloading the source via the MotorcycleRAG API",
+        validation_alias=AliasChoices("source_access_token", "sourceAccessToken"),
+    )
     metadata: Metadata = Field(
         default_factory=Metadata, description="Document metadata"
     )

@@ -35,7 +35,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         const string sql = @"
             INSERT INTO [dbo].[IngestionJobs] (
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -43,7 +43,7 @@ public class IngestionJobRepository : IIngestionJobRepository
             )
             VALUES (
                 @IngestionJobId, @CreatedAtUtc, @StartedAtUtc, @CompletedAtUtc,
-                @CreatedBySubject, @Status, @FailureReason, @InputType, @InputRef,
+                @CreatedBySubject, @Status, @FailureReason, @ErrorsJson, @ErrorMessage, @InputType, @InputRef,
                 @ComputeProvider, @DocIngestionRunId, @ManualDocumentId,
                 @TotalPages, @PagesCapturedViewableCount, @PagesWithSearchableTextCount,
                 @PagesWithOcrTextCount, @PagesWithNativeTextCount,
@@ -63,6 +63,8 @@ public class IngestionJobRepository : IIngestionJobRepository
                 job.CreatedBySubject,
                 Status = job.Status.ToString(),
                 job.FailureReason,
+                job.ErrorsJson,
+                job.ErrorMessage,
                 InputType = job.InputType.ToString(),
                 job.InputRef,
                 job.ComputeProvider,
@@ -94,7 +96,7 @@ public class IngestionJobRepository : IIngestionJobRepository
     {
         const string sql = @"
             SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                   [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                   [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                    [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                    [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                    [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -128,6 +130,8 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [CreatedBySubject] = @CreatedBySubject,
                 [Status] = @Status,
                 [FailureReason] = @FailureReason,
+                [ErrorsJson] = @ErrorsJson,
+                [ErrorMessage] = @ErrorMessage,
                 [InputType] = @InputType,
                 [InputRef] = @InputRef,
                 [ComputeProvider] = @ComputeProvider,
@@ -156,6 +160,8 @@ public class IngestionJobRepository : IIngestionJobRepository
                 job.CreatedBySubject,
                 Status = job.Status.ToString(),
                 job.FailureReason,
+                job.ErrorsJson,
+                job.ErrorMessage,
                 InputType = job.InputType.ToString(),
                 job.InputRef,
                 job.ComputeProvider,
@@ -223,7 +229,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         const string sql = @"
             SELECT TOP 1
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -257,7 +263,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         const string sql = @"
             SELECT TOP 1
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -292,7 +298,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         const string sql = @"
             SELECT TOP (@MaxCount)
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -322,7 +328,7 @@ public class IngestionJobRepository : IIngestionJobRepository
     {
         const string sql = @"
             SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                   [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                   [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                    [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                    [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                    [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -363,7 +369,7 @@ public class IngestionJobRepository : IIngestionJobRepository
 
         const string sql = @"
             SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                   [CreatedBySubject], [Status], [FailureReason], [InputType], [InputRef],
+                   [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                    [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                    [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                    [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -562,6 +568,80 @@ public class IngestionJobRepository : IIngestionJobRepository
         {
             _logger.LogError(ex, "Failed to transition ingestion job {IngestionJobId} to terminal status", jobId);
             throw new InvalidOperationException($"Failed to transition ingestion job {jobId} to terminal status", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateStageAsync(
+        Guid ingestionJobId,
+        string stage,
+        int? chunksProcessed,
+        int? totalChunks,
+        string? failureReason,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE [dbo].[IngestionJobs] SET
+                [CurrentStage] = @Stage,
+                [StageSetAtUtc] = SYSUTCDATETIME(),
+                [ExpectedChunkCount] = COALESCE(@TotalChunks, [ExpectedChunkCount]),
+                [IndexedChunkCount] = COALESCE(@ChunksProcessed, [IndexedChunkCount]),
+                [FailureReason] = COALESCE(@FailureReason, [FailureReason])
+            WHERE [IngestionJobId] = @IngestionJobId;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            await connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IngestionJobId = ingestionJobId,
+                Stage = stage,
+                TotalChunks = totalChunks,
+                ChunksProcessed = chunksProcessed,
+                FailureReason = failureReason
+            }, cancellationToken: cancellationToken));
+
+            _logger.LogInformation(
+                "Updated stage for ingestion job {IngestionJobId} to {Stage} (chunks={ChunksProcessed}/{TotalChunks})",
+                ingestionJobId, stage, chunksProcessed, totalChunks);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update stage for ingestion job {IngestionJobId}", ingestionJobId);
+            throw new InvalidOperationException($"Failed to update stage for ingestion job {ingestionJobId}", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<IngestionJob?> GetByDocIngestionRunIdAsync(
+        string docIngestionRunId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(docIngestionRunId);
+
+        const string sql = @"
+            SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                   [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
+                   [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
+                   [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
+                   [PagesWithOcrTextCount], [PagesWithNativeTextCount],
+                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                   [CurrentStage], [StageSetAtUtc]
+            FROM [dbo].[IngestionJobs]
+            WHERE [DocIngestionRunId] = @DocIngestionRunId;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
+                new CommandDefinition(sql, new { DocIngestionRunId = docIngestionRunId }, cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get ingestion job by doc ingestion run id {DocIngestionRunId}", docIngestionRunId);
+            throw new InvalidOperationException($"Failed to get ingestion job by doc ingestion run id {docIngestionRunId}", ex);
         }
     }
 }

@@ -46,14 +46,19 @@ public class Program {
 
         // 3. MVC & Core Services
         builder.Services.AddControllers();
+        builder.Services.AddAntiforgery();
 
-        // Enforce maximum request body size (50MB) for security and DoS mitigation
+        var ingestionRequestLimitBytes = configuration
+            .GetSection("Ingestion")
+            .Get<IngestionOptions>()?.MaxInputBytes ?? new IngestionOptions().MaxInputBytes;
+
+        // Keep server-level limits aligned with the ingestion upload policy.
         builder.WebHost.ConfigureKestrel(options => {
-            options.Limits.MaxRequestBodySize = 50 * 1024 * 1024;
+            options.Limits.MaxRequestBodySize = ingestionRequestLimitBytes;
         });
 
         builder.Services.Configure<FormOptions>(options => {
-            options.MultipartBodyLengthLimit = 50 * 1024 * 1024;
+            options.MultipartBodyLengthLimit = ingestionRequestLimitBytes;
         });
 
         builder.Services.AddHttpContextAccessor();

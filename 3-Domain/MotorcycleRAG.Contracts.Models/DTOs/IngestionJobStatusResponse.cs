@@ -13,6 +13,7 @@ public sealed record IngestionJobStatusResponse
     public DateTimeOffset? CompletedAtUtc { get; init; }
     public string InputType { get; init; } = string.Empty;
     public string InputRef { get; init; } = string.Empty;
+    public string? ComputeProvider { get; init; }
     public Guid? ManualDocumentId { get; init; }
     public int? TotalPages { get; init; }
     public int? PagesCapturedViewableCount { get; init; }
@@ -24,8 +25,12 @@ public sealed record IngestionJobStatusResponse
     public IngestionWorkloadLimits? WorkloadLimits { get; init; }
     public string? Message { get; init; }
     public string? FailureReason { get; init; }
+    /// <summary>Full failure diagnostics (stack traces, processor payload). Local admin only.</summary>
+    public string? FailureDetail { get; init; }
     public string? DocIngestionRunId { get; init; }
     public int? ExpectedChunkCount { get; init; }
     public int? IndexedChunkCount { get; init; }
+    public string? CurrentStage { get; init; }
+    public DateTimeOffset? StageSetAtUtc { get; init; }
     public string? StatusUrl { get; init; }
 }

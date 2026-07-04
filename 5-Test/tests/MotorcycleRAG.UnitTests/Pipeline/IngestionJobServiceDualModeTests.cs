@@ -23,6 +23,7 @@ public sealed class IngestionJobServiceDualModeTests {
     private readonly Mock<IBlobStorageService> _blobStorage;
     private readonly Mock<ILocalPipelineService> _pipelineService;
     private readonly Mock<IGraphEntityIngestionService> _graphEntityIngestionService;
+    private readonly Mock<IIngestionSourceAccessTokenService> _sourceAccessTokenService;
     private readonly Mock<ILogger<IngestionJobService>> _logger;
 
     public IngestionJobServiceDualModeTests() {
@@ -30,7 +31,12 @@ public sealed class IngestionJobServiceDualModeTests {
         _blobStorage = new Mock<IBlobStorageService>();
         _pipelineService = new Mock<ILocalPipelineService>();
         _graphEntityIngestionService = new Mock<IGraphEntityIngestionService>();
+        _sourceAccessTokenService = new Mock<IIngestionSourceAccessTokenService>();
         _logger = new Mock<ILogger<IngestionJobService>>();
+
+        _sourceAccessTokenService
+            .Setup(s => s.CreateToken(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TimeSpan?>()))
+            .Returns("test-source-token");
 
         _repository
             .Setup(r => r.CreateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
@@ -48,6 +54,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _blobStorage.Object,
             _pipelineService.Object,
             _graphEntityIngestionService.Object,
+            _sourceAccessTokenService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             _logger.Object);
@@ -62,6 +69,7 @@ public sealed class IngestionJobServiceDualModeTests {
             null!,
             _pipelineService.Object,
             _graphEntityIngestionService.Object,
+            _sourceAccessTokenService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             _logger.Object);
@@ -76,6 +84,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _blobStorage.Object,
             null!,
             _graphEntityIngestionService.Object,
+            _sourceAccessTokenService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             _logger.Object);
@@ -90,6 +99,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _blobStorage.Object,
             _pipelineService.Object,
             null!,
+            _sourceAccessTokenService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             _logger.Object);
@@ -104,6 +114,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _blobStorage.Object,
             _pipelineService.Object,
             _graphEntityIngestionService.Object,
+            _sourceAccessTokenService.Object,
             null!,
             CreateIngestionOptions(),
             _logger.Object);
@@ -118,6 +129,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _blobStorage.Object,
             _pipelineService.Object,
             _graphEntityIngestionService.Object,
+            _sourceAccessTokenService.Object,
             CreateBlobOptions(),
             null!,
             _logger.Object);
@@ -132,6 +144,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _blobStorage.Object,
             _pipelineService.Object,
             _graphEntityIngestionService.Object,
+            _sourceAccessTokenService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             null!);
@@ -146,6 +159,7 @@ public sealed class IngestionJobServiceDualModeTests {
                 "upload-abc",
                 "manual-pdf",
                 "pdf-pipeline-id",
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestRunId);
 
@@ -180,7 +194,7 @@ public sealed class IngestionJobServiceDualModeTests {
 
         _pipelineService
             .Setup(p => p.GetRunStatusAsync(TestRunId, "csv-pipeline-id", It.IsAny<CancellationToken>()))
-            .ReturnsAsync("completed");
+            .ReturnsAsync(PipelineRunStatusResult.FromStatus("completed"));
 
         var sut = CreateSut();
 
@@ -210,7 +224,7 @@ public sealed class IngestionJobServiceDualModeTests {
 
         _pipelineService
             .Setup(p => p.GetRunStatusAsync(TestRunId, string.Empty, It.IsAny<CancellationToken>()))
-            .ReturnsAsync("completed");
+            .ReturnsAsync(PipelineRunStatusResult.FromStatus("completed"));
 
         _blobStorage
             .Setup(b => b.ExistsAsync("raw-uploads", "graph-entities/upload-graph-001/entities.json", It.IsAny<CancellationToken>()))
@@ -443,7 +457,7 @@ public sealed class IngestionJobServiceDualModeTests {
         response.InputType.Should().Be(IngestionJobType.BikeGraph.ToString());
         response.InputRef.Should().Be("upload-graph-retry-001");
         _pipelineService.Verify(
-            p => p.TriggerPipelineAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            p => p.TriggerPipelineAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _repository.Verify(
             r => r.CreateAsync(It.Is<IngestionJob>(job =>
@@ -469,6 +483,7 @@ public sealed class IngestionJobServiceDualModeTests {
                 "upload-retry-002",
                 "spec-dataset",
                 "csv-pipeline-id",
+                It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(TestRunId);
 
@@ -515,7 +530,7 @@ public sealed class IngestionJobServiceDualModeTests {
             });
 
         _pipelineService
-            .Setup(p => p.TriggerPipelineAsync(uploadId, "manual-pdf", "pdf-pipeline-id", It.IsAny<CancellationToken>()))
+            .Setup(p => p.TriggerPipelineAsync(uploadId, "manual-pdf", "pdf-pipeline-id", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(runId);
 
         _repository
@@ -530,7 +545,7 @@ public sealed class IngestionJobServiceDualModeTests {
 
         _pipelineService
             .Setup(p => p.GetRunStatusAsync(runId, "pdf-pipeline-id", It.IsAny<CancellationToken>()))
-            .ReturnsAsync("completed");
+            .ReturnsAsync(PipelineRunStatusResult.FromStatus("completed"));
 
         var sut = CreateSut();
 
@@ -542,7 +557,7 @@ public sealed class IngestionJobServiceDualModeTests {
         startResponse.DocIngestionRunId.Should().Be(runId);
         startResponse.FailureReason.Should().BeNull();
         _pipelineService.Verify(
-            p => p.TriggerPipelineAsync(uploadId, "manual-pdf", "pdf-pipeline-id", It.IsAny<CancellationToken>()),
+            p => p.TriggerPipelineAsync(uploadId, "manual-pdf", "pdf-pipeline-id", It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
 
         var statusResponse = await sut.GetJobStatusAsync(jobId, TestUserId);
@@ -559,18 +574,11 @@ public sealed class IngestionJobServiceDualModeTests {
 
     [Fact]
     public async Task StartJobAsync_WhenLocalProcessorReturnsHttpError_FailureReasonIncludesExceptionMessage() {
-        // LocalPipelineService throws this exception when the processor returns HTTP 503.
-        // The failure reason should remain generic so internal exception details are not exposed.
         _pipelineService
             .Setup(p => p.TriggerPipelineAsync(
-                It.IsAny<string>(), "manual-pdf", "pdf-pipeline-id", It.IsAny<CancellationToken>()))
+                It.IsAny<string>(), "manual-pdf", "pdf-pipeline-id", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException(
                 "Local pipeline trigger returned HTTP 503 for document type 'manual-pdf'."));
-
-        _repository
-            .Setup(r => r.UpdateStatusAsync(
-                It.IsAny<Guid>(), IngestionJobStatus.Failed, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
 
         var sut = CreateSut();
 
@@ -579,10 +587,15 @@ public sealed class IngestionJobServiceDualModeTests {
             TestUserId);
 
         response.Status.Should().Be(IngestionJobStatus.Failed.ToString());
-        response.FailureReason.Should().Be("Failed to trigger pipeline.");
+        response.FailureReason.Should().Contain("HTTP 503");
+        response.FailureDetail.Should().Contain("HTTP 503");
         _repository.Verify(
-            r => r.UpdateStatusAsync(
-                It.IsAny<Guid>(), IngestionJobStatus.Failed, "Failed to trigger pipeline.", It.IsAny<CancellationToken>()),
+            r => r.UpdateAsync(
+                It.Is<IngestionJob>(j =>
+                    j.Status == IngestionJobStatus.Failed &&
+                    j.ErrorsJson != null &&
+                    j.ErrorsJson.Contains("HTTP 503")),
+                It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -591,14 +604,9 @@ public sealed class IngestionJobServiceDualModeTests {
         // Simulates the local Python processor not being started (connection refused / network error).
         _pipelineService
             .Setup(p => p.TriggerPipelineAsync(
-                It.IsAny<string>(), "manual-pdf", "pdf-pipeline-id", It.IsAny<CancellationToken>()))
+                It.IsAny<string>(), "manual-pdf", "pdf-pipeline-id", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException(
                 "No connection could be made because the target machine actively refused it."));
-
-        _repository
-            .Setup(r => r.UpdateStatusAsync(
-                It.IsAny<Guid>(), IngestionJobStatus.Failed, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
 
         var sut = CreateSut();
 
@@ -607,7 +615,45 @@ public sealed class IngestionJobServiceDualModeTests {
             TestUserId);
 
         response.Status.Should().Be(IngestionJobStatus.Failed.ToString());
-        response.FailureReason.Should().NotBeNullOrEmpty();
+        response.FailureDetail.Should().Contain("actively refused");
+    }
+
+    [Fact]
+    public async Task GetJobStatusAsync_WhenFailedWithGenericReason_ShouldEnrichFromProcessorError() {
+        var jobId = Guid.NewGuid();
+        const string runId = "processor-run-001";
+        var job = new IngestionJob {
+            IngestionJobId = jobId,
+            Status = IngestionJobStatus.Failed,
+            InputType = IngestionJobType.PDFManual,
+            InputRef = "upload-xyz",
+            DocIngestionRunId = runId,
+            FailureReason = "Pipeline reported status 'failed'.",
+        };
+
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        _pipelineService
+            .Setup(p => p.GetRunStatusAsync(runId, "pdf-pipeline-id", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PipelineRunStatusResult {
+                Status = "failed",
+                Error = "Traceback (most recent call last):\n  RuntimeError: BlobWriter has no storage client configured.",
+                RawJson = """{"status":"failed","error":"Traceback...BlobWriter has no storage client configured."}""",
+            });
+
+        var sut = CreateSut();
+
+        var response = await sut.GetJobStatusAsync(jobId, TestUserId);
+
+        response.Should().NotBeNull();
+        response!.FailureDetail.Should().Contain("BlobWriter has no storage client configured.");
+        _repository.Verify(
+            r => r.UpdateAsync(
+                It.Is<IngestionJob>(j => j.ErrorsJson != null && j.ErrorsJson.Contains("BlobWriter")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     #endregion
@@ -618,6 +664,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _blobStorage.Object,
             _pipelineService.Object,
             _graphEntityIngestionService.Object,
+            _sourceAccessTokenService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             _logger.Object);

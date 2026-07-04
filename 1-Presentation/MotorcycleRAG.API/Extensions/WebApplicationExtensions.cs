@@ -53,6 +53,7 @@ internal static class WebApplicationExtensions {
         // 7. CORS (restricted cross-origin access)
         // 8. Authentication (identity verification)
         // 9. Authorization (access control)
+        // 10. Antiforgery metadata handling (multipart endpoints opt out explicitly)
 
         app.UseHttpsRedirection();
         app.UseHostHeaderValidation(); // CRITICAL: Prevent Host Header Injection attacks
@@ -64,9 +65,11 @@ internal static class WebApplicationExtensions {
         app.UseAuthentication();
         app.UseAuthorizationLogging(); // Add authorization logging middleware
         app.UseAuthorization();
+        app.UseAntiforgery();
 
         // Map controllers and health checks with rate limiting policies applied
-        app.MapControllers().RequireRateLimiting("authenticated");
+        app.MapControllers()
+            .RequireRateLimiting("authenticated");
 
         // Map global health check endpoint
         app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions {

@@ -13,8 +13,8 @@ namespace MotorcycleRAG.Application.Services.Ingestion;
 
 /// <summary>
 /// Orchestrates the ingestion job lifecycle: creation, status retrieval, and cancellation.
-/// Delegates persistence to <see cref="IIngestionJobRepository"/> and runtime execution
-/// to the configured <see cref="ILocalPipelineService"/> implementation.
+/// Delegates persistence to <see cref="IIngestionJobRepository"/>; local processor execution
+/// is initiated by Admin Desktop and reported through processor callback endpoints.
 /// </summary>
 public sealed class IngestionJobService : IIngestionJobService {
     private const string PdfSourceFileName = "source.pdf";
@@ -25,26 +25,20 @@ public sealed class IngestionJobService : IIngestionJobService {
     private readonly IIngestionJobRepository _repository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly BlobStorageOptions _blobStorageOptions;
-    private readonly ILocalPipelineService _pipelineService;
     private readonly IGraphEntityIngestionService _graphEntityIngestionService;
-    private readonly IIngestionSourceAccessTokenService _sourceAccessTokenService;
     private readonly IngestionOptions _options;
     private readonly ILogger<IngestionJobService> _logger;
 
     public IngestionJobService(
         IIngestionJobRepository repository,
         IBlobStorageService blobStorageService,
-        ILocalPipelineService pipelineService,
         IGraphEntityIngestionService graphEntityIngestionService,
-        IIngestionSourceAccessTokenService sourceAccessTokenService,
         IOptions<BlobStorageOptions> blobStorageOptions,
         IOptions<IngestionOptions> options,
         ILogger<IngestionJobService> logger) {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
-        _pipelineService = pipelineService ?? throw new ArgumentNullException(nameof(pipelineService));
         _graphEntityIngestionService = graphEntityIngestionService ?? throw new ArgumentNullException(nameof(graphEntityIngestionService));
-        _sourceAccessTokenService = sourceAccessTokenService ?? throw new ArgumentNullException(nameof(sourceAccessTokenService));
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -152,13 +146,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         }
 
         var jobs = await _repository.GetRecentAsync(maxCount, ct).ConfigureAwait(false);
-        var refreshedJobs = new List<IngestionJob>(jobs.Count);
-        foreach (var job in jobs) {
-            var refreshed = await RefreshJobStatusAsync(job, ct).ConfigureAwait(false);
-            refreshedJobs.Add(await EnrichFailedJobAsync(refreshed, ct).ConfigureAwait(false));
-        }
-
-        return refreshedJobs.Select(MapToResponse).ToArray();
+        return jobs.Select(MapToResponse).ToArray();
     }
 
     /// <inheritdoc />
@@ -228,15 +216,8 @@ public sealed class IngestionJobService : IIngestionJobService {
             throw new InvalidOperationException("Only failed or cancelled ingestion jobs can be retried.");
         }
 
-        return job.InputType == IngestionJobType.BikeGraph
-            ? await ImportGraphArtifactsAsync(new GraphImportStartRequest { UploadId = job.InputRef }, userId, ct).ConfigureAwait(false)
-            : await StartJobAsync(
-                new IngestionJobStartRequest {
-                    UploadId = job.InputRef,
-                    DocumentType = MapJobTypeToDocumentType(job.InputType)
-                },
-                userId,
-                ct).ConfigureAwait(false);
+        throw new InvalidOperationException(
+            "Local-first ingestion retry requires re-queueing the original local source file from Admin Desktop.");
     }
 
     /// <inheritdoc />
@@ -247,15 +228,16 @@ public sealed class IngestionJobService : IIngestionJobService {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-        var inputType = MapDocumentType(request.DocumentType);
-        var pipelineId = GetPipelineId(inputType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.ProcessorRunId);
 
         var job = new IngestionJob {
-            InputType = inputType,
+            InputType = MapDocumentType(request.DocumentType),
             InputRef = request.UploadId,
             CreatedBySubject = userId,
             Status = IngestionJobStatus.Queued,
-            ComputeProvider = _options.Mode == ProcessingMode.Local ? "LocalProcessingService" : "MicrosoftFabric"
+            StartedAtUtc = null,
+            ComputeProvider = "AdminLocalProcessor",
+            DocIngestionRunId = request.ProcessorRunId
         };
 
         job = await _repository.CreateAsync(job, ct).ConfigureAwait(false);
@@ -265,44 +247,10 @@ public sealed class IngestionJobService : IIngestionJobService {
             job.IngestionJobId,
             job.InputType);
 
-        string runId;
-        try {
-            string sourceAccessToken = _sourceAccessTokenService.CreateToken(
-                request.UploadId,
-                request.DocumentType);
-
-            runId = await _pipelineService.TriggerPipelineAsync(
-                request.UploadId,
-                request.DocumentType,
-                pipelineId,
-                sourceAccessToken,
-                ct).ConfigureAwait(false);
-        }
-        catch (Exception ex) {
-            _logger.LogError(
-                ex,
-                "Failed to trigger pipeline for job {JobId}.",
-                job.IngestionJobId);
-
-            job.Status = IngestionJobStatus.Failed;
-            job.CompletedAtUtc = DateTimeOffset.UtcNow;
-            ApplyJobFailure(job, ex.ToString());
-            await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
-
-            return MapToResponse(job);
-        }
-
-        job.DocIngestionRunId = runId;
-        job.Status = IngestionJobStatus.Processing;
-        job.StartedAtUtc = DateTimeOffset.UtcNow;
-
-        await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
-
         _logger.LogInformation(
-            "Pipeline triggered for job {JobId} with run {RunId} (mode: {Mode}).",
+            "Queued ingestion job {JobId} for processor run {ProcessorRunId}.",
             job.IngestionJobId,
-            LogSanitizer.Sanitize(runId),
-            _options.Mode);
+            LogSanitizer.Sanitize(request.ProcessorRunId));
 
         return MapToResponse(job);
     }
@@ -318,8 +266,6 @@ public sealed class IngestionJobService : IIngestionJobService {
         if (job is null)
             return null;
 
-        job = await RefreshJobStatusAsync(job, ct).ConfigureAwait(false);
-        job = await EnrichFailedJobAsync(job, ct).ConfigureAwait(false);
         return MapToResponse(job);
     }
 
@@ -417,6 +363,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         var failureDetail = job.ErrorsJson;
 
         return new IngestionJobStatusResponse {
+            Id = job.Id,
             JobId = job.IngestionJobId,
             Status = job.Status.ToString(),
             CreatedAtUtc = job.CreatedAtUtc,
@@ -448,91 +395,6 @@ public sealed class IngestionJobService : IIngestionJobService {
         };
     }
 
-    private async Task<IngestionJob> RefreshJobStatusAsync(IngestionJob job, CancellationToken ct) {
-        ArgumentNullException.ThrowIfNull(job);
-
-        if (!CanRefreshStatus(job)) {
-            return job;
-        }
-
-        PipelineRunStatusResult runStatus;
-        try {
-            runStatus = await _pipelineService.GetRunStatusAsync(
-                job.DocIngestionRunId!,
-                GetPipelineId(job.InputType),
-                ct).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException
-            or HttpRequestException
-            or OperationCanceledException) {
-            _logger.LogWarning(
-                ex,
-                "Failed to refresh ingestion job {JobId} from the pipeline service.",
-                job.IngestionJobId);
-
-            // If the pipeline run no longer exists or the service is unreachable and the job
-            // has exceeded the configured pipeline timeout, mark it as Failed so the user
-            // can restart it via the UI.
-            if ((ex is HttpRequestException or OperationCanceledException or InvalidOperationException) && IsStaleJob(job, ex)) {
-                _logger.LogWarning(
-                    "Ingestion job {JobId} has exceeded the pipeline timeout with an unreachable service. Marking as Failed.",
-                    job.IngestionJobId);
-                job.Status = IngestionJobStatus.Failed;
-                job.CompletedAtUtc = DateTimeOffset.UtcNow;
-                ApplyJobFailure(
-                    job,
-                    "Local processing service is unreachable. " +
-                    "The job may have been interrupted when the service was stopped. " +
-                    "Use Restart to retry.");
-                await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
-            }
-
-            return job;
-        }
-
-        var externalStatus = runStatus.Status;
-        var refreshedStatus = MapPipelineStatus(externalStatus, job);
-
-        if (job.InputType == IngestionJobType.BikeGraph && refreshedStatus == IngestionJobStatus.Completed) {
-            try {
-                await EnsureGraphArtifactsExistAsync(job.InputRef, ct).ConfigureAwait(false);
-                await _graphEntityIngestionService.IngestAsync(job.InputRef, ct).ConfigureAwait(false);
-            }
-            catch (Exception ex) {
-                _logger.LogError(ex, "Graph import failed for ingestion job {JobId}.", job.IngestionJobId);
-                job.Status = IngestionJobStatus.Failed;
-                ApplyJobFailure(job, ex.ToString());
-                job.CompletedAtUtc ??= DateTimeOffset.UtcNow;
-                await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
-                return job;
-            }
-        }
-
-        if (job.Status == refreshedStatus && (!IsTerminalStatus(refreshedStatus) || job.CompletedAtUtc.HasValue)) {
-            return job;
-        }
-
-        job.Status = refreshedStatus;
-        if (IsTerminalStatus(refreshedStatus)) {
-            job.CompletedAtUtc ??= DateTimeOffset.UtcNow;
-        }
-        else {
-            job.CompletedAtUtc = null;
-        }
-
-        if (refreshedStatus == IngestionJobStatus.Failed) {
-            ApplyJobFailure(job, BuildPipelineFailureDetail(runStatus));
-        }
-        else if (refreshedStatus is not IngestionJobStatus.Failed and not IngestionJobStatus.Cancelled) {
-            job.FailureReason = null;
-            job.ErrorsJson = null;
-            job.ErrorMessage = null;
-        }
-
-        await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
-        return job;
-    }
-
     private async Task EnsureGraphArtifactsExistAsync(string uploadId, CancellationToken ct) {
         var blobPath = $"{GraphEntitiesPrefix}/{uploadId}/entities.json";
         var exists = await _blobStorageService.ExistsAsync(_blobStorageOptions.RawUploadsContainer, blobPath, ct).ConfigureAwait(false);
@@ -541,49 +403,12 @@ public sealed class IngestionJobService : IIngestionJobService {
         }
     }
 
-    private bool CanRefreshStatus(IngestionJob job) =>
-        !string.IsNullOrWhiteSpace(job.DocIngestionRunId) && !IsTerminalStatus(job.Status);
-
-    /// <summary>
-    /// Returns true when a job has been running (or queued) longer than the configured
-    /// pipeline timeout. Used to decide whether a connection failure should auto-fail the job.
-    /// </summary>
-    private bool IsStaleJob(IngestionJob job, Exception ex) {
-        // Local mode doesn't queue jobs persistently. If the local processor is down
-        // or the run was deleted, the job is dead.
-        if (_options.Mode == ProcessingMode.Local && ex is HttpRequestException or InvalidOperationException) {
-            return true;
-        }
-
-        var startTime = job.StartedAtUtc ?? job.CreatedAtUtc;
-        var timeoutMinutes = _options.PipelineTimeoutMinutes > 0
-            ? _options.PipelineTimeoutMinutes
-            : 60;
-        return DateTimeOffset.UtcNow - startTime > TimeSpan.FromMinutes(timeoutMinutes);
-    }
-
     private IngestionJobType MapDocumentType(string documentType) => documentType.Trim().ToLowerInvariant() switch {
         "manual-pdf" => IngestionJobType.PDFManual,
         "spec-dataset" => IngestionJobType.StructuredSpecification,
         "bike-graph" => IngestionJobType.BikeGraph,
         _ => throw new ArgumentException($"Unsupported document type: '{documentType}'.", nameof(documentType))
     };
-
-    private string GetPipelineId(IngestionJobType inputType) => inputType switch {
-        IngestionJobType.PDFManual => _options.PdfPipelineId,
-        IngestionJobType.StructuredSpecification => _options.CsvPipelineId,
-        IngestionJobType.BikeGraph => string.Empty,
-        _ => throw new InvalidOperationException($"No pipeline configured for input type '{inputType}'.")
-    };
-
-    private static string MapJobTypeToDocumentType(IngestionJobType inputType) => inputType switch {
-        IngestionJobType.PDFManual => "manual-pdf",
-        IngestionJobType.StructuredSpecification => "spec-dataset",
-        _ => throw new ArgumentException($"Unsupported input type '{inputType}' for retry.", nameof(inputType))
-    };
-
-    private static bool ProducesSearchChunks(IngestionJobType type) =>
-        type == IngestionJobType.PDFManual || type == IngestionJobType.StructuredSpecification;
 
     /// <inheritdoc />
     public async Task<IngestionJobStatusResponse> TransitionStageAsync(
@@ -616,13 +441,14 @@ public sealed class IngestionJobService : IIngestionJobService {
             request.FailureReason,
             ct).ConfigureAwait(false);
 
-        if (request.Stage == "completed")
+        var stageSetAtUtc = DateTimeOffset.UtcNow;
+        if (string.Equals(request.Stage, "completed", StringComparison.OrdinalIgnoreCase))
         {
             job.Status = string.IsNullOrWhiteSpace(request.FailureReason)
                 ? IngestionJobStatus.Indexing
                 : IngestionJobStatus.Failed;
             job.CurrentStage = request.Stage;
-            job.StageSetAtUtc = DateTimeOffset.UtcNow;
+            job.StageSetAtUtc = stageSetAtUtc;
             if (job.Status == IngestionJobStatus.Failed)
             {
                 ApplyJobFailure(job, request.FailureReason!);
@@ -631,10 +457,17 @@ public sealed class IngestionJobService : IIngestionJobService {
         }
         else
         {
+            if (job.Status == IngestionJobStatus.Queued)
+            {
+                job.Status = IngestionJobStatus.Processing;
+                job.StartedAtUtc ??= stageSetAtUtc;
+            }
+
             job.CurrentStage = request.Stage;
-            job.StageSetAtUtc = DateTimeOffset.UtcNow;
+            job.StageSetAtUtc = stageSetAtUtc;
             job.ExpectedChunkCount ??= request.TotalChunks;
             job.IndexedChunkCount = request.ChunksProcessed;
+            await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
         }
 
         _logger.LogInformation(
@@ -647,45 +480,11 @@ public sealed class IngestionJobService : IIngestionJobService {
     private static bool IsFailedStatus(IngestionJobStatus status) =>
         status is IngestionJobStatus.Failed or IngestionJobStatus.Cancelled;
 
-    private static bool IsFinishedStatus(IngestionJobStatus status) =>
-        status is IngestionJobStatus.Completed or IngestionJobStatus.PartiallyCompleted;
-
     private static IngestionJobType GetPrimaryInputType(string documentType) => documentType switch {
         "manual-pdf" => IngestionJobType.PDFManual,
         "spec-dataset" => IngestionJobType.StructuredSpecification,
         _ => throw new ArgumentException($"Unsupported pending document type '{documentType}'.", nameof(documentType))
     };
-
-    private static IngestionJobStatus MapPipelineStatus(string externalStatus, IngestionJob job) {
-        if (string.IsNullOrWhiteSpace(externalStatus)) {
-            return job.Status;
-        }
-
-        var mappedStatus = externalStatus.Trim() switch {
-            var status when status.Equals("queued", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Queued,
-            var status when status.Equals("processing", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
-            var status when status.Equals("running", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
-            var status when status.Equals("inprogress", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
-            var status when status.Equals("in_progress", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Processing,
-            var status when status.Equals("indexing", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Indexing,
-            var status when status.Equals("completed", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Completed,
-            var status when status.Equals("succeeded", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Completed,
-            var status when status.Equals("success", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Completed,
-            var status when status.Equals("failed", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Failed,
-            var status when status.Equals("error", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Failed,
-            var status when status.Equals("cancelled", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Cancelled,
-            var status when status.Equals("canceled", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.Cancelled,
-            var status when status.Equals("partiallycompleted", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.PartiallyCompleted,
-            var status when status.Equals("partially_completed", StringComparison.OrdinalIgnoreCase) => IngestionJobStatus.PartiallyCompleted,
-            _ => job.Status
-        };
-
-        if (ProducesSearchChunks(job.InputType) && mappedStatus == IngestionJobStatus.Completed) {
-            return IngestionJobStatus.Indexing;
-        }
-
-        return mappedStatus;
-    }
 
     private static bool IsTerminalStatus(IngestionJobStatus status) =>
         status is IngestionJobStatus.Completed
@@ -710,52 +509,6 @@ public sealed class IngestionJobService : IIngestionJobService {
                or IngestionJobStatus.Cancelled;
     }
 
-    private async Task<IngestionJob> EnrichFailedJobAsync(IngestionJob job, CancellationToken ct) {
-        if (job.Status != IngestionJobStatus.Failed || string.IsNullOrWhiteSpace(job.DocIngestionRunId)) {
-            return job;
-        }
-
-        if (!string.IsNullOrWhiteSpace(job.ErrorsJson) && !IsGenericFailureReason(job.FailureReason)) {
-            return job;
-        }
-
-        try {
-            var runStatus = await _pipelineService.GetRunStatusAsync(
-                job.DocIngestionRunId!,
-                GetPipelineId(job.InputType),
-                ct).ConfigureAwait(false);
-            var detail = BuildPipelineFailureDetail(runStatus);
-            if (!string.IsNullOrWhiteSpace(detail)) {
-                ApplyJobFailure(job, detail);
-                await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
-            }
-        }
-        catch (Exception ex) {
-            if (ex is HttpRequestException or OperationCanceledException) {
-                _logger.LogWarning(
-                    ex,
-                    "Local processing service is unreachable while enriching failed job {JobId}.",
-                    job.IngestionJobId);
-            } else {
-                _logger.LogWarning(
-                    ex,
-                    "Could not enrich failed ingestion job {JobId} from pipeline run {RunId}.",
-                    job.IngestionJobId,
-                    LogSanitizer.Sanitize(job.DocIngestionRunId!));
-            }
-            if (string.IsNullOrWhiteSpace(job.ErrorsJson)) {
-                ApplyJobFailure(job, ex.ToString());
-                await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
-            }
-        }
-
-        return job;
-    }
-
-    private static bool IsGenericFailureReason(string? failureReason) =>
-        string.IsNullOrWhiteSpace(failureReason)
-        || failureReason.StartsWith("Pipeline reported status '", StringComparison.Ordinal);
-
     private static void ApplyJobFailure(IngestionJob job, string detail) {
         if (string.IsNullOrWhiteSpace(detail)) {
             return;
@@ -770,28 +523,6 @@ public sealed class IngestionJobService : IIngestionJobService {
         var line = detail.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .FirstOrDefault();
         return string.IsNullOrWhiteSpace(line) ? detail.Trim() : line;
-    }
-
-    private static string BuildPipelineFailureDetail(PipelineRunStatusResult runStatus) {
-        if (!string.IsNullOrWhiteSpace(runStatus.RawJson)) {
-            return runStatus.RawJson.Trim();
-        }
-
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(runStatus.Error)) {
-            parts.Add(runStatus.Error.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(runStatus.Message)
-            && !string.Equals(runStatus.Message.Trim(), runStatus.Error?.Trim(), StringComparison.Ordinal)) {
-            parts.Add(runStatus.Message.Trim());
-        }
-
-        if (parts.Count == 0 && !string.IsNullOrWhiteSpace(runStatus.Status)) {
-            parts.Add($"Pipeline reported status '{runStatus.Status}'.");
-        }
-
-        return string.Join(Environment.NewLine + Environment.NewLine, parts);
     }
 
     private static bool SupportsGraphImport(string documentType) =>

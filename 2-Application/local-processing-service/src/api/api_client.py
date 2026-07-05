@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import os
+import time
 
 import httpx
 import msal
@@ -44,6 +45,9 @@ class ApiClient:
             client_credential=secret,
         )
         self._configured = True
+        self._token_cache: str | None = None
+        self._token_expires_at: float = 0.0
+        self._token_lock = asyncio.Lock()
         logger.info(
             "ApiClient initialised (tenant=%s, client=%s, base_url=%s).",
             tenant_id,
@@ -80,7 +84,7 @@ class ApiClient:
                 "ApiClient is not configured — cannot download source via API."
             )
 
-        token = await asyncio.to_thread(self._get_token)
+        token = await self._acquire_token_async()
         url = (
             f"{self._base_url}/api/ingestion/artifacts/source"
             f"?uploadId={upload_id}&documentType={document_type}"
@@ -101,6 +105,33 @@ class ApiClient:
                 f"MSAL token acquisition failed: {result.get('error_description', result)}"
             )
         return result["access_token"]
+
+    async def _acquire_token_async(self) -> str:
+        """Return a valid MSAL access token, acquiring or refreshing only when needed.
+
+        Caches the token in-process with an asyncio.Lock so concurrent callers
+        (including fire-and-forget report_stage tasks) do not contend for the
+        default thread pool.  MSAL token lifetime is typically 3600 s; a 60 s
+        buffer prevents expiry mid-request.
+        """
+        if self._token_cache and time.monotonic() < self._token_expires_at - 60:
+            return self._token_cache
+
+        async with self._token_lock:
+            if self._token_cache and time.monotonic() < self._token_expires_at - 60:
+                return self._token_cache
+
+            result = await asyncio.to_thread(
+                self._msal_app.acquire_token_for_client, scopes=self._scope
+            )
+            if "access_token" not in result:
+                raise RuntimeError(
+                    f"MSAL token acquisition failed: {result.get('error_description', result)}"
+                )
+
+            self._token_cache = result["access_token"]
+            self._token_expires_at = time.monotonic() + result.get("expires_in", 3600)
+            return self._token_cache
 
     @staticmethod
     def _get_token_diagnostics(token: str) -> dict[str, object]:
@@ -139,7 +170,7 @@ class ApiClient:
                 "Set PYTHON_UPLOAD_JOB_SECRET before starting the local processor."
             )
 
-        token = await asyncio.to_thread(self._get_token)
+        token = await self._acquire_token_async()
         filename = "chunks.jsonl" if artifact_type == "search-chunks" else "entities.json"
         url = (
             f"{self._base_url}/api/ingestion/artifacts/upload"
@@ -241,7 +272,7 @@ class ApiClient:
             payload["failureReason"] = failure_reason
 
         try:
-            token = await asyncio.to_thread(self._get_token)
+            token = await self._acquire_token_async()
             headers = {"Authorization": f"Bearer {token}"}
             async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
                 response = await client.patch(url, json=payload, headers=headers)

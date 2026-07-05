@@ -4,8 +4,8 @@ import asyncio
 import json
 import logging
 import os
-import tempfile
 import uuid
+from pathlib import Path
 from datetime import datetime, timezone
 
 from docling.chunking import HybridChunker
@@ -90,22 +90,36 @@ class PDFProcessor:
         self._api_client = api_client
 
     async def process_pdf_async(
-        self, upload_id: str, document_type: str, blob_container: str, metadata, source_access_token: str | None = None
+        self,
+        upload_id: str,
+        document_type: str,
+        blob_container: str,
+        metadata,
+        source_access_token: str | None = None,
+        local_file_path: str | None = None,
+        job_id: str | None = None,
     ) -> str:
         """Returns job_id immediately, fires background task via asyncio.create_task."""
-        job_id = str(uuid.uuid4())
+        job_id = job_id or str(uuid.uuid4())
         _jobs[job_id] = _make_job(job_id, upload_id, document_type)
         logger.info(
-            "PDF job queued job_id=%s upload_id=%s document_type=%s blob_container=%s has_source_access_token=%s",
+            "PDF job queued job_id=%s upload_id=%s document_type=%s blob_container=%s has_source_access_token=%s has_local_file=%s",
             job_id,
             upload_id,
             document_type,
             blob_container,
             bool(source_access_token),
+            bool(local_file_path),
         )
         asyncio.create_task(
             self._process_pdf(
-                job_id, upload_id, document_type, blob_container, metadata, source_access_token
+                job_id,
+                upload_id,
+                document_type,
+                blob_container,
+                metadata,
+                source_access_token,
+                local_file_path,
             )
         )
         return job_id
@@ -163,9 +177,9 @@ class PDFProcessor:
         blob_container: str,
         metadata,
         source_access_token: str | None = None,
+        local_file_path: str | None = None,
     ) -> None:
         """Background coroutine that downloads, chunks, embeds, extracts, and uploads."""
-        tmp_path: str | None = None
         try:
             logger.info(
                 "PDF job started job_id=%s upload_id=%s document_type=%s",
@@ -173,30 +187,21 @@ class PDFProcessor:
             )
 
             # ── Stage 0: Copying ──────────────────────────────
-            self._set_stage(job_id, "copying", "Downloading source PDF", 0.0)
+            self._set_stage(job_id, "copying", "Preparing source PDF", 0.0)
 
-            pdf_bytes = await self._download_source_pdf(
-                upload_id, document_type, blob_container, source_access_token
-            )
-            logger.info(
-                "PDF job source downloaded job_id=%s upload_id=%s byte_count=%d",
-                job_id, upload_id, len(pdf_bytes),
-            )
-
-            tmp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-            tmp_path = tmp_file.name
-            tmp_file.write(pdf_bytes)
-            tmp_file.close()
-            logger.info(
-                "PDF job temporary file created job_id=%s upload_id=%s temp_path=%s",
-                job_id, upload_id, tmp_path,
+            source_path = await self._resolve_source_pdf_path(
+                upload_id,
+                document_type,
+                blob_container,
+                source_access_token,
+                local_file_path,
             )
 
             # ── Stage 1: Parsing ──────────────────────────────
             self._set_stage(job_id, "parsing", "Converting PDF with Docling", 0.05)
 
             converter = DocumentConverter()
-            result = await asyncio.to_thread(converter.convert, str(tmp_path))
+            result = await asyncio.to_thread(converter.convert, str(source_path))
             logger.info(
                 "PDF job Docling conversion completed job_id=%s upload_id=%s",
                 job_id, upload_id,
@@ -331,6 +336,14 @@ class PDFProcessor:
             )
 
             # ── Stage 7: Completed ────────────────────────────
+            self._set_stage(
+                job_id,
+                "completed",
+                f"Processed {len(records)} chunks from PDF",
+                1.0,
+                chunks_processed=len(records),
+                total_chunks=total_chunks,
+            )
             _jobs[job_id].update({
                 "status": "completed",
                 "stage": "completed",
@@ -353,37 +366,68 @@ class PDFProcessor:
                 "progress": _jobs[job_id].get("progress", 0.0),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             })
+            if self._api_client.is_configured():
+                try:
+                    _ = asyncio.create_task(
+                        self._api_client.report_stage(
+                            job_id,
+                            _jobs[job_id].get("stage", "processing"),
+                            chunks_processed=_jobs[job_id].get("chunks_processed", 0),
+                            total_chunks=_jobs[job_id].get("total_chunks", 0),
+                            failure_reason=_jobs[job_id].get("error"),
+                        )
+                    )
+                except TypeError:
+                    pass
 
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                logger.debug(
-                    "PDF job deleting temporary file job_id=%s upload_id=%s temp_path=%s",
-                    job_id, upload_id, tmp_path,
-                )
-                os.unlink(tmp_path)
-
-    async def _download_source_pdf(
+    async def _resolve_source_pdf_path(
         self,
         upload_id: str,
         document_type: str,
         blob_container: str,
         source_access_token: str | None,
-    ) -> bytes:
+        local_file_path: str | None,
+    ) -> Path:
+        if local_file_path:
+            source_path = Path(local_file_path).expanduser().resolve(strict=True)
+            if not source_path.is_file():
+                raise RuntimeError("Local PDF source path is not a file.")
+            logger.info("Using local PDF source for upload %s.", upload_id)
+            return source_path
+
         if source_access_token:
             logger.info(
                 "Downloading source for upload %s via API access token.", upload_id
             )
-            return await self._api_client.download_source(
+            pdf_bytes = await self._api_client.download_source(
                 upload_id, document_type, source_access_token
             )
+            return await self._write_temp_pdf(upload_id, pdf_bytes)
 
         if self._api_client.is_configured():
             logger.info(
                 "Downloading source for upload %s via API machine credentials.", upload_id
             )
-            return await self._api_client.download_source(upload_id, document_type)
+            pdf_bytes = await self._api_client.download_source(upload_id, document_type)
+            return await self._write_temp_pdf(upload_id, pdf_bytes)
 
         raise RuntimeError(
             "source_access_token is required for PDF ingestion. Restart the MotorcycleRAG "
             "API and local processor, then retry the upload."
         )
+
+    async def _write_temp_pdf(self, upload_id: str, pdf_bytes: bytes) -> Path:
+        def write_file() -> Path:
+            temp_dir = Path(os.getenv("LOCAL_PROCESSOR_TEMP_DIR", "/tmp"))
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            path = temp_dir / f"{upload_id}.source.pdf"
+            path.write_bytes(pdf_bytes)
+            return path
+
+        path = await asyncio.to_thread(write_file)
+        logger.info(
+            "PDF job temporary file created upload_id=%s byte_count=%d",
+            upload_id,
+            len(pdf_bytes),
+        )
+        return path

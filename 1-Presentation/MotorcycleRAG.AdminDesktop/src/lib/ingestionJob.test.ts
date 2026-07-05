@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   filterSupersededIngestionJobs,
+  formatIngestionJobLabel,
   replaceRetriedIngestionJob,
   type IngestionJobStatus,
 } from "./ingestionJob";
@@ -52,5 +53,17 @@ describe("filterSupersededIngestionJobs", () => {
         new Set(["job-1"]),
       ),
     ).toEqual([job("job-3", "processing")]);
+  });
+});
+
+describe("formatIngestionJobLabel", () => {
+  it("uses the SQL identity when available", () => {
+    expect(formatIngestionJobLabel({ id: 22, jobId: "guid-22" } as IngestionJobStatus)).toBe(
+      "Job 22",
+    );
+  });
+
+  it("falls back to the guid when no SQL identity exists", () => {
+    expect(formatIngestionJobLabel({ jobId: "guid-22" } as IngestionJobStatus)).toBe("guid-22");
   });
 });

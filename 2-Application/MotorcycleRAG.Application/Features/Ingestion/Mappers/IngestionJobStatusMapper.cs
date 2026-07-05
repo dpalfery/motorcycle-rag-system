@@ -43,6 +43,7 @@ public static class IngestionJobStatusMapper
 
         return new IngestionJobStatusResponse
         {
+            Id = job.Id,
             JobId = job.IngestionJobId,
             Status = job.Status.ToString(),
             CreatedAtUtc = job.CreatedAtUtc,

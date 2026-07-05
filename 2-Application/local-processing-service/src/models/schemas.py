@@ -32,6 +32,9 @@ class ProcessPDFRequest(BaseModel):
         description="Short-lived API token for downloading the source via the MotorcycleRAG API",
         validation_alias=AliasChoices("source_access_token", "sourceAccessToken"),
     )
+    local_file_path: Optional[str] = Field(
+        None, description="Absolute path to a local PDF file (skips API source download)"
+    )
     metadata: Metadata = Field(
         default_factory=Metadata, description="Document metadata"
     )

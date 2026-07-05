@@ -1,31 +1,24 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Upload, FileText, RotateCcw, X } from "lucide-react";
-import axios, { type AxiosResponse } from "axios";
-import { api, uploadApi } from "@/lib/apiClient";
-import { useConfig } from "@/lib/config";
-import { ensureProcessorReady } from "@/lib/processor";
+import { Upload, FileText, X } from "lucide-react";
+import axios from "axios";
+import { api } from "@/lib/apiClient";
 import { Button, PageHeader, StatusPill, Empty } from "@/components/ui";
 import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
 import { cn, formatLocalDateTime } from "@/lib/utils";
 import {
-  filterSupersededIngestionJobs,
+  getTauriFilePath,
+  queueLocalIngestionWorkItem,
+} from "@/lib/localIngestion";
+import {
+  formatIngestionJobLabel,
   isIngestionFailed,
-  markIngestionJobRetrying,
-  replaceRetriedIngestionJob,
   type IngestionJobStatus,
   updateIngestionJobInList,
 } from "@/lib/ingestionJob";
 interface UploadConstraints {
   maxFileSizeBytes: number;
   supportedExtensions: string[];
-}
-
-interface IngestionUploadResponse {
-  uploadId: string;
-  fileName: string;
-  documentType: string;
-  status: string;
 }
 
 interface ProblemDetails {
@@ -47,11 +40,16 @@ function fmt(bytes: number) {
 
 const STATUS_OK = ["completed", "complete", "done", "succeeded"];
 const STATUS_ERR = ["failed", "error", "cancelled"];
+const STATUS_ACTIVE = ["queued", "pending", "processing", "running", "inprogress"];
 
 function jobTone(s: string): "success" | "danger" | "default" {
   if (STATUS_OK.includes(s.toLowerCase())) return "success";
   if (STATUS_ERR.includes(s.toLowerCase())) return "danger";
   return "default";
+}
+
+function isActiveJobStatus(status?: string) {
+  return status ? STATUS_ACTIVE.includes(status.toLowerCase()) : false;
 }
 
 function isPdf(f: File) {
@@ -102,20 +100,25 @@ function uploadStepError(step: string, error: unknown) {
   return new Error(`${step}: ${formatUploadError(error)}`);
 }
 
-function formatJobDisplayName(job: IngestionJobStatus) {
-  return job.inputType ? `${job.inputRef} (${job.inputType})` : job.inputRef;
+function newId() {
+  return crypto.randomUUID();
+}
+
+function formatChunkProgress(job: IngestionJobStatus) {
+  if (job.indexedChunkCount === undefined && job.expectedChunkCount === undefined) {
+    return null;
+  }
+
+  return `${job.indexedChunkCount ?? 0}/${job.expectedChunkCount ?? "?"} chunks`;
 }
 
 export default function IngestionScreen() {
   const qc = useQueryClient();
-  const { config, save } = useConfig();
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
+  const [submittedJobId, setSubmittedJobId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [supersededRetryJobIds, setSupersededRetryJobIds] = useState<Set<string>>(
-    () => new Set(),
-  );
 
   const constraints = useQuery({
     queryKey: ["ingestion", "constraints"],
@@ -141,40 +144,36 @@ export default function IngestionScreen() {
     refetchInterval: 15_000,
   });
 
+  const submittedJob = useQuery({
+    queryKey: ["ingestion", "job", submittedJobId],
+    enabled: !!submittedJobId,
+    queryFn: async () => {
+      const res = await api.get<IngestionJobStatus>(
+        `/api/ingestion/jobs/${submittedJobId}`,
+      );
+      return res.data;
+    },
+    refetchInterval: (query) =>
+      isActiveJobStatus(query.state.data?.status) ? 2_000 : false,
+  });
+
   const upload = useMutation({
     mutationFn: async (f: File) => {
-      const form = new FormData();
-      form.append("file", f);
       const documentType = getDocumentType(f);
-
-      const readyConfig = await ensureProcessorReady(config);
-      if (readyConfig.localProcessorWorkingDir !== config.localProcessorWorkingDir) {
-        await save({ localProcessorWorkingDir: readyConfig.localProcessorWorkingDir });
-      }
-
-      let uploadRes: AxiosResponse<IngestionUploadResponse>;
-      try {
-        uploadRes = await uploadApi.post<IngestionUploadResponse>(
-          `/api/ingestion/jobs/upload?documentType=${encodeURIComponent(documentType)}`,
-          form,
-          {
-            onUploadProgress: (e) =>
-              setProgress(Math.round((e.loaded / (e.total ?? 1)) * 100)),
-          }
-        );
-      } catch (error) {
-        throw uploadStepError(
-          `Upload failed while storing the ${isPdf(f) ? "PDF manual" : "CSV specification"} source`,
-          error
-        );
-      }
+      const uploadId = newId();
+      const processorRunId = newId();
+      const sourcePath = getTauriFilePath(f);
+      setProgress(10);
 
       try {
         const startRes = await api.post<IngestionJobStatus>("/api/ingestion/jobs", {
-          uploadId: uploadRes.data.uploadId,
-          documentType: uploadRes.data.documentType || documentType,
+          uploadId,
+          documentType,
+          processorRunId,
           configuration: getStartConfiguration(documentType),
         });
+        setProgress(45);
+
         const jobStatus = startRes.data.status?.toLowerCase() ?? "";
         if (STATUS_ERR.includes(jobStatus)) {
           const lines = [
@@ -187,52 +186,46 @@ export default function IngestionScreen() {
           ].filter(Boolean);
           throw new Error(lines.join("\n\n"));
         }
+
+        await queueLocalIngestionWorkItem({
+          sourcePath,
+          jobId: startRes.data.jobId,
+          uploadId,
+          processorRunId,
+          documentType,
+          sourceFileName: f.name,
+          size: f.size,
+          createdAtUtc: new Date().toISOString(),
+        });
+        setSubmittedJobId(startRes.data.jobId);
+        setProgress(100);
+
+        return startRes.data;
       } catch (error) {
         throw uploadStepError(
-          `Source upload succeeded, but starting ${isPdf(f) ? "PDF manual" : "CSV specification"} processing failed`,
+          `Creating local ${isPdf(f) ? "PDF manual" : "CSV specification"} ingestion work item failed`,
           error
         );
       }
     },
-    onSuccess: () => {
+    onSuccess: (job) => {
       setFile(null);
       setProgress(0);
+      qc.setQueryData<IngestionJobStatus[]>(["ingestion", "upload-jobs"], (old) =>
+        old ? [job, ...old.filter((existing) => existing.jobId !== job.jobId)] : [job],
+      );
       void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
     },
     onError: () => setProgress(0),
   });
 
-  const retryJob = useMutation({
-    mutationFn: (id: string) => api.post<IngestionJobStatus>(`/api/ingestion/jobs/${id}/retry`),
-    onMutate: async (id) => {
-      await Promise.all([
-        qc.cancelQueries({ queryKey: ["ingestion", "upload-jobs"] }),
-        qc.cancelQueries({ queryKey: ["jobs"] }),
-      ]);
-      qc.setQueryData<IngestionJobStatus[]>(["ingestion", "upload-jobs"], (old) =>
-        updateIngestionJobInList(old, id, (job) => markIngestionJobRetrying(job)),
-      );
-      qc.setQueriesData<IngestionJobStatus[]>({ queryKey: ["jobs"] }, (old) =>
-        updateIngestionJobInList(old, id, (job) => markIngestionJobRetrying(job)),
-      );
-    },
-    onSuccess: (res, id) => {
-      const retriedJob = res.data;
-      if (retriedJob.jobId !== id) {
-        setSupersededRetryJobIds((prev) => new Set(prev).add(id));
-      }
-      qc.setQueryData<IngestionJobStatus[]>(["ingestion", "upload-jobs"], (old) =>
-        replaceRetriedIngestionJob(old, id, retriedJob),
-      );
-      qc.setQueriesData<IngestionJobStatus[]>({ queryKey: ["jobs"] }, (old) =>
-        replaceRetriedIngestionJob(old, id, retriedJob),
-      );
-    },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
-      void qc.invalidateQueries({ queryKey: ["jobs"] });
-    },
-  });
+  useEffect(() => {
+    if (!submittedJob.data) return;
+
+    qc.setQueryData<IngestionJobStatus[]>(["ingestion", "upload-jobs"], (old) =>
+      updateIngestionJobInList(old, submittedJob.data.jobId, () => submittedJob.data),
+    );
+  }, [qc, submittedJob.data]);
 
   function pickFile(f: File) {
     const max = constraints.data?.maxFileSizeBytes;
@@ -249,10 +242,7 @@ export default function IngestionScreen() {
   const maxLabel = constraints.data?.maxFileSizeBytes
     ? fmt(constraints.data.maxFileSizeBytes)
     : null;
-  const displayedRecentJobs = filterSupersededIngestionJobs(
-    recentJobs.data,
-    supersededRetryJobIds,
-  );
+  const displayedRecentJobs = recentJobs.data ?? [];
 
   return (
     <div>
@@ -320,7 +310,7 @@ export default function IngestionScreen() {
           disabled={!file || upload.isPending}
           onClick={() => file && upload.mutate(file)}
         >
-          {upload.isPending ? `Uploading... ${progress}%` : "Upload and start processing"}
+          {upload.isPending ? `Queueing... ${progress}%` : "Queue for local processing"}
         </Button>
       </div>
 
@@ -362,7 +352,15 @@ export default function IngestionScreen() {
                   <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm">
-                      {formatJobDisplayName(j)}
+                      {formatIngestionJobLabel(j)}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                      <span>Status: {j.status}</span>
+                      {j.currentStage && <span>Stage: {j.currentStage}</span>}
+                      {j.stageSetAtUtc && (
+                        <span>Stage set: {formatLocalDateTime(j.stageSetAtUtc)}</span>
+                      )}
+                      {formatChunkProgress(j) && <span>{formatChunkProgress(j)}</span>}
                     </div>
                     {isIngestionFailed(j.status) && <IngestionJobFailurePanel job={j} />}
                   </div>
@@ -372,16 +370,6 @@ export default function IngestionScreen() {
                     {formatLocalDateTime(j.createdAtUtc)}
                   </span>
                   <StatusPill ok={jobTone(j.status) === "success"} label={j.status} />
-                  {isIngestionFailed(j.status) && (
-                    <button
-                      title="Restart job"
-                      disabled={retryJob.isPending}
-                      onClick={() => retryJob.mutate(j.jobId)}
-                      className="rounded p-1 text-muted hover:text-primary disabled:opacity-50"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </button>
-                  )}
                 </div>
               </div>
             </div>

@@ -207,7 +207,8 @@ public class ManualIngestionService : IManualIngestionService {
     public async Task<IngestionJobStatusResponse> CreateGraphSeedJobAsync(CreateGraphSeedJobRequest request, string userId, CancellationToken ct) {
         var jobRequest = new IngestionJobStartRequest {
             UploadId = request.FileName, // Assuming FileName is used as UploadId for now or mapped
-            DocumentType = "bike-graph"
+            DocumentType = "bike-graph",
+            ProcessorRunId = Guid.NewGuid().ToString("N")
         };
 
         return await _ingestionJobService.StartJobAsync(jobRequest, userId, ct);

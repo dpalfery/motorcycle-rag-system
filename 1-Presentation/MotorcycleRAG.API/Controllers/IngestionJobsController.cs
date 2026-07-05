@@ -488,7 +488,7 @@ public sealed class IngestionJobsController : ControllerBase {
             _logger.LogWarning(ex, "Retry rejected for ingestion job {JobId}.", jobId);
             return Conflict(new ProblemDetails {
                 Title = "Job retry rejected",
-                Detail = "The selected ingestion job could not be retried.",
+                Detail = ex.Message,
                 Status = StatusCodes.Status409Conflict
             });
         }

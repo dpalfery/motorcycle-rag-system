@@ -3,8 +3,6 @@ import { useAuth } from "@/lib/auth";
 import AppShell from "./components/AppShell";
 import SignInScreen from "./screens/SignInScreen";
 import ProcessorScreen from "./screens/ProcessorScreen";
-import IngestionScreen from "./screens/IngestionScreen";
-import JobsScreen from "./screens/JobsScreen";
 import WebSourcesScreen from "./screens/WebSourcesScreen";
 import McpToolsScreen from "./screens/McpToolsScreen";
 import UsersScreen from "./screens/UsersScreen";
@@ -22,8 +20,8 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route index element={<Navigate to="/processor" replace />} />
         <Route path="/processor" element={<ProcessorScreen />} />
-        <Route path="/ingestion" element={<IngestionScreen />} />
-        <Route path="/jobs" element={<JobsScreen />} />
+        <Route path="/ingestion" element={<Navigate to="/processor" replace />} />
+        <Route path="/jobs" element={<Navigate to="/processor" replace />} />
         <Route path="/web-sources" element={<WebSourcesScreen />} />
         <Route path="/mcp-tools" element={<McpToolsScreen />} />
         <Route path="/users" element={<UsersScreen />} />

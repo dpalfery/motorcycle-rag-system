@@ -202,6 +202,7 @@ public sealed class IngestionJobsControllerTests
         {
             UploadId = Guid.NewGuid().ToString(),
             DocumentType = "manual-pdf",
+            ProcessorRunId = Guid.NewGuid().ToString("N"),
             Configuration = new IngestionJobConfiguration { ExtractGraphRelationships = false, OcrEnabled = false }
         };
 
@@ -214,6 +215,29 @@ public sealed class IngestionJobsControllerTests
         problem.Detail.Should().Be("The ingestion job could not be created.");
         problem.Status.Should().Be(StatusCodes.Status500InternalServerError);
         problem.Detail.Should().NotContain("Failed to create ingestion job");
+    }
+
+    [Fact]
+    public async Task StartJobAsync_WithoutProcessorRunId_ReturnsBadRequest()
+    {
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+        var request = new IngestionJobStartRequest
+        {
+            UploadId = Guid.NewGuid().ToString(),
+            DocumentType = "manual-pdf",
+            ProcessorRunId = string.Empty,
+            Configuration = new IngestionJobConfiguration { ExtractGraphRelationships = false, OcrEnabled = false }
+        };
+
+        var result = await sut.StartJobAsync(request, CancellationToken.None);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var problem = badRequest.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Detail.Should().Contain("ProcessorRunId is required.");
+        ingestionJobs.Verify(
+            service => service.StartJobAsync(It.IsAny<IngestionJobStartRequest>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

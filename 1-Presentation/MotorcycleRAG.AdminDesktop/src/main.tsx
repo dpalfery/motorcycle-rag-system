@@ -6,7 +6,6 @@ import App from "./App";
 import { setApiBaseUrl, setTokenProvider } from "./lib/apiClient";
 import { useConfig } from "./lib/config";
 import { getAccessToken } from "./lib/auth";
-import { ensureProcessorReady } from "./lib/processor";
 import "./index.css";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -78,11 +77,6 @@ void useConfig
 
     // Auto-resolve local processor path if empty and enabled.
     await state.autoResolveIfNeeded();
-
-    // Start the local processor in the background so ingestion can trigger pipelines immediately.
-    void ensureProcessorReady(useConfig.getState().config).catch((err) => {
-      console.warn("Local processor auto-start skipped:", err);
-    });
   })
   .catch((err) => {
     // This should usually be handled by load() itself now, but top-level catch prevents white-screen hangs.

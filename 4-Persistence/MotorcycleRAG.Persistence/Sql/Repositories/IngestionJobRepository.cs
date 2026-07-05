@@ -39,22 +39,25 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                [CurrentStage], [StageSetAtUtc]
             )
+            OUTPUT INSERTED.[Id]
             VALUES (
                 @IngestionJobId, @CreatedAtUtc, @StartedAtUtc, @CompletedAtUtc,
                 @CreatedBySubject, @Status, @FailureReason, @ErrorsJson, @ErrorMessage, @InputType, @InputRef,
                 @ComputeProvider, @DocIngestionRunId, @ManualDocumentId,
                 @TotalPages, @PagesCapturedViewableCount, @PagesWithSearchableTextCount,
                 @PagesWithOcrTextCount, @PagesWithNativeTextCount,
-                @MissingPagesJson, @MetricsJson, @ExpectedChunkCount, @IndexedChunkCount
+                @MissingPagesJson, @MetricsJson, @ExpectedChunkCount, @IndexedChunkCount,
+                @CurrentStage, @StageSetAtUtc
             );
         ";
 
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            await connection.ExecuteAsync(new CommandDefinition(sql, new
+            job.Id = await connection.QuerySingleAsync<long>(new CommandDefinition(sql, new
             {
                 job.IngestionJobId,
                 CreatedAtUtc = job.CreatedAtUtc.UtcDateTime,
@@ -78,7 +81,9 @@ public class IngestionJobRepository : IIngestionJobRepository
                 job.MissingPagesJson,
                 job.MetricsJson,
                 job.ExpectedChunkCount,
-                job.IndexedChunkCount
+                job.IndexedChunkCount,
+                job.CurrentStage,
+                StageSetAtUtc = job.StageSetAtUtc?.UtcDateTime
             }, cancellationToken: cancellationToken));
 
             _logger.LogInformation("Created ingestion job {IngestionJobId}", job.IngestionJobId);
@@ -95,12 +100,13 @@ public class IngestionJobRepository : IIngestionJobRepository
     public async Task<IngestionJob?> GetByIdAsync(Guid ingestionJobId, CancellationToken cancellationToken = default)
     {
         const string sql = @"
-            SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+            SELECT [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                    [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                    [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                    [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                    [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
+                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                   [CurrentStage], [StageSetAtUtc]
             FROM [dbo].[IngestionJobs]
             WHERE [IngestionJobId] = @IngestionJobId;
         ";
@@ -145,7 +151,9 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [MissingPagesJson] = @MissingPagesJson,
                 [MetricsJson] = @MetricsJson,
                 [ExpectedChunkCount] = @ExpectedChunkCount,
-                [IndexedChunkCount] = @IndexedChunkCount
+                [IndexedChunkCount] = @IndexedChunkCount,
+                [CurrentStage] = @CurrentStage,
+                [StageSetAtUtc] = @StageSetAtUtc
             WHERE [IngestionJobId] = @IngestionJobId;
         ";
 
@@ -175,7 +183,9 @@ public class IngestionJobRepository : IIngestionJobRepository
                 job.MissingPagesJson,
                 job.MetricsJson,
                 job.ExpectedChunkCount,
-                job.IndexedChunkCount
+                job.IndexedChunkCount,
+                job.CurrentStage,
+                StageSetAtUtc = job.StageSetAtUtc?.UtcDateTime
             }, cancellationToken: cancellationToken));
 
             _logger.LogInformation("Updated ingestion job {IngestionJobId}", job.IngestionJobId);
@@ -228,12 +238,13 @@ public class IngestionJobRepository : IIngestionJobRepository
 
         const string sql = @"
             SELECT TOP 1
-                [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                [CurrentStage], [StageSetAtUtc]
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
@@ -262,12 +273,13 @@ public class IngestionJobRepository : IIngestionJobRepository
 
         const string sql = @"
             SELECT TOP 1
-                [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                [CurrentStage], [StageSetAtUtc]
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
               AND [InputType] = @InputType
@@ -297,12 +309,13 @@ public class IngestionJobRepository : IIngestionJobRepository
 
         const string sql = @"
             SELECT TOP (@MaxCount)
-                [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                [CurrentStage], [StageSetAtUtc]
             FROM [dbo].[IngestionJobs]
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
@@ -327,12 +340,13 @@ public class IngestionJobRepository : IIngestionJobRepository
         CancellationToken cancellationToken = default)
     {
         const string sql = @"
-            SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+            SELECT [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                    [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                    [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                    [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                    [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
+                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                   [CurrentStage], [StageSetAtUtc]
             FROM [dbo].[IngestionJobs]
             WHERE [ManualDocumentId] = @ManualDocumentId
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
@@ -368,12 +382,13 @@ public class IngestionJobRepository : IIngestionJobRepository
         }
 
         const string sql = @"
-            SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+            SELECT [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                    [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                    [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                    [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                    [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount]
+                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                   [CurrentStage], [StageSetAtUtc]
             FROM [dbo].[IngestionJobs]
             WHERE [Status] IN @Statuses
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
@@ -621,7 +636,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(docIngestionRunId);
 
         const string sql = @"
-            SELECT [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+            SELECT [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                    [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
                    [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                    [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
@@ -645,4 +660,3 @@ public class IngestionJobRepository : IIngestionJobRepository
         }
     }
 }
-

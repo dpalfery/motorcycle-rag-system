@@ -9,6 +9,9 @@ namespace MotorcycleRAG.Domain.Entities;
 /// </summary>
 public class IngestionJob
 {
+    /// <summary>SQL identity key for display and sorting.</summary>
+    public long Id { get; set; }
+
     /// <summary>Primary key — GUID assigned at creation time.</summary>
     public Guid IngestionJobId { get; set; } = Guid.NewGuid();
 

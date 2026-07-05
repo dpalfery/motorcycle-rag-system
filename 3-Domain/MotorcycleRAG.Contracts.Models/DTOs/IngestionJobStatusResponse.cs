@@ -6,6 +6,7 @@ namespace MotorcycleRAG.Contracts.Models.DTOs;
 /// </summary>
 public sealed record IngestionJobStatusResponse
 {
+    public long Id { get; init; }
     public Guid JobId { get; init; }
     public string Status { get; init; } = string.Empty;
     public DateTimeOffset CreatedAtUtc { get; init; }

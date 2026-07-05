@@ -1,11 +1,14 @@
 import type { IngestionCoverageMetrics, IngestionWorkloadLimits } from "./ingestionJobTypes";
 
 export interface IngestionJobStatus {
+  id?: number;
   jobId: string;
   status: string;
   createdAtUtc: string;
   startedAtUtc?: string;
   completedAtUtc?: string;
+  currentStage?: string;
+  stageSetAtUtc?: string;
   inputType: string;
   inputRef: string;
   computeProvider?: string;
@@ -25,6 +28,10 @@ export interface IngestionJobStatus {
   expectedChunkCount?: number;
   indexedChunkCount?: number;
   statusUrl?: string;
+}
+
+export function formatIngestionJobLabel(job: Pick<IngestionJobStatus, "id" | "jobId">): string {
+  return typeof job.id === "number" && Number.isFinite(job.id) ? `Job ${job.id}` : job.jobId;
 }
 
 export const INGESTION_FAILED_STATUSES = ["failed", "error", "cancelled"] as const;

@@ -6,7 +6,6 @@ using MotorcycleRAG.Application.Services.Ingestion.Audit;
 using MotorcycleRAG.Application.Features.Ingestion.Validators;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Persistence.ExternalServices;
 using MotorcycleRAG.Persistence.Azure;
 
 namespace MotorcycleRAG.API.Configuration.Services;
@@ -39,12 +38,6 @@ internal static class DataPipelineConfiguration {
         services.AddScoped<IManualIngestionService, MotorcycleRAG.Application.Services.Ingestion.ManualIngestionService>();
         services.AddScoped<IChunkReprocessService, ChunkReprocessService>();
 
-        // Register concrete pipeline service implementations
-        services.AddScoped<MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>();
-
-        // Register a single ILocalPipelineService using the local Python processing service.
-        services.AddScoped<ILocalPipelineService>(serviceProvider =>
-            serviceProvider.GetRequiredService<MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>());
         services.AddScoped<IGraphEntityIngestionService, MotorcycleRAG.Application.Services.Ingestion.GraphEntityIngestionService>();
 
         // Register named HTTP clients for pipeline services with resilience policies

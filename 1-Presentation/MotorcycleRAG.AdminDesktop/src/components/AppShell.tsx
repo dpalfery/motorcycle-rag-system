@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Cpu, Upload, ListChecks, Globe, Wrench, Users, Settings, Bike } from "lucide-react";
+import { Cpu, Globe, Wrench, Users, Settings, Bike } from "lucide-react";
 import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
 
@@ -11,8 +11,6 @@ interface NavItem {
 
 const PRIMARY: NavItem[] = [
   { to: "/processor", label: "Processor", icon: Cpu },
-  { to: "/ingestion", label: "Ingestion", icon: Upload },
-  { to: "/jobs", label: "Jobs", icon: ListChecks },
   { to: "/web-sources", label: "Web sources", icon: Globe },
   { to: "/mcp-tools", label: "MCP tools", icon: Wrench },
   { to: "/users", label: "Users", icon: Users },

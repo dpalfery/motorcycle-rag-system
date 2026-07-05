@@ -7,6 +7,7 @@ import { Button, PageHeader, Empty } from "@/components/ui";
 import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
 import {
   filterSupersededIngestionJobs,
+  formatIngestionJobLabel,
   isIngestionFailed,
   markIngestionJobRetrying,
   replaceRetriedIngestionJob,
@@ -45,11 +46,6 @@ function relativeTime(iso: string) {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
-}
-
-function formatJobLabel(job: IngestionJobStatus) {
-  const name = job.inputRef || job.jobId;
-  return job.inputType ? `${name} (${job.inputType})` : name;
 }
 
 export default function JobsScreen() {
@@ -173,7 +169,7 @@ export default function JobsScreen() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted">
-                <th className="px-4 py-2.5 font-medium">File</th>
+                <th className="px-4 py-2.5 font-medium">Job</th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
                 <th className="px-4 py-2.5 font-medium">Created</th>
                 <th className="px-4 py-2.5 font-medium" />
@@ -184,7 +180,7 @@ export default function JobsScreen() {
                 <Fragment key={j.jobId}>
                   <tr className="border-b border-border hover:bg-secondary/30">
                     <td className="max-w-[480px] px-4 py-3 align-top">
-                      <div className="truncate">{formatJobLabel(j)}</div>
+                      <div className="truncate">{formatIngestionJobLabel(j)}</div>
                       {isIngestionFailed(j.status) && <IngestionJobFailurePanel job={j} />}
                     </td>
                     <td className="px-4 py-3 align-top">

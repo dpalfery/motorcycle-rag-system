@@ -76,6 +76,7 @@ from models.schemas import (
     ProcessingStatusResponse,
 )
 from security.path_validation import resolve_local_csv_path
+from watch_folder import WatchFolderWorker, get_watch_folder_from_env
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -109,8 +110,30 @@ bike_graph_processor = BikeGraphProcessor(blob_writer=blob_writer, api_client=ap
 
 shutdown_requested = False
 uvicorn_server: uvicorn.Server | None = None
+watch_folder_worker: WatchFolderWorker | None = None
 _ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
 _last_health_log_signature: tuple | None = None
+
+
+@app.on_event("startup")
+async def _start_watch_folder_worker() -> None:
+    global watch_folder_worker
+    if os.getenv("WATCH_FOLDER_DISABLED", "").strip().lower() in {"1", "true", "yes"}:
+        logger.info("Watch-folder worker disabled by WATCH_FOLDER_DISABLED.")
+        return
+
+    watch_folder_worker = WatchFolderWorker(
+        get_watch_folder_from_env(),
+        pdf_processor,
+        csv_processor,
+    )
+    watch_folder_worker.start()
+
+
+@app.on_event("shutdown")
+async def _stop_watch_folder_worker() -> None:
+    if watch_folder_worker is not None:
+        await watch_folder_worker.stop()
 
 
 async def _list_all_jobs() -> list[dict]:
@@ -384,11 +407,12 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
     """Process a PDF document from Azure Blob Storage"""
     try:
         logger.info(
-            "PDF processing request received upload_id=%s document_type=%s blob_container=%s has_source_access_token=%s",
+            "PDF processing request received upload_id=%s document_type=%s blob_container=%s has_source_access_token=%s has_local_file=%s",
             request.upload_id,
             request.document_type,
             request.blob_container,
             bool(request.source_access_token),
+            bool(request.local_file_path),
         )
         if shutdown_requested:
             raise HTTPException(
@@ -400,10 +424,13 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
             raise HTTPException(status_code=400, detail="upload_id is required")
         if not request.document_type:
             raise HTTPException(status_code=400, detail="document_type is required")
-        if not request.blob_container:
+        local_file_path = None
+        if request.local_file_path:
+            local_file_path = str(Path(request.local_file_path).expanduser().resolve(strict=True))
+        elif not request.blob_container:
             raise HTTPException(status_code=400, detail="blob_container is required")
 
-        if not request.source_access_token:
+        if not local_file_path and not request.source_access_token:
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -419,6 +446,7 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
             blob_container=request.blob_container,
             metadata=request.metadata,
             source_access_token=request.source_access_token,
+            local_file_path=local_file_path,
         )
         logger.info(
             "PDF processing job accepted job_id=%s upload_id=%s document_type=%s",

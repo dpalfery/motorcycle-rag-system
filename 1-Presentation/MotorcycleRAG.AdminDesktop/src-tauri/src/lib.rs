@@ -4,7 +4,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::path::BaseDirectory;
 use tauri::{Manager, State};
@@ -42,6 +42,42 @@ struct ProcessorStartConfig {
     azure_storage_account_url: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalIngestionWorkItemRequest {
+    source_path: String,
+    job_id: String,
+    upload_id: String,
+    processor_run_id: String,
+    document_type: String,
+    created_at_utc: String,
+    #[serde(default)]
+    source_file_name: Option<String>,
+    #[serde(default)]
+    size: Option<u64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalIngestionManifest {
+    job_id: String,
+    upload_id: String,
+    processor_run_id: String,
+    document_type: String,
+    source_file_name: String,
+    local_file_name: String,
+    size_bytes: u64,
+    created_at_utc: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalIngestionWorkItemResult {
+    watch_folder: String,
+    manifest_file_name: String,
+    paired_local_file_name: String,
+}
+
 const DEFAULT_PROCESSOR_PORT: u16 = 8100;
 
 fn default_processor_port() -> u16 {
@@ -70,6 +106,145 @@ fn default_graph_extraction_endpoint() -> String {
 
 fn default_graph_extraction_model() -> String {
     "qwen3.5-0.8b".to_string()
+}
+
+fn local_ingestion_watch_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|path| path.join("local-ingestion-watch"))
+        .map_err(|e| format!("failed to resolve app data directory: {e}"))
+}
+
+#[tauri::command]
+fn pick_local_ingestion_file() -> Result<Option<String>, String> {
+    let picked = rfd::FileDialog::new()
+        .set_title("Select a file for local processing")
+        .add_filter("Supported files", &["pdf", "csv"])
+        .pick_file();
+
+    Ok(picked.map(|path| path.to_string_lossy().into_owned()))
+}
+
+fn sanitize_file_component(value: &str) -> String {
+    let sanitized: String = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
+    let trimmed = sanitized.trim_matches('_');
+    if trimmed.is_empty() {
+        "source".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn validate_manifest_id(label: &str, value: &str) -> Result<(), String> {
+    if value.trim().is_empty() {
+        return Err(format!("{label} is required"));
+    }
+
+    let valid = value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'));
+    if !valid {
+        return Err(format!("{label} contains unsupported characters"));
+    }
+
+    Ok(())
+}
+
+fn build_paired_file_name(upload_id: &str, source_file_name: &str) -> String {
+    format!(
+        "{}-{}",
+        sanitize_file_component(upload_id),
+        sanitize_file_component(source_file_name)
+    )
+}
+
+#[tauri::command]
+fn queue_local_ingestion_work_item(
+    app: tauri::AppHandle,
+    request: LocalIngestionWorkItemRequest,
+) -> Result<LocalIngestionWorkItemResult, String> {
+    validate_manifest_id("jobId", &request.job_id)?;
+    validate_manifest_id("uploadId", &request.upload_id)?;
+    validate_manifest_id("processorRunId", &request.processor_run_id)?;
+
+    let source_path = PathBuf::from(&request.source_path);
+    if !source_path.is_file() {
+        return Err("selected source file is not readable".to_string());
+    }
+
+    let source_file_name = request
+        .source_file_name
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            source_path
+                .file_name()
+                .map(|value| value.to_string_lossy().into_owned())
+        })
+        .ok_or_else(|| "selected source file must have a file name".to_string())?;
+
+    let actual_size = source_path
+        .metadata()
+        .map_err(|e| format!("failed to inspect selected source file: {e}"))?
+        .len();
+    if let Some(expected_size) = request.size {
+        if actual_size != expected_size {
+            return Err("selected source file size changed before queueing".to_string());
+        }
+    }
+
+    let watch_folder = local_ingestion_watch_folder(&app)?;
+    let files_dir = watch_folder.join("files");
+    let manifests_dir = watch_folder.join("manifests");
+    std::fs::create_dir_all(&files_dir)
+        .map_err(|e| format!("failed to create local ingestion files directory: {e}"))?;
+    std::fs::create_dir_all(&manifests_dir)
+        .map_err(|e| format!("failed to create local ingestion manifests directory: {e}"))?;
+
+    let paired_local_file_name =
+        build_paired_file_name(&request.upload_id, &source_file_name);
+    let paired_file_path = files_dir.join(&paired_local_file_name);
+    std::fs::copy(&source_path, &paired_file_path)
+        .map_err(|e| format!("failed to copy selected source file into local ingestion queue: {e}"))?;
+
+    let manifest = LocalIngestionManifest {
+        job_id: request.job_id,
+        upload_id: request.upload_id,
+        processor_run_id: request.processor_run_id,
+        document_type: request.document_type,
+        source_file_name,
+        local_file_name: paired_local_file_name.clone(),
+        size_bytes: actual_size,
+        created_at_utc: request.created_at_utc,
+    };
+    let manifest_json = serde_json::to_vec_pretty(&manifest)
+        .map_err(|e| format!("failed to serialize local ingestion manifest: {e}"))?;
+
+    let manifest_file_name = format!(
+        "{}.json",
+        sanitize_file_component(&manifest.processor_run_id)
+    );
+    let manifest_path = manifests_dir.join(&manifest_file_name);
+    let tmp_manifest_path = manifests_dir.join(format!("{manifest_file_name}.tmp"));
+    std::fs::write(&tmp_manifest_path, manifest_json)
+        .map_err(|e| format!("failed to write local ingestion manifest: {e}"))?;
+    std::fs::rename(&tmp_manifest_path, &manifest_path)
+        .map_err(|e| format!("failed to publish local ingestion manifest: {e}"))?;
+
+    Ok(LocalIngestionWorkItemResult {
+        watch_folder: watch_folder.to_string_lossy().into_owned(),
+        manifest_file_name,
+        paired_local_file_name,
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -520,6 +695,10 @@ async fn processor_start(
     envs.insert("PORT".into(), port_value.to_string());
     envs.insert("PYTHONUNBUFFERED".into(), "1".into());
     envs.insert(
+        "WATCH_FOLDER".into(),
+        local_ingestion_watch_folder(&app)?.to_string_lossy().into_owned(),
+    );
+    envs.insert(
         "EMBEDDING_PROVIDER_ENDPOINT".into(),
         embedding_provider_endpoint,
     );
@@ -951,12 +1130,14 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(ProcessorState::default())
         .invoke_handler(tauri::generate_handler![
+            pick_local_ingestion_file,
             resolve_processor_path,
             processor_start,
             processor_stop,
             processor_running,
             processor_is_listening,
             processor_request,
+            queue_local_ingestion_work_item,
             auth_sign_in,
         ])
         .run(tauri::generate_context!())
@@ -1212,5 +1393,20 @@ mod tests {
         assert!(packaged_preferred_err.contains("packaged-assets-unavailable"));
 
         let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn build_paired_file_name_removes_path_separators() {
+        assert_eq!(
+            build_paired_file_name("upload-1", "../manual path.pdf"),
+            "upload-1-.._manual_path.pdf"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_id_rejects_path_like_values() {
+        assert!(validate_manifest_id("uploadId", "upload-1").is_ok());
+        assert!(validate_manifest_id("uploadId", "../upload-1").is_err());
+        assert!(validate_manifest_id("uploadId", "").is_err());
     }
 }

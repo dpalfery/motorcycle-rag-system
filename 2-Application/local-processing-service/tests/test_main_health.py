@@ -10,6 +10,14 @@ def _load_main(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("EMBEDDING_PROVIDER_ENDPOINT", raising=False)
     monkeypatch.setenv("EMBEDDING_BACKEND", "ollama")
     monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
+    monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_URL", raising=False)
+    monkeypatch.setenv(
+        "AZURE_STORAGE_CONNECTION_STRING",
+        "DefaultEndpointsProtocol=http;"
+        "AccountName=devstoreaccount1;"
+        "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCzYI6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
+        "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;",
+    )
     sys.modules.pop("main", None)
     return importlib.import_module("main")
 

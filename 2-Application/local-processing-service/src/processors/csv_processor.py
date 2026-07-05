@@ -10,6 +10,14 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 _ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
+PIPELINE_STAGES = [
+    "copying",
+    "parsing",
+    "chunking",
+    "embedding",
+    "uploading-chunks",
+    "completed",
+]
 
 _jobs: dict[str, dict] = {}
 
@@ -51,17 +59,27 @@ class CSVProcessor:
         self._api_client = api_client
 
     async def process_csv_async(
-        self, upload_id: str, blob_container: str | None = None, metadata=None, local_file_path: str | None = None
+        self,
+        upload_id: str,
+        blob_container: str | None = None,
+        metadata=None,
+        local_file_path: str | None = None,
+        job_id: str | None = None,
     ) -> str:
-        job_id = str(uuid.uuid4())
+        job_id = job_id or str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         _jobs[job_id] = {
             "job_id": job_id,
             "upload_id": upload_id,
             "document_type": "spec-dataset",
             "status": "processing",
+            "stage": "copying",
+            "stage_index": 0,
+            "total_stages": len(PIPELINE_STAGES) - 1,
             "message": "CSV processing started",
             "progress": 0.0,
+            "chunks_processed": 0,
+            "total_chunks": 0,
             "created_at": now,
             "updated_at": now,
         }
@@ -88,10 +106,49 @@ class CSVProcessor:
 
         return len(terminal_job_ids)
 
+    def _set_stage(
+        self,
+        job_id: str,
+        stage: str,
+        message: str,
+        progress: float,
+        **extra,
+    ) -> None:
+        job = _jobs[job_id]
+        try:
+            stage_index = PIPELINE_STAGES.index(stage)
+        except ValueError:
+            stage_index = job.get("stage_index", 0)
+
+        job.update(
+            {
+                "stage": stage,
+                "stage_index": stage_index,
+                "message": message,
+                "progress": progress,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                **extra,
+            }
+        )
+
+        if self._api_client.is_configured():
+            try:
+                _ = asyncio.create_task(
+                    self._api_client.report_stage(
+                        job_id,
+                        stage,
+                        chunks_processed=job.get("chunks_processed", 0),
+                        total_chunks=job.get("total_chunks", 0),
+                    )
+                )
+            except TypeError:
+                pass
+
     async def _process_background(
         self, job_id: str, upload_id: str, blob_container: str | None, metadata, local_file_path: str | None = None
     ) -> None:
         try:
+            self._set_stage(job_id, "copying", "Preparing CSV source", 0.0)
             if local_file_path:
                 df = await asyncio.to_thread(pd.read_csv, local_file_path)
             else:
@@ -100,6 +157,7 @@ class CSVProcessor:
                 )
                 df = pd.read_csv(io.BytesIO(csv_bytes))
 
+            self._set_stage(job_id, "parsing", "Parsing CSV rows", 0.1)
             if df.empty:
                 _jobs[job_id].update(
                     {
@@ -130,6 +188,7 @@ class CSVProcessor:
             groups = list(grouped) if grouping_cols else grouped
             total_groups = len(groups)
 
+            self._set_stage(job_id, "chunking", "Chunking CSV rows", 0.2)
             for i, (group_key, group_df) in enumerate(groups):
                 if grouping_cols:
                     key_dict = (
@@ -166,6 +225,14 @@ class CSVProcessor:
                     )
 
                 for text in sub_chunks:
+                    self._set_stage(
+                        job_id,
+                        "embedding",
+                        f"Embedding chunk {chunk_index + 1}",
+                        round(0.2 + (i + 1) / max(total_groups, 1) * 0.5, 2),
+                        chunks_processed=chunk_index,
+                        total_chunks=max(len(chunks) + len(sub_chunks), chunk_index + 1),
+                    )
                     embedding = await self.embedder.generate_embedding(text)
                     now = datetime.now(timezone.utc).isoformat()
 
@@ -193,15 +260,40 @@ class CSVProcessor:
                     }
                     chunks.append(chunk)
                     chunk_index += 1
+                    if chunk_index == 1 or chunk_index % 10 == 0:
+                        self._set_stage(
+                            job_id,
+                            "embedding",
+                            f"Embedding chunk {chunk_index}",
+                            round(0.2 + (i + 1) / max(total_groups, 1) * 0.5, 2),
+                            chunks_processed=chunk_index,
+                            total_chunks=max(len(chunks), chunk_index),
+                        )
 
                 _jobs[job_id]["progress"] = round((i + 1) / total_groups * 0.9, 2)
                 _jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
 
+            self._set_stage(
+                job_id,
+                "uploading-chunks",
+                f"Uploading {len(chunks)} search chunks",
+                0.9,
+                chunks_processed=len(chunks),
+                total_chunks=len(chunks),
+            )
             chunks_bytes = ("\n".join(json.dumps(c) for c in chunks)).encode("utf-8")
             await self._api_client.upload_artifact(
                 chunks_bytes, upload_id, "search-chunks", "application/x-ndjson"
             )
 
+            self._set_stage(
+                job_id,
+                "completed",
+                f"Processed {len(chunks)} chunks from CSV",
+                1.0,
+                chunks_processed=len(chunks),
+                total_chunks=len(chunks),
+            )
             _jobs[job_id].update(
                 {
                     "status": "completed",
@@ -227,3 +319,16 @@ class CSVProcessor:
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
+            if self._api_client.is_configured():
+                try:
+                    _ = asyncio.create_task(
+                        self._api_client.report_stage(
+                            job_id,
+                            _jobs[job_id].get("stage", "processing"),
+                            chunks_processed=_jobs[job_id].get("chunks_processed", 0),
+                            total_chunks=_jobs[job_id].get("total_chunks", 0),
+                            failure_reason=_jobs[job_id].get("message"),
+                        )
+                    )
+                except TypeError:
+                    pass

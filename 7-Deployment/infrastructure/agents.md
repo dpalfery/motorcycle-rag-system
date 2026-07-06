@@ -109,7 +109,7 @@ az storage blob delete --account-name pulumibackendstore --container-name pulumi
 - Task tracking: `specs/001-system-spec/tasks.md`
 - Requirements quality checklist: `specs/001-system-spec/checklists/requirements.md`
 - Security evidence checklist: `specs/001-system-spec/checklists/asvs-v5-level2.md`
-- Deployment docs (if present): `6-Docs/deployment.md` and `6-Docs/DEPLOYMENT_GUIDE.md`
+- Deployment docs (if present): `6-Docs/deployment.md`
 
 If these sources conflict, treat `spec.md` as the authoritative “what”, `plan.md` as the “how”, and `tasks.md` as execution order.
 

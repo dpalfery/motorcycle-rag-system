@@ -703,7 +703,7 @@ pulumi up
 
 ### Azure Services Setup
 
-See [`6-Docs/azure-ai-foundry-setup.md`](6-Docs/azure-ai-foundry-setup.md) for detailed Azure AI Foundry configuration.
+See [`6-Docs/deployment.md`](6-Docs/deployment.md) for detailed deployment configuration.
 
 ### Container Deployment
 

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Upload, FileText, X } from "lucide-react";
-import axios from "axios";
 import { api } from "@/lib/apiClient";
+import { formatAdminError, sanitizeForLog } from "@/lib/adminError";
+import { useConfig } from "@/lib/config";
 import { Button, PageHeader, StatusPill, Empty } from "@/components/ui";
 import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
 import { cn, formatLocalDateTime } from "@/lib/utils";
@@ -16,20 +17,10 @@ import {
   type IngestionJobStatus,
   updateIngestionJobInList,
 } from "@/lib/ingestionJob";
+import { isPathSafe } from "@/lib/pathUtils";
 interface UploadConstraints {
   maxFileSizeBytes: number;
   supportedExtensions: string[];
-}
-
-interface ProblemDetails {
-  title?: string;
-  detail?: string;
-  traceId?: string;
-  referenceId?: string;
-  extensions?: {
-    traceId?: string;
-    referenceId?: string;
-  };
 }
 
 function fmt(bytes: number) {
@@ -52,8 +43,8 @@ function isActiveJobStatus(status?: string) {
   return status ? STATUS_ACTIVE.includes(status.toLowerCase()) : false;
 }
 
-function isPdf(f: File) {
-  return f.name.toLowerCase().endsWith(".pdf");
+function isPdfFileName(fileName: string) {
+  return fileName.toLowerCase().endsWith(".pdf");
 }
 
 function getDocumentType(f: File) {
@@ -76,30 +67,6 @@ function normalizeExtension(extension: string) {
   return extension.startsWith(".") ? extension : `.${extension}`;
 }
 
-function formatUploadError(error: unknown) {
-  if (axios.isAxiosError<ProblemDetails>(error)) {
-    const problem = error.response?.data;
-    const message = problem?.detail ?? problem?.title ?? error.message;
-    const traceId = problem?.traceId ?? problem?.extensions?.traceId;
-    const referenceId =
-      problem?.referenceId ?? problem?.extensions?.referenceId;
-    const suffixParts = [
-      traceId ? `trace: ${traceId}` : null,
-      referenceId ? `reference: ${referenceId}` : null,
-    ].filter(Boolean);
-
-    return suffixParts.length > 0
-      ? `${message} (${suffixParts.join(", ")})`
-      : message;
-  }
-
-  return error instanceof Error ? error.message : String(error);
-}
-
-function uploadStepError(step: string, error: unknown) {
-  return new Error(`${step}: ${formatUploadError(error)}`);
-}
-
 function newId() {
   return crypto.randomUUID();
 }
@@ -114,11 +81,14 @@ function formatChunkProgress(job: IngestionJobStatus) {
 
 export default function IngestionScreen() {
   const qc = useQueryClient();
+  const apiBaseUrl = useConfig((state) => state.config.apiBaseUrl);
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
   const [submittedJobId, setSubmittedJobId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const queueIngestionAction = (fileName: string) =>
+    `Creating local ${isPdfFileName(fileName) ? "PDF manual" : "CSV specification"} ingestion work item`;
 
   const constraints = useQuery({
     queryKey: ["ingestion", "constraints"],
@@ -188,6 +158,12 @@ export default function IngestionScreen() {
         }
 
         try {
+          if (!isPathSafe(sourcePath)) {
+            throw new Error(
+              `Invalid file path detected: "${sourcePath}". Path traversal or system files are not allowed.`,
+            );
+          }
+
           await queueLocalIngestionWorkItem({
             sourcePath,
             jobId: startRes.data.jobId,
@@ -201,19 +177,28 @@ export default function IngestionScreen() {
         } catch (queueError) {
           try {
             await api.delete(`/api/ingestion/jobs/${startRes.data.jobId}`);
-          } catch {
+          } catch (deleteError) {
+            console.error('Failed to clean up job after queue failure:', sanitizeForLog(deleteError));
             // The original queue failure is the actionable error for the operator.
           }
-          throw queueError;
+          throw new Error(
+            formatAdminError(queueError, {
+              action: queueIngestionAction(f.name),
+              kind: "local-queue",
+            }),
+          );
         }
         setSubmittedJobId(startRes.data.jobId);
         setProgress(100);
 
         return startRes.data;
       } catch (error) {
-        throw uploadStepError(
-          `Creating local ${isPdf(f) ? "PDF manual" : "CSV specification"} ingestion work item failed`,
-          error
+        throw new Error(
+          formatAdminError(error, {
+            action: queueIngestionAction(f.name),
+            kind: "cloud-api",
+            apiBaseUrl,
+          }),
         );
       }
     },
@@ -242,6 +227,19 @@ export default function IngestionScreen() {
       alert(`File exceeds the ${fmt(max)} limit.`);
       return;
     }
+
+    // Validate file extension
+    if (allowedExtensions && allowedExtensions.length > 0) {
+      const fileName = f.name.toLowerCase();
+      const hasValidExtension = allowedExtensions.some((ext) =>
+        fileName.endsWith(ext.toLowerCase())
+      );
+      if (!hasValidExtension) {
+        alert(`File type not supported. Allowed types: ${allowedExtensions.join(', ')}`);
+        return;
+      }
+    }
+
     setFile(f);
     setProgress(0);
   }
@@ -325,7 +323,11 @@ export default function IngestionScreen() {
 
       {upload.isError && (
         <div className="mb-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger whitespace-pre-wrap break-words">
-          {formatUploadError(upload.error)}
+          {formatAdminError(upload.error, {
+            action: file ? queueIngestionAction(file.name) : "Creating local ingestion work item",
+            kind: "cloud-api",
+            apiBaseUrl,
+          })}
         </div>
       )}
 

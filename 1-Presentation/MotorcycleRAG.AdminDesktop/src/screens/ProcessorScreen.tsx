@@ -15,6 +15,7 @@ import {
 import axios from "axios";
 import { useConfig, type AppConfig } from "@/lib/config";
 import { api } from "@/lib/apiClient";
+import { formatAdminError, sanitizeForLog } from "@/lib/adminError";
 import { processor, toStartConfig, type ProcessorJob } from "@/lib/processor";
 import { Button, Card, MetricCard, PageHeader, StatusPill, Empty } from "@/components/ui";
 import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
@@ -33,21 +34,11 @@ import {
   pickLocalIngestionFile,
   queueLocalIngestionWorkItem,
 } from "@/lib/localIngestion";
+import { isPathSafe } from "@/lib/pathUtils";
 
 interface UploadConstraints {
   maxFileSizeBytes: number;
   supportedExtensions: string[];
-}
-
-interface ProblemDetails {
-  title?: string;
-  detail?: string;
-  traceId?: string;
-  referenceId?: string;
-  extensions?: {
-    traceId?: string;
-    referenceId?: string;
-  };
 }
 
 const STATUS_OK = ["completed", "complete", "done", "succeeded"];
@@ -124,24 +115,6 @@ function normalizeExtension(extension: string) {
   return extension.startsWith(".") ? extension : `.${extension}`;
 }
 
-function formatUploadError(error: unknown) {
-  if (axios.isAxiosError<ProblemDetails>(error)) {
-    const problem = error.response?.data;
-    const message = problem?.detail ?? problem?.title ?? error.message;
-    const traceId = problem?.traceId ?? problem?.extensions?.traceId;
-    const referenceId = problem?.referenceId ?? problem?.extensions?.referenceId;
-    const suffixParts = [traceId ? `trace: ${traceId}` : null, referenceId ? `reference: ${referenceId}` : null].filter(Boolean);
-
-    return suffixParts.length > 0 ? `${message} (${suffixParts.join(", ")})` : message;
-  }
-
-  return error instanceof Error ? error.message : String(error);
-}
-
-function uploadStepError(step: string, error: unknown) {
-  return new Error(`${step}: ${formatUploadError(error)}`);
-}
-
 async function validateLocalArtifactUpload(config: AppConfig, port: number) {
   if (!config.pythonUploadJobSecret.trim()) {
     throw new Error(
@@ -202,6 +175,8 @@ export default function ProcessorScreen() {
   );
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const queueIngestionAction = (sourcePath: string) =>
+    `Creating local ${isPdfPath(sourcePath) ? "PDF manual" : "CSV specification"} ingestion work item`;
 
   const listening = useQuery({
     queryKey: ["proc", "listening", port],
@@ -268,7 +243,7 @@ export default function ProcessorScreen() {
           if (ageMs > 30000) {
             api.post(`/api/ingestion/jobs/${cloudJob.jobId}/fail`, null, { params: { reason: "Local processor lost the job (stale)" } })
               .then(() => qc.invalidateQueries({ queryKey: ["jobs", "cloud"] }))
-              .catch((err) => console.error("Failed to fail stale job", err));
+              .catch((err) => console.error("Failed to fail stale job due to local processor losing it", sanitizeForLog(err)));
           }
         }
       }
@@ -302,7 +277,14 @@ export default function ProcessorScreen() {
 
   const upload = useMutation({
     mutationFn: async (sourcePath: string) => {
-      await validateLocalArtifactUpload(config, port);
+      try {
+        await validateLocalArtifactUpload(config, port);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `Local processor preflight failed before queueing ${isPdfPath(sourcePath) ? "the PDF manual" : "the CSV specification"}: ${detail}`,
+        );
+      }
 
       const documentType = getDocumentType(sourcePath);
       const uploadId = newId();
@@ -332,6 +314,12 @@ export default function ProcessorScreen() {
         }
 
         try {
+          if (!isPathSafe(sourcePath)) {
+            throw new Error(
+              `Invalid file path detected: "${sourcePath}". Path traversal or system files are not allowed.`,
+            );
+          }
+
           await queueLocalIngestionWorkItem({
             sourcePath,
             jobId: startRes.data.jobId,
@@ -343,19 +331,28 @@ export default function ProcessorScreen() {
         } catch (queueError) {
           try {
             await api.delete(`/api/ingestion/jobs/${startRes.data.jobId}`);
-          } catch {
+          } catch (deleteError) {
+            console.error("Failed to clean up job after queue failure:", sanitizeForLog(deleteError));
             // The original queue failure is the actionable error for the operator.
           }
-          throw queueError;
+          throw new Error(
+            formatAdminError(queueError, {
+              action: queueIngestionAction(sourcePath),
+              kind: "local-queue",
+            }),
+          );
         }
         setSubmittedJobId(startRes.data.jobId);
         setProgress(100);
 
         return startRes.data;
       } catch (error) {
-        throw uploadStepError(
-          `Creating local ${isPdfPath(sourcePath) ? "PDF manual" : "CSV specification"} ingestion work item failed`,
-          error,
+        throw new Error(
+          formatAdminError(error, {
+            action: queueIngestionAction(sourcePath),
+            kind: "cloud-api",
+            apiBaseUrl: config.apiBaseUrl,
+          }),
         );
       }
     },
@@ -404,6 +401,9 @@ export default function ProcessorScreen() {
     },
   });
 
+  // Derive isRunning early so it's available to stopLocalProcessorRun
+  const isRunning = !!listening.data;
+
   async function stopLocalProcessorRun(job: IngestionJobStatus, ignoreErrors = false) {
     if (!isActiveJobStatus(job.status) || !job.docIngestionRunId || !isRunning) {
       return;
@@ -413,9 +413,16 @@ export default function ProcessorScreen() {
       await processor.stopJob(job.docIngestionRunId, port);
     } catch (error) {
       if (!ignoreErrors) {
-        throw error;
+        throw new Error(
+          formatAdminError(error, {
+            action: `Stopping local processor run ${job.docIngestionRunId}`,
+            kind: "local-processor",
+            localProcessorPort: port,
+            location: "endpoint",
+          }),
+        );
       }
-      console.warn("Per-job local processor stop failed before delete:", error);
+      console.warn("Per-job local processor stop failed before delete:", sanitizeForLog(error));
     }
   }
 
@@ -432,7 +439,13 @@ export default function ProcessorScreen() {
       void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
     },
     onError: (err: unknown) => {
-      setDeleteError(err instanceof Error ? err.message : "Failed to stop job.");
+      setDeleteError(
+        formatAdminError(err, {
+          action: "Stopping ingestion job",
+          kind: "cloud-api",
+          apiBaseUrl: config.apiBaseUrl,
+        }),
+      );
     },
   });
 
@@ -440,7 +453,10 @@ export default function ProcessorScreen() {
     mutationFn: async (job: IngestionJobStatus) => {
       if (isActiveJobStatus(job.status)) {
         await stopLocalProcessorRun(job, true);
-        await api.post(`/api/ingestion/jobs/${job.jobId}/cancel`).catch(() => undefined);
+        await api.post(`/api/ingestion/jobs/${job.jobId}/cancel`).catch((err) => {
+          console.error("Failed to cancel job during removal", sanitizeForLog(err));
+          // Continue with deletion even if cancel fails
+        });
       }
 
       await api.delete(`/api/ingestion/jobs/${job.jobId}`);
@@ -464,7 +480,13 @@ export default function ProcessorScreen() {
         setDeleteError(err.response.data?.detail ?? "Only terminal jobs can be deleted.");
         return;
       }
-      setDeleteError(err instanceof Error ? err.message : "Failed to delete job.");
+      setDeleteError(
+        formatAdminError(err, {
+          action: "Deleting ingestion job",
+          kind: "cloud-api",
+          apiBaseUrl: config.apiBaseUrl,
+        }),
+      );
     },
   });
 
@@ -479,7 +501,6 @@ export default function ProcessorScreen() {
     );
   }, [qc, submittedJob.data]);
 
-  const isRunning = !!listening.data;
   const healthy = (health.data?.status ?? "").toLowerCase() === "healthy";
   const localJobList = localJobs.data ?? [];
   const jobList = filterSupersededIngestionJobs(jobs.data, supersededRetryJobIds);
@@ -521,6 +542,16 @@ export default function ProcessorScreen() {
       return;
     }
 
+    // Validate file extension matches allowed extensions
+    if (allowedExtensions && allowedExtensions.length > 0) {
+      const fileName = f.name.toLowerCase();
+      const hasValidExtension = allowedExtensions.some((ext) => fileName.endsWith(ext.toLowerCase()));
+      if (!hasValidExtension) {
+        setSelectionError(`File type not supported. Allowed types: ${allowedExtensions.join(", ")}`);
+        return;
+      }
+    }
+
     try {
       const sourcePath = getTauriFilePath(f as File);
       setSelectedSourcePath(sourcePath);
@@ -559,7 +590,12 @@ export default function ProcessorScreen() {
       {start.isError && (
         <div className="mb-4 flex items-center gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           <span className="flex-1">
-            Could not start the processor: {start.error instanceof Error ? start.error.message : String(start.error)}
+            Could not start the processor: {formatAdminError(start.error, {
+              action: "Starting the local processor",
+              kind: "local-processor",
+              localProcessorPort: port,
+              location: "integration",
+            })}
           </span>
           <button
             className="shrink-0 rounded p-0.5 text-danger hover:bg-danger/20"
@@ -573,7 +609,12 @@ export default function ProcessorScreen() {
       {stop.isError && (
         <div className="mb-4 flex items-center gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           <span className="flex-1">
-            Could not stop the processor: {stop.error instanceof Error ? stop.error.message : String(stop.error)}
+            Could not stop the processor: {formatAdminError(stop.error, {
+              action: "Stopping the local processor",
+              kind: "local-processor",
+              localProcessorPort: port,
+              location: "integration",
+            })}
           </span>
           <button
             className="shrink-0 rounded p-0.5 text-danger hover:bg-danger/20"
@@ -674,7 +715,7 @@ export default function ProcessorScreen() {
 
         {upload.isError && (
           <div className="mt-4 flex items-start gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger whitespace-pre-wrap break-words">
-            <span className="flex-1">{formatUploadError(upload.error)}</span>
+            <span className="flex-1">{upload.error.message}</span>
             <button
               className="shrink-0 rounded p-0.5 text-danger hover:bg-danger/20"
               onClick={() => upload.reset()}
@@ -703,7 +744,14 @@ export default function ProcessorScreen() {
         ) : localJobs.isLoading ? (
           <Empty>Loading local jobs...</Empty>
         ) : localJobs.isError ? (
-          <Empty>Could not load local jobs.</Empty>
+          <Empty>
+            Could not load local jobs: {formatAdminError(localJobs.error, {
+              action: "Loading local processor jobs",
+              kind: "local-processor",
+              localProcessorPort: port,
+              location: "endpoint",
+            })}
+          </Empty>
         ) : localJobList.length === 0 ? (
           <Empty>No local jobs yet.</Empty>
         ) : (
@@ -767,7 +815,13 @@ export default function ProcessorScreen() {
         {jobs.isLoading ? (
           <Empty>Loading jobs…</Empty>
         ) : jobs.isError ? (
-          <Empty>Could not load jobs: {formatUploadError(jobs.error)}</Empty>
+          <Empty>
+            Could not load jobs: {formatAdminError(jobs.error, {
+              action: "Loading ingestion jobs",
+              kind: "cloud-api",
+              apiBaseUrl: config.apiBaseUrl,
+            })}
+          </Empty>
         ) : jobList.length === 0 ? (
           <Empty>No jobs found.</Empty>
         ) : (

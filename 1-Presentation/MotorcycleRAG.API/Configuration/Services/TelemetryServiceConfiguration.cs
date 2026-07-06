@@ -36,7 +36,9 @@ internal static class TelemetryServiceConfiguration
         }
         else
         {
+#pragma warning disable CA2000 // Dispose objects before losing scope — registered as singleton; DI container handles disposal
             var config = new TelemetryConfiguration { DisableTelemetry = true };
+#pragma warning restore CA2000
             services.AddSingleton(config);
             services.AddSingleton(new TelemetryClient(config));
         }

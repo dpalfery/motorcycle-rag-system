@@ -39,7 +39,7 @@ export function formatLocalDateTime(
 
 /**
  * Validate an http(s) URL, optionally allowing localhost/loopback hosts.
- * Mirrors the rules in MotorcycleRAG.Admin/Utilities/UrlValidator.
+ * Validates http(s) URLs with optional localhost/loopback host allowance.
  */
 export function isValidUrl(candidate: string, allowLocalhost = false): boolean {
   if (!candidate || !candidate.trim()) return false;

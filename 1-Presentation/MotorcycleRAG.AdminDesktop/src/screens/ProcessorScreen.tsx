@@ -13,7 +13,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import axios from "axios";
-import { useConfig } from "@/lib/config";
+import { useConfig, type AppConfig } from "@/lib/config";
 import { api } from "@/lib/apiClient";
 import { processor, toStartConfig, type ProcessorJob } from "@/lib/processor";
 import { Button, Card, MetricCard, PageHeader, StatusPill, Empty } from "@/components/ui";
@@ -142,6 +142,31 @@ function uploadStepError(step: string, error: unknown) {
   return new Error(`${step}: ${formatUploadError(error)}`);
 }
 
+async function validateLocalArtifactUpload(config: AppConfig, port: number) {
+  if (!config.pythonUploadJobSecret.trim()) {
+    throw new Error(
+      "Upload job secret is required for local processing. Set it in Settings under Authentication, then restart the local processor.",
+    );
+  }
+
+  if (!(await processor.isListening(port))) {
+    return;
+  }
+
+  const currentHealth = await processor.health(port);
+  if (currentHealth.api_client_configured !== true) {
+    throw new Error(
+      "The running local processor was started without the upload job secret. Stop and start the processor after saving the secret.",
+    );
+  }
+
+  if (currentHealth.accepting_work !== true) {
+    throw new Error(
+      `The running local processor is not accepting work: ${currentHealth.message ?? currentHealth.status}`,
+    );
+  }
+}
+
 function newId() {
   return crypto.randomUUID();
 }
@@ -230,6 +255,26 @@ export default function ProcessorScreen() {
     refetchInterval: (query) => (isActiveJobStatus(query.state.data?.status) ? 2_000 : false),
   });
 
+  useEffect(() => {
+    if (!localJobs.isSuccess || !jobs.isSuccess || !health.isSuccess) return;
+    if (health.data.status !== "ok" || health.data.accepting_work !== true) return;
+
+    const currentLocalJobIds = new Set(localJobs.data.map((j) => j.job_id));
+
+    jobs.data.forEach((cloudJob) => {
+      if (isActiveJobStatus(cloudJob.status) && cloudJob.docIngestionRunId) {
+        if (!currentLocalJobIds.has(cloudJob.docIngestionRunId)) {
+          const ageMs = Date.now() - new Date(cloudJob.createdAtUtc).getTime();
+          if (ageMs > 30000) {
+            api.post(`/api/ingestion/jobs/${cloudJob.jobId}/fail`, null, { params: { reason: "Local processor lost the job (stale)" } })
+              .then(() => qc.invalidateQueries({ queryKey: ["jobs", "cloud"] }))
+              .catch((err) => console.error("Failed to fail stale job", err));
+          }
+        }
+      }
+    });
+  }, [localJobs.data, jobs.data, health.data, localJobs.isSuccess, jobs.isSuccess, health.isSuccess, qc]);
+
   const invalidateProcessor = () => {
     void qc.invalidateQueries({ queryKey: ["proc"] });
   };
@@ -257,6 +302,8 @@ export default function ProcessorScreen() {
 
   const upload = useMutation({
     mutationFn: async (sourcePath: string) => {
+      await validateLocalArtifactUpload(config, port);
+
       const documentType = getDocumentType(sourcePath);
       const uploadId = newId();
       const processorRunId = newId();
@@ -284,14 +331,23 @@ export default function ProcessorScreen() {
           throw new Error(lines.join("\n\n"));
         }
 
-        await queueLocalIngestionWorkItem({
-          sourcePath,
-          jobId: startRes.data.jobId,
-          uploadId,
-          processorRunId,
-          documentType,
-          createdAtUtc: new Date().toISOString(),
-        });
+        try {
+          await queueLocalIngestionWorkItem({
+            sourcePath,
+            jobId: startRes.data.jobId,
+            uploadId,
+            processorRunId,
+            documentType,
+            createdAtUtc: new Date().toISOString(),
+          });
+        } catch (queueError) {
+          try {
+            await api.delete(`/api/ingestion/jobs/${startRes.data.jobId}`);
+          } catch {
+            // The original queue failure is the actionable error for the operator.
+          }
+          throw queueError;
+        }
         setSubmittedJobId(startRes.data.jobId);
         setProgress(100);
 
@@ -348,10 +404,58 @@ export default function ProcessorScreen() {
     },
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => api.delete(`/api/ingestion/jobs/${id}`),
+  async function stopLocalProcessorRun(job: IngestionJobStatus, ignoreErrors = false) {
+    if (!isActiveJobStatus(job.status) || !job.docIngestionRunId || !isRunning) {
+      return;
+    }
+
+    try {
+      await processor.stopJob(job.docIngestionRunId, port);
+    } catch (error) {
+      if (!ignoreErrors) {
+        throw error;
+      }
+      console.warn("Per-job local processor stop failed before delete:", error);
+    }
+  }
+
+  const stopJob = useMutation({
+    mutationFn: async (job: IngestionJobStatus) => {
+      await stopLocalProcessorRun(job);
+      await api.post(`/api/ingestion/jobs/${job.jobId}/cancel`);
+    },
     onSuccess: () => {
       setDeleteError(null);
+      void qc.invalidateQueries({ queryKey: ["proc", "jobs"] });
+      void qc.invalidateQueries({ queryKey: ["proc", "health"] });
+      void qc.invalidateQueries({ queryKey: ["jobs"] });
+      void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
+    },
+    onError: (err: unknown) => {
+      setDeleteError(err instanceof Error ? err.message : "Failed to stop job.");
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: async (job: IngestionJobStatus) => {
+      if (isActiveJobStatus(job.status)) {
+        await stopLocalProcessorRun(job, true);
+        await api.post(`/api/ingestion/jobs/${job.jobId}/cancel`).catch(() => undefined);
+      }
+
+      await api.delete(`/api/ingestion/jobs/${job.jobId}`);
+      return job.jobId;
+    },
+    onSuccess: (jobId) => {
+      setDeleteError(null);
+      qc.setQueriesData<IngestionJobStatus[]>({ queryKey: ["jobs"] }, (old) =>
+        old?.filter((job) => job.jobId !== jobId),
+      );
+      qc.setQueryData<IngestionJobStatus[]>(["ingestion", "upload-jobs"], (old) =>
+        old?.filter((job) => job.jobId !== jobId),
+      );
+      void qc.invalidateQueries({ queryKey: ["proc", "jobs"] });
+      void qc.invalidateQueries({ queryKey: ["proc", "health"] });
       void qc.invalidateQueries({ queryKey: ["jobs"] });
       void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
     },
@@ -663,7 +767,7 @@ export default function ProcessorScreen() {
         {jobs.isLoading ? (
           <Empty>Loading jobs…</Empty>
         ) : jobs.isError ? (
-          <Empty>Could not load jobs.</Empty>
+          <Empty>Could not load jobs: {formatUploadError(jobs.error)}</Empty>
         ) : jobList.length === 0 ? (
           <Empty>No jobs found.</Empty>
         ) : (
@@ -691,7 +795,7 @@ export default function ProcessorScreen() {
                       <td className="px-4 py-3 align-top">
                         <span
                           className={cn(
-                            "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                            "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
                             jobTone(j.status) === "success"
                               ? "bg-success/15 text-success"
                               : jobTone(j.status) === "danger"
@@ -699,7 +803,7 @@ export default function ProcessorScreen() {
                                 : "bg-secondary text-muted",
                           )}
                         >
-                          {j.status}
+                          {isActiveJobStatus(j.status) && j.currentStage ? j.currentStage.replace(/-/g, " ") : j.status}
                         </span>
                       </td>
                       <td
@@ -720,10 +824,20 @@ export default function ProcessorScreen() {
                               <RotateCcw className="h-4 w-4" />
                             </button>
                           )}
+                          {isActiveJobStatus(j.status) && (
+                            <button
+                              title="Stop"
+                              disabled={stopJob.isPending}
+                              onClick={() => stopJob.mutate(j)}
+                              className="rounded p-1 text-muted hover:text-primary disabled:opacity-50"
+                            >
+                              <Square className="h-4 w-4" />
+                            </button>
+                          )}
                           <button
                             title="Delete"
                             disabled={remove.isPending}
-                            onClick={() => remove.mutate(j.jobId)}
+                            onClick={() => remove.mutate(j)}
                             className="rounded p-1 text-muted hover:text-danger disabled:opacity-50"
                           >
                             <Trash2 className="h-4 w-4" />

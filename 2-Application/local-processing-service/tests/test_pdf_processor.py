@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from processors.pdf_processor import PDFProcessor, _jobs
+from processors.pdf_processor import PDFProcessor, _jobs, _tasks
 
 
 # ---------------------------------------------------------------------------
@@ -18,8 +18,10 @@ from processors.pdf_processor import PDFProcessor, _jobs
 @pytest.fixture(autouse=True)
 def _clear_jobs():
     _jobs.clear()
+    _tasks.clear()
     yield
     _jobs.clear()
+    _tasks.clear()
 
 
 def _make_chunk(text: str = "Sample chunk text", page_no: int = 1):
@@ -28,6 +30,16 @@ def _make_chunk(text: str = "Sample chunk text", page_no: int = 1):
     doc_item = SimpleNamespace(prov=[prov_item])
     meta = SimpleNamespace(headings=["Section A"], doc_items=[doc_item])
     return SimpleNamespace(text=text, meta=meta)
+
+
+async def _wait_for_terminal_status(processor, job_id: str, timeout: float = 5.0):
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        status = await processor.get_job_status(job_id)
+        if status and status.get("status") in {"completed", "failed", "cancelled"}:
+            return status
+        await asyncio.sleep(0.01)
+    raise TimeoutError(f"Job {job_id} did not reach a terminal state")
 
 
 @pytest.fixture()
@@ -45,6 +57,7 @@ def api_client():
     ac.is_configured = MagicMock(return_value=False)
     ac.download_source = AsyncMock(return_value=b"%PDF-1.4 fake content")
     ac.upload_artifact = AsyncMock(return_value=None)
+    ac.report_stage = AsyncMock(return_value=None)
     return ac
 
 
@@ -180,6 +193,62 @@ class TestPDFBackgroundProcessing:
         status = await processor.get_job_status(job_id)
         assert status["status"] == "completed"
         assert status["chunks_processed"] == 2
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_reports_all_pdf_pipeline_stages_to_configured_api_client(
+        self, MockConverter, MockChunker, MockGetTokenizer, processor, api_client, metadata
+    ):
+        api_client.is_configured.return_value = True
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1"), _make_chunk("Chunk 2", page_no=2)]
+
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-pdf-stages",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+
+        await _wait_for_terminal_status(processor, job_id)
+        await asyncio.sleep(0)
+
+        reported_stages = [call.args[1] for call in api_client.report_stage.await_args_list]
+        assert reported_stages[0] == "copying"
+        for stage in [
+            "copying",
+            "parsing",
+            "chunking",
+            "embedding",
+            "uploading-chunks",
+            "extracting-graph",
+            "uploading-graph",
+            "completed",
+        ]:
+            assert stage in reported_stages
+        assert reported_stages[-1] == "completed"
+
+        status = await processor.get_job_status(job_id)
+        history = status["stage_history"]
+        history_stages = [entry["stage"] for entry in history]
+        assert history_stages == [
+            "copying",
+            "parsing",
+            "chunking",
+            "embedding",
+            "uploading-chunks",
+            "extracting-graph",
+            "uploading-graph",
+            "completed",
+        ]
+        assert all(entry["set_at"] for entry in history)
 
     @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
     @patch("processors.pdf_processor.HybridChunker")

@@ -5,6 +5,7 @@ using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.Azure;
+using MotorcycleRAG.Persistence.Azure.Search;
 
 using MotorcycleRAG.Core.Options;
 
@@ -102,6 +103,31 @@ public class ServiceCollectionExtensionsTests {
     }
 
     [Fact]
+    public void AddAzureServices_WithInMemoryShimProvider_ShouldRegisterShimChunkIndexer() {
+        // Arrange
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> {
+                ["AzureAI:FoundryEndpoint"] = "https://test-foundry.cognitiveservices.azure.com/",
+                ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
+                ["Search:IndexName"] = "test-index",
+                ["Search:ChunkIndexingProvider"] = "InMemoryShim",
+                ["Search:InMemoryShimEndpoint"] = "http://127.0.0.1:8765/"
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddAzureServices(configuration);
+        var serviceProvider = services.BuildServiceProvider();
+
+        // Assert
+        serviceProvider.GetRequiredService<IChunkIndexingService>()
+            .Should()
+            .BeOfType<InMemorySearchShimChunkIndexingService>();
+    }
+
+    [Fact]
     public void AddAzureServices_WithoutDocumentIntelligenceEndpoint_ShouldRegisterDisabledClient() {
         // Arrange
         var configuration = new ConfigurationBuilder()
@@ -166,6 +192,61 @@ public class SearchConfigurationValidatorTests {
 
         // Assert
         result.Should().Be(ValidateOptionsResult.Success);
+    }
+
+    [Fact]
+    public void Validate_WithInMemoryShimProviderAndEndpoint_ShouldReturnSuccess() {
+        // Arrange
+        var config = new SearchOptions {
+            IndexName = "test-index",
+            BatchSize = 100,
+            MaxSearchResults = 50,
+            ChunkIndexingProvider = "InMemoryShim",
+            InMemoryShimEndpoint = "http://127.0.0.1:8765/"
+        };
+
+        // Act
+        var result = _validator.Validate(null, config);
+
+        // Assert
+        result.Should().Be(ValidateOptionsResult.Success);
+    }
+
+    [Fact]
+    public void Validate_WithInMemoryShimProviderAndMissingEndpoint_ShouldReturnFailure() {
+        // Arrange
+        var config = new SearchOptions {
+            IndexName = "test-index",
+            BatchSize = 100,
+            MaxSearchResults = 50,
+            ChunkIndexingProvider = "InMemoryShim"
+        };
+
+        // Act
+        var result = _validator.Validate(null, config);
+
+        // Assert
+        result.Failed.Should().BeTrue();
+        result.Failures.Should().Contain("Search:InMemoryShimEndpoint must be a valid absolute URL when Search:ChunkIndexingProvider is InMemoryShim");
+    }
+
+    [Fact]
+    public void Validate_WithInMemoryShimProviderAndNonLoopbackEndpoint_ShouldReturnFailure() {
+        // Arrange
+        var config = new SearchOptions {
+            IndexName = "test-index",
+            BatchSize = 100,
+            MaxSearchResults = 50,
+            ChunkIndexingProvider = "InMemoryShim",
+            InMemoryShimEndpoint = "https://example.com/"
+        };
+
+        // Act
+        var result = _validator.Validate(null, config);
+
+        // Assert
+        result.Failed.Should().BeTrue();
+        result.Failures.Should().Contain("Search:InMemoryShimEndpoint must be an http or https loopback URL when Search:ChunkIndexingProvider is InMemoryShim");
     }
 
     [Theory]

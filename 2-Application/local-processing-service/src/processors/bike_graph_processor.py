@@ -35,8 +35,16 @@ logger = logging.getLogger(__name__)
 # Deterministic UUID namespace — stable across runs so re-processing is idempotent.
 _NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 _ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
+PIPELINE_STAGES = [
+    "copying",
+    "parsing",
+    "building-graph",
+    "uploading-graph",
+    "completed",
+]
 
 _jobs: dict[str, dict] = {}
+_tasks: dict[str, asyncio.Task] = {}
 
 # Spec columns included in bike-node descriptions (lowercased for lookup).
 _DESCRIPTION_COLS = [
@@ -99,20 +107,26 @@ class BikeGraphProcessor:
         upload_id: str,
         blob_container: Optional[str] = None,
         local_file_path: Optional[str] = None,
+        job_id: Optional[str] = None,
     ) -> str:
         """Start background processing from blob storage or a local CSV path."""
         if not blob_container and not local_file_path:
             raise ValueError("Either blob_container or local_file_path is required")
 
-        job_id = str(uuid.uuid4())
+        job_id = job_id or str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         _jobs[job_id] = {
             "job_id": job_id,
             "upload_id": upload_id,
             "document_type": "bike-graph",
             "status": "processing",
+            "stage": "copying",
+            "stage_index": 0,
+            "total_stages": len(PIPELINE_STAGES) - 1,
             "message": "Bike graph processing started",
             "progress": 0.0,
+            "nodes_created": 0,
+            "edges_created": 0,
             "created_at": now,
             "updated_at": now,
         }
@@ -121,9 +135,11 @@ class BikeGraphProcessor:
             upload_id,
             local_file_path or f"blob:{blob_container}",
         )
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._process_background(job_id, upload_id, blob_container, local_file_path)
         )
+        _tasks[job_id] = task
+        task.add_done_callback(lambda _task, jid=job_id: _tasks.pop(jid, None))
         return job_id
 
     async def get_job_status(self, job_id: str) -> dict | None:
@@ -141,8 +157,95 @@ class BikeGraphProcessor:
 
         for job_id in terminal_job_ids:
             _jobs.pop(job_id, None)
+            _tasks.pop(job_id, None)
 
         return len(terminal_job_ids)
+
+    async def stop_job(self, job_id: str) -> dict | None:
+        job = _jobs.get(job_id)
+        if not job:
+            return None
+        if str(job.get("status", "")).strip().lower() not in _ACTIVE_JOB_STATUSES:
+            return job
+
+        self._mark_cancelled(job_id)
+        task = _tasks.get(job_id)
+        if task and not task.done():
+            task.cancel()
+
+        await self._report_cancelled(job_id)
+        logger.info("Bike graph job cancelled job_id=%s", job_id)
+        return _jobs.get(job_id)
+
+    def _mark_cancelled(self, job_id: str) -> None:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        job.update(
+            {
+                "status": "cancelled",
+                "message": "Cancelled by user",
+                "progress": job.get("progress", 0.0),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+    def _raise_if_cancelled(self, job_id: str) -> None:
+        job = _jobs.get(job_id)
+        if str(job.get("status", "") if job else "").lower() == "cancelled":
+            raise asyncio.CancelledError()
+
+    async def _report_cancelled(self, job_id: str) -> None:
+        if not self._api_client.is_configured():
+            return
+        try:
+            await self._api_client.report_stage(
+                job_id,
+                "cancelled",
+                failure_reason="Cancelled by user",
+            )
+        except TypeError:
+            pass
+
+    def _set_stage(
+        self,
+        job_id: str,
+        stage: str,
+        message: str,
+        progress: float,
+        **extra,
+    ) -> None:
+        job = _jobs[job_id]
+        try:
+            stage_index = PIPELINE_STAGES.index(stage)
+        except ValueError:
+            stage_index = job.get("stage_index", 0)
+
+        job.update(
+            {
+                "stage": stage,
+                "stage_index": stage_index,
+                "message": message,
+                "progress": progress,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                **extra,
+            }
+        )
+
+        if self._api_client.is_configured():
+            try:
+                _ = asyncio.create_task(
+                    self._api_client.report_stage(
+                        job_id,
+                        stage,
+                        chunks_processed=job.get("nodes_created", 0)
+                        + job.get("edges_created", 0),
+                        total_chunks=job.get("nodes_created", 0)
+                        + job.get("edges_created", 0),
+                    )
+                )
+            except TypeError:
+                pass
 
     # ------------------------------------------------------------------
     # Background processing
@@ -161,12 +264,15 @@ class BikeGraphProcessor:
                 upload_id,
                 local_file_path or f"blob:{blob_container}",
             )
+            self._set_stage(job_id, "copying", "Preparing bike graph source", 0.0)
             if local_file_path:
                 logger.info(
                     "Bike graph upload %s reading local CSV %s",
                     upload_id,
                     local_file_path,
                 )
+                self._raise_if_cancelled(job_id)
+                self._set_stage(job_id, "parsing", "Parsing bike graph CSV", 0.25)
                 nodes, edges = await asyncio.to_thread(
                     self._build_graph, upload_id, local_file_path
                 )
@@ -179,9 +285,20 @@ class BikeGraphProcessor:
                 csv_bytes = await self.blob_writer.download_blob(
                     blob_container, f"{upload_id}.csv"
                 )
+                self._raise_if_cancelled(job_id)
+                self._set_stage(job_id, "parsing", "Parsing bike graph CSV", 0.25)
                 nodes, edges = await asyncio.to_thread(
                     self._build_graph_from_bytes, upload_id, csv_bytes
                 )
+            self._set_stage(
+                job_id,
+                "building-graph",
+                "Building graph nodes and edges",
+                0.55,
+                nodes_created=len(nodes),
+                edges_created=len(edges),
+            )
+            self._raise_if_cancelled(job_id)
 
             logger.info(
                 "Bike graph upload %s built local artifact with %d nodes and %d edges; embeddings are not used for this job type",
@@ -192,25 +309,34 @@ class BikeGraphProcessor:
 
             payload = [{"nodes": nodes, "edges": edges}]
             entities_bytes = json.dumps(payload).encode("utf-8")
+            self._set_stage(
+                job_id,
+                "uploading-graph",
+                "Uploading graph entities",
+                0.85,
+                nodes_created=len(nodes),
+                edges_created=len(edges),
+            )
             logger.info(
                 "Bike graph upload %s sending graph-entities artifact to backend API (%d bytes)",
                 upload_id,
                 len(entities_bytes),
             )
+            self._raise_if_cancelled(job_id)
             await self._api_client.upload_artifact(
                 entities_bytes, upload_id, "graph-entities", "application/json"
             )
+            self._raise_if_cancelled(job_id)
 
-            _jobs[job_id].update(
-                {
-                    "status": "completed",
-                    "message": f"Built {len(nodes)} nodes and {len(edges)} edges",
-                    "progress": 1.0,
-                    "nodes_created": len(nodes),
-                    "edges_created": len(edges),
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
+            self._set_stage(
+                job_id,
+                "completed",
+                f"Built {len(nodes)} nodes and {len(edges)} edges",
+                1.0,
+                nodes_created=len(nodes),
+                edges_created=len(edges),
             )
+            _jobs[job_id]["status"] = "completed"
             logger.info(
                 "Bike graph processing completed for upload %s: %d nodes, %d edges",
                 upload_id,
@@ -218,16 +344,35 @@ class BikeGraphProcessor:
                 len(edges),
             )
 
+        except asyncio.CancelledError:
+            self._mark_cancelled(job_id)
+            await self._report_cancelled(job_id)
+            logger.info("Bike graph processing cancelled for upload %s", upload_id)
         except Exception as exc:
             logger.exception("Bike graph processing failed for upload %s", upload_id)
             _jobs[job_id].update(
                 {
                     "status": "failed",
                     "message": f"Bike graph processing failed — {type(exc).__name__}: {str(exc)[:300]}",
-                    "progress": 0.0,
+                    "progress": _jobs[job_id].get("progress", 0.0),
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
+            if self._api_client.is_configured():
+                try:
+                    _ = asyncio.create_task(
+                        self._api_client.report_stage(
+                            job_id,
+                            _jobs[job_id].get("stage", "processing"),
+                            chunks_processed=_jobs[job_id].get("nodes_created", 0)
+                            + _jobs[job_id].get("edges_created", 0),
+                            total_chunks=_jobs[job_id].get("nodes_created", 0)
+                            + _jobs[job_id].get("edges_created", 0),
+                            failure_reason=_jobs[job_id].get("message"),
+                        )
+                    )
+                except TypeError:
+                    pass
 
     # ------------------------------------------------------------------
     # Graph construction (synchronous — runs in a thread)

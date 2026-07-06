@@ -376,7 +376,33 @@ public sealed class IngestionJobsControllerTests
     }
 
     [Fact]
-    public async Task DeleteJobAsync_WhenJobIsRunning_ReturnsConflict() {
+    public async Task DeleteJobAsync_WhenJobIsQueued_ReturnsNoContent() {
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJobStatusResponse {
+                JobId = jobId,
+                Status = "Queued",
+                InputType = "StructuredSpecification",
+                InputRef = "upload-123"
+            });
+        ingestionJobs
+            .Setup(service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        ingestionJobs.Verify(
+            service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteJobAsync_WhenServiceRejectsDelete_ReturnsConflict() {
         var jobId = Guid.NewGuid();
         var ingestionJobs = new Mock<IIngestionJobService>();
         ingestionJobs
@@ -387,17 +413,41 @@ public sealed class IngestionJobsControllerTests
                 InputType = "StructuredSpecification",
                 InputRef = "upload-123"
             });
+        ingestionJobs
+            .Setup(service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("active"));
 
         var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
 
         var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
 
-        var conflict = result.Should().BeOfType<ConflictObjectResult>().Subject;
-        conflict.Value.Should().BeOfType<ProblemDetails>()
-            .Which.Title.Should().Be("Only terminal jobs can be deleted");
+        result.Should().BeOfType<ConflictObjectResult>();
+    }
+
+    [Fact]
+    public async Task CancelJobAsync_WhenJobExists_ReturnsNoContent() {
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJobStatusResponse {
+                JobId = jobId,
+                Status = "Processing",
+                InputType = "StructuredSpecification",
+                InputRef = "upload-123"
+            });
+        ingestionJobs
+            .Setup(service => service.CancelJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.CancelJobAsync(jobId, CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
         ingestionJobs.Verify(
-            service => service.DeleteJobAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+            service => service.CancelJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

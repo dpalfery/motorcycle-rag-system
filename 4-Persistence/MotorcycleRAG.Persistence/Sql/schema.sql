@@ -419,6 +419,9 @@ GO
 -- Upgrade legacy IngestionJobs deployments in place so the API and schema stay aligned.
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'IngestionJobs')
 BEGIN
+    IF COL_LENGTH('dbo.IngestionJobs', 'Id') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [Id] BIGINT IDENTITY(1,1) NOT NULL;
+
     IF COL_LENGTH('dbo.IngestionJobs', 'IngestionJobId') IS NULL
         ALTER TABLE [dbo].[IngestionJobs] ADD [IngestionJobId] UNIQUEIDENTIFIER NULL;
 

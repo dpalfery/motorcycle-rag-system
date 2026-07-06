@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { discoverProcessorWorkingDir, ensureProcessorReady } from "./processor";
+import { discoverProcessorWorkingDir, ensureProcessorReady, processor } from "./processor";
 import { invoke } from "@tauri-apps/api/core";
 import type { AppConfig } from "./config";
 
@@ -44,6 +44,25 @@ describe("processor discovery", () => {
 
     const result = await discoverProcessorWorkingDir();
     expect(result).toBe("");
+  });
+});
+
+describe("processor job control", () => {
+  it("posts a per-job stop request through the local processor proxy", async () => {
+    vi.mocked(invoke).mockResolvedValue({
+      job_id: "run-22",
+      status: "cancelled",
+    });
+
+    const result = await processor.stopJob("run-22", 8100);
+
+    expect(invoke).toHaveBeenCalledWith("processor_request", {
+      method: "POST",
+      path: "/jobs/run-22/stop",
+      body: null,
+      port: 8100,
+    });
+    expect(result.status).toBe("cancelled");
   });
 });
 

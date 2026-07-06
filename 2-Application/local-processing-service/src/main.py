@@ -10,6 +10,7 @@ import sys
 import logging
 import logging.handlers
 import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -75,14 +76,24 @@ from models.schemas import (
     ProcessBikeGraphRequest,
     ProcessingStatusResponse,
 )
-from security.path_validation import resolve_local_csv_path
+from security.path_validation import resolve_local_csv_path, resolve_local_pdf_path
 from watch_folder import WatchFolderWorker, get_watch_folder_from_env
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await _start_watch_folder_worker()
+    try:
+        yield
+    finally:
+        await _stop_watch_folder_worker()
+
 
 # Initialize FastAPI app
 app = FastAPI(
     title="Motorcycle RAG Local Processing Service",
     description="Local processing service using Docling and Ollama for motorcycle information retrieval",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -115,7 +126,6 @@ _ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
 _last_health_log_signature: tuple | None = None
 
 
-@app.on_event("startup")
 async def _start_watch_folder_worker() -> None:
     global watch_folder_worker
     if os.getenv("WATCH_FOLDER_DISABLED", "").strip().lower() in {"1", "true", "yes"}:
@@ -130,7 +140,6 @@ async def _start_watch_folder_worker() -> None:
     watch_folder_worker.start()
 
 
-@app.on_event("shutdown")
 async def _stop_watch_folder_worker() -> None:
     if watch_folder_worker is not None:
         await watch_folder_worker.stop()
@@ -244,6 +253,53 @@ def _build_health_response(
                 },
             },
             status_code=status_code,
+        )
+
+    if not api_client_configured:
+        status = "unhealthy"
+        accepting_work = False
+        signature = (
+            status,
+            embedding_provider_status,
+            blob_storage_connected,
+            api_client_configured,
+            tokenizer_config.get("tokenizer_status"),
+            active_jobs,
+            shutdown_requested,
+        )
+        if signature != _last_health_log_signature:
+            _last_health_log_signature = signature
+            logger.info(
+                "Processor health changed status=%s accepting_work=%s embedding_provider=%s "
+                "embedding_model=%s tokenizer_status=%s blob_storage=%s api_client_configured=%s active_jobs=%d",
+                status,
+                accepting_work,
+                embedding_provider_status,
+                embedding_model,
+                tokenizer_config.get("tokenizer_status"),
+                blob_storage_connected,
+                api_client_configured,
+                active_jobs,
+            )
+        return JSONResponse(
+            content={
+                "status": status,
+                "accepting_work": accepting_work,
+                "shutdown_requested": shutdown_requested,
+                "active_jobs": active_jobs,
+                "message": (
+                    "Artifact upload is not configured. Set PYTHON_UPLOAD_JOB_SECRET "
+                    "before submitting work."
+                ),
+                "api_client_configured": api_client_configured,
+                "services": {
+                    "embedding_provider": embedding_provider_status,
+                    **embedding_config,
+                    "blob_storage": blob_storage_connected,
+                    "service_uptime": "running",
+                },
+            },
+            status_code=503,
         )
 
     if not tokenizer_configured:
@@ -426,7 +482,7 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
             raise HTTPException(status_code=400, detail="document_type is required")
         local_file_path = None
         if request.local_file_path:
-            local_file_path = str(Path(request.local_file_path).expanduser().resolve(strict=True))
+            local_file_path = str(resolve_local_pdf_path(request.local_file_path))
         elif not request.blob_container:
             raise HTTPException(status_code=400, detail="blob_container is required")
 
@@ -595,6 +651,26 @@ async def get_job_status(job_id: str):
         raise
     except Exception as e:
         logger.exception("Unexpected error in /jobs/{job_id}")
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred"
+        )
+
+
+@app.post("/jobs/{job_id}/stop")
+async def stop_job(job_id: str):
+    """Cancel a single processing job without stopping the processor process."""
+    try:
+        for active_processor in (pdf_processor, csv_processor, bike_graph_processor):
+            status = await active_processor.stop_job(job_id)
+            if status:
+                return status
+
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Unexpected error in /jobs/{job_id}/stop")
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred"
         )

@@ -7,10 +7,11 @@ import pytest
 
 
 def _load_main(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("EMBEDDING_PROVIDER_ENDPOINT", raising=False)
+    monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "")
     monkeypatch.setenv("EMBEDDING_BACKEND", "ollama")
     monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
     monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_URL", raising=False)
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "")
     monkeypatch.setenv(
         "AZURE_STORAGE_CONNECTION_STRING",
         "DefaultEndpointsProtocol=http;"
@@ -113,6 +114,37 @@ async def test_health_check_returns_unhealthy_when_blob_storage_disconnected(
     assert payload["accepting_work"] is False
     assert payload["services"]["blob_storage"] is False
     assert "Blob storage is not configured" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_health_check_returns_unhealthy_when_api_client_not_configured(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    main = _load_main(monkeypatch)
+
+    monkeypatch.setattr(main, "embedder", _FakeEmbedder("connected"))
+    monkeypatch.setattr(main, "blob_writer", _FakeBlobWriter(True))
+    monkeypatch.setattr(main, "api_client", _FakeApiClient(False))
+    monkeypatch.setattr(main, "shutdown_requested", False)
+    monkeypatch.setattr(
+        main,
+        "describe_chunker_tokenizer",
+        lambda: {"tokenizer_status": "configured", "tokenizer_model": "m", "tokenizer_source": "s", "tokenizer_path": None},
+    )
+
+    async def _count_active_jobs() -> int:
+        return 0
+
+    monkeypatch.setattr(main, "_count_active_jobs", _count_active_jobs)
+
+    response = await main.health_check()
+    payload = json.loads(response.body)
+
+    assert response.status_code == 503
+    assert payload["status"] == "unhealthy"
+    assert payload["accepting_work"] is False
+    assert payload["api_client_configured"] is False
+    assert "Artifact upload is not configured" in payload["message"]
 
 
 @pytest.mark.asyncio

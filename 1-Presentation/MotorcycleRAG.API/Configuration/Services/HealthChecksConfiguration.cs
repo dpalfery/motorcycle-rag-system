@@ -16,8 +16,12 @@ internal static class HealthChecksConfiguration
         // Self health check
         builder.AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("API is running"));
 
-        // Azure AI Search health check
-        builder.AddCheck<AzureSearchHealthCheck>("azure_search");
+        // Azure AI Search health check. The manual-processing E2E path can explicitly
+        // replace only chunk indexing with the in-memory search shim.
+        if (!string.Equals(configuration["Search:ChunkIndexingProvider"], "InMemoryShim", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.AddCheck<AzureSearchHealthCheck>("azure_search");
+        }
 
         // Azure OpenAI health check
         builder.AddCheck<AzureOpenAIHealthCheck>("azure_openai");

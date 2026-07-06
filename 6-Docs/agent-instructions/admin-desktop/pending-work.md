@@ -6,4 +6,4 @@
 | All screens | Implemented | DTOs are best-guess; adjust field names to match actual API responses |
 | PyInstaller sidecar | Not started | Replace `python3 -m uvicorn` spawn in `processor_start` with `externalBin` |
 | Tests | Not started | Vitest + RTL for view logic; `cargo test` for Rust commands |
-| Retire MAUI project | Not started | Remove `MotorcycleRAG.Admin` + `MotorcycleRAG.Admin.Tests` from solution |
+| Retire MAUI project | Completed | Removed `MotorcycleRAG.Admin` + `MotorcycleRAG.Admin.Tests` from solution |

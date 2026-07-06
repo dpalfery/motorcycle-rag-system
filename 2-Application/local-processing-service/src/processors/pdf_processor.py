@@ -34,6 +34,7 @@ PIPELINE_STAGES = [
 ]
 
 _jobs: dict[str, dict] = {}
+_tasks: dict[str, asyncio.Task] = {}
 
 
 def _make_job(job_id: str, upload_id: str, document_type: str) -> dict:
@@ -52,6 +53,16 @@ def _make_job(job_id: str, upload_id: str, document_type: str) -> dict:
         "total_chunks": 0,
         "created_at": now,
         "updated_at": now,
+        "stage_history": [
+            {
+                "stage": "copying",
+                "message": "Copying source PDF",
+                "progress": 0.0,
+                "chunks_processed": 0,
+                "total_chunks": 0,
+                "set_at": now,
+            }
+        ],
     }
 
 
@@ -111,7 +122,7 @@ class PDFProcessor:
             bool(source_access_token),
             bool(local_file_path),
         )
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._process_pdf(
                 job_id,
                 upload_id,
@@ -122,6 +133,8 @@ class PDFProcessor:
                 local_file_path,
             )
         )
+        _tasks[job_id] = task
+        task.add_done_callback(lambda _task, jid=job_id: _tasks.pop(jid, None))
         return job_id
 
     async def get_job_status(self, job_id: str) -> dict | None:
@@ -139,8 +152,59 @@ class PDFProcessor:
 
         for job_id in terminal_job_ids:
             _jobs.pop(job_id, None)
+            _tasks.pop(job_id, None)
 
         return len(terminal_job_ids)
+
+    async def stop_job(self, job_id: str) -> dict | None:
+        job = _jobs.get(job_id)
+        if not job:
+            return None
+        if str(job.get("status", "")).strip().lower() not in _ACTIVE_JOB_STATUSES:
+            return job
+
+        self._mark_cancelled(job_id)
+        task = _tasks.get(job_id)
+        if task and not task.done():
+            task.cancel()
+
+        await self._report_cancelled(job_id)
+        logger.info("PDF job cancelled job_id=%s", job_id)
+        return _jobs.get(job_id)
+
+    def _mark_cancelled(self, job_id: str) -> None:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        now = datetime.now(timezone.utc).isoformat()
+        job.update({
+            "status": "cancelled",
+            "stage": "cancelled",
+            "message": "Cancelled by user",
+            "progress": job.get("progress", 0.0),
+            "updated_at": now,
+        })
+        self._append_stage_history(job, "cancelled", "Cancelled by user", now)
+
+    def _raise_if_cancelled(self, job_id: str) -> None:
+        job = _jobs.get(job_id)
+        if str(job.get("status", "") if job else "").lower() == "cancelled":
+            raise asyncio.CancelledError()
+
+    async def _report_cancelled(self, job_id: str) -> None:
+        if not self._api_client.is_configured():
+            return
+        try:
+            job = _jobs.get(job_id, {})
+            await self._api_client.report_stage(
+                job_id,
+                "cancelled",
+                chunks_processed=job.get("chunks_processed", 0),
+                total_chunks=job.get("total_chunks", 0),
+                failure_reason="Cancelled by user",
+            )
+        except TypeError:
+            pass
 
     def _set_stage(self, job_id: str, stage: str, message: str, progress: float, **extra) -> None:
         job = _jobs[job_id]
@@ -148,14 +212,16 @@ class PDFProcessor:
             stage_index = PIPELINE_STAGES.index(stage)
         except ValueError:
             stage_index = job.get("stage_index", 0)
+        now = datetime.now(timezone.utc).isoformat()
         job.update({
             "stage": stage,
             "stage_index": stage_index,
             "message": message,
             "progress": progress,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": now,
             **extra,
         })
+        self._append_stage_history(job, stage, message, now)
         if self._api_client.is_configured():
             try:
                 _ = asyncio.create_task(
@@ -168,6 +234,28 @@ class PDFProcessor:
                 )
             except TypeError:
                 pass  # mock client in tests
+
+    @staticmethod
+    def _append_stage_history(job: dict, stage: str, message: str, set_at: str) -> None:
+        history = job.setdefault("stage_history", [])
+        if history and history[-1].get("stage") == stage:
+            history[-1].update({
+                "message": message,
+                "progress": job.get("progress", 0.0),
+                "chunks_processed": job.get("chunks_processed", 0),
+                "total_chunks": job.get("total_chunks", 0),
+                "set_at": set_at,
+            })
+            return
+
+        history.append({
+            "stage": stage,
+            "message": message,
+            "progress": job.get("progress", 0.0),
+            "chunks_processed": job.get("chunks_processed", 0),
+            "total_chunks": job.get("total_chunks", 0),
+            "set_at": set_at,
+        })
 
     async def _process_pdf(
         self,
@@ -196,12 +284,14 @@ class PDFProcessor:
                 source_access_token,
                 local_file_path,
             )
+            self._raise_if_cancelled(job_id)
 
             # ── Stage 1: Parsing ──────────────────────────────
             self._set_stage(job_id, "parsing", "Converting PDF with Docling", 0.05)
 
             converter = DocumentConverter()
             result = await asyncio.to_thread(converter.convert, str(source_path))
+            self._raise_if_cancelled(job_id)
             logger.info(
                 "PDF job Docling conversion completed job_id=%s upload_id=%s",
                 job_id, upload_id,
@@ -222,6 +312,7 @@ class PDFProcessor:
             self._set_stage(job_id, "chunking", "Chunking document", 0.12)
             chunker = HybridChunker(tokenizer=tokenizer)
             chunks = list(await asyncio.to_thread(chunker.chunk, result.document))
+            self._raise_if_cancelled(job_id)
             total_chunks = len(chunks)
             logger.info(
                 "PDF job chunking completed job_id=%s upload_id=%s chunk_count=%d",
@@ -242,10 +333,12 @@ class PDFProcessor:
             # ── Stage 3: Embedding ────────────────────────────
             records: list[dict] = []
             for i, chunk in enumerate(chunks):
+                self._raise_if_cancelled(job_id)
                 headings = list(chunk.meta.headings) if chunk.meta.headings else []
                 has_prov = chunk.meta.doc_items and chunk.meta.doc_items[0].prov
                 page_no = chunk.meta.doc_items[0].prov[0].page_no if has_prov else 0
                 embedding = await self._embedder.generate_embedding(chunk.text)
+                self._raise_if_cancelled(job_id)
 
                 if i == 0 or (i + 1) == total_chunks or (i + 1) % 10 == 0:
                     logger.info(
@@ -303,10 +396,12 @@ class PDFProcessor:
                 job_id, upload_id, len(records),
             )
 
+            self._raise_if_cancelled(job_id)
             chunks_bytes = ("\n".join(json.dumps(r) for r in records)).encode("utf-8")
             await self._api_client.upload_artifact(
                 chunks_bytes, upload_id, "search-chunks", "application/x-ndjson"
             )
+            self._raise_if_cancelled(job_id)
             logger.info(
                 "PDF job search chunks uploaded job_id=%s upload_id=%s byte_count=%d",
                 job_id, upload_id, len(chunks_bytes),
@@ -323,13 +418,16 @@ class PDFProcessor:
 
             combined_text = "\n\n".join(chunk.text for chunk in chunks)
             entities = await self._graph_extractor.extract(combined_text, source_document_id=upload_id)
+            self._raise_if_cancelled(job_id)
 
             # ── Stage 6: Uploading graph ──────────────────────
             self._set_stage(job_id, "uploading-graph", "Uploading graph entities", 0.9)
             entities_bytes = json.dumps(entities).encode("utf-8")
+            self._raise_if_cancelled(job_id)
             await self._api_client.upload_artifact(
                 entities_bytes, upload_id, "graph-entities", "application/json"
             )
+            self._raise_if_cancelled(job_id)
             logger.info(
                 "PDF job graph entities uploaded job_id=%s upload_id=%s byte_count=%d",
                 job_id, upload_id, len(entities_bytes),
@@ -359,6 +457,10 @@ class PDFProcessor:
                 job_id, upload_id, len(records),
             )
 
+        except asyncio.CancelledError:
+            self._mark_cancelled(job_id)
+            await self._report_cancelled(job_id)
+            logger.info("PDF processing cancelled for upload %s", upload_id)
         except Exception as exc:
             logger.exception("PDF processing failed for upload %s", upload_id)
             _jobs[job_id].update({

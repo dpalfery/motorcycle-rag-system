@@ -26,7 +26,7 @@ public interface IIngestionJobService {
         int maxCount = 50,
         CancellationToken ct = default);
 
-    /// <summary>Deletes a terminal ingestion job from history.</summary>
+    /// <summary>Deletes a queued or terminal ingestion job and associated assets from history.</summary>
     Task DeleteJobAsync(
         Guid jobId,
         string userId,
@@ -69,6 +69,13 @@ public interface IIngestionJobService {
     /// <summary>Cancels a running ingestion job.</summary>
     Task CancelJobAsync(
         Guid jobId,
+        string userId,
+        CancellationToken ct = default);
+
+    /// <summary>Marks an active ingestion job as failed, such as when the local processor crashes.</summary>
+    Task FailJobAsync(
+        Guid jobId,
+        string reason,
         string userId,
         CancellationToken ct = default);
 

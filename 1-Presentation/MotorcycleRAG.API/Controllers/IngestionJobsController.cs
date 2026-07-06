@@ -377,7 +377,7 @@ public sealed class IngestionJobsController : ControllerBase {
     }
 
     /// <summary>
-    /// Deletes a single terminal ingestion job.
+    /// Deletes a queued or terminal ingestion job and associated assets.
     /// Route: DELETE /api/ingestion/jobs/{jobId}
     /// </summary>
     [HttpDelete("jobs/{jobId:guid}")]
@@ -397,14 +397,6 @@ public sealed class IngestionJobsController : ControllerBase {
             });
         }
 
-        if (!IsTerminalJobStatus(job.Status)) {
-            return Conflict(new ProblemDetails {
-                Title = "Only terminal jobs can be deleted",
-                Detail = "Queued, processing, and indexing jobs cannot be deleted.",
-                Status = StatusCodes.Status409Conflict
-            });
-        }
-
         try {
             await _ingestionJobService.DeleteJobAsync(jobId, userId, ct).ConfigureAwait(false);
             return NoContent();
@@ -417,6 +409,55 @@ public sealed class IngestionJobsController : ControllerBase {
                 Status = StatusCodes.Status409Conflict
             });
         }
+    }
+
+    /// <summary>
+    /// Cancels a running ingestion job.
+    /// Route: POST /api/ingestion/jobs/{jobId}/cancel
+    /// </summary>
+    [HttpPost("jobs/{jobId:guid}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelJobAsync(
+        Guid jobId,
+        CancellationToken ct) {
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+        var job = await _ingestionJobService.GetJobStatusAsync(jobId, userId, ct).ConfigureAwait(false);
+        if (job is null) {
+            return NotFound(new ProblemDetails {
+                Title = "Ingestion job not found",
+                Detail = $"No ingestion job with ID '{jobId}' was found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        await _ingestionJobService.CancelJobAsync(jobId, userId, ct).ConfigureAwait(false);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Fails an active ingestion job when it's determined to be stale.
+    /// Route: POST /api/ingestion/jobs/{jobId}/fail
+    /// </summary>
+    [HttpPost("jobs/{jobId:guid}/fail")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> FailJobAsync(
+        Guid jobId,
+        [FromQuery] string reason,
+        CancellationToken ct) {
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+        var job = await _ingestionJobService.GetJobStatusAsync(jobId, userId, ct).ConfigureAwait(false);
+        if (job is null) {
+            return NotFound(new ProblemDetails {
+                Title = "Ingestion job not found",
+                Detail = $"No ingestion job with ID '{jobId}' was found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        await _ingestionJobService.FailJobAsync(jobId, reason ?? "Marked as failed.", userId, ct).ConfigureAwait(false);
+        return NoContent();
     }
 
     /// <summary>
@@ -613,12 +654,6 @@ public sealed class IngestionJobsController : ControllerBase {
 
     private static string NormalizeDocumentType(string documentType) =>
         documentType.Trim().ToLowerInvariant();
-
-    private static bool IsTerminalJobStatus(string status) =>
-        string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(status, "PartiallyCompleted", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(status, "Cancelled", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsFailedJobStatus(string status) =>
         string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)

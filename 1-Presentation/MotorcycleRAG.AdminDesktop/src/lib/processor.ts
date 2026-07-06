@@ -212,6 +212,8 @@ export const processor = {
 
   health: (port?: number) => processor.request<HealthResponse>("GET", "/health", undefined, port),
   jobs: (port?: number) => processor.request<ProcessorJob[]>("GET", "/jobs", undefined, port),
+  stopJob: (jobId: string, port?: number) =>
+    processor.request<ProcessorJob>("POST", `/jobs/${encodeURIComponent(jobId)}/stop`, undefined, port),
   cleanupJobs: (port?: number) => processor.request("POST", "/jobs/cleanup", undefined, port),
   shutdown: (port?: number) => processor.request("POST", "/control/shutdown", undefined, port),
   discoverModels: (endpoint: string, port?: number) =>

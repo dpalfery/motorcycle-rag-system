@@ -1,7 +1,10 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { Cpu, Globe, Wrench, Users, Settings, Bike } from "lucide-react";
+import { useEffect, useRef } from "react";
 import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
+import { useConfig } from "@/lib/config";
+import { ensureProcessorReady } from "@/lib/processor";
 
 interface NavItem {
   to: string;
@@ -37,6 +40,22 @@ function NavRow({ item }: { item: NavItem }) {
 }
 
 export default function AppShell() {
+  const { config, save } = useConfig();
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    
+    ensureProcessorReady(config)
+      .then((readyConfig) => {
+        if (readyConfig.localProcessorWorkingDir !== config.localProcessorWorkingDir) {
+          save({ localProcessorWorkingDir: readyConfig.localProcessorWorkingDir });
+        }
+      })
+      .catch((err) => console.error("Failed to auto-start local processor:", err));
+  }, [config, save]);
+
   return (
     <div className="flex h-screen flex-col">
       <div className="drag flex h-9 items-center justify-center border-b border-border text-xs text-muted">

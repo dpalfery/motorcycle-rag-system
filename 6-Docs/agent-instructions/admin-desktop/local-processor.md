@@ -13,7 +13,9 @@ All communication with the Python processor goes through Rust commands, not brow
 
 ## Env Vars Passed to the Processor on Start
 
-`PORT`, `PYTHONUNBUFFERED=1`, `EMBEDDING_PROVIDER_ENDPOINT`, `EMBEDDING_MODEL`, `MCR_API_BASE_URL`, `PYTHON_UPLOAD_JOB_SECRET` (if provided).
+`PORT`, `PYTHONUNBUFFERED=1`, `WATCH_FOLDER`, `LOCAL_PROCESSOR_INPUT_DIR`, `EMBEDDING_PROVIDER_ENDPOINT`, `EMBEDDING_MODEL`, `TOKENIZER_MODEL_PATH` (if provided), `MCR_API_BASE_URL`, `AZURE_STORAGE_ACCOUNT_URL`, `PYTHON_UPLOAD_JOB_SECRET` (if provided), `GRAPH_EXTRACTION_ENDPOINT`, `GRAPH_EXTRACTION_MODEL`.
+
+`WATCH_FOLDER` and `LOCAL_PROCESSOR_INPUT_DIR` are both set to the Admin Desktop managed local ingestion folder so direct local-file processing uses the same path boundary that the app controls.
 
 ## Dev Mode vs Production
 

@@ -9,7 +9,7 @@ description: Forces delegation to the maui-dev agent for .NET MAUI tasks.
 This skill MUST be used whenever the user requests:
 - Writing or editing .NET MAUI code (`.xaml`, `.xaml.cs` files).
 - Creating or modifying MAUI ViewModels, Pages, or Services.
-- Working on the Admin App at `1-Presentation/MotorcycleRAG.Admin`.
+- Working on the Mobile App at `1-Presentation/MotorcycleRAG.MobileApp`.
 - Shell navigation, flyout configuration, or MAUI-specific UI patterns.
 - CommunityToolkit.Mvvm source generator usage (`[ObservableProperty]`, `[RelayCommand]`).
 
@@ -28,29 +28,14 @@ This skill MUST be used whenever the user requests:
 ## Project Conventions (Pass to Sub-Agent)
 
 ### Architecture
-- **Project**: `1-Presentation/MotorcycleRAG.Admin`
-- **Target**: Windows-only (.NET 10.0)
-- **Pattern**: MVVM with CommunityToolkit.Mvvm v8.4.0 source generators
-- **Navigation**: Shell with FlyoutItems and absolute routes (e.g., `//settings/settingspage`)
+- **Project**: `1-Presentation/MotorcycleRAG.MobileApp`
+- **Target**: Windows + MacCatalyst (.NET 10.0)
+- **Pattern**: MVVM with CommunityToolkit.Mvvm source generators
+- **Navigation**: Shell with FlyoutItems and absolute routes
 - **DI**: ViewModels and Pages registered as transient, services as singleton
 
 ### File Structure
 - **ViewModels**: `/ViewModels/` — Inherit `ObservableObject`, use `[ObservableProperty]` and `[RelayCommand]`
 - **Pages**: `/Pages/` — XAML pages with code-behind, one per ViewModel
-- **Services**: `/Services/` — Abstracted behind interfaces (`INavigationService`, `ISettingsService`, `IConfigurationStateService`, `IAdminAuthService`)
-- **Processing**: `/Processing/` — Local processing services (`PdfChunker`, `CsvChunker`, `OnnxEmbeddingService`)
-- **Shell**: `AppShell.xaml` — 6 FlyoutItems (Dashboard, Upload, Jobs, WebSources, Tools, Settings)
-
-### Key Patterns
-- **MVVM**: Use `ObservableObject` base, `[ObservableProperty]` for bindable properties, `[RelayCommand]` for commands — never implement `INotifyPropertyChanged` manually
-- **Navigation**: Use `INavigationService` wrapping Shell navigation, not direct `Shell.Current.GoToAsync()`
-- **Settings**: Use `ISettingsService` wrapping `Preferences`, not direct `Preferences.Get/Set`
-- **Auth**: MSAL-based with encrypted token storage via `IAdminAuthService`
-- **HTTP**: Use `Microsoft.Extensions.Http.Resilience` for retry/circuit breaker policies on HttpClient
-- **Clean Architecture**: References Domain/Contracts layers only — no direct Persistence references
-
-### MUST NOT
-- Use EF Core or direct database access from the MAUI project
-- Skip service interface abstractions (all services must have an `I*` interface)
-- Use direct `Shell.Current` calls — go through `INavigationService`
-- Store secrets in preferences or code — use environment variables or MSAL secure storage
+- **Services**: `/Services/` — Abstracted behind interfaces
+- **Shell**: `AppShell.xaml`

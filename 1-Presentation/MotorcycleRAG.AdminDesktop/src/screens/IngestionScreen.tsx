@@ -187,16 +187,25 @@ export default function IngestionScreen() {
           throw new Error(lines.join("\n\n"));
         }
 
-        await queueLocalIngestionWorkItem({
-          sourcePath,
-          jobId: startRes.data.jobId,
-          uploadId,
-          processorRunId,
-          documentType,
-          sourceFileName: f.name,
-          size: f.size,
-          createdAtUtc: new Date().toISOString(),
-        });
+        try {
+          await queueLocalIngestionWorkItem({
+            sourcePath,
+            jobId: startRes.data.jobId,
+            uploadId,
+            processorRunId,
+            documentType,
+            sourceFileName: f.name,
+            size: f.size,
+            createdAtUtc: new Date().toISOString(),
+          });
+        } catch (queueError) {
+          try {
+            await api.delete(`/api/ingestion/jobs/${startRes.data.jobId}`);
+          } catch {
+            // The original queue failure is the actionable error for the operator.
+          }
+          throw queueError;
+        }
         setSubmittedJobId(startRes.data.jobId);
         setProgress(100);
 

@@ -5,6 +5,7 @@ using Azure;
 using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
@@ -21,12 +22,20 @@ public sealed class IngestionJobServiceDualModeTests {
 
     private readonly Mock<IIngestionJobRepository> _repository;
     private readonly Mock<IBlobStorageService> _blobStorage;
+    private readonly Mock<IIndexedArtifactRepository> _artifactRepository;
+    private readonly Mock<IIndexedChunkRepository> _chunkRepository;
+    private readonly Mock<IAzureSearchDocumentService> _searchDocumentService;
+    private readonly Mock<IGraphRepository> _graphRepository;
     private readonly Mock<IGraphEntityIngestionService> _graphEntityIngestionService;
     private readonly Mock<ILogger<IngestionJobService>> _logger;
 
     public IngestionJobServiceDualModeTests() {
         _repository = new Mock<IIngestionJobRepository>();
         _blobStorage = new Mock<IBlobStorageService>();
+        _artifactRepository = new Mock<IIndexedArtifactRepository>();
+        _chunkRepository = new Mock<IIndexedChunkRepository>();
+        _searchDocumentService = new Mock<IAzureSearchDocumentService>();
+        _graphRepository = new Mock<IGraphRepository>();
         _graphEntityIngestionService = new Mock<IGraphEntityIngestionService>();
         _logger = new Mock<ILogger<IngestionJobService>>();
 
@@ -37,6 +46,45 @@ public sealed class IngestionJobServiceDualModeTests {
         _repository
             .Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+
+        _artifactRepository
+            .Setup(r => r.GetByIngestionJobIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<IndexedArtifact>());
+        _artifactRepository
+            .Setup(r => r.GetByUploadIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<IndexedArtifact>());
+        _artifactRepository
+            .Setup(r => r.DeleteByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _chunkRepository
+            .Setup(r => r.GetByArtifactIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<IndexedChunk>());
+        _chunkRepository
+            .Setup(r => r.GetByIngestionJobIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<IndexedChunk>());
+        _chunkRepository
+            .Setup(r => r.GetByUploadIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<IndexedChunk>());
+        _chunkRepository
+            .Setup(r => r.DeleteByArtifactIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _chunkRepository
+            .Setup(r => r.DeleteByIngestionJobIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _chunkRepository
+            .Setup(r => r.DeleteByUploadIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _blobStorage
+            .Setup(s => s.DeleteIfExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _searchDocumentService
+            .Setup(s => s.DeleteDocumentsAsync(It.IsAny<IEnumerable<string>>()))
+            .Returns(Task.CompletedTask);
+        _graphRepository
+            .Setup(r => r.DeleteByDocumentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
     }
 
     [Fact]
@@ -44,6 +92,10 @@ public sealed class IngestionJobServiceDualModeTests {
         var sut = () => new IngestionJobService(
             null!,
             _blobStorage.Object,
+            _artifactRepository.Object,
+            _chunkRepository.Object,
+            _searchDocumentService.Object,
+            _graphRepository.Object,
             _graphEntityIngestionService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),
@@ -57,6 +109,10 @@ public sealed class IngestionJobServiceDualModeTests {
         var sut = () => new IngestionJobService(
             _repository.Object,
             null!,
+            _artifactRepository.Object,
+            _chunkRepository.Object,
+            _searchDocumentService.Object,
+            _graphRepository.Object,
             _graphEntityIngestionService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),
@@ -70,6 +126,10 @@ public sealed class IngestionJobServiceDualModeTests {
         var sut = () => new IngestionJobService(
             _repository.Object,
             _blobStorage.Object,
+            _artifactRepository.Object,
+            _chunkRepository.Object,
+            _searchDocumentService.Object,
+            _graphRepository.Object,
             null!,
             CreateBlobOptions(),
             CreateIngestionOptions(),
@@ -83,6 +143,10 @@ public sealed class IngestionJobServiceDualModeTests {
         var sut = () => new IngestionJobService(
             _repository.Object,
             _blobStorage.Object,
+            _artifactRepository.Object,
+            _chunkRepository.Object,
+            _searchDocumentService.Object,
+            _graphRepository.Object,
             _graphEntityIngestionService.Object,
             null!,
             CreateIngestionOptions(),
@@ -96,6 +160,10 @@ public sealed class IngestionJobServiceDualModeTests {
         var sut = () => new IngestionJobService(
             _repository.Object,
             _blobStorage.Object,
+            _artifactRepository.Object,
+            _chunkRepository.Object,
+            _searchDocumentService.Object,
+            _graphRepository.Object,
             _graphEntityIngestionService.Object,
             CreateBlobOptions(),
             null!,
@@ -109,6 +177,10 @@ public sealed class IngestionJobServiceDualModeTests {
         var sut = () => new IngestionJobService(
             _repository.Object,
             _blobStorage.Object,
+            _artifactRepository.Object,
+            _chunkRepository.Object,
+            _searchDocumentService.Object,
+            _graphRepository.Object,
             _graphEntityIngestionService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),
@@ -293,7 +365,7 @@ public sealed class IngestionJobServiceDualModeTests {
     }
 
     [Fact]
-    public async Task DeleteJobAsync_WhenJobIsNotTerminal_ShouldThrowInvalidOperationException() {
+    public async Task DeleteJobAsync_WhenJobIsActive_ShouldRejectDelete() {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -303,14 +375,40 @@ public sealed class IngestionJobServiceDualModeTests {
                 InputType = IngestionJobType.PDFManual,
                 InputRef = "upload-active-001"
             });
+        var sut = CreateSut();
+
+        var act = async () => await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage($"*'{jobId}' is active*");
+        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(IngestionJobStatus.Queued)]
+    [InlineData(IngestionJobStatus.Completed)]
+    [InlineData(IngestionJobStatus.Failed)]
+    [InlineData(IngestionJobStatus.Cancelled)]
+    [InlineData(IngestionJobStatus.PartiallyCompleted)]
+    public async Task DeleteJobAsync_ShouldAcceptQueuedAndTerminalJobStatuses(IngestionJobStatus status) {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = status,
+                InputType = IngestionJobType.StructuredSpecification,
+                InputRef = $"upload-{status}"
+            });
+        _repository
+            .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         var sut = CreateSut();
 
-        var act = () => sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
+        await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("Only terminal ingestion jobs can be deleted.");
-        _repository.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -333,6 +431,69 @@ public sealed class IngestionJobServiceDualModeTests {
 
         await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
 
+        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteJobAsync_ShouldRemoveAssociatedAssetsBeforeDeletingJob() {
+        var jobId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid().ToString();
+        var artifactId = Guid.NewGuid();
+        var artifact = new IndexedArtifact {
+            IndexedArtifactId = artifactId,
+            IngestionJobId = jobId,
+            UploadId = uploadId,
+            ArtifactType = "search-chunks",
+            BlobContainer = "raw-uploads",
+            BlobPath = $"{uploadId}/chunks.jsonl",
+            State = IndexedArtifactState.Completed,
+            ExpectedChunkCount = 2,
+            IndexedChunkCount = 1,
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+        var chunk = new IndexedChunk {
+            ChunkId = $"{uploadId}-pdf-0",
+            IndexedArtifactId = artifactId,
+            IngestionJobId = jobId,
+            UploadId = uploadId,
+            Status = ChunkIndexStatus.Complete
+        };
+
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Completed,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = uploadId,
+                ExpectedChunkCount = 2
+            });
+        _repository
+            .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _artifactRepository
+            .Setup(r => r.GetByIngestionJobIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([artifact]);
+        _chunkRepository
+            .Setup(r => r.GetByArtifactIdAsync(artifactId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([chunk]);
+
+        var sut = CreateSut();
+
+        await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
+
+        _searchDocumentService.Verify(
+            s => s.DeleteDocumentsAsync(It.Is<IEnumerable<string>>(ids =>
+                ids.Contains($"{uploadId}-pdf-0") && ids.Contains($"{uploadId}-pdf-1"))),
+            Times.Once);
+        _chunkRepository.Verify(r => r.DeleteByArtifactIdAsync(artifactId, It.IsAny<CancellationToken>()), Times.Once);
+        _chunkRepository.Verify(r => r.DeleteByIngestionJobIdAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
+        _chunkRepository.Verify(r => r.DeleteByUploadIdAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
+        _artifactRepository.Verify(r => r.DeleteByIdAsync(artifactId, It.IsAny<CancellationToken>()), Times.Once);
+        _blobStorage.Verify(s => s.DeleteIfExistsAsync("raw-uploads", $"{uploadId}/source.pdf", It.IsAny<CancellationToken>()), Times.Once);
+        _blobStorage.Verify(s => s.DeleteIfExistsAsync("raw-uploads", $"{uploadId}/chunks.jsonl", It.IsAny<CancellationToken>()), Times.Once);
+        _blobStorage.Verify(s => s.DeleteIfExistsAsync("raw-uploads", $"graph-entities/{uploadId}/entities.json", It.IsAny<CancellationToken>()), Times.Once);
+        _graphRepository.Verify(r => r.DeleteByDocumentAsync(Guid.Parse(uploadId), It.IsAny<CancellationToken>()), Times.Once);
         _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -517,6 +678,10 @@ public sealed class IngestionJobServiceDualModeTests {
         return new IngestionJobService(
             _repository.Object,
             _blobStorage.Object,
+            _artifactRepository.Object,
+            _chunkRepository.Object,
+            _searchDocumentService.Object,
+            _graphRepository.Object,
             _graphEntityIngestionService.Object,
             CreateBlobOptions(),
             CreateIngestionOptions(),

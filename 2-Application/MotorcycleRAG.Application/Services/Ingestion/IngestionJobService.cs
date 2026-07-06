@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
@@ -19,11 +20,16 @@ namespace MotorcycleRAG.Application.Services.Ingestion;
 public sealed class IngestionJobService : IIngestionJobService {
     private const string PdfSourceFileName = "source.pdf";
     private const string GraphEntitiesPrefix = "graph-entities";
+    private static readonly IngestionJobStatus[] ActiveStatuses = [IngestionJobStatus.Processing, IngestionJobStatus.Indexing];
     private static readonly IngestionJobStatus[] FailedStatuses = [IngestionJobStatus.Failed, IngestionJobStatus.Cancelled];
     private static readonly IngestionJobStatus[] FinishedStatuses = [IngestionJobStatus.Completed, IngestionJobStatus.PartiallyCompleted];
 
     private readonly IIngestionJobRepository _repository;
     private readonly IBlobStorageService _blobStorageService;
+    private readonly IIndexedArtifactRepository _artifactRepository;
+    private readonly IIndexedChunkRepository _chunkRepository;
+    private readonly IAzureSearchDocumentService _searchDocumentService;
+    private readonly IGraphRepository _graphRepository;
     private readonly BlobStorageOptions _blobStorageOptions;
     private readonly IGraphEntityIngestionService _graphEntityIngestionService;
     private readonly IngestionOptions _options;
@@ -32,12 +38,20 @@ public sealed class IngestionJobService : IIngestionJobService {
     public IngestionJobService(
         IIngestionJobRepository repository,
         IBlobStorageService blobStorageService,
+        IIndexedArtifactRepository artifactRepository,
+        IIndexedChunkRepository chunkRepository,
+        IAzureSearchDocumentService searchDocumentService,
+        IGraphRepository graphRepository,
         IGraphEntityIngestionService graphEntityIngestionService,
         IOptions<BlobStorageOptions> blobStorageOptions,
         IOptions<IngestionOptions> options,
         ILogger<IngestionJobService> logger) {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
+        _artifactRepository = artifactRepository ?? throw new ArgumentNullException(nameof(artifactRepository));
+        _chunkRepository = chunkRepository ?? throw new ArgumentNullException(nameof(chunkRepository));
+        _searchDocumentService = searchDocumentService ?? throw new ArgumentNullException(nameof(searchDocumentService));
+        _graphRepository = graphRepository ?? throw new ArgumentNullException(nameof(graphRepository));
         _graphEntityIngestionService = graphEntityIngestionService ?? throw new ArgumentNullException(nameof(graphEntityIngestionService));
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -161,9 +175,11 @@ public sealed class IngestionJobService : IIngestionJobService {
             throw new InvalidOperationException($"Ingestion job '{jobId}' not found.");
         }
 
-        if (!IsTerminalStatus(job.Status)) {
-            throw new InvalidOperationException("Only terminal ingestion jobs can be deleted.");
+        if (ActiveStatuses.Contains(job.Status)) {
+            throw new InvalidOperationException($"Ingestion job '{jobId}' is active and cannot be deleted.");
         }
+
+        await DeleteAssociatedAssetsAsync(job, ct).ConfigureAwait(false);
 
         var deleted = await _repository.DeleteAsync(jobId, ct).ConfigureAwait(false);
         if (!deleted) {
@@ -337,15 +353,54 @@ public sealed class IngestionJobService : IIngestionJobService {
             return;
         }
 
-        await _repository.UpdateStatusAsync(
-            jobId,
-            IngestionJobStatus.Cancelled,
-            "Cancelled by user.",
-            ct).ConfigureAwait(false);
+        job.Status = IngestionJobStatus.Cancelled;
+        job.CompletedAtUtc = DateTimeOffset.UtcNow;
+        job.FailureReason = "Cancelled by user.";
+        job.CurrentStage = "cancelled";
+        job.StageSetAtUtc = job.CompletedAtUtc;
+
+        await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
 
         _logger.LogInformation(
             "Ingestion job {JobId} cancelled.",
             jobId);
+    }
+
+    /// <inheritdoc />
+    public async Task FailJobAsync(
+        Guid jobId,
+        string reason,
+        string userId,
+        CancellationToken ct = default) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
+        var job = await _repository.GetByIdAsync(jobId, ct).ConfigureAwait(false);
+        if (job is null)
+            throw new InvalidOperationException($"Ingestion job '{jobId}' not found.");
+
+        if (job.Status is IngestionJobStatus.Completed
+            or IngestionJobStatus.Failed
+            or IngestionJobStatus.Cancelled
+            or IngestionJobStatus.PartiallyCompleted) {
+            _logger.LogWarning(
+                "Cannot fail job {JobId} in terminal status {Status}.",
+                jobId,
+                job.Status);
+            return;
+        }
+
+        job.Status = IngestionJobStatus.Failed;
+        job.CompletedAtUtc = DateTimeOffset.UtcNow;
+        job.FailureReason = reason;
+        job.CurrentStage = "failed";
+        job.StageSetAtUtc = job.CompletedAtUtc;
+
+        await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Ingestion job {JobId} marked as failed: {Reason}",
+            jobId,
+            reason);
     }
 
     /// <summary>Maps a domain <see cref="IngestionJob"/> to its response DTO.</summary>
@@ -442,7 +497,20 @@ public sealed class IngestionJobService : IIngestionJobService {
             ct).ConfigureAwait(false);
 
         var stageSetAtUtc = DateTimeOffset.UtcNow;
-        if (string.Equals(request.Stage, "completed", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(request.Stage, "cancelled", StringComparison.OrdinalIgnoreCase))
+        {
+            job.Status = IngestionJobStatus.Cancelled;
+            job.CompletedAtUtc = stageSetAtUtc;
+            job.CurrentStage = request.Stage;
+            job.StageSetAtUtc = stageSetAtUtc;
+            job.ExpectedChunkCount ??= request.TotalChunks;
+            job.IndexedChunkCount = request.ChunksProcessed;
+            job.FailureReason = string.IsNullOrWhiteSpace(request.FailureReason)
+                ? "Cancelled by user."
+                : request.FailureReason;
+            await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
+        }
+        else if (string.Equals(request.Stage, "completed", StringComparison.OrdinalIgnoreCase))
         {
             job.Status = string.IsNullOrWhiteSpace(request.FailureReason)
                 ? IngestionJobStatus.Indexing
@@ -479,6 +547,150 @@ public sealed class IngestionJobService : IIngestionJobService {
 
     private static bool IsFailedStatus(IngestionJobStatus status) =>
         status is IngestionJobStatus.Failed or IngestionJobStatus.Cancelled;
+
+    private async Task DeleteAssociatedAssetsAsync(IngestionJob job, CancellationToken ct) {
+        var uploadId = job.InputRef;
+        if (string.IsNullOrWhiteSpace(uploadId)) {
+            return;
+        }
+
+        var artifacts = await GetDeleteArtifactsAsync(job, uploadId, ct).ConfigureAwait(false);
+        var chunks = await GetDeleteChunksAsync(job, uploadId, artifacts, ct).ConfigureAwait(false);
+        var chunkIds = chunks
+            .Select(static chunk => chunk.ChunkId)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var fallbackId in BuildFallbackChunkIds(job, uploadId)) {
+            chunkIds.Add(fallbackId);
+        }
+
+        if (chunkIds.Count > 0) {
+            await RunBestEffortAsync(
+                () => _searchDocumentService.DeleteDocumentsAsync(chunkIds),
+                "delete Azure Search documents for ingestion job",
+                job.IngestionJobId).ConfigureAwait(false);
+        }
+
+        foreach (var artifact in artifacts) {
+            await RunBestEffortAsync(
+                () => _chunkRepository.DeleteByArtifactIdAsync(artifact.IndexedArtifactId, ct),
+                "delete indexed chunks for artifact",
+                artifact.IndexedArtifactId).ConfigureAwait(false);
+        }
+
+        await RunBestEffortAsync(
+            () => _chunkRepository.DeleteByIngestionJobIdAsync(job.IngestionJobId, ct),
+            "delete indexed chunks for ingestion job",
+            job.IngestionJobId).ConfigureAwait(false);
+        await RunBestEffortAsync(
+            () => _chunkRepository.DeleteByUploadIdAsync(uploadId, ct),
+            "delete indexed chunks for upload",
+            uploadId).ConfigureAwait(false);
+
+        foreach (var artifact in artifacts) {
+            await RunBestEffortAsync(
+                () => _artifactRepository.DeleteByIdAsync(artifact.IndexedArtifactId, ct),
+                "delete indexed artifact",
+                artifact.IndexedArtifactId).ConfigureAwait(false);
+        }
+
+        await DeleteBlobIfExistsAsync(IngestionBlobPaths.BuildRawUploadBlobName(uploadId, ToDocumentType(job.InputType)), ct).ConfigureAwait(false);
+        await DeleteBlobIfExistsAsync(BuildSearchChunksBlobPath(uploadId), ct).ConfigureAwait(false);
+        await DeleteBlobIfExistsAsync(BuildGraphEntitiesBlobPath(uploadId), ct).ConfigureAwait(false);
+
+        if (Guid.TryParse(uploadId, out var sourceDocumentId)) {
+            await RunBestEffortAsync(
+                () => _graphRepository.DeleteByDocumentAsync(sourceDocumentId, ct),
+                "delete graph rows for source document",
+                sourceDocumentId).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<IReadOnlyList<IndexedArtifact>> GetDeleteArtifactsAsync(
+        IngestionJob job,
+        string uploadId,
+        CancellationToken ct) {
+        var byJob = await _artifactRepository.GetByIngestionJobIdAsync(job.IngestionJobId, ct).ConfigureAwait(false);
+        var byUpload = await _artifactRepository.GetByUploadIdAsync(uploadId, ct).ConfigureAwait(false);
+
+        return byJob.Concat(byUpload)
+            .GroupBy(static artifact => artifact.IndexedArtifactId)
+            .Select(static group => group.First())
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyList<IndexedChunk>> GetDeleteChunksAsync(
+        IngestionJob job,
+        string uploadId,
+        IReadOnlyList<IndexedArtifact> artifacts,
+        CancellationToken ct) {
+        var chunks = new List<IndexedChunk>();
+        foreach (var artifact in artifacts) {
+            chunks.AddRange(await _chunkRepository.GetByArtifactIdAsync(artifact.IndexedArtifactId, ct).ConfigureAwait(false));
+        }
+
+        chunks.AddRange(await _chunkRepository.GetByIngestionJobIdAsync(job.IngestionJobId, ct).ConfigureAwait(false));
+        chunks.AddRange(await _chunkRepository.GetByUploadIdAsync(uploadId, ct).ConfigureAwait(false));
+
+        return chunks
+            .GroupBy(static chunk => chunk.ChunkId, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group.First())
+            .ToArray();
+    }
+
+    private static IEnumerable<string> BuildFallbackChunkIds(IngestionJob job, string uploadId) {
+        var expectedChunkCount = job.ExpectedChunkCount ?? 0;
+        if (expectedChunkCount <= 0) {
+            yield break;
+        }
+
+        var suffix = job.InputType switch {
+            IngestionJobType.PDFManual => "pdf",
+            IngestionJobType.StructuredSpecification => "csv",
+            _ => null
+        };
+
+        if (suffix is null) {
+            yield break;
+        }
+
+        for (var i = 0; i < expectedChunkCount; i++) {
+            yield return $"{uploadId}-{suffix}-{i}";
+        }
+    }
+
+    private async Task DeleteBlobIfExistsAsync(string blobPath, CancellationToken ct) {
+        await RunBestEffortAsync(
+            async () => await _blobStorageService.DeleteIfExistsAsync(_blobStorageOptions.RawUploadsContainer, blobPath, ct).ConfigureAwait(false),
+            "delete ingestion blob",
+            blobPath).ConfigureAwait(false);
+    }
+
+    private async Task RunBestEffortAsync(
+        Func<Task> action,
+        string operation,
+        object identifier) {
+        try {
+            await action().ConfigureAwait(false);
+        }
+        catch (Exception ex) {
+            _logger.LogWarning(
+                ex,
+                "Best-effort cleanup failed while attempting to {Operation} ({Identifier}).",
+                operation,
+                LogSanitizer.Sanitize(Convert.ToString(identifier) ?? string.Empty));
+        }
+    }
+
+    private static string ToDocumentType(IngestionJobType inputType) => inputType switch {
+        IngestionJobType.PDFManual => "manual-pdf",
+        _ => "spec-dataset"
+    };
+
+    private static string BuildSearchChunksBlobPath(string uploadId) => $"{uploadId}/chunks.jsonl";
+
+    private static string BuildGraphEntitiesBlobPath(string uploadId) => $"graph-entities/{uploadId}/entities.json";
 
     private static IngestionJobType GetPrimaryInputType(string documentType) => documentType switch {
         "manual-pdf" => IngestionJobType.PDFManual,

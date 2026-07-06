@@ -48,6 +48,15 @@ function relativeTime(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function formatJobLoadError(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    const problem = error.response?.data as { detail?: string; title?: string } | undefined;
+    return problem?.detail ?? problem?.title ?? error.message;
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
 export default function JobsScreen() {
   const qc = useQueryClient();
   const [supersededRetryJobIds, setSupersededRetryJobIds] = useState<Set<string>>(
@@ -162,7 +171,7 @@ export default function JobsScreen() {
         {jobs.isLoading ? (
           <Empty>Loading jobs…</Empty>
         ) : jobs.isError ? (
-          <Empty>Could not load jobs.</Empty>
+          <Empty>Could not load jobs: {formatJobLoadError(jobs.error)}</Empty>
         ) : jobList.length === 0 ? (
           <Empty>No jobs found.</Empty>
         ) : (

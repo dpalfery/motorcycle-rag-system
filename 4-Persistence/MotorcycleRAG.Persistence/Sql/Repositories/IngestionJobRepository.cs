@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -9,12 +10,29 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories;
 
 /// <summary>
 /// Dapper-based implementation of <see cref="IIngestionJobRepository"/>.
-/// All SQL uses parameterized queries — no string concatenation.
+/// Query values are parameterized; schema-dependent SQL fragments are trusted constants.
 /// </summary>
 public class IngestionJobRepository : IIngestionJobRepository
 {
     private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<IngestionJobRepository> _logger;
+    private const string IngestionJobColumnsWithSqlId = @"
+                [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
+                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
+                [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
+                [PagesWithOcrTextCount], [PagesWithNativeTextCount],
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                [CurrentStage], [StageSetAtUtc]";
+
+    private const string IngestionJobColumnsWithoutSqlId = @"
+                CAST(0 AS BIGINT) AS [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
+                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
+                [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
+                [PagesWithOcrTextCount], [PagesWithNativeTextCount],
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                [CurrentStage], [StageSetAtUtc]";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IngestionJobRepository"/>.
@@ -27,12 +45,26 @@ public class IngestionJobRepository : IIngestionJobRepository
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    private static async Task<bool> HasSqlIdColumnAsync(
+        IDbConnection connection,
+        CancellationToken cancellationToken)
+    {
+        const string sql = "SELECT CASE WHEN COL_LENGTH('dbo.IngestionJobs', 'Id') IS NULL THEN 0 ELSE 1 END;";
+        var result = await connection.ExecuteScalarAsync<int>(
+            new CommandDefinition(sql, cancellationToken: cancellationToken));
+
+        return result == 1;
+    }
+
+    private static string GetIngestionJobColumns(bool hasSqlIdColumn) =>
+        hasSqlIdColumn ? IngestionJobColumnsWithSqlId : IngestionJobColumnsWithoutSqlId;
+
     /// <inheritdoc/>
     public async Task<IngestionJob> CreateAsync(IngestionJob job, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(job);
 
-        const string sql = @"
+        const string insertSqlWithSqlId = @"
             INSERT INTO [dbo].[IngestionJobs] (
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
@@ -54,10 +86,31 @@ public class IngestionJobRepository : IIngestionJobRepository
             );
         ";
 
+        const string insertSqlWithoutSqlId = @"
+            INSERT INTO [dbo].[IngestionJobs] (
+                [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
+                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
+                [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
+                [PagesWithOcrTextCount], [PagesWithNativeTextCount],
+                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
+                [CurrentStage], [StageSetAtUtc]
+            )
+            VALUES (
+                @IngestionJobId, @CreatedAtUtc, @StartedAtUtc, @CompletedAtUtc,
+                @CreatedBySubject, @Status, @FailureReason, @ErrorsJson, @ErrorMessage, @InputType, @InputRef,
+                @ComputeProvider, @DocIngestionRunId, @ManualDocumentId,
+                @TotalPages, @PagesCapturedViewableCount, @PagesWithSearchableTextCount,
+                @PagesWithOcrTextCount, @PagesWithNativeTextCount,
+                @MissingPagesJson, @MetricsJson, @ExpectedChunkCount, @IndexedChunkCount,
+                @CurrentStage, @StageSetAtUtc
+            );
+        ";
+
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            job.Id = await connection.QuerySingleAsync<long>(new CommandDefinition(sql, new
+            var parameters = new
             {
                 job.IngestionJobId,
                 CreatedAtUtc = job.CreatedAtUtc.UtcDateTime,
@@ -84,7 +137,19 @@ public class IngestionJobRepository : IIngestionJobRepository
                 job.IndexedChunkCount,
                 job.CurrentStage,
                 StageSetAtUtc = job.StageSetAtUtc?.UtcDateTime
-            }, cancellationToken: cancellationToken));
+            };
+
+            if (await HasSqlIdColumnAsync(connection, cancellationToken))
+            {
+                job.Id = await connection.QuerySingleAsync<long>(
+                    new CommandDefinition(insertSqlWithSqlId, parameters, cancellationToken: cancellationToken));
+            }
+            else
+            {
+                await connection.ExecuteAsync(
+                    new CommandDefinition(insertSqlWithoutSqlId, parameters, cancellationToken: cancellationToken));
+                job.Id = 0;
+            }
 
             _logger.LogInformation("Created ingestion job {IngestionJobId}", job.IngestionJobId);
             return job;
@@ -99,21 +164,14 @@ public class IngestionJobRepository : IIngestionJobRepository
     /// <inheritdoc/>
     public async Task<IngestionJob?> GetByIdAsync(Guid ingestionJobId, CancellationToken cancellationToken = default)
     {
-        const string sql = @"
-            SELECT [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                   [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
-                   [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
-                   [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
-                   [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
-                   [CurrentStage], [StageSetAtUtc]
-            FROM [dbo].[IngestionJobs]
-            WHERE [IngestionJobId] = @IngestionJobId;
-        ";
-
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var sql = $@"
+            SELECT {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
+            FROM [dbo].[IngestionJobs]
+            WHERE [IngestionJobId] = @IngestionJobId;
+        ";
             return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
                 new CommandDefinition(sql, new { IngestionJobId = ingestionJobId }, cancellationToken: cancellationToken));
         }
@@ -236,23 +294,15 @@ public class IngestionJobRepository : IIngestionJobRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(inputRef);
 
-        const string sql = @"
-            SELECT TOP 1
-                [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
-                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
-                [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
-                [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
-                [CurrentStage], [StageSetAtUtc]
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var sql = $@"
+            SELECT TOP 1 {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
-
-        try
-        {
-            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
             return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
                 new CommandDefinition(sql, new { InputRef = inputRef }, cancellationToken: cancellationToken));
         }
@@ -271,24 +321,16 @@ public class IngestionJobRepository : IIngestionJobRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(inputRef);
 
-        const string sql = @"
-            SELECT TOP 1
-                [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
-                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
-                [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
-                [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
-                [CurrentStage], [StageSetAtUtc]
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var sql = $@"
+            SELECT TOP 1 {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
               AND [InputType] = @InputType
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
-
-        try
-        {
-            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
             return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
                 new CommandDefinition(sql, new { InputRef = inputRef, InputType = inputType.ToString() }, cancellationToken: cancellationToken));
         }
@@ -307,22 +349,14 @@ public class IngestionJobRepository : IIngestionJobRepository
         if (maxCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxCount), "maxCount must be greater than zero.");
 
-        const string sql = @"
-            SELECT TOP (@MaxCount)
-                [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
-                [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
-                [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
-                [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
-                [CurrentStage], [StageSetAtUtc]
-            FROM [dbo].[IngestionJobs]
-            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
-        ";
-
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var sql = $@"
+            SELECT TOP (@MaxCount) {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
+            FROM [dbo].[IngestionJobs]
+            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
+        ";
             var results = await connection.QueryAsync<IngestionJob>(
                 new CommandDefinition(sql, new { MaxCount = maxCount }, cancellationToken: cancellationToken));
             return results.ToList();
@@ -339,22 +373,15 @@ public class IngestionJobRepository : IIngestionJobRepository
         Guid manualDocumentId,
         CancellationToken cancellationToken = default)
     {
-        const string sql = @"
-            SELECT [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                   [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
-                   [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
-                   [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
-                   [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
-                   [CurrentStage], [StageSetAtUtc]
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var sql = $@"
+            SELECT {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
             FROM [dbo].[IngestionJobs]
             WHERE [ManualDocumentId] = @ManualDocumentId
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
-
-        try
-        {
-            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
             var results = await connection.QueryAsync<IngestionJob>(
                 new CommandDefinition(sql, new { ManualDocumentId = manualDocumentId }, cancellationToken: cancellationToken));
 
@@ -381,22 +408,15 @@ public class IngestionJobRepository : IIngestionJobRepository
             return Array.Empty<IngestionJob>();
         }
 
-        const string sql = @"
-            SELECT [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                   [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
-                   [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
-                   [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
-                   [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
-                   [CurrentStage], [StageSetAtUtc]
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var sql = $@"
+            SELECT {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
             FROM [dbo].[IngestionJobs]
             WHERE [Status] IN @Statuses
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
-
-        try
-        {
-            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
             var results = await connection.QueryAsync<IngestionJob>(
                 new CommandDefinition(
                     sql,
@@ -635,21 +655,14 @@ public class IngestionJobRepository : IIngestionJobRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(docIngestionRunId);
 
-        const string sql = @"
-            SELECT [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                   [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
-                   [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
-                   [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
-                   [PagesWithOcrTextCount], [PagesWithNativeTextCount],
-                   [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
-                   [CurrentStage], [StageSetAtUtc]
-            FROM [dbo].[IngestionJobs]
-            WHERE [DocIngestionRunId] = @DocIngestionRunId;
-        ";
-
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var sql = $@"
+            SELECT {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
+            FROM [dbo].[IngestionJobs]
+            WHERE [DocIngestionRunId] = @DocIngestionRunId;
+        ";
             return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
                 new CommandDefinition(sql, new { DocIngestionRunId = docIngestionRunId }, cancellationToken: cancellationToken));
         }

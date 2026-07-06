@@ -2,8 +2,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SKILLFORGE_PROJ="$REPO_ROOT/tools/SkillForge/src/SkillForge.Cli"
+DEPLOYMENT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$DEPLOYMENT_ROOT/.." && pwd)"
+SKILLFORGE_PROJ="$DEPLOYMENT_ROOT/tools/SkillForge/src/SkillForge.Cli"
 
 echo "==> Building SkillForge..."
 dotnet build "$SKILLFORGE_PROJ" -c Release --nologo -v q

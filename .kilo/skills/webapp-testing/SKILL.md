@@ -9,10 +9,9 @@ metadata:
   author: David R Palfery
   version: 1.0.0
   category: development
-  source:
-    repository: 'https://github.com/ComposioHQ/awesome-claude-skills'
-    path: webapp-testing
-    license_path: webapp-testing/LICENSE.txt
+  source-repository: https://github.com/ComposioHQ/awesome-claude-skills
+  source-path: webapp-testing
+  source-license-path: webapp-testing/LICENSE.txt
 ---
 
 # Web Application Testing

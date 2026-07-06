@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore SkillForge.sln
+      - run: dotnet build SkillForge.sln --configuration Release --no-restore
+      - run: dotnet test SkillForge.sln --configuration Release --no-build --verbosity normal
+
+  skill-gate:
+    # Treats the skills in this repo as governed artifacts: spec + routing + security
+    # must pass before merge. Swap ./samples/skills for your own skills directory.
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Install SkillForge as a local tool
+        run: |
+          dotnet pack src/SkillForge.Cli/SkillForge.Cli.csproj -c Release -o ./nupkg
+          dotnet tool install --global --add-source ./nupkg SkillForge.Tool
+
+      - name: Validate (spec conformance)
+        run: skillforge validate ./samples/skills
+
+      - name: Lint (routing readiness)
+        run: skillforge lint ./samples/skills --min-desc-score 70
+
+      - name: Scan (trust surface) — SARIF to code scanning
+        run: skillforge scan ./samples/skills --format sarif > skillforge.sarif
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: skillforge.sarif
+
+      - name: Route regression test
+        run: skillforge route --eval ./samples/routing-tests.yml --skills ./samples/skills --min-accuracy 0.85

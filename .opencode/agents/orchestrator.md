@@ -2,12 +2,12 @@
 description: Primary orchestration agent. Coordinates task execution across specialized agents, maintains task memory, and routes discovery through dedicated read-only spokes. Does not perform direct work.
 mode: primary
 permission:
-  read: allow
-  grep: allow
-  glob: allow
-  list: allow
+  read: deny
+  grep: deny
+  glob: deny
+  list: deny
   skill: allow
-  webfetch: allow
+  webfetch: deny
   task: allow
   bash: deny
   edit: deny

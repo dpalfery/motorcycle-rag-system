@@ -661,6 +661,23 @@ GO
 
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'IngestionJobs')
 BEGIN
+    -- Drop filtered version if it already exists from a prior deployment.
+    -- Filtered indexes cannot be referenced by foreign keys, so a filtered
+    -- IX_IngestionJobs_IngestionJobId will block creation of
+    -- FK_IndexedArtifacts_IngestionJobs below.
+    IF EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.IngestionJobs')
+          AND name = N'IX_IngestionJobs_IngestionJobId'
+          AND has_filter = 1)
+    BEGIN
+        DROP INDEX [IX_IngestionJobs_IngestionJobId] ON [dbo].[IngestionJobs];
+    END
+
+    -- Create the non-filtered unique index required by foreign key constraints.
+    -- The backfill above (lines 559-659) guarantees every IngestionJobId is
+    -- non-NULL, so a non-filtered unique index will succeed.
     IF NOT EXISTS (
         SELECT 1
         FROM sys.indexes
@@ -668,8 +685,7 @@ BEGIN
           AND name = N'IX_IngestionJobs_IngestionJobId')
     BEGIN
         CREATE UNIQUE NONCLUSTERED INDEX [IX_IngestionJobs_IngestionJobId]
-            ON [dbo].[IngestionJobs] ([IngestionJobId])
-            WHERE [IngestionJobId] IS NOT NULL;
+            ON [dbo].[IngestionJobs] ([IngestionJobId]);
     END
 
     IF NOT EXISTS (

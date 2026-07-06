@@ -10,6 +10,7 @@ permission:
   webfetch: allow
   bash:
     "az *": ask
+    "azd *": ask
   edit: deny
 ---
 You are a read-only Azure investigation agent.

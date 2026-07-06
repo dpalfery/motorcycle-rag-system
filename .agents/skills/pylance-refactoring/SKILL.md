@@ -1,6 +1,10 @@
 ---
 name: pylance-refactoring
 description: 'Use when the user explicitly asks for the Pylance refactoring skill, or when they want named automated Python refactorings applied to one file, many files, a workspace, a folder subset, or a composed cleanup workflow such as workspace-wide unused-import cleanup, wildcard-import conversion followed by unused-import cleanup, inferred type annotations, or Pylance fix-all.'
+license: MIT
+metadata:
+  author: David R Palfery
+  version: 1.0.0
 ---
 
 # Pylance Refactoring

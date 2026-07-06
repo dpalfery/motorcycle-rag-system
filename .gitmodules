@@ -1,0 +1,3 @@
+[submodule "tools/SkillForge"]
+	path = tools/SkillForge
+	url = https://github.com/bonaniibm/skillforge.git

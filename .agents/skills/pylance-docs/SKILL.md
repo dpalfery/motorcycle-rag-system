@@ -1,6 +1,10 @@
 ---
 name: pylance-docs
 description: 'Use when the user explicitly asks for the Pylance docs skill, or when an answer depends on current official Pylance documentation for settings, diagnostics, configuration, troubleshooting, feature behavior, or supported workflows.'
+license: MIT
+metadata:
+  author: David R Palfery
+  version: 1.0.0
 ---
 
 # Pylance Docs

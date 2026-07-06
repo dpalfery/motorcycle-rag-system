@@ -1,6 +1,10 @@
 ---
 name: python-fact-grounded-coding
 description: 'Use when the user explicitly asks for the Python fact-grounded coding skill, or when a Python coding, debugging, explanation, or bug-fix task should be grounded in verified Pylance facts, runtime values, diagnostics, selected interpreter state, tests, or debugger evidence before changing code or reporting a conclusion.'
+license: MIT
+metadata:
+  author: David R Palfery
+  version: 1.0.0
 ---
 
 # Python Fact-Grounded Coding

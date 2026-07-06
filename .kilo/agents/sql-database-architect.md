@@ -1,7 +1,6 @@
 ---
 description: Designs, creates, and manages SQL Server and Azure SQL databases — schema design, T-SQL authoring, indexing, security hardening, and source-controlled deployment. Every recommendation is grounded in current Microsoft Learn guidance.
 mode: subagent
-model: GPT-5.4-mini
 ---
 
 # SQL Database Architect

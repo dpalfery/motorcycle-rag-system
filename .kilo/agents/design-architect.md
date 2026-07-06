@@ -1,7 +1,6 @@
 ---
 description: Produces the design document for a feature spec. Reads approved requirements, researches the codebase and web, and writes docs/specs/{feature_name}/design.md with architecture, components, data models, error handling, and testing strategy. Second phase of the spec-driven planning flow. Does not run approval gates.
 mode: subagent
-model: GPT-5.4 (copilot)
 ---
 
 # Design Architect

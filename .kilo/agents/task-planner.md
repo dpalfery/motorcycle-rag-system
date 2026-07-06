@@ -1,7 +1,6 @@
 ---
 description: Converts an approved feature design into an actionable, test-driven implementation plan. Reads requirements and design, writes docs/specs/{feature_name}/tasks.md as a checkbox list of coding tasks with requirement traceability. Third phase of the spec-driven planning flow. Does not run approval gates.
 mode: subagent
-model: claude-sonnet-4-6
 ---
 
 # Task Planner

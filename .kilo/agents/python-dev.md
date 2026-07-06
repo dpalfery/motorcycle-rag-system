@@ -1,7 +1,6 @@
 ---
 description: Use for working on Python code or python environment
 mode: subagent
-model: Qwen3.5 9B (lmstudio)
 ---
 
 ## Role & Purpose

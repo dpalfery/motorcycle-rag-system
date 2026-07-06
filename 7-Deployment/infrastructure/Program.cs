@@ -658,7 +658,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "ApplicationInsights:ConnectionString",
                 ContentType = kvRefContentType,
                 Value = kvSecretAppInsightsConnStr.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-sql-connstr", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -666,7 +666,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "Sql:ConnectionString",
                 ContentType = kvRefContentType,
                 Value = kvSecretSqlConnStr.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-deepinfra-key", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -674,7 +674,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "DEEPINFRA_API_KEY",
                 ContentType = kvRefContentType,
                 Value = kvSecretDeepinfraKey.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             // Foundry agent references are written by the deploy pipeline into Key Vault after provisioning.
             // App Configuration resolves these versionless secret URIs at runtime for the API.
@@ -684,7 +684,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:OrchestratorAgentName",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-ORCHESTRATOR-AGENT-NAME\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-orchestrator-agent-version", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -692,7 +692,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:OrchestratorAgentVersion",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-ORCHESTRATOR-AGENT-VERSION\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-vectorsearch-agent-name", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -700,7 +700,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:VectorSearchAgentName",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-VECTORSEARCH-AGENT-NAME\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-vectorsearch-agent-version", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -708,7 +708,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:VectorSearchAgentVersion",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-VECTORSEARCH-AGENT-VERSION\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-websearch-agent-name", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -716,7 +716,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:WebSearchAgentName",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-WEBSEARCH-AGENT-NAME\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-websearch-agent-version", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -724,7 +724,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:WebSearchAgentVersion",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-WEBSEARCH-AGENT-VERSION\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-pdfsearch-agent-name", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -732,7 +732,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:PDFSearchAgentName",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-PDFSEARCH-AGENT-NAME\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-pdfsearch-agent-version", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -740,7 +740,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:PDFSearchAgentVersion",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-PDFSEARCH-AGENT-VERSION\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-graphquery-agent-name", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -748,7 +748,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:GraphQueryAgentName",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-GRAPHQUERY-AGENT-NAME\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             _ = new KeyValue("appconfig-kvref-graphquery-agent-version", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
@@ -756,7 +756,7 @@ namespace MotorcycleRAG.Infrastructure {
                 KeyValueName = "AzureAI:GraphQueryAgentVersion",
                 ContentType = kvRefContentType,
                 Value = Output.Format($"{{\"uri\":\"https://{keyVault.Name}.vault.azure.net/secrets/MCR-GRAPHQUERY-AGENT-VERSION\"}}")
-            });
+            }, new CustomResourceOptions { DeleteBeforeReplace = true });
 
             // RBAC: Key Vault Secrets User for both apps
             _ = new RoleAssignment($"{namePrefix}-api-kv-role", new RoleAssignmentArgs {

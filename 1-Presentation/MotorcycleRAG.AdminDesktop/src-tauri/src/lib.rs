@@ -55,7 +55,7 @@ fn default_processor_port() -> u16 {
 }
 
 fn default_embedding_provider_endpoint() -> String {
-    "http://localhost:11434".to_string()
+    "http://localhost:1234/v1".to_string()
 }
 
 fn default_embedding_model() -> String {
@@ -63,7 +63,7 @@ fn default_embedding_model() -> String {
 }
 
 fn default_api_base_url() -> String {
-    "https://localhost:7215".to_string()
+    "https://motorag.api.palfery.com".to_string()
 }
 
 fn default_azure_storage_account_url() -> String {

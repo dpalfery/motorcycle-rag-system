@@ -655,7 +655,7 @@ namespace MotorcycleRAG.Infrastructure {
             _ = new KeyValue("appconfig-kvref-appinsights-connstr", new KeyValueArgs {
                 ResourceGroupName = resourceGroup.Name,
                 ConfigStoreName = appConfig.Name,
-                KeyValueName = "ConnectionStrings:ApplicationInsights",
+                KeyValueName = "ApplicationInsights:ConnectionString",
                 ContentType = kvRefContentType,
                 Value = kvSecretAppInsightsConnStr.Properties.Apply(p => $"{{\"uri\":\"{p.SecretUri}\"}}")
             });

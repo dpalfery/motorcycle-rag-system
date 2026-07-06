@@ -30,11 +30,11 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  apiBaseUrl: "https://localhost:7215",
+  apiBaseUrl: "https://motorag.api.palfery.com",
   authAuthority: "https://login.microsoftonline.com/0f8f8a52-f135-43af-af88-e0b54ca9ff91",
   authClientId: "a86e8458-4482-4bb6-808a-28d65b2668ef",
   authScope: "api://motorcyclerag-api/admin",
-  embeddingProviderEndpoint: "http://localhost:11434",
+  embeddingProviderEndpoint: "http://localhost:1234/v1",
   embeddingModel: "qwen3-embedding",
   tokenizerModelPath: "/Users/dave/.lmstudio/models/mlx-community/Qwen3.5-9B-8bit",
   graphExtractionEndpoint: "http://localhost:1234/v1",

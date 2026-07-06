@@ -12,7 +12,7 @@ beforeEach(() => {
 });
 
 const baseConfig: AppConfig = {
-  apiBaseUrl: "https://localhost:7215",
+        apiBaseUrl: "https://motorag.api.palfery.com",
   authAuthority: "https://login.microsoftonline.com/tenant",
   authClientId: "client-id",
   authScope: "api://scope",
@@ -129,7 +129,7 @@ describe("ensureProcessorReady", () => {
         tokenizerModelPath: "/models/qwen-tokenizer",
         graphExtractionEndpoint: "http://localhost:1234/v1",
         graphExtractionModel: "qwen3.5-0.8b",
-        apiBaseUrl: "https://localhost:7215",
+  apiBaseUrl: "https://motorag.api.palfery.com",
         azureStorageAccountUrl: "https://storage.example/",
         uploadJobSecret: undefined,
       },

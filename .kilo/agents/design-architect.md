@@ -1,6 +1,18 @@
 ---
 description: Produces the design document for a feature spec. Reads approved requirements, researches the codebase and web, and writes docs/specs/{feature_name}/design.md with architecture, components, data models, error handling, and testing strategy. Second phase of the spec-driven planning flow. Does not run approval gates.
 mode: subagent
+permissions:
+read: allow
+  edit:
+    "*": deny
+    .kilo/plans/*.md: allow
+    .plans/*.md: allow
+    .opencode/plans/*.md: allow
+  bash: deny
+  mcp: allow
+  question: allow
+  plan_exit: allow
+model: zai-coding-plan/glm-5.2
 ---
 
 # Design Architect

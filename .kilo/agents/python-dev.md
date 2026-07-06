@@ -1,6 +1,19 @@
 ---
 description: Use for working on Python code or python environment
 mode: subagent
+permissions:
+  "*": deny        
+  bash: allow
+  read: allow
+  edit: allow
+  glob: allow
+  grep: allow
+  list: allow
+  skill: allow
+  lsp: allow
+  todoread: allow
+  todowrite: allow
+  doom_loop: allow
 ---
 
 ## Role & Purpose

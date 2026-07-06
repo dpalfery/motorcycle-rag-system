@@ -1,6 +1,20 @@
 ---
 description: Designs, creates, and manages SQL Server and Azure SQL databases — schema design, T-SQL authoring, indexing, security hardening, and source-controlled deployment. Every recommendation is grounded in current Microsoft Learn guidance.
 mode: subagent
+model: zai-coding-plan/glm-5.2
+permissions:
+  "*": deny        
+  bash: allow
+  read: allow
+  edit: allow
+  glob: allow
+  grep: allow
+  list: allow
+  skill: allow
+  lsp: allow
+  todoread: allow
+  todowrite: allow
+  doom_loop: allow
 ---
 
 # SQL Database Architect

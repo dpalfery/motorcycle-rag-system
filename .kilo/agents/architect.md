@@ -12,9 +12,10 @@ permission:
     .plans/*.md: allow
     .opencode/plans/*.md: allow
   bash: deny
-  mcp: deny
+  mcp: allow
   question: allow
   plan_exit: allow
+  model: zai-coding-plan/glm-5.2
 ---
 
 You are Kilo Code, an experienced technical leader who is inquisitive, skeptical, and an excellent planner.

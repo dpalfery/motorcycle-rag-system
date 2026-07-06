@@ -1,6 +1,19 @@
 ---
 description: Authors EARS-format requirements for a feature spec. Turns a rough idea or vision doc into docs/specs/{feature_name}/requirements.md. First phase of the spec-driven planning flow. Does not explore code, does not run approval gates.
 mode: subagent
+permissions:
+  "*": deny        
+  bash: allow
+  read: allow
+  edit: allow
+  glob: allow
+  grep: allow
+  list: allow
+  skill: allow
+  lsp: allow
+  todoread: allow
+  todowrite: allow
+  doom_loop: allow
 ---
 
 # Requirements Author

@@ -922,29 +922,23 @@ namespace MotorcycleRAG.Infrastructure {
             string modelVersion,
             string skuName,
             int capacity,
-            Pulumi.Resource[] dependsOn)
-        {
-            return new Pulumi.AzureNative.CognitiveServices.Deployment(resourceName, new Pulumi.AzureNative.CognitiveServices.DeploymentArgs
-            {
+            Pulumi.Resource[] dependsOn) {
+            return new Pulumi.AzureNative.CognitiveServices.Deployment(resourceName, new Pulumi.AzureNative.CognitiveServices.DeploymentArgs {
                 ResourceGroupName = resourceGroupName,
                 AccountName = accountName,
                 DeploymentName = deploymentName,
-                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs
-                {
-                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentModelArgs
-                    {
+                Properties = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentPropertiesArgs {
+                    Model = new Pulumi.AzureNative.CognitiveServices.Inputs.DeploymentModelArgs {
                         Format = modelFormat,
                         Name = modelName,
                         Version = modelVersion
                     }
                 },
-                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs
-                {
+                Sku = new Pulumi.AzureNative.CognitiveServices.Inputs.SkuArgs {
                     Name = skuName,
                     Capacity = capacity
                 }
-            }, new CustomResourceOptions
-            {
+            }, new CustomResourceOptions {
                 DependsOn = dependsOn
             });
         }

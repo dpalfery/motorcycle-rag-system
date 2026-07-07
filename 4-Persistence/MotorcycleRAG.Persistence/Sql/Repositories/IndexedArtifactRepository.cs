@@ -244,7 +244,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            await connection.ExecuteAsync(new CommandDefinition(sql, new { IndexedArtifactId = artifactId }, cancellationToken: cancellationToken));
+            await connection.ExecuteAsync(new CommandDefinition(sql, new { IndexedArtifactId = artifactId }, commandTimeout: 90, cancellationToken: cancellationToken));
         }
         catch (Exception ex)
         {

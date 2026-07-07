@@ -47,6 +47,10 @@ public sealed class IngestionJobServiceDualModeTests {
             .Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        _repository
+            .Setup(r => r.TrySetDeletingAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
         _artifactRepository
             .Setup(r => r.GetByIngestionJobIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<IndexedArtifact>());
@@ -379,8 +383,11 @@ public sealed class IngestionJobServiceDualModeTests {
 
         var act = async () => await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<DeleteJobException>()
+            .Where(ex => ex.Error == DeleteJobError.Active)
             .WithMessage($"*'{jobId}' is active*");
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.TrySetDeletingAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -390,7 +397,16 @@ public sealed class IngestionJobServiceDualModeTests {
     [InlineData(IngestionJobStatus.Failed)]
     [InlineData(IngestionJobStatus.Cancelled)]
     [InlineData(IngestionJobStatus.PartiallyCompleted)]
-    public async Task DeleteJobAsync_ShouldAcceptQueuedAndTerminalJobStatuses(IngestionJobStatus status) {
+    public async Task DeleteJobAsync_ShouldMarkQueuedAndTerminalJobsAsDeleting(IngestionJobStatus status) {
+        // UNIT-LEVEL ASSUMPTION: this test stubs TrySetDeletingAsync to return true for every
+        // status (see the constructor setup), so it only proves the SERVICE guard lets each
+        // status through to the atomic transition. The contract that the REPOSITORY actually
+        // accepts Queued (and the terminal statuses) via its [Status] IN (...) clause is an
+        // integration-level property — see IngestionJobRepository.TrySetDeletingAsync's
+        // deletableStatuses list, which must mirror the service's deletable set. If the
+        // repository ever rejects one of these statuses, DeleteJobAsync will throw
+        // DeleteJobError.ConcurrentModification here (the constructor stub returns true, so a
+        // passing run still implies the service did not reject the status up front).
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -400,19 +416,29 @@ public sealed class IngestionJobServiceDualModeTests {
                 InputType = IngestionJobType.StructuredSpecification,
                 InputRef = $"upload-{status}"
             });
+
+        // Per-status explicit stub: the constructor default already returns true, but making it
+        // explicit per-job keeps the assertion "TrySetDeletingAsync returned true" legible. If
+        // this ever returns false, DeleteJobAsync throws and this Theory case fails.
         _repository
-            .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.TrySetDeletingAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         var sut = CreateSut();
 
         await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
 
-        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
+        // For every deletable status (including Queued), the service must delegate to the
+        // atomic transition and must never fall back to the non-atomic UpdateAsync path.
+        _repository.Verify(
+            r => r.TrySetDeletingAsync(jobId, It.IsAny<CancellationToken>()),
+            Times.Once);
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task DeleteJobAsync_WhenJobIsFinished_ShouldDeleteHistoryRow() {
+    public async Task DeleteJobAsync_WhenJobIsFinished_ShouldTransitionToDeletingWithoutDeletingRow() {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -423,41 +449,24 @@ public sealed class IngestionJobServiceDualModeTests {
                 InputRef = "upload-finished-001"
             });
 
-        _repository
-            .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-
         var sut = CreateSut();
 
         await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
 
-        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
+        _repository.Verify(
+            r => r.TrySetDeletingAsync(jobId, It.IsAny<CancellationToken>()),
+            Times.Once);
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task DeleteJobAsync_ShouldRemoveAssociatedAssetsBeforeDeletingJob() {
+    public async Task DeleteJobAsync_ShouldNotRemoveAssociatedAssetsDirectly() {
+        // DeleteJobAsync now only performs the status transition; asset teardown is owned
+        // by ExecuteJobCleanupAsync (background service). Verify none of the chunk/artifact/
+        // blob/search/graph cleanup paths are touched on the HTTP delete path.
         var jobId = Guid.NewGuid();
         var uploadId = Guid.NewGuid().ToString();
-        var artifactId = Guid.NewGuid();
-        var artifact = new IndexedArtifact {
-            IndexedArtifactId = artifactId,
-            IngestionJobId = jobId,
-            UploadId = uploadId,
-            ArtifactType = "search-chunks",
-            BlobContainer = "raw-uploads",
-            BlobPath = $"{uploadId}/chunks.jsonl",
-            State = IndexedArtifactState.Completed,
-            ExpectedChunkCount = 2,
-            IndexedChunkCount = 1,
-            CreatedAtUtc = DateTimeOffset.UtcNow
-        };
-        var chunk = new IndexedChunk {
-            ChunkId = $"{uploadId}-pdf-0",
-            IndexedArtifactId = artifactId,
-            IngestionJobId = jobId,
-            UploadId = uploadId,
-            Status = ChunkIndexStatus.Complete
-        };
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -468,34 +477,217 @@ public sealed class IngestionJobServiceDualModeTests {
                 InputRef = uploadId,
                 ExpectedChunkCount = 2
             });
-        _repository
-            .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-        _artifactRepository
-            .Setup(r => r.GetByIngestionJobIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([artifact]);
-        _chunkRepository
-            .Setup(r => r.GetByArtifactIdAsync(artifactId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([chunk]);
 
         var sut = CreateSut();
 
         await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
 
         _searchDocumentService.Verify(
-            s => s.DeleteDocumentsAsync(It.Is<IEnumerable<string>>(ids =>
-                ids.Contains($"{uploadId}-pdf-0") && ids.Contains($"{uploadId}-pdf-1"))),
+            s => s.DeleteDocumentsAsync(It.IsAny<IEnumerable<string>>()),
+            Times.Never);
+        _chunkRepository.Verify(r => r.DeleteByArtifactIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _chunkRepository.Verify(r => r.DeleteByIngestionJobIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _chunkRepository.Verify(r => r.DeleteByUploadIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _artifactRepository.Verify(r => r.DeleteByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _blobStorage.Verify(s => s.DeleteIfExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _graphRepository.Verify(r => r.DeleteByDocumentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        _repository.Verify(
+            r => r.TrySetDeletingAsync(jobId, It.IsAny<CancellationToken>()),
             Times.Once);
-        _chunkRepository.Verify(r => r.DeleteByArtifactIdAsync(artifactId, It.IsAny<CancellationToken>()), Times.Once);
-        _chunkRepository.Verify(r => r.DeleteByIngestionJobIdAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
-        _chunkRepository.Verify(r => r.DeleteByUploadIdAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
-        _artifactRepository.Verify(r => r.DeleteByIdAsync(artifactId, It.IsAny<CancellationToken>()), Times.Once);
-        _blobStorage.Verify(s => s.DeleteIfExistsAsync("raw-uploads", $"{uploadId}/source.pdf", It.IsAny<CancellationToken>()), Times.Once);
-        _blobStorage.Verify(s => s.DeleteIfExistsAsync("raw-uploads", $"{uploadId}/chunks.jsonl", It.IsAny<CancellationToken>()), Times.Once);
-        _blobStorage.Verify(s => s.DeleteIfExistsAsync("raw-uploads", $"graph-entities/{uploadId}/entities.json", It.IsAny<CancellationToken>()), Times.Once);
-        _graphRepository.Verify(r => r.DeleteByDocumentAsync(Guid.Parse(uploadId), It.IsAny<CancellationToken>()), Times.Once);
-        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task DeleteJobAsync_WhenJobIsAlreadyDeleting_ShouldRejectWithIdempotencyGuard() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Deleting,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-deleting-001"
+            });
+
+        var sut = CreateSut();
+
+        var act = async () => await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DeleteJobException>()
+            .Where(ex => ex.Error == DeleteJobError.AlreadyDeleting)
+            .WithMessage($"*'{jobId}'*already being deleted*");
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.TrySetDeletingAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteJobAsync_WhenTrySetDeletingReturnsFalse_ShouldThrow() {
+        // The atomic UPDATE returned 0 affected rows — the job was either not found or
+        // not in a deletable terminal state (e.g. a concurrent request already flipped it).
+        // The service must surface this as a concurrency error and must not mutate the row
+        // via the non-atomic UpdateAsync path.
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Completed,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-concurrent-001"
+            });
+        _repository
+            .Setup(r => r.TrySetDeletingAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var sut = CreateSut();
+
+        var act = async () => await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
+
+        await act.Should().ThrowAsync<DeleteJobException>()
+            .Where(ex => ex.Error == DeleteJobError.ConcurrentModification)
+            .WithMessage("*could not be deleted*modified concurrently*");
+        _repository.Verify(r => r.TrySetDeletingAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    #region ExecuteJobCleanupAsync (background service)
+
+    [Fact]
+    public async Task ExecuteJobCleanupAsync_WhenJobNotFound_LogsWarningAndReturns() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IngestionJob?)null);
+
+        var sut = CreateSut();
+
+        // A missing job means a prior cleanup pass already removed it — treat as success.
+        var act = async () => await sut.ExecuteJobCleanupAsync(jobId, CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+        _repository.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteJobCleanupAsync_WhenSuccessful_DeletesAllAssetsAndJobRow() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Deleting,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-cleanup-success"
+            });
+        _repository
+            .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var sut = CreateSut();
+
+        await sut.ExecuteJobCleanupAsync(jobId, CancellationToken.None);
+
+        _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
+        // No rollback on success — the row is removed by DeleteAsync, never UpdateAsync'd.
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteJobCleanupAsync_WhenFinalDeleteThrows_RollsBackToFailed() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Deleting,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-cleanup-throw"
+            });
+        _repository
+            .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("DB connection lost"));
+
+        var sut = CreateSut();
+
+        // The original exception must rethrow so the background service observes the failure.
+        await Assert.ThrowsAsync<Exception>(
+            () => sut.ExecuteJobCleanupAsync(jobId, CancellationToken.None));
+
+        // The catch block rolls the row back to Failed so it resurfaces for operator attention.
+        _repository.Verify(
+            r => r.UpdateAsync(
+                It.Is<IngestionJob>(j =>
+                    j.Status == IngestionJobStatus.Failed
+                    && (j.FailureReason ?? string.Empty).Contains("Background cleanup failed")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteJobCleanupAsync_WhenAssetCleanupThrows_RollsBackToFailed() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Deleting,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-cleanup-asset-throw"
+            });
+
+        // GetDeleteArtifactsAsync is the first read inside DeleteAssociatedAssetsAsync and is
+        // NOT wrapped in RunBestEffortAsync, so a throw here propagates to the outer catch.
+        // This re-setup overrides the constructor's empty-array default (last setup wins).
+        _artifactRepository
+            .Setup(r => r.GetByIngestionJobIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("artifact store unavailable"));
+
+        var sut = CreateSut();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ExecuteJobCleanupAsync(jobId, CancellationToken.None));
+
+        // Asset cleanup failed before the final row delete was reached.
+        _repository.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(
+            r => r.UpdateAsync(
+                It.Is<IngestionJob>(j =>
+                    j.Status == IngestionJobStatus.Failed
+                    && (j.FailureReason ?? string.Empty).Contains("Background cleanup failed")),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteJobCleanupAsync_WhenDeleteAsyncReturnsFalse_LogsWarningButDoesNotThrow() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Deleting,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-cleanup-already-gone"
+            });
+        _repository
+            .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var sut = CreateSut();
+
+        var act = async () => await sut.ExecuteJobCleanupAsync(jobId, CancellationToken.None);
+
+        // A missing row during the final delete is a benign race, not an error.
+        await act.Should().NotThrowAsync();
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    #endregion
 
     [Fact]
     public async Task ClearFinishedJobsAsync_ShouldRemoveFinishedRows() {
@@ -670,6 +862,122 @@ public sealed class IngestionJobServiceDualModeTests {
         response.Should().NotBeNull();
         response!.FailureReason.Should().Be("Pipeline reported status 'failed'.");
         _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    #endregion
+
+    #region Deleting status guards (T3)
+
+    [Fact]
+    public async Task CancelJobAsync_WhenJobIsDeleting_LogsWarningAndReturnsWithoutError() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Deleting,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-deleting-cancel"
+            });
+
+        var sut = CreateSut();
+
+        await sut.CancelJobAsync(jobId, TestUserId, CancellationToken.None);
+
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task FailJobAsync_WhenJobIsDeleting_LogsWarningAndReturnsWithoutError() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Deleting,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-deleting-fail"
+            });
+
+        var sut = CreateSut();
+
+        await sut.FailJobAsync(jobId, "processor reported failure", TestUserId, CancellationToken.None);
+
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TransitionStageAsync_WhenJobIsDeleting_ReturnsCurrentResponseWithoutModifying() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Deleting,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-deleting-transition",
+                CurrentStage = "deleting"
+            });
+
+        var sut = CreateSut();
+
+        var response = await sut.TransitionStageAsync(
+            jobId,
+            new IngestionJobStageRequest { Stage = "completed" },
+            CancellationToken.None);
+
+        response.Should().NotBeNull();
+        response.Status.Should().Be(IngestionJobStatus.Deleting.ToString());
+        _repository.Verify(r => r.UpdateStageAsync(
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetPendingStorageFilesAsync_WhenOnlyJobIsDeleting_ExcludesFile() {
+        _blobStorage
+            .Setup(b => b.ListAsync("raw-uploads", It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new BlobObjectDescriptor {
+                    Name = "upload-deleting-only/source.pdf",
+                    LastModifiedUtc = DateTimeOffset.UtcNow
+                }
+            ]);
+
+        _repository
+            .Setup(r => r.GetLatestByInputAsync("upload-deleting-only", IngestionJobType.PDFManual, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = Guid.NewGuid(),
+                InputRef = "upload-deleting-only",
+                InputType = IngestionJobType.PDFManual,
+                Status = IngestionJobStatus.Deleting
+            });
+
+        var sut = CreateSut();
+
+        var result = await sut.GetPendingStorageFilesAsync(CancellationToken.None);
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetRecentIngestionJobsAsync_ShouldReturnDeletingJobsForUiVisibility() {
+        var deletingJob = new IngestionJob {
+            IngestionJobId = Guid.NewGuid(),
+            Status = IngestionJobStatus.Deleting,
+            InputType = IngestionJobType.PDFManual,
+            InputRef = "upload-deleting-recent"
+        };
+        _repository
+            .Setup(r => r.GetRecentAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([deletingJob]);
+
+        var sut = CreateSut();
+
+        var result = await sut.GetRecentIngestionJobsAsync(50, CancellationToken.None);
+
+        result.Should().ContainSingle();
+        result[0].Status.Should().Be(IngestionJobStatus.Deleting.ToString());
     }
 
     #endregion

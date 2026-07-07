@@ -1,4 +1,5 @@
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
@@ -31,6 +32,15 @@ public interface IIngestionJobService {
         Guid jobId,
         string userId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Performs best-effort cleanup of artifacts, chunks, blobs, search documents,
+    /// and graph data for a job previously marked as <see cref="IngestionJobStatus.Deleting"/>.
+    /// Must be called by the background deletion service; not intended for HTTP-initiated calls.
+    /// On success the job row is deleted. On failure the job is rolled back to
+    /// <see cref="IngestionJobStatus.Failed"/> with the error reason recorded.
+    /// </summary>
+    Task ExecuteJobCleanupAsync(Guid jobId, CancellationToken ct = default);
 
     /// <summary>Deletes failed and cancelled ingestion jobs from history.</summary>
     Task<int> ClearFailedJobsAsync(

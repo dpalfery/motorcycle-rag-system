@@ -156,7 +156,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            await connection.ExecuteAsync(new CommandDefinition(sql, new { IndexedArtifactId = artifactId }, cancellationToken: cancellationToken));
+            await connection.ExecuteAsync(new CommandDefinition(sql, new { IndexedArtifactId = artifactId }, commandTimeout: 90, cancellationToken: cancellationToken));
         }
         catch (Exception ex)
         {
@@ -172,7 +172,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            await connection.ExecuteAsync(new CommandDefinition(sql, new { IngestionJobId = ingestionJobId }, cancellationToken: cancellationToken));
+            await connection.ExecuteAsync(new CommandDefinition(sql, new { IngestionJobId = ingestionJobId }, commandTimeout: 90, cancellationToken: cancellationToken));
         }
         catch (Exception ex)
         {
@@ -190,7 +190,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            await connection.ExecuteAsync(new CommandDefinition(sql, new { UploadId = uploadId }, cancellationToken: cancellationToken));
+            await connection.ExecuteAsync(new CommandDefinition(sql, new { UploadId = uploadId }, commandTimeout: 90, cancellationToken: cancellationToken));
         }
         catch (Exception ex)
         {

@@ -1,5 +1,5 @@
 ---
-description: Produces the design document for a feature spec. Reads approved requirements, researches the codebase and web, and writes docs/specs/{feature_name}/design.md with architecture, components, data models, error handling, and testing strategy. Second phase of the spec-driven planning flow. Does not run approval gates.
+description: Produces the design document for a feature spec. Reads approved requirements, researches the codebase and web, and writes docs/specs/{feature_name}/design.md with architecture, components, data models, error handling, and testing strategy. Second phase of the spec-driven planning flow. Does not run approval gates. should not be used without a design document.
 mode: subagent
 permissions:
 read: allow

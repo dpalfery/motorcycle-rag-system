@@ -172,21 +172,92 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         var job = await _repository.GetByIdAsync(jobId, ct).ConfigureAwait(false);
         if (job is null) {
-            throw new InvalidOperationException($"Ingestion job '{jobId}' not found.");
+            throw new DeleteJobException(
+                DeleteJobError.NotFound,
+                $"Ingestion job '{jobId}' not found.");
         }
 
         if (ActiveStatuses.Contains(job.Status)) {
-            throw new InvalidOperationException($"Ingestion job '{jobId}' is active and cannot be deleted.");
+            throw new DeleteJobException(
+                DeleteJobError.Active,
+                $"Ingestion job '{jobId}' is active and cannot be deleted.");
         }
 
-        await DeleteAssociatedAssetsAsync(job, ct).ConfigureAwait(false);
-
-        var deleted = await _repository.DeleteAsync(jobId, ct).ConfigureAwait(false);
-        if (!deleted) {
-            throw new InvalidOperationException($"Ingestion job '{jobId}' could not be deleted.");
+        // Idempotency guard: a job already marked for deletion must not be re-queued.
+        // The background cleanup service (ExecuteJobCleanupAsync) owns the asset teardown
+        // and final row delete, so this method only performs the status transition and
+        // returns immediately, keeping the HTTP delete path well under request timeout.
+        if (job.Status == IngestionJobStatus.Deleting) {
+            throw new DeleteJobException(
+                DeleteJobError.AlreadyDeleting,
+                $"Ingestion job '{jobId}' is already being deleted.");
         }
 
-        _logger.LogInformation("Deleted ingestion job {JobId} in status {Status}.", jobId, job.Status);
+        // Atomically transition the job to Deleting. The conditional UPDATE rejects
+        // concurrent delete requests: only one can win the WHERE [Status] IN (...) match,
+        // eliminating the read-then-write race where two requests both pass the guards above
+        // and both flip the same terminal job to Deleting. CancellationToken.None is
+        // intentional: this critical transition must complete even when the HTTP request is
+        // approaching its timeout, so the background service reliably observes Deleting.
+        var succeeded = await _repository.TrySetDeletingAsync(jobId, CancellationToken.None).ConfigureAwait(false);
+        if (!succeeded) {
+            throw new DeleteJobException(
+                DeleteJobError.ConcurrentModification,
+                "The job could not be deleted. It may have been modified concurrently.");
+        }
+
+        _logger.LogInformation(
+            "Ingestion job {JobId} marked for deletion (status: Deleting).",
+            jobId);
+    }
+
+    /// <inheritdoc />
+    public async Task ExecuteJobCleanupAsync(Guid jobId, CancellationToken ct = default) {
+        // Driven by JobDeletionBackgroundService with its own cancellation budget; not an HTTP path.
+        var job = await _repository.GetByIdAsync(jobId, ct).ConfigureAwait(false);
+        if (job is null) {
+            // Already removed by a prior cleanup pass — treat as success.
+            _logger.LogWarning(
+                "Background cleanup: IngestionJob with ID {JobId} not found; may have been deleted by a prior cleanup run",
+                jobId);
+            return;
+        }
+
+        // Best-effort cleanup of artifacts, chunks, blobs, search documents, and graph rows.
+        // The whole teardown + final row delete is wrapped so that ANY unhandled exception
+        // (e.g. from GetDeleteArtifactsAsync/GetDeleteChunksAsync, which are NOT covered by
+        // RunBestEffortAsync) rolls the job back to Failed instead of leaving it stuck in
+        // Deleting. CancellationToken.None is intentional for the rollback write: the caller's
+        // token may be the very one that triggered this catch via cancellation.
+        try {
+            await DeleteAssociatedAssetsAsync(job, ct).ConfigureAwait(false);
+
+            var deleted = await _repository.DeleteAsync(job.IngestionJobId, ct).ConfigureAwait(false);
+            if (deleted) {
+                _logger.LogInformation(
+                    "Background cleanup: Successfully deleted IngestionJob {JobId} and all associated assets",
+                    jobId);
+            }
+            else {
+                // DeleteAsync returned false — the row was already gone (e.g. a prior cleanup
+                // pass or a concurrent operator action). Not an error; log and consider cleanup done.
+                _logger.LogWarning(
+                    "Background cleanup: IngestionJob {JobId} row was not present during final delete; may have been removed by a prior run",
+                    jobId);
+            }
+        }
+        catch (Exception ex) {
+            // Asset teardown or final delete failed (or the caller's cleanup budget elapsed).
+            // Roll the job back to Failed so it resurfaces for operator attention.
+            job.Status = IngestionJobStatus.Failed;
+            job.FailureReason = $"Background cleanup failed: {ex.Message}";
+            await _repository.UpdateAsync(job, CancellationToken.None).ConfigureAwait(false);
+            _logger.LogError(
+                ex,
+                "Background cleanup: Failed to cleanup IngestionJob {JobId}; rolled back to Failed status",
+                jobId);
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -345,7 +416,8 @@ public sealed class IngestionJobService : IIngestionJobService {
         if (job.Status is IngestionJobStatus.Completed
             or IngestionJobStatus.Failed
             or IngestionJobStatus.Cancelled
-            or IngestionJobStatus.PartiallyCompleted) {
+            or IngestionJobStatus.PartiallyCompleted
+            or IngestionJobStatus.Deleting) {
             _logger.LogWarning(
                 "Cannot cancel job {JobId} in terminal status {Status}.",
                 jobId,
@@ -381,7 +453,8 @@ public sealed class IngestionJobService : IIngestionJobService {
         if (job.Status is IngestionJobStatus.Completed
             or IngestionJobStatus.Failed
             or IngestionJobStatus.Cancelled
-            or IngestionJobStatus.PartiallyCompleted) {
+            or IngestionJobStatus.PartiallyCompleted
+            or IngestionJobStatus.Deleting) {
             _logger.LogWarning(
                 "Cannot fail job {JobId} in terminal status {Status}.",
                 jobId,
@@ -702,7 +775,8 @@ public sealed class IngestionJobService : IIngestionJobService {
         status is IngestionJobStatus.Completed
             or IngestionJobStatus.Failed
             or IngestionJobStatus.Cancelled
-            or IngestionJobStatus.PartiallyCompleted;
+            or IngestionJobStatus.PartiallyCompleted
+            or IngestionJobStatus.Deleting;
 
     private static bool ShouldIncludeAsPending(
         string documentType,
@@ -716,6 +790,12 @@ public sealed class IngestionJobService : IIngestionJobService {
     }
 
     private static bool HasPendingWorkflow(IngestionJob? job) {
+        // A job whose deletion is in-flight is not a pending workflow and must
+        // never surface in the pending storage files list.
+        if (job is not null && job.Status == IngestionJobStatus.Deleting) {
+            return false;
+        }
+
         return job is null
                || job.Status is IngestionJobStatus.Failed
                or IngestionJobStatus.Cancelled;

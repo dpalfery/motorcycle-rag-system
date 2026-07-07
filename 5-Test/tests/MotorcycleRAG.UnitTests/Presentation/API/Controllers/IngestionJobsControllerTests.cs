@@ -376,17 +376,9 @@ public sealed class IngestionJobsControllerTests
     }
 
     [Fact]
-    public async Task DeleteJobAsync_WhenJobIsQueued_ReturnsNoContent() {
+    public async Task DeleteJobAsync_WhenJobIsDeletable_ReturnsAcceptedWithDeletingStatus() {
         var jobId = Guid.NewGuid();
         var ingestionJobs = new Mock<IIngestionJobService>();
-        ingestionJobs
-            .Setup(service => service.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJobStatusResponse {
-                JobId = jobId,
-                Status = "Queued",
-                InputType = "StructuredSpecification",
-                InputRef = "upload-123"
-            });
         ingestionJobs
             .Setup(service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -395,33 +387,129 @@ public sealed class IngestionJobsControllerTests
 
         var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
 
-        result.Should().BeOfType<NoContentResult>();
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(new { jobId, status = "Deleting" });
         ingestionJobs.Verify(
             service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()),
             Times.Once);
+        // No pre-fetch: the controller must not perform the second DB read via GetJobStatusAsync.
+        ingestionJobs.Verify(
+            service => service.GetJobStatusAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
-    public async Task DeleteJobAsync_WhenServiceRejectsDelete_ReturnsConflict() {
+    public async Task DeleteJobAsync_WhenJobIsActive_ReturnsConflict() {
         var jobId = Guid.NewGuid();
         var ingestionJobs = new Mock<IIngestionJobService>();
         ingestionJobs
-            .Setup(service => service.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJobStatusResponse {
-                JobId = jobId,
-                Status = "Processing",
-                InputType = "StructuredSpecification",
-                InputRef = "upload-123"
-            });
-        ingestionJobs
             .Setup(service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("active"));
+            .ThrowsAsync(new DeleteJobException(
+                DeleteJobError.Active,
+                $"Ingestion job '{jobId}' is active and cannot be deleted."));
 
         var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
 
         var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
 
-        result.Should().BeOfType<ConflictObjectResult>();
+        var conflict = result.Should().BeOfType<ConflictObjectResult>().Subject;
+        var problem = conflict.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(StatusCodes.Status409Conflict);
+        problem.Title.Should().Be("Job deletion rejected");
+        ingestionJobs.Verify(
+            service => service.GetJobStatusAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteJobAsync_WhenJobNotFound_ReturnsNotFound() {
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DeleteJobException(
+                DeleteJobError.NotFound,
+                $"Ingestion job '{jobId}' not found."));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
+
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        var problem = notFound.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(StatusCodes.Status404NotFound);
+        problem.Detail.Should().Contain("not found");
+        ingestionJobs.Verify(
+            service => service.GetJobStatusAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteJobAsync_WhenJobAlreadyDeleting_ReturnsConflictWithDistinctDetail() {
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DeleteJobException(
+                DeleteJobError.AlreadyDeleting,
+                $"Ingestion job '{jobId}' is already being deleted."));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
+
+        var conflict = result.Should().BeOfType<ConflictObjectResult>().Subject;
+        var problem = conflict.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(StatusCodes.Status409Conflict);
+        problem.Title.Should().Be("Job deletion already in progress");
+        problem.Detail.Should().Contain("already being deleted");
+        ingestionJobs.Verify(
+            service => service.GetJobStatusAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteJobAsync_WhenConcurrentModification_ReturnsConflict() {
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DeleteJobException(
+                DeleteJobError.ConcurrentModification,
+                "The job could not be deleted. It may have been modified concurrently."));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
+
+        var conflict = result.Should().BeOfType<ConflictObjectResult>().Subject;
+        var problem = conflict.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(StatusCodes.Status409Conflict);
+        problem.Title.Should().Be("Job deletion rejected");
+        problem.Detail.Should().Contain("modified concurrently");
+        ingestionJobs.Verify(
+            service => service.GetJobStatusAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteJobAsync_WhenPlainInvalidOperationException_FallsBackToStringMapping() {
+        // Backward-compatibility safety net: a service path still throwing a plain
+        // InvalidOperationException must map via the message-string fallback.
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException($"Ingestion job '{jobId}' not found."));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
+
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        var problem = notFound.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(StatusCodes.Status404NotFound);
+        problem.Detail.Should().Contain("not found");
     }
 
     [Fact]

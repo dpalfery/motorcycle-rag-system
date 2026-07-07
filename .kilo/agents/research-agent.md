@@ -1,7 +1,7 @@
 ---
 description: Finds, verifies, and summarizes authoritative technical information from the web for the other agents in the pipeline. Read-only — never edits files or runs commands.
 mode: subagent
-permission:
+permissions:
   read: allow
   grep: allow
   glob: allow

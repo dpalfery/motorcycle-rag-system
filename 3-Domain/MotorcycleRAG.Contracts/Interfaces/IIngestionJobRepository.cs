@@ -104,6 +104,12 @@ public interface IIngestionJobRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Atomically sets the job status to Deleting if the current status is in a deletable terminal state.
+    /// Returns true if the update was applied, false if the job was not found or not in a deletable state.
+    /// </summary>
+    Task<bool> TrySetDeletingAsync(Guid jobId, CancellationToken ct = default);
+
+    /// <summary>
     /// Updates the current stage, stage timestamp, and optional chunk counts for an active job.
     /// </summary>
     Task UpdateStageAsync(

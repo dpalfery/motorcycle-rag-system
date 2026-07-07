@@ -25,11 +25,11 @@ public static class ServiceCollectionExtensions {
         IConfiguration configuration) {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        // Configure SQL options from appsettings (non-secret settings only)
-        services.Configure<SqlOptions>(
-            configuration.GetSection("Sql"));
-
-        // Validate SQL configuration on startup
+        // Configure SQL options — ValidateOnStart ensures a missing connection string fails at boot,
+        // not silently at health-check or first query time.
+        services.AddOptions<SqlOptions>()
+            .Bind(configuration.GetSection("Sql"))
+            .ValidateOnStart();
         services.AddSingleton<IValidateOptions<SqlOptions>, SqlOptionsValidator>();
 
         // Register SQL connection factory
@@ -62,6 +62,9 @@ public class SqlOptionsValidator : IValidateOptions<SqlOptions> {
         ArgumentNullException.ThrowIfNull(options);
 
         var failures = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(options.ConnectionString))
+            failures.Add("Sql:ConnectionString is required. In Development add it to user secrets; in Production it must come from Azure App Configuration + Key Vault.");
 
         if (options.CommandTimeout <= 0)
             failures.Add("Sql:CommandTimeout must be greater than 0");

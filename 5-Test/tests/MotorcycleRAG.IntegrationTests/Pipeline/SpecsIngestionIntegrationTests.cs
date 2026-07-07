@@ -1,7 +1,7 @@
 using Moq;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Application.Pipeline;
+using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using Xunit;

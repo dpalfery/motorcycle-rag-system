@@ -1,0 +1,19 @@
+{
+    "recommendations": [
+        "github.vscode-pull-request-github",
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.dotnet-maui",
+        "ms-mssql.mssql",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.vscode-python-envs",
+        "ms-toolsai.jupyter",
+        "ms-azuretools.vscode-azure-github-copilot",
+        "ms-azuretools.vscode-azure-mcp-server",
+        "ms-azuretools.vscode-azureresourcegroups",
+        "ms-azuretools.vscode-cosmosdb",
+        "ms-windows-ai-studio.windows-ai-studio",
+        "teamsdevapp.vscode-ai-foundry"
+    ]
+}

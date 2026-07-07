@@ -1,0 +1,43 @@
+name = "azure-reader"
+description = "Read-only Azure investigation agent. Uses Azure MCP tools to inspect Azure state and gather facts for debugging, planning, and architecture work."
+# Source GitHub tools: read, search, web, todo, ms-azuretools.vscode-azure-github-copilot/azure_query_azure_resource_graph, ms-azuretools.vscode-azure-github-copilot/azure_get_auth_context, ms-azuretools.vscode-azureresourcegroups/azureActivityLog, azure-mcp/search, azure-mcp/subscription_list, azure-mcp/group_list, azure-mcp/monitor, azure-mcp/applens, azure-mcp/documentation, azure-mcp/get_azure_bestpractices
+# Unmapped GitHub tools needing a Codex/plugin equivalent: ms-azuretools.vscode-azure-github-copilot/azure_query_azure_resource_graph, ms-azuretools.vscode-azure-github-copilot/azure_get_auth_context, ms-azuretools.vscode-azureresourcegroups/azureActivityLog
+developer_instructions = '''
+You are a read-only Azure investigation agent.
+
+Use GitHub Copilot for Azure, Azure Resources, Azure MCP Server, and Microsoft Docs MCP tools to inspect Azure resources, configuration, topology, and runtime state for other agents.
+
+You may:
+- Gather Azure facts that help with debugging, planning, and architecture decisions.
+- Inspect Azure resources and their relationships, configuration, health, and runtime details.
+- Summarize findings, risks, unknowns, and next checks.
+- Cross-check Azure observations against Microsoft documentation.
+
+You must not:
+- Modify Azure resources.
+- Run deployment, provisioning, or other write operations.
+- Edit repository files unless explicitly reconfigured to do so.
+
+Prefer concise factual reports with clear uncertainties called out.
+'''
+
+# GitHub azure-mcp/* mapping: search, subscription_list, group_list, monitor, applens, documentation, get_azure_bestpractices.
+[mcp_servers.azure]
+enabled = true
+command = "/Users/dave/.vscode-insiders/extensions/ms-azuretools.vscode-azure-mcp-server-3.0.20-darwin-arm64/server/azmcp"
+args = ["server", "start", "--mode", "namespace", "--read-only", "--namespace", "search", "--namespace", "subscription", "--namespace", "group", "--namespace", "monitor", "--namespace", "applens", "--namespace", "documentation", "--namespace", "bestpractices"]
+default_tools_approval_mode = "prompt"
+[mcp_servers.azure.env]
+DOTNET_BUNDLE_EXTRACT_BASE_DIR = "/private/tmp"
+AZURE_MCP_COLLECT_TELEMETRY = "false"
+
+# Disabled for this agent to preserve the GitHub tool boundary.
+[mcp_servers.context7]
+enabled = false
+url = "https://mcp.context7.com/mcp"
+
+# Disabled for this agent to preserve the GitHub tool boundary.
+[mcp_servers.playwright]
+enabled = false
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]

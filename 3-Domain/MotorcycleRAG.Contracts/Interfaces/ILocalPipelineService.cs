@@ -1,3 +1,5 @@
+using MotorcycleRAG.Contracts.Models.DTOs;
+
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
@@ -12,12 +14,14 @@ public interface ILocalPipelineService
     /// <param name="uploadId">The opaque blob key returned by the upload endpoint. Never a filesystem path.</param>
     /// <param name="documentType">Document type: "manual-pdf" or "spec-dataset".</param>
     /// <param name="pipelineId">Reserved for interface compatibility; ignored in local mode.</param>
+    /// <param name="sourceAccessToken">Optional short-lived token for API-proxied source download.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The local job ID assigned by the local processing service.</returns>
     Task<string> TriggerPipelineAsync(
         string uploadId,
         string documentType,
         string pipelineId,
+        string? sourceAccessToken = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -26,8 +30,8 @@ public interface ILocalPipelineService
     /// <param name="runId">The job ID returned by <see cref="TriggerPipelineAsync"/>.</param>
     /// <param name="pipelineId">Reserved for interface compatibility; ignored in local mode.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The job status string (e.g. "processing", "completed", "failed").</returns>
-    Task<string> GetRunStatusAsync(
+    /// <returns>Pipeline status plus any processor error details.</returns>
+    Task<PipelineRunStatusResult> GetRunStatusAsync(
         string runId,
         string pipelineId,
         CancellationToken cancellationToken = default);

@@ -18,8 +18,11 @@ internal static class PersistenceConfiguration {
     /// Configure persistence services (SQL repositories + Azure Blob Storage)
     /// </summary>
     internal static IServiceCollection AddSqlPersistence(this IServiceCollection services, IConfiguration configuration) {
-        // Configure SQL options
-        services.Configure<SqlOptions>(configuration.GetSection("Sql"));
+        // Configure SQL options — ValidateOnStart ensures a missing connection string fails at boot,
+        // not silently at health-check or first query time.
+        services.AddOptions<SqlOptions>()
+            .Bind(configuration.GetSection("Sql"))
+            .ValidateOnStart();
         services.AddSingleton<IValidateOptions<SqlOptions>, SqlOptionsValidator>();
         // Configure Azure Blob Storage options
         services.Configure<BlobStorageOptions>(configuration.GetSection("BlobStorage"));
@@ -42,6 +45,8 @@ internal static class PersistenceConfiguration {
         services.AddScoped<IWebScrapeRunRepository, WebScrapeRunRepository>();
         services.AddScoped<IPlanRepository, PlanRepository>();
         services.AddScoped<IApproverNotificationService, ApproverNotificationService>();
+        services.AddScoped<IIndexedArtifactRepository, IndexedArtifactRepository>();
+        services.AddScoped<IIndexedChunkRepository, IndexedChunkRepository>();
         services.AddHttpClient<IExternalIdentityProvisioningService, ExternalIdentityProvisioningService>();
 
         // Register application services

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from processors.csv_processor import CSVProcessor, _jobs
+from processors.csv_processor import CSVProcessor, _jobs, _tasks
 
 
 # ---------------------------------------------------------------------------
@@ -18,8 +18,20 @@ from processors.csv_processor import CSVProcessor, _jobs
 def _clear_jobs():
     """Ensure the module-level _jobs dict is empty before/after each test."""
     _jobs.clear()
+    _tasks.clear()
     yield
     _jobs.clear()
+    _tasks.clear()
+
+
+async def _wait_for_terminal_status(processor, job_id: str, timeout: float = 5.0):
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        status = await processor.get_job_status(job_id)
+        if status and status.get("status") in {"completed", "failed", "cancelled"}:
+            return status
+        await asyncio.sleep(0.01)
+    raise TimeoutError(f"Job {job_id} did not reach a terminal state")
 
 
 @pytest.fixture()
@@ -35,6 +47,7 @@ def api_client():
     ac = MagicMock()
     ac.is_configured = MagicMock(return_value=False)
     ac.upload_artifact = AsyncMock(return_value=None)
+    ac.report_stage = AsyncMock(return_value=None)
     return ac
 
 
@@ -123,7 +136,33 @@ class TestCSVBackgroundProcessing:
         api_client.upload_artifact.assert_awaited_once()
         embedder.generate_embedding.assert_awaited()
 
-    async def test_empty_csv_results_in_failed(self, blob_writer, embedder):
+    async def test_reports_all_csv_pipeline_stages_to_configured_api_client(
+        self, processor, api_client
+    ):
+        api_client.is_configured.return_value = True
+
+        job_id = await processor.process_csv_async(
+            upload_id="upload-csv-stages",
+            blob_container="raw-uploads",
+        )
+
+        await _wait_for_terminal_status(processor, job_id)
+        await asyncio.sleep(0)
+
+        reported_stages = [call.args[1] for call in api_client.report_stage.await_args_list]
+        assert reported_stages[0] == "copying"
+        for stage in [
+            "copying",
+            "parsing",
+            "chunking",
+            "embedding",
+            "uploading-chunks",
+            "completed",
+        ]:
+            assert stage in reported_stages
+        assert reported_stages[-1] == "completed"
+
+    async def test_empty_csv_results_in_failed(self, blob_writer, embedder, api_client):
         """An empty CSV (headers only, no data rows) should result in 'failed'."""
         blob_writer.download_blob = AsyncMock(return_value=b"make,model,year\n")
         proc = CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
@@ -142,3 +181,42 @@ class TestCSVBackgroundProcessing:
 
         status = await proc.get_job_status(job_id)
         assert status["status"] == "failed"
+        assert status["message"] == "Empty CSV file"
+
+    async def test_stop_job_marks_only_selected_job_cancelled(self, processor):
+        first_job_id = await processor.process_csv_async(
+            upload_id="upload-stop-1",
+            blob_container="raw-uploads",
+        )
+        second_job_id = await processor.process_csv_async(
+            upload_id="upload-stop-2",
+            blob_container="raw-uploads",
+        )
+
+        stopped = await processor.stop_job(first_job_id)
+        await asyncio.sleep(0)
+
+        assert stopped["status"] == "cancelled"
+        assert (await processor.get_job_status(first_job_id))["status"] == "cancelled"
+        assert (await processor.get_job_status(second_job_id))["status"] != "cancelled"
+        await processor.stop_job(second_job_id)
+
+    async def test_cancelled_job_does_not_upload_chunks(self, processor, embedder, api_client):
+        async def slow_embedding(_text: str):
+            await asyncio.sleep(10)
+            return [0.1] * 1536
+
+        embedder.generate_embedding = AsyncMock(side_effect=slow_embedding)
+
+        job_id = await processor.process_csv_async(
+            upload_id="upload-cancel-no-upload",
+            blob_container="raw-uploads",
+        )
+        await asyncio.sleep(0.05)
+
+        await processor.stop_job(job_id)
+        await asyncio.sleep(0)
+
+        status = await processor.get_job_status(job_id)
+        assert status["status"] == "cancelled"
+        api_client.upload_artifact.assert_not_awaited()

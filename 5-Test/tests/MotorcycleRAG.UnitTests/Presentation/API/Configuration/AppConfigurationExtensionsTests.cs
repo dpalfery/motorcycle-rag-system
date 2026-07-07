@@ -1,15 +1,36 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using MotorcycleRAG.API.Configuration;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Presentation.API.Configuration;
 
-public class AppConfigurationExtensionsTests
-{
+public class AppConfigurationExtensionsTests {
     [Fact]
-    public void WithDerivedAzureAdValues_ValidInput_DerivesCorrectValues()
-    {
+    public void AddAzureAppConfigurationWithKeyVault_InDevelopment_SkipsRemoteAppConfiguration() {
+        // Arrange
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions {
+            EnvironmentName = Environments.Development
+        });
+
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+            ["AppConfig:ConnectionString"] = "Endpoint=https://placeholder.azconfig.io;Id=test;Secret=test",
+            ["AzureAd:TenantId"] = "tenant-123",
+            ["AzureAd:ClientId"] = "client-456"
+        });
+
+        // Act
+        var act = () => builder.AddAzureAppConfigurationWithKeyVault();
+
+        // Assert
+        act.Should().NotThrow();
+        builder.Configuration[AppConfigurationExtensions.AppConfigurationEnabledKey].Should().Be(bool.FalseString);
+    }
+
+    [Fact]
+    public void WithDerivedAzureAdValues_ValidInput_DerivesCorrectValues() {
         // Arrange
         var tenantId = "tenant-123";
         var clientId = "client-456";
@@ -35,8 +56,7 @@ public class AppConfigurationExtensionsTests
     }
 
     [Fact]
-    public void WithDerivedAzureAdValues_ConfiguredAudience_PreservesConfiguredAudience()
-    {
+    public void WithDerivedAzureAdValues_ConfiguredAudience_PreservesConfiguredAudience() {
         // Arrange
         var tenantId = "tenant-123";
         var clientId = "client-456";
@@ -61,8 +81,7 @@ public class AppConfigurationExtensionsTests
     }
 
     [Fact]
-    public void WithDerivedAzureAdValues_MissingTenantId_ThrowsInvalidOperationException()
-    {
+    public void WithDerivedAzureAdValues_MissingTenantId_ThrowsInvalidOperationException() {
         // Arrange
         var configuration = new ConfigurationBuilder().Build();
 
@@ -75,8 +94,7 @@ public class AppConfigurationExtensionsTests
     }
 
     [Fact]
-    public void WithValidatedAzureAIEndpoints_NullEndpoints_DoesNotThrow()
-    {
+    public void WithValidatedAzureAIEndpoints_NullEndpoints_DoesNotThrow() {
         // Arrange
         var configuration = new ConfigurationBuilder().Build();
 
@@ -88,8 +106,7 @@ public class AppConfigurationExtensionsTests
     }
 
     [Fact]
-    public void WithValidatedAzureAIEndpoints_ValidEndpoints_DoesNotThrow()
-    {
+    public void WithValidatedAzureAIEndpoints_ValidEndpoints_DoesNotThrow() {
         // Arrange
         var inMemoryConfig = new Dictionary<string, string?>
         {
@@ -107,8 +124,7 @@ public class AppConfigurationExtensionsTests
     }
 
     [Fact]
-    public void WithValidatedAzureAIEndpoints_NonHttpsEndpoint_ThrowsInvalidOperationException()
-    {
+    public void WithValidatedAzureAIEndpoints_NonHttpsEndpoint_ThrowsInvalidOperationException() {
         // Arrange
         var inMemoryConfig = new Dictionary<string, string?>
         {
@@ -127,8 +143,7 @@ public class AppConfigurationExtensionsTests
     }
 
     [Fact]
-    public void WithValidatedAzureAIEndpoints_PlaceholderEndpoint_ThrowsInvalidOperationException()
-    {
+    public void WithValidatedAzureAIEndpoints_PlaceholderEndpoint_ThrowsInvalidOperationException() {
         // Arrange
         var inMemoryConfig = new Dictionary<string, string?>
         {
@@ -147,8 +162,7 @@ public class AppConfigurationExtensionsTests
     }
 
     [Fact]
-    public void WithDerivedBlobStorageValues_MissingAccountEndpoint_DerivesFromDataProtectionBlobUri()
-    {
+    public void WithDerivedBlobStorageValues_MissingAccountEndpoint_DerivesFromDataProtectionBlobUri() {
         // Arrange
         var inMemoryConfig = new Dictionary<string, string?>
         {
@@ -166,8 +180,7 @@ public class AppConfigurationExtensionsTests
     }
 
     [Fact]
-    public void WithDerivedBlobStorageValues_ExistingAccountEndpoint_PreservesConfiguredValue()
-    {
+    public void WithDerivedBlobStorageValues_ExistingAccountEndpoint_PreservesConfiguredValue() {
         // Arrange
         var inMemoryConfig = new Dictionary<string, string?>
         {

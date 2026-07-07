@@ -2,9 +2,10 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using MotorcycleRAG.Application.Caching;
-using MotorcycleRAG.Application.Optimization;
+using MotorcycleRAG.Application.Services.Caching;
+using MotorcycleRAG.Application.Services.Optimization;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Options;
 
 
 namespace MotorcycleRAG.Application.Extensions;

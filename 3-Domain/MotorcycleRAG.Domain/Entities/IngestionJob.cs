@@ -9,6 +9,9 @@ namespace MotorcycleRAG.Domain.Entities;
 /// </summary>
 public class IngestionJob
 {
+    /// <summary>SQL identity key for display and sorting.</summary>
+    public long Id { get; set; }
+
     /// <summary>Primary key — GUID assigned at creation time.</summary>
     public Guid IngestionJobId { get; set; } = Guid.NewGuid();
 
@@ -40,10 +43,11 @@ public class IngestionJob
     public string InputRef { get; set; } = string.Empty;
 
     /// <summary>Compute provider used. Defaults to "MicrosoftFabric".</summary>
+    // vestigial: Microsoft Fabric compute provider kept for backward compatibility; LocalProcessingService is preferred
     public string ComputeProvider { get; set; } = "MicrosoftFabric";
 
-    /// <summary>Microsoft Fabric pipeline run ID for status polling and audit. Null until pipeline is triggered.</summary>
-    public string? FabricRunId { get; set; }
+    /// <summary>Document ingestion run ID for status polling and audit. Null until pipeline is triggered. Vestigial reference to Fabric.</summary>
+    public string? DocIngestionRunId { get; set; }
 
     /// <summary>
     /// GUID of the MotorcycleManual document produced by this job.
@@ -99,4 +103,23 @@ public class IngestionJob
     /// Stored as JSON for SQL persistence; deserialize before use.
     /// </summary>
     public string? MetricsJson { get; set; }
+
+    // --- Chunk indexing counts (populated when search-chunks artifacts are indexed) ---
+
+    /// <summary>Expected number of chunks parsed from the JSONL artifact. Null until indexing is attempted.</summary>
+    public int? ExpectedChunkCount { get; set; }
+
+    /// <summary>Number of chunks successfully indexed into Azure Search. Null until indexing is attempted.</summary>
+    public int? IndexedChunkCount { get; set; }
+
+    // --- Stage tracking (reported by local processor during processing) ---
+
+    /// <summary>
+    /// Current pipeline stage reported by the local processor.
+    /// Values: copying, parsing, chunking, embedding, uploading-chunks, extracting-graph, uploading-graph, completed.
+    /// </summary>
+    public string? CurrentStage { get; set; }
+
+    /// <summary>UTC timestamp when the current stage was last updated.</summary>
+    public DateTimeOffset? StageSetAtUtc { get; set; }
 }

@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from security.path_validation import (
     LOCAL_PROCESSOR_INPUT_DIR_ENV,
     resolve_local_csv_path,
+    resolve_local_pdf_path,
 )
 
 
@@ -79,3 +80,31 @@ def test_resolve_local_csv_path_rejects_non_csv_file(
 
     assert exc_info.value.status_code == 400
     assert "Only .csv files" in exc_info.value.detail
+
+
+def test_resolve_local_pdf_path_allows_file_under_configured_input_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    pdf_path = input_dir / "source.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+    monkeypatch.setenv(LOCAL_PROCESSOR_INPUT_DIR_ENV, str(input_dir))
+
+    assert resolve_local_pdf_path(str(pdf_path)) == pdf_path.resolve()
+
+
+def test_resolve_local_pdf_path_rejects_non_pdf_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    csv_path = input_dir / "source.csv"
+    csv_path.write_text("make,model\nHonda,CB500\n", encoding="utf-8")
+    monkeypatch.setenv(LOCAL_PROCESSOR_INPUT_DIR_ENV, str(input_dir))
+
+    with pytest.raises(HTTPException) as exc_info:
+        resolve_local_pdf_path(str(csv_path))
+
+    assert exc_info.value.status_code == 400
+    assert "Only .pdf files" in exc_info.value.detail

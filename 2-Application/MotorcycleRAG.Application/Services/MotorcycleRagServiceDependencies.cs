@@ -1,11 +1,12 @@
-﻿using Microsoft.Extensions.Options;
-using MotorcycleRAG.Application.Caching;
+using Microsoft.Extensions.Options;
+using MotorcycleRAG.Application.Services.Caching;
 using MotorcycleRAG.Application.Services.Citations;
 using MotorcycleRAG.Application.Services.Metrics;
 using MotorcycleRAG.Application.Services.QueryProcessing;
 using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Application.Services.ResponseProcessing;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Application.Services;
 

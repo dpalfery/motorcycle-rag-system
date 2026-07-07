@@ -1,11 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MotorcycleRAG.Contracts.Interfaces;
+using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using System.Collections.ObjectModel;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -40,17 +37,14 @@ public class BatchFileUploadResponse
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056:Uri properties should not be strings", Justification = "DTOs for API")]
 public class FileUploadController : ControllerBase
 {
-    private readonly IFileUploadService _fileUploadService;
-    private readonly IDataPipelineOrchestrator _orchestrator;
+    private readonly FileUploadConfiguration _fileUploadConfiguration;
     private readonly ILogger<FileUploadController> _logger;
 
     public FileUploadController(
-        IFileUploadService fileUploadService,
-        IDataPipelineOrchestrator orchestrator,
+        IOptions<FileUploadConfiguration> fileUploadConfiguration,
         ILogger<FileUploadController> logger)
     {
-        _fileUploadService = fileUploadService ?? throw new ArgumentNullException(nameof(fileUploadService));
-        _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
+        _fileUploadConfiguration = fileUploadConfiguration?.Value ?? throw new ArgumentNullException(nameof(fileUploadConfiguration));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -62,10 +56,12 @@ public class FileUploadController : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(FileUploadResult), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone)]
     [ProducesResponseType(typeof(ProblemDetails), 500)]
-    public async Task<IActionResult> UploadFileAsync(IFormFile file)
+    public IActionResult UploadFileAsync(IFormFile file)
     {
-        return await UploadFileInternalAsync(file, false);
+        _ = file;
+        return LegacyDiskUploadGone();
     }
 
     /// <summary>
@@ -77,101 +73,15 @@ public class FileUploadController : ControllerBase
     [HttpPost("with-processing")]
     [ProducesResponseType(typeof(FileUploadResponse), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone)]
     [ProducesResponseType(typeof(ProblemDetails), 500)]
-    public async Task<IActionResult> UploadFileWithProcessingAsync(
+    public IActionResult UploadFileWithProcessingAsync(
         IFormFile file,
         [FromQuery] bool processImmediately)
     {
-        return await UploadFileInternalAsync(file, processImmediately);
-    }
-
-    /// <summary>
-    /// Internal implementation for file upload
-    /// </summary>
-    private async Task<IActionResult> UploadFileInternalAsync(IFormFile file, bool processImmediately)
-    {
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest("No file provided or file is empty");
-        }
-
-        try
-        {
-            var options = new FileUploadOptions
-            {
-                ValidateFileContent = true,
-                GenerateUniqueFileName = true
-            };
-
-            var metadata = new FileMetadata
-            {
-                FileName = file.FileName,
-                ContentType = file.ContentType,
-                ContentLength = file.Length
-            };
-
-            await using var stream = file.OpenReadStream();
-            var uploadResult = await _fileUploadService.UploadFileAsync(stream, metadata, options, HttpContext.RequestAborted);
-
-            if (!uploadResult.IsValid)
-            {
-                return BadRequest(new ProblemDetails
-                {
-                    Title = "File validation failed",
-                    Detail = string.Join(", ", uploadResult.ValidationResult.Errors),
-                    Status = 400
-                });
-            }
-
-            // If immediate processing is requested, process the file
-            if (processImmediately)
-            {
-                var pipelineRequest = new DataPipelineRequest
-                {
-                    FileName = uploadResult.OriginalFileName,
-                    FilePath = uploadResult.FilePath,
-                    FileType = uploadResult.DetectedFileType,
-                    CreatedBy = "API",
-                    Options = new PipelineOptions
-                    {
-                        IndexImmediately = true,
-                        ProcessImages = true,
-                        GenerateEmbeddings = true
-                    }
-                };
-
-                var processingResult = await _orchestrator.ProcessFileAsync(pipelineRequest, HttpContext.RequestAborted);
-
-                return Ok(new FileUploadResponse
-                {
-                    Upload = uploadResult,
-                    Processing = processingResult
-                });
-            }
-
-            return Ok(uploadResult);
-        }
-        catch (OperationCanceledException ex)
-        {
-            _logger.LogWarning(ex, "File upload was cancelled");
-            return StatusCode(499, new ProblemDetails
-            {
-                Title = "Request cancelled",
-                Detail = "The file upload was cancelled by the client",
-                Status = 499
-            });
-        }
-        catch (Exception ex)
-        {
-            var fileName = file?.FileName ?? "unknown";
-            _logger.LogError(ex, "Error uploading file {FileName}", LogSanitizer.Sanitize(fileName));
-            return StatusCode(500, new ProblemDetails
-            {
-                Title = "Internal server error",
-                Detail = "An error occurred while uploading the file",
-                Status = 500
-            });
-        }
+        _ = file;
+        _ = processImmediately;
+        return LegacyDiskUploadGone();
     }
 
     /// <summary>
@@ -182,10 +92,12 @@ public class FileUploadController : ControllerBase
     [HttpPost("batch")]
     [ProducesResponseType(typeof(BatchFileUploadResult), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone)]
     [ProducesResponseType(typeof(ProblemDetails), 500)]
-    public async Task<IActionResult> UploadFilesAsync(IReadOnlyList<IFormFile> files)
+    public IActionResult UploadFilesAsync(IReadOnlyList<IFormFile> files)
     {
-        return await UploadFilesInternalAsync(files, false);
+        _ = files;
+        return LegacyDiskUploadGone();
     }
 
     /// <summary>
@@ -197,114 +109,15 @@ public class FileUploadController : ControllerBase
     [HttpPost("batch-with-processing")]
     [ProducesResponseType(typeof(BatchFileUploadResponse), 200)]
     [ProducesResponseType(typeof(ProblemDetails), 400)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status410Gone)]
     [ProducesResponseType(typeof(ProblemDetails), 500)]
-    public async Task<IActionResult> UploadFilesWithProcessingAsync(
+    public IActionResult UploadFilesWithProcessingAsync(
         IReadOnlyList<IFormFile> files,
         [FromQuery] bool processImmediately)
     {
-        return await UploadFilesInternalAsync(files, processImmediately);
-    }
-
-    /// <summary>
-    /// Internal implementation for batch file upload
-    /// </summary>
-    private async Task<IActionResult> UploadFilesInternalAsync(IReadOnlyList<IFormFile> files, bool processImmediately)
-    {
-        if (files == null || files.Count == 0)
-        {
-            return BadRequest("No files provided");
-        }
-
-        // Enforce batch size limit for DoS mitigation
-        var constraints = _fileUploadService.GetUploadConstraints();
-        if (files.Count > constraints.MaxFilesPerBatch)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Batch size exceeded",
-                Detail = $"Maximum {constraints.MaxFilesPerBatch} files allowed per batch. Requested: {files.Count}",
-                Status = 400
-            });
-        }
-
-        try
-        {
-            var options = new FileUploadOptions
-            {
-                ValidateFileContent = true,
-                GenerateUniqueFileName = true
-            };
-
-            var fileUploads = files.Select(f =>
-            {
-                var stream = f.OpenReadStream();
-                var metadata = new FileMetadata
-                {
-                    FileName = f.FileName,
-                    ContentType = f.ContentType,
-                    ContentLength = f.Length
-                };
-                return (stream, metadata);
-            }).ToList();
-
-            var uploadResult = await _fileUploadService.UploadFilesAsync(fileUploads, options, HttpContext.RequestAborted);
-
-            // Dispose streams after upload
-            foreach (var (stream, _) in fileUploads)
-            {
-                await stream.DisposeAsync();
-            }
-
-            if (processImmediately && uploadResult.SuccessfulUploads > 0)
-            {
-                var pipelineRequests = uploadResult.Results
-                    .Where(r => r.IsValid)
-                    .Select(r => new DataPipelineRequest
-                    {
-                        FileName = r.OriginalFileName,
-                        FilePath = r.FilePath,
-                        FileType = r.DetectedFileType,
-                        CreatedBy = "API",
-                        Options = new PipelineOptions
-                        {
-                            IndexImmediately = true,
-                            ProcessImages = true,
-                            GenerateEmbeddings = true
-                        }
-                    })
-                    .ToList();
-
-                var batchResult = await _orchestrator.ProcessBatchAsync(pipelineRequests, HttpContext.RequestAborted);
-
-                return Ok(new BatchFileUploadResponse
-                {
-                    Upload = uploadResult,
-                    Processing = batchResult
-                });
-            }
-
-            return Ok(uploadResult);
-        }
-        catch (OperationCanceledException ex)
-        {
-            _logger.LogWarning(ex, "Batch file upload was cancelled");
-            return StatusCode(499, new ProblemDetails
-            {
-                Title = "Request cancelled",
-                Detail = "The batch file upload was cancelled by the client",
-                Status = 499
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading batch files");
-            return StatusCode(500, new ProblemDetails
-            {
-                Title = "Internal server error",
-                Detail = "An error occurred while uploading files",
-                Status = 500
-            });
-        }
+        _ = files;
+        _ = processImmediately;
+        return LegacyDiskUploadGone();
     }
 
     /// <summary>
@@ -317,7 +130,7 @@ public class FileUploadController : ControllerBase
     {
         try
         {
-            var constraints = _fileUploadService.GetUploadConstraints();
+            var constraints = CreateUploadConstraints();
             return Ok(constraints);
         }
         catch (Exception ex)
@@ -330,5 +143,55 @@ public class FileUploadController : ControllerBase
                 Status = 500
             });
         }
+    }
+
+    private ObjectResult LegacyDiskUploadGone()
+    {
+        _logger.LogInformation("Legacy disk upload endpoint rejected with 410 Gone.");
+
+        return StatusCode(StatusCodes.Status410Gone, new ProblemDetails
+        {
+            Title = "Legacy disk upload is no longer supported",
+            Detail = "Use the blob-backed ingestion upload endpoint at /api/ingestion/jobs/upload.",
+            Status = StatusCodes.Status410Gone
+        });
+    }
+
+    private FileUploadConstraints CreateUploadConstraints()
+    {
+        var constraints = new FileUploadConstraints
+        {
+            MaxFileSizeBytes = _fileUploadConfiguration.MaxFileSizeBytes,
+            MaxFileSizeDisplay = FormatFileSize(_fileUploadConfiguration.MaxFileSizeBytes),
+            MaxFilesPerBatch = _fileUploadConfiguration.MaxFilesPerBatch
+        };
+
+        constraints.SupportedFileTypes.Add("CSV");
+        constraints.SupportedFileTypes.Add("PDF");
+
+        foreach (var extension in _fileUploadConfiguration.AllowedExtensions)
+        {
+            constraints.SupportedExtensions.Add(extension.ToLowerInvariant());
+        }
+
+        constraints.FileTypeDescriptions["CSV"] = "Comma-separated values files for motorcycle specification data";
+        constraints.FileTypeDescriptions["PDF"] = "PDF documents for motorcycle manuals";
+
+        return constraints;
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = ["B", "KB", "MB", "GB"];
+        var len = (double)bytes;
+        var order = 0;
+
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len /= 1024;
+        }
+
+        return $"{len:0.##} {sizes[order]}";
     }
 }

@@ -1,11 +1,11 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Application.Services;
-using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Application.Services.QueryValidation;
+using MotorcycleRAG.Core.Options;
 using Xunit;
 using System.Linq;
 
@@ -204,7 +204,7 @@ public class MotorcycleRagServiceTests {
         Assert.NotNull(response);
         // Response should contain the final answer (may have limitation messages prepended)
         Assert.Contains("Final answer", response.Response);
-        Assert.Equal(0, response.Sources.Length); // FoundryAnswer result is stripped from sources
+        Assert.Empty(response.Sources); // FoundryAnswer result is stripped from sources
         Assert.Equal(0, response.Metrics.ResultsFound); // FoundryAnswer result is stripped from sources
         Assert.False(string.IsNullOrWhiteSpace(response.QueryId));
 

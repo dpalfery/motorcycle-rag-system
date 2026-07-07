@@ -43,4 +43,21 @@ public interface IBlobStorageService
         string containerName,
         string blobName,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a blob when it exists.
+    /// </summary>
+    Task<bool> DeleteIfExistsAsync(
+        string containerName,
+        string blobName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets custom metadata on a blob. Best-effort only — errors are logged but not thrown.
+    /// </summary>
+    Task SetMetadataAsync(
+        string containerName,
+        string blobName,
+        Dictionary<string, string> metadata,
+        CancellationToken cancellationToken = default);
 }

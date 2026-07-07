@@ -1,10 +1,10 @@
-"""Graph entity and relationship extraction using Ollama LLM."""
+"""Graph entity and relationship extraction using an OpenAI-compatible LLM."""
 
 import json
 import logging
 import os
 
-import ollama
+import openai
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,16 @@ Return ONLY the JSON object. No markdown. No explanation."""
 
 
 class GraphExtractor:
-    """Extracts graph entities and relationships from text using Ollama LLM."""
+    """Extracts graph entities and relationships from text using an OpenAI-compatible LLM.
 
-    def __init__(self):
-        self._host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        self._model = os.getenv("OLLAMA_MODEL_LLM", "qwen3:4b")
+    Reads configuration from environment variables:
+        GRAPH_EXTRACTION_ENDPOINT – OpenAI-compatible base URL (default: http://localhost:1234/v1)
+        GRAPH_EXTRACTION_MODEL     – model name (default: qwen3.5-0.8b)
+    """
+
+    def __init__(self) -> None:
+        self._endpoint = os.getenv("GRAPH_EXTRACTION_ENDPOINT", "http://localhost:1234/v1")
+        self._model = os.getenv("GRAPH_EXTRACTION_MODEL", "qwen3.5-0.8b")
 
     async def extract(self, text: str, source_document_id: str = "") -> list:
         """Extract graph entities and relationships. Always returns a list, never raises."""
@@ -40,15 +45,17 @@ class GraphExtractor:
             if not text or not text.strip():
                 return []
 
-            client = ollama.AsyncClient(host=self._host)
-            response = await client.chat(
+            client = openai.AsyncOpenAI(base_url=self._endpoint, api_key="local")
+            response = await client.chat.completions.create(
                 model=self._model,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": text},
                 ],
+                temperature=0.1,
             )
-            result = json.loads(response.message.content)
+            content = response.choices[0].message.content or ""
+            result = json.loads(content)
 
             nodes = result.get("nodes", [])
             for node in nodes:
@@ -57,6 +64,6 @@ class GraphExtractor:
 
             return [{"nodes": nodes, "edges": edges}]
 
-        except Exception as e:
-            logger.warning("Graph extraction failed: %s", e)
+        except Exception as exc:
+            logger.warning("Graph extraction failed: %s", exc)
             return []

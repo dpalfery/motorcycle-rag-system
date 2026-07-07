@@ -5,7 +5,7 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using Xunit;
-using MotorcycleRAG.Application.Mapping;
+using MotorcycleRAG.Application.Features.Ingestion.Mappers;
 
 namespace MotorcycleRAG.IntegrationTests.Pipeline;
 
@@ -39,7 +39,7 @@ public class IngestionJobStatusIntegrationTests {
         job.StartedAtUtc.Should().BeNull();
         job.CompletedAtUtc.Should().BeNull();
         job.FailureReason.Should().BeNull();
-        job.FabricRunId.Should().BeNull();
+        job.DocIngestionRunId.Should().BeNull();
         job.TotalPages.Should().BeNull();
         job.PagesCapturedViewableCount.Should().BeNull();
     }
@@ -58,7 +58,7 @@ public class IngestionJobStatusIntegrationTests {
             InputType = IngestionJobType.PDFManual,
             InputRef = "manuals/abc123/upload/honda-cbr600rr.pdf",
             ComputeProvider = "MicrosoftFabric",
-            FabricRunId = "fabric-run-001",
+            DocIngestionRunId = "fabric-run-001",
             ManualDocumentId = Guid.NewGuid(),
             TotalPages = 1200,
             PagesCapturedViewableCount = 1188,

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
-using MotorcycleRAG.Application.Pipeline;
-using MotorcycleRAG.Application.Pipeline.Validators;
+using MotorcycleRAG.Application.Services.Ingestion;
+using MotorcycleRAG.Application.Features.Ingestion.Validators;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
 using Xunit;

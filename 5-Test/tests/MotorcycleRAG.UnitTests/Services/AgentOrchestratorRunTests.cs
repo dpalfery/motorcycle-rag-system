@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using MotorcycleRAG.Application.Agents.Orchestration;
+using MotorcycleRAG.Application.Services.Agents.Orchestration;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -13,6 +13,8 @@ namespace MotorcycleRAG.UnitTests.Services;
 
 public class AgentOrchestratorRunTests
 {
+    private static readonly IDisposable LoggingScope = new NoopDisposable();
+
     private readonly Mock<IFoundryAgentRunner> _mockRunner = new(MockBehavior.Strict);
     private readonly Mock<ILogger<AgentOrchestrator>> _mockLogger = new();
     private readonly Mock<ILogger<FoundryToolDispatcher>> _mockDispatcherLogger = new();
@@ -40,7 +42,7 @@ public class AgentOrchestratorRunTests
     {
         _mockCorrelation
             .Setup(c => c.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
-            .Returns(new MockDisposable());
+            .Returns(LoggingScope);
         var dispatcher = new FoundryToolDispatcher(_mockDispatcherLogger.Object);
         return new AgentOrchestrator(
             [],
@@ -52,9 +54,11 @@ public class AgentOrchestratorRunTests
             _questionValidationState);
     }
 
-    private sealed class MockDisposable : IDisposable
+    private sealed class NoopDisposable : IDisposable
     {
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
     }
 
     [Fact]

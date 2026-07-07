@@ -30,4 +30,8 @@ public class SearchOptions
     public bool EnableCaching { get; set; } = true;
 
     public bool IncludeMetadata { get; set; } = true;
+
+    public string ChunkIndexingProvider { get; set; } = "AzureSearch";
+
+    public string? InMemoryShimEndpoint { get; set; }
 }

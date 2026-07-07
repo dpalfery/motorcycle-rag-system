@@ -13,6 +13,8 @@ namespace MotorcycleRAG.UnitTests.Services.AgentProvisioning;
 /// </summary>
 public class AgentProvisioningServiceTests
 {
+    private static readonly string[] ExpectedOrchestratorModelCandidates = ["qwen-a", "qwen-b", "gpt-fallback"];
+
     private readonly Mock<IAgentAdminOperations> _mockOps;
     private readonly Mock<ILogger<AgentProvisioningService>> _mockLogger;
     private readonly AgentProvisioningService _service;
@@ -166,7 +168,7 @@ public class AgentProvisioningServiceTests
 
         var options = AgentProvisioningModelOptions.FromEnvironment(key => values.GetValueOrDefault(key));
 
-        Assert.Equal(new[] { "qwen-a", "qwen-b", "gpt-fallback" }, options.OrchestratorModelCandidates);
+        Assert.Equal(ExpectedOrchestratorModelCandidates, options.OrchestratorModelCandidates);
         Assert.Equal("gpt-mini", options.SubAgentModel);
     }
 

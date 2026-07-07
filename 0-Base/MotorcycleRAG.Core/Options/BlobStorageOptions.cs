@@ -8,6 +8,13 @@ namespace MotorcycleRAG.Core.Options;
 public class BlobStorageOptions
 {
     /// <summary>
+    /// Development-only Azure Storage connection string for local Azurite use.
+    /// Do not set this in checked-in appsettings files or non-development environments.
+    /// Set via BlobStorage:ConnectionString only from a local developer secret or override.
+    /// </summary>
+    public string ConnectionString { get; set; } = string.Empty;
+
+    /// <summary>
     /// The Azure Storage account endpoint URI.
     /// e.g. https://&lt;account&gt;.blob.core.windows.net
     /// Set via BlobStorage:AccountEndpoint.

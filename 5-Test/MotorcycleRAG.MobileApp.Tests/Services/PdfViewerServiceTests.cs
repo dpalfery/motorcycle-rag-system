@@ -10,13 +10,14 @@ using Xunit;
 
 namespace MotorcycleRAG.MobileApp.Tests.Services
 {
-    public class PdfViewerServiceTests
+    public class PdfViewerServiceTests : IDisposable
     {
         private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
         private readonly Mock<HttpMessageHandler> _mockHttpMessageHandler;
         private readonly Mock<IPdfRenderer> _mockRenderer;
         private readonly Mock<IStorageService> _mockStorageService;
         private readonly PdfViewerService _service;
+        private readonly HttpClient _client;
         private readonly string _cacheDir;
 
         public PdfViewerServiceTests()
@@ -24,11 +25,11 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
             _mockRenderer = new Mock<IPdfRenderer>();
             _mockHttpMessageHandler = new Mock<HttpMessageHandler>();
             _mockStorageService = new Mock<IStorageService>();
-            var client = new HttpClient(_mockHttpMessageHandler.Object);
+            _client = new HttpClient(_mockHttpMessageHandler.Object);
 
             _mockHttpClientFactory = new Mock<IHttpClientFactory>();
             _mockHttpClientFactory.Setup(f => f.CreateClient(It.IsAny<string>()))
-                .Returns(client);
+                .Returns(_client);
 
             _cacheDir = Path.Combine(Path.GetTempPath(), "pdfs_test");
             if (!Directory.Exists(_cacheDir)) Directory.CreateDirectory(_cacheDir);
@@ -36,6 +37,12 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
             _mockStorageService.Setup(s => s.GetCacheDirectory()).Returns(_cacheDir);
 
             _service = new PdfViewerService(_mockRenderer.Object, _mockHttpClientFactory.Object, _mockStorageService.Object);
+        }
+
+        public void Dispose()
+        {
+            _client.Dispose();
+            GC.SuppressFinalize(this);
         }
 
         [Fact]
@@ -51,11 +58,7 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
                     ItExpr.IsAny<HttpRequestMessage>(),
                     ItExpr.IsAny<CancellationToken>()
                 )
-                .ReturnsAsync(new HttpResponseMessage
-                {
-                    StatusCode = System.Net.HttpStatusCode.OK,
-                    Content = new ByteArrayContent(pdfContent)
-                });
+                .ReturnsAsync(() => CreatePdfResponse(pdfContent));
 
             // Act
             string path = await _service.DownloadPdfAsync(url);
@@ -87,5 +90,12 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
             result.Length.Should().Be(3);
             _mockRenderer.Verify(r => r.RenderPageAsync(path, page), Times.Once);
         }
+
+        private static HttpResponseMessage CreatePdfResponse(byte[] content) =>
+            new()
+            {
+                StatusCode = System.Net.HttpStatusCode.OK,
+                Content = new ByteArrayContent(content)
+            };
     }
 }

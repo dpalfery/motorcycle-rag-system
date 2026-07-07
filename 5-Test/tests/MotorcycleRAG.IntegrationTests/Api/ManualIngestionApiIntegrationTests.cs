@@ -3,12 +3,15 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion;
 using MotorcycleRAG.Contracts.Constants;
+using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using Xunit;
@@ -111,6 +114,61 @@ public class ManualIngestionApiIntegrationTests : IClassFixture<TestWebApplicati
     }
 
     [Fact]
+    public async Task UploadIngestionJobPdf_AsAdmin_ReturnsAccepted()
+    {
+        // Arrange
+        var mockBlob = new Mock<IBlobStorageService>();
+        mockBlob.Setup(b => b.UploadAsync(
+                "raw-uploads",
+                It.Is<string>(name => name.EndsWith("/source.pdf", StringComparison.Ordinal)),
+                It.IsAny<Stream>(),
+                "application/pdf",
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("https://test.blob/raw-uploads/source.pdf");
+
+        var client = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton(mockBlob.Object);
+            });
+        }).CreateClient();
+
+        client.DefaultRequestHeaders.Add("X-Test-Auth", "mcr-api-admin");
+
+        using var content = new MultipartFormDataContent();
+        using var fileContent = new ByteArrayContent(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("application/pdf");
+        content.Add(fileContent, "file", "manual.pdf");
+
+        // Act
+        var response = await client.PostAsync("/api/ingestion/jobs/upload?documentType=manual-pdf", content);
+
+        // Assert
+        var responseBody = await response.Content.ReadAsStringAsync();
+        Assert.True(
+            response.StatusCode == HttpStatusCode.Accepted,
+            $"Expected {HttpStatusCode.Accepted}, got {response.StatusCode}. Body: {responseBody}");
+
+        var result = JsonSerializer.Deserialize<IngestionUploadResponse>(responseBody, JsonOptions);
+        Assert.NotNull(result);
+        Assert.Equal("manual.pdf", result.FileName);
+        Assert.Equal("manual-pdf", result.DocumentType);
+        Assert.Equal("uploaded", result.Status);
+    }
+
+    [Fact]
+    public void IngestionUploadMultipartLimit_UsesConfiguredIngestionLimit()
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        var ingestionOptions = scope.ServiceProvider.GetRequiredService<IOptions<IngestionOptions>>().Value;
+        var formOptions = scope.ServiceProvider.GetRequiredService<IOptions<FormOptions>>().Value;
+
+        Assert.Equal(ingestionOptions.MaxInputBytes, formOptions.MultipartBodyLengthLimit);
+    }
+
+    [Fact]
     public async Task ReportStageStart_AsLocalProcessor_ReturnsOk()
     {
         // Arrange
@@ -136,7 +194,7 @@ public class ManualIngestionApiIntegrationTests : IClassFixture<TestWebApplicati
         var request = new ManualStageStartRequest(null);
 
         // Act
-        var response = await client.PostAsJsonAsync($"/api/manual-ingestion/manual-runs/{runId}/stages/{ManualIngestionConstants.Stages.Source}/start", request);
+        var response = await client.PostAsJsonAsync($"/api/manual-ingestion/manual-runs/{runId}/stages/{ManualIngestionStages.Source}/start", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

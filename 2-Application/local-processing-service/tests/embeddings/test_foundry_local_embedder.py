@@ -1,5 +1,6 @@
 """Unit tests for AzureFoundryLocalEmbedder — Foundry Local server calls fully mocked."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -7,9 +8,10 @@ import pytest
 
 class TestAzureFoundryLocalEmbedderInstantiation:
     def test_instantiates_with_defaults(self, monkeypatch):
-        """Instantiates without env vars, uses default endpoint/model, dims == 3584."""
+        """Instantiates without env vars, uses default endpoint/model, dims is None."""
         monkeypatch.delenv("AZURE_FOUNDRY_LOCAL_ENDPOINT", raising=False)
         monkeypatch.delenv("AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL", raising=False)
+        monkeypatch.delenv("AZURE_FOUNDRY_LOCAL_EMBEDDING_DIMS", raising=False)
 
         with patch("embeddings.foundry_local_embedder.openai.AsyncOpenAI"):
             from importlib import reload
@@ -19,9 +21,23 @@ class TestAzureFoundryLocalEmbedderInstantiation:
 
             embedder = mod.AzureFoundryLocalEmbedder()
 
-        assert embedder._dims == 3584
+        assert embedder._dims is None
         assert embedder._endpoint == "http://localhost:5272/v1"
         assert embedder._model == "qwen3-embedding"
+        assert embedder._health_timeout_seconds == 10.0
+
+    def test_invalid_timeout_env_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("EMBEDDING_REQUEST_TIMEOUT_SECONDS", "-1")
+
+        with patch("embeddings.foundry_local_embedder.openai.AsyncOpenAI"):
+            from importlib import reload
+            import embeddings.foundry_local_embedder as mod
+
+            reload(mod)
+
+            embedder = mod.AzureFoundryLocalEmbedder()
+
+        assert embedder._request_timeout_seconds == 120.0
 
     def test_instantiates_with_custom_endpoint(self, monkeypatch):
         """With AZURE_FOUNDRY_LOCAL_ENDPOINT set, uses that URL."""
@@ -118,6 +134,7 @@ class TestAzureFoundryLocalEmbedderGenerateEmbedding:
     async def test_raises_on_wrong_dimensions(self, monkeypatch):
         """generate_embedding raises ValueError when API returns wrong number of dims."""
         monkeypatch.delenv("AZURE_FOUNDRY_LOCAL_ENDPOINT", raising=False)
+        monkeypatch.setenv("AZURE_FOUNDRY_LOCAL_EMBEDDING_DIMS", "3584")
 
         mock_client = MagicMock()
         mock_client.embeddings.create = AsyncMock(
@@ -173,6 +190,65 @@ class TestAzureFoundryLocalEmbedderGenerateEmbedding:
 
         assert len(result) == 3584
         assert call_count == 3
+
+    async def test_retries_and_fails_on_timeout(self, monkeypatch):
+        """A hung local model call is bounded and eventually fails."""
+        monkeypatch.delenv("AZURE_FOUNDRY_LOCAL_ENDPOINT", raising=False)
+
+        mock_client = MagicMock()
+        mock_client.embeddings.create = MagicMock()
+
+        with patch(
+            "embeddings.foundry_local_embedder.openai.AsyncOpenAI",
+            return_value=mock_client,
+        ):
+            with patch(
+                "embeddings.foundry_local_embedder.asyncio.wait_for",
+                new_callable=AsyncMock,
+            ) as mock_wait_for:
+                mock_wait_for.side_effect = asyncio.TimeoutError
+                with patch(
+                    "embeddings.foundry_local_embedder.asyncio.sleep",
+                    new_callable=AsyncMock,
+                ):
+                    from importlib import reload
+                    import embeddings.foundry_local_embedder as mod
+
+                    reload(mod)
+
+                    embedder = mod.AzureFoundryLocalEmbedder()
+                    with pytest.raises(
+                        RuntimeError,
+                        match="Foundry Local embedding failed after 3 retries",
+                    ):
+                        await embedder.generate_embedding("test text")
+
+        assert mock_wait_for.await_count == 3
+
+    async def test_check_status_returns_disconnected_on_timeout(self, monkeypatch):
+        monkeypatch.delenv("AZURE_FOUNDRY_LOCAL_ENDPOINT", raising=False)
+
+        mock_client = MagicMock()
+        mock_client.models.list = MagicMock()
+
+        with patch(
+            "embeddings.foundry_local_embedder.openai.AsyncOpenAI",
+            return_value=mock_client,
+        ):
+            with patch(
+                "embeddings.foundry_local_embedder.asyncio.wait_for",
+                new_callable=AsyncMock,
+            ) as mock_wait_for:
+                mock_wait_for.side_effect = asyncio.TimeoutError
+                from importlib import reload
+                import embeddings.foundry_local_embedder as mod
+
+                reload(mod)
+
+                embedder = mod.AzureFoundryLocalEmbedder()
+                status = await embedder.check_status()
+
+        assert status == "disconnected"
 
 
 class TestAzureFoundryLocalEmbedderBatch:

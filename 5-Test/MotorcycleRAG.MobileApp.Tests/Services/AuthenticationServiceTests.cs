@@ -18,7 +18,7 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
         public void Constructor_ShouldInitialize_WithValidConfiguration()
         {
             // Arrange
-            var inMemorySettings = new Dictionary<string, string> {
+            var inMemorySettings = new Dictionary<string, string?> {
                 {"Authentication:ClientId", "test-client-id"},
                 {"Authentication:TenantId", "test-tenant-id"},
                 {"Authentication:RedirectUri", "msauth://com.companyname.appname"}

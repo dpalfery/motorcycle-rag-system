@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import os
+import time
 
 import httpx
 import msal
@@ -21,12 +22,14 @@ class ApiClient:
     """Uploads processed artifacts to the MotorcycleRAG API via MSAL client credentials."""
 
     def __init__(self) -> None:
+        self._base_url = os.environ.get("MCR_API_BASE_URL", _DEFAULT_BASE_URL).rstrip("/")
         secret = os.environ.get("PYTHON_UPLOAD_JOB_SECRET", "").strip()
         if not secret:
             self._configured = False
+            self._msal_app = None
             logger.warning(
                 "PYTHON_UPLOAD_JOB_SECRET not set — artifact upload via API is disabled. "
-                "Processed files will not be sent to the API."
+                "Source download via access token is still available when the API issues one."
             )
             return
 
@@ -36,13 +39,15 @@ class ApiClient:
         authority = f"https://login.microsoftonline.com/{tenant_id}"
 
         self._scope = [scope]
-        self._base_url = os.environ.get("MCR_API_BASE_URL", _DEFAULT_BASE_URL).rstrip("/")
         self._msal_app = msal.ConfidentialClientApplication(
             client_id,
             authority=authority,
             client_credential=secret,
         )
         self._configured = True
+        self._token_cache: str | None = None
+        self._token_expires_at: float = 0.0
+        self._token_lock = asyncio.Lock()
         logger.info(
             "ApiClient initialised (tenant=%s, client=%s, base_url=%s).",
             tenant_id,
@@ -53,6 +58,46 @@ class ApiClient:
     def is_configured(self) -> bool:
         return self._configured
 
+    async def download_source(
+        self,
+        upload_id: str,
+        document_type: str,
+        access_token: str | None = None,
+    ) -> bytes:
+        """Download an ingestion source file from the MotorcycleRAG API."""
+        if access_token:
+            url = (
+                f"{self._base_url}/api/ingestion/artifacts/source/access"
+                f"?uploadId={upload_id}&documentType={document_type}"
+                f"&accessToken={access_token}"
+            )
+            async with httpx.AsyncClient(timeout=300.0, verify=False) as client:
+                response = await client.get(url)
+            if not response.is_success:
+                raise RuntimeError(
+                    f"Source download failed: HTTP {response.status_code} - {response.text[:500]}"
+                )
+            return response.content
+
+        if not self._configured:
+            raise RuntimeError(
+                "ApiClient is not configured — cannot download source via API."
+            )
+
+        token = await self._acquire_token_async()
+        url = (
+            f"{self._base_url}/api/ingestion/artifacts/source"
+            f"?uploadId={upload_id}&documentType={document_type}"
+        )
+        headers = {"Authorization": f"Bearer {token}"}
+        async with httpx.AsyncClient(timeout=300.0, verify=False) as client:
+            response = await client.get(url, headers=headers)
+        if not response.is_success:
+            raise RuntimeError(
+                f"Source download failed: HTTP {response.status_code} - {response.text[:500]}"
+            )
+        return response.content
+
     def _get_token(self) -> str:
         result = self._msal_app.acquire_token_for_client(scopes=self._scope)
         if "access_token" not in result:
@@ -60,6 +105,33 @@ class ApiClient:
                 f"MSAL token acquisition failed: {result.get('error_description', result)}"
             )
         return result["access_token"]
+
+    async def _acquire_token_async(self) -> str:
+        """Return a valid MSAL access token, acquiring or refreshing only when needed.
+
+        Caches the token in-process with an asyncio.Lock so concurrent callers
+        (including fire-and-forget report_stage tasks) do not contend for the
+        default thread pool.  MSAL token lifetime is typically 3600 s; a 60 s
+        buffer prevents expiry mid-request.
+        """
+        if self._token_cache and time.monotonic() < self._token_expires_at - 60:
+            return self._token_cache
+
+        async with self._token_lock:
+            if self._token_cache and time.monotonic() < self._token_expires_at - 60:
+                return self._token_cache
+
+            result = await asyncio.to_thread(
+                self._msal_app.acquire_token_for_client, scopes=self._scope
+            )
+            if "access_token" not in result:
+                raise RuntimeError(
+                    f"MSAL token acquisition failed: {result.get('error_description', result)}"
+                )
+
+            self._token_cache = result["access_token"]
+            self._token_expires_at = time.monotonic() + result.get("expires_in", 3600)
+            return self._token_cache
 
     @staticmethod
     def _get_token_diagnostics(token: str) -> dict[str, object]:
@@ -91,14 +163,14 @@ class ApiClient:
         artifact_type: str,
         content_type: str,
     ) -> None:
-        """POST processed artifact bytes to the API. No-op if not configured."""
+        """POST processed artifact bytes to the API."""
         if not self._configured:
-            logger.warning(
-                "ApiClient not configured — skipping artifact upload for %s.", upload_id
+            raise RuntimeError(
+                "ApiClient is not configured; cannot upload processed artifacts. "
+                "Set PYTHON_UPLOAD_JOB_SECRET before starting the local processor."
             )
-            return
 
-        token = await asyncio.to_thread(self._get_token)
+        token = await self._acquire_token_async()
         filename = "chunks.jsonl" if artifact_type == "search-chunks" else "entities.json"
         url = (
             f"{self._base_url}/api/ingestion/artifacts/upload"
@@ -123,7 +195,7 @@ class ApiClient:
                     upload_id,
                     artifact_type,
                 )
-                async with httpx.AsyncClient(timeout=120.0) as client:
+                async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
                     response = await client.post(
                         url,
                         headers=headers,
@@ -172,3 +244,45 @@ class ApiClient:
             await asyncio.sleep(wait)
 
         raise RuntimeError(f"Artifact upload failed after 3 attempts: {last_exc}")
+
+    async def report_stage(
+        self,
+        processor_job_id: str,
+        stage: str,
+        chunks_processed: int = 0,
+        total_chunks: int = 0,
+        failure_reason: str | None = None,
+    ) -> None:
+        """Report pipeline stage to the .NET API so jobs can be resumed.
+
+        Calls PATCH /api/ingestion/jobs/by-run/{processorJobId}/status.
+        The .NET API matches processor_job_id to DocIngestionRunId.
+        Never raises — stage reporting failures are logged but do not halt the pipeline.
+        """
+        if not self.is_configured() or not processor_job_id:
+            return
+
+        url = f"{self._base_url}/api/ingestion/jobs/by-run/{processor_job_id}/status"
+        payload = {
+            "stage": stage,
+            "chunksProcessed": chunks_processed,
+            "totalChunks": total_chunks,
+        }
+        if failure_reason:
+            payload["failureReason"] = failure_reason
+
+        try:
+            token = await self._acquire_token_async()
+            headers = {"Authorization": f"Bearer {token}"}
+            async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
+                response = await client.patch(url, json=payload, headers=headers)
+                if response.status_code < 400:
+                    logger.debug("Reported stage %s for processor job %s", stage, processor_job_id)
+                else:
+                    logger.warning(
+                        "Stage report failed for processor job %s: HTTP %s",
+                        processor_job_id,
+                        response.status_code,
+                    )
+        except Exception as exc:
+            logger.warning("Stage report failed for processor job %s: %s", processor_job_id, exc)

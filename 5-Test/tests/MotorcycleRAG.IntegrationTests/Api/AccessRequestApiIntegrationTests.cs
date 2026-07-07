@@ -51,7 +51,7 @@ public class AccessRequestApiIntegrationTests : IClassFixture<TestWebApplication
 
         var response = await client.PostAsync("/api/access-requests", content);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted, await response.Content.ReadAsStringAsync());
         var payload = System.Text.Json.JsonSerializer.Deserialize<PublicAccessRequestResponse>(await response.Content.ReadAsStringAsync(), JsonOptions);
         payload.Should().NotBeNull();
         payload!.Email.Should().Be("rider@example.com");

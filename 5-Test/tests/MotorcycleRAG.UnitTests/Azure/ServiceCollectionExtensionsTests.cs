@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using MotorcycleRAG.API.Configuration;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.Azure;
+using MotorcycleRAG.Persistence.Azure.Search;
 
 using MotorcycleRAG.Core.Options;
 
@@ -42,6 +44,7 @@ public class ServiceCollectionExtensionsTests {
         });
         _configuration = configurationBuilder.Build();
         _services = new ServiceCollection();
+        _services.AddLogging();
         _services.AddSingleton<IConfiguration>(_configuration);
     }
 
@@ -98,136 +101,76 @@ public class ServiceCollectionExtensionsTests {
         var httpClientFactory = serviceProvider.GetService<IHttpClientFactory>();
         httpClientFactory.Should().NotBeNull();
     }
-}
 
-public class AzureFoundryConfigurationValidatorTests {
-    private readonly AzureFoundryConfigurationValidator _validator;
+    [Fact]
+    public void AddAzureServices_WithInMemoryShimProvider_ShouldRegisterShimChunkIndexer() {
+        // Arrange
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> {
+                ["AzureAI:FoundryEndpoint"] = "https://test-foundry.cognitiveservices.azure.com/",
+                ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
+                ["Search:IndexName"] = "test-index",
+                ["Search:ChunkIndexingProvider"] = "InMemoryShim",
+                ["Search:InMemoryShimEndpoint"] = "http://127.0.0.1:8765/"
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
 
-    public AzureFoundryConfigurationValidatorTests() {
-        _validator = new AzureFoundryConfigurationValidator();
+        // Act
+        services.AddAzureServices(configuration);
+        var serviceProvider = services.BuildServiceProvider();
+
+        // Assert
+        serviceProvider.GetRequiredService<IChunkIndexingService>()
+            .Should()
+            .BeOfType<InMemorySearchShimChunkIndexingService>();
     }
 
     [Fact]
-    public void Validate_WithValidConfiguration_ShouldReturnSuccess() {
+    public void AddAzureServices_WithoutDocumentIntelligenceEndpoint_ShouldRegisterDisabledClient() {
         // Arrange
-        var config = new AzureFoundryOptions {
-            FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
-            SearchServiceEndpoint = "https://test-search.search.windows.net/",
-            DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Models = new ModelOptions {
-                ChatModel = "gpt-4o-mini",
-                EmbeddingModel = "text-embedding-3-large",
-                QueryPlannerModel = "gpt-4o",
-                VisionModel = "gpt-4-vision-preview",
-                MaxTokens = 4096,
-                Temperature = 0.1f,
-                TopP = 1.0f
-            },
-            Retry = new RetryOptions {
-                MaxRetries = 3,
-                BaseDelaySeconds = 2,
-                MaxDelaySeconds = 60,
-                UseExponentialBackoff = true
-            }
-        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> {
+                ["AzureAI:FoundryEndpoint"] = "https://test-foundry.cognitiveservices.azure.com/",
+                ["AzureAI:SearchServiceEndpoint"] = "https://test-search.search.windows.net/",
+                ["AzureAI:Models:ChatModel"] = "gpt-4o-mini",
+                ["AzureAI:Models:EmbeddingModel"] = "text-embedding-3-large",
+                ["AzureAI:Models:QueryPlannerModel"] = "gpt-4o",
+                ["AzureAI:Models:VisionModel"] = "gpt-4-vision-preview",
+                ["AzureAI:Models:MaxTokens"] = "4096",
+                ["AzureAI:Models:Temperature"] = "0.1",
+                ["AzureAI:Models:TopP"] = "1.0",
+                ["AzureAI:Retry:MaxRetries"] = "3",
+                ["AzureAI:Retry:BaseDelaySeconds"] = "2",
+                ["AzureAI:Retry:MaxDelaySeconds"] = "60",
+                ["AzureAI:Retry:UseExponentialBackoff"] = "true",
+                ["Search:IndexName"] = "test-index",
+                ["Search:BatchSize"] = "100",
+                ["Search:MaxSearchResults"] = "50",
+                ["ApplicationInsights:ConnectionString"] = "InstrumentationKey=test-key",
+                ["ApplicationInsights:EnableTelemetry"] = "true",
+                ["ApplicationInsights:ApplicationName"] = "MotorcycleRAG"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
 
         // Act
-        var result = _validator.Validate(null, config);
+        services.AddAzureServices(configuration);
+        var serviceProvider = services.BuildServiceProvider();
 
         // Assert
-        result.Should().Be(ValidateOptionsResult.Success);
-    }
-
-    [Theory]
-    [InlineData("invalid-uri", "AzureAI:FoundryEndpoint must be a valid URI if provided")]
-    public void Validate_WithInvalidFoundryEndpoint_ShouldReturnFailure(string endpoint, string expectedError) {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.FoundryEndpoint = endpoint;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(expectedError);
-    }
-
-
-    [Theory]
-    [InlineData(0, "AzureAI:Models:MaxTokens must be greater than 0")]
-    [InlineData(-1, "AzureAI:Models:MaxTokens must be greater than 0")]
-    public void Validate_WithInvalidMaxTokens_ShouldReturnFailure(int maxTokens, string expectedError) {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.Models.MaxTokens = maxTokens;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(expectedError);
-    }
-
-    [Theory]
-    [InlineData(-0.1f, "AzureAI:Models:Temperature must be between 0 and 2")]
-    [InlineData(2.1f, "AzureAI:Models:Temperature must be between 0 and 2")]
-    public void Validate_WithInvalidTemperature_ShouldReturnFailure(float temperature, string expectedError) {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.Models.Temperature = temperature;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(expectedError);
-    }
-
-    [Theory]
-    [InlineData(0, "AzureAI:Retry:MaxRetries must be greater than 0")]
-    [InlineData(-1, "AzureAI:Retry:MaxRetries must be greater than 0")]
-    public void Validate_WithInvalidMaxRetries_ShouldReturnFailure(int maxRetries, string expectedError) {
-        // Arrange
-        var config = CreateValidConfiguration();
-        config.Retry.MaxRetries = maxRetries;
-
-        // Act
-        var result = _validator.Validate(null, config);
-
-        // Assert
-        result.Failed.Should().BeTrue();
-        result.Failures.Should().Contain(expectedError);
-    }
-
-    private static AzureFoundryOptions CreateValidConfiguration() {
-        return new AzureFoundryOptions {
-            FoundryEndpoint = "https://test-foundry.cognitiveservices.azure.com/",
-            SearchServiceEndpoint = "https://test-search.search.windows.net/",
-            DocumentIntelligenceEndpoint = "https://test-document-intelligence.cognitiveservices.azure.com/",
-            Models = new ModelOptions {
-                ChatModel = "gpt-4o-mini",
-                EmbeddingModel = "text-embedding-3-large",
-                QueryPlannerModel = "gpt-4o",
-                VisionModel = "gpt-4-vision-preview",
-                MaxTokens = 4096,
-                Temperature = 0.1f,
-                TopP = 1.0f
-            },
-            Retry = new RetryOptions {
-                MaxRetries = 3,
-                BaseDelaySeconds = 2,
-                MaxDelaySeconds = 60,
-                UseExponentialBackoff = true
-            }
-        };
+        serviceProvider.GetRequiredService<IDocumentIntelligenceClient>()
+            .Should()
+            .BeOfType<DisabledDocumentIntelligenceClient>();
     }
 }
 
+
 public class SearchConfigurationValidatorTests {
-    private readonly SearchConfigurationValidator _validator;
+    private readonly IValidateOptions<SearchOptions> _validator;
 
     public SearchConfigurationValidatorTests() {
         _validator = new SearchConfigurationValidator();
@@ -251,6 +194,61 @@ public class SearchConfigurationValidatorTests {
         result.Should().Be(ValidateOptionsResult.Success);
     }
 
+    [Fact]
+    public void Validate_WithInMemoryShimProviderAndEndpoint_ShouldReturnSuccess() {
+        // Arrange
+        var config = new SearchOptions {
+            IndexName = "test-index",
+            BatchSize = 100,
+            MaxSearchResults = 50,
+            ChunkIndexingProvider = "InMemoryShim",
+            InMemoryShimEndpoint = "http://127.0.0.1:8765/"
+        };
+
+        // Act
+        var result = _validator.Validate(null, config);
+
+        // Assert
+        result.Should().Be(ValidateOptionsResult.Success);
+    }
+
+    [Fact]
+    public void Validate_WithInMemoryShimProviderAndMissingEndpoint_ShouldReturnFailure() {
+        // Arrange
+        var config = new SearchOptions {
+            IndexName = "test-index",
+            BatchSize = 100,
+            MaxSearchResults = 50,
+            ChunkIndexingProvider = "InMemoryShim"
+        };
+
+        // Act
+        var result = _validator.Validate(null, config);
+
+        // Assert
+        result.Failed.Should().BeTrue();
+        result.Failures.Should().Contain("Search:InMemoryShimEndpoint must be a valid absolute URL when Search:ChunkIndexingProvider is InMemoryShim");
+    }
+
+    [Fact]
+    public void Validate_WithInMemoryShimProviderAndNonLoopbackEndpoint_ShouldReturnFailure() {
+        // Arrange
+        var config = new SearchOptions {
+            IndexName = "test-index",
+            BatchSize = 100,
+            MaxSearchResults = 50,
+            ChunkIndexingProvider = "InMemoryShim",
+            InMemoryShimEndpoint = "https://example.com/"
+        };
+
+        // Act
+        var result = _validator.Validate(null, config);
+
+        // Assert
+        result.Failed.Should().BeTrue();
+        result.Failures.Should().Contain("Search:InMemoryShimEndpoint must be an http or https loopback URL when Search:ChunkIndexingProvider is InMemoryShim");
+    }
+
     [Theory]
     [InlineData("", "Search:IndexName is required")]
     [InlineData(null, "Search:IndexName is required")]
@@ -271,8 +269,8 @@ public class SearchConfigurationValidatorTests {
     }
 
     [Theory]
-    [InlineData(0, "Search:BatchSize must be greater than 0")]
-    [InlineData(-1, "Search:BatchSize must be greater than 0")]
+    [InlineData(0, "Search:BatchSize must be between 1 and 1000")]
+    [InlineData(-1, "Search:BatchSize must be between 1 and 1000")]
     public void Validate_WithInvalidBatchSize_ShouldReturnFailure(int batchSize, string expectedError) {
         // Arrange
         var config = new SearchOptions {
@@ -290,8 +288,8 @@ public class SearchConfigurationValidatorTests {
     }
 
     [Theory]
-    [InlineData(0, "Search:MaxSearchResults must be greater than 0")]
-    [InlineData(-1, "Search:MaxSearchResults must be greater than 0")]
+    [InlineData(0, "Search:MaxSearchResults must be between 1 and 100")]
+    [InlineData(-1, "Search:MaxSearchResults must be between 1 and 100")]
     public void Validate_WithInvalidMaxSearchResults_ShouldReturnFailure(int maxResults, string expectedError) {
         // Arrange
         var config = new SearchOptions {

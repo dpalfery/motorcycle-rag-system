@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
@@ -13,16 +14,19 @@ public sealed class SecurityHeadersMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<SecurityHeadersMiddleware> _logger;
+    private readonly IHostEnvironment _environment;
 
     /// <summary>
     /// Initializes a new instance of the SecurityHeadersMiddleware
     /// </summary>
     /// <param name="next">Next middleware in the pipeline</param>
     /// <param name="logger">Logger</param>
-    public SecurityHeadersMiddleware(RequestDelegate next, ILogger<SecurityHeadersMiddleware> logger)
+    /// <param name="environment">Host environment</param>
+    public SecurityHeadersMiddleware(RequestDelegate next, ILogger<SecurityHeadersMiddleware> logger, IHostEnvironment environment)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _environment = environment ?? throw new ArgumentNullException(nameof(environment));
     }
 
     /// <summary>
@@ -53,7 +57,15 @@ public sealed class SecurityHeadersMiddleware
         context.Response.Headers.Append("Content-Security-Policy", cspPolicy);
         context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
         context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(), usb=()");
-        context.Response.Headers.Append("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+
+        // HSTS must NOT be sent in Development. On localhost the "includeSubDomains" directive
+        // poisons the entire localhost HSTS cache, force-upgrading http://localhost:* requests
+        // (e.g. the Tauri/Vite dev server on :1420) to https and breaking them. Only emit it for
+        // genuine HTTPS responses in non-Development environments.
+        if (!_environment.IsDevelopment() && context.Request.IsHttps)
+        {
+            context.Response.Headers.Append("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+        }
 
         _logger.LogDebug("Added security headers to response");
 

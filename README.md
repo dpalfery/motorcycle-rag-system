@@ -16,7 +16,7 @@ This system implements a multi-agent architecture to orchestrate intelligent sea
 
 ### Clean Architecture Layers
 ```
-1-Presentation/     # ASP.NET Core Web API
+1-Presentation/     # API and BFF projects, plus separate presentation apps
 2-Application/      # Business logic and agents
 3-Domain/          # Core models and interfaces
 4-Persistence/     # Azure services and data access
@@ -24,6 +24,8 @@ This system implements a multi-agent architecture to orchestrate intelligent sea
 6-Docs/           # Documentation
 7-Deployment/     # Infrastructure as Code
 ```
+
+The current `MotorcycleRAG.sln` solution focuses on the core backend, shared libraries, tests, and infrastructure projects, including the API, BFF, application/domain/persistence contracts, test projects, and deployment/infrastructure assets. The presentation folders under `1-Presentation/` (including `MotorcycleRAG.AdminDesktop` and `MotorcycleRAG.MobileApp`) are separate projects in the repository and are not currently listed in `MotorcycleRAG.sln`.
 
 ## Microsoft Agent Framework Integration
 
@@ -701,7 +703,7 @@ pulumi up
 
 ### Azure Services Setup
 
-See [`6-Docs/azure-ai-foundry-setup.md`](6-Docs/azure-ai-foundry-setup.md) for detailed Azure AI Foundry configuration.
+See [`6-Docs/deployment.md`](6-Docs/deployment.md) for detailed deployment configuration.
 
 ### Container Deployment
 

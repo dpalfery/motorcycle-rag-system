@@ -25,9 +25,9 @@ public class ModelValidationService {
     /// </summary>
     /// <param name="response">The response to validate</param>
     /// <returns>Validation result with any errors found</returns>
-    public ValidationResult ValidateResponse(MotorcycleQueryResponse response) {
+    public ModelValidationResult ValidateResponse(MotorcycleQueryResponse response) {
         if (response == null) {
-            return ValidationResult.Failure("Response cannot be null");
+            return ModelValidationResult.Failure("Response cannot be null");
         }
 
         var errors = new List<string>();
@@ -44,8 +44,8 @@ public class ModelValidationService {
         }
 
         return errors.Count == 0
-            ? ValidationResult.Success()
-            : ValidationResult.Failure(errors);
+            ? ModelValidationResult.Success()
+            : ModelValidationResult.Failure(errors);
     }
 
     public IReadOnlyList<string> ValidateCitation(Citation? citation) => ValidateCitation(citation, -1);
@@ -145,49 +145,4 @@ public class ModelValidationService {
         }
     }
 
-}
-
-/// <summary>
-/// Result of a validation operation.
-/// </summary>
-public class ValidationResult {
-    /// <summary>
-    /// Whether validation passed.
-    /// </summary>
-    public bool IsValid { get; }
-
-    public IReadOnlyList<string> Errors { get; }
- 
-    private ValidationResult(bool isValid, List<string> errors) {
-        IsValid = isValid;
-        Errors = errors ?? new List<string>();
-    }
-
-    /// <summary>
-    /// Creates a successful validation result.
-    /// </summary>
-    public static ValidationResult Success() {
-        return new ValidationResult(true, new List<string>());
-    }
-
-    /// <summary>
-    /// Creates a failed validation result with errors.
-    /// </summary>
-    /// <param name="errors">List of error messages</param>
-    public static ValidationResult Failure(IEnumerable<string> errors) {
-        return new ValidationResult(false, errors?.ToList() ?? new List<string>());
-    }
-
-    /// <summary>
-    /// Creates a failed validation result with a single error.
-    /// </summary>
-    /// <param name="error">Error message</param>
-    public static ValidationResult Failure(string error) {
-        return new ValidationResult(false, new List<string> { error });
-    }
-
-    /// <summary>
-    /// Gets a formatted error message string.
-    /// </summary>
-    public string ErrorMessage => IsValid ? "Validation passed" : string.Join("; ", Errors);
 }

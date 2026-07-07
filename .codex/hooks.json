@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/architecture-guards.sh\"",
+            "statusMessage": "Checking architecture rules"
+          }
+        ]
+      }
+    ]
+  }
+}

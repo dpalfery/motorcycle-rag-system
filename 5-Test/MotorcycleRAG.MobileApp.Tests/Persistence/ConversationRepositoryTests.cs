@@ -10,8 +10,8 @@ namespace MotorcycleRAG.MobileApp.Tests.Persistence;
 
 public class ConversationRepositoryTests : IAsyncLifetime
 {
-    private SQLiteAsyncConnection _connection;
-    private ConversationRepository _repository;
+    private SQLiteAsyncConnection _connection = null!;
+    private ConversationRepository _repository = null!;
 
     public async Task InitializeAsync()
     {

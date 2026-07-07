@@ -8,8 +8,8 @@ from fastapi import HTTPException
 LOCAL_PROCESSOR_INPUT_DIR_ENV = "LOCAL_PROCESSOR_INPUT_DIR"
 
 
-def resolve_local_csv_path(local_file_path: str) -> Path:
-    """Resolve a caller-supplied CSV path under the configured local input root."""
+def _resolve_local_path(local_file_path: str, allowed_suffix: str) -> Path:
+    """Resolve a caller-supplied local path under the configured input root."""
     input_root_value = os.getenv(LOCAL_PROCESSOR_INPUT_DIR_ENV)
     if not input_root_value:
         raise HTTPException(
@@ -56,7 +56,20 @@ def resolve_local_csv_path(local_file_path: str) -> Path:
             detail="local_file_path does not point to an existing file",
         )
 
-    if resolved_path.suffix.lower() != ".csv":
-        raise HTTPException(status_code=400, detail="Only .csv files are supported")
+    if resolved_path.suffix.lower() != allowed_suffix:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only {allowed_suffix} files are supported",
+        )
 
     return resolved_path
+
+
+def resolve_local_csv_path(local_file_path: str) -> Path:
+    """Resolve a caller-supplied CSV path under the configured local input root."""
+    return _resolve_local_path(local_file_path, ".csv")
+
+
+def resolve_local_pdf_path(local_file_path: str) -> Path:
+    """Resolve a caller-supplied PDF path under the configured local input root."""
+    return _resolve_local_path(local_file_path, ".pdf")

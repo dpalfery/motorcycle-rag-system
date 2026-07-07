@@ -1,5 +1,6 @@
 """Unit tests for OllamaEmbedder — Ollama server calls fully mocked."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from types import SimpleNamespace
 
@@ -19,6 +20,17 @@ class TestOllamaEmbedderInstantiation:
         embedder = OllamaEmbedder()
         assert embedder._dims is None
         MockAsyncClient.assert_called_once()
+
+    @patch("embeddings.ollama_embedder.ollama.AsyncClient")
+    def test_invalid_timeout_env_falls_back_to_default(self, MockAsyncClient, monkeypatch):
+        monkeypatch.setenv("EMBEDDING_REQUEST_TIMEOUT_SECONDS", "not-a-number")
+
+        from embeddings.ollama_embedder import OllamaEmbedder
+
+        embedder = OllamaEmbedder()
+
+        assert embedder._request_timeout_seconds == 120.0
+        assert embedder._health_timeout_seconds == 10.0
 
 
 class TestGenerateEmbedding:
@@ -53,6 +65,22 @@ class TestGenerateEmbedding:
         with pytest.raises(ValueError, match="Expected 3584 dims"):
             await embedder.generate_embedding("test text")
 
+    @patch("embeddings.ollama_embedder.asyncio.sleep", new_callable=AsyncMock)
+    @patch("embeddings.ollama_embedder.asyncio.wait_for", new_callable=AsyncMock)
+    @patch("embeddings.ollama_embedder.ollama.AsyncClient")
+    async def test_retries_and_fails_on_timeout(
+        self, MockAsyncClient, mock_wait_for, mock_sleep
+    ):
+        from embeddings.ollama_embedder import OllamaEmbedder
+
+        mock_wait_for.side_effect = asyncio.TimeoutError
+
+        embedder = OllamaEmbedder()
+        with pytest.raises(RuntimeError, match="Ollama embedding failed after 3 retries"):
+            await embedder.generate_embedding("test text")
+
+        assert mock_wait_for.await_count == 3
+
 
 class TestCheckOllamaStatus:
     @patch("embeddings.ollama_embedder.ollama.AsyncClient")
@@ -75,4 +103,18 @@ class TestCheckOllamaStatus:
 
         embedder = OllamaEmbedder()
         status = await embedder.check_ollama_status()
+        assert status == "disconnected"
+
+    @patch("embeddings.ollama_embedder.asyncio.wait_for", new_callable=AsyncMock)
+    @patch("embeddings.ollama_embedder.ollama.AsyncClient")
+    async def test_returns_disconnected_on_health_timeout(
+        self, MockAsyncClient, mock_wait_for
+    ):
+        from embeddings.ollama_embedder import OllamaEmbedder
+
+        mock_wait_for.side_effect = asyncio.TimeoutError
+
+        embedder = OllamaEmbedder()
+        status = await embedder.check_ollama_status()
+
         assert status == "disconnected"

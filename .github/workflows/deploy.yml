@@ -25,7 +25,7 @@ jobs:
     steps:
       # ── Source ──────────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # ── Frontend build (no Azure deps, run early to fail fast) ─────
       - name: Setup Node.js

@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using MotorcycleRAG.API.Configuration;
-using MotorcycleRAG.Application.Pipeline;
+using MotorcycleRAG.Contracts.Interfaces;
 
 namespace MotorcycleRAG.API.Controllers;
 

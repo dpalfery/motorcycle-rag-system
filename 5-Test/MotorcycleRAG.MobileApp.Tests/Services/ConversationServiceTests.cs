@@ -117,12 +117,7 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
             await _service.SendMessageAsync(conversationId, messageText);
 
             // Assert
-            _mockApiClient.Verify(c => c.QueryAsync(It.Is<QueryRequest>(req =>
-                req.Context != null &&
-                req.Context.PreviousQueries.Count == 2 &&
-                req.Context.PreviousQueries[0] == "First question" &&
-                req.Context.PreviousQueries[1] == "Second question"
-            )), Times.Once);
+            _mockApiClient.Verify(c => c.QueryAsync(It.Is<QueryRequest>(req => HasExpectedPreviousQueries(req))), Times.Once);
         }
 
         [Fact]
@@ -150,14 +145,25 @@ namespace MotorcycleRAG.MobileApp.Tests.Services
             await _service.SendMessageAsync(conversationId, messageText);
 
             // Assert
-            _mockApiClient.Verify(c => c.QueryAsync(It.Is<QueryRequest>(req =>
-                req.Context != null &&
-                req.Context.UserMemory != null &&
-                req.Context.UserMemory.ContainsKey("motorcycles_owned") &&
-                req.Context.UserMemory["motorcycles_owned"].ToString() == "Yamaha R1" &&
-                req.Context.UserMemory.ContainsKey("riding_style") &&
-                req.Context.UserMemory["riding_style"].ToString() == "Sport"
-            )), Times.Once);
+            _mockApiClient.Verify(c => c.QueryAsync(It.Is<QueryRequest>(req => HasExpectedUserMemory(req))), Times.Once);
+        }
+
+        private static bool HasExpectedPreviousQueries(QueryRequest request)
+        {
+            var previousQueries = request.Context?.PreviousQueries;
+            return previousQueries is { Count: 2 }
+                && previousQueries[0] == "First question"
+                && previousQueries[1] == "Second question";
+        }
+
+        private static bool HasExpectedUserMemory(QueryRequest request)
+        {
+            var userMemory = request.Context?.UserMemory;
+            return userMemory != null
+                && userMemory.TryGetValue("motorcycles_owned", out var owned)
+                && owned.ToString() == "Yamaha R1"
+                && userMemory.TryGetValue("riding_style", out var style)
+                && style.ToString() == "Sport";
         }
     }
 }

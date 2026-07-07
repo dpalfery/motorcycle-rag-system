@@ -8,6 +8,21 @@
         "-y",
         "@playwright/mcp@0.0.38"
       ]
+    },
+    "azure": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@azure/mcp@3.0.0-beta.21",
+        "server",
+        "start",
+        "--read-only"
+      ],
+      "environment": {
+        "AZURE_MCP_COLLECT_TELEMETRY": "false",
+        "AZURE_MCP_COLLECT_TELEMETRY_MICROSOFT": "false"
+      }
     }
   }
 }

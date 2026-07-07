@@ -1,34 +1,45 @@
 using MotorcycleRAG.API.Middleware;
 using MotorcycleRAG.API.Services;
 using MotorcycleRAG.API.Configuration;
+using Scalar.AspNetCore;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MotorcycleRAG.API.Extensions;
 
 /// <summary>
 /// Extension methods for <see cref="WebApplication"/> to configure the HTTP request pipeline.
 /// </summary>
-internal static class WebApplicationExtensions
-{
+[SuppressMessage(
+    "Maintainability",
+    "CA1506:Avoid excessive class coupling",
+    Justification = "The API middleware composition root intentionally wires documentation, security, auth, and endpoint middleware in one place.")]
+internal static class WebApplicationExtensions {
     /// <summary>
     /// Configures the Motorcycle RAG API middleware pipeline in the correct security-critical order.
     /// </summary>
-    public static WebApplication UseMotorcycleRagMiddleware(this WebApplication app)
-    {
-        // Configure the HTTP request pipeline
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseSwagger();
-            app.UseSwaggerUI(c =>
-            {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Motorcycle RAG API v1");
-                c.RoutePrefix = string.Empty; // Serve Swagger UI at root
-            });
+    public static WebApplication UseMotorcycleRagMiddleware(this WebApplication app) {
+        // Configure development-time API documentation endpoints.
+        if (app.Environment.IsDevelopment()) {
+            app.MapOpenApi("/swagger/{documentName}/swagger.json")
+                .AllowAnonymous()
+                .RequireRateLimiting("public");
+
+            app.MapGet("/", () => Results.Redirect("/scalar/v1"))
+                .AllowAnonymous()
+                .RequireRateLimiting("public");
+
+            app.MapScalarApiReference(options => {
+                options.WithTitle("Motorcycle RAG API");
+                options.WithOpenApiRoutePattern("/swagger/{documentName}/swagger.json");
+                options.AddDocument("v1", "Motorcycle RAG API v1");
+            })
+                .AllowAnonymous()
+                .RequireRateLimiting("public");
         }
 
         // Enable automatic refresh of configuration values from Azure App Configuration
         if (bool.TryParse(app.Configuration[AppConfigurationExtensions.AppConfigurationEnabledKey], out var appConfigEnabled) &&
-            appConfigEnabled)
-        {
+            appConfigEnabled) {
             app.UseAzureAppConfiguration();
         }
 
@@ -42,6 +53,7 @@ internal static class WebApplicationExtensions
         // 7. CORS (restricted cross-origin access)
         // 8. Authentication (identity verification)
         // 9. Authorization (access control)
+        // 10. Antiforgery metadata handling (multipart endpoints opt out explicitly)
 
         app.UseHttpsRedirection();
         app.UseHostHeaderValidation(); // CRITICAL: Prevent Host Header Injection attacks
@@ -53,13 +65,14 @@ internal static class WebApplicationExtensions
         app.UseAuthentication();
         app.UseAuthorizationLogging(); // Add authorization logging middleware
         app.UseAuthorization();
+        app.UseAntiforgery();
 
         // Map controllers and health checks with rate limiting policies applied
-        app.MapControllers().RequireRateLimiting("authenticated");
+        app.MapControllers()
+            .RequireRateLimiting("authenticated");
 
         // Map global health check endpoint
-        app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-        {
+        app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions {
             ResponseWriter = HealthCheckResponseWriter.WriteResponse,
             AllowCachingResponses = false
         }).AllowAnonymous().RequireRateLimiting("public");
@@ -70,30 +83,25 @@ internal static class WebApplicationExtensions
     /// <summary>
     /// Pre-warms the JWT signing key cache to avoid blocking on the first request.
     /// </summary>
-    public static async Task PreWarmJwtSigningKeysAsync(this WebApplication app)
-    {
+    public static async Task PreWarmJwtSigningKeysAsync(this WebApplication app) {
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Program");
-        
-        try
-        {
+
+        try {
             var authConfig = app.Configuration.GetSection("Authentication:Issuers");
             var workforceIssuer = authConfig["Workforce"];
             var externalIdIssuer = authConfig["ExternalId"];
 
-            if (!string.IsNullOrEmpty(workforceIssuer))
-            {
+            if (!string.IsNullOrEmpty(workforceIssuer)) {
                 var signingKeyCache = app.Services.GetRequiredService<SigningKeyCache>();
                 logger.LogInformation("Pre-warming JWT signing key cache...");
                 await signingKeyCache.PreWarmCacheAsync(workforceIssuer, externalIdIssuer);
                 logger.LogInformation("JWT signing key cache pre-warming completed");
             }
-            else
-            {
+            else {
                 logger.LogWarning("Workforce issuer not configured - signing key cache will not be pre-warmed");
             }
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             logger.LogError(ex, "Error pre-warming JWT signing key cache. Application will continue but JWT validation may fail on first request.");
         }
     }

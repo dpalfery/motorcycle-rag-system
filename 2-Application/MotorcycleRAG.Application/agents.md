@@ -8,10 +8,13 @@ This file is **application-layer specific** context. Root rules live in `AGENTS.
 
 ## What belongs here (in this repo)
 - Use-case orchestration (commands/queries/handlers)
-- Interfaces/abstractions for infrastructure (repositories, external services)
+- Application service implementations under `Services`
 - Authorization decisions that are policy-like (enforce “who can do what” without framework specifics)
 
 ## What must NOT be here
+- No interfaces or abstractions. Interfaces belong in `3-Domain/MotorcycleRAG.Contracts`.
+- No DTOs/models shared across boundaries. Shared DTOs belong in `3-Domain/MotorcycleRAG.Contracts.Models`.
+- No new feature/random folders such as `Pipeline` unless explicitly approved.
 - No HTTP concerns (that’s Presentation)
 - No SQL/Azure/SDK usage (that’s Persistence)
 - No domain invariants baked into DTOs (those belong in Domain entities/value objects)

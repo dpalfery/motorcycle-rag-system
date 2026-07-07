@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -8,10 +9,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -32,6 +36,12 @@ public sealed class ProcessorArtifactsController : ControllerBase
 {
     private readonly IBlobStorageService _blobStorageService;
     private readonly BlobStorageOptions _blobStorageOptions;
+    private readonly IChunkIndexingService _chunkIndexingService;
+    private readonly IIngestionJobRepository _jobRepository;
+    private readonly IIndexedArtifactRepository _artifactRepository;
+    private readonly IIndexedChunkRepository _chunkRepository;
+    private readonly IIngestionSourceAccessTokenService _sourceAccessTokenService;
+    private readonly IIngestionJobService _ingestionJobService;
     private readonly ILogger<ProcessorArtifactsController> _logger;
 
     /// <summary>Maximum upload size in bytes (500 MB).</summary>
@@ -40,11 +50,67 @@ public sealed class ProcessorArtifactsController : ControllerBase
     public ProcessorArtifactsController(
         IBlobStorageService blobStorageService,
         IOptions<BlobStorageOptions> blobStorageOptions,
+        IChunkIndexingService chunkIndexingService,
+        IIngestionJobRepository jobRepository,
+        IIndexedArtifactRepository artifactRepository,
+        IIndexedChunkRepository chunkRepository,
+        IIngestionSourceAccessTokenService sourceAccessTokenService,
+        IIngestionJobService ingestionJobService,
         ILogger<ProcessorArtifactsController> logger)
     {
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
+        _chunkIndexingService = chunkIndexingService ?? throw new ArgumentNullException(nameof(chunkIndexingService));
+        _jobRepository = jobRepository ?? throw new ArgumentNullException(nameof(jobRepository));
+        _artifactRepository = artifactRepository ?? throw new ArgumentNullException(nameof(artifactRepository));
+        _chunkRepository = chunkRepository ?? throw new ArgumentNullException(nameof(chunkRepository));
+        _sourceAccessTokenService = sourceAccessTokenService ?? throw new ArgumentNullException(nameof(sourceAccessTokenService));
+        _ingestionJobService = ingestionJobService ?? throw new ArgumentNullException(nameof(ingestionJobService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Download an ingestion source file for local processor M2M access.
+    /// Route: GET /api/ingestion/artifacts/source
+    /// </summary>
+    [HttpGet("artifacts/source")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public Task<IActionResult> DownloadSourceAsync(
+        [FromQuery] string uploadId = "",
+        [FromQuery] string documentType = "manual-pdf",
+        CancellationToken ct = default) =>
+        DownloadSourceInternalAsync(uploadId, documentType, ct);
+
+    /// <summary>
+    /// Download an ingestion source file using a short-lived access token issued at job start.
+    /// Route: GET /api/ingestion/artifacts/source/access
+    /// </summary>
+    [HttpGet("artifacts/source/access")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadSourceWithAccessTokenAsync(
+        [FromQuery] string uploadId = "",
+        [FromQuery] string documentType = "manual-pdf",
+        [FromQuery] string accessToken = "",
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken)
+            || !_sourceAccessTokenService.IsValid(accessToken, uploadId, documentType))
+        {
+            return Unauthorized(new ProblemDetails
+            {
+                Title = "Invalid access token",
+                Detail = "The source access token is missing, expired, or does not match the upload.",
+                Status = StatusCodes.Status401Unauthorized
+            });
+        }
+
+        return await DownloadSourceInternalAsync(uploadId, documentType, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -115,13 +181,17 @@ public sealed class ProcessorArtifactsController : ControllerBase
 
         blobPath = BuildBlobPath(uploadId, artifactType);
 
+        // Buffer the stream since IFormFile.OpenReadStream() is forward-only
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, ct).ConfigureAwait(false);
+        buffer.Position = 0;
+
         try
         {
-            await using var stream = file.OpenReadStream();
             await _blobStorageService.UploadAsync(
                 container,
                 blobPath,
-                stream,
+                buffer,
                 file.ContentType ?? "application/octet-stream",
                 ct).ConfigureAwait(false);
 
@@ -130,6 +200,13 @@ public sealed class ProcessorArtifactsController : ControllerBase
                 LogSanitizer.Sanitize(uploadId),
                 LogSanitizer.Sanitize(artifactType),
                 file.Length);
+
+            // Index search-chunks into Azure AI Search (fire-and-handle: indexing failure does not affect 202 response)
+            if (string.Equals(artifactType, "search-chunks", StringComparison.OrdinalIgnoreCase))
+            {
+                buffer.Position = 0;
+                await ProcessSearchChunksAsync(uploadId, container, blobPath, buffer, ct).ConfigureAwait(false);
+            }
         }
         catch (Exception ex)
         {
@@ -156,6 +233,223 @@ public sealed class ProcessorArtifactsController : ControllerBase
         };
 
         return Accepted(response);
+    }
+
+    private async Task ProcessSearchChunksAsync(
+        string uploadId,
+        string container,
+        string blobPath,
+        Stream buffer,
+        CancellationToken ct)
+    {
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+
+            var result = await _chunkIndexingService.IndexFromJsonlAsync(buffer, uploadId, ct).ConfigureAwait(false);
+
+            var expected = result.TotalParsed;
+            var indexed = result.Outcomes.Count(x => x.Succeeded);
+            var failed = result.Outcomes.Count(x => !x.Succeeded);
+
+            var artifactState = ComputeArtifactState(indexed, expected);
+
+            var job = await FindLatestSearchChunkJobAsync(uploadId, ct).ConfigureAwait(false);
+
+            if (job is null)
+            {
+                _logger.LogWarning(
+                    "No ingestion job found for uploadId {UploadId}. Skipping catalog write. Artifact is stored in blob.",
+                    LogSanitizer.Sanitize(uploadId));
+            }
+            else
+            {
+                var artifact = new IndexedArtifact
+                {
+                    IndexedArtifactId = Guid.NewGuid(),
+                    IngestionJobId = job.IngestionJobId,
+                    UploadId = uploadId,
+                    ArtifactType = "search-chunks",
+                    BlobContainer = container,
+                    BlobPath = blobPath,
+                    SourceFileName = null,
+                    State = artifactState,
+                    ExpectedChunkCount = expected,
+                    IndexedChunkCount = indexed,
+                    FailedChunkCount = failed,
+                    LastProcessedAtUtc = now,
+                    FailureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null,
+                    CreatedAtUtc = now
+                };
+
+                await _artifactRepository.UpsertAsync(artifact, ct).ConfigureAwait(false);
+
+                await _chunkRepository.DeleteByArtifactIdAsync(artifact.IndexedArtifactId, ct).ConfigureAwait(false);
+
+                var indexedChunks = ConvertToIndexedChunks(result.Outcomes, artifact.IndexedArtifactId, job.IngestionJobId, uploadId, now);
+                if (indexedChunks.Count > 0)
+                {
+                    await _chunkRepository.UpsertManyAsync(indexedChunks, ct).ConfigureAwait(false);
+                }
+
+                var failureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null;
+                var transitioned = await TryTransitionSearchChunkJobToTerminalAsync(
+                    job.IngestionJobId,
+                    MapArtifactStateToJobStatus(artifactState),
+                    expected,
+                    indexed,
+                    failureReason,
+                    ct).ConfigureAwait(false);
+
+                if (!transitioned)
+                {
+                    _logger.LogInformation(
+                        "Search chunk artifact for upload {UploadId} was indexed, but ingestion job {JobId} was not in an active transition state.",
+                        LogSanitizer.Sanitize(uploadId),
+                        job.IngestionJobId);
+                }
+            }
+
+            try
+            {
+                await _blobStorageService.SetMetadataAsync(
+                    container,
+                    blobPath,
+                    new Dictionary<string, string>
+                    {
+                        { "state", artifactState.ToString() },
+                        { "dateLastProcessed", now.UtcDateTime.ToString("O") }
+                    },
+                    ct).ConfigureAwait(false);
+            }
+            catch (Exception metadataEx)
+            {
+                _logger.LogError(
+                    metadataEx,
+                    "Best-effort blob metadata update failed for {UploadId}. Continuing.",
+                    LogSanitizer.Sanitize(uploadId));
+            }
+
+            _logger.LogInformation(
+                "Indexed {IndexedCount} of {ExpectedCount} chunks for upload {UploadId}. State={State}.",
+                indexed,
+                expected,
+                LogSanitizer.Sanitize(uploadId),
+                artifactState);
+        }
+        catch (Exception indexEx)
+        {
+            _logger.LogError(
+                indexEx,
+                "Chunk indexing into Azure AI Search failed for upload {UploadId}. Artifact is stored in blob.",
+                LogSanitizer.Sanitize(uploadId));
+        }
+    }
+
+    private async Task<IngestionJob?> FindLatestSearchChunkJobAsync(
+        string uploadId,
+        CancellationToken ct)
+    {
+        var candidates = new List<IngestionJob>();
+        var expectedTypes = new[]
+        {
+            IngestionJobType.PDFManual,
+            IngestionJobType.StructuredSpecification,
+            IngestionJobType.Batch
+        };
+
+        foreach (var inputType in expectedTypes)
+        {
+            var candidate = await _jobRepository.GetLatestByInputAsync(uploadId, inputType, ct).ConfigureAwait(false);
+            if (candidate is not null)
+            {
+                candidates.Add(candidate);
+            }
+        }
+
+        return candidates
+            .OrderByDescending(static job => job.CreatedAtUtc)
+            .FirstOrDefault();
+    }
+
+    private async Task<bool> TryTransitionSearchChunkJobToTerminalAsync(
+        Guid jobId,
+        IngestionJobStatus terminalStatus,
+        int expectedChunkCount,
+        int indexedChunkCount,
+        string? failureReason,
+        CancellationToken ct)
+    {
+        var activeStatuses = new[]
+        {
+            IngestionJobStatus.Indexing,
+            IngestionJobStatus.Processing,
+            IngestionJobStatus.Queued
+        };
+
+        foreach (var activeStatus in activeStatuses)
+        {
+            var transitioned = await _jobRepository.TryTransitionToTerminalAsync(
+                jobId,
+                activeStatus,
+                terminalStatus,
+                expectedChunkCount,
+                indexedChunkCount,
+                failureReason,
+                ct).ConfigureAwait(false);
+
+            if (transitioned)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IndexedArtifactState ComputeArtifactState(int indexed, int expected)
+    {
+        if (indexed == expected && expected > 0)
+            return IndexedArtifactState.Completed;
+        if (indexed > 0 && indexed < expected)
+            return IndexedArtifactState.PartiallyIndexed;
+        if (indexed == 0)
+            return IndexedArtifactState.Failed;
+        return IndexedArtifactState.Pending;
+    }
+
+    private static IngestionJobStatus MapArtifactStateToJobStatus(IndexedArtifactState state)
+    {
+        return state switch
+        {
+            IndexedArtifactState.Completed => IngestionJobStatus.Completed,
+            IndexedArtifactState.PartiallyIndexed => IngestionJobStatus.PartiallyCompleted,
+            IndexedArtifactState.Failed => IngestionJobStatus.Failed,
+            _ => IngestionJobStatus.Queued
+        };
+    }
+
+    private static IReadOnlyList<IndexedChunk> ConvertToIndexedChunks(
+        IReadOnlyList<ChunkIndexOutcome> outcomes,
+        Guid artifactId,
+        Guid jobId,
+        string uploadId,
+        DateTimeOffset now)
+    {
+        return outcomes.Select(outcome => new IndexedChunk
+        {
+            ChunkId = outcome.ChunkId,
+            IndexedArtifactId = artifactId,
+            IngestionJobId = jobId,
+            UploadId = uploadId,
+            SourceFileName = outcome.SourceFile,
+            PageNumber = outcome.PageNumber,
+            ChunkIndex = outcome.ChunkIndex,
+            Stage = "index",
+            Status = outcome.Succeeded ? ChunkIndexStatus.Complete : ChunkIndexStatus.Failed,
+            ProcessedAtUtc = now,
+            FailureReason = outcome.FailureReason
+        }).ToList();
     }
 
     /// <summary>
@@ -186,6 +480,88 @@ public sealed class ProcessorArtifactsController : ControllerBase
         return false;
     }
 
+    private async Task<IActionResult> DownloadSourceInternalAsync(
+        string uploadId,
+        string documentType,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(uploadId) || !Guid.TryParse(uploadId, out _))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid uploadId",
+                Detail = "uploadId must be a valid GUID format.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        if (!IsAllowedSourceDocumentType(documentType, out var contentType))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid documentType",
+                Detail = "documentType must be 'manual-pdf' or 'spec-dataset'.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var blobName = IngestionBlobPaths.BuildRawUploadBlobName(uploadId, documentType);
+        var container = _blobStorageOptions.RawUploadsContainer;
+
+        if (!await _blobStorageService.ExistsAsync(container, blobName, ct).ConfigureAwait(false))
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Source not found",
+                Detail = "The requested ingestion source could not be found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        try
+        {
+            var stream = await _blobStorageService.DownloadAsync(container, blobName, ct).ConfigureAwait(false);
+            _logger.LogInformation(
+                "Serving ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
+                LogSanitizer.Sanitize(uploadId),
+                LogSanitizer.Sanitize(documentType));
+            return File(stream, contentType);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to download ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
+                LogSanitizer.Sanitize(uploadId),
+                LogSanitizer.Sanitize(documentType));
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+            {
+                Title = "Source download failed",
+                Detail = "The ingestion source could not be downloaded.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
+    }
+
+    private static bool IsAllowedSourceDocumentType(string documentType, out string contentType)
+    {
+        contentType = string.Empty;
+        if (string.Equals(documentType, "manual-pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            contentType = "application/pdf";
+            return true;
+        }
+
+        if (string.Equals(documentType, "spec-dataset", StringComparison.OrdinalIgnoreCase))
+        {
+            contentType = "text/csv";
+            return true;
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// Builds the blob path based on artifact type and upload ID.
     /// </summary>
@@ -194,5 +570,93 @@ public sealed class ProcessorArtifactsController : ControllerBase
         return string.Equals(artifactType, "search-chunks", StringComparison.OrdinalIgnoreCase)
             ? $"{uploadId}/chunks.jsonl"
             : $"graph-entities/{uploadId}/entities.json";
+    }
+
+    /// <summary>
+    /// Report the current pipeline stage from the local processor.
+    /// The processor's job_id is matched to DocIngestionRunId on the IngestionJob.
+    /// Route: PATCH /api/ingestion/jobs/by-run/{runId}/status
+    /// </summary>
+    [HttpPatch("jobs/by-run/{runId}/status")]
+    [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReportJobStageByRunIdAsync(
+        string runId,
+        [FromBody] IngestionJobStageRequest? request,
+        CancellationToken ct)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Stage))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid request",
+                Detail = "Stage is required.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(runId))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid runId",
+                Detail = "runId is required.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var job = await _jobRepository.GetByDocIngestionRunIdAsync(runId, ct).ConfigureAwait(false);
+        if (job is null)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Ingestion job not found",
+                Detail = $"No ingestion job found for processor job '{runId}'.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        var result = await _ingestionJobService.TransitionStageAsync(job.IngestionJobId, request, ct).ConfigureAwait(false);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Report the current pipeline stage from the local processor.
+    /// Route: PATCH /api/ingestion/jobs/{jobId}/status
+    /// </summary>
+    [HttpPatch("jobs/{jobId:guid}/status")]
+    [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReportJobStageAsync(
+        Guid jobId,
+        [FromBody] IngestionJobStageRequest? request,
+        CancellationToken ct)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Stage))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Invalid request",
+                Detail = "Stage is required.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        try
+        {
+            var result = await _ingestionJobService.TransitionStageAsync(jobId, request, ct).ConfigureAwait(false);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not found"))
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Ingestion job not found",
+                Detail = ex.Message,
+                Status = StatusCodes.Status404NotFound
+            });
+        }
     }
 }

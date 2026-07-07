@@ -3,12 +3,34 @@
 import asyncio
 import logging
 import os
+import time
 
 import ollama
 
 logger = logging.getLogger(__name__)
 
 _MAX_RETRIES = 3
+_DEFAULT_REQUEST_TIMEOUT_SECONDS = 120.0
+_DEFAULT_HEALTH_TIMEOUT_SECONDS = 10.0
+_HEALTH_CACHE_TTL_SECONDS = 60.0
+
+
+def _get_positive_float_env(name: str, default_value: float) -> float:
+    raw_value = os.getenv(name, "").strip()
+    if not raw_value:
+        return default_value
+
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning("Invalid %s value; using default.", name)
+        return default_value
+
+    if value <= 0:
+        logger.warning("Non-positive %s value; using default.", name)
+        return default_value
+
+    return value
 
 
 class OllamaEmbedder:
@@ -36,7 +58,17 @@ class OllamaEmbedder:
         )
         dims_env = os.getenv("OLLAMA_EMBEDDING_DIMS")
         self._dims: int | None = int(dims_env) if dims_env else None
+        self._request_timeout_seconds = _get_positive_float_env(
+            "EMBEDDING_REQUEST_TIMEOUT_SECONDS",
+            _DEFAULT_REQUEST_TIMEOUT_SECONDS,
+        )
+        self._health_timeout_seconds = _get_positive_float_env(
+            "EMBEDDING_HEALTH_TIMEOUT_SECONDS",
+            _DEFAULT_HEALTH_TIMEOUT_SECONDS,
+        )
         self._client: ollama.AsyncClient = ollama.AsyncClient(host=self._host)
+        self._last_health_status: str | None = None
+        self._last_health_time: float = 0.0
 
     # ------------------------------------------------------------------
     # Public API
@@ -52,9 +84,12 @@ class OllamaEmbedder:
 
         for attempt in range(_MAX_RETRIES):
             try:
-                response = await self._client.embed(
-                    model=self._model,
-                    input=text,
+                response = await asyncio.wait_for(
+                    self._client.embed(
+                        model=self._model,
+                        input=text,
+                    ),
+                    timeout=self._request_timeout_seconds,
                 )
 
                 vector: list[float] = list(response.embeddings[0])
@@ -93,14 +128,28 @@ class OllamaEmbedder:
     async def check_ollama_status(self) -> str:
         """Return ``'connected'`` if the Ollama server is reachable, else ``'disconnected'``.
 
+        Results are cached for up to 60 seconds.  During startup (first call)
+        the server may not have loaded the model yet; once ``connected`` the
+        cached value is returned without additional network calls.
+
         This method **never** raises – it is safe to call from health-check
         endpoints.
         """
+        now = time.monotonic()
+        if self._last_health_status is not None and (now - self._last_health_time) < _HEALTH_CACHE_TTL_SECONDS:
+            return self._last_health_status
+
         try:
-            await self._client.list()
-            return "connected"
+            await asyncio.wait_for(
+                self._client.list(),
+                timeout=self._health_timeout_seconds,
+            )
+            self._last_health_status = "connected"
         except Exception:
-            return "disconnected"
+            self._last_health_status = "disconnected"
+
+        self._last_health_time = now
+        return self._last_health_status
 
     async def check_status(self) -> str:
         return await self.check_ollama_status()

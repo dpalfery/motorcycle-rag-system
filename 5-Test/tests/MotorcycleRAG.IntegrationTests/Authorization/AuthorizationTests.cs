@@ -24,7 +24,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
     public async Task MotorcycleController_QueryEndpoint_RequiresAuthentication()
     {
         // Arrange
-        var client = _factory.CreateClient();
+        using var client = _factory.CreateClient();
 
         var request = new
         {
@@ -42,7 +42,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
     public async Task DataPipelineController_UploadEndpoint_RequiresAdminRole()
     {
         // Arrange
-        var client = _factory.WithWebHostBuilder(builder =>
+        using var client = _factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -62,7 +62,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
     public async Task MotorcycleController_HealthEndpoint_RequiresAuthentication()
     {
         // Arrange
-        var client = _factory.CreateClient();
+        using var client = _factory.CreateClient();
 
         // Act
         var response = await client.GetAsync("/api/motorcycles/health");
@@ -75,7 +75,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
     public async Task DataPipelineController_StatusEndpoint_RequiresAdminRole()
     {
         // Arrange
-        var client = _factory.CreateClient();
+        using var client = _factory.CreateClient();
 
         // Act
         var response = await client.GetAsync("/api/datapipeline/status/invalid-id");
@@ -88,7 +88,7 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
     public async Task WebSourcesController_GetAll_WithAdminRole_ReturnsSuccess()
     {
         // Arrange
-        var client = _factory.CreateAdminClient();
+        using var client = _factory.CreateAdminClient();
 
         // Act
         var response = await client.GetAsync("/api/admin/web-sources");

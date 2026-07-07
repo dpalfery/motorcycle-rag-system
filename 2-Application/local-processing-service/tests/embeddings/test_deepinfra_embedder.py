@@ -18,7 +18,7 @@ class TestDeepInfraEmbedderInstantiation:
             DeepInfraEmbedder()
 
     def test_instantiates_with_api_key(self, monkeypatch):
-        """Instantiation with DEEPINFRA_API_KEY set succeeds and dims == 3584."""
+        """Instantiation with DEEPINFRA_API_KEY set succeeds and dims is None by default."""
         monkeypatch.setenv("DEEPINFRA_API_KEY", "test-key")
 
         with patch("embeddings.deepinfra_embedder.openai.AsyncOpenAI"):
@@ -29,7 +29,7 @@ class TestDeepInfraEmbedderInstantiation:
 
             embedder = mod.DeepInfraEmbedder()
 
-        assert embedder._dims == 3584
+        assert embedder._dims is None
 
 
 class TestDeepInfraEmbedderGenerateEmbedding:
@@ -69,6 +69,7 @@ class TestDeepInfraEmbedderGenerateEmbedding:
     async def test_raises_on_wrong_dimensions(self, monkeypatch):
         """generate_embedding raises ValueError when API returns wrong number of dims."""
         monkeypatch.setenv("DEEPINFRA_API_KEY", "test-key")
+        monkeypatch.setenv("DEEPINFRA_EMBEDDING_DIMS", "3584")
 
         mock_client = MagicMock()
         mock_client.embeddings.create = AsyncMock(

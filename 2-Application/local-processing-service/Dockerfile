@@ -20,7 +20,9 @@ WORKDIR /app
 # Install Python dependencies via Poetry
 RUN pip install poetry
 COPY pyproject.toml poetry.lock* ./
-RUN poetry config virtualenvs.create false && poetry install --no-dev --no-interaction
+RUN poetry config virtualenvs.create false \
+    && poetry install --only main --no-interaction --no-root \
+    && python -c "from docling.chunking import HybridChunker; print('Docling chunking import verified')"
 
 # Copy application code
 COPY . .

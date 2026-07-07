@@ -32,6 +32,57 @@ def test_defaults_to_api_dev_https_port(monkeypatch):
     assert client._base_url == "https://localhost:7215"
 
 
+def test_sets_api_base_url_even_when_upload_secret_missing(monkeypatch):
+    monkeypatch.setenv("MCR_API_BASE_URL", "https://localhost:7215")
+
+    client = ApiClient()
+
+    assert client.is_configured() is False
+    assert client._base_url == "https://localhost:7215"
+
+
+async def test_upload_artifact_raises_when_upload_secret_missing(monkeypatch):
+    monkeypatch.setenv("MCR_API_BASE_URL", "https://localhost:7215")
+
+    client = ApiClient()
+
+    with pytest.raises(RuntimeError, match="PYTHON_UPLOAD_JOB_SECRET"):
+        await client.upload_artifact(
+            b"{}",
+            "upload-1",
+            "graph-entities",
+            "application/json",
+        )
+
+
+async def test_download_source_with_access_token_works_without_upload_secret(monkeypatch):
+    monkeypatch.setenv("MCR_API_BASE_URL", "https://localhost:7215")
+
+    client = ApiClient()
+
+    class OkAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url):
+            assert "accessToken=token-123" in url
+            response = httpx.Response(200, content=b"%PDF-1.4")
+            response.request = httpx.Request("GET", url)
+            return response
+
+    with patch("api.api_client.httpx.AsyncClient", return_value=OkAsyncClient()):
+        content = await client.download_source(
+            "upload-1",
+            "manual-pdf",
+            access_token="token-123",
+        )
+
+    assert content == b"%PDF-1.4"
+
+
 async def test_upload_artifact_logs_exception_details_for_blank_transport_errors(
     monkeypatch, caplog
 ):

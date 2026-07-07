@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Application.Caching;
 using MotorcycleRAG.Application.Services.Citations;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;

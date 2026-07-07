@@ -58,7 +58,8 @@
       "Skill(delegate-dotnet)",
       "Skill(delegate-dotnet:*)",
       "Skill(code-review:*)",
-      "Skill(dp-code-reviewer)"
+      "Skill(dp-code-reviewer)",
+      "mcp__visualize__read_me"
     ],
     "deny": [
       "Bash(git commit :*)",

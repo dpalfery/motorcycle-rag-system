@@ -5,10 +5,12 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
+import signal
 import sys
 import logging
 import logging.handlers
 import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -22,6 +24,10 @@ def _configure_logging() -> None:
     """
     log_dir = os.getenv("LOCAL_PROCESSOR_LOG_DIR", "./logs")
     os.makedirs(log_dir, exist_ok=True)
+    log_level_name = os.getenv("LOCAL_PROCESSOR_LOG_LEVEL", "INFO").strip().upper()
+    if log_level_name == "TRACE":
+        log_level_name = "DEBUG"
+    log_level = getattr(logging, log_level_name, logging.INFO)
 
     fmt = logging.Formatter("%(asctime)s %(levelname)-8s %(name)s — %(message)s")
 
@@ -37,7 +43,13 @@ def _configure_logging() -> None:
     file_handler.setFormatter(fmt)
 
     root = logging.getLogger()
-    root.setLevel(logging.INFO)
+    root.setLevel(log_level)
+    for handler in list(root.handlers):
+        if getattr(handler, "_local_processor_handler", False):
+            root.removeHandler(handler)
+            handler.close()
+    console_handler._local_processor_handler = True
+    file_handler._local_processor_handler = True
     root.addHandler(console_handler)
     root.addHandler(file_handler)
 
@@ -54,6 +66,7 @@ from processors.csv_processor import CSVProcessor
 from processors.bike_graph_processor import BikeGraphProcessor
 from embeddings.embedder_factory import get_embedder
 from embeddings.model_discovery import ModelDiscoveryError, discover_embedding_models
+from embeddings.tokenizer_provider import describe_chunker_tokenizer
 from extraction.graph_extractor import GraphExtractor
 from storage.blob_writer import BlobWriter
 from api.api_client import ApiClient
@@ -63,13 +76,24 @@ from models.schemas import (
     ProcessBikeGraphRequest,
     ProcessingStatusResponse,
 )
-from security.path_validation import resolve_local_csv_path
+from security.path_validation import resolve_local_csv_path, resolve_local_pdf_path
+from watch_folder import WatchFolderWorker, get_watch_folder_from_env
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await _start_watch_folder_worker()
+    try:
+        yield
+    finally:
+        await _stop_watch_folder_worker()
+
 
 # Initialize FastAPI app
 app = FastAPI(
     title="Motorcycle RAG Local Processing Service",
     description="Local processing service using Docling and Ollama for motorcycle information retrieval",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -97,7 +121,28 @@ bike_graph_processor = BikeGraphProcessor(blob_writer=blob_writer, api_client=ap
 
 shutdown_requested = False
 uvicorn_server: uvicorn.Server | None = None
+watch_folder_worker: WatchFolderWorker | None = None
 _ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
+_last_health_log_signature: tuple | None = None
+
+
+async def _start_watch_folder_worker() -> None:
+    global watch_folder_worker
+    if os.getenv("WATCH_FOLDER_DISABLED", "").strip().lower() in {"1", "true", "yes"}:
+        logger.info("Watch-folder worker disabled by WATCH_FOLDER_DISABLED.")
+        return
+
+    watch_folder_worker = WatchFolderWorker(
+        get_watch_folder_from_env(),
+        pdf_processor,
+        csv_processor,
+    )
+    watch_folder_worker.start()
+
+
+async def _stop_watch_folder_worker() -> None:
+    if watch_folder_worker is not None:
+        await watch_folder_worker.stop()
 
 
 async def _list_all_jobs() -> list[dict]:
@@ -120,11 +165,236 @@ async def _count_active_jobs() -> int:
 
 async def _wait_for_graceful_shutdown() -> None:
     global uvicorn_server
+    deadline = asyncio.get_running_loop().time() + 30
     while await _count_active_jobs() > 0:
+        if asyncio.get_running_loop().time() >= deadline:
+            logger.warning(
+                "Shutdown deadline reached with active jobs still present — forcing exit."
+            )
+            break
         await asyncio.sleep(1)
 
     if uvicorn_server is not None:
         uvicorn_server.should_exit = True
+        return
+
+    logger.info("Stopping local processor process.")
+    os.kill(os.getpid(), signal.SIGTERM)
+
+
+def _build_health_response(
+    *,
+    embedding_provider_status: str,
+    active_jobs: int,
+) -> JSONResponse:
+    global _last_health_log_signature
+    blob_storage_connected = blob_writer.is_connected()
+    api_client_configured = api_client.is_configured()
+    embedding_endpoint = (
+        getattr(embedder, "_endpoint", None)
+        or getattr(embedder, "_host", None)
+        or getattr(embedder, "_base_url", None)
+    )
+    embedding_model = getattr(embedder, "_model", None)
+    tokenizer_config = describe_chunker_tokenizer()
+    embedding_config = {
+        "embedding_endpoint": embedding_endpoint,
+        "embedding_model": embedding_model,
+        **tokenizer_config,
+    }
+
+    tokenizer_configured = tokenizer_config.get("tokenizer_status") == "configured"
+    if embedding_provider_status != "connected" or not blob_storage_connected:
+        message = (
+            "Blob storage is not configured. Set AZURE_STORAGE_ACCOUNT_URL before submitting work."
+            if not blob_storage_connected
+            else (
+                "Embedding provider unavailable. Start an embedding provider "
+                "before submitting work."
+            )
+        )
+        status_code = 503
+        status = "unhealthy"
+        signature = (
+            status,
+            embedding_provider_status,
+            blob_storage_connected,
+            tokenizer_config.get("tokenizer_status"),
+            active_jobs,
+            shutdown_requested,
+        )
+        if signature != _last_health_log_signature:
+            _last_health_log_signature = signature
+            logger.info(
+                "Processor health changed status=%s accepting_work=%s embedding_provider=%s "
+                "embedding_model=%s tokenizer_status=%s blob_storage=%s api_client_configured=%s active_jobs=%d",
+                status,
+                False,
+                embedding_provider_status,
+                embedding_model,
+                tokenizer_config.get("tokenizer_status"),
+                blob_storage_connected,
+                api_client_configured,
+                active_jobs,
+            )
+        return JSONResponse(
+            content={
+                "status": status,
+                "accepting_work": False,
+                "shutdown_requested": shutdown_requested,
+                "active_jobs": active_jobs,
+                "message": message,
+                "api_client_configured": api_client_configured,
+                "services": {
+                    "embedding_provider": embedding_provider_status,
+                    **embedding_config,
+                    "blob_storage": blob_storage_connected,
+                    "service_uptime": "running",
+                },
+            },
+            status_code=status_code,
+        )
+
+    if not api_client_configured:
+        status = "unhealthy"
+        accepting_work = False
+        signature = (
+            status,
+            embedding_provider_status,
+            blob_storage_connected,
+            api_client_configured,
+            tokenizer_config.get("tokenizer_status"),
+            active_jobs,
+            shutdown_requested,
+        )
+        if signature != _last_health_log_signature:
+            _last_health_log_signature = signature
+            logger.info(
+                "Processor health changed status=%s accepting_work=%s embedding_provider=%s "
+                "embedding_model=%s tokenizer_status=%s blob_storage=%s api_client_configured=%s active_jobs=%d",
+                status,
+                accepting_work,
+                embedding_provider_status,
+                embedding_model,
+                tokenizer_config.get("tokenizer_status"),
+                blob_storage_connected,
+                api_client_configured,
+                active_jobs,
+            )
+        return JSONResponse(
+            content={
+                "status": status,
+                "accepting_work": accepting_work,
+                "shutdown_requested": shutdown_requested,
+                "active_jobs": active_jobs,
+                "message": (
+                    "Artifact upload is not configured. Set PYTHON_UPLOAD_JOB_SECRET "
+                    "before submitting work."
+                ),
+                "api_client_configured": api_client_configured,
+                "services": {
+                    "embedding_provider": embedding_provider_status,
+                    **embedding_config,
+                    "blob_storage": blob_storage_connected,
+                    "service_uptime": "running",
+                },
+            },
+            status_code=503,
+        )
+
+    if not tokenizer_configured:
+        # Tokenizer is required for PDF ingestion but not for CSV or bike-graph
+        # processing. Return a degraded 200 so CSV-only operators are not blocked.
+        status = "degraded"
+        accepting_work = not shutdown_requested
+        signature = (
+            status,
+            embedding_provider_status,
+            blob_storage_connected,
+            tokenizer_config.get("tokenizer_status"),
+            active_jobs,
+            shutdown_requested,
+        )
+        if signature != _last_health_log_signature:
+            _last_health_log_signature = signature
+            logger.info(
+                "Processor health changed status=%s accepting_work=%s embedding_provider=%s "
+                "embedding_model=%s tokenizer_status=%s blob_storage=%s api_client_configured=%s active_jobs=%d",
+                status,
+                accepting_work,
+                embedding_provider_status,
+                embedding_model,
+                tokenizer_config.get("tokenizer_status"),
+                blob_storage_connected,
+                api_client_configured,
+                active_jobs,
+            )
+        return JSONResponse(
+            content={
+                "status": status,
+                "accepting_work": accepting_work,
+                "shutdown_requested": shutdown_requested,
+                "active_jobs": active_jobs,
+                "message": (
+                    "Tokenizer is not configured — PDF ingestion will fail. "
+                    "Set TOKENIZER_MODEL_PATH or LM_STUDIO_MODELS_DIR."
+                ),
+                "api_client_configured": api_client_configured,
+                "services": {
+                    "embedding_provider": embedding_provider_status,
+                    **embedding_config,
+                    "blob_storage": blob_storage_connected,
+                    "service_uptime": "running",
+                },
+            },
+            status_code=200,
+        )
+
+    status = "healthy"
+    accepting_work = not shutdown_requested
+    signature = (
+        status,
+        embedding_provider_status,
+        blob_storage_connected,
+        tokenizer_config.get("tokenizer_status"),
+        active_jobs,
+        shutdown_requested,
+    )
+    if signature != _last_health_log_signature:
+        _last_health_log_signature = signature
+        logger.info(
+            "Processor health changed status=%s accepting_work=%s embedding_provider=%s "
+            "embedding_model=%s tokenizer_status=%s blob_storage=%s api_client_configured=%s active_jobs=%d",
+            status,
+            accepting_work,
+            embedding_provider_status,
+            embedding_model,
+            tokenizer_config.get("tokenizer_status"),
+            blob_storage_connected,
+            api_client_configured,
+            active_jobs,
+        )
+    return JSONResponse(
+        content={
+            "status": status,
+            "accepting_work": accepting_work,
+            "shutdown_requested": shutdown_requested,
+            "active_jobs": active_jobs,
+            "message": (
+                "Shutdown requested - waiting for active jobs to finish"
+                if shutdown_requested
+                else "Processor ready"
+            ),
+            "api_client_configured": api_client_configured,
+            "services": {
+                "embedding_provider": embedding_provider_status,
+                **embedding_config,
+                "blob_storage": blob_storage_connected,
+                "service_uptime": "running",
+            },
+        },
+        status_code=200,
+    )
 
 
 # Health check endpoint
@@ -132,28 +402,12 @@ async def _wait_for_graceful_shutdown() -> None:
 async def health_check():
     """Check service health and dependencies"""
     try:
+        logger.debug("Health check requested")
         embedding_provider_status = await embedder.check_status()
-
         active_jobs = await _count_active_jobs()
-        return JSONResponse(
-            content={
-                "status": "healthy",
-                "accepting_work": not shutdown_requested,
-                "shutdown_requested": shutdown_requested,
-                "active_jobs": active_jobs,
-                "message": (
-                    "Shutdown requested - waiting for active jobs to finish"
-                    if shutdown_requested
-                    else "Processor ready"
-                ),
-                "api_client_configured": api_client.is_configured(),
-                "services": {
-                    "embedding_provider": embedding_provider_status,
-                    "blob_storage": blob_writer.is_connected(),
-                    "service_uptime": "running",
-                },
-            },
-            status_code=200,
+        return _build_health_response(
+            embedding_provider_status=embedding_provider_status,
+            active_jobs=active_jobs,
         )
     except Exception as e:
         logger.exception("Health check failed")
@@ -180,7 +434,14 @@ async def list_embedding_models(
 ):
     """Probe an embedding provider endpoint and return its available models."""
     try:
+        logger.info("Embedding model discovery requested endpoint=%s", endpoint)
         discovery = await discover_embedding_models(endpoint)
+        logger.info(
+            "Embedding model discovery completed provider=%s endpoint=%s model_count=%d",
+            discovery.provider,
+            discovery.endpoint,
+            len(discovery.models),
+        )
         return JSONResponse(
             content={
                 "provider": discovery.provider,
@@ -201,6 +462,14 @@ async def list_embedding_models(
 async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTasks):
     """Process a PDF document from Azure Blob Storage"""
     try:
+        logger.info(
+            "PDF processing request received upload_id=%s document_type=%s blob_container=%s has_source_access_token=%s has_local_file=%s",
+            request.upload_id,
+            request.document_type,
+            request.blob_container,
+            bool(request.source_access_token),
+            bool(request.local_file_path),
+        )
         if shutdown_requested:
             raise HTTPException(
                 status_code=409,
@@ -211,8 +480,20 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
             raise HTTPException(status_code=400, detail="upload_id is required")
         if not request.document_type:
             raise HTTPException(status_code=400, detail="document_type is required")
-        if not request.blob_container:
+        local_file_path = None
+        if request.local_file_path:
+            local_file_path = str(resolve_local_pdf_path(request.local_file_path))
+        elif not request.blob_container:
             raise HTTPException(status_code=400, detail="blob_container is required")
+
+        if not local_file_path and not request.source_access_token:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "source_access_token is required. Restart the MotorcycleRAG API and "
+                    "local processor, then retry ingestion."
+                ),
+            )
 
         # Start background processing
         job_id = await pdf_processor.process_pdf_async(
@@ -220,6 +501,14 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
             document_type=request.document_type,
             blob_container=request.blob_container,
             metadata=request.metadata,
+            source_access_token=request.source_access_token,
+            local_file_path=local_file_path,
+        )
+        logger.info(
+            "PDF processing job accepted job_id=%s upload_id=%s document_type=%s",
+            job_id,
+            request.upload_id,
+            request.document_type,
         )
 
         return ProcessingStatusResponse(
@@ -362,6 +651,26 @@ async def get_job_status(job_id: str):
         raise
     except Exception as e:
         logger.exception("Unexpected error in /jobs/{job_id}")
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred"
+        )
+
+
+@app.post("/jobs/{job_id}/stop")
+async def stop_job(job_id: str):
+    """Cancel a single processing job without stopping the processor process."""
+    try:
+        for active_processor in (pdf_processor, csv_processor, bike_graph_processor):
+            status = await active_processor.stop_job(job_id)
+            if status:
+                return status
+
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Unexpected error in /jobs/{job_id}/stop")
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred"
         )

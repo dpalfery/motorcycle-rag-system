@@ -1,0 +1,58 @@
+using MotorcycleRAG.Contracts.Models.DTOs;
+
+
+namespace MotorcycleRAG.Contracts.Interfaces;
+
+/// <summary>
+/// Interface for caching motorcycle query results to improve performance and reduce costs.
+/// </summary>
+public interface IQueryCacheService {
+    /// <summary>
+    /// Gets a cached query response if available.
+    /// </summary>
+    /// <param name="queryKey">The cache key for the query</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Cached response or null if not found</returns>
+    Task<MotorcycleQueryResponse?> GetAsync(string queryKey);
+    Task<MotorcycleQueryResponse?> GetAsync(string queryKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stores a query response in the cache.
+    /// </summary>
+    /// <param name="queryKey">The cache key for the query</param>
+    /// <param name="response">The response to cache</param>
+    /// <param name="expiration">Cache expiration time</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration);
+    Task SetAsync(string queryKey, MotorcycleQueryResponse response, TimeSpan expiration, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Removes a cached query response.
+    /// </summary>
+    /// <param name="queryKey">The cache key to remove</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task RemoveAsync(string queryKey);
+    Task RemoveAsync(string queryKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Generates a cache key for a query request.
+    /// </summary>
+    /// <param name="request">The query request</param>
+    /// <returns>A unique cache key</returns>
+    string GenerateCacheKey(MotorcycleQueryRequest request);
+
+    /// <summary>
+    /// Clears all cached entries.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task ClearAsync();
+    Task ClearAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Gets cache statistics.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Cache statistics</returns>
+    Task<CacheStatistics> GetStatisticsAsync();
+    Task<CacheStatistics> GetStatisticsAsync(CancellationToken cancellationToken);
+}

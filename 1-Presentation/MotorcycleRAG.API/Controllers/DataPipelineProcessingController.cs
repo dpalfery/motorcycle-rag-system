@@ -52,6 +52,11 @@ public sealed class DataPipelineProcessingController : ControllerBase
             });
         }
 
+        if (LegacyPdfIngestionGuard.IsLegacyPdfRequest(request))
+        {
+            return BadRequest(LegacyPdfIngestionGuard.CreateProblemDetails());
+        }
+
         try
         {
             var result = await _orchestrator.ProcessFileAsync(request, HttpContext.RequestAborted);

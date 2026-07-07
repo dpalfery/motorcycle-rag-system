@@ -12,14 +12,18 @@ internal static class AppConfigurationExtensions {
         var appConfigConnectionString = builder.Configuration["AppConfig:ConnectionString"];
         var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
 
-        if (!string.IsNullOrEmpty(appConfigConnectionString) || !string.IsNullOrEmpty(appConfigEndpoint)) {
-            TokenCredential credential = builder.Environment.IsDevelopment()
-                ? new DefaultAzureCredential()
-                : new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
+        if (builder.Environment.IsDevelopment()) {
+            if (!string.IsNullOrEmpty(appConfigConnectionString) || !string.IsNullOrEmpty(appConfigEndpoint)) {
+                Console.WriteLine("Azure App Configuration skipped in Development. Using the local .NET configuration sources only.");
+            }
 
-            if (string.IsNullOrEmpty(appConfigConnectionString) &&
-                !string.IsNullOrEmpty(appConfigEndpoint) &&
-                !builder.Environment.IsDevelopment()) {
+            return builder;
+        }
+
+        if (!string.IsNullOrEmpty(appConfigConnectionString) || !string.IsNullOrEmpty(appConfigEndpoint)) {
+            TokenCredential credential = new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
+
+            if (string.IsNullOrEmpty(appConfigConnectionString) && !string.IsNullOrEmpty(appConfigEndpoint)) {
                 PreWarmManagedIdentityTokenAsync(credential).GetAwaiter().GetResult();
                 EnsureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
             }

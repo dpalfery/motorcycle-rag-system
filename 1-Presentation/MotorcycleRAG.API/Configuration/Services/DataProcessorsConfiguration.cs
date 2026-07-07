@@ -17,7 +17,14 @@ internal static class DataProcessorsConfiguration
     {
         // Register data processor implementations from Persistence layer
         services.AddScoped<IDataProcessor<CSVFile>, MotorcycleRAG.Persistence.DataProcessing.MotorcycleCsvProcessor>();
-        services.AddScoped<IDataProcessor<PDFDocument>, MotorcycleRAG.Persistence.DataProcessing.MotorcyclePdfProcessor>();
+        if (Uri.TryCreate(configuration["AzureAI:DocumentIntelligenceEndpoint"], UriKind.Absolute, out _))
+        {
+            services.AddScoped<IDataProcessor<PDFDocument>, MotorcycleRAG.Persistence.DataProcessing.MotorcyclePdfProcessor>();
+        }
+        else
+        {
+            services.AddScoped<IDataProcessor<PDFDocument>, MotorcycleRAG.Persistence.DataProcessing.DisabledPdfProcessor>();
+        }
 
         return services;
     }

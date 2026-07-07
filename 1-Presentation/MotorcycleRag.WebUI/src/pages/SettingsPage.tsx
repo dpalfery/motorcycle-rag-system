@@ -1,6 +1,6 @@
 
-import { useState } from 'react';
-import { Upload, File, Trash2, CheckCircle, Clock } from 'lucide-react';
+import { useState, type DragEvent } from 'react';
+import { Upload, File as FileIcon, Trash2, CheckCircle, Clock } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface FileUpload {
@@ -10,6 +10,67 @@ interface FileUpload {
     status: 'indexed' | 'processing' | 'error';
     date: string;
     size: string;
+    errorMessage?: string;
+}
+
+interface IngestionUploadResponse {
+    uploadId: string;
+    fileName: string;
+    documentType: string;
+    status: string;
+}
+
+interface ProblemDetails {
+    title?: string;
+    detail?: string;
+    traceId?: string;
+    referenceId?: string;
+    extensions?: {
+        traceId?: string;
+        referenceId?: string;
+    };
+}
+
+function getDocumentType(file: File) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.pdf')) return 'manual-pdf';
+    if (name.endsWith('.csv')) return 'spec-dataset';
+    throw new Error('Only PDF manuals and CSV specification files are supported.');
+}
+
+function getStartConfiguration(documentType: string) {
+    return documentType === 'manual-pdf'
+        ? {
+            extractGraphRelationships: true,
+            ocrEnabled: true,
+        }
+        : undefined;
+}
+
+function formatProblemDetails(problem: ProblemDetails | undefined, fallback: string) {
+    const message = problem?.detail ?? problem?.title ?? fallback;
+    const traceId = problem?.traceId ?? problem?.extensions?.traceId;
+    const referenceId = problem?.referenceId ?? problem?.extensions?.referenceId;
+    const suffixParts = [
+        traceId ? `trace: ${traceId}` : null,
+        referenceId ? `reference: ${referenceId}` : null,
+    ].filter(Boolean);
+
+    return suffixParts.length > 0
+        ? `${message} (${suffixParts.join(', ')})`
+        : message;
+}
+
+async function readProblem(response: Response) {
+    try {
+        return await response.json() as ProblemDetails;
+    } catch {
+        return undefined;
+    }
+}
+
+function uploadStepError(step: string, error: unknown) {
+    return new Error(`${step}: ${error instanceof Error ? error.message : String(error)}`);
 }
 
 export default function SettingsPage() {
@@ -19,7 +80,7 @@ export default function SettingsPage() {
     ]);
     const [dragActive, setDragActive] = useState(false);
 
-    const handleDrag = (e: React.DragEvent) => {
+    const handleDrag = (e: DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
         if (e.type === "dragenter" || e.type === "dragover") {
@@ -29,12 +90,28 @@ export default function SettingsPage() {
         }
     };
 
-    const handleDrop = async (e: React.DragEvent) => {
+    const handleDrop = async (e: DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
         setDragActive(false);
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             const file = e.dataTransfer.files[0];
+            let documentType: string;
+            try {
+                documentType = getDocumentType(file);
+            } catch (error) {
+                const tempId = Date.now().toString();
+                setUploads(prev => [{
+                    id: tempId,
+                    name: file.name,
+                    type: file.name.toLowerCase().endsWith('.csv') ? 'CSV' : 'PDF',
+                    status: 'error',
+                    date: new Date().toISOString().split('T')[0],
+                    size: (file.size / 1024 / 1024).toFixed(1) + ' MB',
+                    errorMessage: error instanceof Error ? error.message : String(error),
+                }, ...prev]);
+                return;
+            }
             const formData = new FormData();
             formData.append('file', file);
 
@@ -51,23 +128,57 @@ export default function SettingsPage() {
             setUploads(prev => [optimisticFile, ...prev]);
 
             try {
-                const response = await fetch('/api/datapipeline/upload?processImmediately=true', {
+                const uploadResponse = await fetch(`/api/ingestion/jobs/upload?documentType=${encodeURIComponent(documentType)}`, {
                     method: 'POST',
                     body: formData,
                 });
 
-                if (!response.ok) throw new Error('Upload failed');
+                if (!uploadResponse.ok) {
+                    throw uploadStepError(
+                        `Upload failed while storing the ${documentType === 'manual-pdf' ? 'PDF manual' : 'CSV specification'} source`,
+                        formatProblemDetails(
+                            await readProblem(uploadResponse),
+                            'The source file could not be uploaded.'
+                        )
+                    );
+                }
 
-                await response.json();
+                const uploadResult = await uploadResponse.json() as IngestionUploadResponse;
+                const startResponse = await fetch('/api/ingestion/jobs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        uploadId: uploadResult.uploadId,
+                        documentType: uploadResult.documentType || documentType,
+                        configuration: getStartConfiguration(documentType),
+                    }),
+                });
 
-                // Update status to indexed if successful
+                if (!startResponse.ok) {
+                    throw uploadStepError(
+                        `Source upload succeeded, but starting ${documentType === 'manual-pdf' ? 'PDF manual' : 'CSV specification'} processing failed`,
+                        formatProblemDetails(
+                            await readProblem(startResponse),
+                            'The ingestion job could not be started.'
+                        )
+                    );
+                }
+
                 setUploads(prev => prev.map(u =>
-                    u.id === tempId ? { ...u, status: 'indexed' } : u
+                    u.id === tempId ? { ...u, status: 'processing' } : u
                 ));
             } catch (error) {
                 console.error('Upload error:', error);
                 setUploads(prev => prev.map(u =>
-                    u.id === tempId ? { ...u, status: 'error' } : u
+                    u.id === tempId
+                        ? {
+                            ...u,
+                            status: 'error',
+                            errorMessage: error instanceof Error ? error.message : String(error),
+                        }
+                        : u
                 ));
             }
         }
@@ -134,7 +245,7 @@ export default function SettingsPage() {
                                     {uploads.map((file) => (
                                         <tr key={file.id} className="hover:bg-white/5 transition-colors">
                                             <td className="px-6 py-4 flex items-center gap-3">
-                                                <File className="w-4 h-4 text-gray-500" />
+                                                <FileIcon className="w-4 h-4 text-gray-500" />
                                                 <span className="font-medium text-gray-200">{file.name}</span>
                                             </td>
                                             <td className="px-6 py-4">
@@ -153,6 +264,14 @@ export default function SettingsPage() {
                                                 {file.status === 'processing' && (
                                                     <span className="flex items-center gap-1.5 text-orange-500 text-xs font-medium px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 w-fit">
                                                         <Clock className="w-3 h-3 animate-pulse" /> Processing
+                                                    </span>
+                                                )}
+                                                {file.status === 'error' && (
+                                                    <span
+                                                        className="flex items-center gap-1.5 text-red-400 text-xs font-medium px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 w-fit"
+                                                        title={file.errorMessage}
+                                                    >
+                                                        Error
                                                     </span>
                                                 )}
                                             </td>

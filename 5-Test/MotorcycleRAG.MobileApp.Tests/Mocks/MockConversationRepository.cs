@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using MotorcycleRAG.MobileApp.Persistence.Entities;
@@ -8,7 +9,7 @@ namespace MotorcycleRAG.MobileApp.Tests.Mocks;
 
 public class MockConversationRepository : IConversationRepository
 {
-    public List<ConversationEntity> Conversations { get; } = new();
+    public Collection<ConversationEntity> Conversations { get; } = new();
 
     public Task<List<ConversationEntity>> GetAllAsync()
     {

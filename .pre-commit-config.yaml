@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: skillforge-validate
+        name: SkillForge Validate
+        description: Run SkillForge validate, lint, and scan on all skill directories
+        entry: bash scripts/skillforge-validate.sh
+        language: system
+        files: '^(\.agents/skills/|\.claude/skills/|\.kilo/skills/|scripts/skillforge-validate\.sh$|tools/SkillForge$|\.gitmodules$)'
+        pass_filenames: false
+        always_run: false

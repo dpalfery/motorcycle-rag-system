@@ -1,7 +1,7 @@
 using Azure;
-using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -13,7 +13,8 @@ namespace MotorcycleRAG.Persistence.Azure.Blob;
 /// Azure Blob Storage implementation of <see cref="IManualPageAssetStore"/>.
 /// Stores per-page PNG images for motorcycle manuals under the key pattern:
 /// <c>manuals/{manualId}/pages/{pageNumber}.png</c>
-/// Uses DefaultAzureCredential — no connection strings stored in code.
+/// Uses DefaultAzureCredential in hosted environments and Development-only Azurite
+/// connection strings when locally configured.
 /// </summary>
 public class BlobManualPageAssetStore : IManualPageAssetStore
 {
@@ -26,21 +27,14 @@ public class BlobManualPageAssetStore : IManualPageAssetStore
 
     public BlobManualPageAssetStore(
         IOptions<BlobStorageOptions> options,
+        IHostEnvironment environment,
         ILogger<BlobManualPageAssetStore> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(logger);
 
-        var opts = options.Value;
-
-        if (string.IsNullOrWhiteSpace(opts.AccountEndpoint))
-            throw new InvalidOperationException(
-                "BlobStorage:AccountEndpoint is required. " +
-                "Provide it through Azure App Configuration.");
-
-        var serviceClient = new BlobServiceClient(
-            new Uri(opts.AccountEndpoint),
-            new DefaultAzureCredential());
+        var serviceClient = BlobServiceClientFactory.Create(options.Value, environment);
 
         _containerClient = serviceClient.GetBlobContainerClient(DefaultContainerName);
         _logger = logger;

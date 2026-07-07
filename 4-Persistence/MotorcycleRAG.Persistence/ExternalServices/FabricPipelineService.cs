@@ -6,6 +6,7 @@ using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
 
@@ -59,10 +60,19 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
     }
 
     /// <inheritdoc/>
+    async Task<string> IFabricPipelineService.TriggerPipelineAsync(
+        string uploadId,
+        string documentType,
+        string pipelineId,
+        CancellationToken cancellationToken) =>
+        await TriggerPipelineAsync(uploadId, documentType, pipelineId, null, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc/>
     public async Task<string> TriggerPipelineAsync(
         string uploadId,
         string documentType,
         string pipelineId,
+        string? sourceAccessToken = null,
         CancellationToken cancellationToken = default) {
         ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
         ArgumentException.ThrowIfNullOrWhiteSpace(documentType);
@@ -127,7 +137,16 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
     }
 
     /// <inheritdoc/>
-    public async Task<string> GetRunStatusAsync(
+    async Task<string> IFabricPipelineService.GetRunStatusAsync(
+        string fabricRunId,
+        string pipelineId,
+        CancellationToken cancellationToken) {
+        var result = await GetRunStatusAsync(fabricRunId, pipelineId, cancellationToken).ConfigureAwait(false);
+        return result.Status;
+    }
+
+    /// <inheritdoc/>
+    public async Task<PipelineRunStatusResult> GetRunStatusAsync(
         string fabricRunId,
         string pipelineId,
         CancellationToken cancellationToken = default) {
@@ -155,12 +174,14 @@ public sealed class FabricPipelineService : IFabricPipelineService, ILocalPipeli
             cancellationToken: cancellationToken);
 
         // Fabric returns { "status": "Running" | "Succeeded" | "Failed" | "Cancelled" | ... }
-        if (jsonDoc.RootElement.TryGetProperty("status", out var statusProp))
-            return statusProp.GetString() ?? "Unknown";
+        if (jsonDoc.RootElement.TryGetProperty("status", out var statusProp)) {
+            var status = statusProp.GetString() ?? "Unknown";
+            return PipelineRunStatusResult.FromStatus(status);
+        }
 
         _logger.LogWarning("Fabric run status response missing 'status' field for run {FabricRunId}",
             LogSanitizer.Sanitize(fabricRunId));
-        return "Unknown";
+        return PipelineRunStatusResult.FromStatus("Unknown");
     }
 
     private async Task SetBearerTokenAsync(HttpRequestMessage request, CancellationToken cancellationToken) {

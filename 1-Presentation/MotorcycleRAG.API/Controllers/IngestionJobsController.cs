@@ -377,35 +377,67 @@ public sealed class IngestionJobsController : ControllerBase {
     }
 
     /// <summary>
-    /// Deletes a queued or terminal ingestion job and associated assets.
+    /// Marks a queued or terminal ingestion job for asynchronous deletion.
     /// Route: DELETE /api/ingestion/jobs/{jobId}
     /// </summary>
+    /// <remarks>
+    /// The controller performs a single DB read by delegating to <see cref="IIngestionJobService.DeleteJobAsync"/>
+    /// directly (no pre-fetch). The service transitions the job to <c>Deleting</c> and a background service
+    /// owns the asset teardown. Returns <c>202 Accepted</c> with <c>{ jobId, status: "Deleting" }</c>.
+    /// </remarks>
     [HttpDelete("jobs/{jobId:guid}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteJobAsync(
         Guid jobId,
         CancellationToken ct) {
         var userId = User.FindFirst("sub")?.Value ?? "unknown";
-        var job = await _ingestionJobService.GetJobStatusAsync(jobId, userId, ct).ConfigureAwait(false);
-        if (job is null) {
-            return NotFound(new ProblemDetails {
-                Title = "Ingestion job not found",
-                Detail = $"No ingestion job with ID '{jobId}' was found.",
-                Status = StatusCodes.Status404NotFound
-            });
-        }
 
         try {
             await _ingestionJobService.DeleteJobAsync(jobId, userId, ct).ConfigureAwait(false);
-            return NoContent();
+            return Accepted(new { jobId, status = "Deleting" });
+        }
+        catch (DeleteJobException dex) {
+            // Structured mapping: the service categorizes the rejection via the Error enum.
+            _logger.LogWarning(dex, "Deletion rejected for ingestion job {JobId} ({Error}).", jobId, dex.Error);
+
+            return dex.Error switch {
+                DeleteJobError.NotFound => NotFound(new ProblemDetails {
+                    Title = "Ingestion job not found",
+                    Detail = dex.Message,
+                    Status = StatusCodes.Status404NotFound
+                }),
+                DeleteJobError.AlreadyDeleting => Conflict(new ProblemDetails {
+                    Title = "Job deletion already in progress",
+                    Detail = dex.Message,
+                    Status = StatusCodes.Status409Conflict
+                }),
+                // Active and ConcurrentModification (and any future value) map to a generic 409.
+                _ => Conflict(new ProblemDetails {
+                    Title = "Job deletion rejected",
+                    Detail = dex.Message,
+                    Status = StatusCodes.Status409Conflict
+                })
+            };
         }
         catch (InvalidOperationException ex) {
+            // Backward-compatibility safety net for any plain InvalidOperationException
+            // (e.g. from a service path not yet migrated to DeleteJobException).
             _logger.LogWarning(ex, "Deletion rejected for ingestion job {JobId}.", jobId);
+
+            if (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)) {
+                return NotFound(new ProblemDetails {
+                    Title = "Ingestion job not found",
+                    Detail = ex.Message,
+                    Status = StatusCodes.Status404NotFound
+                });
+            }
+
+            var isAlreadyDeleting = ex.Message.Contains("already being deleted", StringComparison.OrdinalIgnoreCase);
             return Conflict(new ProblemDetails {
-                Title = "Job deletion rejected",
-                Detail = "The selected ingestion job could not be deleted.",
+                Title = isAlreadyDeleting ? "Job deletion already in progress" : "Job deletion rejected",
+                Detail = ex.Message,
                 Status = StatusCodes.Status409Conflict
             });
         }

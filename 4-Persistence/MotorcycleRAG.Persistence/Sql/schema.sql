@@ -1015,6 +1015,28 @@ BEGIN
 
     CREATE NONCLUSTERED INDEX [IX_GraphEdge_FromTo_RelationshipType]
         ON [dbo].[GraphEdge] ([FromNodeId], [ToNodeId], [RelationshipType]);
+
+    -- Dedicated single-column indexes to support the JOIN-based ingestion-job
+    -- delete query on Azure SQL Basic tier (T12: ingestion job delete timeout fix).
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.GraphEdge')
+          AND name = N'IX_GraphEdge_FromNodeId')
+    BEGIN
+        CREATE NONCLUSTERED INDEX [IX_GraphEdge_FromNodeId]
+            ON [dbo].[GraphEdge] ([FromNodeId]);
+    END
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.GraphEdge')
+          AND name = N'IX_GraphEdge_ToNodeId')
+    BEGIN
+        CREATE NONCLUSTERED INDEX [IX_GraphEdge_ToNodeId]
+            ON [dbo].[GraphEdge] ([ToNodeId]);
+    END
 END;
 GO
 

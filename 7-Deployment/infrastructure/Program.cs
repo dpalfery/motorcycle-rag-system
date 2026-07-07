@@ -886,6 +886,14 @@ namespace MotorcycleRAG.Infrastructure {
                 Value = Output.Format($"localhost;127.0.0.1;::1;motorag.palfery.com;motorag.api.palfery.com;{apiApp.Configuration.Apply(c => c!.Ingress!.Fqdn)};{uiApp.Configuration.Apply(c => c!.Ingress!.Fqdn)}")
             });
 
+            // CORS allowlist for browser/webview callers of the API.
+            _ = new KeyValue("appconfig-kv-cors-allowed-origins", new KeyValueArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ConfigStoreName = appConfig.Name,
+                KeyValueName = "Cors:AllowedOrigins",
+                Value = "https://motorag.palfery.com;http://127.0.0.1:1420"
+            });
+
             // Outputs
             this.AiServicesEndpoint = aiServicesEndpoint;
             this.FoundryProjectEndpoint = foundryProjectEndpoint;

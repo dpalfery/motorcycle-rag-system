@@ -21,4 +21,5 @@ Before creating, moving, renaming, or choosing placement for any source or test 
 - `MotorcycleRAG.Contracts.Models` = shared DTOs only (no interfaces, no implementations, no infrastructure deps)
 - Application services belong in the Application `Services` folder unless an explicit architecture rule or user approval says otherwise.
 - Do not create new feature/random folders such as `Pipeline` without explicit approval.
+- Do not add new top-level repository folders or root-level tooling directories without explicit user approval. Existing root folders such as `tools/` and `scripts/` are intentional and should only grow when there is a clear repo-wide need.
 - If a type enforces business rules/invariants → Domain. If it's for transport/serialization → Contracts.Models DTO.

@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 import axios from "axios";
 import { api } from "@/lib/apiClient";
+import { formatAdminError } from "@/lib/adminError";
+import { useConfig } from "@/lib/config";
 import { Button, PageHeader, Empty } from "@/components/ui";
 import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
 import {
@@ -48,17 +50,9 @@ function relativeTime(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function formatJobLoadError(error: unknown) {
-  if (axios.isAxiosError(error)) {
-    const problem = error.response?.data as { detail?: string; title?: string } | undefined;
-    return problem?.detail ?? problem?.title ?? error.message;
-  }
-
-  return error instanceof Error ? error.message : String(error);
-}
-
 export default function JobsScreen() {
   const qc = useQueryClient();
+  const apiBaseUrl = useConfig((state) => state.config.apiBaseUrl);
   const [supersededRetryJobIds, setSupersededRetryJobIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -120,7 +114,11 @@ export default function JobsScreen() {
         return;
       }
       setDeleteError(
-        err instanceof Error ? err.message : "Failed to delete job."
+        formatAdminError(err, {
+          action: "Deleting ingestion job",
+          kind: "cloud-api",
+          apiBaseUrl,
+        }),
       );
     },
   });
@@ -171,7 +169,13 @@ export default function JobsScreen() {
         {jobs.isLoading ? (
           <Empty>Loading jobs…</Empty>
         ) : jobs.isError ? (
-          <Empty>Could not load jobs: {formatJobLoadError(jobs.error)}</Empty>
+          <Empty>
+            Could not load jobs: {formatAdminError(jobs.error, {
+              action: "Loading ingestion jobs",
+              kind: "cloud-api",
+              apiBaseUrl,
+            })}
+          </Empty>
         ) : jobList.length === 0 ? (
           <Empty>No jobs found.</Empty>
         ) : (

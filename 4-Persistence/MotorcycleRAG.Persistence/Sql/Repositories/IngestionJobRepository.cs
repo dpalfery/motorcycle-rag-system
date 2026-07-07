@@ -16,6 +16,15 @@ public class IngestionJobRepository : IIngestionJobRepository
 {
     private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<IngestionJobRepository> _logger;
+
+    /// <summary>
+    /// Process-lifetime cache for whether <c>dbo.IngestionJobs.Id</c> exists.
+    /// Tri-state: -1 = unknown (query pending), 0 = false, 1 = true.
+    /// Schema column presence is a deploy-time invariant, so a single metadata round-trip
+    /// per application lifetime is sufficient regardless of concurrency.
+    /// </summary>
+    private static volatile int _hasSqlIdColumn = -1;
+
     private const string IngestionJobColumnsWithSqlId = @"
                 [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
@@ -49,11 +58,23 @@ public class IngestionJobRepository : IIngestionJobRepository
         IDbConnection connection,
         CancellationToken cancellationToken)
     {
+        // Fast path: cache already populated by a previous call (on any thread).
+        var cached = _hasSqlIdColumn;
+        if (cached >= 0)
+        {
+            return cached == 1;
+        }
+
+        // Cold path: execute the metadata probe at most once per process lifetime.
+        // The schema column presence never changes at runtime, so concurrent callers may
+        // race to execute the query, but only the first writes via CompareExchange; the
+        // rest observe the settled value and reuse it forever after.
         const string sql = "SELECT CASE WHEN COL_LENGTH('dbo.IngestionJobs', 'Id') IS NULL THEN 0 ELSE 1 END;";
         var result = await connection.ExecuteScalarAsync<int>(
             new CommandDefinition(sql, cancellationToken: cancellationToken));
 
-        return result == 1;
+        Interlocked.CompareExchange(ref _hasSqlIdColumn, result, -1);
+        return _hasSqlIdColumn == 1;
     }
 
     private static string GetIngestionJobColumns(bool hasSqlIdColumn) =>
@@ -446,7 +467,11 @@ public class IngestionJobRepository : IIngestionJobRepository
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
             var affectedRows = await connection.ExecuteAsync(
-                new CommandDefinition(sql, new { IngestionJobId = ingestionJobId }, cancellationToken: cancellationToken));
+                new CommandDefinition(
+                    sql,
+                    new { IngestionJobId = ingestionJobId },
+                    commandTimeout: 60,
+                    cancellationToken: cancellationToken));
 
             return affectedRows > 0;
         }
@@ -603,6 +628,65 @@ public class IngestionJobRepository : IIngestionJobRepository
         {
             _logger.LogError(ex, "Failed to transition ingestion job {IngestionJobId} to terminal status", jobId);
             throw new InvalidOperationException($"Failed to transition ingestion job {jobId} to terminal status", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> TrySetDeletingAsync(Guid jobId, CancellationToken ct = default)
+    {
+        // The set of states from which a job may be transitioned into Deleting. Includes the
+        // pre-processing Queued state (the job has been accepted but processing has not yet
+        // started, so deletion is legitimate) alongside the terminal states. Keeping this set
+        // in sync with IngestionJobService's deletable guard is what makes a Queued job that
+        // passes the service check actually succeed at the atomic UPDATE. Values are derived
+        // from the IngestionJobStatus enum (not hard-coded) so the persisted string
+        // representations stay in sync with the domain definition.
+        var deletableStatuses = new[]
+        {
+            IngestionJobStatus.Queued,
+            IngestionJobStatus.Completed,
+            IngestionJobStatus.Failed,
+            IngestionJobStatus.Cancelled,
+            IngestionJobStatus.PartiallyCompleted
+        };
+
+        const string sql = @"
+            UPDATE [dbo].[IngestionJobs] SET
+                [Status] = @DeletingStatus
+            WHERE [IngestionJobId] = @IngestionJobId
+              AND [Status] IN @DeletableStatuses;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var affectedRows = await connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IngestionJobId = jobId,
+                DeletingStatus = IngestionJobStatus.Deleting.ToString(),
+                DeletableStatuses = deletableStatuses.Select(static status => status.ToString()).ToArray()
+            }, cancellationToken: ct));
+
+            var success = affectedRows > 0;
+            if (success)
+            {
+                _logger.LogInformation(
+                    "Atomically transitioned ingestion job {IngestionJobId} to Deleting",
+                    jobId);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Did not transition ingestion job {IngestionJobId} to Deleting: not in a deletable terminal state or not found",
+                    jobId);
+            }
+
+            return success;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to transition ingestion job {IngestionJobId} to Deleting", jobId);
+            throw new InvalidOperationException($"Failed to transition ingestion job {jobId} to Deleting", ex);
         }
     }
 

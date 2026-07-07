@@ -8,14 +8,14 @@ A .NET MAUI mobile application for the Motorcycle RAG System.
 - **Multi-Turn Conversations**: Context-aware follow-up questions.
 - **User Memory**: Personalizes responses based on your profile and history.
 - **Conversation Management**: Search, delete, and resume conversations.
-- **Cross-Platform**: Runs on iOS, Android, and Windows.
+- **Cross-Platform**: Current checked-in targets match the Admin app: Mac Catalyst on macOS, Windows and Mac Catalyst on Windows.
 
 ## Prerequisites
 
 - .NET 8.0 SDK or later
 - Visual Studio 2022 (17.8+) with .NET MAUI workload
-- Android Emulator or Device (for Android)
-- Mac with Xcode (for iOS)
+- Mac with Xcode (for Mac Catalyst)
+- Windows machine with .NET MAUI workload (for Windows builds)
 
 ## Setup
 
@@ -33,7 +33,7 @@ A .NET MAUI mobile application for the Motorcycle RAG System.
 3.  **Build and Run**:
     - Open `MotorcycleRAG.sln` in Visual Studio.
     - Set `MotorcycleRAG.MobileApp` as the startup project.
-    - Select your target device (Android Emulator, Windows Machine, etc.).
+    - Select a Mac Catalyst or Windows target.
     - Press F5 to run.
 
 ## Architecture
@@ -73,5 +73,5 @@ dotnet test 5-Test/MotorcycleRAG.MobileApp.Tests
 
 ## Troubleshooting
 
-- **Authentication Issues**: Ensure the redirect URIs are correctly configured in Azure AD and in `Info.plist`/`AndroidManifest.xml`.
-- **API Connection**: Check if the API is running and accessible from the device/emulator (use `10.0.2.2` for Android emulator to access localhost).
+- **Authentication Issues**: Ensure the redirect URIs are correctly configured in Azure AD and in the platform-specific app manifests.
+- **API Connection**: Check if the API is running and accessible from the local app target.

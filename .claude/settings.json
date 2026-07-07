@@ -2,5 +2,18 @@
   "statusLine": {
     "type": "command",
     "command": "pwsh -File .claude/statusline-command.ps1"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "write|edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/architecture-guards.sh"
+          }
+        ]
+      }
+    ]
   }
 }

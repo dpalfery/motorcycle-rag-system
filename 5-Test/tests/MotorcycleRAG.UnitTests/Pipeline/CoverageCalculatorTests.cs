@@ -1,6 +1,6 @@
 // T012 — Unit tests for CoverageCalculator.Calculate(IngestionJob).
 using FluentAssertions;
-using MotorcycleRAG.Application.Pipeline;
+using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using Xunit;

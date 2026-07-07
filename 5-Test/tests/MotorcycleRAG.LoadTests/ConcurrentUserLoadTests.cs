@@ -3,6 +3,7 @@ using NBomber.Http.CSharp;
 using NBomber.Contracts.Stats;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
+using System.Security.Cryptography;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.LoadTests;
@@ -13,6 +14,47 @@ namespace MotorcycleRAG.LoadTests;
 /// </summary>
 public class ConcurrentUserLoadTests
 {
+    private static readonly string[] SimpleQueries =
+    [
+        "What are the specifications for Honda CBR600RR?",
+        "Tell me about Yamaha R1 engine specs",
+        "What is the top speed of Kawasaki Ninja ZX-10R?",
+        "How much does a BMW S1000RR weigh?",
+        "What type of engine does Ducati Panigale V4 have?"
+    ];
+
+    private static readonly string[] ComplexQueries =
+    [
+        "Compare the performance between Honda CBR1000RR and Yamaha R1",
+        "What maintenance procedures are required for Ducati Panigale V4?",
+        "How do I adjust the suspension on a BMW S1000RR?",
+        "What are the differences between Kawasaki ZX-10R and ZX-6R?",
+        "Explain the electronic systems on modern superbikes"
+    ];
+
+    private static readonly string[] MixedSimpleQueries =
+    [
+        "Honda CBR600RR specs",
+        "Yamaha R1 top speed",
+        "BMW S1000RR weight"
+    ];
+
+    private static readonly string[] MixedComplexQueries =
+    [
+        "Compare Honda CBR1000RR vs Yamaha R1 performance",
+        "Maintenance schedule for Ducati Panigale V4",
+        "Suspension tuning guide for track riding"
+    ];
+
+    private static readonly string[] StabilityQueries =
+    [
+        "Honda motorcycle specifications",
+        "Yamaha performance data",
+        "Kawasaki maintenance info",
+        "BMW technical details",
+        "Ducati engine specs"
+    ];
+
     private readonly IConfiguration _configuration;
     private readonly string _baseUrl;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -36,22 +78,13 @@ public class ConcurrentUserLoadTests
     [Fact]
     public void LoadTest_SimpleQueries_HandlesTargetConcurrentUsers()
     {
-        var simpleQueries = new[]
-        {
-            "What are the specifications for Honda CBR600RR?",
-            "Tell me about Yamaha R1 engine specs",
-            "What is the top speed of Kawasaki Ninja ZX-10R?",
-            "How much does a BMW S1000RR weigh?",
-            "What type of engine does Ducati Panigale V4 have?"
-        };
-
         var scenario = Scenario.Create("simple_queries", async context =>
         {
-            var query = simpleQueries[Random.Shared.Next(simpleQueries.Length)];
+            var query = PickRandom(SimpleQueries);
             var request = new MotorcycleQueryRequest
             {
                 Query = query,
-                UserId = $"load-test-user-{context.ScenarioInfo.ThreadId}",
+                UserId = $"load-test-user-{context.ScenarioInfo.InstanceId}",
                 Context = new QueryContext
                 {
                     SessionId = context.ScenarioInfo.InstanceId,
@@ -88,22 +121,13 @@ public class ConcurrentUserLoadTests
     [Fact]
     public void LoadTest_ComplexQueries_MaintainsPerformanceUnderLoad()
     {
-        var complexQueries = new[]
-        {
-            "Compare the performance between Honda CBR1000RR and Yamaha R1",
-            "What maintenance procedures are required for Ducati Panigale V4?",
-            "How do I adjust the suspension on a BMW S1000RR?",
-            "What are the differences between Kawasaki ZX-10R and ZX-6R?",
-            "Explain the electronic systems on modern superbikes"
-        };
-
         var scenario = Scenario.Create("complex_queries", async context =>
         {
-            var query = complexQueries[Random.Shared.Next(complexQueries.Length)];
+            var query = PickRandom(ComplexQueries);
             var request = new MotorcycleQueryRequest
             {
                 Query = query,
-                UserId = $"complex-user-{context.ScenarioInfo.ThreadId}",
+                UserId = $"complex-user-{context.ScenarioInfo.InstanceId}",
                 Preferences = new SearchPreferences
                 {
                     IncludeWebSources = true,
@@ -142,18 +166,11 @@ public class ConcurrentUserLoadTests
     {
         var simpleQueryScenario = Scenario.Create("simple_mixed", async context =>
         {
-            var queries = new[]
-            {
-                "Honda CBR600RR specs",
-                "Yamaha R1 top speed",
-                "BMW S1000RR weight"
-            };
-
-            var query = queries[Random.Shared.Next(queries.Length)];
+            var query = PickRandom(MixedSimpleQueries);
             var request = new MotorcycleQueryRequest
             {
                 Query = query,
-                UserId = $"mixed-simple-{context.ScenarioInfo.ThreadId}"
+                UserId = $"mixed-simple-{context.ScenarioInfo.InstanceId}"
             };
 
             var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
@@ -167,18 +184,11 @@ public class ConcurrentUserLoadTests
 
         var complexQueryScenario = Scenario.Create("complex_mixed", async context =>
         {
-            var queries = new[]
-            {
-                "Compare Honda CBR1000RR vs Yamaha R1 performance",
-                "Maintenance schedule for Ducati Panigale V4",
-                "Suspension tuning guide for track riding"
-            };
-
-            var query = queries[Random.Shared.Next(queries.Length)];
+            var query = PickRandom(MixedComplexQueries);
             var request = new MotorcycleQueryRequest
             {
                 Query = query,
-                UserId = $"mixed-complex-{context.ScenarioInfo.ThreadId}",
+                UserId = $"mixed-complex-{context.ScenarioInfo.InstanceId}",
                 Preferences = new SearchPreferences
                 {
                     IncludeWebSources = true,
@@ -230,7 +240,7 @@ public class ConcurrentUserLoadTests
             var request = new MotorcycleQueryRequest
             {
                 Query = "Quick motorcycle specification lookup",
-                UserId = $"spike-user-{context.ScenarioInfo.ThreadId}"
+                UserId = $"spike-user-{context.ScenarioInfo.InstanceId}"
             };
 
             var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
@@ -265,20 +275,11 @@ public class ConcurrentUserLoadTests
     {
         var scenario = Scenario.Create("stability_test", async context =>
         {
-            var queries = new[]
-            {
-                "Honda motorcycle specifications",
-                "Yamaha performance data",
-                "Kawasaki maintenance info",
-                "BMW technical details",
-                "Ducati engine specs"
-            };
-
-            var query = queries[Random.Shared.Next(queries.Length)];
+            var query = PickRandom(StabilityQueries);
             var request = new MotorcycleQueryRequest
             {
                 Query = query,
-                UserId = $"stability-user-{context.ScenarioInfo.ThreadId}"
+                UserId = $"stability-user-{context.ScenarioInfo.InstanceId}"
             };
 
             var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
@@ -311,7 +312,7 @@ public class ConcurrentUserLoadTests
             var request = new MotorcycleQueryRequest
             {
                 Query = "System resource utilization test query",
-                UserId = $"resource-user-{context.ScenarioInfo.ThreadId}"
+                UserId = $"resource-user-{context.ScenarioInfo.InstanceId}"
             };
 
             var req = Http.CreateRequest("POST", $"{_baseUrl}/api/motorcycle/query")
@@ -339,4 +340,7 @@ public class ConcurrentUserLoadTests
         var responseTimeStdDev = scnStats.Ok.Latency.StdDev;
         responseTimeStdDev.Should().BeLessThan(2000); // Response times should be consistent
     }
+
+    private static string PickRandom(IReadOnlyList<string> values) =>
+        values[RandomNumberGenerator.GetInt32(values.Count)];
 }

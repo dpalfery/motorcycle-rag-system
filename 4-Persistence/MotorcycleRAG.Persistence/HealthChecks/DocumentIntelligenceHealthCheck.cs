@@ -10,7 +10,7 @@ namespace MotorcycleRAG.Persistence.HealthChecks;
 /// </summary>
 public class DocumentIntelligenceHealthCheck : IHealthCheck
 {
-    private readonly AzureFoundryOptions _options;
+    private readonly IOptions<AzureFoundryOptions> _options;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<DocumentIntelligenceHealthCheck> _logger;
 
@@ -19,23 +19,34 @@ public class DocumentIntelligenceHealthCheck : IHealthCheck
         IHttpClientFactory httpClientFactory,
         ILogger<DocumentIntelligenceHealthCheck> logger)
     {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
+        AzureFoundryOptions resolvedOptions;
         try
         {
-            if (string.IsNullOrWhiteSpace(_options.DocumentIntelligenceEndpoint))
+            resolvedOptions = _options.Value;
+        }
+        catch (OptionsValidationException ex)
+        {
+            _logger.LogWarning(ex, "Document Intelligence is not configured for this environment");
+            return HealthCheckResult.Degraded("Document Intelligence is not configured for this environment");
+        }
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(resolvedOptions.DocumentIntelligenceEndpoint))
             {
-                return HealthCheckResult.Unhealthy("Document Intelligence endpoint is not configured");
+                return HealthCheckResult.Degraded("Document Intelligence is not configured for this environment");
             }
 
-            if (!Uri.TryCreate(_options.DocumentIntelligenceEndpoint, UriKind.Absolute, out var uri))
+            if (!Uri.TryCreate(resolvedOptions.DocumentIntelligenceEndpoint, UriKind.Absolute, out var uri))
             {
-                return HealthCheckResult.Unhealthy("Document Intelligence endpoint is not a valid URL");
+                return HealthCheckResult.Degraded("Document Intelligence endpoint is not a valid URL");
             }
 
             var startTime = DateTime.UtcNow;

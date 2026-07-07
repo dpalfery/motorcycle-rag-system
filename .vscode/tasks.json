@@ -27,10 +27,7 @@
       "label": "build: webui",
       "command": "npm",
       "type": "process",
-      "args": [
-        "run",
-        "build"
-      ],
+      "args": ["run", "build"],
       "options": {
         "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI"
       },
@@ -40,10 +37,7 @@
       "label": "npm: dev",
       "command": "npm",
       "type": "process",
-      "args": [
-        "run",
-        "dev"
-      ],
+      "args": ["run", "dev"],
       "options": {
         "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI"
       },
@@ -68,7 +62,7 @@
     },
     {
       "label": "build: full-stack",
-      "command": "powershell",
+      "command": "pwsh",
       "type": "shell",
       "args": [
         "-NoProfile",
@@ -79,50 +73,38 @@
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "build: admin",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "build",
-        "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
-        "/p:Configuration=Debug",
-        "/p:TargetFramework=net10.0-windows10.0.19041.0"
-      ],
-      "problemMatcher": "$msCompile"
-    },
-    {
-      "label": "Git: Complete Push Workflow",
+      "label": "tauri: dev (admin-desktop)",
       "type": "shell",
-      "command": "git",
-      "args": [
-        "add",
-        "."
-      ],
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": false
+      "command": "npm",
+      "args": ["run", "tauri", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.AdminDesktop"
       },
-      "problemMatcher": [],
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Git: Stage All Changes",
-        "Git: Smart Commit",
-        "Git: Push to Origin"
-      ]
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^.*$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Compiling|VITE",
+          "endsPattern": "Running `target"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "admin-desktop"
+      }
     },
     {
       "label": "Git: Stage All Changes",
       "type": "shell",
       "command": "git",
-      "args": [
-        "add",
-        "."
-      ],
+      "args": ["add", "."],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -135,7 +117,7 @@
     {
       "label": "Git: Smart Commit",
       "type": "shell",
-      "command": "powershell",
+      "command": "pwsh",
       "args": [
         "-Command",
         "$changes = git diff --cached --name-status; if ($changes) { $msg = 'Update: ' + ($changes | ForEach-Object { $_.Split()[1] } | Select-Object -First 3 | Join-String -Separator ', '); git commit -m \"$msg\" } else { echo 'No changes to commit' }"
@@ -154,10 +136,7 @@
       "label": "Git: Push to Origin",
       "type": "shell",
       "command": "git",
-      "args": [
-        "push",
-        "origin"
-      ],
+      "args": ["push", "origin"],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -168,13 +147,32 @@
       "problemMatcher": []
     },
     {
+      "label": "Git: Complete Push Workflow",
+      "type": "shell",
+      "command": "git",
+      "args": ["add", "."],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Git: Stage All Changes",
+        "Git: Smart Commit",
+        "Git: Push to Origin"
+      ]
+    },
+    {
       "label": "Git: Status Check",
       "type": "shell",
       "command": "git",
-      "args": [
-        "status",
-        "--porcelain"
-      ],
+      "args": ["status", "--porcelain"],
       "group": "test",
       "presentation": {
         "echo": true,

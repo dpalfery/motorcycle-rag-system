@@ -4,7 +4,7 @@ Environment variables are not a general configuration mechanism for this reposit
 
 C#/.NET applications must use Azure App Configuration for application settings and Azure Key Vault references for secrets. Do not add `MCR_API_*`, `MCR_BFF_*`, `MCR_ADMIN_*`, or `MCR_MOBILE_*` environment-variable paths for .NET code. If a .NET setting is needed, add an `IConfiguration` option and populate it from App Configuration/Key Vault.
 
-The only approved environment-variable surface is the Python local processor. Those values are set by the Admin app at run time when it launches or manages the local processor.
+The only approved environment-variable surface is the Python local processor. Those values are set by the desktop admin client / admin desktop project at run time when it launches or manages the local processor.
 
 ---
 
@@ -58,7 +58,7 @@ These variables are read directly by the Python process. Do not use them from C#
 
 ### MotorcycleRAG API Upload
 
-The Python service uses client credentials to POST processed artifacts to the API. The Admin app is responsible for supplying these process environment values at run time.
+The Python service uses client credentials to POST processed artifacts to the API. The desktop admin client / admin desktop project is responsible for supplying these process environment values at run time.
 
 | Variable | Default | Purpose | Required | Type |
 | --- | --- | --- | --- | --- |

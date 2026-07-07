@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Moq.Contrib.HttpClient;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Persistence.ExternalServices;
 
 namespace MotorcycleRAG.UnitTests.Pipeline;
@@ -12,13 +13,15 @@ namespace MotorcycleRAG.UnitTests.Pipeline;
 /// Unit tests for <see cref="LocalPipelineService"/>.
 /// Verifies HTTP routing by document type, error handling, and constructor null checks.
 /// </summary>
-public sealed class LocalPipelineServiceTests {
+public sealed class LocalPipelineServiceTests : IDisposable {
     private const string LocalEndpoint = "http://localhost:8100";
 
     private readonly Mock<HttpMessageHandler> _handler;
     private readonly Mock<IHttpClientFactory> _factory;
     private readonly Mock<ILogger<LocalPipelineService>> _logger;
     private readonly IOptions<IngestionOptions> _options;
+    private readonly IOptions<BlobStorageOptions> _blobOptions;
+    private readonly HttpClient _httpClient;
 
     public LocalPipelineServiceTests() {
         _handler = new Mock<HttpMessageHandler>();
@@ -26,14 +29,21 @@ public sealed class LocalPipelineServiceTests {
         _options = Options.Create(new IngestionOptions {
             LocalEndpoint = LocalEndpoint
         });
+        _blobOptions = Options.Create(new BlobStorageOptions {
+            RawUploadsContainer = "raw-uploads"
+        });
 
-        var httpClient = _handler.CreateClient();
-        httpClient.BaseAddress = new Uri(LocalEndpoint);
+        _httpClient = _handler.CreateClient();
+        _httpClient.BaseAddress = new Uri(LocalEndpoint);
 
         _factory = new Mock<IHttpClientFactory>();
         _factory
             .Setup(f => f.CreateClient(It.IsAny<string>()))
-            .Returns(httpClient);
+            .Returns(_httpClient);
+    }
+
+    public void Dispose() {
+        _httpClient.Dispose();
     }
 
     #region Constructor null checks
@@ -41,21 +51,21 @@ public sealed class LocalPipelineServiceTests {
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenHttpClientFactoryIsNull() {
         // Act & Assert
-        var act = () => new LocalPipelineService(null!, _options, _logger.Object);
+        var act = () => new LocalPipelineService(null!, _options, _blobOptions, _logger.Object);
         act.Should().Throw<ArgumentNullException>().WithParameterName("httpClientFactory");
     }
 
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenOptionsIsNull() {
         // Act & Assert
-        var act = () => new LocalPipelineService(_factory.Object, null!, _logger.Object);
+        var act = () => new LocalPipelineService(_factory.Object, null!, _blobOptions, _logger.Object);
         act.Should().Throw<ArgumentNullException>().WithParameterName("config");
     }
 
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull() {
         // Act & Assert
-        var act = () => new LocalPipelineService(_factory.Object, _options, null!);
+        var act = () => new LocalPipelineService(_factory.Object, _options, _blobOptions, null!);
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
     }
 
@@ -73,7 +83,7 @@ public sealed class LocalPipelineServiceTests {
         var sut = CreateSut();
 
         // Act
-        var runId = await sut.TriggerPipelineAsync("upload-1", "manual-pdf", "ignored-pipeline-id");
+        var runId = await sut.TriggerPipelineAsync("upload-1", "manual-pdf", "ignored-pipeline-id", "test-token");
 
         // Assert
         runId.Should().Be("job-abc123");
@@ -90,7 +100,7 @@ public sealed class LocalPipelineServiceTests {
         var sut = CreateSut();
 
         // Act
-        var runId = await sut.TriggerPipelineAsync("upload-2", "spec-dataset", "ignored-pipeline-id");
+        var runId = await sut.TriggerPipelineAsync("upload-2", "spec-dataset", "ignored-pipeline-id", "test-token");
 
         // Assert
         runId.Should().Be("job-csv-456");
@@ -124,11 +134,21 @@ public sealed class LocalPipelineServiceTests {
         var sut = CreateSut();
 
         // Act
-        var act = () => sut.TriggerPipelineAsync("upload-3", "manual-pdf", "ignored-pipeline-id");
+        var act = () => sut.TriggerPipelineAsync("upload-3", "manual-pdf", "ignored-pipeline-id", "test-token");
 
         // Assert
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*500*");
+    }
+
+    [Fact]
+    public async Task TriggerPipelineAsync_WithoutSourceAccessToken_ShouldThrowInvalidOperationException() {
+        var sut = CreateSut();
+
+        var act = () => sut.TriggerPipelineAsync("upload-4", "manual-pdf", "ignored-pipeline-id");
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Source access token is required*");
     }
 
     #endregion
@@ -147,10 +167,30 @@ public sealed class LocalPipelineServiceTests {
         var sut = CreateSut();
 
         // Act
-        var status = await sut.GetRunStatusAsync(runId, "ignored-pipeline-id");
+        var result = await sut.GetRunStatusAsync(runId, "ignored-pipeline-id");
 
         // Assert
-        status.Should().Be("completed");
+        result.Status.Should().Be("completed");
+    }
+
+    [Fact]
+    public async Task GetRunStatusAsync_ShouldReturnErrorDetails_WhenJobFailed() {
+        const string runId = "job-failed";
+
+        _handler
+            .SetupRequest(HttpMethod.Get, $"{LocalEndpoint}/jobs/{runId}")
+            .ReturnsResponse(
+                HttpStatusCode.OK,
+                """{"status": "failed", "message": "PDF processing failed", "error": "BlobWriter has no storage client configured."}""",
+                "application/json");
+
+        var sut = CreateSut();
+
+        var result = await sut.GetRunStatusAsync(runId, "ignored-pipeline-id");
+
+        result.Status.Should().Be("failed");
+        result.Message.Should().Be("PDF processing failed");
+        result.Error.Should().Contain("BlobWriter");
     }
 
     [Fact]
@@ -177,7 +217,7 @@ public sealed class LocalPipelineServiceTests {
     #region Helpers
 
     private LocalPipelineService CreateSut() =>
-        new(_factory.Object, _options, _logger.Object);
+        new(_factory.Object, _options, _blobOptions, _logger.Object);
 
     #endregion
 }

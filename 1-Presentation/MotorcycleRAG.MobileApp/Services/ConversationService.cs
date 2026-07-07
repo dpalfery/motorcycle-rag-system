@@ -100,12 +100,12 @@ namespace MotorcycleRAG.MobileApp.Services
                 conversation.UpdatedAt = DateTime.UtcNow.ToString("O");
 
                 // Auto-title if it's the default title
-                if (conversation.Title == "New Conversation")
-                {
-                    conversation.Title = messageText.Length > 50
-                        ? messageText.Substring(0, 47) + "..."
-                        : messageText;
-                }
+                    if (conversation.Title == "New Conversation")
+                    {
+                        conversation.Title = messageText.Length > 50
+                            ? string.Concat(messageText.AsSpan(0, 47), "...")
+                            : messageText;
+                    }
 
                 await _conversationRepository.UpdateAsync(conversation);
             }

@@ -5,12 +5,13 @@ import io
 import tempfile
 import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, create_autospec
 
 import pandas as pd
 import pytest
 
-from processors.bike_graph_processor import BikeGraphProcessor, _jobs, _node_id
+from api.api_client import ApiClient
+from processors.bike_graph_processor import BikeGraphProcessor, _jobs, _tasks, _node_id
 
 
 # ---------------------------------------------------------------------------
@@ -38,15 +39,18 @@ EMPTY_CSV = "Model,Year,Category\n"
 @pytest.fixture(autouse=True)
 def _clear_jobs():
     _jobs.clear()
+    _tasks.clear()
     yield
     _jobs.clear()
+    _tasks.clear()
 
 
 @pytest.fixture()
 def api_client():
-    ac = MagicMock()
-    ac.is_configured = MagicMock(return_value=False)
-    ac.upload_artifact = AsyncMock(return_value=None)
+    ac = create_autospec(ApiClient, instance=True)
+    ac.is_configured.return_value = False
+    ac.upload_artifact.return_value = None
+    ac.report_stage.return_value = None
     return ac
 
 
@@ -161,6 +165,29 @@ class TestBackgroundProcessing:
         assert status["nodes_created"] > 0
         assert status["edges_created"] > 0
         api_client.upload_artifact.assert_awaited_once()
+
+    async def test_reports_all_bike_graph_pipeline_stages_to_configured_api_client(
+        self, processor, api_client
+    ):
+        api_client.is_configured.return_value = True
+        csv_path = _write_csv(MINIMAL_CSV)
+        job_id = await processor.process_async(
+            upload_id=str(uuid.uuid4()), local_file_path=str(csv_path)
+        )
+
+        await _wait_for_job(processor, job_id)
+        await asyncio.sleep(0)
+
+        reported_stages = [call.args[1] for call in api_client.report_stage.await_args_list]
+        assert reported_stages == [
+            "copying",
+            "parsing",
+            "building-graph",
+            "uploading-graph",
+            "completed",
+        ]
+        assert api_client.report_stage.await_args_list[-1].kwargs["chunks_processed"] > 0
+        assert api_client.report_stage.await_args_list[-1].kwargs["total_chunks"] > 0
 
     async def test_blob_path_uses_upload_id(self, processor, api_client):
         csv_path = _write_csv(MINIMAL_CSV)

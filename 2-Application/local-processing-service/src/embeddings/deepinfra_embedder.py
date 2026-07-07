@@ -3,25 +3,28 @@
 import asyncio
 import logging
 import os
+import time
 
 import openai
 
 logger = logging.getLogger(__name__)
 
 _MAX_RETRIES = 3
+_HEALTH_CACHE_TTL_SECONDS = 60.0
 
 
 class DeepInfraEmbedder:
-    """Generates 3584-dim embeddings via DeepInfra OpenAI-compatible API.
+    """Generates embeddings via DeepInfra OpenAI-compatible API.
 
     Reads configuration from environment variables:
         DEEPINFRA_API_KEY         – Bearer token (REQUIRED — raises ValueError if missing)
         DEEPINFRA_BASE_URL        – API base URL (default: https://api.deepinfra.com/v1/openai)
         DEEPINFRA_EMBEDDING_MODEL – model name   (default: Qwen/Qwen3-Embedding-4B)
+        DEEPINFRA_EMBEDDING_DIMS  – expected vector dimension (optional; skips check when unset)
 
-    The embedder enforces 3584-dimensional output to match the Azure AI Search
-    index (VectorSearchDimensions = 3584).  Qwen3-Embedding-4B natively produces
-    3584 dims; the full native dimensions are used without truncation.
+    Enforces a configurable dimension check to match the Azure AI Search index
+    (VectorSearchDimensions). Set DEEPINFRA_EMBEDDING_DIMS or leave unset to
+    skip validation.
     """
 
     def __init__(self) -> None:
@@ -35,11 +38,14 @@ class DeepInfraEmbedder:
         self._model: str = os.getenv(
             "DEEPINFRA_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-4B"
         )
-        self._dims: int = 3584
+        dims_env = os.getenv("DEEPINFRA_EMBEDDING_DIMS")
+        self._dims: int | None = int(dims_env) if dims_env else None
         self._client: openai.AsyncOpenAI = openai.AsyncOpenAI(
             base_url=self._base_url,
             api_key=api_key,
         )
+        self._last_health_status: str | None = None
+        self._last_health_time: float = 0.0
 
     # ------------------------------------------------------------------
     # Public API
@@ -62,7 +68,7 @@ class DeepInfraEmbedder:
 
                 vector: list[float] = response.data[0].embedding
 
-                if len(vector) != self._dims:
+                if self._dims is not None and len(vector) != self._dims:
                     raise ValueError(f"Expected {self._dims} dims, got {len(vector)}")
 
                 return vector
@@ -94,8 +100,20 @@ class DeepInfraEmbedder:
         return list(await asyncio.gather(*tasks))
 
     async def check_status(self) -> str:
+        """Return ``'connected'`` if the DeepInfra API is reachable.
+
+        Results are cached for up to 60 seconds to avoid flooding the API
+        with health probes.
+        """
+        now = time.monotonic()
+        if self._last_health_status is not None and (now - self._last_health_time) < _HEALTH_CACHE_TTL_SECONDS:
+            return self._last_health_status
+
         try:
             await self._client.models.list()
-            return "connected"
+            self._last_health_status = "connected"
         except Exception:
-            return "disconnected"
+            self._last_health_status = "disconnected"
+
+        self._last_health_time = now
+        return self._last_health_status

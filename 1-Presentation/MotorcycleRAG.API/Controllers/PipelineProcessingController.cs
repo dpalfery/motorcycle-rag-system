@@ -86,6 +86,11 @@ public class PipelineProcessingController : ControllerBase
             return BadRequest("Request cannot be null");
         }
 
+        if (LegacyPdfIngestionGuard.IsLegacyPdfRequest(request))
+        {
+            return BadRequest(LegacyPdfIngestionGuard.CreateProblemDetails());
+        }
+
         // Validate file path to prevent path traversal
         if (string.IsNullOrWhiteSpace(request.FilePath) || !IsSafeFilePath(request.FilePath))
         {
@@ -140,6 +145,11 @@ public class PipelineProcessingController : ControllerBase
         if (requests == null || requests.Count == 0)
         {
             return BadRequest("No processing requests provided");
+        }
+
+        if (LegacyPdfIngestionGuard.HasLegacyPdfRequests(requests))
+        {
+            return BadRequest(LegacyPdfIngestionGuard.CreateProblemDetails());
         }
 
         try

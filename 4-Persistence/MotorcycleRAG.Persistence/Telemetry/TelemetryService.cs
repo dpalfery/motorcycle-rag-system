@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Channel;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ namespace MotorcycleRAG.Persistence.Telemetry
     {
         private readonly TelemetryClient _telemetryClient;
         private readonly ILogger<TelemetryService> _logger;
+        private readonly Action<ITelemetry>? _telemetryObserver;
 
         // Regex patterns for sensitive data detection
         private readonly Regex _queryTextPattern = new Regex(@"(SELECT|INSERT|UPDATE|DELETE).*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -34,12 +36,21 @@ namespace MotorcycleRAG.Persistence.Telemetry
         public TelemetryService(
             TelemetryClient telemetryClient,
             ILogger<TelemetryService> logger)
+            : this(telemetryClient, logger, telemetryObserver: null)
+        {
+        }
+
+        internal TelemetryService(
+            TelemetryClient telemetryClient,
+            ILogger<TelemetryService> logger,
+            Action<ITelemetry>? telemetryObserver)
         {
             ArgumentNullException.ThrowIfNull(telemetryClient);
             ArgumentNullException.ThrowIfNull(logger);
 
             _telemetryClient = telemetryClient;
             _logger = logger;
+            _telemetryObserver = telemetryObserver;
         }
 
         /// <summary>
@@ -58,7 +69,10 @@ namespace MotorcycleRAG.Persistence.Telemetry
             try
             {
                 var redactedProperties = RedactSensitiveData(properties);
-                _telemetryClient.TrackEvent(eventName, redactedProperties, metrics);
+                var telemetry = new EventTelemetry(eventName);
+                AddProperties(telemetry.Properties, redactedProperties);
+                Track(telemetry);
+                TrackMetrics(metrics, redactedProperties);
                 
                 _logger.LogDebug("Tracked event: {EventName}", eventName);
             }
@@ -81,7 +95,9 @@ namespace MotorcycleRAG.Persistence.Telemetry
             try
             {
                 var redactedProperties = RedactSensitiveData(properties);
-                _telemetryClient.TrackException(exception, redactedProperties);
+                var telemetry = new ExceptionTelemetry(exception);
+                AddProperties(telemetry.Properties, redactedProperties);
+                Track(telemetry);
                 
                 _logger.LogError(exception, "Tracked exception");
             }
@@ -108,7 +124,9 @@ namespace MotorcycleRAG.Persistence.Telemetry
             try
             {
                 var redactedProperties = RedactSensitiveData(properties);
-                _telemetryClient.TrackMetric(metricName, value, redactedProperties);
+                var telemetry = new MetricTelemetry(metricName, value);
+                AddProperties(telemetry.Properties, redactedProperties);
+                Track(telemetry);
                 
                 _logger.LogDebug("Tracked metric: {MetricName} = {Value}", metricName, value);
             }
@@ -136,7 +154,8 @@ namespace MotorcycleRAG.Persistence.Telemetry
 
             try
             {
-                _telemetryClient.TrackRequest(name, startTime, duration, responseCode, success);
+                var telemetry = new RequestTelemetry(name, startTime, duration, responseCode, success);
+                Track(telemetry);
                 
                 _logger.LogDebug("Tracked request: {RequestName}, success: {Success}, duration: {Duration}ms",
                     name, success, duration.TotalMilliseconds);
@@ -177,8 +196,9 @@ namespace MotorcycleRAG.Persistence.Telemetry
                     ["estimatedCost"] = estimatedCost.ToString("F4")
                 };
                 
-                // Track as custom event
-                _telemetryClient.TrackEvent("QueryExecuted", properties);
+                var telemetry = new EventTelemetry("QueryExecuted");
+                AddProperties(telemetry.Properties, properties);
+                Track(telemetry);
                 
                 _logger.LogDebug("Tracked query: {QueryId}, duration: {Duration}ms, results: {ResultsCount}",
                     queryId, duration.TotalMilliseconds, resultsCount);
@@ -333,7 +353,10 @@ namespace MotorcycleRAG.Persistence.Telemetry
                     ["ResultsFound"] = resultsFound
                 };
 
-                _telemetryClient.TrackEvent("SearchDegradedMode", properties, metrics);
+                var telemetry = new EventTelemetry("SearchDegradedMode");
+                AddProperties(telemetry.Properties, properties);
+                Track(telemetry);
+                TrackMetrics(metrics, properties);
 
                 _logger.LogWarning("Tracked degraded mode operation: CorrelationId={CorrelationId}, FailedSources={FailedSources}, " +
                     "AvailableSources={AvailableSources}, Duration={Duration}ms, Results={Results}",
@@ -376,7 +399,10 @@ namespace MotorcycleRAG.Persistence.Telemetry
                     ["DurationMs"] = duration.TotalMilliseconds
                 };
 
-                _telemetryClient.TrackEvent("SourceFailure", properties, metrics);
+                var telemetry = new EventTelemetry("SourceFailure");
+                AddProperties(telemetry.Properties, properties);
+                Track(telemetry);
+                TrackMetrics(metrics, properties);
                 
                 _logger.LogWarning("Tracked source failure: CorrelationId={CorrelationId}, Source={Source}, " +
                     "Error={Error}, Duration={Duration}ms",
@@ -420,7 +446,10 @@ namespace MotorcycleRAG.Persistence.Telemetry
                     ["SourceSuccessRate"] = successfulSources > 0 ? (successfulSources / (double)(successfulSources + failedSources)) * 100 : 0
                 };
 
-                _telemetryClient.TrackEvent("SearchExecution", properties, metrics);
+                var telemetry = new EventTelemetry("SearchExecution");
+                AddProperties(telemetry.Properties, properties);
+                Track(telemetry);
+                TrackMetrics(metrics, properties);
                 
                 _logger.LogInformation("Tracked search execution: CorrelationId={CorrelationId}, QueryId={QueryId}, " +
                     "Duration={Duration}ms, Results={Results}, SuccessfulSources={SuccessfulSources}, " +
@@ -505,6 +534,44 @@ namespace MotorcycleRAG.Persistence.Telemetry
             };
 
             TrackEvent("OnboardingDependencyDegraded", properties);
+        }
+
+        private void Track(ITelemetry telemetry)
+        {
+            _telemetryObserver?.Invoke(telemetry);
+            _telemetryClient.Track(telemetry);
+        }
+
+        private static void AddProperties(
+            IDictionary<string, string> telemetryProperties,
+            IDictionary<string, string>? properties)
+        {
+            if (properties == null)
+            {
+                return;
+            }
+
+            foreach (var property in properties)
+            {
+                telemetryProperties[property.Key] = property.Value;
+            }
+        }
+
+        private void TrackMetrics(
+            IDictionary<string, double>? metrics,
+            IDictionary<string, string>? properties)
+        {
+            if (metrics == null)
+            {
+                return;
+            }
+
+            foreach (var metric in metrics)
+            {
+                var telemetry = new MetricTelemetry(metric.Key, metric.Value);
+                AddProperties(telemetry.Properties, properties);
+                Track(telemetry);
+            }
         }
     }
 }

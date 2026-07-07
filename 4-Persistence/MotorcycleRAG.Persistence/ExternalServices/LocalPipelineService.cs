@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
 
@@ -13,19 +14,20 @@ namespace MotorcycleRAG.Persistence.ExternalServices;
 /// No authentication is required — the local service runs without auth.
 /// The local endpoint is read from <see cref="IngestionOptions.LocalEndpoint"/>.
 /// </summary>
-public sealed class LocalPipelineService : ILocalPipelineService
-{
+public sealed class LocalPipelineService : ILocalPipelineService {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IngestionOptions _config;
+    private readonly BlobStorageOptions _blobStorageOptions;
     private readonly ILogger<LocalPipelineService> _logger;
 
     public LocalPipelineService(
         IHttpClientFactory httpClientFactory,
         IOptions<IngestionOptions> config,
-        ILogger<LocalPipelineService> logger)
-    {
+        IOptions<BlobStorageOptions> blobStorageOptions,
+        ILogger<LocalPipelineService> logger) {
         ArgumentNullException.ThrowIfNull(httpClientFactory);
         ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(blobStorageOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
         if (string.IsNullOrWhiteSpace(config.Value.LocalEndpoint))
@@ -34,6 +36,7 @@ public sealed class LocalPipelineService : ILocalPipelineService
 
         _httpClientFactory = httpClientFactory;
         _config = config.Value;
+        _blobStorageOptions = blobStorageOptions.Value;
         _logger = logger;
     }
 
@@ -42,14 +45,20 @@ public sealed class LocalPipelineService : ILocalPipelineService
         string uploadId,
         string documentType,
         string pipelineId,
-        CancellationToken cancellationToken = default)
-    {
+        string? sourceAccessToken = null,
+        CancellationToken cancellationToken = default) {
         ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
         ArgumentException.ThrowIfNullOrWhiteSpace(documentType);
+        if (string.IsNullOrWhiteSpace(sourceAccessToken)
+            && documentType is "manual-pdf" or "spec-dataset") {
+            throw new InvalidOperationException(
+                "Source access token is required to trigger local ingestion.");
+        }
 
         _logger.LogInformation(
-            "Triggering local pipeline for document type {DocumentType}",
-            LogSanitizer.Sanitize(documentType));
+            "Triggering local pipeline for document type {DocumentType}. SourceTokenPresent={HasToken}",
+            LogSanitizer.Sanitize(documentType),
+            !string.IsNullOrWhiteSpace(sourceAccessToken));
 
         var endpoint = documentType switch {
             "manual-pdf" => $"{_config.LocalEndpoint.TrimEnd('/')}/process/pdf",
@@ -60,44 +69,45 @@ public sealed class LocalPipelineService : ILocalPipelineService
                 nameof(documentType))
         };
 
+        var blobContainer = _blobStorageOptions.RawUploadsContainer;
+
         var body = documentType switch {
             "bike-graph" => JsonSerializer.Serialize(new {
                 upload_id = uploadId,
-                blob_container = "raw-uploads"
+                blob_container = blobContainer,
+                source_access_token = sourceAccessToken,
             }),
             _ => JsonSerializer.Serialize(new {
                 upload_id = uploadId,
                 document_type = documentType,
-                blob_container = "raw-uploads"
+                blob_container = blobContainer,
+                source_access_token = sourceAccessToken,
             })
         };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-        {
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
 
         using var client = _httpClientFactory.CreateClient("LocalPipelineService");
         using var response = await client.SendAsync(request, cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
-        {
+        if (!response.IsSuccessStatusCode) {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogError(
-                "Local pipeline trigger failed for document type {DocumentType}. Status: {StatusCode}",
-                LogSanitizer.Sanitize(documentType), (int)response.StatusCode);
+                "Local pipeline trigger failed for document type {DocumentType}. Status: {StatusCode} Body: {Body}",
+                LogSanitizer.Sanitize(documentType), (int)response.StatusCode, LogSanitizer.Sanitize(errorBody, 500));
             throw new InvalidOperationException(
-                $"Local pipeline trigger returned HTTP {(int)response.StatusCode} for document type '{documentType}'.");
+                $"Local pipeline trigger returned HTTP {(int)response.StatusCode} for document type '{documentType}': {errorBody}");
         }
 
         using var jsonDoc = await JsonDocument.ParseAsync(
             await response.Content.ReadAsStreamAsync(cancellationToken),
             cancellationToken: cancellationToken);
 
-        if (jsonDoc.RootElement.TryGetProperty("job_id", out var jobIdProp))
-        {
+        if (jsonDoc.RootElement.TryGetProperty("job_id", out var jobIdProp)) {
             var jobId = jobIdProp.GetString();
-            if (!string.IsNullOrWhiteSpace(jobId))
-            {
+            if (!string.IsNullOrWhiteSpace(jobId)) {
                 _logger.LogInformation(
                     "Local pipeline triggered for document type {DocumentType}. Job ID: {JobId}",
                     LogSanitizer.Sanitize(documentType), LogSanitizer.Sanitize(jobId));
@@ -113,11 +123,10 @@ public sealed class LocalPipelineService : ILocalPipelineService
     }
 
     /// <inheritdoc/>
-    public async Task<string> GetRunStatusAsync(
+    public async Task<PipelineRunStatusResult> GetRunStatusAsync(
         string runId,
         string pipelineId,
-        CancellationToken cancellationToken = default)
-    {
+        CancellationToken cancellationToken = default) {
         ArgumentException.ThrowIfNullOrWhiteSpace(runId);
 
         var url = $"{_config.LocalEndpoint.TrimEnd('/')}/jobs/{runId}";
@@ -125,26 +134,29 @@ public sealed class LocalPipelineService : ILocalPipelineService
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
         using var client = _httpClientFactory.CreateClient("LocalPipelineService");
-        using var response = await client.SendAsync(request, cancellationToken);
+        using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
-        if (!response.IsSuccessStatusCode)
-        {
+        if (!response.IsSuccessStatusCode) {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogWarning(
-                "Local pipeline status check failed for job {RunId}. Status: {StatusCode}",
-                LogSanitizer.Sanitize(runId), (int)response.StatusCode);
+                "Local pipeline status check failed for job {RunId}. Status: {StatusCode} Body: {Body}",
+                LogSanitizer.Sanitize(runId), (int)response.StatusCode, LogSanitizer.Sanitize(errorBody, 500));
             throw new InvalidOperationException(
-                $"Local pipeline status check returned HTTP {(int)response.StatusCode} for job '{runId}'.");
+                $"Local pipeline status check returned HTTP {(int)response.StatusCode} for job '{runId}': {errorBody}");
         }
 
-        using var jsonDoc = await JsonDocument.ParseAsync(
-            await response.Content.ReadAsStreamAsync(cancellationToken),
-            cancellationToken: cancellationToken);
+        var rawJson = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
-        if (jsonDoc.RootElement.TryGetProperty("status", out var statusProp))
-            return statusProp.GetString() ?? "Unknown";
+        using var jsonDoc = JsonDocument.Parse(rawJson);
 
-        _logger.LogWarning("Local pipeline status response missing 'status' field for job {RunId}",
-            LogSanitizer.Sanitize(runId));
-        return "Unknown";
+        return new PipelineRunStatusResult {
+            Status = ReadJsonString(jsonDoc.RootElement, "status") ?? "Unknown",
+            Message = ReadJsonString(jsonDoc.RootElement, "message"),
+            Error = ReadJsonString(jsonDoc.RootElement, "error"),
+            RawJson = rawJson,
+        };
     }
+
+    private static string? ReadJsonString(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out var prop) ? prop.GetString() : null;
 }

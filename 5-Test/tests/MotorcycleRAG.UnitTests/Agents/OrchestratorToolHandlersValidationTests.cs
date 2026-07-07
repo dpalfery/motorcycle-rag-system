@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using MotorcycleRAG.Application.Agents.Orchestration;
+using MotorcycleRAG.Application.Services.Agents.Orchestration;
 using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Application.Services.Telemetry;
 using MotorcycleRAG.Contracts.Interfaces;

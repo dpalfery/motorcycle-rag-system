@@ -26,6 +26,7 @@ permissions:
   actions: read
   checks: write
   pull-requests: write
+  security-events: write
 
 env:
   DOTNET_VERSION: '9.0.x'
@@ -335,10 +336,71 @@ jobs:
         name: performance-report
         path: performance-report.json
 
+  skill-gate:
+    name: SkillForge Skill Gate
+    runs-on: ubuntu-latest
+    continue-on-error: true  # TODO: Remove continue-on-error once all skills pass SkillForge validation
+    needs: unit-tests
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Build SkillForge
+      run: dotnet build tools/SkillForge/src/SkillForge.Cli/SkillForge.Cli.csproj -c Release
+
+    - name: Validate .agents/skills
+      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .agents/skills --format table
+
+    - name: Lint .agents/skills
+      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .agents/skills --min-desc-score 70 --format table
+
+    - name: Scan .agents/skills (SARIF)
+      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .agents/skills --fail-on critical --format sarif > skillforge-agents.sarif
+
+    - name: Upload .agents/skills SARIF
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: skillforge-agents.sarif
+
+    - name: Validate .claude/skills
+      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .claude/skills --format table
+
+    - name: Lint .claude/skills
+      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .claude/skills --min-desc-score 70 --format table
+
+    - name: Scan .claude/skills (SARIF)
+      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .claude/skills --fail-on critical --format sarif > skillforge-claude.sarif
+
+    - name: Upload .claude/skills SARIF
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: skillforge-claude.sarif
+
+    - name: Validate .kilo/skills
+      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .kilo/skills --format table
+
+    - name: Lint .kilo/skills
+      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .kilo/skills --min-desc-score 70 --format table
+
+    - name: Scan .kilo/skills (SARIF)
+      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .kilo/skills --fail-on critical --format sarif > skillforge-kilo.sarif
+
+    - name: Upload .kilo/skills SARIF
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: skillforge-kilo.sarif
+
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, end-to-end-tests, azure-integration-tests, load-tests, performance-analysis]
+    needs: [unit-tests, integration-tests, end-to-end-tests, azure-integration-tests, load-tests, performance-analysis, skill-gate]
     if: always()
     
     steps:
@@ -361,6 +423,7 @@ jobs:
         echo "| Azure Integration | ${{ needs.azure-integration-tests.result }} | Real Azure service validation |" >> test-summary.md
         echo "| Load Tests | ${{ needs.load-tests.result }} | Performance under load validation |" >> test-summary.md
         echo "| Performance Analysis | ${{ needs.performance-analysis.result }} | Performance metrics analysis |" >> test-summary.md
+        echo "| Skill Gate | ${{ needs.skill-gate.result }} | SkillForge validation |" >> test-summary.md
         echo "" >> test-summary.md
         echo "## Key Metrics" >> test-summary.md
         echo "- Test Coverage: Target >90%" >> test-summary.md

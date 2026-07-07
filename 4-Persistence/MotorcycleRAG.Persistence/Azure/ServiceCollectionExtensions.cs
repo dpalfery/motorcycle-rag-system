@@ -12,6 +12,7 @@ using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Search;
 using MotorcycleRAG.Persistence.Telemetry;
 using MotorcycleRAG.Persistence.Azure.Blob;
+using MotorcycleRAG.Persistence.Azure.Search;
 using MotorcycleRAG.Core.Options;
 using Polly;
 
@@ -45,8 +46,9 @@ public static class ServiceCollectionExtensions {
             configuration.GetSection("BlobStorage"));
 
         // Validate configuration on startup
-        services.AddSingleton<IValidateOptions<AzureFoundryOptions>, AzureFoundryConfigurationValidator>();
-        services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
+        // AzureFoundryOptions and SearchOptions validation is owned by the API layer
+        // (AzureAIConfigurationValidator / SearchConfigurationValidator) to avoid duplicate
+        // validators that run with different strictness levels.
         services.AddSingleton<IValidateOptions<ResilienceOptions>, ResilienceConfigurationValidator>();
 
         // Register resilience services as singletons
@@ -73,7 +75,12 @@ public static class ServiceCollectionExtensions {
                 options, logger, resilience, correlation, httpFactory, config);
         });
         services.AddScoped<IAzureSearchClient, MotorcycleRAG.Persistence.Azure.AzureSearchClientWrapper>();
-        services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
+        if (HasDocumentIntelligenceEndpoint(configuration)) {
+            services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
+        }
+        else {
+            services.AddSingleton<IDocumentIntelligenceClient, DisabledDocumentIntelligenceClient>();
+        }
         
         // Register extracted Azure Search services
         services.AddScoped<MotorcycleRAG.Contracts.Interfaces.IAzureSearchQueryService, MotorcycleRAG.Persistence.Azure.Search.AzureSearchQueryService>();
@@ -94,8 +101,15 @@ public static class ServiceCollectionExtensions {
             return new AzureSearchClient(new Uri(azureConfig.SearchServiceEndpoint), searchConfig.IndexName, credential);
         });
 
-        // Register indexing service
+        // Register indexing services
         services.AddScoped<IMotorcycleIndexingService, MotorcycleIndexingService>();
+        if (string.Equals(configuration["Search:ChunkIndexingProvider"], "InMemoryShim", StringComparison.OrdinalIgnoreCase)) {
+            services.AddHttpClient<InMemorySearchShimChunkIndexingService>();
+            services.AddScoped<IChunkIndexingService, InMemorySearchShimChunkIndexingService>();
+        }
+        else {
+            services.AddScoped<IChunkIndexingService, ChunkIndexingService>();
+        }
 
         // Configure HTTP clients for external services
         // NOTE: Resilience policies (retry + circuit breaker) are applied in the Presentation layer
@@ -107,6 +121,9 @@ public static class ServiceCollectionExtensions {
 
         return services;
     }
+
+    private static bool HasDocumentIntelligenceEndpoint(IConfiguration configuration) =>
+        Uri.TryCreate(configuration["AzureAI:DocumentIntelligenceEndpoint"], UriKind.Absolute, out _);
 
     public static IServiceCollection AddPipelineHttpClients(this IServiceCollection services) {
         services.AddTransient<HttpResilienceDelegatingHandler>();
@@ -122,66 +139,6 @@ public static class ServiceCollectionExtensions {
         services.AddHttpClient("WebSearchAgent")
             .AddHttpMessageHandler<HttpResilienceDelegatingHandler>();
         return services;
-    }
-}
-
-/// <summary>
-/// Validates Azure Foundry configuration on startup
-/// </summary>
-public class AzureFoundryConfigurationValidator : IValidateOptions<AzureFoundryOptions> {
-    public ValidateOptionsResult Validate(string? name, AzureFoundryOptions options) {
-        ArgumentNullException.ThrowIfNull(options);
-        var failures = new List<string>();
-
-        // FoundryEndpoint is optional (app supports degraded mode without it)
-        if (!string.IsNullOrWhiteSpace(options.FoundryEndpoint) && !Uri.TryCreate(options.FoundryEndpoint, UriKind.Absolute, out _))
-            failures.Add("AzureAI:FoundryEndpoint must be a valid URI if provided");
-
-        if (string.IsNullOrWhiteSpace(options.SearchServiceEndpoint))
-            failures.Add("AzureAI:SearchServiceEndpoint is required");
-        else if (!Uri.TryCreate(options.SearchServiceEndpoint, UriKind.Absolute, out _))
-            failures.Add("AzureAI:SearchServiceEndpoint must be a valid URI");
-
-        if (string.IsNullOrWhiteSpace(options.DocumentIntelligenceEndpoint))
-            failures.Add("AzureAI:DocumentIntelligenceEndpoint is required");
-        else if (!Uri.TryCreate(options.DocumentIntelligenceEndpoint, UriKind.Absolute, out _))
-            failures.Add("AzureAI:DocumentIntelligenceEndpoint must be a valid URI");
-
-        if (options.Models.MaxTokens <= 0)
-            failures.Add("AzureAI:Models:MaxTokens must be greater than 0");
-
-        if (options.Models.Temperature < 0 || options.Models.Temperature > 2)
-            failures.Add("AzureAI:Models:Temperature must be between 0 and 2");
-
-        if (options.Retry.MaxRetries <= 0)
-            failures.Add("AzureAI:Retry:MaxRetries must be greater than 0");
-
-        return failures.Count > 0
-            ? ValidateOptionsResult.Fail(failures)
-            : ValidateOptionsResult.Success;
-    }
-}
-
-/// <summary>
-/// Validates Search configuration on startup
-/// </summary>
-public class SearchConfigurationValidator : IValidateOptions<SearchOptions> {
-    public ValidateOptionsResult Validate(string? name, SearchOptions options) {
-        ArgumentNullException.ThrowIfNull(options);
-        var failures = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(options.IndexName))
-            failures.Add("Search:IndexName is required");
-
-        if (options.BatchSize <= 0)
-            failures.Add("Search:BatchSize must be greater than 0");
-
-        if (options.MaxSearchResults <= 0)
-            failures.Add("Search:MaxSearchResults must be greater than 0");
-
-        return failures.Count > 0
-            ? ValidateOptionsResult.Fail(failures)
-            : ValidateOptionsResult.Success;
     }
 }
 

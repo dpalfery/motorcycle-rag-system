@@ -10,7 +10,7 @@ namespace MotorcycleRAG.Persistence.HealthChecks;
 /// </summary>
 public class AzureSearchHealthCheck : IHealthCheck
 {
-    private readonly AzureFoundryOptions _options;
+    private readonly IOptions<AzureFoundryOptions> _options;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AzureSearchHealthCheck> _logger;
 
@@ -19,21 +19,32 @@ public class AzureSearchHealthCheck : IHealthCheck
         IHttpClientFactory httpClientFactory,
         ILogger<AzureSearchHealthCheck> logger)
     {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
         _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
+        AzureFoundryOptions resolvedOptions;
         try
         {
-            if (string.IsNullOrWhiteSpace(_options.SearchServiceEndpoint))
+            resolvedOptions = _options.Value;
+        }
+        catch (OptionsValidationException ex)
+        {
+            _logger.LogWarning(ex, "Azure Search is not configured for this environment");
+            return HealthCheckResult.Degraded("Azure Search is not configured for this environment");
+        }
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(resolvedOptions.SearchServiceEndpoint))
             {
                 return HealthCheckResult.Unhealthy("Azure Search endpoint is not configured");
             }
 
-            if (!Uri.TryCreate(_options.SearchServiceEndpoint, UriKind.Absolute, out var uri))
+            if (!Uri.TryCreate(resolvedOptions.SearchServiceEndpoint, UriKind.Absolute, out var uri))
             {
                 return HealthCheckResult.Unhealthy("Azure Search endpoint is not a valid URL");
             }

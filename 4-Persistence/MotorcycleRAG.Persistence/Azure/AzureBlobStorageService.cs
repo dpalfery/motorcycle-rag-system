@@ -1,7 +1,7 @@
 using Azure;
-using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -13,10 +13,9 @@ namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
 /// Azure Blob Storage implementation of <see cref="IBlobStorageService"/>.
-/// Uses DefaultAzureCredential (Managed Identity in Azure, developer credential locally).
-/// Connection string must NEVER be stored in code or config files.
-/// Endpoint is read from <see cref="BlobStorageOptions.AccountEndpoint"/> which
-/// should be provided through Azure App Configuration.
+/// Uses DefaultAzureCredential against <see cref="BlobStorageOptions.AccountEndpoint"/>.
+/// In Development only, a local Azurite connection string can be supplied through
+/// developer-only configuration.
 /// </summary>
 public class AzureBlobStorageService : IBlobStorageService
 {
@@ -25,22 +24,14 @@ public class AzureBlobStorageService : IBlobStorageService
 
     public AzureBlobStorageService(
         IOptions<BlobStorageOptions> options,
+        IHostEnvironment environment,
         ILogger<AzureBlobStorageService> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(logger);
 
-        var opts = options.Value;
-
-        if (string.IsNullOrWhiteSpace(opts.AccountEndpoint))
-            throw new InvalidOperationException(
-                "BlobStorage:AccountEndpoint is required. " +
-                "Provide it through Azure App Configuration.");
-
-        _blobServiceClient = new BlobServiceClient(
-            new Uri(opts.AccountEndpoint),
-            new DefaultAzureCredential());
-
+        _blobServiceClient = BlobServiceClientFactory.Create(options.Value, environment);
         _logger = logger;
     }
 
@@ -145,5 +136,60 @@ public class AzureBlobStorageService : IBlobStorageService
         var blobClient = containerClient.GetBlobClient(blobName);
         var response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
         return response.Value.Content;
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> DeleteIfExistsAsync(
+        string containerName,
+        string blobName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(containerName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(blobName);
+
+        _logger.LogInformation(
+            "Deleting blob {BlobName} from container {Container} when present.",
+            LogSanitizer.Sanitize(blobName),
+            LogSanitizer.Sanitize(containerName));
+
+        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        var blobClient = containerClient.GetBlobClient(blobName);
+        var response = await blobClient.DeleteIfExistsAsync(
+            DeleteSnapshotsOption.IncludeSnapshots,
+            cancellationToken: cancellationToken);
+
+        return response.Value;
+    }
+
+    /// <inheritdoc/>
+    public async Task SetMetadataAsync(
+        string containerName,
+        string blobName,
+        Dictionary<string, string> metadata,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(containerName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(blobName);
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        try
+        {
+            var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+            var blobClient = containerClient.GetBlobClient(blobName);
+            await blobClient.SetMetadataAsync(metadata, cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Set metadata on blob {BlobName} in container {Container}.",
+                LogSanitizer.Sanitize(blobName),
+                LogSanitizer.Sanitize(containerName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to set metadata on blob {BlobName} in container {Container}. This is best-effort only.",
+                LogSanitizer.Sanitize(blobName),
+                LogSanitizer.Sanitize(containerName));
+        }
     }
 }

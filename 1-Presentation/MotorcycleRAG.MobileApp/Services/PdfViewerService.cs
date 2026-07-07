@@ -31,7 +31,7 @@ namespace MotorcycleRAG.MobileApp.Services
                 return localPath;
             }
 
-            var client = _httpClientFactory.CreateClient();
+            using var client = _httpClientFactory.CreateClient();
             var data = await client.GetByteArrayAsync(new Uri(url));
             await File.WriteAllBytesAsync(localPath, data);
 

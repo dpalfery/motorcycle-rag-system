@@ -49,7 +49,7 @@ public partial class ConversationListViewModel : ObservableObject
             if (t.IsCanceled) return;
             // Ensure we run on UI thread if updating collection
             await MainThread.InvokeOnMainThreadAsync(SearchAsync);
-        }, token);
+        }, token, TaskContinuationOptions.None, TaskScheduler.Default);
     }
 
     [RelayCommand]

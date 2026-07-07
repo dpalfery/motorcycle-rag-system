@@ -1,4 +1,5 @@
 using MotorcycleRAG.Domain.Enums;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MotorcycleRAG.Domain.Entities;
 
@@ -8,6 +9,7 @@ public class ManualDocument
     public string SourceFileName { get; set; } = string.Empty;
     public string CanonicalBlobContainer { get; set; } = string.Empty;
     public string CanonicalBlobPath { get; set; } = string.Empty;
+    [SuppressMessage("Design", "CA1056:URI-like properties should not be strings", Justification = "Canonical blob URIs are stored and serialized as nullable string values across the ingestion boundary.")]
     public string? CanonicalBlobUri { get; set; }
     public string? SourceContentHash { get; set; }
     public string DocumentType { get; set; } = string.Empty;

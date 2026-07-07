@@ -51,7 +51,12 @@ if (usesBlobDataProtection) {
     healthChecks.AddCheck<DataProtectionHealthCheck>("data_protection_blob");
 }
 
-builder.Services.AddDataProtectionMonitoring();
+var hasTelemetry = !string.IsNullOrEmpty(
+    builder.Configuration.GetConnectionString("ApplicationInsights")
+    ?? builder.Configuration["ApplicationInsights:ConnectionString"]);
+if (hasTelemetry) {
+    builder.Services.AddDataProtectionMonitoring();
+}
 builder.Services.AddBffReverseProxy(builder.Configuration);
 builder.Services.AddBffAuthentication(builder.Configuration);
 builder.Services.AddBffDataProtection(builder.Configuration, builder.Environment);

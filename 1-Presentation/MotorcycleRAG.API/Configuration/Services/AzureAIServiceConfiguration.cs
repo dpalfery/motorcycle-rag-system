@@ -11,24 +11,33 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for Azure AI services
 /// </summary>
-internal static class AzureAIServiceConfiguration
-{
+internal static class AzureAIServiceConfiguration {
     /// <summary>
     /// Configure Azure AI services
     /// </summary>
-    internal static IServiceCollection AddAzureAIServices(this IServiceCollection services, IConfiguration configuration)
-    {
-        // Configure Azure Foundry settings with validation
-        services.AddOptions<AzureFoundryOptions>()
-            .Bind(configuration.GetSection("AzureAI"))
-            .ValidateOnStart();
+    internal static IServiceCollection AddAzureAIServices(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment) {
+        var azureFoundryOptions = services.AddOptions<AzureFoundryOptions>()
+            .Bind(configuration.GetSection("AzureAI"));
+
+        var appConfigurationExplicitlySkipped =
+            environment.IsDevelopment() &&
+            bool.TryParse(configuration[AppConfigurationExtensions.AppConfigurationEnabledKey], out var appConfigurationEnabled) &&
+            !appConfigurationEnabled;
+
+        if (!appConfigurationExplicitlySkipped) {
+            azureFoundryOptions.ValidateOnStart();
+        }
+
         services.AddOptions<SearchOptions>()
             .Bind(configuration.GetSection("Search"));
         services.AddOptions<TelemetryOptions>()
             .Bind(configuration.GetSection("ApplicationInsights"));
 
         // Add options validation
-        services.AddSingleton<IValidateOptions<AzureFoundryOptions>, AzureFoundryConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<AzureFoundryOptions>, AzureAIConfigurationValidator>();
         services.AddSingleton<IValidateOptions<SearchOptions>, SearchConfigurationValidator>();
         services.AddSingleton<IValidateOptions<TelemetryOptions>, TelemetryConfigurationValidator>();
 
@@ -44,14 +53,16 @@ internal static class AzureAIServiceConfiguration
     /// <summary>
     /// Configure health checks for Azure AI services
     /// </summary>
-    internal static IHealthChecksBuilder AddAzureAIHealthChecks(this IHealthChecksBuilder builder, IConfiguration configuration)
-    {
+    internal static IHealthChecksBuilder AddAzureAIHealthChecks(this IHealthChecksBuilder builder, IConfiguration configuration) {
         // Add dependency-specific health checks
         builder.AddCheck<AzureSearchHealthCheck>("azure_ai_search");
 
         builder.AddCheck<AzureFoundryHealthCheck>("azure_foundry");
 
-        builder.AddCheck<DocumentIntelligenceHealthCheck>("azure_document_intelligence");
+        if (Uri.TryCreate(configuration["AzureAI:DocumentIntelligenceEndpoint"], UriKind.Absolute, out _))
+        {
+            builder.AddCheck<DocumentIntelligenceHealthCheck>("azure_document_intelligence");
+        }
 
         return builder;
     }

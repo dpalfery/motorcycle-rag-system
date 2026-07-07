@@ -7,6 +7,7 @@ using MotorcycleRAG.API.Services;
 using MotorcycleRAG.Application.Extensions;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Interfaces;
+using TelemetryOptions = MotorcycleRAG.Core.Options.TelemetryOptions;
 
 namespace MotorcycleRAG.API;
 
@@ -32,7 +33,7 @@ public class Program {
         // 1. Core Configuration & Logging
         builder.Logging.AddStructuredLogging(builder.Environment);
         builder.AddAzureAppConfigurationWithKeyVault();
-        
+
         if (builder.Environment.IsDevelopment()) {
             // Ensure local secrets and env vars override App Config in development
             builder.Configuration.AddUserSecrets<Program>(optional: true);
@@ -40,18 +41,24 @@ public class Program {
         }
 
         // 2. Telemetry & Monitoring
-        builder.Services.AddMotorcycleRagTelemetry(configuration);
+        var telemetryOptions = builder.Configuration.GetSection("ApplicationInsights").Get<TelemetryOptions>() ?? new TelemetryOptions();
+        builder.Services.AddMotorcycleRagTelemetry(telemetryOptions);
 
         // 3. MVC & Core Services
         builder.Services.AddControllers();
+        builder.Services.AddAntiforgery();
 
-        // Enforce maximum request body size (50MB) for security and DoS mitigation
+        var ingestionRequestLimitBytes = configuration
+            .GetSection("Ingestion")
+            .Get<IngestionOptions>()?.MaxInputBytes ?? new IngestionOptions().MaxInputBytes;
+
+        // Keep server-level limits aligned with the ingestion upload policy.
         builder.WebHost.ConfigureKestrel(options => {
-            options.Limits.MaxRequestBodySize = 50 * 1024 * 1024;
+            options.Limits.MaxRequestBodySize = ingestionRequestLimitBytes;
         });
 
         builder.Services.Configure<FormOptions>(options => {
-            options.MultipartBodyLengthLimit = 50 * 1024 * 1024;
+            options.MultipartBodyLengthLimit = ingestionRequestLimitBytes;
         });
 
         builder.Services.AddHttpContextAccessor();
@@ -70,7 +77,7 @@ public class Program {
         });
 
         // 5. Domain & Infrastructure Services (Existing Extensions)
-        builder.Services.AddAzureAIServices(configuration);
+        builder.Services.AddAzureAIServices(configuration, builder.Environment);
         builder.Services.AddCoreServices();
         builder.Services.AddSearchAgents(configuration);
         builder.Services.AddDataProcessors(configuration);

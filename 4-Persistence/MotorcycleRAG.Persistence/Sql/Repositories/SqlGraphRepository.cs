@@ -279,17 +279,27 @@ public class SqlGraphRepository : IGraphRepository
         CancellationToken cancellationToken = default)
     {
         // Delete edges that reference any node belonging to this document, then delete the nodes.
+        // Uses a temp-table materialization + JOIN pattern instead of dual IN (SELECT ...) to avoid
+        // full GraphEdge scans on the 5-DTU Basic tier. The single batch runs on one session, so the
+        // #NodesToDelete temp table is visible to all three phases and is dropped automatically when
+        // the connection closes. All three phases are scoped to @SourceDocumentId — no cross-document
+        // data loss. An empty graph (zero matching nodes) yields an empty temp table and the JOIN
+        // deletes delete zero rows without error.
         const string sql = @"
-            DELETE FROM [dbo].[GraphEdge]
-            WHERE [FromNodeId] IN (
-                SELECT [Id] FROM [dbo].[GraphNode] WHERE [SourceDocumentId] = @SourceDocumentId
-            )
-            OR [ToNodeId] IN (
-                SELECT [Id] FROM [dbo].[GraphNode] WHERE [SourceDocumentId] = @SourceDocumentId
-            );
-
-            DELETE FROM [dbo].[GraphNode]
+            -- Phase 1: Materialize the affected node IDs once (uses IX_GraphNode_SourceDocumentId).
+            SELECT [Id] INTO #NodesToDelete
+            FROM [dbo].[GraphNode]
             WHERE [SourceDocumentId] = @SourceDocumentId;
+
+            -- Phase 2: Delete edges referencing those nodes via JOIN (uses IX_GraphEdge_FromTo_RelationshipType).
+            DELETE e
+            FROM [dbo].[GraphEdge] e
+            INNER JOIN #NodesToDelete n ON e.[FromNodeId] = n.[Id] OR e.[ToNodeId] = n.[Id];
+
+            -- Phase 3: Delete the nodes themselves.
+            DELETE n
+            FROM [dbo].[GraphNode] n
+            INNER JOIN #NodesToDelete d ON n.[Id] = d.[Id];
         ";
 
         try
@@ -301,6 +311,7 @@ public class SqlGraphRepository : IGraphRepository
                 await connection.ExecuteAsync(new CommandDefinition(sql,
                     new { SourceDocumentId = sourceDocumentId },
                     transaction,
+                    commandTimeout: 90,
                     cancellationToken: cancellationToken));
                 transaction.Commit();
             }

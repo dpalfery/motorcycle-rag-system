@@ -41,8 +41,6 @@ internal static class CoreServicesConfiguration {
         services.AddScoped<TierEntitlementMappingService>();
         services.AddScoped<UserAccessLifecycleService>();
 
-        // Add Application Insights TelemetryClient
-        services.AddApplicationInsightsTelemetry();
         services.AddSingleton<ITelemetryService, MotorcycleRAG.Persistence.Telemetry.TelemetryService>();
 
         return services;

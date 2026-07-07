@@ -12,8 +12,8 @@
 |----|----|
 | MotorcycleRAG.API | Web API |
 | MotorcycleRAG.Web.BFF | Web / Confidential |
-| MotorcycleRAG.Mobile | Public client |
-| MotorcycleRAG.Admin | Public client |
+| MotorcycleRAG.MobileApp | Public client |
+| MotorcycleRAG.AdminDesktop | Public client |
 
 ---
 
@@ -81,7 +81,7 @@ https://<bff-host>/signout-callback-oidc
 
 ---
 
-## 4. MotorcycleRAG.Mobile (Public Client)
+## 4. MotorcycleRAG.MobileApp (Public Client)
 
 ### Platform
 - Mobile and Desktop
@@ -102,7 +102,7 @@ msal<MOBILE_CLIENT_ID>://auth
 
 ---
 
-## 5. MotorcycleRAG.Admin (Public Client)
+## 5. MotorcycleRAG.AdminDesktop (Public Client)
 
 ### Platform
 - Mobile and Desktop
@@ -122,7 +122,7 @@ http://localhost
   - `chat`
   - `admin`
 
-Desktop admin clients should request the explicit admin scope URI `api://<API_CLIENT_ID>/admin`.
+MotorcycleRAG.AdminDesktop clients should request the explicit admin scope URI `api://<API_CLIENT_ID>/admin`.
 
 ✅ Grant admin consent
 
@@ -134,7 +134,7 @@ Desktop admin clients should request the explicit admin scope URI `api://<API_CL
 - Entra native users only
 - Assigned:
   - `mcr-api-admin` app role
-  - Access to Admin app
+  - Access to MotorcycleRAG.AdminDesktop
 
 ### External Users
 - Assigned roles via:
@@ -159,7 +159,7 @@ For `specs/002-user-onboarding-approval`, use this canonical mapping when approv
 ## 7. Security Checks
 
 ✅ Ensure:
-- Only Admin app has `admin` scope
+- Only MotorcycleRAG.AdminDesktop has `admin` scope
 - Only Admin users have `Admin` role
 - API rejects tokens without correct `azp`
 

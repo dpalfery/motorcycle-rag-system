@@ -1,1 +1,24 @@
 sandbox_mode = "danger-full-access"
+
+# Project-scoped MCP registrations imported from .mcp.json and installed VS Code MCP extensions.
+# Agents narrow these registrations in .codex/agents/*.toml for context slimming.
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+
+[mcp_servers.microsoft-learn]
+url = "https://learn.microsoft.com/api/mcp"
+
+[mcp_servers.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]
+
+# Azure MCP is available locally via the recommended VS Code extension.
+# Kept read-only to honor AGENTS.md: Azure access is diagnostic/read-only for agents.
+[mcp_servers.azure]
+command = "/Users/dave/.vscode-insiders/extensions/ms-azuretools.vscode-azure-mcp-server-3.0.20-darwin-arm64/server/azmcp"
+args = ["server", "start", "--mode", "namespace", "--read-only"]
+default_tools_approval_mode = "prompt"
+
+[mcp_servers.azure.env]
+DOTNET_BUNDLE_EXTRACT_BASE_DIR = "/private/tmp"
+AZURE_MCP_COLLECT_TELEMETRY = "false"

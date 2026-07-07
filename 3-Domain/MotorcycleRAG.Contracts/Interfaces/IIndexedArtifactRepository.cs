@@ -11,4 +11,6 @@ public interface IIndexedArtifactRepository
     Task<IReadOnlyList<IndexedArtifact>> GetByStatesAsync(IReadOnlyCollection<IndexedArtifactState> states, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<IndexedArtifact>> GetAllAsync(int maxCount = 1000, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<IndexedArtifact>> GetByIngestionJobIdAsync(Guid jobId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<IndexedArtifact>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default);
+    Task DeleteByIdAsync(Guid artifactId, CancellationToken cancellationToken = default);
 }

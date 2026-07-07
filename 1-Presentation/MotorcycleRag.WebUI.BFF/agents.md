@@ -17,7 +17,7 @@ This file is **BFF-specific** context. For global rules (security, clean archite
 - **Scopes**: Explicitly request the API's delegated read/chat scopes. Prefer `api://<api-client-id>/read` and `api://<api-client-id>/chat` for new configs; older environments may still expose the equivalent `api://motorcyclerag-api/*` URIs.
 - Keep token/claims handling consistent with the system spec:
 	- Customers: Entra External ID / B2C
-	- Admins: Entra ID workforce (admin UI is MAUI)
+	- Admins: Entra ID workforce (admin UI is Tauri/AdminDesktop)
 
 ## Useful commands
 - Run: `dotnet run --project 1-Presentation/MotorcycleRag.WebUI.BFF`

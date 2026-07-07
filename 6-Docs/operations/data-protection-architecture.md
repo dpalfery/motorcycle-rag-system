@@ -253,5 +253,5 @@ az role assignment create \
 - [Troubleshooting Guide](data-protection-troubleshooting.md)
 - [Operations Guide](data-protection-operations.md)
 - [Disaster Recovery Guide](data-protection-disaster-recovery.md)
-- [Deployment Guide](../DEPLOYMENT_GUIDE.md)
+- [Deployment Guide](../deployment.md)
 - [Environment Variables Reference](../environment-variables.md)

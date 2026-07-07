@@ -11,7 +11,7 @@
 ## 1. Scope
 
 This document defines:
-- Authentication flows for **Web+BFF**, **Mobile**, **mcr-api-admin**
+- Authentication flows for **Web+BFF**, **MotorcycleRAG.MobileApp**, **mcr-api-admin**
 - Authorization model enforced by **MotorcycleRAG.API**
 - Token handling and trust boundaries
 - Rate limiting strategy
@@ -75,7 +75,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-## 4.2 Mobile App
+## 4.2 MotorcycleRAG.MobileApp
 
 ### Flow
 - MSAL Public Client
@@ -89,7 +89,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-## 4.3 Admin App
+## 4.3 MotorcycleRAG.AdminDesktop
 
 ### Flow (Option A – Required)
 - MSAL Public Client
@@ -123,7 +123,7 @@ api://motorcyclerag-api/chat
 api://motorcyclerag-api/admin
 ```
 
-The API app registration may expose both `api://motorcyclerag-api` and `api://<API_CLIENT_ID>` as identifier URIs. For the desktop admin app, prefer requesting `api://<API_CLIENT_ID>/admin` so the token audience always matches the GUID-based API registration.
+The API app registration may expose both `api://motorcyclerag-api` and `api://<API_CLIENT_ID>` as identifier URIs. For MotorcycleRAG.AdminDesktop, prefer requesting `api://<API_CLIENT_ID>/admin` so the token audience always matches the GUID-based API registration.
 
 ---
 
@@ -173,7 +173,7 @@ mcr-api-admin endpoints must validate:
 ```text
 roles contains "mcr-api-admin"
 AND
-azp == <Admin App Client ID>
+azp == <MotorcycleRAG.AdminDesktop Client ID>
 ```
 
 This prevents:

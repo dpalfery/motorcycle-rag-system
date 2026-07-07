@@ -209,6 +209,50 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
     }
 
+    public async Task<IReadOnlyList<IndexedArtifact>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
+
+        const string sql = @"
+            SELECT [IndexedArtifactId], [IngestionJobId], [UploadId], [ArtifactType],
+                   [BlobContainer], [BlobPath], [SourceFileName], [State],
+                   [ExpectedChunkCount], [IndexedChunkCount], [FailedChunkCount],
+                   [LastProcessedAtUtc], [FailureReason], [CreatedAtUtc], [UpdatedAtUtc]
+            FROM [dbo].[IndexedArtifacts]
+            WHERE [UploadId] = @UploadId;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var rows = await connection.QueryAsync<dynamic>(
+                new CommandDefinition(sql, new { UploadId = uploadId }, cancellationToken: cancellationToken));
+
+            return rows.Select(MapToEntity).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get indexed artifacts by upload {UploadId}", uploadId);
+            throw new InvalidOperationException("Failed to get indexed artifacts", ex);
+        }
+    }
+
+    public async Task DeleteByIdAsync(Guid artifactId, CancellationToken cancellationToken = default)
+    {
+        const string sql = "DELETE FROM [dbo].[IndexedArtifacts] WHERE [IndexedArtifactId] = @IndexedArtifactId;";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            await connection.ExecuteAsync(new CommandDefinition(sql, new { IndexedArtifactId = artifactId }, commandTimeout: 90, cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete indexed artifact {ArtifactId}", artifactId);
+            throw new InvalidOperationException("Failed to delete indexed artifact", ex);
+        }
+    }
+
     private static IndexedArtifact MapToEntity(dynamic row)
     {
         return new IndexedArtifact

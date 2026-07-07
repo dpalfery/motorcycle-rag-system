@@ -3,9 +3,11 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using MotorcycleRAG.API.Controllers;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.UnitTests.Presentation.API.Controllers;
 
@@ -74,11 +76,11 @@ public sealed class LegacyPdfIngestionControllerTests
     }
 
     [Fact]
-    public async Task FileUploadController_UploadFileWithProcessingAsync_WithPdfFile_ReturnsBadRequest()
+    public async Task FileUploadController_UploadFileWithProcessingAsync_ReturnsGone()
     {
-        var uploadService = new Mock<IFileUploadService>();
-        var orchestrator = new Mock<IDataPipelineOrchestrator>();
-        var sut = new FileUploadController(uploadService.Object, orchestrator.Object, NullLogger<FileUploadController>.Instance) {
+        var sut = new FileUploadController(
+            Options.Create(new FileUploadConfiguration()),
+            NullLogger<FileUploadController>.Instance) {
             ControllerContext = CreateControllerContext()
         };
 
@@ -88,24 +90,20 @@ public sealed class LegacyPdfIngestionControllerTests
             ContentType = "application/pdf"
         };
 
-        var result = await sut.UploadFileWithProcessingAsync(file, true);
+        var result = sut.UploadFileWithProcessingAsync(file, true);
 
-        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
-        var problem = badRequest.Value.Should().BeOfType<ProblemDetails>().Subject;
-        problem.Title.Should().Be("Legacy PDF ingestion is no longer supported");
-        uploadService.Verify(service => service.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<FileMetadata>(), It.IsAny<FileUploadOptions>(), It.IsAny<CancellationToken>()), Times.Never);
-        orchestrator.Verify(service => service.ProcessFileAsync(It.IsAny<DataPipelineRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        var gone = result.Should().BeOfType<ObjectResult>().Subject;
+        gone.StatusCode.Should().Be(StatusCodes.Status410Gone);
+        gone.Value.Should().BeOfType<ProblemDetails>()
+            .Which.Title.Should().Be("Legacy disk upload is no longer supported");
     }
 
     [Fact]
-    public async Task FileUploadController_UploadFilesWithProcessingAsync_WithPdfFile_ReturnsBadRequest()
+    public async Task FileUploadController_UploadFilesWithProcessingAsync_ReturnsGone()
     {
-        var uploadService = new Mock<IFileUploadService>();
-        uploadService.Setup(service => service.GetUploadConstraints())
-            .Returns(new FileUploadConstraints { MaxFilesPerBatch = 10 });
-
-        var orchestrator = new Mock<IDataPipelineOrchestrator>();
-        var sut = new FileUploadController(uploadService.Object, orchestrator.Object, NullLogger<FileUploadController>.Instance) {
+        var sut = new FileUploadController(
+            Options.Create(new FileUploadConfiguration()),
+            NullLogger<FileUploadController>.Instance) {
             ControllerContext = CreateControllerContext()
         };
 
@@ -121,12 +119,12 @@ public sealed class LegacyPdfIngestionControllerTests
             ContentType = "text/csv"
         };
 
-        var result = await sut.UploadFilesWithProcessingAsync(new[] { pdfFile, csvFile }, true);
+        var result = sut.UploadFilesWithProcessingAsync(new[] { pdfFile, csvFile }, true);
 
-        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
-        badRequest.Value.Should().BeOfType<ProblemDetails>();
-        uploadService.Verify(service => service.UploadFilesAsync(It.IsAny<IEnumerable<(Stream stream, FileMetadata metadata)>>(), It.IsAny<FileUploadOptions>(), It.IsAny<CancellationToken>()), Times.Never);
-        orchestrator.Verify(service => service.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()), Times.Never);
+        var gone = result.Should().BeOfType<ObjectResult>().Subject;
+        gone.StatusCode.Should().Be(StatusCodes.Status410Gone);
+        gone.Value.Should().BeOfType<ProblemDetails>()
+            .Which.Detail.Should().Contain("/api/ingestion/jobs/upload");
     }
 
     private static ControllerContext CreateControllerContext() =>

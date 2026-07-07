@@ -6,7 +6,6 @@ using MotorcycleRAG.Application.Services.Ingestion.Audit;
 using MotorcycleRAG.Application.Features.Ingestion.Validators;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Persistence.ExternalServices;
 using MotorcycleRAG.Persistence.Azure;
 
 namespace MotorcycleRAG.API.Configuration.Services;
@@ -34,14 +33,18 @@ internal static class DataPipelineConfiguration {
 
         // Register ingestion job service for Fabric pipeline integration
         services.AddScoped<IIngestionJobService, MotorcycleRAG.Application.Services.Ingestion.IngestionJobService>();
+
+        // Register the job deletion background service (hosted). It polls for
+        // Deleting ingestion jobs and performs best-effort artifact cleanup outside
+        // the originating HTTP request lifecycle. Resolves scoped dependencies
+        // (IIngestionJobService / IIngestionJobRepository) through IServiceScopeFactory.
+        services.AddHostedService<JobDeletionBackgroundService>();
+
+        services.AddSingleton<IIngestionSourceAccessTokenService, MotorcycleRAG.Application.Services.Ingestion.IngestionSourceAccessTokenService>();
+        services.AddMemoryCache();
         services.AddScoped<IManualIngestionService, MotorcycleRAG.Application.Services.Ingestion.ManualIngestionService>();
+        services.AddScoped<IChunkReprocessService, ChunkReprocessService>();
 
-        // Register concrete pipeline service implementations
-        services.AddScoped<MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>();
-
-        // Register a single ILocalPipelineService using the local Python processing service.
-        services.AddScoped<ILocalPipelineService>(serviceProvider =>
-            serviceProvider.GetRequiredService<MotorcycleRAG.Persistence.ExternalServices.LocalPipelineService>());
         services.AddScoped<IGraphEntityIngestionService, MotorcycleRAG.Application.Services.Ingestion.GraphEntityIngestionService>();
 
         // Register named HTTP clients for pipeline services with resilience policies

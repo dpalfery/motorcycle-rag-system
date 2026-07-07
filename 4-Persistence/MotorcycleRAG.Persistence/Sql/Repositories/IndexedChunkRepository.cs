@@ -97,6 +97,58 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         }
     }
 
+    public async Task<IReadOnlyList<IndexedChunk>> GetByIngestionJobIdAsync(Guid ingestionJobId, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT [ChunkId], [IndexedArtifactId], [IngestionJobId], [UploadId],
+                   [SourceFileName], [PageNumber], [ChunkIndex], [Stage], [Status],
+                   [ProcessedAtUtc], [FailureReason]
+            FROM [dbo].[IndexedChunks]
+            WHERE [IngestionJobId] = @IngestionJobId;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var rows = await connection.QueryAsync<dynamic>(
+                new CommandDefinition(sql, new { IngestionJobId = ingestionJobId }, cancellationToken: cancellationToken));
+
+            return rows.Select(MapToEntity).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get chunks by ingestion job {IngestionJobId}", ingestionJobId);
+            throw new InvalidOperationException("Failed to get indexed chunks", ex);
+        }
+    }
+
+    public async Task<IReadOnlyList<IndexedChunk>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
+
+        const string sql = @"
+            SELECT [ChunkId], [IndexedArtifactId], [IngestionJobId], [UploadId],
+                   [SourceFileName], [PageNumber], [ChunkIndex], [Stage], [Status],
+                   [ProcessedAtUtc], [FailureReason]
+            FROM [dbo].[IndexedChunks]
+            WHERE [UploadId] = @UploadId;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var rows = await connection.QueryAsync<dynamic>(
+                new CommandDefinition(sql, new { UploadId = uploadId }, cancellationToken: cancellationToken));
+
+            return rows.Select(MapToEntity).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get chunks by upload {UploadId}", uploadId);
+            throw new InvalidOperationException("Failed to get indexed chunks", ex);
+        }
+    }
+
     public async Task DeleteByArtifactIdAsync(Guid artifactId, CancellationToken cancellationToken = default)
     {
         const string sql = "DELETE FROM [dbo].[IndexedChunks] WHERE [IndexedArtifactId] = @IndexedArtifactId;";
@@ -104,12 +156,46 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            await connection.ExecuteAsync(new CommandDefinition(sql, new { IndexedArtifactId = artifactId }, cancellationToken: cancellationToken));
+            await connection.ExecuteAsync(new CommandDefinition(sql, new { IndexedArtifactId = artifactId }, commandTimeout: 90, cancellationToken: cancellationToken));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete chunks for artifact {ArtifactId}", artifactId);
             throw new InvalidOperationException($"Failed to delete indexed chunks", ex);
+        }
+    }
+
+    public async Task DeleteByIngestionJobIdAsync(Guid ingestionJobId, CancellationToken cancellationToken = default)
+    {
+        const string sql = "DELETE FROM [dbo].[IndexedChunks] WHERE [IngestionJobId] = @IngestionJobId;";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            await connection.ExecuteAsync(new CommandDefinition(sql, new { IngestionJobId = ingestionJobId }, commandTimeout: 90, cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete chunks for ingestion job {IngestionJobId}", ingestionJobId);
+            throw new InvalidOperationException("Failed to delete indexed chunks", ex);
+        }
+    }
+
+    public async Task DeleteByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
+
+        const string sql = "DELETE FROM [dbo].[IndexedChunks] WHERE [UploadId] = @UploadId;";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            await connection.ExecuteAsync(new CommandDefinition(sql, new { UploadId = uploadId }, commandTimeout: 90, cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete chunks for upload {UploadId}", uploadId);
+            throw new InvalidOperationException("Failed to delete indexed chunks", ex);
         }
     }
 

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
@@ -31,24 +32,52 @@ public sealed class IngestionJobsController : ControllerBase {
     private readonly IngestionJobValidator _validator;
     private readonly IBlobStorageService _blobStorageService;
     private readonly BlobStorageOptions _blobStorageOptions;
+    private readonly IngestionOptions _ingestionOptions;
     private readonly IChunkReprocessService _reprocessService;
     private readonly ILogger<IngestionJobsController> _logger;
-    /// <summary>Maximum upload size in bytes (2 GB).</summary>
-    private const long MaxFileSizeBytes = 2L * 1024 * 1024 * 1024;
 
     public IngestionJobsController(
         IIngestionJobService ingestionJobService,
         IngestionJobValidator validator,
         IBlobStorageService blobStorageService,
         IOptions<BlobStorageOptions> blobStorageOptions,
+        IOptions<IngestionOptions> ingestionOptions,
         IChunkReprocessService reprocessService,
         ILogger<IngestionJobsController> logger) {
         _ingestionJobService = ingestionJobService ?? throw new ArgumentNullException(nameof(ingestionJobService));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
+        _ingestionOptions = ingestionOptions?.Value ?? throw new ArgumentNullException(nameof(ingestionOptions));
         _reprocessService = reprocessService ?? throw new ArgumentNullException(nameof(reprocessService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Returns the blob-backed ingestion upload constraints.
+    /// Route: GET /api/ingestion/jobs/upload-constraints
+    /// </summary>
+    [HttpGet("jobs/upload-constraints")]
+    [ProducesResponseType(typeof(FileUploadConstraints), StatusCodes.Status200OK)]
+    public ActionResult<FileUploadConstraints> GetUploadConstraints()
+    {
+        var constraints = new FileUploadConstraints
+        {
+            MaxFileSizeBytes = _ingestionOptions.MaxInputBytes,
+            MaxFileSizeDisplay = FormatFileSize(_ingestionOptions.MaxInputBytes),
+            MaxFilesPerBatch = 1
+        };
+
+        constraints.SupportedFileTypes.Add("manual-pdf");
+        constraints.SupportedFileTypes.Add("spec-dataset");
+        constraints.SupportedFileTypes.Add("bike-graph");
+        constraints.SupportedExtensions.Add(".pdf");
+        constraints.SupportedExtensions.Add(".csv");
+        constraints.FileTypeDescriptions["manual-pdf"] = "PDF motorcycle manual upload";
+        constraints.FileTypeDescriptions["spec-dataset"] = "CSV motorcycle specification dataset upload";
+        constraints.FileTypeDescriptions["bike-graph"] = "CSV motorcycle graph data upload";
+
+        return Ok(constraints);
     }
 
     /// <summary>
@@ -60,12 +89,14 @@ public sealed class IngestionJobsController : ControllerBase {
     /// <returns>202 Accepted with <see cref="IngestionUploadResponse"/>.</returns>
     // SECURITY: Never log the file name — log only the uploadId.
     [HttpPost("jobs/upload")]
+    [Consumes("multipart/form-data")]
+    [RequireAntiforgeryToken(false)]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IngestionUploadResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    [RequestSizeLimit(MaxFileSizeBytes)]
     public async Task<IActionResult> UploadAsync(
-        IFormFile? file,
+        [FromForm] IFormFile? file,
         [FromQuery] string documentType = "manual-pdf",
         CancellationToken ct = default) {
         if (file is null || file.Length == 0) {
@@ -76,10 +107,10 @@ public sealed class IngestionJobsController : ControllerBase {
             });
         }
 
-        if (file.Length > MaxFileSizeBytes) {
+        if (file.Length > _ingestionOptions.MaxInputBytes) {
             return BadRequest(new ProblemDetails {
                 Title = "File too large",
-                Detail = "The uploaded file exceeds the maximum allowed size of 2 GB.",
+                Detail = $"The uploaded file exceeds the maximum allowed size of {FormatFileSize(_ingestionOptions.MaxInputBytes)}.",
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -92,16 +123,18 @@ public sealed class IngestionJobsController : ControllerBase {
             });
         }
 
-        if (!HasExpectedExtension(file.FileName, documentType)) {
+        var normalizedDocumentType = NormalizeDocumentType(documentType);
+
+        if (!HasExpectedExtension(file.FileName, normalizedDocumentType)) {
             return BadRequest(new ProblemDetails {
                 Title = "Invalid file type",
-                Detail = $"documentType '{documentType}' requires a {GetExpectedExtension(documentType)} file.",
+                Detail = $"documentType '{normalizedDocumentType}' requires a {GetExpectedExtension(normalizedDocumentType)} file.",
                 Status = StatusCodes.Status400BadRequest
             });
         }
 
         var uploadId = Guid.NewGuid().ToString();
-        var blobName = BuildBlobName(uploadId, documentType);
+        var blobName = BuildBlobName(uploadId, normalizedDocumentType);
 
         try {
             await using var stream = file.OpenReadStream();
@@ -109,13 +142,13 @@ public sealed class IngestionJobsController : ControllerBase {
                 _blobStorageOptions.RawUploadsContainer,
                 blobName,
                 stream,
-                GetContentType(file.ContentType, documentType),
+                GetContentType(file.ContentType, normalizedDocumentType),
                 ct).ConfigureAwait(false);
 
             _logger.LogInformation(
                 "Upload accepted. UploadId={UploadId}, DocumentType={DocumentType}, SizeBytes={SizeBytes}.",
                 LogSanitizer.Sanitize(uploadId),
-                LogSanitizer.Sanitize(documentType),
+                LogSanitizer.Sanitize(normalizedDocumentType),
                 file.Length);
         }
         catch (Exception ex) {
@@ -123,7 +156,7 @@ public sealed class IngestionJobsController : ControllerBase {
                 ex,
                 "Failed to upload ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
                 LogSanitizer.Sanitize(uploadId),
-                LogSanitizer.Sanitize(documentType));
+                LogSanitizer.Sanitize(normalizedDocumentType));
 
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Upload failed",
@@ -135,7 +168,7 @@ public sealed class IngestionJobsController : ControllerBase {
         var response = new IngestionUploadResponse {
             UploadId = uploadId,
             FileName = Path.GetFileName(file.FileName),
-            DocumentType = documentType,
+            DocumentType = normalizedDocumentType,
             Status = "uploaded"
         };
 
@@ -152,6 +185,7 @@ public sealed class IngestionJobsController : ControllerBase {
     [HttpPost("jobs")]
     [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> StartJobAsync(
         [FromBody] IngestionJobStartRequest? request,
         CancellationToken ct) {
@@ -178,8 +212,23 @@ public sealed class IngestionJobsController : ControllerBase {
             LogSanitizer.Sanitize(request.UploadId),
             LogSanitizer.Sanitize(request.DocumentType));
 
-        var result = await _ingestionJobService.StartJobAsync(request, userId, ct).ConfigureAwait(false);
-        return Accepted(result);
+        try {
+            var result = await _ingestionJobService.StartJobAsync(request, userId, ct).ConfigureAwait(false);
+            return Accepted(result);
+        }
+        catch (InvalidOperationException ex) {
+            _logger.LogError(
+                ex,
+                "Failed to start ingestion job for UploadId={UploadId}, DocumentType={DocumentType}.",
+                LogSanitizer.Sanitize(request.UploadId),
+                LogSanitizer.Sanitize(request.DocumentType));
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
+                Title = "Failed to start ingestion job",
+                Detail = "The ingestion job could not be created.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
     }
 
     /// <summary>
@@ -225,7 +274,7 @@ public sealed class IngestionJobsController : ControllerBase {
 
         try {
             var result = await _ingestionJobService.GetRecentIngestionJobsAsync(top, ct).ConfigureAwait(false);
-            return Accepted((Uri?)null, result);
+            return Ok(result);
         }
         catch (InvalidOperationException ex) {
             _logger.LogError(ex, "Failed to load recent ingestion jobs.");
@@ -248,7 +297,7 @@ public sealed class IngestionJobsController : ControllerBase {
         CancellationToken ct) {
         try {
             var result = await _ingestionJobService.GetPendingStorageFilesAsync(ct).ConfigureAwait(false);
-            return Accepted((Uri?)null, result);
+            return Ok(result);
         }
         catch (InvalidOperationException ex) {
             _logger.LogError(ex, "Failed to load pending storage files.");
@@ -328,14 +377,80 @@ public sealed class IngestionJobsController : ControllerBase {
     }
 
     /// <summary>
-    /// Deletes a single terminal ingestion job.
+    /// Marks a queued or terminal ingestion job for asynchronous deletion.
     /// Route: DELETE /api/ingestion/jobs/{jobId}
     /// </summary>
+    /// <remarks>
+    /// The controller performs a single DB read by delegating to <see cref="IIngestionJobService.DeleteJobAsync"/>
+    /// directly (no pre-fetch). The service transitions the job to <c>Deleting</c> and a background service
+    /// owns the asset teardown. Returns <c>202 Accepted</c> with <c>{ jobId, status: "Deleting" }</c>.
+    /// </remarks>
     [HttpDelete("jobs/{jobId:guid}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteJobAsync(
+        Guid jobId,
+        CancellationToken ct) {
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+
+        try {
+            await _ingestionJobService.DeleteJobAsync(jobId, userId, ct).ConfigureAwait(false);
+            return Accepted(new { jobId, status = "Deleting" });
+        }
+        catch (DeleteJobException dex) {
+            // Structured mapping: the service categorizes the rejection via the Error enum.
+            _logger.LogWarning(dex, "Deletion rejected for ingestion job {JobId} ({Error}).", jobId, dex.Error);
+
+            return dex.Error switch {
+                DeleteJobError.NotFound => NotFound(new ProblemDetails {
+                    Title = "Ingestion job not found",
+                    Detail = dex.Message,
+                    Status = StatusCodes.Status404NotFound
+                }),
+                DeleteJobError.AlreadyDeleting => Conflict(new ProblemDetails {
+                    Title = "Job deletion already in progress",
+                    Detail = dex.Message,
+                    Status = StatusCodes.Status409Conflict
+                }),
+                // Active and ConcurrentModification (and any future value) map to a generic 409.
+                _ => Conflict(new ProblemDetails {
+                    Title = "Job deletion rejected",
+                    Detail = dex.Message,
+                    Status = StatusCodes.Status409Conflict
+                })
+            };
+        }
+        catch (InvalidOperationException ex) {
+            // Backward-compatibility safety net for any plain InvalidOperationException
+            // (e.g. from a service path not yet migrated to DeleteJobException).
+            _logger.LogWarning(ex, "Deletion rejected for ingestion job {JobId}.", jobId);
+
+            if (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)) {
+                return NotFound(new ProblemDetails {
+                    Title = "Ingestion job not found",
+                    Detail = ex.Message,
+                    Status = StatusCodes.Status404NotFound
+                });
+            }
+
+            var isAlreadyDeleting = ex.Message.Contains("already being deleted", StringComparison.OrdinalIgnoreCase);
+            return Conflict(new ProblemDetails {
+                Title = isAlreadyDeleting ? "Job deletion already in progress" : "Job deletion rejected",
+                Detail = ex.Message,
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+    }
+
+    /// <summary>
+    /// Cancels a running ingestion job.
+    /// Route: POST /api/ingestion/jobs/{jobId}/cancel
+    /// </summary>
+    [HttpPost("jobs/{jobId:guid}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelJobAsync(
         Guid jobId,
         CancellationToken ct) {
         var userId = User.FindFirst("sub")?.Value ?? "unknown";
@@ -348,26 +463,33 @@ public sealed class IngestionJobsController : ControllerBase {
             });
         }
 
-        if (!IsTerminalJobStatus(job.Status)) {
-            return Conflict(new ProblemDetails {
-                Title = "Only terminal jobs can be deleted",
-                Detail = "Queued, processing, and indexing jobs cannot be deleted.",
-                Status = StatusCodes.Status409Conflict
+        await _ingestionJobService.CancelJobAsync(jobId, userId, ct).ConfigureAwait(false);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Fails an active ingestion job when it's determined to be stale.
+    /// Route: POST /api/ingestion/jobs/{jobId}/fail
+    /// </summary>
+    [HttpPost("jobs/{jobId:guid}/fail")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> FailJobAsync(
+        Guid jobId,
+        [FromQuery] string reason,
+        CancellationToken ct) {
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+        var job = await _ingestionJobService.GetJobStatusAsync(jobId, userId, ct).ConfigureAwait(false);
+        if (job is null) {
+            return NotFound(new ProblemDetails {
+                Title = "Ingestion job not found",
+                Detail = $"No ingestion job with ID '{jobId}' was found.",
+                Status = StatusCodes.Status404NotFound
             });
         }
 
-        try {
-            await _ingestionJobService.DeleteJobAsync(jobId, userId, ct).ConfigureAwait(false);
-            return NoContent();
-        }
-        catch (InvalidOperationException ex) {
-            _logger.LogWarning(ex, "Deletion rejected for ingestion job {JobId}.", jobId);
-            return Conflict(new ProblemDetails {
-                Title = "Job deletion rejected",
-                Detail = "The selected ingestion job could not be deleted.",
-                Status = StatusCodes.Status409Conflict
-            });
-        }
+        await _ingestionJobService.FailJobAsync(jobId, reason ?? "Marked as failed.", userId, ct).ConfigureAwait(false);
+        return NoContent();
     }
 
     /// <summary>
@@ -439,7 +561,7 @@ public sealed class IngestionJobsController : ControllerBase {
             _logger.LogWarning(ex, "Retry rejected for ingestion job {JobId}.", jobId);
             return Conflict(new ProblemDetails {
                 Title = "Job retry rejected",
-                Detail = "The selected ingestion job could not be retried.",
+                Detail = ex.Message,
                 Status = StatusCodes.Status409Conflict
             });
         }
@@ -470,7 +592,7 @@ public sealed class IngestionJobsController : ControllerBase {
                 result.ArtifactsPartiallyIndexed,
                 result.ArtifactsFailed);
 
-            return Accepted((Uri?)null, result);
+            return Accepted(result);
         }
         catch (Exception ex)
         {
@@ -506,7 +628,7 @@ public sealed class IngestionJobsController : ControllerBase {
                 result.ArtifactsPartiallyIndexed,
                 result.ArtifactsFailed);
 
-            return Accepted((Uri?)null, result);
+            return Accepted(result);
         }
         catch (Exception ex)
         {
@@ -542,7 +664,7 @@ public sealed class IngestionJobsController : ControllerBase {
                 result.ArtifactsPartiallyIndexed,
                 result.ArtifactsFailed);
 
-            return Accepted((Uri?)null, result);
+            return Accepted(result);
         }
         catch (Exception ex)
         {
@@ -562,11 +684,8 @@ public sealed class IngestionJobsController : ControllerBase {
         || string.Equals(documentType, "spec-dataset", StringComparison.OrdinalIgnoreCase)
         || string.Equals(documentType, "bike-graph", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsTerminalJobStatus(string status) =>
-        string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(status, "PartiallyCompleted", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(status, "Cancelled", StringComparison.OrdinalIgnoreCase);
+    private static string NormalizeDocumentType(string documentType) =>
+        documentType.Trim().ToLowerInvariant();
 
     private static bool IsFailedJobStatus(string status) =>
         string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase)
@@ -595,5 +714,20 @@ public sealed class IngestionJobsController : ControllerBase {
         return string.Equals(documentType, "manual-pdf", StringComparison.OrdinalIgnoreCase)
             ? "application/pdf"
             : "text/csv";
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = ["B", "KB", "MB", "GB"];
+        var len = (double)bytes;
+        var order = 0;
+
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len /= 1024;
+        }
+
+        return $"{len:0.##} {sizes[order]}";
     }
 }

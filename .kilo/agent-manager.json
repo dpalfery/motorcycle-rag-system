@@ -1,9 +1,28 @@
 {
-  "worktrees": {},
-  "sessions": {},
+  "worktrees": {
+    "wt-1783220647779-1": {
+      "branch": "prong-tugboat",
+      "path": "/Users/dave/git/motorcycle-rag-system/.kilo/worktrees/prong-tugboat",
+      "parentBranch": "develop",
+      "createdAt": "2026-07-05T03:04:07.779Z",
+      "remote": "origin",
+      "branchOwned": true,
+      "autoNameSessionId": "ses_0cfc447b4ffeWmz3TXZ5YjyZCR"
+    }
+  },
+  "sessions": {
+    "ses_0cfc447b4ffeWmz3TXZ5YjyZCR": {
+      "worktreeId": "wt-1783220647779-1",
+      "createdAt": "2026-07-05T03:04:08.017Z"
+    }
+  },
   "tabOrder": {
     "local": [
       "pending:1"
     ]
-  }
+  },
+  "worktreeOrder": [
+    "wt-1783220647779-1"
+  ],
+  "sessionsCollapsed": false
 }

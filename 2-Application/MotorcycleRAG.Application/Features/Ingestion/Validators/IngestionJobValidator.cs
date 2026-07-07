@@ -27,6 +27,7 @@ public sealed class IngestionJobValidator {
 
         ValidateUploadId(request.UploadId, errors);
         ValidateDocumentType(request.DocumentType, errors);
+        ValidateProcessorRunId(request.ProcessorRunId, errors);
         ValidateConfiguration(request, errors);
 
         return errors;
@@ -55,6 +56,17 @@ public sealed class IngestionJobValidator {
 
         if (!AllowedDocumentTypes.Contains(documentType)) {
             errors.Add("DocumentType must be 'manual-pdf', 'spec-dataset', or 'bike-graph'.");
+        }
+    }
+
+    private static void ValidateProcessorRunId(string processorRunId, List<string> errors) {
+        if (string.IsNullOrWhiteSpace(processorRunId)) {
+            errors.Add("ProcessorRunId is required.");
+            return;
+        }
+
+        if (processorRunId.Length > 128) {
+            errors.Add("ProcessorRunId must not exceed 128 characters.");
         }
     }
 

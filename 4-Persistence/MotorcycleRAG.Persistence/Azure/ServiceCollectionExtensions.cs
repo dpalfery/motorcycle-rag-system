@@ -103,7 +103,13 @@ public static class ServiceCollectionExtensions {
 
         // Register indexing services
         services.AddScoped<IMotorcycleIndexingService, MotorcycleIndexingService>();
-        services.AddScoped<IChunkIndexingService, ChunkIndexingService>();
+        if (string.Equals(configuration["Search:ChunkIndexingProvider"], "InMemoryShim", StringComparison.OrdinalIgnoreCase)) {
+            services.AddHttpClient<InMemorySearchShimChunkIndexingService>();
+            services.AddScoped<IChunkIndexingService, InMemorySearchShimChunkIndexingService>();
+        }
+        else {
+            services.AddScoped<IChunkIndexingService, ChunkIndexingService>();
+        }
 
         // Configure HTTP clients for external services
         // NOTE: Resilience policies (retry + circuit breaker) are applied in the Presentation layer

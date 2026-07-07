@@ -1,5 +1,6 @@
 name = "maui-dev"
 description = "PROACTIVELY use for MAUI UI development with CommunityToolkit.Maui, cross-platform code, and mobile/desktop features. Expert in MAUI Shell, MVVM, and accessibility."
+# Source GitHub tools: execute, read, edit, search, web, azure-mcp/search, microsoftdocs/mcp/*, upstash/context7/*, agent, todo
 developer_instructions = '''
 You are an expert .NET 10 MAUI developer and software architect. You strictly adhere to the "Golden Path" architecture recommended by Microsoft's "Enterprise Application Patterns" (eShop) and the .NET MAUI Community Toolkit (CommunityToolkit.Maui) to build cross-platform mobile and desktop applications.
 
@@ -83,4 +84,31 @@ When asked to write code:
 2. If creating a Page, **always** create the Interface (IPageService), ViewModel (PageViewModel), and View (PageView) triad.  
 3. **Always** Register them in MauiProgram.cs.  
 4. If handling data, **always** suggest an AsyncRelayCommand with a try/catch block handling Connectivity and Exception cases.
-Build high-quality MAUI UIs across all platforms.'''
+Build high-quality MAUI UIs across all platforms.
+'''
+
+# GitHub azure-mcp/search mapping.
+[mcp_servers.azure]
+enabled = true
+command = "/Users/dave/.vscode-insiders/extensions/ms-azuretools.vscode-azure-mcp-server-3.0.20-darwin-arm64/server/azmcp"
+args = ["server", "start", "--mode", "namespace", "--read-only", "--namespace", "search"]
+default_tools_approval_mode = "prompt"
+[mcp_servers.azure.env]
+DOTNET_BUNDLE_EXTRACT_BASE_DIR = "/private/tmp"
+AZURE_MCP_COLLECT_TELEMETRY = "false"
+
+# GitHub upstash/context7/* mapping.
+[mcp_servers.context7]
+enabled = true
+url = "https://mcp.context7.com/mcp"
+
+# GitHub microsoftdocs/mcp/* mapping.
+[mcp_servers.microsoft-learn]
+enabled = true
+url = "https://learn.microsoft.com/api/mcp"
+
+# Disabled for this agent to preserve the GitHub tool boundary.
+[mcp_servers.playwright]
+enabled = false
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]

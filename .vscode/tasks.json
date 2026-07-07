@@ -27,10 +27,7 @@
       "label": "build: webui",
       "command": "npm",
       "type": "process",
-      "args": [
-        "run",
-        "build"
-      ],
+      "args": ["run", "build"],
       "options": {
         "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI"
       },
@@ -40,10 +37,7 @@
       "label": "npm: dev",
       "command": "npm",
       "type": "process",
-      "args": [
-        "run",
-        "dev"
-      ],
+      "args": ["run", "dev"],
       "options": {
         "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRag.WebUI"
       },
@@ -79,248 +73,38 @@
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "build: admin",
-      "command": "dotnet",
-      "type": "process",
+      "label": "tauri: dev (admin-desktop)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "tauri", "dev"],
       "options": {
-        "env": {
-          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
+        "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.AdminDesktop"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^.*$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Compiling|VITE",
+          "endsPattern": "Running `target"
         }
       },
-      "args": [
-        "build",
-        "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
-        "/p:Configuration=Debug",
-        "/p:TargetFramework=net10.0-maccatalyst",
-        "/p:RuntimeIdentifier=maccatalyst-arm64",
-        "--disable-build-servers"
-      ],
-      "windows": {
-        "args": [
-          "build",
-          "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
-          "/p:Configuration=Debug",
-          "/p:TargetFramework=net10.0-windows10.0.19041.0"
-        ]
-      },
-      "group": "build",
-      "problemMatcher": "$msCompile"
-    },
-    {
-      "label": "open: admin-only",
-      "type": "shell",
-      "options": {
-        "env": {
-          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
-        }
-      },
-      "command": "open",
-      "args": [
-        "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "wait: admin",
-      "command": "sleep",
-      "type": "process",
-      "args": [
-        "5"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "launch: admin",
-      "dependsOn": [
-        "build: admin",
-        "open: admin-only",
-        "wait: admin"
-      ],
-      "dependsOrder": "sequence",
-      "command": "echo",
-      "type": "shell",
-      "args": [
-        "Admin app ready for debugger attach"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "launch: admin-no-build",
-      "dependsOn": [
-        "open: admin-only",
-        "wait: admin"
-      ],
-      "dependsOrder": "sequence",
-      "command": "echo",
-      "type": "shell",
-      "args": [
-        "Admin app ready for debugger attach"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "build: admin+api",
-      "dependsOn": [
-        "build: api",
-        "build: admin"
-      ],
-      "dependsOrder": "parallel",
-      "command": "echo",
-      "type": "shell",
-      "args": [
-        "Admin and API build complete"
-      ],
-      "problemMatcher": "$msCompile"
-    },
-    {
-      "label": "build-and-launch: admin+api",
-      "dependsOn": [
-        "build: admin+api",
-        "open: admin-only",
-        "wait: admin"
-      ],
-      "dependsOrder": "sequence",
-      "command": "echo",
-      "type": "shell",
-      "args": [
-        "Admin app launched and ready for attach"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "run: admin",
-      "dependsOn": "build: admin",
-      "type": "shell",
-      "options": {
-        "env": {
-          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
-        }
-      },
-      "command": "open",
-      "args": [
-        "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/MotorcycleRAG.Admin.app"
-      ],
-      "windows": {
-        "command": "dotnet",
-        "args": [
-          "run",
-          "--project",
-          "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
-          "-f",
-          "net10.0-windows10.0.19041.0"
-        ]
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "build: admin-tests",
-      "command": "dotnet",
-      "type": "process",
-      "options": {
-        "env": {
-          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
-        }
-      },
-      "args": [
-        "build",
-        "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
-        "/p:Configuration=Debug",
-        "/p:TargetFramework=net10.0-maccatalyst26.5"
-      ],
-      "windows": {
-        "args": [
-          "build",
-          "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
-          "/p:Configuration=Debug",
-          "/p:TargetFramework=net10.0-windows10.0.19041.0"
-        ]
-      },
-      "group": "build",
-      "problemMatcher": "$msCompile"
-    },
-    {
-      "label": "tools: restore",
-      "command": "dotnet",
-      "type": "process",
-      "args": [
-        "tool",
-        "restore"
-      ],
-      "problemMatcher": []
-    },
-    {
-      // macOS: a net10.0-maccatalyst build is a self-contained .app that the VSTest host
-      // can't launch, so run the xUnit tests on the Catalyst runtime via the XHarness
-      // device runner (see Platforms/MacCatalyst/*). Windows builds run normally via VSTest.
-      "label": "test: admin-tests",
-      "type": "shell",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "tools: restore",
-        "build: admin-tests"
-      ],
-      "options": {
-        "env": {
-          "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
-        }
-      },
-      "command": "dotnet",
-      "args": [
-        "xharness",
-        "apple",
-        "test",
-        "--app",
-        "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/bin/Debug/net10.0-maccatalyst26.5/maccatalyst-arm64/MotorcycleRAG.Admin.Tests.app",
-        "--target",
-        "maccatalyst",
-        "--output-directory",
-        "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/bin/xharness-results"
-      ],
-      "windows": {
-        "command": "dotnet",
-        "args": [
-          "test",
-          "${workspaceFolder}/5-Test/MotorcycleRAG.Admin.Tests/MotorcycleRAG.Admin.Tests.csproj",
-          "/p:Configuration=Debug",
-          "/p:TargetFramework=net10.0-windows10.0.19041.0"
-        ]
-      },
-      "group": "test",
-      "problemMatcher": []
-    },
-    {
-      "label": "Git: Complete Push Workflow",
-      "type": "shell",
-      "command": "git",
-      "args": [
-        "add",
-        "."
-      ],
-      "group": "build",
       "presentation": {
-        "echo": true,
         "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": false
-      },
-      "problemMatcher": [],
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Git: Stage All Changes",
-        "Git: Smart Commit",
-        "Git: Push to Origin"
-      ]
+        "panel": "dedicated",
+        "group": "admin-desktop"
+      }
     },
     {
       "label": "Git: Stage All Changes",
       "type": "shell",
       "command": "git",
-      "args": [
-        "add",
-        "."
-      ],
+      "args": ["add", "."],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -352,10 +136,7 @@
       "label": "Git: Push to Origin",
       "type": "shell",
       "command": "git",
-      "args": [
-        "push",
-        "origin"
-      ],
+      "args": ["push", "origin"],
       "group": "build",
       "presentation": {
         "echo": true,
@@ -366,13 +147,32 @@
       "problemMatcher": []
     },
     {
+      "label": "Git: Complete Push Workflow",
+      "type": "shell",
+      "command": "git",
+      "args": ["add", "."],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Git: Stage All Changes",
+        "Git: Smart Commit",
+        "Git: Push to Origin"
+      ]
+    },
+    {
       "label": "Git: Status Check",
       "type": "shell",
       "command": "git",
-      "args": [
-        "status",
-        "--porcelain"
-      ],
+      "args": ["status", "--porcelain"],
       "group": "test",
       "presentation": {
         "echo": true,

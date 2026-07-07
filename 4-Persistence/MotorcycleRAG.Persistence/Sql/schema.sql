@@ -419,6 +419,9 @@ GO
 -- Upgrade legacy IngestionJobs deployments in place so the API and schema stay aligned.
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'IngestionJobs')
 BEGIN
+    IF COL_LENGTH('dbo.IngestionJobs', 'Id') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [Id] BIGINT IDENTITY(1,1) NOT NULL;
+
     IF COL_LENGTH('dbo.IngestionJobs', 'IngestionJobId') IS NULL
         ALTER TABLE [dbo].[IngestionJobs] ADD [IngestionJobId] UNIQUEIDENTIFIER NULL;
 
@@ -484,6 +487,12 @@ BEGIN
 
     IF COL_LENGTH('dbo.IngestionJobs', 'IndexedChunkCount') IS NULL
         ALTER TABLE [dbo].[IngestionJobs] ADD [IndexedChunkCount] INT NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'CurrentStage') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [CurrentStage] NVARCHAR(50) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'StageSetAtUtc') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [StageSetAtUtc] DATETIME2(7) NULL;
 END
 GO
 
@@ -652,6 +661,23 @@ GO
 
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'IngestionJobs')
 BEGIN
+    -- Drop filtered version if it already exists from a prior deployment.
+    -- Filtered indexes cannot be referenced by foreign keys, so a filtered
+    -- IX_IngestionJobs_IngestionJobId will block creation of
+    -- FK_IndexedArtifacts_IngestionJobs below.
+    IF EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.IngestionJobs')
+          AND name = N'IX_IngestionJobs_IngestionJobId'
+          AND has_filter = 1)
+    BEGIN
+        DROP INDEX [IX_IngestionJobs_IngestionJobId] ON [dbo].[IngestionJobs];
+    END
+
+    -- Create the non-filtered unique index required by foreign key constraints.
+    -- The backfill above (lines 559-659) guarantees every IngestionJobId is
+    -- non-NULL, so a non-filtered unique index will succeed.
     IF NOT EXISTS (
         SELECT 1
         FROM sys.indexes
@@ -659,8 +685,7 @@ BEGIN
           AND name = N'IX_IngestionJobs_IngestionJobId')
     BEGIN
         CREATE UNIQUE NONCLUSTERED INDEX [IX_IngestionJobs_IngestionJobId]
-            ON [dbo].[IngestionJobs] ([IngestionJobId])
-            WHERE [IngestionJobId] IS NOT NULL;
+            ON [dbo].[IngestionJobs] ([IngestionJobId]);
     END
 
     IF NOT EXISTS (
@@ -990,6 +1015,28 @@ BEGIN
 
     CREATE NONCLUSTERED INDEX [IX_GraphEdge_FromTo_RelationshipType]
         ON [dbo].[GraphEdge] ([FromNodeId], [ToNodeId], [RelationshipType]);
+
+    -- Dedicated single-column indexes to support the JOIN-based ingestion-job
+    -- delete query on Azure SQL Basic tier (T12: ingestion job delete timeout fix).
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.GraphEdge')
+          AND name = N'IX_GraphEdge_FromNodeId')
+    BEGIN
+        CREATE NONCLUSTERED INDEX [IX_GraphEdge_FromNodeId]
+            ON [dbo].[GraphEdge] ([FromNodeId]);
+    END
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.GraphEdge')
+          AND name = N'IX_GraphEdge_ToNodeId')
+    BEGIN
+        CREATE NONCLUSTERED INDEX [IX_GraphEdge_ToNodeId]
+            ON [dbo].[GraphEdge] ([ToNodeId]);
+    END
 END;
 GO
 

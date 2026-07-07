@@ -28,7 +28,7 @@ public class LocalDocumentIntelligenceModeTests
         // Assert
         services.Single(descriptor => descriptor.ServiceType == typeof(IDataProcessor<PDFDocument>)).ImplementationType
             .Should()
-            .Be(typeof(DisabledPdfProcessor));
+            .Be<DisabledPdfProcessor>();
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class LocalDocumentIntelligenceModeTests
     {
         // Arrange
         var client = new DisabledDocumentIntelligenceClient(new NullLogger<DisabledDocumentIntelligenceClient>());
-        await using var stream = new MemoryStream([1, 2, 3]);
+        using var stream = new MemoryStream([1, 2, 3]);
 
         // Act
         var action = () => client.AnalyzeDocumentAsync(stream, "application/pdf");

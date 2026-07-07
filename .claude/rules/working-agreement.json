@@ -1,7 +1,0 @@
-{
-  "pattern": "**",
-  "context": [
-    "agents.md"
-  ],
-  "description": "MANDATORY WORKING AGREEMENT RULES - ABSOLUTE COMPLIANCE REQUIRED. ALL tasks must follow: (1) NEVER create infrastructure (Docker, Makefiles, deployment scripts) without explicit user approval; (2) ASK BEFORE creating new documentation files or adding dependencies; (2) NEVER put agent-generated files in repository root - use docs/agent-notes/ only; (4) NEVER commit or push changes without explicit user approval - ALWAYS ask first. These rules are NON-NEGOTIABLE and override all other instructions."
-}

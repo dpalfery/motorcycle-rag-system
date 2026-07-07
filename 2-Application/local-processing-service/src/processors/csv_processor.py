@@ -10,8 +10,17 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 _ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
+PIPELINE_STAGES = [
+    "copying",
+    "parsing",
+    "chunking",
+    "embedding",
+    "uploading-chunks",
+    "completed",
+]
 
 _jobs: dict[str, dict] = {}
+_tasks: dict[str, asyncio.Task] = {}
 
 MAX_CHUNK_SIZE_TOKENS = int(os.getenv("MAX_CHUNK_SIZE_TOKENS", "512"))
 
@@ -51,23 +60,35 @@ class CSVProcessor:
         self._api_client = api_client
 
     async def process_csv_async(
-        self, upload_id: str, blob_container: str | None = None, metadata=None, local_file_path: str | None = None
+        self,
+        upload_id: str,
+        blob_container: str | None = None,
+        metadata=None,
+        local_file_path: str | None = None,
+        job_id: str | None = None,
     ) -> str:
-        job_id = str(uuid.uuid4())
+        job_id = job_id or str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         _jobs[job_id] = {
             "job_id": job_id,
             "upload_id": upload_id,
             "document_type": "spec-dataset",
             "status": "processing",
+            "stage": "copying",
+            "stage_index": 0,
+            "total_stages": len(PIPELINE_STAGES) - 1,
             "message": "CSV processing started",
             "progress": 0.0,
+            "chunks_processed": 0,
+            "total_chunks": 0,
             "created_at": now,
             "updated_at": now,
         }
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._process_background(job_id, upload_id, blob_container, metadata, local_file_path)
         )
+        _tasks[job_id] = task
+        task.add_done_callback(lambda _task, jid=job_id: _tasks.pop(jid, None))
         return job_id
 
     async def get_job_status(self, job_id: str) -> dict | None:
@@ -85,13 +106,103 @@ class CSVProcessor:
 
         for job_id in terminal_job_ids:
             _jobs.pop(job_id, None)
+            _tasks.pop(job_id, None)
 
         return len(terminal_job_ids)
+
+    async def stop_job(self, job_id: str) -> dict | None:
+        job = _jobs.get(job_id)
+        if not job:
+            return None
+        if str(job.get("status", "")).strip().lower() not in _ACTIVE_JOB_STATUSES:
+            return job
+
+        self._mark_cancelled(job_id)
+        task = _tasks.get(job_id)
+        if task and not task.done():
+            task.cancel()
+
+        await self._report_cancelled(job_id)
+        logger.info("CSV job cancelled job_id=%s", job_id)
+        return _jobs.get(job_id)
+
+    def _mark_cancelled(self, job_id: str) -> None:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        job.update(
+            {
+                "status": "cancelled",
+                "stage": "cancelled",
+                "message": "Cancelled by user",
+                "progress": job.get("progress", 0.0),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+    def _raise_if_cancelled(self, job_id: str) -> None:
+        job = _jobs.get(job_id)
+        if str(job.get("status", "") if job else "").lower() == "cancelled":
+            raise asyncio.CancelledError()
+
+    async def _report_cancelled(self, job_id: str) -> None:
+        if not self._api_client.is_configured():
+            return
+        try:
+            job = _jobs.get(job_id, {})
+            await self._api_client.report_stage(
+                job_id,
+                "cancelled",
+                chunks_processed=job.get("chunks_processed", 0),
+                total_chunks=job.get("total_chunks", 0),
+                failure_reason="Cancelled by user",
+            )
+        except TypeError:
+            pass
+
+    def _set_stage(
+        self,
+        job_id: str,
+        stage: str,
+        message: str,
+        progress: float,
+        **extra,
+    ) -> None:
+        job = _jobs[job_id]
+        try:
+            stage_index = PIPELINE_STAGES.index(stage)
+        except ValueError:
+            stage_index = job.get("stage_index", 0)
+
+        job.update(
+            {
+                "stage": stage,
+                "stage_index": stage_index,
+                "message": message,
+                "progress": progress,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                **extra,
+            }
+        )
+
+        if self._api_client.is_configured():
+            try:
+                _ = asyncio.create_task(
+                    self._api_client.report_stage(
+                        job_id,
+                        stage,
+                        chunks_processed=job.get("chunks_processed", 0),
+                        total_chunks=job.get("total_chunks", 0),
+                    )
+                )
+            except TypeError:
+                pass
 
     async def _process_background(
         self, job_id: str, upload_id: str, blob_container: str | None, metadata, local_file_path: str | None = None
     ) -> None:
         try:
+            self._set_stage(job_id, "copying", "Preparing CSV source", 0.0)
             if local_file_path:
                 df = await asyncio.to_thread(pd.read_csv, local_file_path)
             else:
@@ -99,7 +210,9 @@ class CSVProcessor:
                     blob_container, f"{upload_id}.csv"
                 )
                 df = pd.read_csv(io.BytesIO(csv_bytes))
+            self._raise_if_cancelled(job_id)
 
+            self._set_stage(job_id, "parsing", "Parsing CSV rows", 0.1)
             if df.empty:
                 _jobs[job_id].update(
                     {
@@ -130,7 +243,9 @@ class CSVProcessor:
             groups = list(grouped) if grouping_cols else grouped
             total_groups = len(groups)
 
+            self._set_stage(job_id, "chunking", "Chunking CSV rows", 0.2)
             for i, (group_key, group_df) in enumerate(groups):
+                self._raise_if_cancelled(job_id)
                 if grouping_cols:
                     key_dict = (
                         dict(zip(grouping_cols, group_key))
@@ -166,7 +281,17 @@ class CSVProcessor:
                     )
 
                 for text in sub_chunks:
+                    self._raise_if_cancelled(job_id)
+                    self._set_stage(
+                        job_id,
+                        "embedding",
+                        f"Embedding chunk {chunk_index + 1}",
+                        round(0.2 + (i + 1) / max(total_groups, 1) * 0.5, 2),
+                        chunks_processed=chunk_index,
+                        total_chunks=max(len(chunks) + len(sub_chunks), chunk_index + 1),
+                    )
                     embedding = await self.embedder.generate_embedding(text)
+                    self._raise_if_cancelled(job_id)
                     now = datetime.now(timezone.utc).isoformat()
 
                     chunk = {
@@ -193,15 +318,43 @@ class CSVProcessor:
                     }
                     chunks.append(chunk)
                     chunk_index += 1
+                    if chunk_index == 1 or chunk_index % 10 == 0:
+                        self._set_stage(
+                            job_id,
+                            "embedding",
+                            f"Embedding chunk {chunk_index}",
+                            round(0.2 + (i + 1) / max(total_groups, 1) * 0.5, 2),
+                            chunks_processed=chunk_index,
+                            total_chunks=max(len(chunks), chunk_index),
+                        )
 
                 _jobs[job_id]["progress"] = round((i + 1) / total_groups * 0.9, 2)
                 _jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
 
+            self._raise_if_cancelled(job_id)
+            self._set_stage(
+                job_id,
+                "uploading-chunks",
+                f"Uploading {len(chunks)} search chunks",
+                0.9,
+                chunks_processed=len(chunks),
+                total_chunks=len(chunks),
+            )
             chunks_bytes = ("\n".join(json.dumps(c) for c in chunks)).encode("utf-8")
+            self._raise_if_cancelled(job_id)
             await self._api_client.upload_artifact(
                 chunks_bytes, upload_id, "search-chunks", "application/x-ndjson"
             )
+            self._raise_if_cancelled(job_id)
 
+            self._set_stage(
+                job_id,
+                "completed",
+                f"Processed {len(chunks)} chunks from CSV",
+                1.0,
+                chunks_processed=len(chunks),
+                total_chunks=len(chunks),
+            )
             _jobs[job_id].update(
                 {
                     "status": "completed",
@@ -217,6 +370,10 @@ class CSVProcessor:
                 len(chunks),
             )
 
+        except asyncio.CancelledError:
+            self._mark_cancelled(job_id)
+            await self._report_cancelled(job_id)
+            logger.info("CSV processing cancelled for upload %s", upload_id)
         except Exception as exc:
             logger.exception("CSV processing failed for upload %s", upload_id)
             _jobs[job_id].update(
@@ -227,3 +384,16 @@ class CSVProcessor:
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
+            if self._api_client.is_configured():
+                try:
+                    _ = asyncio.create_task(
+                        self._api_client.report_stage(
+                            job_id,
+                            _jobs[job_id].get("stage", "processing"),
+                            chunks_processed=_jobs[job_id].get("chunks_processed", 0),
+                            total_chunks=_jobs[job_id].get("total_chunks", 0),
+                            failure_reason=_jobs[job_id].get("message"),
+                        )
+                    )
+                except TypeError:
+                    pass

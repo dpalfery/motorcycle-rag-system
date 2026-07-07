@@ -2,25 +2,39 @@
     "version": "0.2.0",
     "configurations": [
         {
-            // Use IntelliSense to find out which attributes exist for C# debugging
-            // Use hover for the description of the existing attributes
-            // For further information visit https://github.com/dotnet/vscode-csharp/blob/main/debugger-launchjson.md.
             "name": ".NET Core Launch (API)",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build: api",
-            // If you have changed target frameworks, make sure to update the program path.
             "program": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API/bin/Debug/net10.0/MotorcycleRAG.API.dll",
             "args": [],
             "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API",
             "stopAtEntry": false,
             "console": "integratedTerminal",
-            // Enable launching a web browser when ASP.NET Core starts. For more information: https://aka.ms/VSCode-CS-LaunchJson-WebBrowser
             "serverReadyAction": {
                 "action": "openExternally",
                 "pattern": "\\bNow listening on:\\s+(https://\\S+)",
                 "uriFormat": "%s/index.html"
             },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "DOTNET_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "https://localhost:7215"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/Views"
+            }
+        },
+        {
+            "name": ".NET Core Launch (API, no browser)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build: api",
+            "program": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API/bin/Debug/net10.0/MotorcycleRAG.API.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API",
+            "stopAtEntry": false,
+            "console": "integratedTerminal",
             "env": {
                 "ASPNETCORE_ENVIRONMENT": "Development",
                 "DOTNET_ENVIRONMENT": "Development",
@@ -50,25 +64,6 @@
             }
         },
         {
-            "name": ".NET Core Launch (API, no browser)",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build: api",
-            "program": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API/bin/Debug/net10.0/MotorcycleRAG.API.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.API",
-            "stopAtEntry": false,
-            "console": "integratedTerminal",
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development",
-                "DOTNET_ENVIRONMENT": "Development",
-                "ASPNETCORE_URLS": "https://localhost:7215"
-            },
-            "sourceFileMap": {
-                "/Views": "${workspaceFolder}/Views"
-            }
-        },
-        {
             "name": ".NET Core Launch (BFF, no browser)",
             "type": "coreclr",
             "request": "launch",
@@ -92,12 +87,11 @@
             "preLaunchTask": "npm: dev"
         },
         {
-            "name": ".NET MAUI Launch (Admin)",
-            "type": "maui",
+            "name": "Tauri: Admin Desktop (Dev)",
+            "type": "node-terminal",
             "request": "launch",
-            "preLaunchTask": "build: admin",
-            "project": "${workspaceFolder}/1-Presentation/MotorcycleRAG.Admin/MotorcycleRAG.Admin.csproj",
-            "configuration": "Debug"
+            "command": "npm run tauri dev",
+            "cwd": "${workspaceFolder}/1-Presentation/MotorcycleRAG.AdminDesktop"
         },
         {
             "name": ".NET Core Attach",
@@ -107,7 +101,7 @@
     ],
     "compounds": [
         {
-            "name": "WebUI + BFF + API (Full Stack)",
+            "name": "WebUI + BFF + API",
             "configurations": [
                 ".NET Core Launch (API, no browser)",
                 ".NET Core Launch (BFF, no browser)",
@@ -117,9 +111,9 @@
             "stopAll": true
         },
         {
-            "name": "Admin + API",
+            "name": "Admin Desktop + API",
             "configurations": [
-                ".NET MAUI Launch (Admin)",
+                "Tauri: Admin Desktop (Dev)",
                 ".NET Core Launch (API, no browser)"
             ],
             "stopAll": true

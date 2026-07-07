@@ -1,4 +1,5 @@
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
 
@@ -26,11 +27,20 @@ public interface IIngestionJobService {
         int maxCount = 50,
         CancellationToken ct = default);
 
-    /// <summary>Deletes a terminal ingestion job from history.</summary>
+    /// <summary>Deletes a queued or terminal ingestion job and associated assets from history.</summary>
     Task DeleteJobAsync(
         Guid jobId,
         string userId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Performs best-effort cleanup of artifacts, chunks, blobs, search documents,
+    /// and graph data for a job previously marked as <see cref="IngestionJobStatus.Deleting"/>.
+    /// Must be called by the background deletion service; not intended for HTTP-initiated calls.
+    /// On success the job row is deleted. On failure the job is rolled back to
+    /// <see cref="IngestionJobStatus.Failed"/> with the error reason recorded.
+    /// </summary>
+    Task ExecuteJobCleanupAsync(Guid jobId, CancellationToken ct = default);
 
     /// <summary>Deletes failed and cancelled ingestion jobs from history.</summary>
     Task<int> ClearFailedJobsAsync(
@@ -70,5 +80,18 @@ public interface IIngestionJobService {
     Task CancelJobAsync(
         Guid jobId,
         string userId,
+        CancellationToken ct = default);
+
+    /// <summary>Marks an active ingestion job as failed, such as when the local processor crashes.</summary>
+    Task FailJobAsync(
+        Guid jobId,
+        string reason,
+        string userId,
+        CancellationToken ct = default);
+
+    /// <summary>Updates the current pipeline stage and progress for an active job.</summary>
+    Task<IngestionJobStatusResponse> TransitionStageAsync(
+        Guid jobId,
+        IngestionJobStageRequest request,
         CancellationToken ct = default);
 }

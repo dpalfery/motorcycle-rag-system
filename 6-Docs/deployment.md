@@ -5,7 +5,7 @@ All sensitive values are supplied at runtime through **repository secrets / vari
 
 ## Environment Variables Naming Convention
 
-**IMPORTANT**: All environment variables in this project follow a strict naming convention. See [`environment-variables.md`](environment-variables.md) for the **canonical reference** on all environment variable names across all applications (API, BFF, Admin App, Mobile).
+**IMPORTANT**: All environment variables in this project follow a strict naming convention. See [`environment-variables.md`](environment-variables.md) for the **canonical reference** on all environment variable names across all applications (API, BFF, desktop admin client / admin desktop project, Mobile).
 
 ### Quick Reference
 - **Pattern**: `MCR_<APP>_<VARIABLE>` (e.g., `MCR_API_AZURE_AD_TENANT_ID`)
@@ -98,9 +98,11 @@ All secrets must be stored securely:
 **Development**: Use User Secrets
 ```powershell
 dotnet user-secrets set "MCR_API_AZURE_AD_TENANT_ID" "your-tenant-id" --project 1-Presentation/MotorcycleRAG.API
-dotnet user-secrets set "MCR_ADMIN_CLIENT_ID" "your-id" --project 1-Presentation/MotorcycleRAG.Admin
+dotnet user-secrets set "MCR_ADMIN_CLIENT_ID" "your-id" --project 1-Presentation/MotorcycleRAG.AdminDesktop
 # ... etc
 ```
+
+The current `MotorcycleRAG.sln` solution focuses on core backend, shared library, test, and infrastructure projects. The desktop admin project is a separate presentation application in this repo and is not currently listed in that solution file.
 
 **Production**: Use Azure Key Vault or Azure App Configuration
 - Set environment variables via Azure App Service "Application Settings"

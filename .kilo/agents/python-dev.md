@@ -2,6 +2,13 @@
 description: Use for working on Python code or python environment
 mode: subagent
 permission:
+  external_directory: deny
+  plan_exit: deny
+  question: deny
+  task: deny
+  todo: deny
+  webfetch: deny
+  websearch: deny
   bash: allow
   read: allow
   edit: allow
@@ -14,7 +21,6 @@ permission:
   todowrite: allow
   doom_loop: allow
   "context7_*": allow
-  "*": deny
 
 ---
 

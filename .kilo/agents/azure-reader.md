@@ -3,6 +3,12 @@ description: Read-only Azure investigation agent. Uses Azure MCP tools to inspec
 mode: subagent
 model: opencode-go/mimo-v2.5
 permission:
+  external_directory: deny
+  mcp: deny
+  plan_exit: deny
+  question: deny
+  task: deny
+  todo: deny
   bash: allow
   read: allow
   edit: deny
@@ -17,7 +23,6 @@ permission:
   webfetch: allow
   doom_loop: allow
   "microsoft-learn_*": allow
-  "*": deny
   "azure-mcp_*": allow
   "context7_*": allow
 ---

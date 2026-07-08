@@ -3,6 +3,13 @@ description: Owns the 4-Persistence layer — Dapper repositories, FluentMigrato
 mode: subagent
 model: wafer/GLM-5.2
 permission:
+  external_directory: deny
+  plan_exit: deny
+  question: deny
+  task: deny
+  todo: deny
+  webfetch: deny
+  websearch: deny
   bash: allow
   read: allow
   edit: allow
@@ -15,7 +22,6 @@ permission:
   todowrite: allow
   doom_loop: allow
   "context7_*": allow
-  "*": deny
 ---
 
 # Data Access Layer Developer

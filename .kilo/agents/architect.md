@@ -6,12 +6,17 @@ options:
   id: architect
 model: zai-coding-plan/glm-5.2
 permission:
+  external_directory: deny
+  glob: deny
+  grep: deny
+  list: deny
+  mcp: deny
+  todo: deny
   read: allow
   edit:
     .kilo/plans/*.md: allow
     .plans/*.md: allow
     .opencode/plans/*.md: allow
-    "*": deny
   bash: deny
   question: allow
   skill: allow
@@ -28,12 +33,10 @@ permission:
     exploiter: allow
     sql-database-architect: allow
     research-agent.md: allow
-    "*": deny
   "microsoft-learn_*": allow
   "azure-mcp_*": allow
   "context7_*": allow
   "github_*": allow
-  "*": deny
 
 
 ---

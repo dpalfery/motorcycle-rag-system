@@ -3,6 +3,10 @@ description: Specialized agent for code reviews. You are a SKEPTICAL and CRITICA
 mode: subagent
 model: opencode-go/kimi-k2.7-code
 permission:
+  mcp: deny
+  plan_exit: deny
+  question: deny
+  todo: deny
   external_directory: deny
   bash:
     git diff: allow
@@ -12,14 +16,12 @@ permission:
     git ls-tree: allow
     git grep: allow
     ls: allow
-    "*": deny
   read: allow
   edit: deny
   glob: allow
   grep: allow
   list: allow
   task:
-    "*": deny
     azure-reader: allow
     exploiter: allow
   skill: allow

@@ -2,6 +2,11 @@
 description: Owns GitHub Actions CI/CD pipelines, Docker build configuration, environment secrets management, and branch protection rules. Coordinates deployment pipelines with Pulumi infrastructure outputs and ensures build artifacts reach the right environments safely.
 mode: subagent
 permission:
+  external_directory: deny
+  plan_exit: deny
+  question: deny
+  task: deny
+  todo: deny
   bash: allow
   read: allow
   edit: allow
@@ -17,7 +22,6 @@ permission:
   "microsoft-learn_*": allow
   "azure-mcp_*": allow
   "context7_*": allow
-  "*": deny
   "github_*": allow
 ---
 

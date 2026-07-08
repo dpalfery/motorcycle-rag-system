@@ -2,12 +2,24 @@
 description: Produces the design document for a feature spec. Reads approved requirements, researches the codebase and web, and writes docs/specs/{feature_name}/design.md with architecture, components, data models, error handling, and testing strategy. Second phase of the spec-driven planning flow. Does not run approval gates. should not be used without a design document.
 mode: subagent
 permission:
+  doom_loop: deny
+  external_directory: deny
+  glob: deny
+  grep: deny
+  list: deny
+  lsp: deny
+  mcp: deny
+  task: deny
+  todo: deny
+  todoread: deny
+  todowrite: deny
+  webfetch: deny
+  websearch: deny
   read: allow
   edit:
     .kilo/plans/*.md: allow
     .plans/*.md: allow
     .opencode/plans/*.md: allow
-    "*": deny
   bash: deny
   question: allow
   plan_exit: allow

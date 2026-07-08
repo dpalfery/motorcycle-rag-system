@@ -15,7 +15,7 @@ public class SearchOptions
     private const int DefaultBatchIndexTimeoutSeconds = 30;
 
     [Required]
-    public string IndexName { get; set; } = "motorcycle-index";
+    public string IndexName { get; set; } = "motorcycle-sport";
 
     /// <summary>
     /// Hard upper bound on the wall-clock duration of a single

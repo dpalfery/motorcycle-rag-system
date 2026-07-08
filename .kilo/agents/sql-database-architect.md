@@ -2,6 +2,14 @@
 description: Designs, creates, and manages SQL Server and Azure SQL databases — schema design, T-SQL authoring, indexing, security hardening, and source-controlled deployment. Every recommendation is grounded in current Microsoft Learn guidance.
 mode: subagent
 permission:
+  external_directory: deny
+  mcp: deny
+  plan_exit: deny
+  question: deny
+  task: deny
+  todo: deny
+  webfetch: deny
+  websearch: deny
   bash: allow
   read: allow
   edit: allow
@@ -13,7 +21,6 @@ permission:
   todoread: allow
   todowrite: allow
   doom_loop: allow
-  "*": deny
 ---
 
 # SQL Database Architect

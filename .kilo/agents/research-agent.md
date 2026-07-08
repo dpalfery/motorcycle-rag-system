@@ -2,6 +2,17 @@
 description: Finds, verifies, and summarizes authoritative technical information from the web for the other agents in the pipeline. Read-only — never edits files or runs commands.
 mode: subagent
 permission:
+  doom_loop: deny
+  external_directory: deny
+  list: deny
+  lsp: deny
+  mcp: deny
+  plan_exit: deny
+  question: deny
+  task: deny
+  todo: deny
+  todoread: deny
+  todowrite: deny
   read: allow
   grep: allow
   glob: allow

@@ -7,14 +7,12 @@ permission:
   todo: allow
   task: allow
   doom_loop: allow
-  read: 
-    "*": deny
-    "6-docs": allow
-    ".kilo": allow
+  bash: deny
+  list: allow
+  read: allow
   edit: deny
   glob: deny
   grep: deny
-  mcp: allow
   skill: allow
   lsp: deny
   todoread: allow

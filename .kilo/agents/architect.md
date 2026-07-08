@@ -33,6 +33,7 @@ permission:
   "microsoft-learn_*": allow
   "azure-mcp_*": allow
   "context7_*": allow
+  "github_*": allow
 
 
 ---

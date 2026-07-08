@@ -3,19 +3,18 @@ description: PROACTIVELY use for Frontend development, React coding, client side
 mode: subagent
 model: opencode-go/qwen3.7-plus
 permission:
-  "*": deny        
   bash: allow
   read: allow
   edit: allow
   glob: allow
   grep: allow
   list: allow
-  mcp: allow
   skill: allow
   lsp: allow
   todoread: allow
   todowrite: allow
   doom_loop: allow
+  "*": deny
 ---
 
 You are a frontend development specialist focusing on web applications, UI/UX implementation, and client-side architecture.

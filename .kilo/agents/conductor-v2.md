@@ -3,7 +3,6 @@ description: Primary orchestration agent. Coordinates task execution across spec
 mode: primary
 model: 
 permission:
-  "*": deny
   todo: allow
   task: allow
   doom_loop: allow
@@ -19,6 +18,7 @@ permission:
   todowrite: allow
   websearch: deny
   webfetch: deny
+  "*": deny
 ---
 
 # Role

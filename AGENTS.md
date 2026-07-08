@@ -3,6 +3,7 @@
 Multi-agent RAG system for motorcycle information retrieval. OWASP ASVS Level 2 security. Clean Architecture + DDD.
 
 At the beginning of each task/response, include: `[******Working Agreement: Active******]`
+<!-- edit-test: dotnet-dev verified 2026-07-08 -->
 
 # 2. Global Rules
 

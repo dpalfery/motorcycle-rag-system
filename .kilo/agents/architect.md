@@ -6,13 +6,12 @@ options:
   id: architect
 model: zai-coding-plan/glm-5.2
 permission:
-  "*": deny
   read: allow
   edit:
-    "*": deny
     .kilo/plans/*.md: allow
     .plans/*.md: allow
     .opencode/plans/*.md: allow
+    "*": deny
   bash: deny
   question: allow
   skill: allow
@@ -25,15 +24,16 @@ permission:
   webfetch: allow
   doom_loop: allow
   task:
-    "*": deny
     azure-reader: allow
     exploiter: allow
     sql-database-architect: allow
     research-agent.md: allow
+    "*": deny
   "microsoft-learn_*": allow
   "azure-mcp_*": allow
   "context7_*": allow
   "github_*": allow
+  "*": deny
 
 
 ---

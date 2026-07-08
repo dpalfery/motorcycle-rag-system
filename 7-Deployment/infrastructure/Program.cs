@@ -436,19 +436,31 @@ namespace MotorcycleRAG.Infrastructure {
                 }
             });
 
-            // 12. Azure AI Search — serverless tier (westcentralus, the only US serverless-preview region)
+            // 12. Azure AI Search — serverless tier via the generic ARM resource.
+            // 'serverless' is accepted ONLY by the 2026-03-01-preview management API. The typed
+            // Pulumi.AzureNative.Search.Service (3.13.0) targets the GA 2025-05-01 API, which rejects
+            // the SKU with InvalidSkuName. The generic Resources.Resource takes an arbitrary ApiVersion
+            // string (same pattern as the diagnostic setting below) and exposes .Id/.Name as
+            // Output<string>, so all searchService consumers remain unchanged.
             const string searchLoc = "westcentralus";       // serverless requires westcentralus
             const string searchLocPrefix = "wcus";          // resource naming reflects actual region
             var searchNamePrefix = $"{org}-{workload}-{env}-{searchLocPrefix}";
 
-            var searchService = new Pulumi.AzureNative.Search.Service($"{searchNamePrefix}-search", new Pulumi.AzureNative.Search.ServiceArgs {
+            var searchService = new Pulumi.AzureNative.Resources.Resource($"{searchNamePrefix}-search", new Pulumi.AzureNative.Resources.ResourceArgs {
                 ResourceGroupName = resourceGroup.Name,
-                Location = searchLoc,
-                Sku = new Pulumi.AzureNative.Search.Inputs.SkuArgs { Name = "serverless" },
-                HostingMode = Pulumi.AzureNative.Search.HostingMode.Default,
-                AuthOptions = new Pulumi.AzureNative.Search.Inputs.DataPlaneAuthOptionsArgs {
-                    AadOrApiKey = new Pulumi.AzureNative.Search.Inputs.DataPlaneAadOrApiKeyAuthOptionArgs {
-                        AadAuthFailureMode = Pulumi.AzureNative.Search.AadAuthFailureMode.Http403
+                ResourceProviderNamespace = "Microsoft.Search",
+                ResourceType = "searchServices",
+                ResourceName = $"{searchNamePrefix}-search",     // explicit physical name: mcr-rag-dev-wcus-search
+                ParentResourcePath = "",
+                ApiVersion = "2026-03-01-preview",
+                Location = searchLoc,                             // westcentralus (serverless-preview US region)
+                Sku = new Pulumi.AzureNative.Resources.Inputs.SkuArgs { Name = "serverless" },
+                Properties = new Dictionary<string, object?> {
+                    ["hostingMode"] = "Default",
+                    ["authOptions"] = new Dictionary<string, object?> {
+                        ["aadOrApiKey"] = new Dictionary<string, object?> {
+                            ["aadAuthFailureMode"] = "http403"
+                        }
                     }
                 }
             });

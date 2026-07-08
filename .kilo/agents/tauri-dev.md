@@ -3,19 +3,18 @@ description: Implements the Rust/Tauri v2 core of a desktop app — commands, IP
 mode: subagent
 model: wafer/glm-5.2
 permission:
-  "*": deny        
   bash: allow
   read: allow
   edit: allow
   glob: allow
   grep: allow
   list: allow
-  mcp: allow
   skill: allow
   lsp: allow
   todoread: allow
   todowrite: allow
   doom_loop: allow
+  "*": deny
 ---
 
 # Tauri Rust Implementor

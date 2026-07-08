@@ -2,7 +2,6 @@
 description: Use for working on Python code or python environment
 mode: subagent
 permission:
-  "*": deny        
   bash: allow
   read: allow
   edit: allow
@@ -15,6 +14,7 @@ permission:
   todowrite: allow
   doom_loop: allow
   "context7_*": allow
+  "*": deny
 
 ---
 

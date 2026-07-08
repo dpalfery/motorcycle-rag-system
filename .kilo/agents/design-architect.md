@@ -4,12 +4,11 @@ mode: subagent
 permission:
   read: allow
   edit:
-    "*": deny
     .kilo/plans/*.md: allow
     .plans/*.md: allow
     .opencode/plans/*.md: allow
+    "*": deny
   bash: deny
-  mcp: allow
   question: allow
   plan_exit: allow
   skill: allow

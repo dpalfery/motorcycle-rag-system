@@ -11,8 +11,8 @@ permission:
     git blame: allow
     git ls-tree: allow
     git grep: allow
-    "*": deny
     ls: allow
+    "*": deny
   read: allow
   edit: deny
   glob: allow
@@ -23,7 +23,6 @@ permission:
     azure-reader: allow
     exploiter: allow
   skill: allow
-  mcp: allow
   lsp: allow
   todoread: allow
   todowrite: allow

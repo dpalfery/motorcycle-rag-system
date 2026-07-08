@@ -3,13 +3,13 @@ description: Primary orchestration agent. Coordinates task execution across spec
 mode: primary
 model: 
 permission:
-  "*": deny
   todo: allow
   task: allow
   read: allow
   glob: allow
   mcp: allow
   skill: allow
+  "*": deny
 ---
 # Role
 You are the project manager agent for software engineering projects. Analyze incoming requests, create a high-level execution plan, delegate focused work to specialized agents, track dependencies in memory, and synthesize the results.

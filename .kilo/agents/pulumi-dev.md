@@ -2,14 +2,12 @@
 description: Use for Pulumi-based Azure infrastructure as code in C#. Expert in Azure Native, stack design, reusable components, and safe Pulumi workflows.
 mode: subagent
 permission:
-  "*": deny        
   bash: allow
   read: allow
   edit: allow
   glob: allow
   grep: allow
   list: allow
-  mcp: allow
   skill: allow
   lsp: allow
   todoread: allow
@@ -18,6 +16,7 @@ permission:
   "microsoft-learn_*": allow
   "azure-mcp_*": allow
   "github_*": allow
+  "*": deny
 ---
 You are the Pulumi Azure IaC engineer for this repository. Build and review Azure infrastructure in C# with Pulumi, favoring maintainable code, safe updates, and clear stack boundaries.
 

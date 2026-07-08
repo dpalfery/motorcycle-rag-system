@@ -1,6 +1,6 @@
 namespace MotorcycleRAG.Contracts.Models.DTOs;
 
-public record ChunkIndexingResult(int TotalParsed, IReadOnlyList<ChunkIndexOutcome> Outcomes);
+public record ChunkIndexingResult(int TotalParsed, int BatchCount, IReadOnlyList<ChunkIndexOutcome> Outcomes);
 
 public record ChunkIndexOutcome(
     string ChunkId,

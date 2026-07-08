@@ -65,18 +65,25 @@ public sealed class SubAgentToolHandlers
         var query = args.TryGetProperty("query", out var q) ? q.GetString() ?? string.Empty : string.Empty;
         var maxResults = args.TryGetProperty("max_results", out var mr) ? mr.GetInt32() : 10;
 
-        _logger.LogDebug("execute_azure_search: query={Query} max={Max}", query, maxResults);
+        // Optional category (D4): when supplied and valid, the query is restricted to that
+        // category-partitioned index; when omitted/invalid, the persistence layer fans out
+        // across all four indexes and merges by score.
+        var category = args.TryGetProperty("category", out var cat) ? cat.GetString() : null;
+
+        _logger.LogDebug("execute_azure_search: query={Query} max={Max} category={Category}",
+            query, maxResults, category ?? "(fan-out)");
 
         var results = await _searchClient.SearchAsync(query, new SearchOptions
         {
             MaxResults = maxResults,
             EnableCaching = true,
-            IncludeMetadata = true
+            IncludeMetadata = true,
+            Category = category
         });
 
         _logger.LogInformation(
-            "execute_azure_search completed: query={Query} resultCount={ResultCount}",
-            query, results.Length);
+            "execute_azure_search completed: query={Query} category={Category} resultCount={ResultCount}",
+            query, category ?? "(fan-out)", results.Length);
 
         var payload = results.Select(r => new
         {

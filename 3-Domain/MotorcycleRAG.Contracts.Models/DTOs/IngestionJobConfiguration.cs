@@ -1,3 +1,7 @@
+using System.Text.Json.Serialization;
+using MotorcycleRAG.Contracts.Models.Serialization;
+using MotorcycleRAG.Domain.ValueObjects;
+
 namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
@@ -14,4 +18,13 @@ public sealed record IngestionJobConfiguration
     /// Whether to run OCR on scanned/image-based pages.
     /// </summary>
     public bool OcrEnabled { get; init; } = true;
+
+    /// <summary>
+    /// Optional motorcycle category override (Dirt, Touring, Sport, Cruiser). When
+    /// supplied, ingestion routes chunks to the matching category-partitioned index
+    /// without invoking the category classifier. When omitted, the classifier resolves
+    /// the category from the bike make/model.
+    /// </summary>
+    [JsonConverter(typeof(MotorcycleCategoryJsonConverter))]
+    public MotorcycleCategory? Category { get; init; }
 }

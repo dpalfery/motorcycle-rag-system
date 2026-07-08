@@ -2,20 +2,17 @@
 
 import logging
 import os
-from typing import Union
 
-from .deepinfra_embedder import DeepInfraEmbedder
-from .foundry_local_embedder import AzureFoundryLocalEmbedder
+from .embedder import Embedder
 from .model_discovery import discover_embedding_models_sync
 from .ollama_embedder import OllamaEmbedder
+from .openai_embedder import OpenAIEmbedder
 
 logger = logging.getLogger(__name__)
 
-EmbedderType = Union[OllamaEmbedder, DeepInfraEmbedder, AzureFoundryLocalEmbedder]
+_VALID_BACKENDS = {"ollama", "openai"}
 
-_VALID_BACKENDS = {"ollama", "foundry_local", "deepinfra"}
-
-_embedder_instance: EmbedderType | None = None
+_embedder_instance: Embedder | None = None
 
 
 def _select_default_model(models: list[str]) -> str:
@@ -31,13 +28,12 @@ def _select_default_model(models: list[str]) -> str:
     return models[0]
 
 
-def get_embedder() -> EmbedderType:
+def get_embedder() -> Embedder:
     """Return the singleton embedder for the configured backend.
 
     EMBEDDING_BACKEND env var selects the backend:
-        ollama        – local Ollama server (default)
-        foundry_local – Azure AI Foundry Local server (port 5272)
-        deepinfra     – DeepInfra API (requires DEEPINFRA_API_KEY)
+        ollama  – local Ollama server (default)
+        openai  – any OpenAI-compatible server (LM Studio, Foundry Local, etc.)
 
     Raises:
         ValueError: If EMBEDDING_BACKEND has an unrecognised value.
@@ -63,7 +59,7 @@ def get_embedder() -> EmbedderType:
                 model=selected_model or _select_default_model(discovery.models),
             )
         else:
-            _embedder_instance = AzureFoundryLocalEmbedder(
+            _embedder_instance = OpenAIEmbedder(
                 endpoint=discovery.endpoint,
                 model=selected_model or _select_default_model(discovery.models),
             )
@@ -75,10 +71,8 @@ def get_embedder() -> EmbedderType:
 
     if backend == "ollama":
         _embedder_instance = OllamaEmbedder()
-    elif backend == "foundry_local":
-        _embedder_instance = AzureFoundryLocalEmbedder()
-    elif backend == "deepinfra":
-        _embedder_instance = DeepInfraEmbedder()
+    elif backend == "openai":
+        _embedder_instance = OpenAIEmbedder()
     else:
         raise ValueError(
             f"Unknown EMBEDDING_BACKEND '{backend}'. "

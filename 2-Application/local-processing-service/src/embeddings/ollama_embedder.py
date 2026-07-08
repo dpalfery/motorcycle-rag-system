@@ -7,6 +7,8 @@ import time
 
 import ollama
 
+from .embedder import Embedder
+
 logger = logging.getLogger(__name__)
 
 _MAX_RETRIES = 3
@@ -33,7 +35,7 @@ def _get_positive_float_env(name: str, default_value: float) -> float:
     return value
 
 
-class OllamaEmbedder:
+class OllamaEmbedder(Embedder):
     """Generates embeddings via a local Ollama instance.
 
     Reads configuration from environment variables:
@@ -44,9 +46,10 @@ class OllamaEmbedder:
         OLLAMA_HOST
         OLLAMA_MODEL_EMBEDDING
 
-    The embedder enforces 3584-dimensional output to match the Azure AI Search
-    index (VectorSearchDimensions = 3584).  Qwen3-Embedding-4B natively produces
-    3584 dims; the full native dimensions are used without truncation.
+    The embedder enforces 1536-dimensional output to match the Azure AI Search
+    index (VectorSearchDimensions = 1536) via server-side Matryoshka truncation.
+    Qwen3-Embedding-4B is natively 2560 dims; the ``dimensions=1536`` parameter
+    is passed to the API call to produce exactly 1536-dim vectors.
     """
 
     def __init__(self, host: str | None = None, model: str | None = None) -> None:
@@ -56,8 +59,8 @@ class OllamaEmbedder:
         self._model: str = model or os.getenv("OLLAMA_MODEL") or os.getenv(
             "OLLAMA_MODEL_EMBEDDING", "qwen3-embedding"
         )
-        dims_env = os.getenv("OLLAMA_EMBEDDING_DIMS")
-        self._dims: int | None = int(dims_env) if dims_env else None
+        dims_env = os.getenv("OLLAMA_EMBEDDING_DIMS", "1536")
+        self._dims: int = int(dims_env)
         self._request_timeout_seconds = _get_positive_float_env(
             "EMBEDDING_REQUEST_TIMEOUT_SECONDS",
             _DEFAULT_REQUEST_TIMEOUT_SECONDS,
@@ -75,10 +78,10 @@ class OllamaEmbedder:
     # ------------------------------------------------------------------
 
     async def generate_embedding(self, text: str) -> list[float]:
-        """Return a 3584-dimensional embedding for *text*.
+        """Return a 1536-dimensional embedding for *text*.
 
         Retries up to 3 times with exponential back-off on transient failures.
-        Raises ``ValueError`` if the returned vector length != 3584.
+        Raises ``ValueError`` if the returned vector length != 1536.
         """
         last_error: Exception | None = None
 
@@ -88,13 +91,14 @@ class OllamaEmbedder:
                     self._client.embed(
                         model=self._model,
                         input=text,
+                        dimensions=self._dims,
                     ),
                     timeout=self._request_timeout_seconds,
                 )
 
                 vector: list[float] = list(response.embeddings[0])
 
-                if self._dims is not None and len(vector) != self._dims:
+                if len(vector) != self._dims:
                     raise ValueError(f"Expected {self._dims} dims, got {len(vector)}")
 
                 return vector

@@ -1,7 +1,7 @@
 ---
 description: PROACTIVELY use for MAUI UI development with CommunityToolkit.Maui, cross-platform code, and mobile/desktop features. Expert in MAUI Shell, MVVM, and accessibility.
 mode: subagent
-permissions:
+permission:
   "*": deny        
   bash: allow
   read: allow
@@ -9,6 +9,7 @@ permissions:
   glob: allow
   grep: allow
   list: allow
+  mcp: allow
   skill: allow
   lsp: allow
   todoread: allow

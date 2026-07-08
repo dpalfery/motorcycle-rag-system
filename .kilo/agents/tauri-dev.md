@@ -1,8 +1,8 @@
 ---
 description: Implements the Rust/Tauri v2 core of a desktop app — commands, IPC contract, state, async, the Python sidecar integration, and the capabilities/security model. Owns the backend boundary; hands React/UI work to the frontend agent. Grounded in the official Tauri v2 documentation.
 mode: subagent
-model: zai-coding-plan/glm-5.2
-permissions:
+model: wafer/glm-5.2
+permission:
   "*": deny        
   bash: allow
   read: allow
@@ -10,6 +10,7 @@ permissions:
   glob: allow
   grep: allow
   list: allow
+  mcp: allow
   skill: allow
   lsp: allow
   todoread: allow

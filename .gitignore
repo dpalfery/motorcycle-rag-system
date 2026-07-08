@@ -272,6 +272,7 @@ dist/
 build/
 *.log
 .env*
+!.env.example
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*

@@ -1,4 +1,6 @@
-"""Azure AI Foundry Local embedding client for generating vector embeddings via OpenAI-compatible server."""
+"""OpenAI-compatible embedding client for any OpenAI-compatible server (LM Studio, Ollama /v1, Foundry Local, etc.)."""
+
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -7,6 +9,8 @@ import time
 
 import httpx
 import openai
+
+from .embedder import Embedder
 
 logger = logging.getLogger(__name__)
 
@@ -47,56 +51,63 @@ def _normalize_openai_base_url(endpoint: str) -> str:
     return normalized
 
 
-class AzureFoundryLocalEmbedder:
-    """Generates embeddings via Azure AI Foundry Local (OpenAI-compatible server).
+class OpenAIEmbedder(Embedder):
+    """Generates embeddings via any OpenAI-compatible API.
 
-    Reads from env:
-        AZURE_FOUNDRY_LOCAL_ENDPOINT        – server URL (default: http://localhost:5272)
-        AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL – model name (default: qwen3-embedding)
-        AZURE_FOUNDRY_LOCAL_EMBEDDING_DIMS  – expected vector dimension (optional; skips check when unset)
+    Constructor parameters take precedence; when omitted, values are read
+    from environment variables:
 
-    Azure AI Foundry Local accepts any non-empty string as the API key — we use
-    ``"local"`` as a fixed placeholder.
+        EMBEDDING_PROVIDER_ENDPOINT  – server URL    (default: http://localhost:1234/v1)
+        EMBEDDING_MODEL             – model name    (default: qwen3-embedding)
+        EMBEDDING_PROVIDER_API_KEY  – Bearer token  (optional; uses ``"local"`` when unset)
+        EMBEDDING_DIMS              – expected dims (default: 1536)
 
-    Enforces a configurable dimension check to match the Azure AI Search index
-    (VectorSearchDimensions). Set AZURE_FOUNDRY_LOCAL_EMBEDDING_DIMS or leave
-    unset to skip validation.
+    Enforces a configurable dimension check to match the Azure AI Search
+    index (VectorSearchDimensions).  Set ``EMBEDDING_DIMS`` or leave unset
+    to use the default of 1536.
     """
 
-    def __init__(self, endpoint: str | None = None, model: str | None = None) -> None:
+    def __init__(
+        self,
+        endpoint: str | None = None,
+        model: str | None = None,
+        api_key: str | None = None,
+        dims: int | None = None,
+        request_timeout_seconds: float | None = None,
+        health_timeout_seconds: float | None = None,
+    ) -> None:
         self._endpoint: str = _normalize_openai_base_url(
-            endpoint or os.getenv("AZURE_FOUNDRY_LOCAL_ENDPOINT", "http://localhost:5272/v1")
+            endpoint
+            or os.getenv("EMBEDDING_PROVIDER_ENDPOINT")
+            or "http://localhost:1234/v1"
         )
-        self._model: str = model or os.getenv(
-            "AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL", "qwen3-embedding"
+        self._model: str = (
+            model
+            or os.getenv("EMBEDDING_MODEL")
+            or "qwen3-embedding"
         )
-        dims_env = os.getenv("AZURE_FOUNDRY_LOCAL_EMBEDDING_DIMS")
-        self._dims: int | None = int(dims_env) if dims_env else None
-        self._request_timeout_seconds = _get_positive_float_env(
+        self._api_key: str = (
+            api_key
+            or os.getenv("EMBEDDING_PROVIDER_API_KEY")
+            or "local"
+        )
+        self._dims: int = dims or int(os.getenv("EMBEDDING_DIMS", "1536"))
+        self._request_timeout_seconds = request_timeout_seconds or _get_positive_float_env(
             "EMBEDDING_REQUEST_TIMEOUT_SECONDS",
             _DEFAULT_REQUEST_TIMEOUT_SECONDS,
         )
-        self._health_timeout_seconds = _get_positive_float_env(
+        self._health_timeout_seconds = health_timeout_seconds or _get_positive_float_env(
             "EMBEDDING_HEALTH_TIMEOUT_SECONDS",
             _DEFAULT_HEALTH_TIMEOUT_SECONDS,
         )
         self._client: openai.AsyncOpenAI = openai.AsyncOpenAI(
             base_url=self._endpoint,
-            api_key="local",
+            api_key=self._api_key,
         )
         self._last_health_status: str | None = None
         self._last_health_time: float = 0.0
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     async def generate_embedding(self, text: str) -> list[float]:
-        """Return a 3584-dimensional embedding for *text*.
-
-        Retries up to 3 times with exponential back-off on transient failures.
-        Raises ``ValueError`` if the returned vector length != 3584.
-        """
         last_error: Exception | None = None
 
         for attempt in range(_MAX_RETRIES):
@@ -105,24 +116,24 @@ class AzureFoundryLocalEmbedder:
                     self._client.embeddings.create(
                         model=self._model,
                         input=text,
+                        dimensions=self._dims,
                     ),
                     timeout=self._request_timeout_seconds,
                 )
 
                 vector: list[float] = response.data[0].embedding
 
-                if self._dims is not None and len(vector) != self._dims:
+                if len(vector) != self._dims:
                     raise ValueError(f"Expected {self._dims} dims, got {len(vector)}")
 
                 return vector
 
             except ValueError:
-                # Dimension mismatch is a programming / config error – don't retry.
                 raise
             except Exception as exc:
                 last_error = exc
                 logger.warning(
-                    "Foundry Local embed attempt %d/%d failed: %s",
+                    "OpenAI embed attempt %d/%d failed: %s",
                     attempt + 1,
                     _MAX_RETRIES,
                     exc,
@@ -131,24 +142,14 @@ class AzureFoundryLocalEmbedder:
                     await asyncio.sleep(2**attempt)
 
         raise RuntimeError(
-            f"Foundry Local embedding failed after {_MAX_RETRIES} retries"
+            f"OpenAI embedding failed after {_MAX_RETRIES} retries"
         ) from last_error
 
     async def generate_embeddings_batch(self, texts: list[str]) -> list[list[float]]:
-        """Return embeddings for a batch of texts.
-
-        Processes texts concurrently with ``asyncio.gather`` for throughput.
-        """
         tasks = [self.generate_embedding(text) for text in texts]
         return list(await asyncio.gather(*tasks))
 
     async def check_status(self) -> str:
-        """Return ``'connected'`` if the embedding provider is reachable.
-
-        Uses a lightweight GET request to the provider root (not /v1/models).
-        Results are cached for up to 60 seconds to avoid flooding the provider
-        with health probes.
-        """
         now = time.monotonic()
         if self._last_health_status is not None and (now - self._last_health_time) < _HEALTH_CACHE_TTL_SECONDS:
             return self._last_health_status

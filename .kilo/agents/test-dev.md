@@ -1,7 +1,7 @@
 ---
 description: Authors and maintains the automated test suite — unit, integration, and end-to-end tests — for all layers of the application. Covers .NET (xUnit/NSubstitute), Python (pytest), and frontend (Vitest/Playwright). Does not implement application logic; only tests it.
 mode: subagent
-permissions:
+permission:
   "*": deny
   bash: allow
   read: allow
@@ -13,6 +13,8 @@ permissions:
   lsp: allow
   todoread: allow
   todowrite: allow
+  "microsoft-learn_*": allow
+  "context7_*": allow
 ---
 
 # Test Developer

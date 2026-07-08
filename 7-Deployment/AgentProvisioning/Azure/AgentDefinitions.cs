@@ -240,13 +240,19 @@ public static class AgentDefinitions
 
     public static readonly ResponseTool[] VectorSearchTools =
     [
-        CreateFunctionTool("execute_azure_search", "Executes a query against the Azure AI Search index for the motorcycle knowledge base.", new
+        CreateFunctionTool("execute_azure_search", "Executes a query against the Azure AI Search index for the motorcycle knowledge base. The knowledge base is partitioned into four category indexes (dirt, touring, sport, cruiser). Pass a category to restrict the search to one partition; omit it to search all partitions and merge the best matches by score.", new
         {
             type = "object",
             properties = new
             {
                 query = new { type = "string", description = "The search query" },
-                max_results = new { type = "integer", description = "Maximum number of results to return", @default = 10 }
+                max_results = new { type = "integer", description = "Maximum number of results to return", @default = 10 },
+                category = new
+                {
+                    type = "string",
+                    description = "Optional motorcycle category that restricts the search to one partitioned index. One of: dirt, touring, sport, cruiser. Omit to search all four indexes and merge by score.",
+                    @enum = new[] { "dirt", "touring", "sport", "cruiser" }
+                }
             },
             required = new[] { "query" }
         })

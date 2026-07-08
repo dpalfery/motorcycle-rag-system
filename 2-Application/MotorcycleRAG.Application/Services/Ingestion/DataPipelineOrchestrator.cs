@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Domain.Entities;
 
@@ -503,7 +504,9 @@ public partial class DataPipelineOrchestrator : IDataPipelineOrchestrator
         {
             Success = false,
             Message = "Indexing not attempted",
-            IndexName = "motorcycle-documents"
+            // Legacy full-document path has no per-document category; route the label through the
+            // canonical naming convention (category-aware routing lives in ChunkIndexingService).
+            IndexName = MotorcycleSearchIndexNaming.DefaultIndexName
         };
 
         try

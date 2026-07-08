@@ -24,7 +24,7 @@ These variables are read directly by the Python process. Do not use them from C#
 
 | Variable | Default | Purpose | Required | Type |
 | --- | --- | --- | --- | --- |
-| `EMBEDDING_BACKEND` | `ollama` | Selects which embedder to use at ingestion time. Valid: `ollama`, `foundry_local`, or `deepinfra`. | No | Non-Secret |
+| `EMBEDDING_BACKEND` | `ollama` | Selects which embedder to use at ingestion time. Valid: `ollama` or `openai`. | No | Non-Secret |
 
 ### Ollama
 
@@ -33,20 +33,13 @@ These variables are read directly by the Python process. Do not use them from C#
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Base URL of the local Ollama server. | No | Non-Secret |
 | `OLLAMA_MODEL` | `qwen3-embedding` | Ollama model name for embeddings. | No | Non-Secret |
 
-### Azure AI Foundry Local
+### OpenAI-Compatible Embedder
 
 | Variable | Default | Purpose | Required | Type |
 | --- | --- | --- | --- | --- |
-| `AZURE_FOUNDRY_LOCAL_ENDPOINT` | `http://localhost:5272` | Base URL of the Azure AI Foundry Local OpenAI-compatible server. | No | Non-Secret |
-| `AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL` | `qwen3-embedding` | Model name loaded in Azure AI Foundry Local. | No | Non-Secret |
-
-### DeepInfra
-
-| Variable | Example | Purpose | Required | Type |
-| --- | --- | --- | --- | --- |
-| `DEEPINFRA_API_KEY` | `xxxxxxxxxxxxx` | DeepInfra API key for Qwen3-Embedding-4B. | Yes, if `EMBEDDING_BACKEND=deepinfra` | Secret |
-| `DEEPINFRA_BASE_URL` | `https://api.deepinfra.com/v1/openai` | DeepInfra OpenAI-compatible endpoint. | Yes, if `EMBEDDING_BACKEND=deepinfra` | Non-Secret |
-| `DEEPINFRA_EMBEDDING_MODEL` | `Qwen/Qwen3-Embedding-4B` | DeepInfra embedding model name. | Yes, if `EMBEDDING_BACKEND=deepinfra` | Non-Secret |
+| `EMBEDDING_PROVIDER_ENDPOINT` | `http://localhost:1234/v1` | Base URL of any OpenAI-compatible embedding server (LM Studio, Ollama /v1, Foundry Local, etc.). | No | Non-Secret |
+| `EMBEDDING_MODEL` | `qwen3-embedding` | Model name for embeddings, used by the OpenAI-compatible embedder and for tokenizer resolution. | No | Non-Secret |
+| `EMBEDDING_PROVIDER_API_KEY` | `local` | API key for cloud OpenAI-compatible providers. Leave unset for local servers. | No | Secret |
 
 ### Azure AI Search Upload
 

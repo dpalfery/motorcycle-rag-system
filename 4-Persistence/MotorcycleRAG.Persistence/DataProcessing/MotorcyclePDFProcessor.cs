@@ -115,7 +115,9 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
 
             result.Success = result.Errors.Count == 0;
             result.DocumentsIndexed = totalIndexed;
-            result.IndexName = "motorcycle-pdf-index";
+            // Legacy batch indexing path has no per-document category; route the label through the
+            // canonical naming convention (category-aware routing lives in ChunkIndexingService).
+            result.IndexName = MotorcycleSearchIndexNaming.DefaultIndexName;
             result.Message = result.Success
                 ? $"Successfully indexed {totalIndexed} PDF documents"
                 : $"Indexed {totalIndexed} documents with {result.Errors.Count} errors";
@@ -895,17 +897,24 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             dm.Section = chunk.Section;
             dm.Author = $"{input.Make} {input.Model}";
             dm.PublishedDate = input.UploadedAt;
-            // add tags
+            // T2: propagate the canonical motorcycle category so it flows from the
+            // PDFDocument DTO through the document and downstream chunk/index fields.
+            var categoryValue = input.Category?.ToString() ?? string.Empty;
             dm.Tags.Add(input.Make);
             dm.Tags.Add(input.Model);
             dm.Tags.Add(input.Year);
             dm.Tags.Add(input.DocumentType.ToString());
+            // T2: only tag with category when it has been resolved (avoid empty tags).
+            if (!string.IsNullOrWhiteSpace(categoryValue)) {
+                dm.Tags.Add(categoryValue);
+            }
             // additional properties
             dm.AdditionalProperties["SourceType"] = "PDF";
             dm.AdditionalProperties["Make"] = input.Make;
             dm.AdditionalProperties["Model"] = input.Model;
             dm.AdditionalProperties["Year"] = input.Year;
             dm.AdditionalProperties["DocumentType"] = input.DocumentType.ToString();
+            dm.AdditionalProperties["Category"] = categoryValue;
             dm.AdditionalProperties["ChunkType"] = chunk.Type.ToString();
             dm.AdditionalProperties["ProcessedAt"] = DateTime.UtcNow;
             dm.AdditionalProperties["Language"] = input.Language;
@@ -961,6 +970,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             ["Make"] = input.Make,
             ["Model"] = input.Model,
             ["Year"] = input.Year,
+            ["Category"] = input.Category?.ToString() ?? string.Empty,
             ["Language"] = input.Language,
             ["PageCount"] = analysisResult.Pages.Length,
             ["TableCount"] = analysisResult.Tables.Length,

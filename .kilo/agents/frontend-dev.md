@@ -2,7 +2,7 @@
 description: PROACTIVELY use for Frontend development, React coding, client side implementation, and code generation. Expert in feature slice design, MUI with Pigment CSS.
 mode: subagent
 model: opencode-go/qwen3.7-plus
-permissions:
+permission:
   "*": deny        
   bash: allow
   read: allow
@@ -10,6 +10,7 @@ permissions:
   glob: allow
   grep: allow
   list: allow
+  mcp: allow
   skill: allow
   lsp: allow
   todoread: allow

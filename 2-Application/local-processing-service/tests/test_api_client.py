@@ -2,6 +2,7 @@
 
 import base64
 import json
+import logging
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -109,7 +110,7 @@ async def test_upload_artifact_logs_exception_details_for_blank_transport_errors
         client = ApiClient()
 
     with patch("api.api_client.httpx.AsyncClient", return_value=FailingAsyncClient()):
-        with pytest.raises(RuntimeError, match="Artifact upload failed after 3 attempts"):
+        with pytest.raises(RuntimeError, match="Artifact upload failed after 2 attempts"):
             await client.upload_artifact(
                 b"{}",
                 "12345678-1234-1234-1234-123456789012",
@@ -139,3 +140,117 @@ def test_get_token_diagnostics_extracts_expected_claims():
     assert diagnostics["aud"] == payload["aud"]
     assert diagnostics["azp"] == payload["azp"]
     assert diagnostics["roles"] == payload["roles"]
+
+
+@pytest.mark.parametrize(
+    "exc, expected_phrase",
+    [
+        (
+            httpx.ConnectTimeout(
+                "connect stall",
+                request=httpx.Request("POST", "https://localhost:7215"),
+            ),
+            "Connect timeout",
+        ),
+        (
+            httpx.ReadTimeout(
+                "read stall",
+                request=httpx.Request("POST", "https://localhost:7215"),
+            ),
+            "Read timeout",
+        ),
+        (
+            httpx.TimeoutException(
+                "overall stall",
+                request=httpx.Request("POST", "https://localhost:7215"),
+            ),
+            "Overall timeout",
+        ),
+    ],
+    ids=["connect-timeout", "read-timeout", "overall-timeout"],
+)
+async def test_upload_artifact_logs_named_timeout_phase(
+    monkeypatch, caplog, exc, expected_phrase
+):
+    """T7: connect/read/overall timeouts each emit a distinct, named ERROR log."""
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    caplog.set_level(logging.ERROR, logger="api.api_client")
+
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+
+    class TimeoutAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            raise exc
+
+    with patch("api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal):
+        client = ApiClient()
+
+    with patch("api.api_client.httpx.AsyncClient", return_value=TimeoutAsyncClient()):
+        with pytest.raises(
+            RuntimeError, match="Artifact upload failed after 2 attempts"
+        ):
+            await client.upload_artifact(
+                b"{}",
+                "12345678-1234-1234-1234-123456789012",
+                "graph-entities",
+                "application/json",
+            )
+
+    error_messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelname == "ERROR"
+    ]
+    assert any(
+        expected_phrase in message
+        and "https://localhost:7215/api/ingestion/artifacts/upload" in message
+        and "90.0s" in message
+        for message in error_messages
+    ), f"expected '{expected_phrase}' ERROR log; got {error_messages!r}"
+
+
+async def test_upload_artifact_uses_reduced_timeout_and_two_attempts(monkeypatch):
+    """T7: source constants are 90s/2 and httpx.AsyncClient is built with timeout=90s."""
+    from api import api_client
+
+    # Acceptance criterion 1: 90s timeout, 2 attempts (not 120s x 3).
+    assert api_client._UPLOAD_TIMEOUT_SECONDS == 90.0
+    assert api_client._UPLOAD_MAX_ATTEMPTS == 2
+
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+
+    class OkAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, *, headers=None, files=None):
+            return httpx.Response(202, request=httpx.Request("POST", url))
+
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+
+    with patch("api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal):
+        client = ApiClient()
+
+    with patch("api.api_client.httpx.AsyncClient", return_value=OkAsyncClient()) as mock_ctor:
+        await client.upload_artifact(
+            b"{}",
+            "12345678-1234-1234-1234-123456789012",
+            "graph-entities",
+            "application/json",
+        )
+
+    # The per-attempt httpx client must be constructed with the reduced 90s timeout.
+    assert mock_ctor.call_args.kwargs.get("timeout") == 90.0
+    # A successful 202 must result in exactly one attempt (no retries needed).
+    assert mock_ctor.call_count == 1

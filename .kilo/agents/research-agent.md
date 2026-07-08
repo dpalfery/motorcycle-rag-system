@@ -1,7 +1,7 @@
 ---
 description: Finds, verifies, and summarizes authoritative technical information from the web for the other agents in the pipeline. Read-only — never edits files or runs commands.
 mode: subagent
-permissions:
+permission:
   read: allow
   grep: allow
   glob: allow
@@ -9,6 +9,11 @@ permissions:
   websearch: allow
   edit: deny
   bash: deny
+  "microsoft-learn_*": allow
+  "azure-mcp_*": allow
+  "context7_*": allow
+  "github_*": allow
+  skill: allow
 ---
 
 # Role

@@ -26,9 +26,9 @@ The Snyk MCP server is **disabled by default** to reduce context bloat. This ski
 
 ### Step 1: Enable Snyk MCP Server (REQUIRED FIRST STEP)
 
-1. Read `.factory/.mcp.json` file
+1. Read `.mcp.json` file
 2. Update the `"snyk"` server section: set `"disabled": false`
-3. Write the updated configuration back to `.factory/.mcp.json`
+3. Write the updated configuration back to `.mcp.json`
 
 This enables the Snyk MCP server and makes Snyk tools available for use.
 
@@ -47,9 +47,9 @@ After enabling the MCP server, proceed with scanning based on the detected proje
 
 ### Step 3: Disable Snyk MCP Server (REQUIRED FINAL STEP)
 
-1. Read `.factory/.mcp.json` file
+1. Read `.mcp.json` file
 2. Update the `"snyk"` server section: set `"disabled": true`
-3. Write the updated configuration back to `.factory/.mcp.json`
+3. Write the updated configuration back to `/.mcp.json`
 
 This removes Snyk tools from context when not needed.
 
@@ -102,7 +102,7 @@ These scans work on **any project** regardless of language:
 Follow this process for any project:
 
 ### 1. Enable MCP Server
-- Read `.factory/.mcp.json`
+- Read `.mcp.json`
 - Update `"snyk.disabled": false`
 - Write updated configuration
 
@@ -124,7 +124,7 @@ Follow this process for any project:
 - Provide remediation recommendations
 
 ### 5. Disable MCP Server
-- Read `.factory/.mcp.json`
+- Read `.mcp.json`
 - Update `"snyk.disabled": true`
 - Write updated configuration
 
@@ -170,17 +170,6 @@ The skill provides **language-agnostic** remediation steps:
 4. Verify all issues are resolved
 5. Repeat until no vulnerabilities remain
 
----
-
-## Compatibility
-
-This skill works with:
-- **Codex**: Desktop AI coding assistant
-- **Factory Droids**: Custom agents in `.factory/droids/`
-- **Factory Skills**: Can be invoked by other skills
-- **Any AI Agent**: Through Skill invocation pattern
-
----
 
 ## Example Commands
 
@@ -193,11 +182,3 @@ When invoked, agents may use prompts like:
 
 ---
 
-## Important Notes
-
-- **Always** enable MCP server before scanning and disable afterward
-- Scans are on-demand only - never run automatically
-- The skill detects project type automatically - don't hardcode project paths
-- Works across any language, framework, or project type
-- Requires Snyk CLI and authentication (handled by MCP server)
-- Results include actionable remediation steps

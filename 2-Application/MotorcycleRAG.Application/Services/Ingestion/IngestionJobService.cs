@@ -585,12 +585,31 @@ public sealed class IngestionJobService : IIngestionJobService {
         }
         else if (string.Equals(request.Stage, "completed", StringComparison.OrdinalIgnoreCase))
         {
+            // T8: The Python pipeline's fire-and-forget `report_stage("completed")` means
+            // "Python done", not "indexing done". The synchronous indexing work runs in
+            // `ProcessorArtifactsController.ProcessSearchChunksAsync` after this callback
+            // returns, and the controller owns the authoritative terminal transition via
+            // `TryTransitionSearchChunkJobToTerminalAsync` (CAS-guarded).
+            //
+            // Previously this branch asserted `Status = Indexing` for non-terminal jobs,
+            // which re-stamped an already-`Indexing` job and left it stuck when the
+            // controller's transition did not run (e.g. process recycled mid-index).
+            //
+            // Now: transition to `Completed` on success, `Failed` on failure, without
+            // asserting the prior status. The terminal-status guard above (`IsTerminalStatus`)
+            // still prevents flipping a job that already reached `Completed`/`Failed`/
+            // `Cancelled`/`PartiallyCompleted`/`Deleting`.
             job.Status = string.IsNullOrWhiteSpace(request.FailureReason)
-                ? IngestionJobStatus.Indexing
+                ? IngestionJobStatus.Completed
                 : IngestionJobStatus.Failed;
             job.CurrentStage = request.Stage;
             job.StageSetAtUtc = stageSetAtUtc;
-            if (job.Status == IngestionJobStatus.Failed)
+            if (job.Status == IngestionJobStatus.Completed)
+            {
+                job.CompletedAtUtc = stageSetAtUtc;
+                job.FailureReason = null;
+            }
+            else
             {
                 ApplyJobFailure(job, request.FailureReason!);
             }

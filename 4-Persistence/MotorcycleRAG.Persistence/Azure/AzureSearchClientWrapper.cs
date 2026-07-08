@@ -42,13 +42,14 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
         ArgumentNullException.ThrowIfNull(healthService);
 
         var azureConfigValue = azureConfig.Value ?? throw new ArgumentNullException(nameof(azureConfig));
-        var searchOptions = searchConfig.Value ?? throw new ArgumentNullException(nameof(searchConfig));
+        // searchConfig is retained for DI/forward-compat but the wrapper no longer binds to a single index.
+        _ = searchConfig.Value ?? throw new ArgumentNullException(nameof(searchConfig));
         _queryService = queryService;
         _documentService = documentService;
         _healthService = healthService;
 
-        logger.LogInformation("Azure Search client initialized with endpoint: {Endpoint}, Index: {IndexName}",
-            azureConfigValue.SearchServiceEndpoint, searchOptions.IndexName);
+        logger.LogInformation("Azure Search client initialized with endpoint: {Endpoint} across {CategoryCount} category-partitioned indexes (dirt/touring/sport/cruiser)",
+            azureConfigValue.SearchServiceEndpoint, 4);
     }
 
     public Task<DomainSearchResult[]> SearchAsync(string searchText)

@@ -36,6 +36,10 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);OPENAI001</NoWarn>
     <UserSecretsId>b9895e42-9baa-4255-b333-d3a0e85c9e28</UserSecretsId>
-  </PropertyGroup>
+   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MotorcycleRAG.UnitTests" />
+  </ItemGroup>
 
 </Project>

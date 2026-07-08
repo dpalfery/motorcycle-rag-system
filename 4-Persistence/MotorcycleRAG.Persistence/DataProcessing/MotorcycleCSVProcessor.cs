@@ -70,7 +70,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
             var processedCount = 0;
             foreach (var chunk in chunks) {
                 try {
-                    var document = await ProcessChunkAsync(chunk, input.FileName, processedCount);
+                    var document = await ProcessChunkAsync(chunk, input.FileName, processedCount, input.Category);
                     documents.Add(document);
                     processedCount++;
                 }
@@ -91,6 +91,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
             // populate metadata into the getter-only dictionary
             processed.Metadata["SourceFile"] = input.FileName;
             processed.Metadata["ChunksCreated"] = chunks.Count;
+            processed.Metadata["Category"] = input.Category?.ToString() ?? string.Empty;
             processed.Metadata["ProcessingConfiguration"] = _configuration;
             processed.Metadata["Errors"] = errors;
             processed.Metadata["ProcessingTime"] = DateTime.UtcNow - startTime;
@@ -139,7 +140,9 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
             foreach (var e in errors)
                 result.Errors.Add(e);
             result.Message = $"Indexed {totalIndexed} CSV documents successfully";
-            result.IndexName = "motorcycle-csv-index";
+            // Legacy batch indexing path has no per-document category; route the label through the
+            // canonical naming convention (category-aware routing lives in ChunkIndexingService).
+            result.IndexName = MotorcycleSearchIndexNaming.DefaultIndexName;
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Fatal error during CSV indexing");
@@ -284,7 +287,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
     /// <summary>
     /// Process a single chunk into a MotorcycleDocument with embeddings
     /// </summary>
-    private async Task<MotorcycleDocument> ProcessChunkAsync(CsvChunk chunk, string sourceFile, int chunkIndex) {
+    private async Task<MotorcycleDocument> ProcessChunkAsync(CsvChunk chunk, string sourceFile, int chunkIndex, MotorcycleCategory? category) {
         // Create content for embedding
         var contentBuilder = new StringBuilder();
 
@@ -301,6 +304,9 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
         // Generate embedding using text-embedding-3-large
         var embedding = await _openAIClient.GetEmbeddingAsync("text-embedding-3-large", content, CancellationToken.None);
 
+        // T2: resolve the canonical category wire value for propagation.
+        var categoryValue = category?.ToString() ?? string.Empty;
+
         var dm = new DocumentMetadata();
         dm.SourceFile = sourceFile;
         dm.Section = $"Chunk {chunkIndex}";
@@ -308,6 +314,11 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
         dm.AdditionalProperties["RowCount"] = chunk.Rows.Count;
         dm.AdditionalProperties["Headers"] = chunk.Headers;
         dm.AdditionalProperties["ProcessingMethod"] = "RowBasedChunking";
+        dm.AdditionalProperties["Category"] = categoryValue;
+        // T2: only tag with category when it has been resolved (avoid empty tags).
+        if (!string.IsNullOrWhiteSpace(categoryValue)) {
+            dm.Tags.Add(categoryValue);
+        }
 
         return new MotorcycleDocument {
             Id = $"csv-chunk-{Guid.NewGuid()}",

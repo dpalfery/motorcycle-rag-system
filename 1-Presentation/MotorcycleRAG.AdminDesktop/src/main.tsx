@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import { setApiBaseUrl, setTokenProvider } from "./lib/apiClient";
 import { useConfig } from "./lib/config";
+import { useHealthCheck } from "./lib/healthCheck";
 import { getAccessToken } from "./lib/auth";
 import "./index.css";
 
@@ -74,6 +75,15 @@ void useConfig
   .then(async () => {
     const state = useConfig.getState();
     setApiBaseUrl(state.config.apiBaseUrl);
+
+    // Early startup health probe: verifies (a) the cloud API is reachable and
+    // (b) the Azure Search index is reachable, via the anonymous GET /health endpoint.
+    // Fire-and-forget so the UI never hangs on this — the HealthStatusIndicator
+    // surfaces the result (and a degraded banner if either is down) without blocking render.
+    void useHealthCheck
+      .getState()
+      .probe()
+      .catch((err) => console.warn("Startup health probe failed:", err));
 
     // Auto-resolve local processor path if empty and enabled.
     await state.autoResolveIfNeeded();

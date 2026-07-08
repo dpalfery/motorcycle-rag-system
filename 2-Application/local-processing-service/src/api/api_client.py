@@ -17,6 +17,15 @@ _DEFAULT_CLIENT_ID = "d09d356d-62ac-4f38-b636-64169119ea25"
 _DEFAULT_SCOPE = "api://motorcyclerag-api/.default"
 _DEFAULT_BASE_URL = "https://localhost:7215"
 
+# T7: total HTTP timeout for a single artifact-upload attempt, in seconds.
+# Previously 120s; reduced to 90s so a stalled upload fails fast instead of
+# producing a multi-minute perceived freeze.
+_UPLOAD_TIMEOUT_SECONDS = 90.0
+
+# T7: maximum number of upload attempts (1 initial try + retries). Previously
+# 3; reduced to 2 to bound the worst-case perceived wait (90s x 2 + backoff).
+_UPLOAD_MAX_ATTEMPTS = 2
+
 
 class ApiClient:
     """Uploads processed artifacts to the MotorcycleRAG API via MSAL client credentials."""
@@ -163,7 +172,14 @@ class ApiClient:
         artifact_type: str,
         content_type: str,
     ) -> None:
-        """POST processed artifact bytes to the API."""
+        """POST processed artifact bytes to the API.
+
+        Retries transient failures up to ``_UPLOAD_MAX_ATTEMPTS`` times with
+        exponential backoff (``2 ** attempt``). Each attempt is bounded by
+        ``_UPLOAD_TIMEOUT_SECONDS``. Non-transient responses (including
+        4xx) are not retried. Timeout exceptions are logged by phase
+        (connect/read/overall) so a stalled upload is diagnosable.
+        """
         if not self._configured:
             raise RuntimeError(
                 "ApiClient is not configured; cannot upload processed artifacts. "
@@ -187,7 +203,7 @@ class ApiClient:
             url,
         )
 
-        for attempt in range(3):
+        for attempt in range(_UPLOAD_MAX_ATTEMPTS):
             try:
                 logger.info(
                     "Artifact upload attempt %d for upload %s (artifact_type=%s)",
@@ -195,7 +211,9 @@ class ApiClient:
                     upload_id,
                     artifact_type,
                 )
-                async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
+                async with httpx.AsyncClient(
+                    timeout=_UPLOAD_TIMEOUT_SECONDS, verify=False
+                ) as client:
                     response = await client.post(
                         url,
                         headers=headers,
@@ -231,6 +249,46 @@ class ApiClient:
                 last_exc = RuntimeError(detail)
             except httpx.HTTPError as exc:
                 last_exc = exc
+                # Named timeout logging (T7): a hang must be observable, not silent.
+                # Distinguish the stalled phase so operators can tell whether the
+                # server was unreachable (connect), stalled mid-transfer (read), or
+                # hit another timeout budget (overall). isinstance ordering matters:
+                # Connect/Read are subclasses of TimeoutException, so check them first.
+                if isinstance(exc, httpx.ConnectTimeout):
+                    logger.error(
+                        "Connect timeout on artifact upload attempt %d for %s: the "
+                        "API did not establish a connection within %.1fs "
+                        "(network/DNS/server-down). Exception %s: %r",
+                        attempt + 1,
+                        url,
+                        _UPLOAD_TIMEOUT_SECONDS,
+                        type(exc).__name__,
+                        exc,
+                    )
+                elif isinstance(exc, httpx.ReadTimeout):
+                    logger.error(
+                        "Read timeout on artifact upload attempt %d for %s: the API "
+                        "accepted the request but stopped sending data within %.1fs "
+                        "(likely a stalled indexing call on the server). "
+                        "Exception %s: %r",
+                        attempt + 1,
+                        url,
+                        _UPLOAD_TIMEOUT_SECONDS,
+                        type(exc).__name__,
+                        exc,
+                    )
+                elif isinstance(exc, httpx.TimeoutException):
+                    logger.error(
+                        "Overall timeout on artifact upload attempt %d for %s: "
+                        "request exceeded the %.1fs budget. Exception %s: %r",
+                        attempt + 1,
+                        url,
+                        _UPLOAD_TIMEOUT_SECONDS,
+                        type(exc).__name__,
+                        exc,
+                    )
+                # Non-timeout transport errors (ConnectError, ReadError, ...) are
+                # summarized by the retry warning below to preserve the retry trail.
 
             wait = 2 ** attempt
             logger.warning(
@@ -243,7 +301,9 @@ class ApiClient:
             )
             await asyncio.sleep(wait)
 
-        raise RuntimeError(f"Artifact upload failed after 3 attempts: {last_exc}")
+        raise RuntimeError(
+            f"Artifact upload failed after {_UPLOAD_MAX_ATTEMPTS} attempts: {last_exc}"
+        )
 
     async def report_stage(
         self,

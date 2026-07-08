@@ -360,6 +360,7 @@ class PDFProcessor:
                     "title": headings[0] if headings else f"Chunk {i}",
                     "content": chunk.text,
                     "documentType": document_type,
+                    "category": "Unknown",
                     "make": make,
                     "model": model,
                     "year": year,

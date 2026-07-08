@@ -2,7 +2,7 @@
 description: Read-only Azure investigation agent. Uses Azure MCP tools to inspect Azure state and gather facts for debugging, planning, and architecture work.
 mode: subagent
 model: opencode-go/mimo-v2.5
-permissions:
+permission:
   "*": deny        
   bash: allow
   read: allow
@@ -17,6 +17,9 @@ permissions:
   websearch: allow
   webfetch: allow
   doom_loop: allow
+  "microsoft-learn_*": allow
+  "azure-mcp_*": allow
+  "context7_*": allow
 ---
 You are a read-only Azure investigation agent.
 

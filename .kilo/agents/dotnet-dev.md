@@ -1,8 +1,7 @@
 ---
 description: PROACTIVELY use for C# coding, .NET implementation, and code generation. Expert in Clean Architecture, async patterns, and Azure integration.
 mode: subagent
-model: zai-coding-plan/glm-5.2
-permissions:
+permission:
   "*": deny        
   bash: allow
   read: allow
@@ -10,6 +9,7 @@ permissions:
   glob: allow
   grep: allow
   list: allow
+  mcp: allow
   skill: allow
   lsp: allow
   todoread: allow

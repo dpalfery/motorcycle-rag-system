@@ -9,7 +9,6 @@ import pytest
 def _load_main(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "")
     monkeypatch.setenv("EMBEDDING_BACKEND", "ollama")
-    monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
     monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_URL", raising=False)
     monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "")
     monkeypatch.setenv(

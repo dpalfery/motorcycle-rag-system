@@ -73,6 +73,7 @@ public sealed class InMemorySearchShimChunkIndexingService : IChunkIndexingServi
 
             return new ChunkIndexingResult(
                 parsed.Count,
+                parsed.Count > 0 ? 1 : 0,
                 parsed.Select(outcome => outcome with { Succeeded = false, FailureReason = reason }).ToList());
         }
 
@@ -81,7 +82,7 @@ public sealed class InMemorySearchShimChunkIndexingService : IChunkIndexingServi
             parsed.Count,
             LogSanitizer.Sanitize(uploadId));
 
-        return new ChunkIndexingResult(parsed.Count, parsed);
+        return new ChunkIndexingResult(parsed.Count, parsed.Count > 0 ? 1 : 0, parsed);
     }
 
     private static IReadOnlyList<ChunkIndexOutcome> ParseOutcomes(string jsonl)

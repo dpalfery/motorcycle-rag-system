@@ -1,7 +1,6 @@
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using System.Collections.Generic;
@@ -9,30 +8,34 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Options;
 
 
 namespace MotorcycleRAG.Persistence.Azure.Search;
 
 /// <summary>
-/// Handles Azure AI Search document operations with resilience and correlation tracking
+/// Handles Azure AI Search document operations with resilience and correlation tracking.
 /// </summary>
+/// <remarks>
+/// This service backs the legacy full-document indexing path. It resolves a
+/// <see cref="SearchClient"/> per operation via <see cref="ISearchClientFactory"/>; in the
+/// absence of per-document category context it targets the factory's default category
+/// index. The category-aware path is <see cref="ChunkIndexingService"/> (chunks carry
+/// their own <c>category</c> and route accordingly).
+/// </remarks>
 public class AzureSearchDocumentService : IAzureSearchDocumentService
 {
-    private readonly SearchClient _searchClient;
+    private readonly ISearchClientFactory _clientFactory;
     private readonly ILogger<AzureSearchDocumentService> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
 
     public AzureSearchDocumentService(
-        SearchClient searchClient,
-        IOptions<MotorcycleRAG.Core.Options.SearchOptions> searchOptions,
+        ISearchClientFactory clientFactory,
         ILogger<AzureSearchDocumentService> logger,
         IResilienceService resilienceService,
         ICorrelationService correlationService)
     {
-        _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
-        ArgumentNullException.ThrowIfNull(searchOptions);
+        _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
         _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
@@ -124,7 +127,8 @@ public class AzureSearchDocumentService : IAzureSearchDocumentService
     {
         _logger.LogDebug("Indexing {DocumentCount} documents", documents.Length);
 
-        var response = await _searchClient.UploadDocumentsAsync(documents, new IndexDocumentsOptions(), cancellationToken);
+        var searchClient = _clientFactory.GetDefaultClient();
+        var response = await searchClient.UploadDocumentsAsync(documents, new IndexDocumentsOptions(), cancellationToken);
 
         var failedCount = response.Value.Results.Count(r => !r.Succeeded);
         if (failedCount > 0)
@@ -146,7 +150,8 @@ public class AzureSearchDocumentService : IAzureSearchDocumentService
 
     private async Task ExecuteDeleteDocumentsAsync(string[] documentIds)
     {
-        var response = await _searchClient.DeleteDocumentsAsync("id", documentIds, new IndexDocumentsOptions(), CancellationToken.None);
+        var searchClient = _clientFactory.GetDefaultClient();
+        var response = await searchClient.DeleteDocumentsAsync("id", documentIds, new IndexDocumentsOptions(), CancellationToken.None);
 
         var failedCount = response.Value.Results.Count(r => !r.Succeeded);
         if (failedCount > 0)
@@ -164,15 +169,16 @@ public class AzureSearchDocumentService : IAzureSearchDocumentService
         _logger.LogDebug("Successfully processed deletion of {DocumentCount} documents", documentIds.Length);
     }
 
-    private async Task<bool> ExecuteCreateIndexAsync(string indexName, CancellationToken cancellationToken)
+    private Task<bool> ExecuteCreateIndexAsync(string indexName, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Creating or updating index: {IndexName}", indexName);
-
-        // Simplified implementation - in a real scenario, you would define the index schema
-        // and use the actual Azure Search SDK
-        await Task.Delay(300, cancellationToken); // Simulate index creation
-
-        _logger.LogDebug("Successfully created or updated index: {IndexName}", indexName);
-        return true;
+        // Per D1/D4 of the chunk-upload-fix plan, the API must NOT create indexes at runtime.
+        // Indexes are provisioned declaratively by Pulumi (see T1). Any caller that reaches
+        // this method is a bug: throw loudly instead of silently lying about success.
+        _logger.LogError(
+            "Runtime index creation is not supported. Index '{IndexName}' must be provisioned by Pulumi IaC.",
+            indexName);
+        throw new NotSupportedException(
+            $"Runtime index creation is not supported; index '{indexName}' must be provisioned by Pulumi IaC. " +
+            "Per D1/D4, the API starts but fails the request if the index is missing at runtime.");
     }
 }

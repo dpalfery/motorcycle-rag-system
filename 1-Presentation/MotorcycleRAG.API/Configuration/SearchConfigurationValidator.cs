@@ -8,6 +8,8 @@ namespace MotorcycleRAG.API.Configuration;
 /// </summary>
 internal class SearchConfigurationValidator : IValidateOptions<SearchOptions>
 {
+    private const int MaxBatchIndexTimeoutSeconds = 600;
+
     ValidateOptionsResult IValidateOptions<SearchOptions>.Validate(string? name, SearchOptions options)
     {
         var failures = new List<string>();
@@ -17,6 +19,9 @@ internal class SearchConfigurationValidator : IValidateOptions<SearchOptions>
 
         if (options.BatchSize <= 0 || options.BatchSize > 1000)
             failures.Add("Search:BatchSize must be between 1 and 1000");
+
+        if (options.BatchIndexTimeoutSeconds <= 0 || options.BatchIndexTimeoutSeconds > MaxBatchIndexTimeoutSeconds)
+            failures.Add($"Search:BatchIndexTimeoutSeconds must be between 1 and {MaxBatchIndexTimeoutSeconds}");
 
         if (options.MaxSearchResults <= 0 || options.MaxSearchResults > 100)
             failures.Add("Search:MaxSearchResults must be between 1 and 100");

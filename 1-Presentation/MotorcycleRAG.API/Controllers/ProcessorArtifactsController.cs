@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -242,6 +243,7 @@ public sealed class ProcessorArtifactsController : ControllerBase
         Stream buffer,
         CancellationToken ct)
     {
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             var now = DateTimeOffset.UtcNow;
@@ -293,13 +295,28 @@ public sealed class ProcessorArtifactsController : ControllerBase
                 }
 
                 var failureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null;
+                var terminalStatus = MapArtifactStateToJobStatus(artifactState);
                 var transitioned = await TryTransitionSearchChunkJobToTerminalAsync(
                     job.IngestionJobId,
-                    MapArtifactStateToJobStatus(artifactState),
+                    terminalStatus,
                     expected,
                     indexed,
                     failureReason,
                     ct).ConfigureAwait(false);
+
+                // T10: structured terminal transition outcome — JobId, result, totals, duration,
+                // and failure reason so the run is diagnosable from logs (never silent).
+                _logger.LogInformation(
+                    "Search chunk indexing terminal outcome: JobId={JobId}, Outcome={Outcome}, Transitioned={Transitioned}, Expected={ExpectedCount}, Indexed={IndexedCount}, Failed={FailedCount}, Batches={BatchCount}, DurationMs={DurationMs}, FailureReason={FailureReason}.",
+                    job.IngestionJobId,
+                    terminalStatus.ToString(),
+                    transitioned,
+                    expected,
+                    indexed,
+                    failed,
+                    result.BatchCount,
+                    stopwatch.ElapsedMilliseconds,
+                    failureReason is null ? string.Empty : LogSanitizer.Sanitize(failureReason));
 
                 if (!transitioned)
                 {
@@ -339,11 +356,86 @@ public sealed class ProcessorArtifactsController : ControllerBase
         }
         catch (Exception indexEx)
         {
+            stopwatch.Stop();
             _logger.LogError(
                 indexEx,
-                "Chunk indexing into Azure AI Search failed for upload {UploadId}. Artifact is stored in blob.",
+                "Chunk indexing into Azure AI Search failed for upload {UploadId} after {DurationMs}ms. Artifact is stored in blob.",
+                LogSanitizer.Sanitize(uploadId),
+                stopwatch.ElapsedMilliseconds);
+
+            await TryFailSearchChunkJobAsync(uploadId, indexEx, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Best-effort transition of the search-chunk job for <paramref name="uploadId"/> to
+    /// <see cref="IngestionJobStatus.Failed"/> with a precise reason derived from
+    /// <paramref name="failure"/> (T6). Failures during this transition are logged but never
+    /// rethrown — the 202 response contract (D5) is preserved in all cases.
+    /// </summary>
+    private async Task TryFailSearchChunkJobAsync(string uploadId, Exception failure, CancellationToken ct)
+    {
+        try
+        {
+            var job = await FindLatestSearchChunkJobAsync(uploadId, ct).ConfigureAwait(false);
+            if (job is null)
+            {
+                _logger.LogWarning(
+                    "No ingestion job found for uploadId {UploadId} to transition to Failed after indexing failure.",
+                    LogSanitizer.Sanitize(uploadId));
+                return;
+            }
+
+            var reason = BuildIndexingFailureReason(failure);
+            var transitioned = await TryTransitionSearchChunkJobToTerminalAsync(
+                job.IngestionJobId,
+                IngestionJobStatus.Failed,
+                expectedChunkCount: 0,
+                indexedChunkCount: 0,
+                failureReason: reason,
+                ct).ConfigureAwait(false);
+
+            if (transitioned)
+            {
+                _logger.LogInformation(
+                    "Transitioned ingestion job {JobId} to Failed after indexing failure for upload {UploadId}.",
+                    job.IngestionJobId,
+                    LogSanitizer.Sanitize(uploadId));
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Ingestion job {JobId} was not in an active state and could not be transitioned to Failed for upload {UploadId}.",
+                    job.IngestionJobId,
+                    LogSanitizer.Sanitize(uploadId));
+            }
+        }
+        catch (Exception transitionEx)
+        {
+            // The 202 contract is preserved; job-transition failures must not propagate.
+            _logger.LogError(
+                transitionEx,
+                "Failed to transition ingestion job to Failed for upload {UploadId}. The artifact is stored in blob.",
                 LogSanitizer.Sanitize(uploadId));
         }
+    }
+
+    /// <summary>
+    /// Builds a precise, length-bounded failure reason from an indexing exception for the
+    /// job record. Includes the exception type name and message; for Azure SDK failures the
+    /// message already contains the HTTP status code.
+    /// </summary>
+    private static string BuildIndexingFailureReason(Exception failure)
+    {
+        var message = failure.Message.Trim();
+        // Cap length to keep the job record column from overflowing.
+        const int maxReasonLength = 500;
+        if (message.Length > maxReasonLength)
+        {
+            message = message[..maxReasonLength];
+        }
+
+        return $"{failure.GetType().Name}: {message}";
     }
 
     private async Task<IngestionJob?> FindLatestSearchChunkJobAsync(

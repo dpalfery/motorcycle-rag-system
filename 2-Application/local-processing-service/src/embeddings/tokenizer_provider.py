@@ -122,10 +122,6 @@ def resolve_chunker_tokenizer() -> TokenizerResolution:
     embedding_model = os.getenv("EMBEDDING_MODEL", "").strip()
     if not embedding_model:
         embedding_model = os.getenv("OLLAMA_MODEL", "").strip()
-    if not embedding_model:
-        embedding_model = os.getenv("AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL", "").strip()
-    if not embedding_model:
-        embedding_model = os.getenv("DEEPINFRA_EMBEDDING_MODEL", "").strip()
 
     if not embedding_model:
         raise TokenizerConfigurationError(

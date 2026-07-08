@@ -1,35 +1,37 @@
 using Azure.Search.Documents;
-using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using System.Threading;
 using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Persistence.Azure.Search;
 
 /// <summary>
-/// Handles Azure AI Search health checks and connection management
+/// Handles Azure AI Search health checks and connection management.
 /// </summary>
+/// <remarks>
+/// Resolves a representative <see cref="SearchClient"/> (the default category index)
+/// via <see cref="ISearchClientFactory"/>. The current probe remains a connectivity
+/// placeholder; when it is replaced with a real per-index probe, the factory supplies
+/// every category partition.
+/// </remarks>
 public class AzureSearchHealthService : IAzureSearchHealthService
 {
+    private readonly ISearchClientFactory _clientFactory;
     private readonly ILogger<AzureSearchHealthService> _logger;
     private readonly IResilienceService _resilienceService;
     private readonly ICorrelationService _correlationService;
 
     public AzureSearchHealthService(
-        SearchClient searchClient,
-        IOptions<MotorcycleRAG.Core.Options.SearchOptions> searchOptions,
+        ISearchClientFactory clientFactory,
         ILogger<AzureSearchHealthService> logger,
         IResilienceService resilienceService,
         ICorrelationService correlationService)
     {
-        ArgumentNullException.ThrowIfNull(searchClient);
-        ArgumentNullException.ThrowIfNull(searchOptions);
+        _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resilienceService = resilienceService ?? throw new ArgumentNullException(nameof(resilienceService));
         _correlationService = correlationService ?? throw new ArgumentNullException(nameof(correlationService));
@@ -61,7 +63,11 @@ public class AzureSearchHealthService : IAzureSearchHealthService
     {
         try
         {
-            // Simple health check - in a real scenario, you would make an actual API call
+            // Probe the default category partition. When this stub is replaced with a real
+            // data-plane call, _clientFactory.GetDefaultClient() is the representative client.
+            var probeIndex = _clientFactory.GetIndexName(_clientFactory.DefaultCategory);
+            _logger.LogDebug("Probing Azure Search health against index {IndexName}", probeIndex);
+
             await Task.Delay(50, cancellationToken); // Simulate health check
             return true;
         }

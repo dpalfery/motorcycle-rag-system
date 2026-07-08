@@ -5,6 +5,7 @@ import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
 import { useConfig } from "@/lib/config";
 import { ensureProcessorReady } from "@/lib/processor";
+import HealthStatusIndicator from "./HealthStatusIndicator";
 
 interface NavItem {
   to: string;
@@ -61,6 +62,7 @@ export default function AppShell() {
       <div className="drag flex h-9 items-center justify-center border-b border-border text-xs text-muted">
         MotorcycleRAG Admin
       </div>
+      <HealthStatusIndicator />
       <div className="flex min-h-0 flex-1">
         <aside className="flex w-[180px] shrink-0 flex-col border-r border-border py-3">
           <div className="flex items-center gap-2 px-3 pb-3.5">

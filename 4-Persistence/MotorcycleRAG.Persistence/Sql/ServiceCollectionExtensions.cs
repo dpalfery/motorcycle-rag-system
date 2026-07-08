@@ -39,6 +39,7 @@ public static class ServiceCollectionExtensions {
         services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();
         services.AddScoped<IGraphRepository, SqlGraphRepository>();
         services.AddScoped<IBikeModelRepository, BikeModelRepository>();
+        services.AddScoped<IBikeModelCategoryRepository, BikeModelCategoryRepository>();
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUsageRepository, UsageRepository>();

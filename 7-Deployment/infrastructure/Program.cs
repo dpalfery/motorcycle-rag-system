@@ -436,11 +436,15 @@ namespace MotorcycleRAG.Infrastructure {
                 }
             });
 
-            // 12. Azure AI Search
-            var searchService = new Pulumi.AzureNative.Search.Service($"{namePrefix}-search", new Pulumi.AzureNative.Search.ServiceArgs {
+            // 12. Azure AI Search — serverless tier (westcentralus, the only US serverless-preview region)
+            const string searchLoc = "westcentralus";       // serverless requires westcentralus
+            const string searchLocPrefix = "wcus";          // resource naming reflects actual region
+            var searchNamePrefix = $"{org}-{workload}-{env}-{searchLocPrefix}";
+
+            var searchService = new Pulumi.AzureNative.Search.Service($"{searchNamePrefix}-search", new Pulumi.AzureNative.Search.ServiceArgs {
                 ResourceGroupName = resourceGroup.Name,
-                Location = location,
-                Sku = new Pulumi.AzureNative.Search.Inputs.SkuArgs { Name = "free" },
+                Location = searchLoc,
+                Sku = new Pulumi.AzureNative.Search.Inputs.SkuArgs { Name = "serverless" },
                 HostingMode = Pulumi.AzureNative.Search.HostingMode.Default,
                 AuthOptions = new Pulumi.AzureNative.Search.Inputs.DataPlaneAuthOptionsArgs {
                     AadOrApiKey = new Pulumi.AzureNative.Search.Inputs.DataPlaneAadOrApiKeyAuthOptionArgs {
@@ -448,6 +452,144 @@ namespace MotorcycleRAG.Infrastructure {
                     }
                 }
             });
+
+            // 12a. Search diagnostic setting → Log Analytics workspace
+            // Pulumi.AzureNative 3.13.0 does not expose Insights.DiagnosticSetting; use generic Resource.
+            _ = new Pulumi.AzureNative.Resources.Resource($"{searchNamePrefix}-search-diag", new Pulumi.AzureNative.Resources.ResourceArgs {
+                ResourceGroupName = resourceGroup.Name,
+                ResourceProviderNamespace = "Microsoft.Insights",
+                ResourceType = "diagnosticSettings",
+                ResourceName = $"{org}-{workload}-{env}-{searchLocPrefix}-search-diag",
+                ParentResourcePath = searchService.Id.Apply(id => id),
+                ApiVersion = "2021-05-01-preview",
+                Properties = new Dictionary<string, object?> {
+                    ["workspaceId"] = logAnalytics.Id,
+                    ["logAnalyticsDestinationType"] = "Dedicated",
+                    ["logs"] = new[] {
+                        new Dictionary<string, object?> {
+                            ["categoryGroup"] = "allLogs",
+                            ["enabled"] = true,
+                            ["retentionPolicy"] = new Dictionary<string, object?> {
+                                ["days"] = 0,
+                                ["enabled"] = false
+                            }
+                        }
+                    },
+                    ["metrics"] = new[] {
+                        new Dictionary<string, object?> {
+                            ["category"] = "AllMetrics",
+                            ["enabled"] = true,
+                            ["retentionPolicy"] = new Dictionary<string, object?> {
+                                ["days"] = 0,
+                                ["enabled"] = false
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 12b. Category indexes — 4 ARM-template deployments (fallback: SearchIndex resource
+            // not available in Pulumi.AzureNative 3.13.0). Each index uses 1536-dim HNSW vectors
+            // with a filterable+facetable `category` field.
+            var categoryIndexNames = new[] { "dirt", "touring", "sport", "cruiser" };
+
+            foreach (var cat in categoryIndexNames)
+            {
+                var indexName = $"motorcycle-{cat}";
+
+                // Build the ARM template JSON inline for the index
+                var idxTemplate = searchService.Name.Apply(svcName =>
+                {
+                    var templateObj = new Dictionary<string, object?>
+                    {
+                        ["$schema"] = "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                        ["contentVersion"] = "1.0.0.0",
+                        ["resources"] = new[]
+                        {
+                            new Dictionary<string, object?>
+                            {
+                                ["type"] = "Microsoft.Search/searchServices/indexes",
+                                ["apiVersion"] = "2024-06-01-preview",
+                                ["name"] = $"{svcName}/{indexName}",
+                                ["properties"] = new Dictionary<string, object?>
+                                {
+                                    ["fields"] = new object[]
+                                    {
+                                        new Dictionary<string, object?> { ["name"] = "id", ["type"] = "Edm.String", ["key"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "title", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "content", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "make", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "model", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "section", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "pageRange", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "primarySection", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "sectionHeadings", ["type"] = "Collection(Edm.String)", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "tableCaption", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "tags", ["type"] = "Collection(Edm.String)", ["searchable"] = true, ["filterable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "documentType", ["type"] = "Edm.String", ["filterable"] = true, ["facetable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "category", ["type"] = "Edm.String", ["filterable"] = true, ["facetable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "year", ["type"] = "Edm.Int32", ["filterable"] = true, ["sortable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "pageNumber", ["type"] = "Edm.Int32", ["filterable"] = true, ["sortable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "sectionLevel", ["type"] = "Edm.Int32", ["filterable"] = true, ["sortable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "chunkIndex", ["type"] = "Edm.Int32", ["filterable"] = true, ["sortable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "createdAt", ["type"] = "Edm.DateTimeOffset", ["filterable"] = true, ["sortable"] = true },
+                                        new Dictionary<string, object?> { ["name"] = "updatedAt", ["type"] = "Edm.DateTimeOffset", ["filterable"] = true, ["sortable"] = true },
+                                        new Dictionary<string, object?>
+                                        {
+                                            ["name"] = "contentVector",
+                                            ["type"] = "Collection(Edm.Single)",
+                                            ["searchable"] = true,
+                                            ["retrievable"] = false,
+                                            ["stored"] = false,
+                                            ["dimensions"] = 1536,
+                                            ["vectorSearchProfile"] = "vector-config"
+                                        }
+                                    },
+                                    ["vectorSearch"] = new Dictionary<string, object?>
+                                    {
+                                        ["algorithms"] = new[]
+                                        {
+                                            new Dictionary<string, object?>
+                                            {
+                                                ["name"] = "vector-algo",
+                                                ["kind"] = "hnsw",
+                                                ["hnswParameters"] = new Dictionary<string, object?>
+                                                {
+                                                    ["metric"] = "cosine",
+                                                    ["m"] = 4,
+                                                    ["efConstruction"] = 400,
+                                                    ["efSearch"] = 500
+                                                }
+                                            }
+                                        },
+                                        ["profiles"] = new[]
+                                        {
+                                            new Dictionary<string, object?>
+                                            {
+                                                ["name"] = "vector-config",
+                                                ["algorithm"] = "vector-algo"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    };
+
+                    return (object)templateObj;
+                });
+
+                _ = new Pulumi.AzureNative.Resources.Deployment($"{searchNamePrefix}-search-idx-{cat}", new Pulumi.AzureNative.Resources.DeploymentArgs {
+                    ResourceGroupName = resourceGroup.Name,
+                    DeploymentName = searchService.Name.Apply(svcName => $"idx-{cat}-{svcName}"),
+                    Properties = new Pulumi.AzureNative.Resources.Inputs.DeploymentPropertiesArgs {
+                        Mode = Pulumi.AzureNative.Resources.DeploymentMode.Incremental,
+                        Template = idxTemplate,
+                    }
+                }, new CustomResourceOptions {
+                    DependsOn = new Pulumi.Resource[] { searchService }
+                });
+            }
 
             // 13. Azure SQL Server
             var sqlServer = new Pulumi.AzureNative.Sql.Server($"{org}{workload}{env}sql01", new Pulumi.AzureNative.Sql.ServerArgs {

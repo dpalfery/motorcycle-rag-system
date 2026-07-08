@@ -980,6 +980,153 @@ public sealed class IngestionJobServiceDualModeTests {
         result[0].Status.Should().Be(IngestionJobStatus.Deleting.ToString());
     }
 
+
+    #region TransitionStageAsync "completed" branch (T8)
+
+    /// <summary>
+    /// T8 acceptance #1: a non-terminal job parked in <c>Indexing</c> by the fire-and-forget
+    /// Python <c>report_stage("completed")</c> callback must not be left stuck in
+    /// <c>Indexing</c>. When the "completed" stage report carries no failure reason the
+    /// job transitions to <c>Completed</c> (the synchronous indexing outcome is owned by
+    /// the controller via <c>TryTransitionSearchChunkJobToTerminalAsync</c>, which is a
+    /// no-op once the job is already terminal).
+    /// </summary>
+    [Fact]
+    public async Task TransitionStageAsync_CompletedWithoutFailure_OnNonTerminalIndexingJob_TransitionsToCompleted() {
+        var jobId = Guid.NewGuid();
+        var job = new IngestionJob {
+            IngestionJobId = jobId,
+            Status = IngestionJobStatus.Indexing,
+            InputType = IngestionJobType.PDFManual,
+            InputRef = "upload-completed-no-failure",
+            CurrentStage = "indexing",
+            ExpectedChunkCount = 12,
+            IndexedChunkCount = 0
+        };
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+        _repository
+            .Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask)
+            .Callback<IngestionJob, CancellationToken>((j, _) => {
+                // Reflect the mutation performed by the sut so the returned response
+                // carries the new status, mirroring the production EF/Dapper behavior.
+                job.Status = j.Status;
+                job.CurrentStage = j.CurrentStage;
+                job.StageSetAtUtc = j.StageSetAtUtc;
+                job.CompletedAtUtc = j.CompletedAtUtc;
+                job.FailureReason = j.FailureReason;
+            });
+
+        var sut = CreateSut();
+
+        var response = await sut.TransitionStageAsync(
+            jobId,
+            new IngestionJobStageRequest { Stage = "completed" },
+            CancellationToken.None);
+
+        response.Should().NotBeNull();
+        response.Status.Should().Be(IngestionJobStatus.Completed.ToString());
+        response.CurrentStage.Should().Be("completed");
+        response.FailureReason.Should().BeNull();
+        job.Status.Should().Be(IngestionJobStatus.Completed);
+        job.CompletedAtUtc.Should().NotBeNull();
+        job.FailureReason.Should().BeNull();
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// T8 acceptance #2: a non-terminal job whose "completed" stage report carries a
+    /// failure reason transitions to <c>Failed</c> rather than being re-stamped as
+    /// <c>Indexing</c> and left parked.
+    /// </summary>
+    [Fact]
+    public async Task TransitionStageAsync_CompletedWithFailure_OnNonTerminalIndexingJob_TransitionsToFailed() {
+        var jobId = Guid.NewGuid();
+        const string failureReason = "Python pipeline reported completion with errors";
+        var job = new IngestionJob {
+            IngestionJobId = jobId,
+            Status = IngestionJobStatus.Indexing,
+            InputType = IngestionJobType.PDFManual,
+            InputRef = "upload-completed-with-failure",
+            CurrentStage = "indexing",
+            ExpectedChunkCount = 12,
+            IndexedChunkCount = 0
+        };
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+        _repository
+            .Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask)
+            .Callback<IngestionJob, CancellationToken>((j, _) => {
+                job.Status = j.Status;
+                job.CurrentStage = j.CurrentStage;
+                job.StageSetAtUtc = j.StageSetAtUtc;
+                job.FailureReason = j.FailureReason;
+                job.ErrorsJson = j.ErrorsJson;
+                job.ErrorMessage = j.ErrorMessage;
+            });
+
+        var sut = CreateSut();
+
+        var response = await sut.TransitionStageAsync(
+            jobId,
+            new IngestionJobStageRequest { Stage = "completed", FailureReason = failureReason },
+            CancellationToken.None);
+
+        response.Should().NotBeNull();
+        response.Status.Should().Be(IngestionJobStatus.Failed.ToString());
+        response.CurrentStage.Should().Be("completed");
+        response.FailureReason.Should().Be(failureReason);
+        job.Status.Should().Be(IngestionJobStatus.Failed);
+        job.FailureReason.Should().Be(failureReason);
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// T8 acceptance #3 / regression guard for the terminal-status guard: a job that has
+    /// already reached <c>Completed</c> must not be flipped by a late or replayed
+    /// <c>report_stage("completed")</c> callback. The same invariant holds for the other
+    /// terminal statuses (<c>Failed</c>, <c>Cancelled</c>, <c>PartiallyCompleted</c>,
+    /// <c>Deleting</c>); the existing <c>WhenJobIsDeleting_*</c> test covers the
+    /// <c>Deleting</c> case.
+    /// </summary>
+    [Fact]
+    public async Task TransitionStageAsync_Completed_OnAlreadyTerminalCompletedJob_DoesNotFlipStatus() {
+        var jobId = Guid.NewGuid();
+        var job = new IngestionJob {
+            IngestionJobId = jobId,
+            Status = IngestionJobStatus.Completed,
+            InputType = IngestionJobType.PDFManual,
+            InputRef = "upload-already-completed",
+            CurrentStage = "completed",
+            CompletedAtUtc = DateTimeOffset.UtcNow
+        };
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        var sut = CreateSut();
+
+        var response = await sut.TransitionStageAsync(
+            jobId,
+            new IngestionJobStageRequest { Stage = "completed", FailureReason = "late replay" },
+            CancellationToken.None);
+
+        response.Should().NotBeNull();
+        response.Status.Should().Be(IngestionJobStatus.Completed.ToString());
+        response.FailureReason.Should().BeNull();
+        job.Status.Should().Be(IngestionJobStatus.Completed);
+        _repository.Verify(r => r.UpdateStageAsync(
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+
+    #endregion
+
     #endregion
 
     private IngestionJobService CreateSut() {

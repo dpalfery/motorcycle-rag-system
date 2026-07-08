@@ -235,40 +235,11 @@ class TestResolveChunkerTokenizer:
         result = resolve_chunker_tokenizer()
         assert result.source == "LM_STUDIO_MODELS_DIR"
 
-    def test_falls_through_to_azure_foundry_model(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("TOKENIZER_MODEL_PATH", raising=False)
-        monkeypatch.delenv("PDF_CHUNKER_TOKENIZER", raising=False)
-        monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
-        monkeypatch.delenv("OLLAMA_MODEL", raising=False)
-        model_dir = tmp_path / "qwen3embedding"
-        model_dir.mkdir()
-        (model_dir / "tokenizer.json").write_text("{}")
-        monkeypatch.setenv("AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL", "qwen3embedding")
-        monkeypatch.setenv("LM_STUDIO_MODELS_DIR", str(tmp_path))
-        result = resolve_chunker_tokenizer()
-        assert result.source == "LM_STUDIO_MODELS_DIR"
-
-    def test_falls_through_to_deepinfra_model(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("TOKENIZER_MODEL_PATH", raising=False)
-        monkeypatch.delenv("PDF_CHUNKER_TOKENIZER", raising=False)
-        monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
-        monkeypatch.delenv("OLLAMA_MODEL", raising=False)
-        monkeypatch.delenv("AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL", raising=False)
-        monkeypatch.setenv("DEEPINFRA_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-4B")
-        # No LM Studio match → should return EMBEDDING_MODEL source because '/' in name
-        monkeypatch.setenv("LM_STUDIO_MODELS_DIR", str(tmp_path))
-        result = resolve_chunker_tokenizer()
-        assert result.source == "EMBEDDING_MODEL"
-        assert result.model == "Qwen/Qwen3-Embedding-4B"
-        assert result.path is None
-
     def test_raises_when_no_model_configured(self, monkeypatch):
         monkeypatch.delenv("TOKENIZER_MODEL_PATH", raising=False)
         monkeypatch.delenv("PDF_CHUNKER_TOKENIZER", raising=False)
         monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
         monkeypatch.delenv("OLLAMA_MODEL", raising=False)
-        monkeypatch.delenv("AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL", raising=False)
-        monkeypatch.delenv("DEEPINFRA_EMBEDDING_MODEL", raising=False)
         with pytest.raises(TokenizerConfigurationError, match="No tokenizer model"):
             resolve_chunker_tokenizer()
 
@@ -312,8 +283,6 @@ class TestDescribeChunkerTokenizer:
         monkeypatch.delenv("PDF_CHUNKER_TOKENIZER", raising=False)
         monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
         monkeypatch.delenv("OLLAMA_MODEL", raising=False)
-        monkeypatch.delenv("AZURE_FOUNDRY_LOCAL_EMBEDDING_MODEL", raising=False)
-        monkeypatch.delenv("DEEPINFRA_EMBEDDING_MODEL", raising=False)
         result = describe_chunker_tokenizer()
         assert result["tokenizer_status"] == "missing"
         assert result["tokenizer_model"] is None

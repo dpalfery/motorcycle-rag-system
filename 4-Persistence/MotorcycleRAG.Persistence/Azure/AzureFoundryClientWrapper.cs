@@ -127,7 +127,8 @@ public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
                 {
                     model = effectiveModel,
                     input = texts,
-                    encoding_format = "float"
+                    encoding_format = "float",
+                    dimensions = 1536
                 });
                 var requestUri = new Uri($"{baseUrl.TrimEnd('/')}/embeddings");
                 using var httpRequest = new HttpRequestMessage(HttpMethod.Post, requestUri);
@@ -150,9 +151,9 @@ public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
                     int j = 0;
                     foreach (var val in embArray.EnumerateArray())
                         floats[j++] = val.GetSingle();
-                    if (floats.Length != 3584)
+                    if (floats.Length != 1536)
                         throw new InvalidOperationException(
-                            $"Expected 3584-dimensional embedding from DeepInfra, but got {floats.Length}");
+                            $"Expected 1536-dimensional embedding from DeepInfra, but got {floats.Length}");
                     embeddings[i] = floats;
                 }
 
@@ -162,7 +163,7 @@ public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
             async () =>
             {
                 _logger.LogWarning("Using fallback embeddings for {TextCount} texts", texts.Length);
-                return texts.Select(_ => new float[3584]).ToArray();
+                return texts.Select(_ => new float[1536]).ToArray();
             },
             correlationId,
             cancellationToken);

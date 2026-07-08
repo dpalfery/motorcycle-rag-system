@@ -108,7 +108,7 @@ public class AzureFoundryClientWrapperResilienceTests : IDisposable {
         // Assert
         Assert.Equal(2, result.Length);
         Assert.All(result, embedding => {
-            Assert.Equal(3584, embedding.Length);
+            Assert.Equal(1536, embedding.Length);
             Assert.All(embedding, value => Assert.Equal(0f, value));
         });
     }
@@ -170,7 +170,7 @@ public class AzureFoundryClientWrapperResilienceTests : IDisposable {
                     }
                     catch {
                         // Return mock data if operation fails
-                        return new[] { new float[3584], new float[3584], new float[3584] };
+                        return new[] { new float[1536], new float[1536], new float[1536] };
                     }
                 });
 

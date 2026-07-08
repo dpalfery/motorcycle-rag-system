@@ -41,6 +41,14 @@ internal static class CoreServicesConfiguration {
         services.AddScoped<TierEntitlementMappingService>();
         services.AddScoped<UserAccessLifecycleService>();
 
+        // D7 motorcycle category classifier (Application service). Infrastructure dependencies
+        // (IBikeModelCategoryRepository, ILocalChatClient, ClassifierOptions) are registered in
+        // Persistence (AddSqlPersistenceServices / AddClassifierServices). Registered against the
+        // IMotorcycleCategoryClassifier contract so the Persistence-layer ChunkIndexingService can
+        // consume category resolution without depending on Application (Dependency Rule).
+        services.AddScoped<IMotorcycleCategoryClassifier, MotorcycleCategoryClassifier>();
+        services.AddScoped<MotorcycleCategoryClassifier>();
+
         services.AddSingleton<ITelemetryService, MotorcycleRAG.Persistence.Telemetry.TelemetryService>();
 
         return services;

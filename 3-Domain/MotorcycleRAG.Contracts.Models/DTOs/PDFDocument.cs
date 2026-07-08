@@ -1,5 +1,8 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using MotorcycleRAG.Contracts.Models.Serialization;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Domain.ValueObjects;
 
 namespace MotorcycleRAG.Contracts.Models.DTOs;
 
@@ -38,6 +41,14 @@ public class PDFDocument
     /// Year or year range this document covers
     /// </summary>
     public string Year { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Motorcycle category (Dirt, Touring, Sport, Cruiser). Selects the target
+    /// category-partitioned Azure AI Search index for this document's chunks.
+    /// Nullable so existing callers that omit it continue to compile.
+    /// </summary>
+    [JsonConverter(typeof(MotorcycleCategoryJsonConverter))]
+    public MotorcycleCategory? Category { get; set; }
 
     /// <summary>
     /// Additional metadata about the PDF document

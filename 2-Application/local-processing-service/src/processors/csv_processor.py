@@ -299,6 +299,7 @@ class CSVProcessor:
                         "title": title_base,
                         "content": text,
                         "documentType": "spec-dataset",
+                        "category": "Unknown",
                         "make": make,
                         "model": model,
                         "year": year,

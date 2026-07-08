@@ -1,5 +1,4 @@
 using Azure.Identity;
-using AzureSearchClient = Azure.Search.Documents.SearchClient;
 using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Persistence.Local;
 using MotorcycleRAG.Persistence.Resilience;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Search;
@@ -87,19 +87,27 @@ public static class ServiceCollectionExtensions {
         services.AddScoped<MotorcycleRAG.Contracts.Interfaces.IAzureSearchDocumentService, MotorcycleRAG.Persistence.Azure.Search.AzureSearchDocumentService>();
         services.AddScoped<MotorcycleRAG.Contracts.Interfaces.IAzureSearchHealthService, MotorcycleRAG.Persistence.Azure.Search.AzureSearchHealthService>();
 
-        // Register SearchIndexClient for direct Azure Search operations
+        // Register SearchIndexClient for direct Azure Search operations (service-level;
+        // NOT index-bound, so a singleton is correct and does not violate the
+        // "no singleton SearchClient bound to one index" rule).
         services.AddSingleton<SearchIndexClient>(serviceProvider => {
             var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureFoundryOptions>>().Value;
             var credential = new DefaultAzureCredential();
             return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), credential);
         });
 
-        services.AddSingleton<AzureSearchClient>(serviceProvider => {
-            var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureFoundryOptions>>().Value;
-            var searchConfig = serviceProvider.GetRequiredService<IOptions<SearchOptions>>().Value;
-            var credential = new DefaultAzureCredential();
-            return new AzureSearchClient(new Uri(azureConfig.SearchServiceEndpoint), searchConfig.IndexName, credential);
-        });
+        // Per-index SearchClient factory (D4 category partitioning). Replaces the former
+        // singleton SearchClient that was bound to a single index name at DI time. Every
+        // concrete-SearchClient consumer (indexing, query, document, health) now resolves a
+        // client per category through this factory.
+        services.AddSingleton<ISearchClientFactory, SearchClientFactory>();
+
+        // T7: resilience pipeline for the per-index SearchClient batch upload operations.
+        // Transient-only retry (5xx / 429 / network); non-transient status codes (404 / 400 /
+        // 401 / 403) and SearchIndexNotFoundException propagate immediately. The per-batch
+        // timeout is enforced by the caller via a linked CancellationTokenSource bound to
+        // SearchOptions.BatchIndexTimeoutSeconds.
+        services.AddSingleton<ISearchIndexResiliencePipeline, SearchIndexResiliencePipelineProvider>();
 
         // Register indexing services
         services.AddScoped<IMotorcycleIndexingService, MotorcycleIndexingService>();
@@ -116,8 +124,43 @@ public static class ServiceCollectionExtensions {
         // at API startup time via Polly.Extensions.Http (Program.cs and Configuration/*.cs)
         services.AddHttpClient();
 
+        // Classifier options + local OpenAI-compatible chat client (D7 category classifier, R6 prod reachability).
+        services.AddClassifierServices(configuration);
+
         // Register SQL persistence services
         services.AddSqlPersistenceServices(configuration);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the D7 motorcycle category classifier's infrastructure dependencies:
+    /// <see cref="ClassifierOptions"/> and the local <see cref="ILocalChatClient"/> (typed HttpClient).
+    /// </summary>
+    /// <remarks>
+    /// The Application-layer <c>MotorcycleCategoryClassifier</c> service itself is registered separately
+    /// in the Application layer's <c>AddMotorcycleCaching</c>/<c>AddApplicationServices</c> wiring.
+    /// </remarks>
+    public static IServiceCollection AddClassifierServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        // Bind ClassifierOptions to the "Classifier" config section.
+        services.Configure<ClassifierOptions>(configuration.GetSection("Classifier"));
+
+        // Named HttpClient for the local chat client. Timeout comes from ClassifierOptions.TimeoutSeconds
+        // (default 30s). The client reads Endpoint/Model from IOptions<ClassifierOptions> at request time,
+        // so config changes don't require re-registration.
+        services.AddHttpClient(OpenAiCompatibleChatClient.HttpClientName, (sp, client) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<ClassifierOptions>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds > 0 ? opts.TimeoutSeconds : 30);
+            client.DefaultRequestHeaders.Add("User-Agent", "MotorcycleRAG-Classifier/1.0");
+        });
+
+        services.AddScoped<ILocalChatClient, OpenAiCompatibleChatClient>();
 
         return services;
     }

@@ -175,6 +175,7 @@ public sealed class ProcessorArtifactsControllerTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChunkIndexingResult(
                 1,
+                1,
                 [
                     new ChunkIndexOutcome(
                         "chunk-1",

@@ -59,7 +59,14 @@ namespace MotorcycleRAG.Persistence.Sql
                     "Sql:ConnectionString contains embedded credentials. This is only permitted when the value is delivered through Azure App Configuration + Key Vault.");
             }
 
-            _connectionString = connectionString;
+            var builder = new SqlConnectionStringBuilder(connectionString)
+            {
+                MaxPoolSize = _sqlOptions.MaxPoolSize,
+                ConnectTimeout = _sqlOptions.ConnectionTimeout,
+            };
+            // Add Connection Lifetime to recycle dead connections every 5 minutes
+            builder["Connection Lifetime"] = 300;
+            _connectionString = builder.ConnectionString;
         }
 
         /// <summary>

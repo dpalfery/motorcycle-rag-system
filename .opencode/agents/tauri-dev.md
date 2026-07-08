@@ -1,18 +1,27 @@
 ---
 description: Implements the Rust/Tauri v2 core of a desktop app — commands, IPC contract, state, async, the Python sidecar integration, and the capabilities/security model. Owns the backend boundary; hands React/UI work to the frontend agent. Grounded in the official Tauri v2 documentation.
-mode: all
+mode: subagent
+model: zai-coding-plan/glm-5.2
 permission:
+  external_directory: deny
+  mcp: deny
+  plan_exit: deny
+  question: deny
+  task: deny
+  todo: deny
+  webfetch: deny
+  websearch: deny
+  bash: allow
   read: allow
-  grep: allow
+  edit: allow
   glob: allow
+  grep: allow
   list: allow
   skill: allow
-  webfetch: allow
-  bash: allow
-  edit: allow
-  task:
-    "*": deny
-    "frontend-dev": allow
+  lsp: allow
+  todoread: allow
+  todowrite: allow
+  doom_loop: allow
 ---
 
 # Tauri Rust Implementor

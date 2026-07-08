@@ -5,12 +5,14 @@ import axios from "axios";
 import { api } from "@/lib/apiClient";
 import { formatAdminError } from "@/lib/adminError";
 import { useConfig } from "@/lib/config";
+import { isMissingProcessorJobError, processor } from "@/lib/processor";
 import { Button, PageHeader, Empty } from "@/components/ui";
 import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
 import {
   filterSupersededIngestionJobs,
   formatIngestionJobLabel,
   isIngestionFailed,
+  isLocalProcessorJob,
   markIngestionJobRetrying,
   replaceRetriedIngestionJob,
   type IngestionJobStatus,
@@ -50,9 +52,20 @@ function relativeTime(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function isActiveJobStatus(status: string) {
+  return ["queued", "pending", "processing", "running", "inprogress"].includes(
+    status.toLowerCase(),
+  );
+}
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export default function JobsScreen() {
   const qc = useQueryClient();
   const apiBaseUrl = useConfig((state) => state.config.apiBaseUrl);
+  const localProcessorPort = useConfig((state) => state.config.localProcessorPort);
   const [supersededRetryJobIds, setSupersededRetryJobIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -102,24 +115,89 @@ export default function JobsScreen() {
 
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  async function stopLocalProcessorRun(job: IngestionJobStatus) {
+    if (!isActiveJobStatus(job.status) || !isLocalProcessorJob(job) || !job.docIngestionRunId) {
+      return;
+    }
+
+    const isListening = await processor.isListening(localProcessorPort);
+    if (!isListening) {
+      return;
+    }
+
+    try {
+      await processor.stopJob(job.docIngestionRunId, localProcessorPort);
+    } catch (error) {
+      if (isMissingProcessorJobError(error)) {
+        console.warn(
+          "Per-job local processor stop skipped because the run is no longer present:",
+          job.docIngestionRunId,
+        );
+        return;
+      }
+
+      throw new Error(
+        formatAdminError(error, {
+          action: `Stopping local processor run ${job.docIngestionRunId}`,
+          kind: "local-processor",
+          localProcessorPort,
+          location: "endpoint",
+        }),
+      );
+    }
+  }
+
+  async function waitForDeleteReady(jobId: string) {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const status = (await api.get<IngestionJobStatus>(`/api/ingestion/jobs/${jobId}`)).data;
+      if (!isActiveJobStatus(status.status)) {
+        return;
+      }
+
+      await sleep(250);
+    }
+
+    throw new Error(`Timed out waiting for ingestion job ${jobId} to stop before deletion.`);
+  }
+
+  async function prepareJobForDeletion(job: IngestionJobStatus) {
+    if (!isActiveJobStatus(job.status)) {
+      return;
+    }
+
+    await stopLocalProcessorRun(job);
+    await api.post(`/api/ingestion/jobs/${job.jobId}/cancel`);
+    await waitForDeleteReady(job.jobId);
+  }
+
   const remove = useMutation({
-    mutationFn: (id: string) => api.delete(`/api/ingestion/jobs/${id}`),
-    onSuccess: () => {
+    mutationFn: async (job: IngestionJobStatus) => {
+      await prepareJobForDeletion(job);
+      await api.delete(`/api/ingestion/jobs/${job.jobId}`);
+      return job.jobId;
+    },
+    onSuccess: (jobId) => {
       setDeleteError(null);
-      qc.invalidateQueries({ queryKey: ["jobs"] });
+      qc.setQueriesData<IngestionJobStatus[]>({ queryKey: ["jobs"] }, (old) =>
+        old?.filter((job) => job.jobId !== jobId),
+      );
+      qc.setQueryData<IngestionJobStatus[]>(["ingestion", "upload-jobs"], (old) =>
+        old?.filter((job) => job.jobId !== jobId),
+      );
+      void qc.invalidateQueries({ queryKey: ["jobs"] });
+      void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
     },
     onError: (err: unknown) => {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
-        setDeleteError(err.response.data?.detail ?? "Only terminal jobs can be deleted.");
+        setDeleteError(err.response.data?.detail ?? "Delete is already in progress for this job.");
         return;
       }
-      setDeleteError(
-        formatAdminError(err, {
-          action: "Deleting ingestion job",
-          kind: "cloud-api",
-          apiBaseUrl,
-        }),
-      );
+      setDeleteError(err instanceof Error ? err.message : formatAdminError(err, {
+        action: "Deleting ingestion job",
+        kind: "cloud-api",
+        apiBaseUrl,
+      }));
     },
   });
 
@@ -220,7 +298,7 @@ export default function JobsScreen() {
                         <button
                           title="Delete"
                           disabled={remove.isPending}
-                          onClick={() => remove.mutate(j.jobId)}
+                          onClick={() => remove.mutate(j)}
                           className="rounded p-1 text-muted hover:text-danger disabled:opacity-50"
                         >
                           <Trash2 className="h-4 w-4" />

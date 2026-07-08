@@ -97,6 +97,38 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<IndexedChunk>> GetByArtifactIdsAsync(
+        IReadOnlyCollection<Guid> artifactIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(artifactIds);
+        if (artifactIds.Count == 0)
+            return Array.Empty<IndexedChunk>();
+
+        const string sql = @"
+            SELECT [ChunkId], [IndexedArtifactId], [IngestionJobId], [UploadId],
+                   [SourceFileName], [PageNumber], [ChunkIndex], [Stage], [Status],
+                   [ProcessedAtUtc], [FailureReason]
+            FROM [dbo].[IndexedChunks]
+            WHERE [IndexedArtifactId] IN @IndexedArtifactIds;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var rows = await connection.QueryAsync<dynamic>(
+                new CommandDefinition(sql, new { IndexedArtifactIds = artifactIds.ToArray() }, cancellationToken: cancellationToken));
+
+            return rows.Select(MapToEntity).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get chunks by {Count} artifact ids", artifactIds.Count);
+            throw new InvalidOperationException($"Failed to get indexed chunks", ex);
+        }
+    }
+
     public async Task<IReadOnlyList<IndexedChunk>> GetByIngestionJobIdAsync(Guid ingestionJobId, CancellationToken cancellationToken = default)
     {
         const string sql = @"
@@ -161,6 +193,30 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete chunks for artifact {ArtifactId}", artifactId);
+            throw new InvalidOperationException($"Failed to delete indexed chunks", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<int> DeleteByArtifactIdsAsync(
+        IReadOnlyCollection<Guid> artifactIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(artifactIds);
+        if (artifactIds.Count == 0)
+            return 0;
+
+        const string sql = "DELETE FROM [dbo].[IndexedChunks] WHERE [IndexedArtifactId] IN @IndexedArtifactIds;";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            return await connection.ExecuteAsync(
+                new CommandDefinition(sql, new { IndexedArtifactIds = artifactIds.ToArray() }, commandTimeout: 90, cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete chunks for {Count} artifacts", artifactIds.Count);
             throw new InvalidOperationException($"Failed to delete indexed chunks", ex);
         }
     }

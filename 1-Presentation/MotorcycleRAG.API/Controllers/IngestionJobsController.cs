@@ -58,6 +58,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: GET /api/ingestion/jobs/upload-constraints
     /// </summary>
     [HttpGet("jobs/upload-constraints")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(FileUploadConstraints), StatusCodes.Status200OK)]
     public ActionResult<FileUploadConstraints> GetUploadConstraints()
     {
@@ -183,6 +184,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// <param name="ct">Cancellation token.</param>
     /// <returns>202 Accepted with <see cref="IngestionJobStatusResponse"/>.</returns>
     [HttpPost("jobs")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
@@ -236,6 +238,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: POST /api/ingestion/jobs/graph-import
     /// </summary>
     [HttpPost("jobs/graph-import")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ImportGraphAsync(
@@ -258,6 +261,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: GET /api/ingestion/jobs?top=50
     /// </summary>
     [HttpGet("jobs")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IReadOnlyList<IngestionJobStatusResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
@@ -291,6 +295,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: GET /api/ingestion/jobs/pending-files
     /// </summary>
     [HttpGet("jobs/pending-files")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IReadOnlyList<PendingStorageFileDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IReadOnlyList<PendingStorageFileDto>>> GetPendingFilesAsync(
@@ -314,6 +319,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: DELETE /api/ingestion/jobs/pending-files
     /// </summary>
     [HttpDelete("jobs/pending-files")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IngestionCleanupResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<IngestionCleanupResponse>> ClearPendingFilesAsync(
         CancellationToken ct) {
@@ -329,6 +335,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: DELETE /api/ingestion/jobs/pending-files/{uploadId}
     /// </summary>
     [HttpDelete("jobs/pending-files/{uploadId}")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeletePendingFileAsync(
@@ -357,6 +364,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// <param name="ct">Cancellation token.</param>
     /// <returns>200 OK with <see cref="IngestionJobStatusResponse"/> or 404 Not Found.</returns>
     [HttpGet("jobs/{jobId:guid}")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetJobStatusAsync(
@@ -386,6 +394,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// owns the asset teardown. Returns <c>202 Accepted</c> with <c>{ jobId, status: "Deleting" }</c>.
     /// </remarks>
     [HttpDelete("jobs/{jobId:guid}")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
@@ -448,6 +457,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: POST /api/ingestion/jobs/{jobId}/cancel
     /// </summary>
     [HttpPost("jobs/{jobId:guid}/cancel")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CancelJobAsync(
@@ -472,6 +482,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: POST /api/ingestion/jobs/{jobId}/fail
     /// </summary>
     [HttpPost("jobs/{jobId:guid}/fail")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> FailJobAsync(
@@ -497,6 +508,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: DELETE /api/ingestion/jobs/failed
     /// </summary>
     [HttpDelete("jobs/failed")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IngestionCleanupResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<IngestionCleanupResponse>> ClearFailedJobsAsync(
         CancellationToken ct) {
@@ -513,6 +525,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: DELETE /api/ingestion/jobs/finished
     /// </summary>
     [HttpDelete("jobs/finished")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IngestionCleanupResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<IngestionCleanupResponse>> ClearFinishedJobsAsync(
         CancellationToken ct) {
@@ -529,6 +542,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: POST /api/ingestion/jobs/{jobId}/retry
     /// </summary>
     [HttpPost("jobs/{jobId:guid}/retry")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
@@ -572,6 +586,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: POST /api/ingestion/jobs/{jobId}/reprocess
     /// </summary>
     [HttpPost("jobs/{jobId:guid}/reprocess")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(ReprocessResultDto), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ReprocessJobAsync(
@@ -611,6 +626,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: POST /api/ingestion/jobs/reprocess/not-succeeded
     /// </summary>
     [HttpPost("jobs/reprocess/not-succeeded")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(ReprocessResultDto), StatusCodes.Status202Accepted)]
     public async Task<IActionResult> ReprocessNotSucceededAsync(
         CancellationToken ct)
@@ -647,6 +663,7 @@ public sealed class IngestionJobsController : ControllerBase {
     /// Route: POST /api/ingestion/jobs/reprocess/all
     /// </summary>
     [HttpPost("jobs/reprocess/all")]
+    [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(ReprocessResultDto), StatusCodes.Status202Accepted)]
     public async Task<IActionResult> ReprocessAllAsync(
         CancellationToken ct)

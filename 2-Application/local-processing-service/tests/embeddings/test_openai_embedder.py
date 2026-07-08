@@ -167,6 +167,28 @@ class TestOpenAIEmbedderGenerateEmbedding:
             with pytest.raises(ValueError, match="Expected 1536 dims, got 512"):
                 await embedder.generate_embedding("test text")
 
+    async def test_raises_on_overlong_dimensions(self, monkeypatch):
+        monkeypatch.delenv("EMBEDDING_PROVIDER_ENDPOINT", raising=False)
+        monkeypatch.setenv("EMBEDDING_DIMS", "1536")
+
+        mock_client = MagicMock()
+        mock_client.embeddings.create = AsyncMock(
+            return_value=self._make_mock_response(2560)
+        )
+
+        with patch(
+            "embeddings.openai_embedder.openai.AsyncOpenAI",
+            return_value=mock_client,
+        ):
+            from importlib import reload
+            import embeddings.openai_embedder as mod
+
+            reload(mod)
+
+            embedder = mod.OpenAIEmbedder()
+            with pytest.raises(ValueError, match="Expected 1536 dims, got 2560"):
+                await embedder.generate_embedding("test text")
+
     async def test_retries_on_transient_error(self, monkeypatch):
         monkeypatch.delenv("EMBEDDING_PROVIDER_ENDPOINT", raising=False)
 

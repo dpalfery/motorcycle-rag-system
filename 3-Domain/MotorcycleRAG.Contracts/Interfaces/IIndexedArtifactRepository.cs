@@ -13,4 +13,11 @@ public interface IIndexedArtifactRepository
     Task<IReadOnlyList<IndexedArtifact>> GetByIngestionJobIdAsync(Guid jobId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<IndexedArtifact>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default);
     Task DeleteByIdAsync(Guid artifactId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes multiple artifacts by their IDs in a single query.
+    /// </summary>
+    Task<int> DeleteByIdsAsync(
+        IReadOnlyCollection<Guid> artifactIds,
+        CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,5 @@
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Contracts.Interfaces;
@@ -27,7 +28,7 @@ public interface IIngestionJobService {
         int maxCount = 50,
         CancellationToken ct = default);
 
-    /// <summary>Deletes a queued or terminal ingestion job and associated assets from history.</summary>
+    /// <summary>Cancels an active job if needed, then deletes the ingestion job and associated assets from history.</summary>
     Task DeleteJobAsync(
         Guid jobId,
         string userId,
@@ -69,6 +70,15 @@ public interface IIngestionJobService {
         GraphImportStartRequest request,
         string userId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Executes graph ingestion for a single job dequeued from the graph ingestion channel.
+    /// Called by the graph ingestion background service from a per-item DI scope. Ingestion
+    /// failures are captured and persisted as a <see cref="IngestionJobStatus.Failed"/> status;
+    /// this method does not throw for ordinary ingestion errors.
+    /// </summary>
+    /// <param name="job">The job to process; its <see cref="IngestionJob.InputRef"/> carries the upload id.</param>
+    Task ProcessGraphIngestionJobAsync(IngestionJob job);
 
     /// <summary>Retrieves the current status of an ingestion job including coverage metrics.</summary>
     Task<IngestionJobStatusResponse?> GetJobStatusAsync(

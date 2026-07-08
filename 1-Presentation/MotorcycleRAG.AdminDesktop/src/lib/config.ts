@@ -36,7 +36,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   authScope: "api://motorcyclerag-api/admin",
   embeddingProviderEndpoint: "http://localhost:1234/v1",
   embeddingModel: "qwen3-embedding",
-  tokenizerModelPath: "/Users/dave/.lmstudio/models/mlx-community/Qwen3.5-9B-8bit",
+  tokenizerModelPath: "",
   graphExtractionEndpoint: "http://localhost:1234/v1",
   graphExtractionModel: "qwen3.5-0.8b",
   localProcessorPort: 8100,

@@ -32,6 +32,7 @@ public sealed class IngestionJobService : IIngestionJobService {
     private readonly IGraphRepository _graphRepository;
     private readonly BlobStorageOptions _blobStorageOptions;
     private readonly IGraphEntityIngestionService _graphEntityIngestionService;
+    private readonly GraphIngestionChannel _graphIngestionChannel;
     private readonly IngestionOptions _options;
     private readonly ILogger<IngestionJobService> _logger;
 
@@ -43,6 +44,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         IAzureSearchDocumentService searchDocumentService,
         IGraphRepository graphRepository,
         IGraphEntityIngestionService graphEntityIngestionService,
+        GraphIngestionChannel graphIngestionChannel,
         IOptions<BlobStorageOptions> blobStorageOptions,
         IOptions<IngestionOptions> options,
         ILogger<IngestionJobService> logger) {
@@ -53,6 +55,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         _searchDocumentService = searchDocumentService ?? throw new ArgumentNullException(nameof(searchDocumentService));
         _graphRepository = graphRepository ?? throw new ArgumentNullException(nameof(graphRepository));
         _graphEntityIngestionService = graphEntityIngestionService ?? throw new ArgumentNullException(nameof(graphEntityIngestionService));
+        _graphIngestionChannel = graphIngestionChannel ?? throw new ArgumentNullException(nameof(graphIngestionChannel));
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -87,13 +90,28 @@ public sealed class IngestionJobService : IIngestionJobService {
             }
         }
 
+        // Build all (InputRef, InputType) pairs for batch query
+        var pairs = new List<(string InputRef, IngestionJobType InputType)>(candidates.Count * 2);
+        foreach (var candidate in candidates.Values) {
+            pairs.Add((candidate.UploadId, GetPrimaryInputType(candidate.DocumentType)));
+            if (SupportsGraphImport(candidate.DocumentType)) {
+                pairs.Add((candidate.UploadId, IngestionJobType.BikeGraph));
+            }
+        }
+
+        var latestJobs = await _repository.GetLatestByInputRefsAsync(pairs, ct).ConfigureAwait(false);
+        var jobsByPair = latestJobs.ToDictionary(
+            j => (j.InputRef, j.InputType),
+            j => j);
+
         var pendingFiles = new List<PendingStorageFileDto>(candidates.Count);
         foreach (var candidate in candidates.Values) {
-            var primaryJobType = GetPrimaryInputType(candidate.DocumentType);
-            var latestJob = await _repository.GetLatestByInputAsync(candidate.UploadId, primaryJobType, ct).ConfigureAwait(false);
+            var primaryType = GetPrimaryInputType(candidate.DocumentType);
+            jobsByPair.TryGetValue((candidate.UploadId, primaryType), out var latestJob);
+
             IngestionJob? latestGraphJob = null;
             if (SupportsGraphImport(candidate.DocumentType)) {
-                latestGraphJob = await _repository.GetLatestByInputAsync(candidate.UploadId, IngestionJobType.BikeGraph, ct).ConfigureAwait(false);
+                jobsByPair.TryGetValue((candidate.UploadId, IngestionJobType.BikeGraph), out latestGraphJob);
             }
 
             if (!ShouldIncludeAsPending(candidate.DocumentType, latestJob, latestGraphJob)) {
@@ -378,11 +396,28 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         await EnsureGraphArtifactsExistAsync(request.UploadId, ct).ConfigureAwait(false);
 
-        // Run ingestion in the background so the HTTP request returns 202 immediately.
-        // CancellationToken.None is intentional — the work must outlive the HTTP request.
-        _ = Task.Run(() => RunGraphIngestionAsync(job, request.UploadId), CancellationToken.None);
+        // Enqueue the job for background graph ingestion with bounded backpressure.
+        // GraphIngestionBackgroundService (singleton) drains the channel and runs the work
+        // outside the HTTP request lifecycle. WriteAsync awaits if the bounded channel is
+        // full, replacing the previous unbounded fire-and-forget Task.Run. The job's
+        // InputRef already holds request.UploadId, so the consumer can rehydrate everything
+        // it needs from the IngestionJob entity alone.
+        await _graphIngestionChannel.Writer.WriteAsync(job, ct).ConfigureAwait(false);
 
         return MapToResponse(job);
+    }
+
+    /// <summary>
+    /// Executes graph ingestion for a single job dequeued from <see cref="GraphIngestionChannel"/>.
+    /// Called by <see cref="GraphIngestionBackgroundService"/> from a per-item DI scope so that
+    /// scoped repository/storage dependencies are resolved correctly. Errors are captured and
+    /// persisted as a Failed status inside <see cref="RunGraphIngestionAsync"/>; this method
+    /// does not throw for ordinary ingestion failures.
+    /// </summary>
+    /// <param name="job">The job to process (its <see cref="IngestionJob.InputRef"/> carries the upload id).</param>
+    public Task ProcessGraphIngestionJobAsync(IngestionJob job) {
+        ArgumentNullException.ThrowIfNull(job);
+        return RunGraphIngestionAsync(job, job.InputRef ?? string.Empty);
     }
 
     private async Task RunGraphIngestionAsync(IngestionJob job, string uploadId) {
@@ -583,6 +618,23 @@ public sealed class IngestionJobService : IIngestionJobService {
                 : request.FailureReason;
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
         }
+        else if (string.Equals(request.Stage, "failed", StringComparison.OrdinalIgnoreCase)
+                 || ShouldTreatLocalProcessorFailureAsTerminal(job, request))
+        {
+            job.Status = IngestionJobStatus.Failed;
+            job.CompletedAtUtc = stageSetAtUtc;
+            job.CurrentStage = "failed";
+            job.StageSetAtUtc = stageSetAtUtc;
+            job.ExpectedChunkCount ??= request.TotalChunks;
+            job.IndexedChunkCount = request.ChunksProcessed;
+
+            var failureDetail = string.IsNullOrWhiteSpace(request.FailureReason)
+                ? $"Processor reported failure during stage '{request.Stage}'."
+                : request.FailureReason!;
+
+            ApplyJobFailure(job, failureDetail);
+            await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
+        }
         else if (string.Equals(request.Stage, "completed", StringComparison.OrdinalIgnoreCase))
         {
             // T8: The Python pipeline's fire-and-forget `report_stage("completed")` means
@@ -640,6 +692,24 @@ public sealed class IngestionJobService : IIngestionJobService {
     private static bool IsFailedStatus(IngestionJobStatus status) =>
         status is IngestionJobStatus.Failed or IngestionJobStatus.Cancelled;
 
+    private static bool ShouldTreatLocalProcessorFailureAsTerminal(
+        IngestionJob job,
+        IngestionJobStageRequest request) {
+        if (string.IsNullOrWhiteSpace(request.FailureReason)) {
+            return false;
+        }
+
+        if (string.Equals(request.Stage, "completed", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(request.Stage, "cancelled", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(request.Stage, "failed", StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+
+        var provider = job.ComputeProvider?.Trim();
+        return !string.IsNullOrWhiteSpace(provider)
+               && provider.Contains("local", StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task DeleteAssociatedAssetsAsync(IngestionJob job, CancellationToken ct) {
         var uploadId = job.InputRef;
         if (string.IsNullOrWhiteSpace(uploadId)) {
@@ -664,11 +734,12 @@ public sealed class IngestionJobService : IIngestionJobService {
                 job.IngestionJobId).ConfigureAwait(false);
         }
 
-        foreach (var artifact in artifacts) {
+        if (artifacts.Count > 0) {
+            var deleteArtifactIds = artifacts.Select(static a => a.IndexedArtifactId).ToArray();
             await RunBestEffortAsync(
-                () => _chunkRepository.DeleteByArtifactIdAsync(artifact.IndexedArtifactId, ct),
-                "delete indexed chunks for artifact",
-                artifact.IndexedArtifactId).ConfigureAwait(false);
+                () => _chunkRepository.DeleteByArtifactIdsAsync(deleteArtifactIds, ct),
+                "delete indexed chunks for artifacts",
+                job.IngestionJobId).ConfigureAwait(false);
         }
 
         await RunBestEffortAsync(
@@ -680,16 +751,21 @@ public sealed class IngestionJobService : IIngestionJobService {
             "delete indexed chunks for upload",
             uploadId).ConfigureAwait(false);
 
-        foreach (var artifact in artifacts) {
+        if (artifacts.Count > 0) {
+            var deleteArtifactIds = artifacts.Select(static a => a.IndexedArtifactId).ToArray();
             await RunBestEffortAsync(
-                () => _artifactRepository.DeleteByIdAsync(artifact.IndexedArtifactId, ct),
-                "delete indexed artifact",
-                artifact.IndexedArtifactId).ConfigureAwait(false);
+                () => _artifactRepository.DeleteByIdsAsync(deleteArtifactIds, ct),
+                "delete indexed artifacts",
+                job.IngestionJobId).ConfigureAwait(false);
         }
 
-        await DeleteBlobIfExistsAsync(IngestionBlobPaths.BuildRawUploadBlobName(uploadId, ToDocumentType(job.InputType)), ct).ConfigureAwait(false);
-        await DeleteBlobIfExistsAsync(BuildSearchChunksBlobPath(uploadId), ct).ConfigureAwait(false);
-        await DeleteBlobIfExistsAsync(BuildGraphEntitiesBlobPath(uploadId), ct).ConfigureAwait(false);
+        // The three blob deletions are independent (distinct paths) and each is individually
+        // wrapped in RunBestEffortAsync, so they can run concurrently. This shaves up to two
+        // round-trip latencies off job teardown compared to awaiting them sequentially.
+        await Task.WhenAll(
+            DeleteBlobIfExistsAsync(IngestionBlobPaths.BuildRawUploadBlobName(uploadId, ToDocumentType(job.InputType)), ct),
+            DeleteBlobIfExistsAsync(BuildSearchChunksBlobPath(uploadId), ct),
+            DeleteBlobIfExistsAsync(BuildGraphEntitiesBlobPath(uploadId), ct)).ConfigureAwait(false);
 
         if (Guid.TryParse(uploadId, out var sourceDocumentId)) {
             await RunBestEffortAsync(
@@ -717,9 +793,10 @@ public sealed class IngestionJobService : IIngestionJobService {
         string uploadId,
         IReadOnlyList<IndexedArtifact> artifacts,
         CancellationToken ct) {
+        var artifactIds = artifacts.Select(static a => a.IndexedArtifactId).ToArray();
         var chunks = new List<IndexedChunk>();
-        foreach (var artifact in artifacts) {
-            chunks.AddRange(await _chunkRepository.GetByArtifactIdAsync(artifact.IndexedArtifactId, ct).ConfigureAwait(false));
+        if (artifactIds.Length > 0) {
+            chunks.AddRange(await _chunkRepository.GetByArtifactIdsAsync(artifactIds, ct).ConfigureAwait(false));
         }
 
         chunks.AddRange(await _chunkRepository.GetByIngestionJobIdAsync(job.IngestionJobId, ct).ConfigureAwait(false));

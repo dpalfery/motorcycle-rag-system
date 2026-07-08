@@ -100,20 +100,32 @@ class OpenAIEmbedder(Embedder):
             "EMBEDDING_HEALTH_TIMEOUT_SECONDS",
             _DEFAULT_HEALTH_TIMEOUT_SECONDS,
         )
-        self._client: openai.AsyncOpenAI = openai.AsyncOpenAI(
+        self._last_health_status: str | None = None
+        self._last_health_time: float = 0.0
+
+    def _create_client(self) -> openai.AsyncOpenAI:
+        return openai.AsyncOpenAI(
             base_url=self._endpoint,
             api_key=self._api_key,
         )
-        self._last_health_status: str | None = None
-        self._last_health_time: float = 0.0
+
+    async def _close_client(self, client: openai.AsyncOpenAI) -> None:
+        close = getattr(client, "close", None)
+        if close is None:
+            return
+
+        result = close()
+        if asyncio.iscoroutine(result):
+            await result
 
     async def generate_embedding(self, text: str) -> list[float]:
         last_error: Exception | None = None
 
         for attempt in range(_MAX_RETRIES):
+            client = self._create_client()
             try:
                 response = await asyncio.wait_for(
-                    self._client.embeddings.create(
+                    client.embeddings.create(
                         model=self._model,
                         input=text,
                         dimensions=self._dims,
@@ -140,6 +152,8 @@ class OpenAIEmbedder(Embedder):
                 )
                 if attempt < _MAX_RETRIES - 1:
                     await asyncio.sleep(2**attempt)
+            finally:
+                await self._close_client(client)
 
         raise RuntimeError(
             f"OpenAI embedding failed after {_MAX_RETRIES} retries"

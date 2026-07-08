@@ -399,23 +399,19 @@ public sealed class IngestionJobsControllerTests
     }
 
     [Fact]
-    public async Task DeleteJobAsync_WhenJobIsActive_ReturnsConflict() {
+    public async Task DeleteJobAsync_WhenJobIsActive_ReturnsAccepted() {
         var jobId = Guid.NewGuid();
         var ingestionJobs = new Mock<IIngestionJobService>();
         ingestionJobs
             .Setup(service => service.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new DeleteJobException(
-                DeleteJobError.Active,
-                $"Ingestion job '{jobId}' is active and cannot be deleted."));
+            .Returns(Task.CompletedTask);
 
         var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
 
         var result = await sut.DeleteJobAsync(jobId, CancellationToken.None);
 
-        var conflict = result.Should().BeOfType<ConflictObjectResult>().Subject;
-        var problem = conflict.Value.Should().BeOfType<ProblemDetails>().Subject;
-        problem.Status.Should().Be(StatusCodes.Status409Conflict);
-        problem.Title.Should().Be("Job deletion rejected");
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(new { jobId, status = "Deleting" });
         ingestionJobs.Verify(
             service => service.GetJobStatusAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);

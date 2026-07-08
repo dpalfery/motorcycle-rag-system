@@ -52,11 +52,25 @@ export interface ProcessorJob {
   created_at?: string;
 }
 
+const PROCESSOR_JOB_NOT_FOUND_PATTERN = /^404\s+not\s+found:\s*\{"detail":"job not found"\}/i;
+
 const DEFAULT_READY_TIMEOUT_MS = 45_000;
 const READY_POLL_INTERVAL_MS = 500;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function isMissingProcessorJobError(error: unknown): boolean {
+  if (typeof error === "string") {
+    return PROCESSOR_JOB_NOT_FOUND_PATTERN.test(error.trim());
+  }
+
+  if (error instanceof Error) {
+    return PROCESSOR_JOB_NOT_FOUND_PATTERN.test(error.message.trim());
+  }
+
+  return false;
 }
 
 /**

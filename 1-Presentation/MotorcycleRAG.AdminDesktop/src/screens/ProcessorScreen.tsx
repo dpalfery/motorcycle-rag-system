@@ -16,7 +16,12 @@ import axios from "axios";
 import { useConfig, type AppConfig } from "@/lib/config";
 import { api } from "@/lib/apiClient";
 import { formatAdminError, sanitizeForLog } from "@/lib/adminError";
-import { processor, toStartConfig, type ProcessorJob } from "@/lib/processor";
+import {
+  isMissingProcessorJobError,
+  processor,
+  toStartConfig,
+  type ProcessorJob,
+} from "@/lib/processor";
 import { Button, Card, MetricCard, PageHeader, StatusPill, Empty } from "@/components/ui";
 import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
 import {
@@ -44,6 +49,10 @@ interface UploadConstraints {
 const STATUS_OK = ["completed", "complete", "done", "succeeded"];
 const STATUS_ERR = ["failed", "error", "cancelled"];
 const STATUS_ACTIVE = ["queued", "pending", "processing", "running", "inprogress"];
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => window.setTimeout(resolve, ms));
+}
 
 function jobIcon(job: ProcessorJob) {
   const t = (job.document_type ?? job.job_id ?? "").toLowerCase();
@@ -412,6 +421,14 @@ export default function ProcessorScreen() {
     try {
       await processor.stopJob(job.docIngestionRunId, port);
     } catch (error) {
+      if (isMissingProcessorJobError(error)) {
+        console.warn(
+          "Per-job local processor stop skipped because the run is no longer present:",
+          job.docIngestionRunId,
+        );
+        return;
+      }
+
       if (!ignoreErrors) {
         throw new Error(
           formatAdminError(error, {
@@ -424,6 +441,30 @@ export default function ProcessorScreen() {
       }
       console.warn("Per-job local processor stop failed before delete:", sanitizeForLog(error));
     }
+  }
+
+  async function waitForDeleteReady(jobId: string) {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const status = (await api.get<IngestionJobStatus>(`/api/ingestion/jobs/${jobId}`)).data;
+      if (!isActiveJobStatus(status.status)) {
+        return;
+      }
+
+      await sleep(250);
+    }
+
+    throw new Error(`Timed out waiting for ingestion job ${jobId} to stop before deletion.`);
+  }
+
+  async function prepareJobForDeletion(job: IngestionJobStatus) {
+    if (!isActiveJobStatus(job.status)) {
+      return;
+    }
+
+    await stopLocalProcessorRun(job);
+    await api.post(`/api/ingestion/jobs/${job.jobId}/cancel`);
+    await waitForDeleteReady(job.jobId);
   }
 
   const stopJob = useMutation({
@@ -451,14 +492,7 @@ export default function ProcessorScreen() {
 
   const remove = useMutation({
     mutationFn: async (job: IngestionJobStatus) => {
-      if (isActiveJobStatus(job.status)) {
-        await stopLocalProcessorRun(job, true);
-        await api.post(`/api/ingestion/jobs/${job.jobId}/cancel`).catch((err) => {
-          console.error("Failed to cancel job during removal", sanitizeForLog(err));
-          // Continue with deletion even if cancel fails
-        });
-      }
-
+      await prepareJobForDeletion(job);
       await api.delete(`/api/ingestion/jobs/${job.jobId}`);
       return job.jobId;
     },
@@ -477,7 +511,7 @@ export default function ProcessorScreen() {
     },
     onError: (err: unknown) => {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
-        setDeleteError(err.response.data?.detail ?? "Only terminal jobs can be deleted.");
+        setDeleteError(err.response.data?.detail ?? "Delete is already in progress for this job.");
         return;
       }
       setDeleteError(

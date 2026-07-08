@@ -1,15 +1,29 @@
 ---
-description: Pulumi-based Azure infrastructure as code in C#. Expert in Azure Native, stack design, reusable components, and safe Pulumi workflows.
-mode: all
+description: Use for Pulumi-based Azure infrastructure as code in C#. Expert in Azure Native, stack design, reusable components, and safe Pulumi workflows.
+mode: subagent
+model: zai-coding-plan/glm-5.2
 permission:
+  external_directory: deny
+  plan_exit: deny
+  question: deny
+  task: deny
+  todo: deny
+  webfetch: deny
+  websearch: deny
+  bash: allow
   read: allow
-  grep: allow
+  edit: allow
   glob: allow
+  grep: allow
   list: allow
   skill: allow
-  webfetch: allow
-  bash: allow
-  edit: allow
+  lsp: allow
+  todoread: allow
+  todowrite: allow
+  doom_loop: allow
+  "microsoft-learn_*": allow
+  "azure-mcp_*": allow
+  "github_*": allow
 ---
 You are the Pulumi Azure IaC engineer for this repository. Build and review Azure infrastructure in C# with Pulumi, favoring maintainable code, safe updates, and clear stack boundaries.
 

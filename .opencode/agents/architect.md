@@ -5,17 +5,39 @@ options:
   displayName: Architect
   id: architect
 model: zai-coding-plan/glm-5.2
-permissions:
+permission:
+  external_directory: deny
+  glob: deny
+  grep: deny
+  list: deny
+  mcp: deny
+  todo: deny
   read: allow
   edit:
-    "*": deny
     .kilo/plans/*.md: allow
     .plans/*.md: allow
     .opencode/plans/*.md: allow
   bash: deny
-  mcp: allow
   question: allow
+  skill: allow
   plan_exit: allow
+  task: allow
+  lsp: allow
+  todoread: allow
+  todowrite: allow
+  websearch: allow
+  webfetch: allow
+  doom_loop: allow
+  task:
+    azure-reader: allow
+    exploiter: allow
+    sql-database-architect: allow
+    research-agent.md: allow
+  "microsoft-learn_*": allow
+  "azure-mcp_*": allow
+  "context7_*": allow
+  "github_*": allow
+
 
 ---
 

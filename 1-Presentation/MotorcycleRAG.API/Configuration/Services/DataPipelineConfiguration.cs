@@ -34,11 +34,20 @@ internal static class DataPipelineConfiguration {
         // Register ingestion job service for Fabric pipeline integration
         services.AddScoped<IIngestionJobService, MotorcycleRAG.Application.Services.Ingestion.IngestionJobService>();
 
+        // Singleton bounded channel shared between the scoped IngestionJobService (producer) and
+        // GraphIngestionBackgroundService (single consumer). Must be a singleton so that all
+        // request-scoped writers and the hosted reader observe the same queue.
+        services.AddSingleton<GraphIngestionChannel>();
+
         // Register the job deletion background service (hosted). It polls for
         // Deleting ingestion jobs and performs best-effort artifact cleanup outside
         // the originating HTTP request lifecycle. Resolves scoped dependencies
         // (IIngestionJobService / IIngestionJobRepository) through IServiceScopeFactory.
         services.AddHostedService<JobDeletionBackgroundService>();
+
+        // Drains GraphIngestionChannel and runs graph ingestion outside the HTTP request
+        // lifecycle. Resolves scoped IIngestionJobService per job via IServiceScopeFactory.
+        services.AddHostedService<GraphIngestionBackgroundService>();
 
         services.AddSingleton<IIngestionSourceAccessTokenService, MotorcycleRAG.Application.Services.Ingestion.IngestionSourceAccessTokenService>();
         services.AddMemoryCache();

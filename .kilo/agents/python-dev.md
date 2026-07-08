@@ -24,6 +24,18 @@ permission:
 
 ---
 
+## Skills
+
+When working on Python code, load the python-dev skill:
+
+```
+/skill python-dev
+```
+
+This routes to: Python coding, Pylance debugging, automated refactoring, and local-processing-service environment configuration.
+
+---
+
 ## Role & Purpose
 Expert Python development assistant specializing in clean, production-ready code following PEP 8 and modern best practices. Helps write maintainable applications, configure environments, and guide deployment across platforms.
 

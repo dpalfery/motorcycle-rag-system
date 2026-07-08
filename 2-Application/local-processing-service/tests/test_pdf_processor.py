@@ -300,6 +300,39 @@ class TestPDFBackgroundProcessing:
     @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
+    async def test_reports_terminal_failed_stage_to_configured_api_client(
+        self, MockConverter, MockChunker, MockGetTokenizer, processor, api_client, embedder, metadata
+    ):
+        api_client.is_configured.return_value = True
+        MockGetTokenizer.return_value = MagicMock()
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = [_make_chunk("Chunk 1")]
+        embedder.generate_embedding = AsyncMock(side_effect=ValueError("Expected 1536 dims, got 2560"))
+
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-pdf-failed-stage",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+
+        await _wait_for_terminal_status(processor, job_id)
+        await asyncio.sleep(0)
+
+        last_call = api_client.report_stage.await_args_list[-1]
+        assert last_call.args[1] == "failed"
+        assert last_call.kwargs["failure_reason"] == "PDF processing failed: Expected 1536 dims, got 2560"
+
+        status = await processor.get_job_status(job_id)
+        assert status["status"] == "failed"
+        assert status["stage"] == "failed"
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
     async def test_failed_when_no_chunks_extracted(
         self, MockConverter, MockChunker, MockGetTokenizer, processor, metadata
     ):

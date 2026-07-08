@@ -43,26 +43,30 @@ internal static class WebApplicationExtensions {
             app.UseAzureAppConfiguration();
         }
 
-        // Middleware order is critical for security:
-        // 1. HTTPS redirection (enforce secure transport)
-        // 2. Host header validation (OWASP A07:2021 - prevent Host Header Injection)
-        // 3. Security headers (defense-in-depth)
-        // 4. Correlation tracking (observability)
-        // 5. Rate limiting (DOS/CSRF prevention - MUST be before CORS to prevent bypass)
+        // Middleware order is critical for security and observability:
+        // 1. Request pipeline timing (capture full pipeline duration incl. auth + rate-limit + controller)
+        // 2. HTTPS redirection (enforce secure transport)
+        // 3. Host header validation (OWASP A07:2021 - prevent Host Header Injection)
+        // 4. Security headers (defense-in-depth)
+        // 5. Correlation tracking (observability)
         // 6. Exception handling (graceful error responses)
         // 7. CORS (restricted cross-origin access)
         // 8. Authentication (identity verification)
-        // 9. Authorization (access control)
-        // 10. Antiforgery metadata handling (multipart endpoints opt out explicitly)
+        // 9. Rate limiting (must run after authentication so user-aware policies do not bucket
+        //    Admin Desktop traffic as anonymous and stall ingestion polling)
+        // 10. Authorization (access control)
+        // 11. Antiforgery metadata handling (multipart endpoints opt out explicitly)
 
+        // Add timing first to capture the full pipeline duration (every subsequent middleware is measured).
+        app.UseRequestPipelineTiming();
         app.UseHttpsRedirection();
         app.UseHostHeaderValidation(); // CRITICAL: Prevent Host Header Injection attacks
         app.UseSecurityHeaders();
         app.UseCorrelationId();
-        app.UseRateLimiter(); // CRITICAL: Before CORS to prevent preflight bypass
         app.UseExceptionHandling();
         app.UseCors();
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorizationLogging(); // Add authorization logging middleware
         app.UseAuthorization();
         app.UseAntiforgery();

@@ -253,6 +253,30 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<int> DeleteByIdsAsync(
+        IReadOnlyCollection<Guid> artifactIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(artifactIds);
+        if (artifactIds.Count == 0)
+            return 0;
+
+        const string sql = "DELETE FROM [dbo].[IndexedArtifacts] WHERE [IndexedArtifactId] IN @IndexedArtifactIds;";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            return await connection.ExecuteAsync(
+                new CommandDefinition(sql, new { IndexedArtifactIds = artifactIds.ToArray() }, commandTimeout: 90, cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete {Count} indexed artifacts", artifactIds.Count);
+            throw new InvalidOperationException("Failed to delete indexed artifacts by identifiers", ex);
+        }
+    }
+
     private static IndexedArtifact MapToEntity(dynamic row)
     {
         return new IndexedArtifact

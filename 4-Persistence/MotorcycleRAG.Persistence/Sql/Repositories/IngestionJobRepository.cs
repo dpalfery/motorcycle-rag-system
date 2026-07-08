@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -14,6 +15,13 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories;
 /// </summary>
 public class IngestionJobRepository : IIngestionJobRepository
 {
+    /// <summary>
+    /// Activity source used to emit distributed tracing spans for SQL dependency tracking.
+    /// The legacy Application Insights SDK consumes <see cref="Activity.Current"/>; this source
+    /// is also forward-compatible with OpenTelemetry listeners if one is added later.
+    /// </summary>
+    private static readonly ActivitySource ActivitySource = new("MotorcycleRAG.IngestionJobRepository");
+
     private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<IngestionJobRepository> _logger;
 
@@ -363,12 +371,67 @@ public class IngestionJobRepository : IIngestionJobRepository
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<IngestionJob>> GetLatestByInputRefsAsync(
+        IReadOnlyCollection<(string InputRef, IngestionJobType InputType)> pairs,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pairs);
+        if (pairs.Count == 0)
+            return Array.Empty<IngestionJob>();
+
+        using var activity = ActivitySource.StartActivity("GetLatestByInputRefs");
+        activity?.SetTag("db.system", "mssql");
+        activity?.SetTag("db.operation", "SELECT");
+        activity?.SetTag("ingestion.pair_count", pairs.Count);
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var columns = GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken));
+
+            // Build a values table for the pairs
+            var inputRefs = pairs.Select(p => p.InputRef).ToArray();
+            var inputTypes = pairs.Select(p => p.InputType.ToString()).ToArray();
+
+            var sql = $@"
+            WITH RankedJobs AS (
+                SELECT {columns},
+                    ROW_NUMBER() OVER (
+                        PARTITION BY [InputRef], [InputType]
+                        ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC
+                    ) AS rn
+                FROM [dbo].[IngestionJobs]
+                WHERE [InputRef] IN @InputRefs
+                  AND [InputType] IN @InputTypes
+            )
+            SELECT *
+            FROM RankedJobs
+            WHERE rn = 1;";
+
+            var results = await connection.QueryAsync<IngestionJob>(
+                new CommandDefinition(sql, new { InputRefs = inputRefs, InputTypes = inputTypes }, commandTimeout: 10, cancellationToken: cancellationToken));
+            return results.ToList();
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            _logger.LogError(ex, "Failed to get latest ingestion jobs by input refs batch");
+            throw new InvalidOperationException("Failed to get latest ingestion jobs by input refs batch", ex);
+        }
+    }
+
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<IngestionJob>> GetRecentAsync(
         int maxCount,
         CancellationToken cancellationToken = default)
     {
         if (maxCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxCount), "maxCount must be greater than zero.");
+
+        using var activity = ActivitySource.StartActivity("GetRecentIngestionJobs");
+        activity?.SetTag("db.system", "mssql");
+        activity?.SetTag("db.operation", "SELECT");
+        activity?.SetTag("ingestion.max_count", maxCount);
 
         try
         {
@@ -379,11 +442,12 @@ public class IngestionJobRepository : IIngestionJobRepository
             ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
         ";
             var results = await connection.QueryAsync<IngestionJob>(
-                new CommandDefinition(sql, new { MaxCount = maxCount }, cancellationToken: cancellationToken));
+                new CommandDefinition(sql, new { MaxCount = maxCount }, commandTimeout: 10, cancellationToken: cancellationToken));
             return results.ToList();
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             _logger.LogError(ex, "Failed to get recent ingestion jobs");
             throw new InvalidOperationException("Failed to get recent ingestion jobs", ex);
         }

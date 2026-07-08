@@ -160,6 +160,23 @@ class CSVProcessor:
         except TypeError:
             pass
 
+    async def _report_failed(self, job_id: str, failure_reason: str) -> None:
+        if not self._api_client.is_configured():
+            return
+        try:
+            job = _jobs.get(job_id, {})
+            await self._api_client.report_stage(
+                job_id,
+                "failed",
+                chunks_processed=job.get("chunks_processed", 0),
+                total_chunks=job.get("total_chunks", 0),
+                failure_reason=failure_reason,
+            )
+        except TypeError:
+            pass
+        except Exception:
+            logger.warning("Failed to report terminal processor failure for job %s", job_id, exc_info=True)
+
     def _set_stage(
         self,
         job_id: str,
@@ -377,24 +394,14 @@ class CSVProcessor:
             logger.info("CSV processing cancelled for upload %s", upload_id)
         except Exception as exc:
             logger.exception("CSV processing failed for upload %s", upload_id)
+            failure_reason = f"CSV processing failed — {type(exc).__name__}: {str(exc)[:300]}"
             _jobs[job_id].update(
                 {
                     "status": "failed",
-                    "message": f"CSV processing failed — {type(exc).__name__}: {str(exc)[:300]}",
+                    "stage": "failed",
+                    "message": failure_reason,
                     "progress": 0.0,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
-            if self._api_client.is_configured():
-                try:
-                    _ = asyncio.create_task(
-                        self._api_client.report_stage(
-                            job_id,
-                            _jobs[job_id].get("stage", "processing"),
-                            chunks_processed=_jobs[job_id].get("chunks_processed", 0),
-                            total_chunks=_jobs[job_id].get("total_chunks", 0),
-                            failure_reason=_jobs[job_id].get("message"),
-                        )
-                    )
-                except TypeError:
-                    pass
+            await self._report_failed(job_id, failure_reason)

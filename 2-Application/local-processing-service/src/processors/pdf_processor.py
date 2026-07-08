@@ -82,7 +82,8 @@ def _format_safe_failure(exc: Exception) -> dict[str, str]:
             "Embedding request timed out. Check the local embedding model and retry."
         )
     else:
-        message = f"PDF processing failed: {type(exc).__name__}"
+        detail = str(exc).strip()
+        message = f"PDF processing failed: {detail[:300]}" if detail else f"PDF processing failed: {type(exc).__name__}"
 
     return {"status": "failed", "message": message, "error": message}
 
@@ -206,6 +207,37 @@ class PDFProcessor:
         except TypeError:
             pass
 
+    async def _report_failed(self, job_id: str, failure_reason: str) -> None:
+        if not self._api_client.is_configured():
+            return
+        try:
+            job = _jobs.get(job_id, {})
+            await self._api_client.report_stage(
+                job_id,
+                "failed",
+                chunks_processed=job.get("chunks_processed", 0),
+                total_chunks=job.get("total_chunks", 0),
+                failure_reason=failure_reason,
+            )
+        except TypeError:
+            pass
+        except Exception:
+            logger.warning("Failed to report terminal processor failure for job %s", job_id, exc_info=True)
+
+    def _mark_failed(self, job_id: str, message: str, error: str | None = None) -> None:
+        job = _jobs[job_id]
+        now = datetime.now(timezone.utc).isoformat()
+        failure = error or message
+        job.update({
+            "status": "failed",
+            "stage": "failed",
+            "message": message,
+            "error": failure,
+            "progress": job.get("progress", 0.0),
+            "updated_at": now,
+        })
+        self._append_stage_history(job, "failed", message, now)
+
     def _set_stage(self, job_id: str, stage: str, message: str, progress: float, **extra) -> None:
         job = _jobs[job_id]
         try:
@@ -321,13 +353,9 @@ class PDFProcessor:
 
             if not chunks:
                 logger.warning("PDF job failed with no chunks job_id=%s upload_id=%s", job_id, upload_id)
-                _jobs[job_id].update({
-                    "status": "failed",
-                    "stage": "chunking",
-                    "error": "No chunks extracted from PDF",
-                    "progress": 1.0,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                })
+                _jobs[job_id]["progress"] = 1.0
+                self._mark_failed(job_id, "No chunks extracted from PDF")
+                await self._report_failed(job_id, "No chunks extracted from PDF")
                 return
 
             # ── Stage 3: Embedding ────────────────────────────
@@ -464,24 +492,9 @@ class PDFProcessor:
             logger.info("PDF processing cancelled for upload %s", upload_id)
         except Exception as exc:
             logger.exception("PDF processing failed for upload %s", upload_id)
-            _jobs[job_id].update({
-                **_format_safe_failure(exc),
-                "progress": _jobs[job_id].get("progress", 0.0),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
-            if self._api_client.is_configured():
-                try:
-                    _ = asyncio.create_task(
-                        self._api_client.report_stage(
-                            job_id,
-                            _jobs[job_id].get("stage", "processing"),
-                            chunks_processed=_jobs[job_id].get("chunks_processed", 0),
-                            total_chunks=_jobs[job_id].get("total_chunks", 0),
-                            failure_reason=_jobs[job_id].get("error"),
-                        )
-                    )
-                except TypeError:
-                    pass
+            failure = _format_safe_failure(exc)
+            self._mark_failed(job_id, failure["message"], failure["error"])
+            await self._report_failed(job_id, failure["error"])
 
     async def _resolve_source_pdf_path(
         self,

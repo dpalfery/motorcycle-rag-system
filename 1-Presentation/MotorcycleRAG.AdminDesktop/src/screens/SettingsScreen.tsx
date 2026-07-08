@@ -112,7 +112,7 @@ export default function SettingsScreen() {
         <div className="mb-3 text-sm font-medium">Embedding provider</div>
         <SectionDesc>
           Vector embedding endpoint used during document ingestion. Typically LM Studio or Ollama.
-          The embedding model must match the Azure AI Search index dimension (3584-dim for Qwen3 Embedding 8B).
+          Leave tokenizer path blank to auto-detect it from the selected embedding model in the local LM Studio cache.
         </SectionDesc>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Field label="Endpoint" value={draft.embeddingProviderEndpoint} mono onChange={(v) => set({ embeddingProviderEndpoint: v })} />

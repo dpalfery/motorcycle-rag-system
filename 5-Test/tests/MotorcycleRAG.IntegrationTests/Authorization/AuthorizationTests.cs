@@ -99,6 +99,19 @@ public class AuthorizationTests : IClassFixture<TestWebApplicationFactory>
         Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task IngestionJobsUploadConstraints_AdminPolling_DoesNotFallIntoAnonymousRateLimitBucket()
+    {
+        using var client = _factory.CreateAdminClient();
+        client.Timeout = TimeSpan.FromSeconds(2);
+
+        for (var attempt = 0; attempt < 55; attempt++)
+        {
+            using var response = await client.GetAsync("/api/ingestion/jobs/upload-constraints");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+    }
+
     // Additional tests would be added here to test with authenticated users and different roles
     // These would require setting up test authentication handlers and claims
 }

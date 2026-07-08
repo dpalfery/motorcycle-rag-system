@@ -1,21 +1,25 @@
 ---
-description: Execute the spec-kit implementation flow for a chosen spec under docs/specs/.
-agent: build
+description: Complete development tasks from a spec-kit task list with parallel agent execution
+agent: orchestrator
 ---
 
 # Spec Implementation Flow
 
 ## Context Requirement
 
-Run this command as the first request in a new session.
+Run this prompt as the first request in a new GitHub Copilot Chat or agent session.
 
-If this command is invoked in a session that already contains unrelated prior work, stop immediately and tell the user to start a new session, then rerun this command. Do not continue from stale conversation context.
+If this prompt is invoked in a session that already contains unrelated prior work, stop immediately and tell the user to start a New Chat or new agent session, then rerun this prompt. Do not continue from stale conversation context.
+
+Do not use `/fork` as the default reset mechanism. A forked session inherits conversation history and is only appropriate when intentionally branching an existing implementation discussion.
+
+You are a GitHub Copilot coding assistant completing development tasks from a spec-kit task list.
 
 Follow all repository instructions, including `AGENTS.md`, nested `AGENTS.md` files, architecture rules, security rules, and approval gates. Do not create infrastructure, add dependencies, create documentation files, implement cross-cutting concerns, or apply fallbacks/workarounds unless the repository instructions and the user explicitly allow it.
 
 ## 0. Select Spec
 
-Optional spec name: `$1` (leave blank to choose from `docs/specs`)
+Optional spec name: Specify the spec to implement or leave blank to choose from docs/specs.
 
 Before implementing anything, inspect `docs/specs/`.
 
@@ -67,12 +71,12 @@ If the requirements, design, or task list conflict, stop and ask the user how to
 
 ## 3. Parallel Execution Strategy
 
-Strongly prefer using multiple parallel subagents when the selected task list has independent workstreams.
+Strongly prefer using multiple parallel sub agents, fleets, or teams when the selected task list has independent workstreams.
 
 Before implementation:
 
 1. Split the task list into dependency-aware workstreams.
-2. Assign each subagent or team a clear ownership boundary, such as backend, frontend, tests, persistence, infrastructure-readiness analysis, documentation updates inside the selected spec, or validation.
+2. Assign each sub agent or team a clear ownership boundary, such as backend, frontend, tests, persistence, infrastructure-readiness analysis, documentation updates inside the selected spec, or validation.
 3. Keep write scopes disjoint. Do not assign two agents to edit the same files unless one is explicitly reviewing and not editing.
 4. Give every agent the selected requirements, design, task subset, repository rules, and file ownership boundaries.
 5. Run independent discovery, implementation, and validation work in parallel wherever possible.
@@ -97,7 +101,7 @@ Complete tasks in a logical order, respecting dependencies. Keep edits scoped to
 
 After implementing and validating each task or tightly related task batch, run a code review loop before marking tasks complete.
 
-1. **Initial review**: Ask the `@code-reviewer` agent to review the changed files for bugs, regressions, security issues, architecture violations, and missing tests.
+1. **Initial review**: Ask the `code-reviewer` agent to review the changed files for bugs, regressions, security issues, architecture violations, and missing tests.
 2. **Check status**:
    - If the review is approved, continue to the security review gate.
    - If changes are requested, fix the issues and re-review.
@@ -115,7 +119,7 @@ Issues Found: {count}
 Next Action: {SECURITY_REVIEW|FIXING|RE_REVIEWING|ESCALATED}
 ```
 
-After code-reviewer approval, run the checks normally performed by the `security-review` skill for the changed surface. If the security review finds issues, fix them and return to the code-reviewer loop.
+After code-reviewer approval, run the checks normally performed by the security-review workflow for the changed surface. If the security review finds issues, fix them and return to the code-reviewer loop.
 
 Only after focused validation, code-reviewer approval, and security review pass may you update `docs/specs/{spec}/tasks.md` to mark the reviewed task or batch as completed.
 
@@ -133,7 +137,7 @@ Only after focused validation, code-reviewer approval, and security review pass 
 - Do not introduce degraded behavior, stubs, or platform-specific workarounds to avoid fixing the real issue.
 - If repository instructions require approval for a decision, present the options with trade-offs and wait for user confirmation.
 - Never report a task as complete or commit-ready without code-reviewer approval and security review completion.
-- Prefer parallel subagents for independent work, but never trade away clear ownership, validation, or review discipline for speed.
+- Prefer parallel sub agents for independent work, but never trade away clear ownership, validation, or review discipline for speed.
 
 ## 7. Final Output
 
@@ -157,6 +161,3 @@ Summarize the complete selected task list with the updated status for each task.
 ```
 
 Do not include the private scratchpad in the final output.
-
-User input:
-$ARGUMENTS

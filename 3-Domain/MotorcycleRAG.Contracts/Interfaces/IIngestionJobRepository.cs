@@ -41,6 +41,14 @@ public interface IIngestionJobRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Retrieves the latest ingestion jobs for each unique (InputRef, InputType) combination.
+    /// Used to batch-check pending storage files without N+1 queries.
+    /// </summary>
+    Task<IReadOnlyList<IngestionJob>> GetLatestByInputRefsAsync(
+        IReadOnlyCollection<(string InputRef, IngestionJobType InputType)> pairs,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns the most recent ingestion jobs across all inputs.
     /// </summary>
     Task<IReadOnlyList<IngestionJob>> GetRecentAsync(

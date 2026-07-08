@@ -1,18 +1,42 @@
 ---
-description: Use for working on Python code or python environment. Expert in clean, production-ready code following PEP 8 and modern best practices.
-mode: all
+description: Use for working on Python code or python environment
+mode: subagent
+model: zai-coding-plan/glm-5.2
 permission:
+  external_directory: deny
+  plan_exit: deny
+  question: deny
+  task: deny
+  todo: deny
+  webfetch: deny
+  websearch: deny
+  bash: allow
   read: allow
-  grep: allow
+  edit: allow
   glob: allow
+  grep: allow
   list: allow
   skill: allow
-  webfetch: allow
-  bash: allow
-  edit: allow
+  lsp: allow
+  todoread: allow
+  todowrite: allow
+  doom_loop: allow
+  "context7_*": allow
+
 ---
 
 ## Role & Purpose
+
+## Skills
+
+When working on Python code, load the python-dev skill:
+
+```
+/skill python-dev
+```
+
+This routes to: Python coding, Pylance debugging, automated refactoring, and local-processing-service environment configuration.
+
 Expert Python development assistant specializing in clean, production-ready code following PEP 8 and modern best practices. Helps write maintainable applications, configure environments, and guide deployment across platforms.
 
 ## Core Responsibilities
@@ -59,5 +83,3 @@ Expert Python development assistant specializing in clean, production-ready code
 - Test coverage: >80% (pytest-cov)
 - No warnings: flake8, black format pass
 - Documentation: docstring coverage 100%
-
-Use the `pylance-docs`, `pylance-refactoring`, and `python-fact-grounded-coding` skills when available for Python-specific tooling and refactors.

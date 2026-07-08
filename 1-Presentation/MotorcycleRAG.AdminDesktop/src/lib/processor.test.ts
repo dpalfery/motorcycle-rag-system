@@ -1,5 +1,10 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { discoverProcessorWorkingDir, ensureProcessorReady, processor } from "./processor";
+import {
+  discoverProcessorWorkingDir,
+  ensureProcessorReady,
+  isMissingProcessorJobError,
+  processor,
+} from "./processor";
 import { invoke } from "@tauri-apps/api/core";
 import type { AppConfig } from "./config";
 
@@ -63,6 +68,16 @@ describe("processor job control", () => {
       port: 8100,
     });
     expect(result.status).toBe("cancelled");
+  });
+
+  it("recognizes the local processor's stale job 404 response", () => {
+    expect(
+      isMissingProcessorJobError('404 Not Found: {"detail":"Job not found"}')
+    ).toBe(true);
+    expect(
+      isMissingProcessorJobError(new Error('404 Not Found: {"detail":"Job not found"}'))
+    ).toBe(true);
+    expect(isMissingProcessorJobError("500 Internal Server Error")).toBe(false);
   });
 });
 

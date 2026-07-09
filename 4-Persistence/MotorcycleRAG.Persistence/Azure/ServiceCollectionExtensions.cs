@@ -1,4 +1,3 @@
-using Azure.Identity;
 using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,8 +91,7 @@ public static class ServiceCollectionExtensions {
         // "no singleton SearchClient bound to one index" rule).
         services.AddSingleton<SearchIndexClient>(serviceProvider => {
             var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureFoundryOptions>>().Value;
-            var credential = new DefaultAzureCredential();
-            return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), credential);
+            return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), SearchCredential.Create());
         });
 
         // Per-index SearchClient factory (D4 category partitioning). Replaces the former

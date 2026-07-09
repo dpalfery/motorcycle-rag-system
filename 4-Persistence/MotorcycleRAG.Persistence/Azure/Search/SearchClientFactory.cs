@@ -1,5 +1,5 @@
 using Azure;
-using Azure.Identity;
+using Azure.Core;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Options;
@@ -12,14 +12,14 @@ namespace MotorcycleRAG.Persistence.Azure.Search;
 /// <summary>
 /// Default <see cref="ISearchClientFactory"/>. Lazily creates one
 /// <see cref="SearchClient"/> per category index and caches it for the lifetime of this
-/// factory instance. A single <see cref="DefaultAzureCredential"/> is shared across all
-/// clients (it is the documented cold-auth source and should be reused, not recreated
-/// per request).
+/// factory instance. A single <see cref="TokenCredential"/> (see <see cref="SearchCredential"/>)
+/// is shared across all clients (it is the documented cold-auth source and should be reused,
+/// not recreated per request).
 /// </summary>
 public sealed class SearchClientFactory : ISearchClientFactory
 {
     private readonly Uri _searchServiceEndpoint;
-    private readonly DefaultAzureCredential _credential;
+    private readonly TokenCredential _credential;
     private readonly SearchIndexClient _indexClient;
     private readonly Dictionary<MotorcycleCategory, SearchClient> _clientsByCategory = new();
 
@@ -44,9 +44,10 @@ public sealed class SearchClientFactory : ISearchClientFactory
         }
 
         _searchServiceEndpoint = endpoint;
-        // DefaultAzureCredential is intentionally shared (created once) — recreating it per client
+        // The credential is intentionally shared (created once) — recreating it per client
         // multiplies the cold-auth latency that is the known freeze source (plan §1 root-cause #7).
-        _credential = new DefaultAzureCredential();
+        // See SearchCredential for why this is pinned rather than a bare DefaultAzureCredential.
+        _credential = SearchCredential.Create();
         _indexClient = indexClient ?? throw new ArgumentNullException(nameof(indexClient));
     }
 

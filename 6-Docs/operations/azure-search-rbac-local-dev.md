@@ -2,9 +2,24 @@
 
 **Component:** `MotorcycleRAG.API` — `SearchClientFactory` / `ChunkIndexingService`
 **Audience:** Developers/operators of the deployed API at `motorag.api.palfery.com`
-**Status:** Root cause revised 2026-07-09 after confirming the actual request path; fix applied in code (see "Fix applied").
+**Status:** Resolved 2026-07-09. Two distinct causes, fixed in sequence — see "Part 2" below for the one that actually stopped the 403s.
 
 ---
+
+## Part 2 — missing Search Service Contributor (found after Part 1 shipped and the 403 persisted)
+
+Confirmed via Application Insights (`AppDependencies` in workspace `mcr-rag-dev-cus-log97525f00`) that after the Part 1 credential-pinning fix deployed (revision `mcr-rag-dev-cus-api0689104e--0000202`, 100% traffic), the 403 continued on two specific calls:
+
+- `GET /indexes('motorcycle-sport')?api-version=2025-09-01` — `SearchClientFactory.IndexExistsAsync` (`SearchClientFactory.cs:99`) calling `SearchIndexClient.GetIndexAsync`.
+- `HEAD /` against the service root, repeating every ~60s — the `AzureSearchHealthCheck` ping.
+
+The Part 1 fix was necessary but not sufficient: it correctly pinned the credential to the container app's system-assigned identity, and that identity's token was being sent — but the identity only held `Search Index Data Contributor` + `Search Index Data Reader`. Per Microsoft's [Azure AI Search RBAC permission table](https://learn.microsoft.com/azure/search/search-security-rbac#built-in-roles), reading an index's *definition* (as opposed to its documents) is an object-management operation gated behind `Search Service Contributor` (or Owner/Contributor) — the two data-plane roles don't cover it. So the 403 was a real, correctly-enforced authorization gap, not another identity-resolution bug.
+
+**Fix applied:** granted `Search Service Contributor` (`7ca78c08-252a-4471-8644-bb5ff32d4ba0`) to the same system-assigned identity (`280335aa-2bf4-4a4a-99b1-f1a16b173ee5`), scoped to `mcr-rag-dev-wcus-search`:
+- Applied directly via ARM deployment (`grant-search-service-contributor-api-identity`) so job 19 could be unblocked immediately.
+- Codified in `7-Deployment/infrastructure/Program.cs` (`{namePrefix}-api-search-service-role`) right after the existing Search role assignments, so a future `pulumi up` doesn't treat the manual grant as drift and remove it.
+
+## Part 1 — wrong identity in the credential chain
 
 ## Symptom
 
@@ -36,13 +51,13 @@ new ChainedTokenCredential(
 
 This also narrows the credential-probe surface from `DefaultAzureCredential`'s full ~9-credential chain down to 2, which should help the "cold-auth hang source" already flagged in `SearchClientFactory`'s own comments and in `6-Docs/plans/2026-07-07-chunk-upload-fix-and-serverless-search.md` (§1, root-cause #7).
 
-**Caveat — not fully confirmed against live telemetry:** this diagnosis is built from static analysis of the Pulumi IaC and the working App Configuration credential pattern; the Search service does not yet have diagnostic logging wired to Log Analytics (that's tracked separately as T1/T10 in the serverless-migration plan), so the specific caller identity for job 19's failing request could not be directly confirmed from logs. If job 19 still fails after this deploys, that diagnostic gap should be closed next so the actual principal can be read directly instead of inferred.
+This diagnosis was originally built from static analysis of the Pulumi IaC and the working App Configuration credential pattern, without direct telemetry (the API's own Application Insights instrumentation — `AppExceptions`/`AppDependencies` in `mcr-rag-dev-cus-log97525f00` — turned out to be sufficient to confirm both this and the Part 2 root cause; no separate Search-side diagnostic logging was needed).
 
 ## Verification
 
-After this ships and a new revision of the API Container App is deployed:
-1. Retry job 19 (or re-run the upload → index flow from the Admin app).
-2. If it still 403s, check whether `az search service show`/`az role assignment list --scope <searchService.Id>` still shows the role only on the system-assigned principal, and consider adding Search diagnostic logs (plan T1/T10) to capture the actual caller identity on the next failure.
+1. Confirmed via `AppDependencies`: after Part 1 shipped, the credential correctly resolved to the system-assigned identity (`280335aa-2bf4-4a4a-99b1-f1a16b173ee5`) — but `GET /indexes(...)` and the health check `HEAD /` still 403'd, leading to Part 2.
+2. After Part 2's role assignment (`Search Service Contributor`) propagated, re-check `AppDependencies` for `Target == "mcr-rag-dev-wcus-search.search.windows.net"` and confirm `ResultCode` is no longer `403`. RBAC changes can take a few minutes to propagate — allow a short delay before re-testing.
+3. Retry job 19 (or re-run the upload → index flow from the Admin app) to confirm `ChunkIndexingService.MergeOrUploadDocumentsAsync` succeeds end-to-end.
 
 ---
 

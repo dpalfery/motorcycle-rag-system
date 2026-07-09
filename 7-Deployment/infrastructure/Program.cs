@@ -898,6 +898,15 @@ namespace MotorcycleRAG.Infrastructure {
                 Scope = searchService.Id,
                 PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
             });
+            // RBAC: Search Service Contributor for API — GetIndexAsync (SearchClientFactory.IndexExistsAsync)
+            // and the search health check both read the index/service definition, which is a control-plane
+            // "manage search objects" operation that Data Contributor/Reader do not cover (job 19, part 2).
+            _ = new RoleAssignment($"{namePrefix}-api-search-service-role", new RoleAssignmentArgs {
+                PrincipalId = apiApp.Identity.Apply(i => i!.PrincipalId),
+                RoleDefinitionId = "/providers/Microsoft.Authorization/roleDefinitions/7ca78c08-252a-4471-8644-bb5ff32d4ba0", // Search Service Contributor
+                Scope = searchService.Id,
+                PrincipalType = Pulumi.AzureNative.Authorization.PrincipalType.ServicePrincipal
+            });
 
             // RBAC: Storage Blob Data Contributor for API to read/write ingestion source and processor artifacts.
             _ = new RoleAssignment($"{namePrefix}-api-storage-role", new RoleAssignmentArgs {
@@ -1066,6 +1075,7 @@ namespace MotorcycleRAG.Infrastructure {
                     new Dictionary<string, object?> { ["name"] = "content", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "make", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "model", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                    new Dictionary<string, object?> { ["name"] = "sourceFile", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "section", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "pageRange", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "primarySection", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },

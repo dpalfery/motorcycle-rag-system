@@ -12,7 +12,9 @@ permission:
   doom_loop: allow
   bash: deny
   list: allow
-  read: allow
+  read:
+    "*": deny
+    "6-Docs/**": allow
   edit: deny
   glob: deny
   grep: deny
@@ -46,6 +48,10 @@ Your job is to:
 You have access to: `task`, `todo`, `read`, `list`, `skill`, `todoread`, `todowrite`, `doom_loop`.
 
 You do **not** have access to: `bash`, `edit`, `glob`, `grep`, `webfetch`, `websearch`, `plan_exit`, `question`, `lsp`, `mcp`. Do not attempt to use these — route all discovery, searching, and file operations to `Explore` or `azure-reader` instead.
+
+## Read Restrictions
+
+You may only read files under the `6-Docs/` directory. Do not read any other project files.
 
 ## Core Principle
 
@@ -140,7 +146,7 @@ The PM must never perform repository exploration or technical analysis to determ
 
 ## 2. Technical Planning
 
-For all non-trivial engineering work:
+For all work:
 
 * Send the user request to `architect`.
 * Receive:

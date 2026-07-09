@@ -1,6 +1,7 @@
 """Unit tests for OpenAIEmbedder — server calls fully mocked."""
 
 import asyncio
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -164,10 +165,15 @@ class TestOpenAIEmbedderGenerateEmbedding:
 
             embedder = mod.OpenAIEmbedder()
 
-            with pytest.raises(ValueError, match="Expected 1536 dims, got 512"):
+            with pytest.raises(ValueError, match="at least 1536 dims, got 512"):
                 await embedder.generate_embedding("test text")
 
-    async def test_raises_on_overlong_dimensions(self, monkeypatch):
+    async def test_accepts_oversized_vector_with_warning(
+        self, monkeypatch, caplog
+    ):
+        # Oversized vectors must NOT raise: LM Studio ignores the requested
+        # dimensionality and returns full-length vectors (e.g. 2560 dims).
+        # OpenAIEmbedder returns them so TruncatingEmbedder can slice them.
         monkeypatch.delenv("EMBEDDING_PROVIDER_ENDPOINT", raising=False)
         monkeypatch.setenv("EMBEDDING_DIMS", "1536")
 
@@ -186,8 +192,15 @@ class TestOpenAIEmbedderGenerateEmbedding:
             reload(mod)
 
             embedder = mod.OpenAIEmbedder()
-            with pytest.raises(ValueError, match="Expected 1536 dims, got 2560"):
-                await embedder.generate_embedding("test text")
+            with caplog.at_level(
+                logging.WARNING, logger="embeddings.openai_embedder"
+            ):
+                result = await embedder.generate_embedding("test text")
+
+        # The oversized vector is returned unchanged for downstream slicing.
+        assert len(result) == 2560
+        warning_text = " ".join(r.message for r in caplog.records)
+        assert "2560" in warning_text and "1536" in warning_text
 
     async def test_retries_on_transient_error(self, monkeypatch):
         monkeypatch.delenv("EMBEDDING_PROVIDER_ENDPOINT", raising=False)

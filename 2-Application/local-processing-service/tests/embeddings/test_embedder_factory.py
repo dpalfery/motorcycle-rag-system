@@ -1,6 +1,6 @@
 """Unit tests for embedder_factory.py."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -9,6 +9,7 @@ from embeddings.embedder_factory import get_embedder, reset_embedder
 from embeddings.model_discovery import ModelDiscoveryResult
 from embeddings.ollama_embedder import OllamaEmbedder
 from embeddings.openai_embedder import OpenAIEmbedder
+from embeddings.truncating_embedder import TruncatingEmbedder
 
 
 @pytest.fixture(autouse=True)
@@ -20,21 +21,23 @@ def clear_singleton():
 
 
 class TestGetEmbedderBackendSelection:
-    def test_default_backend_is_ollama(self, monkeypatch):
+    def test_default_backend_wraps_ollama(self, monkeypatch):
         monkeypatch.delenv("EMBEDDING_BACKEND", raising=False)
 
         with patch("embeddings.ollama_embedder.ollama.AsyncClient"):
             result = get_embedder()
 
-        assert isinstance(result, OllamaEmbedder)
+        assert isinstance(result, TruncatingEmbedder)
+        assert isinstance(result._embedder, OllamaEmbedder)
 
-    def test_openai_backend(self, monkeypatch):
+    def test_openai_backend_wraps_openai(self, monkeypatch):
         monkeypatch.setenv("EMBEDDING_BACKEND", "openai")
 
         with patch("embeddings.openai_embedder.openai.AsyncOpenAI"):
             result = get_embedder()
 
-        assert isinstance(result, OpenAIEmbedder)
+        assert isinstance(result, TruncatingEmbedder)
+        assert isinstance(result._embedder, OpenAIEmbedder)
 
     def test_unknown_backend_raises(self, monkeypatch):
         monkeypatch.setenv("EMBEDDING_BACKEND", "bogus")
@@ -71,7 +74,8 @@ class TestGetEmbedderBackendSelection:
             with patch("embeddings.openai_embedder.openai.AsyncOpenAI"):
                 result = get_embedder()
 
-        assert isinstance(result, OpenAIEmbedder)
+        assert isinstance(result, TruncatingEmbedder)
+        assert isinstance(result._embedder, OpenAIEmbedder)
 
     def test_provider_endpoint_discovers_ollama(self, monkeypatch):
         monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "http://127.0.0.1:11434")
@@ -87,7 +91,40 @@ class TestGetEmbedderBackendSelection:
             with patch("embeddings.ollama_embedder.ollama.AsyncClient"):
                 result = get_embedder()
 
-        assert isinstance(result, OllamaEmbedder)
+        assert isinstance(result, TruncatingEmbedder)
+        assert isinstance(result._embedder, OllamaEmbedder)
+
+
+class TestGetEmbedderTruncation:
+    def test_default_target_dims_is_1536(self, monkeypatch):
+        monkeypatch.delenv("EMBEDDING_BACKEND", raising=False)
+        monkeypatch.delenv("OLLAMA_EMBEDDING_DIMS", raising=False)
+
+        with patch("embeddings.ollama_embedder.ollama.AsyncClient"):
+            result = get_embedder()
+
+        assert isinstance(result, TruncatingEmbedder)
+        assert result._target_dims == 1536
+
+    def test_ollama_reads_ollama_embedding_dims(self, monkeypatch):
+        monkeypatch.delenv("EMBEDDING_BACKEND", raising=False)
+        monkeypatch.setenv("OLLAMA_EMBEDDING_DIMS", "768")
+
+        with patch("embeddings.ollama_embedder.ollama.AsyncClient"):
+            result = get_embedder()
+
+        assert isinstance(result, TruncatingEmbedder)
+        assert result._target_dims == 768
+
+    def test_openai_reads_embedding_dims(self, monkeypatch):
+        monkeypatch.setenv("EMBEDDING_BACKEND", "openai")
+        monkeypatch.setenv("EMBEDDING_DIMS", "1024")
+
+        with patch("embeddings.openai_embedder.openai.AsyncOpenAI"):
+            result = get_embedder()
+
+        assert isinstance(result, TruncatingEmbedder)
+        assert result._target_dims == 1024
 
 
 class TestGetEmbedderSingleton:

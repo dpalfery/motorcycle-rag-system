@@ -20,7 +20,7 @@ def _load_main_with_admin_environment(
     monkeypatch.setenv("WATCH_FOLDER", str(tmp_path / "watch"))
     monkeypatch.setenv("LOCAL_PROCESSOR_INPUT_DIR", str(tmp_path))
     monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "http://127.0.0.1:1234")
-    monkeypatch.setenv("EMBEDDING_MODEL", "text-embedding-qwen3-embedding-8b")
+    monkeypatch.setenv("EMBEDDING_MODEL", "text-embedding-qwen3-embedding-4b")
     monkeypatch.setenv("TOKENIZER_MODEL_PATH", str(tmp_path / "tokenizer"))
     monkeypatch.setenv("MCR_API_BASE_URL", "https://localhost:7215")
     monkeypatch.setenv("AZURE_STORAGE_ACCOUNT_URL", "https://storage.example")
@@ -37,7 +37,7 @@ def _load_main_with_admin_environment(
         lambda endpoint: ModelDiscoveryResult(
             "openai-compatible",
             endpoint,
-            ["text-embedding-qwen3-embedding-8b"],
+            ["text-embedding-qwen3-embedding-4b"],
         ),
     )
     sys.modules.pop("main", None)
@@ -99,7 +99,7 @@ async def test_pdf_endpoint_uses_admin_environment_and_passes_source_token(
     assert kwargs["source_access_token"] == source_token
     assert kwargs["metadata"].make == "Honda"
     assert main.os.environ["EMBEDDING_PROVIDER_ENDPOINT"] == "http://127.0.0.1:1234"
-    assert main.os.environ["EMBEDDING_MODEL"] == "text-embedding-qwen3-embedding-8b"
+    assert main.os.environ["EMBEDDING_MODEL"] == "text-embedding-qwen3-embedding-4b"
     assert main.os.environ["TOKENIZER_MODEL_PATH"] == str(tmp_path / "tokenizer")
 
 

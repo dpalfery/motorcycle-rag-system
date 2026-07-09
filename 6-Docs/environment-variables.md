@@ -37,7 +37,7 @@ These variables are read directly by the Python process. Do not use them from C#
 
 | Variable | Default | Purpose | Required | Type |
 | --- | --- | --- | --- | --- |
-| `EMBEDDING_PROVIDER_ENDPOINT` | `http://localhost:1234/v1` | Base URL of any OpenAI-compatible embedding server (LM Studio, Ollama /v1, Foundry Local, etc.). | No | Non-Secret |
+| `EMBEDDING_PROVIDER_ENDPOINT` | `http://localhost:1234/v1` | Base URL of any OpenAI-compatible embedding server (LM Studio, Foundry Local, etc.). **LM Studio is the default local provider.** | No | Non-Secret |
 | `EMBEDDING_MODEL` | `qwen3-embedding` | Model name for embeddings, used by the OpenAI-compatible embedder and for tokenizer resolution. | No | Non-Secret |
 | `EMBEDDING_PROVIDER_API_KEY` | `local` | API key for cloud OpenAI-compatible providers. Leave unset for local servers. | No | Secret |
 

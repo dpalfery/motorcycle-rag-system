@@ -1,5 +1,8 @@
 name = "azure-reader"
 description = "Read-only Azure investigation agent. Uses Azure MCP tools to inspect Azure state and gather facts for debugging, planning, and architecture work."
+sandbox_mode = "read-only"
+model = "gpt-5.4-mini"
+model_reasoning_effort = "low"
 # Source GitHub tools: read, search, web, todo, ms-azuretools.vscode-azure-github-copilot/azure_query_azure_resource_graph, ms-azuretools.vscode-azure-github-copilot/azure_get_auth_context, ms-azuretools.vscode-azureresourcegroups/azureActivityLog, azure-mcp/search, azure-mcp/subscription_list, azure-mcp/group_list, azure-mcp/monitor, azure-mcp/applens, azure-mcp/documentation, azure-mcp/get_azure_bestpractices
 # Unmapped GitHub tools needing a Codex/plugin equivalent: ms-azuretools.vscode-azure-github-copilot/azure_query_azure_resource_graph, ms-azuretools.vscode-azure-github-copilot/azure_get_auth_context, ms-azuretools.vscode-azureresourcegroups/azureActivityLog
 developer_instructions = '''

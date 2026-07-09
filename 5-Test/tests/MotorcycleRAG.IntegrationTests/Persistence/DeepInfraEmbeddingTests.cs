@@ -25,7 +25,7 @@ public class DeepInfraEmbeddingTests : IDisposable
     private readonly HttpClient _httpClient = new();
     private readonly NoOpDisposable _loggingScope = new();
     [Fact(Skip = "Integration test - requires real DeepInfra API key and network")]
-    public async Task GetEmbeddingsAsync_WithRealDeepInfraApi_Returns3584DimVector()
+    public async Task GetEmbeddingsAsync_WithRealDeepInfraApi_Returns1536DimVector()
     {
         // Arrange - read API key from local test configuration when this skipped test is intentionally enabled.
         var configuration = new ConfigurationBuilder()
@@ -97,7 +97,7 @@ public class DeepInfraEmbeddingTests : IDisposable
 
         // Assert
         result.Should().HaveCount(1, "one embedding for one input text");
-        result[0].Should().HaveCount(3584, "Qwen3-Embedding-4B produces 3584-dimensional vectors");
+        result[0].Should().HaveCount(1536, "Qwen3-Embedding-4B truncated to 1536 dimensions via the dimensions API parameter");
         result[0].Any(f => f != 0f).Should().BeTrue("real embeddings contain non-zero values");
     }
 

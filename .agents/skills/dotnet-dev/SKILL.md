@@ -4,7 +4,7 @@ description: Use when writing C#/.NET code, ASP.NET Core APIs, Dapper repositori
 license: MIT
 metadata:
   author: David R Palfery
-  version: 2.0.0
+  version: 2.1.0
 ---
 
 # .NET Developer
@@ -21,5 +21,10 @@ Identify your sub-task and read ONLY the relevant reference before proceeding.
 | ASP.NET Core Web API | Controllers, TypedResults, sealed record DTOs, RFC 7807, .NET 9+ OpenAPI | [Web API](./references/aspnetcore-webapi.md) |
 | File Upload | IFormFile, size limits, magic byte validation, safe filenames | [File Upload](./references/file-upload.md) |
 | OpenTelemetry | ActivitySource, traces, metrics, OTLP export, log-trace correlation | [OpenTelemetry](./references/opentelemetry.md) |
+| MSBuild Modernization | Migrate legacy `.csproj` (ToolsVersion, packages.config, explicit file lists) to SDK-style | [MSBuild Modernization](../github-devops/references/msbuild-modernization.md) |
+| MSBuild Anti-patterns | Cross-platform failures, hardcoded paths, `<Exec>` shell commands, unquoted conditions, non-deterministic builds | [MSBuild Anti-patterns](../github-devops/references/msbuild-antipatterns.md) |
+| Directory.Build Organization | `Directory.Build.props`/`.targets`/`Directory.Packages.props`, Central Package Management, multi-level hierarchy | [Directory.Build Organization](../github-devops/references/directory-build-organization.md) |
+| Build Performance | MSBuild parallelism (`-m`), `/graph` mode, RAR slowness, analyzer overhead, bottleneck diagnosis | [Build Performance](../github-devops/references/build-performance.md) |
+| Incremental Build | Fix targets that always rebuild; `Inputs`/`Outputs` attributes; `FileWrites` registration; volatile output paths | [Incremental Build](../github-devops/references/incremental-build.md) |
 
 **Rule:** Read only the reference(s) relevant to your current task. Do not pre-load all references.

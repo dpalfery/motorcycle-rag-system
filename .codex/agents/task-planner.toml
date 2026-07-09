@@ -1,5 +1,7 @@
 name = "task-planner"
 description = "Converts an approved feature design into an actionable, test-driven implementation plan. Reads requirements and design, writes docs/specs/{feature_name}/tasks.md as a checkbox list of coding tasks with requirement traceability. Third phase of the spec-driven planning flow. Does not run approval gates."
+model = "gpt-5.4"
+model_reasoning_effort = "high"
 # Source GitHub tools: search/codebase, edit/editFiles
 developer_instructions = '''
 # Task Planner

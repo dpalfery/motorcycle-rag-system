@@ -1,5 +1,7 @@
 name = "frontend-dev"
 description = "PROACTIVELY use for Frontend development, React coding, client side implementation, and code generation. Expert in feature slice design, MUI with Pigment CSS."
+model = "gpt-5.4-mini"
+model_reasoning_effort = "high"
 # Source GitHub tools: vscode, execute, read, edit, search, web, azure-mcp/search, microsoftdocs/mcp/*, upstash/context7/*, agent, playwright/*, io.github.chromedevtools/chrome-devtools-mcp/*, todo
 # Unmapped GitHub tools needing a Codex/plugin equivalent: io.github.chromedevtools/chrome-devtools-mcp/*
 developer_instructions = '''

@@ -1,5 +1,7 @@
 name = "python-dev"
 description = "Use for working on Python code or python environment"
+model = "gpt-5.4-mini"
+model_reasoning_effort = "high"
 # Source GitHub tools: execute, read, edit, search, web, search, upstash/context7/*, todo, /Users/dave/.vscode-insiders/extensions/ms-python.vscode-pylance-2026.2.104/skills/pylance-refactoring/SKILL.md, /Users/dave/.vscode-insiders/extensions/ms-python.vscode-pylance-2026.2.104/skills/python-fact-grounded-coding/SKILL.md, pylance-mcp-server/*
 # Unmapped GitHub tools needing a Codex/plugin equivalent: pylance-mcp-server/*
 developer_instructions = '''

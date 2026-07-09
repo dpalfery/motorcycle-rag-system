@@ -171,9 +171,16 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
     }
 
     /// <summary>
-    /// Creates the Azure AI Search index schema for MotorcycleDocument including locator fields
+    /// Creates the Azure AI Search index schema for MotorcycleDocument including locator fields.
     /// </summary>
-    private SearchIndex CreateMotorcycleDocumentIndexDefinition() {
+    /// <remarks>
+    /// Marked <c>internal</c> so unit tests (via <c>InternalsVisibleTo</c>) can assert the
+    /// index schema — in particular the <c>contentVector</c> field's
+    /// <see cref="SearchField.VectorSearchDimensions"/> — without making real Azure calls.
+    /// The method is a pure factory: it only reads <see cref="SearchOptions"/> and never
+    /// touches <c>_searchClient</c> / <c>_indexClient</c>.
+    /// </remarks>
+    internal SearchIndex CreateMotorcycleDocumentIndexDefinition() {
         var indexName = _searchOptions.IndexName;
 
         var index = new SearchIndex(indexName) {
@@ -222,7 +229,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
                 {
                     IsSearchable = true,
                     IsHidden = false,
-                    VectorSearchDimensions = 3584, // Qwen3-Embedding-4B native dimensions (no MRL truncation)
+                    VectorSearchDimensions = 1536, // Aligned with embedding config (dimensions=1536 requested from Qwen3-Embedding-4B)
                     VectorSearchProfileName = "vector-config"
                 }
             },

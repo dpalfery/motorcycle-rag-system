@@ -62,9 +62,13 @@ class OpenAIEmbedder(Embedder):
         EMBEDDING_PROVIDER_API_KEY  – Bearer token  (optional; uses ``"local"`` when unset)
         EMBEDDING_DIMS              – expected dims (default: 1536)
 
-    Enforces a configurable dimension check to match the Azure AI Search
-    index (VectorSearchDimensions).  Set ``EMBEDDING_DIMS`` or leave unset
-    to use the default of 1536.
+    Enforces a configurable *minimum* dimension check to match the Azure
+    AI Search index (VectorSearchDimensions).  Vectors shorter than
+    ``dims`` raise ``ValueError`` (a misconfiguration that retries cannot
+    fix); vectors longer than ``dims`` are returned unchanged so that
+    :class:`~embeddings.truncating_embedder.TruncatingEmbedder` can slice
+    them client-side.  Set ``EMBEDDING_DIMS`` or leave unset to use the
+    default of 1536.
     """
 
     def __init__(
@@ -128,15 +132,29 @@ class OpenAIEmbedder(Embedder):
                     client.embeddings.create(
                         model=self._model,
                         input=text,
-                        dimensions=self._dims,
                     ),
                     timeout=self._request_timeout_seconds,
                 )
 
                 vector: list[float] = response.data[0].embedding
 
-                if len(vector) != self._dims:
-                    raise ValueError(f"Expected {self._dims} dims, got {len(vector)}")
+                # Undersized vectors indicate a misconfiguration (wrong model)
+                # that retrying cannot fix -- fail fast.  Oversized vectors are
+                # permitted so that :class:`TruncatingEmbedder` can slice them
+                # client-side; providers such as LM Studio ignore the
+                # ``dimensions`` request parameter and return full-length
+                # vectors (e.g. 2560 dims from Qwen3-Embedding-4B).
+                if len(vector) < self._dims:
+                    raise ValueError(
+                        f"Expected at least {self._dims} dims, got {len(vector)}"
+                    )
+                if len(vector) > self._dims:
+                    logger.warning(
+                        "Vector has %d dims; will be truncated to %d "
+                        "by TruncatingEmbedder",
+                        len(vector),
+                        self._dims,
+                    )
 
                 return vector
 

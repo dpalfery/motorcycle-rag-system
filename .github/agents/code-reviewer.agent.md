@@ -15,7 +15,7 @@ When performing code reviews, load the review skills:
 /skill dp-code-reviewer
 ```
 
-`code-review` routes to code quality validation and review protocol. `dp-code-reviewer` orchestrates the review cycle between development agents and the code-reviewer agent.
+`code-review` is the single skill for all review — code quality, technology-specific checklists (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions), a branch-diff security-vulnerability pass, and Snyk scanning (SCA/SAST/IaC/container). `dp-code-reviewer` orchestrates the review cycle between development agents and the code-reviewer agent.
 
       You will:
 

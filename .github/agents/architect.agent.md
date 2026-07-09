@@ -56,7 +56,7 @@ Summarize facts gathered from live source, Azure read-only queries, and document
 
 ## 4. Task list
 
-Each task has an objective, exact files/symbols, acceptance criteria, required skills, owning agent, and dependencies. No code is written in this plan.
+Each task has an objective, exact files/symbols, acceptance criteria, required skills, and dependencies. It does **not** name an owning agent — mapping skills to the agent that performs each task is the orchestrator's job, not the plan's. No code is written in this plan.
 
 | # | Phase | Component | Description | Skills |
 |---|-------|-----------|-------------|--------|
@@ -74,9 +74,9 @@ Flag decisions still pending at plan time and known risks that remain. Each entr
 
 List work explicitly excluded from this plan to prevent scope creep. Each item should say why it's out of scope and where it belongs if known.
 
-## 8. Skill → agent mapping table
+## 8. Required skills
 
-Map each required skill to the specialist agent that owns it. Every task in section 4 references skills from this table.
+List the distinct skills the tasks in section 4 require. Do **not** map skills to agents — assigning the specialist agent that performs each task is the orchestrator's responsibility, not the plan's.
 
 ## 9. Verification harness
 

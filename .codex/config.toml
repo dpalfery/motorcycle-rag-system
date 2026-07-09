@@ -32,11 +32,6 @@ config_file = ".codex/agents/conductor-v2.toml"
 description = "Primary orchestration agent imported from the canonical .opencode swarm."
 nickname_candidates = ["Conductor", "PM", "Coordinator"]
 
-[agents.orchestrator]
-config_file = ".codex/agents/conductor-v2.toml"
-description = "Compatibility alias for the canonical conductor-v2 orchestration agent."
-nickname_candidates = ["Orchestrator", "Coordinator", "PM"]
-
 [agents.architect]
 config_file = ".codex/agents/architect.toml"
 description = "Technical planning agent that resolves design questions and produces implementation-ready plans."
@@ -52,11 +47,10 @@ config_file = ".codex/agents/code-reviewer.toml"
 description = "Strict code reviewer and quality gate."
 nickname_candidates = ["Reviewer", "Code Review", "Critic"]
 
-[agents."design-architect"]
-config_file = ".codex/agents/design-architect.toml"
-description = "Spec design author for requirements-backed features."
-nickname_candidates = ["Design Architect", "Designer", "Spec Designer"]
-
+[agents."product-owner"]
+config_file = ".codex/agents/product-owner.toml"
+description = "Single-owner spec planning agent."
+nickname_candidates = ["Product Owner", "PO", "Spec Planner"]
 [agents."dotnet-dev"]
 config_file = ".codex/agents/dotnet-dev.toml"
 description = "Exclusive owner of .NET and ASP.NET Core backend implementation."
@@ -77,12 +71,3 @@ config_file = ".codex/agents/python-dev.toml"
 description = "Python implementation specialist."
 nickname_candidates = ["Python Dev", "Py Dev", "Processor Dev"]
 
-[agents."requirements-author"]
-config_file = ".codex/agents/requirements-author.toml"
-description = "Requirements author for spec-driven planning."
-nickname_candidates = ["Requirements Author", "Requirements", "Req Writer"]
-
-[agents."task-planner"]
-config_file = ".codex/agents/task-planner.toml"
-description = "Implementation task author for approved specs."
-nickname_candidates = ["Task Planner", "Task Author", "Tasks"]

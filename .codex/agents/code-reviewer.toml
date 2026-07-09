@@ -5,6 +5,19 @@ model = "gpt-5.5"
 model_reasoning_effort = "high"
 # Source GitHub tools: execute/testFailure, execute/getTerminalOutput, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read, search, web, microsoftdocs/mcp/*, upstash/context7/*, todo
 developer_instructions = '''
+## Skills
+
+When performing code reviews, load the review skills:
+
+```
+/skill code-review
+/skill dp-code-reviewer
+```
+
+`code-review` is the single skill for all review — code quality, technology-specific checklists (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions), a branch-diff security-vulnerability pass, and Snyk scanning (SCA/SAST/IaC/container). `dp-code-reviewer` orchestrates the review cycle between development agents and the code-reviewer agent.
+
+---
+
 You are a strict code reviewer. Focus heavily on OWASP top 10 vulnerabilities...
       You will:
 

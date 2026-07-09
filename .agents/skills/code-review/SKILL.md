@@ -1,10 +1,10 @@
 ---
 name: code-review
-description: "Universal code review skill. Reviews code for correctness, security, performance, maintainability, and tech-specific best practices (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions)."
+description: "Universal code review skill. Reviews code for correctness, security, performance, maintainability, and tech-specific best practices (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions). Includes branch-diff security-vulnerability review and Snyk security scanning (SCA/SAST/IaC/container) — the single skill for all code review."
 license: MIT
 metadata:
   author: David R Palfery
-  version: 2.1.0
+  version: 3.0.0
 ---
 
 # Code Review Instructions for Code Review Agent
@@ -25,7 +25,9 @@ metadata:
    - [GitHub Actions](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/github-actions.md)
 4. **Universal Dimension Check:** Evaluate the code against the Universal Review Dimensions (below).
 5. **Technology-Specific Check:** Evaluate the code against the checklists found in the references loaded in Step 3.
-6. **Compile Feedback:** Create a structured output of findings as requested.
+6. **Security Review (always):** Perform a branch-diff vulnerability pass following [Security Review](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/security-review.md) — identify HIGH-CONFIDENCE (≥8/10) exploitable vulnerabilities newly introduced by the change, applying its false-positive exclusions.
+7. **Snyk Scan (when tooling is available):** For dependency, SAST, IaC, or container coverage, run automated scans per [Snyk Security](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/snyk-security.md). Skip only if the Snyk MCP server is unavailable, and note that in the report.
+8. **Compile Feedback:** Create a structured output of findings as requested, folding security-review and Snyk findings into the same report.
 
 ## Universal Code Review Dimensions
 

@@ -11,6 +11,8 @@ At the beginning of each task/response, include: `[******Working Agreement: Acti
 @6-Docs/agent-instructions/azure-environment.md
 @6-Docs/agent-instructions/security.md
 
+**Deprecated docs:** `6-Docs/archive/` holds retired/deprecated documents and agent definitions kept only for historical reference. Ignore it. Do not read, cite, follow, or copy anything from `6-Docs/archive/` as current guidance, and do not treat agent definitions found there as active agents.
+
 # 3. Architecture
 
 Before creating, moving, renaming, or choosing placement for any source or test file, or changing namespaces, project references, DTO placement, interface placement, or layer boundaries — read the architecture placement rules first at `6-Docs/rules/architecture-general.md`.

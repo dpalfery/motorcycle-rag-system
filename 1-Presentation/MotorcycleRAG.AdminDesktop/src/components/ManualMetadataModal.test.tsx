@@ -141,4 +141,24 @@ describe("ManualMetadataModal", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("can be dismissed and re-opened by toggling the isOpen prop", () => {
+    const baseProps = {
+      jobId: "job-reopen",
+      initialMetadata: undefined,
+      onSubmit: vi.fn().mockResolvedValue(undefined),
+      onClose: vi.fn(),
+    };
+    const { rerender } = render(<ManualMetadataModal {...baseProps} isOpen={true} />);
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // Parent dismisses the modal (isOpen -> false): dialog unmounts.
+    rerender(<ManualMetadataModal {...baseProps} isOpen={false} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Parent re-opens the modal (isOpen -> true): dialog mounts again.
+    rerender(<ManualMetadataModal {...baseProps} isOpen={true} />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
 });

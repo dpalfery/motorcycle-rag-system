@@ -1,5 +1,5 @@
 ---
-description: PROACTIVELY use for MAUI UI development with CommunityToolkit.Maui, cross-platform code, and mobile/desktop features. Expert in MAUI Shell, MVVM, and accessibility.
+description: .NET MAUI mobile/desktop UI implementation: MVVM with CommunityToolkit.Maui, Shell navigation, cross-platform device features. Use for MAUI client apps. Does not handle web UI, backend services, or test authoring.
 mode: subagent
 permission:
   external_directory: deny

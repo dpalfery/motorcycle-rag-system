@@ -336,6 +336,7 @@ export default function ProcessorScreen() {
             processorRunId,
             documentType,
             createdAtUtc: new Date().toISOString(),
+            sourceFileName: fileNameFromPath(sourcePath),
           });
         } catch (queueError) {
           try {
@@ -875,6 +876,11 @@ export default function ProcessorScreen() {
                     <tr className="border-b border-border hover:bg-secondary/30">
                       <td className="max-w-[480px] px-4 py-3 align-top">
                         <div className="truncate">{formatIngestionJobLabel(j)}</div>
+                        {j.sourceFileName && (
+                          <div className="truncate text-xs text-muted" title={j.sourceFileName}>
+                            {j.sourceFileName}
+                          </div>
+                        )}
                         {formatChunkProgress(j) && (
                           <div className="mt-1 text-xs text-muted">{formatChunkProgress(j)}</div>
                         )}

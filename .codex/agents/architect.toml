@@ -1,5 +1,5 @@
 name = "architect"
-description = "  Deep-dive planning agent for the orchestrator. Analyzes user requests, inspects the codebase,interviews the user to resolve ambiguities, and produces concise, implementation-ready Markdown plans (YYYY-MM-DD prefixed in 6-Docs/Plans). Delegates read-only discovery to sub-agents (Explore,azure-reader, research-agent) as needed. Does NOT write source code, run mutating commands, orexecute implementation — only plans. Use when a task needs decomposition, design decisions,scope negotiation, or a validated execution roadmap before handing off to dotnet-dev, frontend-dev,pulumi-dev, or other implementation agents. Not a substitute for design-architect (writes spec design.md)or requirements-author (writes EARS requirements)."
+description = "Produces an implementation plan before coding: decomposes the task, resolves design decisions, negotiates scope. Use when a non-trivial change needs planning before implementation. Plans only — does not write source code, run mutating commands, or author formal spec documents."
 model = "gpt-5.5"
 model_reasoning_effort = "high"
 

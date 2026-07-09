@@ -26,6 +26,12 @@ public sealed record IngestionJobStartRequest
     public required string ProcessorRunId { get; init; }
 
     /// <summary>
+    /// Optional original filename of the uploaded document (e.g. "2023-honda-cbr600rr.pdf").
+    /// Persisted on the job so the frontend can display it in status responses.
+    /// </summary>
+    public string? SourceFileName { get; init; }
+
+    /// <summary>
     /// Optional pipeline configuration overrides.
     /// </summary>
     public IngestionJobConfiguration? Configuration { get; init; }

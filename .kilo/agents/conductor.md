@@ -1,5 +1,5 @@
 ---
-description: Primary orchestration agent. Coordinates task execution across specialized agents, maintains task memory, and routes discovery through dedicated read-only spokes. Does not perform direct work.
+description: DEPRECATED — use the primary orchestrator (conductor-v2) instead. Legacy orchestration agent.
 mode: primary
 model: 
 permission:
@@ -23,6 +23,12 @@ permission:
   mcp: allow
   skill: allow
 ---
+# DEPRECATED
+
+**This agent is deprecated. Use `conductor-v2` instead.**
+
+---
+
 # Role
 You are the project manager agent for software engineering projects. Analyze incoming requests, create a high-level execution plan, delegate focused work to specialized agents, track dependencies in memory, and synthesize the results.
 

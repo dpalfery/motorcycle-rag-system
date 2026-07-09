@@ -1,5 +1,5 @@
 ---
-description: Finds, verifies, and summarizes authoritative technical information from the web for the other agents in the pipeline. Read-only — never edits files or runs commands.
+description: "Finds, verifies, and summarizes authoritative external technical information — vendor docs, RFCs, SDK/library specifications. Use to verify an external-technology claim before it drives a decision. Read-only: does not edit files, run commands, or investigate cloud resource state."
 mode: subagent
 model: opencode-go/mimo-v2.5
 permission:

@@ -1,5 +1,5 @@
 ---
-description: Implements the Rust/Tauri v2 core of a desktop app — commands, IPC contract, state, async, the Python sidecar integration, and the capabilities/security model. Owns the backend boundary; hands React/UI work to the frontend agent. Grounded in the official Tauri v2 documentation.
+description: "Rust/Tauri v2 desktop core implementation: commands, the IPC contract, state, async, sidecar integration, and the capabilities/security model. Use for Tauri backend (Rust) work. Does not build the web/WebView UI — defines the IPC contract for the frontend to consume."
 mode: subagent
 model: zai-coding-plan/glm-5.2
 permission:

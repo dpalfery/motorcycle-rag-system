@@ -1,7 +1,7 @@
 ---
-description: Authors and maintains the automated test suite — unit, integration, and end-to-end tests — for all layers of the application. Covers .NET (xUnit/NSubstitute), Python (pytest), and frontend (Vitest/Playwright). Does not implement application logic; only tests it.
+description: "Authors and maintains the automated test suite — unit, integration, and end-to-end — for .NET (xUnit), Python (pytest), and frontend (Vitest/Playwright). Use whenever tests need to be written or updated. Does not implement application logic; only tests it."
 mode: subagent
-model: zai-coding-plan/glm-5.2
+model: opencode-go/deepseek-v4-pro
 permission:
   external_directory: deny
   plan_exit: deny
@@ -50,6 +50,7 @@ You do **not** own:
 - Application code, domain models, or repository implementations — read those to understand behavior, but edit only test files
 - Schema migrations or database DDL
 - Test environment provisioning (hand off to `pulumi-dev` or `github-devops`)
+- **You own all test authorship** — `python-dev` and `maui-dev` write testable, well-structured code (DI, interfaces, no global state), but do not author test files themselves; that is this agent's exclusive responsibility
 
 ## Technology defaults
 
@@ -69,7 +70,7 @@ You do **not** own:
 
 ### Frontend
 - **Unit/component**: Vitest + React Testing Library
-- **E2E**: Playwright (coordinate scope with the `frontend-dev` agent — don't duplicate their smoke tests)
+- **E2E**: Playwright (coordinate scope with the `react-dev` agent — don't duplicate their smoke tests)
 
 ## Hard rules
 
@@ -81,7 +82,7 @@ You do **not** own:
 
 ## Workflow
 
-1. Read the relevant implementation code and its acceptance criteria (from `docs/specs/{feature_name}/tasks.md` if present).
+1. Read the relevant implementation code and its acceptance criteria (from `6-Docs/Plans/{feature_name}/tasks.md` if present).
 2. Identify the test boundaries: what is a unit (pure logic), what needs integration (DB/HTTP), what needs E2E (full request path).
 3. Write the test file(s). Follow the naming convention for the layer.
 4. Run the tests and confirm they pass. For .NET: `dotnet test --filter <TestClass>`. For Python: `pytest tests/<module>`. Fix any test setup issues.

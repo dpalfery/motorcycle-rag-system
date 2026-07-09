@@ -1,5 +1,5 @@
 name = "dotnet-dev"
-description = "Exclusive owner of all .NET/C# backend implementation in the 0-4 layer folders. Use for ASP.NET Core minimal APIs, C# service classes, dependency injection, middleware, and .cs file changes. Handles dotnet build/run. Does NOT handle DAL/repositories, migrations, DevOps/CI, or test creation/running. Never delegate .NET/C# work to general."
+description = ".NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI."
 model = "gpt-5.4-mini"
 model_reasoning_effort = "high"
 # Source GitHub tools: execute, read, edit, search, web, azure-mcp/search, microsoftdocs/mcp/*, upstash/context7/*, agent, todo

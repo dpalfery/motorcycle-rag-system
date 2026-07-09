@@ -1,5 +1,5 @@
 ---
-description: Owns GitHub Actions CI/CD pipelines, Docker build configuration, environment secrets management, and branch protection rules. Coordinates deployment pipelines with Pulumi infrastructure outputs and ensures build artifacts reach the right environments safely.
+description: CI/CD ownership: GitHub Actions workflows, Docker build configuration, environment secrets, and branch protection. Use for build, pipeline, or deployment configuration. Does not provision cloud infrastructure or investigate live cloud resource state.
 mode: subagent
 permission:
   external_directory: deny
@@ -24,7 +24,6 @@ permission:
   "context7_*": allow
   "github_*": allow
 ---
-
 # GitHub DevOps Agent
 
 ## Skills

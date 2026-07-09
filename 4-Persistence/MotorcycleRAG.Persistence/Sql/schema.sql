@@ -493,6 +493,9 @@ BEGIN
 
     IF COL_LENGTH('dbo.IngestionJobs', 'StageSetAtUtc') IS NULL
         ALTER TABLE [dbo].[IngestionJobs] ADD [StageSetAtUtc] DATETIME2(7) NULL;
+
+    IF COL_LENGTH('dbo.IngestionJobs', 'SourceFileName') IS NULL
+        ALTER TABLE [dbo].[IngestionJobs] ADD [SourceFileName] NVARCHAR(500) NULL;
 END
 GO
 

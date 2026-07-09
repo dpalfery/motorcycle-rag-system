@@ -1,5 +1,5 @@
 ---
-description: Primary orchestration agent. Coordinates task execution across specialized agents, maintains task memory, and routes discovery through dedicated read-only spokes. Does not perform direct work.
+description: "DEPRECATED — use the primary orchestrator (conductor-v2) instead. Legacy orchestration agent."
 mode: primary
 model: opencode-go/mimo-v2.5
 permission:
@@ -12,6 +12,12 @@ permission:
   task: allow
   bash: deny
   edit: deny
+---
+
+# DEPRECATED
+
+**This agent is deprecated. Use `conductor-v2` instead.**
+
 ---
 
 # Role

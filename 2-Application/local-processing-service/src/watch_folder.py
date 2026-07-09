@@ -25,6 +25,10 @@ class WatchFolderManifest:
     processor_run_id: str
     document_type: str
     source_file_name: str
+    # Original file path on the uploader's system (e.g.
+    # "/data/manuals/2023/Honda/CBR600RR/service-manual.pdf"). Optional — older
+    # manifests may omit it. Forwarded to the metadata extractor as LLM context.
+    source_path: str | None
     local_file_name: str
     size_bytes: int | None
     created_at_utc: str | None
@@ -47,7 +51,7 @@ class WatchFolderWorker:
         self._csv_processor = csv_processor
         self._poll_interval_seconds = poll_interval_seconds
         self._stop_event = asyncio.Event()
-        self._task: asyncio.Task | None = None
+        self._task: asyncio.Task[None] | None = None
 
     @property
     def watch_folder(self) -> Path:
@@ -114,11 +118,11 @@ class WatchFolderWorker:
 
     async def _start_manifest(self, manifest_path: Path) -> None:
         manifest = _read_manifest(manifest_path, self._watch_folder)
-        source_path = _resolve_source_path(self._watch_folder, manifest.local_file_name)
-        if not source_path.is_file():
+        local_source_path = _resolve_source_path(self._watch_folder, manifest.local_file_name)
+        if not local_source_path.is_file():
             raise FileNotFoundError(f"Source file is missing for manifest {manifest_path.name}")
 
-        if manifest.size_bytes is not None and source_path.stat().st_size != manifest.size_bytes:
+        if manifest.size_bytes is not None and local_source_path.stat().st_size != manifest.size_bytes:
             raise RuntimeError("Source file size does not match manifest.")
 
         logger.info(
@@ -134,8 +138,10 @@ class WatchFolderWorker:
                 document_type=manifest.document_type,
                 blob_container="",
                 metadata=manifest.metadata,
-                local_file_path=str(source_path),
+                local_file_path=str(local_source_path),
                 job_id=manifest.processor_run_id,
+                source_path=manifest.source_path,
+                source_file_name=manifest.source_file_name,
             )
             return
 
@@ -143,7 +149,7 @@ class WatchFolderWorker:
             await self._csv_processor.process_csv_async(
                 upload_id=manifest.upload_id,
                 metadata=manifest.metadata,
-                local_file_path=str(source_path),
+                local_file_path=str(local_source_path),
                 job_id=manifest.processor_run_id,
             )
             return
@@ -163,6 +169,9 @@ def _read_manifest(path: Path, watch_folder: Path) -> WatchFolderManifest:
         processor_run_id=_required_string(payload, "processorRunId"),
         document_type=_required_string(payload, "documentType"),
         source_file_name=_required_string(payload, "sourceFileName"),
+        source_path=_optional_string(
+            payload.get("sourcePath", payload.get("source_path"))
+        ),
         local_file_name=_required_string_alias(
             payload,
             "localFileName",

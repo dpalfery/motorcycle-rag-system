@@ -2,6 +2,7 @@ using System.Text.Json;
 using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Application.Features.Ingestion.Mappers;
 
@@ -11,6 +12,8 @@ namespace MotorcycleRAG.Application.Features.Ingestion.Mappers;
 /// </summary>
 public static class IngestionJobStatusMapper
 {
+    private const string NeedsManualMetadataStage = "needs-manual-metadata";
+
     /// <summary>
     /// Maps an <see cref="IngestionJob"/> to its response DTO.
     /// Returns null if the input job is null, satisfying integration test requirements.
@@ -51,6 +54,7 @@ public static class IngestionJobStatusMapper
             CompletedAtUtc = job.CompletedAtUtc,
             InputType = job.InputType.ToString(),
             InputRef = job.InputRef,
+            SourceFileName = job.SourceFileName,
             ComputeProvider = job.ComputeProvider,
             ManualDocumentId = job.ManualDocumentId,
             TotalPages = job.TotalPages,
@@ -62,7 +66,9 @@ public static class IngestionJobStatusMapper
             Coverage = CoverageCalculator.Calculate(job),
             FailureReason = job.ErrorsJson ?? job.FailureReason,
             FailureDetail = job.ErrorsJson,
-            DocIngestionRunId = job.DocIngestionRunId
+            DocIngestionRunId = job.DocIngestionRunId,
+            RequiresManualMetadata = job.Status == IngestionJobStatus.AwaitingMetadata
+                || string.Equals(job.CurrentStage, NeedsManualMetadataStage, StringComparison.OrdinalIgnoreCase)
         };
     }
 }

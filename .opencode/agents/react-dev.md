@@ -1,5 +1,5 @@
 ---
-description: PROACTIVELY use for Frontend development, React coding, client side implementation, and code generation. Expert in feature slice design, MUI with Pigment CSS.
+description: "React UI implementation: components, hooks, client-side state, and MUI (Pigment CSS) styling with feature-slice design. Use for any React frontend — whether served in a browser or hosted in a desktop WebView (e.g. Tauri). Does not handle native or mobile UI, backend services, the desktop/native core, or test authoring."
 mode: subagent
 model: opencode-go/qwen3.7-plus
 permission:

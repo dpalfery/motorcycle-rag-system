@@ -313,6 +313,78 @@ class TestExtract:
 
 
 # ---------------------------------------------------------------------------
+# source_path context (file-path hints forwarded to the LLM)
+# ---------------------------------------------------------------------------
+
+
+class TestSourcePathContext:
+    """The original file path is prepended to the LLM user message verbatim."""
+
+    def test_build_user_content_prepends_path_before_text(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        content = MetadataExtractor._build_user_content(
+            "PAGE TEXT", "/data/manuals/2023/Honda/CBR600RR/service-manual.pdf"
+        )
+        # Path context appears first, page text appears last.
+        assert content.startswith("The original file path is: /data/manuals/2023/Honda/CBR600RR/service-manual.pdf")
+        assert "This path may contain hints about year, make, and model." in content
+        assert content.endswith("PAGE TEXT")
+        # Ordering: path hint must come before the page text so the LLM sees it
+        # as leading context.
+        assert content.index("The original file path is:") < content.index("PAGE TEXT")
+
+    def test_build_user_content_returns_plain_text_when_no_path(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        assert MetadataExtractor._build_user_content("PAGE TEXT", None) == "PAGE TEXT"
+        assert MetadataExtractor._build_user_content("PAGE TEXT", "") == "PAGE TEXT"
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_extract_forwards_source_path_into_user_message(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        _configure_mock_client(MockOpenAI, json.dumps(_FULL_RESULT))
+        path = "/data/manuals/2023/Honda/CBR600RR/service-manual.pdf"
+
+        extractor = MetadataExtractor()
+        await extractor.extract(_TEN_PAGES, source_path=path)
+
+        create = MockOpenAI.return_value.chat.completions.create
+        create.assert_awaited_once()
+        messages = create.await_args.kwargs["messages"]
+        user_content = messages[1]["content"]
+        assert user_content.startswith(f"The original file path is: {path}")
+        assert "This path may contain hints about year, make, and model." in user_content
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_extract_without_source_path_sends_plain_text(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        _configure_mock_client(MockOpenAI, json.dumps(_FULL_RESULT))
+
+        extractor = MetadataExtractor()
+        await extractor.extract(_TEN_PAGES)
+
+        create = MockOpenAI.return_value.chat.completions.create
+        user_content = create.await_args.kwargs["messages"][1]["content"]
+        # No path-context preamble when source_path is omitted.
+        assert "The original file path is:" not in user_content
+        assert user_content.startswith("Page 1 content")
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_extract_empty_pages_with_source_path_skips_llm(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract([], source_path="/any/path.pdf")
+
+        assert result["fill_rate"] == 0.0
+        assert result["pages_sampled"] == 0
+        MockOpenAI.return_value.chat.completions.create.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # MetadataResult schema bridge
 # ---------------------------------------------------------------------------
 

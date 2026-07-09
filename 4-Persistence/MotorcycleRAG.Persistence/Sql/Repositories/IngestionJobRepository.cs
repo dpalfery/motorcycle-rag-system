@@ -35,7 +35,7 @@ public class IngestionJobRepository : IIngestionJobRepository
 
     private const string IngestionJobColumnsWithSqlId = @"
                 [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef], [SourceFileName],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -44,7 +44,7 @@ public class IngestionJobRepository : IIngestionJobRepository
 
     private const string IngestionJobColumnsWithoutSqlId = @"
                 CAST(0 AS BIGINT) AS [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef], [SourceFileName],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -96,7 +96,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         const string insertSqlWithSqlId = @"
             INSERT INTO [dbo].[IngestionJobs] (
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef], [SourceFileName],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -106,7 +106,7 @@ public class IngestionJobRepository : IIngestionJobRepository
             OUTPUT INSERTED.[Id]
             VALUES (
                 @IngestionJobId, @CreatedAtUtc, @StartedAtUtc, @CompletedAtUtc,
-                @CreatedBySubject, @Status, @FailureReason, @ErrorsJson, @ErrorMessage, @InputType, @InputRef,
+                @CreatedBySubject, @Status, @FailureReason, @ErrorsJson, @ErrorMessage, @InputType, @InputRef, @SourceFileName,
                 @ComputeProvider, @DocIngestionRunId, @ManualDocumentId,
                 @TotalPages, @PagesCapturedViewableCount, @PagesWithSearchableTextCount,
                 @PagesWithOcrTextCount, @PagesWithNativeTextCount,
@@ -118,7 +118,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         const string insertSqlWithoutSqlId = @"
             INSERT INTO [dbo].[IngestionJobs] (
                 [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
-                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef],
+                [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef], [SourceFileName],
                 [ComputeProvider], [DocIngestionRunId], [ManualDocumentId],
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
@@ -127,7 +127,7 @@ public class IngestionJobRepository : IIngestionJobRepository
             )
             VALUES (
                 @IngestionJobId, @CreatedAtUtc, @StartedAtUtc, @CompletedAtUtc,
-                @CreatedBySubject, @Status, @FailureReason, @ErrorsJson, @ErrorMessage, @InputType, @InputRef,
+                @CreatedBySubject, @Status, @FailureReason, @ErrorsJson, @ErrorMessage, @InputType, @InputRef, @SourceFileName,
                 @ComputeProvider, @DocIngestionRunId, @ManualDocumentId,
                 @TotalPages, @PagesCapturedViewableCount, @PagesWithSearchableTextCount,
                 @PagesWithOcrTextCount, @PagesWithNativeTextCount,
@@ -152,6 +152,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 job.ErrorMessage,
                 InputType = job.InputType.ToString(),
                 job.InputRef,
+                job.SourceFileName,
                 job.ComputeProvider,
                 job.DocIngestionRunId,
                 job.ManualDocumentId,
@@ -227,6 +228,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [ErrorMessage] = @ErrorMessage,
                 [InputType] = @InputType,
                 [InputRef] = @InputRef,
+                [SourceFileName] = @SourceFileName,
                 [ComputeProvider] = @ComputeProvider,
                 [DocIngestionRunId] = @DocIngestionRunId,
                 [ManualDocumentId] = @ManualDocumentId,
@@ -259,6 +261,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 job.ErrorMessage,
                 InputType = job.InputType.ToString(),
                 job.InputRef,
+                job.SourceFileName,
                 job.ComputeProvider,
                 job.DocIngestionRunId,
                 job.ManualDocumentId,

@@ -119,6 +119,39 @@ def _merge_metadata(base: Any, extracted: dict[str, Any]) -> SimpleNamespace:
     )
 
 
+def _resolve_source_file_name(
+    source_file_name: str | None,
+    source_path: str | None,
+    upload_id: str,
+) -> str:
+    """Resolve the display name for a chunk's ``sourceFile`` field.
+
+    Search results show this value so users can see which manual a chunk came
+    from (e.g. "2023 Honda CBR600RR Service Manual.pdf"). Prefers the explicit
+    basename from the watch-folder manifest (``source_file_name``), then the
+    basename of the original file path (``source_path``), and finally falls
+    back to the opaque ``upload_id`` so older/API-direct ingest paths keep
+    working. Only the basename is ever used — never a directory path.
+
+    Args:
+        source_file_name: Basename from the watch-folder manifest, if any.
+        source_path: Original uploader file path, if any.
+        upload_id: Opaque upload identifier used as the last-resort fallback.
+
+    Returns:
+        The resolved source file name (always a bare filename or upload_id).
+    """
+    if source_file_name:
+        base = os.path.basename(source_file_name).strip()
+        if base:
+            return base
+    if source_path:
+        base = os.path.basename(source_path).strip()
+        if base:
+            return base
+    return upload_id
+
+
 class PDFProcessor:
     def __init__(
         self,
@@ -143,12 +176,25 @@ class PDFProcessor:
         source_access_token: str | None = None,
         local_file_path: str | None = None,
         job_id: str | None = None,
+        source_path: str | None = None,
+        source_file_name: str | None = None,
     ) -> str:
         """Returns job_id immediately, fires background task via asyncio.create_task.
 
         If called with a ``job_id`` whose job is currently paused awaiting manual
         metadata, the job is resumed: parsing re-runs and chunking proceeds with
         the supplied (manual) metadata, skipping the LLM extraction stage.
+
+        Args:
+            source_path: Optional original file path of the source document. It
+                is forwarded to the metadata extractor as leading LLM context
+                (directory names often encode year/make/model). Not used for
+                file IO; that is ``local_file_path``.
+            source_file_name: Optional basename of the original source file
+                (e.g. "2023 Honda CBR600RR Service Manual.pdf"). Written to each
+                chunk's ``sourceFile`` field so search results can show which
+                manual a result came from. When omitted the basename of
+                ``source_path`` is used, falling back to ``upload_id``.
         """
         job_id = job_id or str(uuid.uuid4())
         existing = _jobs.get(job_id)
@@ -186,6 +232,8 @@ class PDFProcessor:
                 source_access_token,
                 local_file_path,
                 is_resume=is_resume,
+                source_path=source_path,
+                source_file_name=source_file_name,
             )
         )
         _tasks[job_id] = task
@@ -425,6 +473,8 @@ class PDFProcessor:
         source_access_token: str | None = None,
         local_file_path: str | None = None,
         is_resume: bool = False,
+        source_path: str | None = None,
+        source_file_name: str | None = None,
     ) -> None:
         """Background coroutine that downloads, chunks, embeds, extracts, and uploads.
 
@@ -441,7 +491,7 @@ class PDFProcessor:
             # ── Stage 0: Copying ──────────────────────────────
             self._set_stage(job_id, "copying", "Preparing source PDF", 0.0)
 
-            source_path = await self._resolve_source_pdf_path(
+            pdf_file_path = await self._resolve_source_pdf_path(
                 upload_id,
                 document_type,
                 blob_container,
@@ -454,7 +504,7 @@ class PDFProcessor:
             self._set_stage(job_id, "parsing", "Converting PDF with Docling", 0.05)
 
             converter = DocumentConverter()
-            result = await asyncio.to_thread(converter.convert, str(source_path))
+            result = await asyncio.to_thread(converter.convert, str(pdf_file_path))
             self._raise_if_cancelled(job_id)
             logger.info(
                 "PDF job Docling conversion completed job_id=%s upload_id=%s",
@@ -478,7 +528,7 @@ class PDFProcessor:
                 )
                 page_texts = self._extract_page_texts(result.document)
                 metadata_result = await self._metadata_extractor.extract(
-                    page_texts, job_id=job_id
+                    page_texts, job_id=job_id, source_path=source_path
                 )
                 self._raise_if_cancelled(job_id)
 
@@ -538,6 +588,12 @@ class PDFProcessor:
                 return
 
             # ── Stage 4: Embedding ────────────────────────────
+            # Resolve the human-readable source file name once so every chunk
+            # carries the original filename (e.g. "2023 Honda CBR600RR Service
+            # Manual.pdf") instead of the opaque upload_id.
+            resolved_source_file = _resolve_source_file_name(
+                source_file_name, source_path, upload_id
+            )
             records: list[dict[str, Any]] = []
             for i, chunk in enumerate(chunks):
                 self._raise_if_cancelled(job_id)
@@ -578,7 +634,7 @@ class PDFProcessor:
                     "make": make,
                     "model": model,
                     "year": year,
-                    "sourceFile": upload_id,
+                    "sourceFile": resolved_source_file,
                     "section": headings[0] if headings else "",
                     "pageNumber": page_no,
                     "pageRange": str(page_no) if page_no else "0",

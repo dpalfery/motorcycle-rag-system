@@ -1,13 +1,20 @@
 """Unit tests for PDFProcessor — Docling, Ollama, and Azure Blob all mocked."""
 
 import asyncio
+import json
 import uuid
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
-from processors.pdf_processor import PDFProcessor, _jobs, _tasks
+from processors.pdf_processor import (
+    PDFProcessor,
+    _jobs,
+    _resolve_source_file_name,
+    _tasks,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -461,6 +468,64 @@ class TestMetadataExtraction:
     @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
+    async def test_source_path_forwarded_to_metadata_extractor(
+        self, MockConverter, MockChunker, MockGetTokenizer,
+        processor, metadata_extractor, metadata,
+    ):
+        """source_path is threaded through to MetadataExtractor.extract()."""
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1"), _make_chunk("Chunk 2", page_no=2)]
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        source_path = "/data/manuals/2023/Honda/CBR600RR/service-manual.pdf"
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-source-path",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+            source_path=source_path,
+        )
+
+        await _wait_for_terminal_status(processor, job_id)
+
+        metadata_extractor.extract.assert_awaited_once()
+        assert metadata_extractor.extract.await_args.kwargs["source_path"] == source_path
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_source_path_defaults_to_none_when_omitted(
+        self, MockConverter, MockChunker, MockGetTokenizer,
+        processor, metadata_extractor, metadata,
+    ):
+        """Omitting source_path forwards None to the extractor (no KeyError)."""
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1")]
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-no-source-path",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+
+        await _wait_for_terminal_status(processor, job_id)
+
+        metadata_extractor.extract.assert_awaited_once()
+        assert metadata_extractor.extract.await_args.kwargs["source_path"] is None
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
     async def test_pauses_at_needs_manual_metadata_when_fill_rate_low(
         self, MockConverter, MockChunker, MockGetTokenizer,
         processor, metadata_extractor, api_client, metadata,
@@ -578,7 +643,7 @@ class TestExtractPageTexts:
     documents and per-page export failures.
     """
 
-    def _make_doc(self, pages: dict, export_side_effect=None):
+    def _make_doc(self, pages: dict[int, Any], export_side_effect=None):
         """Build a fake Docling document.
 
         Args:
@@ -668,3 +733,155 @@ class TestExtractPageTexts:
 
         result = processor._extract_page_texts(doc)
         assert result == ["page 2 text"]
+
+
+def _uploaded_search_chunks(api_client) -> list[dict[str, Any]]:
+    """Extract the chunk records uploaded as search-chunks NDJSON.
+
+    Returns the list of parsed JSON objects from the ``search-chunks``
+    ``upload_artifact`` call, raising if that call never happened.
+    """
+    calls = [
+        c for c in api_client.upload_artifact.await_args_list
+        if len(c.args) >= 3 and c.args[2] == "search-chunks"
+    ]
+    assert calls, "Expected a search-chunks upload_artifact call"
+    payload = calls[-1].args[0]
+    if isinstance(payload, (bytes, bytearray)):
+        payload = payload.decode("utf-8")
+    return [json.loads(line) for line in payload.splitlines() if line.strip()]
+
+
+class TestResolveSourceFileName:
+    """Unit tests for the _resolve_source_file_name helper.
+
+    Covers the basename-only guarantee and the three-tier fallback:
+    source_file_name -> basename(source_path) -> upload_id.
+    """
+
+    def test_uses_explicit_source_file_name(self):
+        assert _resolve_source_file_name(
+            "2023 Honda CBR600RR Service Manual.pdf", None, "upload-1"
+        ) == "2023 Honda CBR600RR Service Manual.pdf"
+
+    def test_strips_directory_from_source_file_name(self):
+        """A full path in source_file_name is reduced to its basename."""
+        assert _resolve_source_file_name(
+            "/data/manuals/service-manual.pdf", None, "upload-1"
+        ) == "service-manual.pdf"
+
+    def test_blank_source_file_name_falls_back_to_source_path_basename(self):
+        assert _resolve_source_file_name(
+            "   ", "/data/manuals/2023/Honda/CBR600RR/manual.pdf", "upload-1"
+        ) == "manual.pdf"
+
+    def test_falls_back_to_source_path_basename(self):
+        assert _resolve_source_file_name(
+            None, "/data/manuals/2023/Honda/CBR600RR/manual.pdf", "upload-1"
+        ) == "manual.pdf"
+
+    def test_uses_only_basename_of_source_path(self):
+        """The directory portion of source_path is never included."""
+        resolved = _resolve_source_file_name(None, "/a/b/c/doc.pdf", "upload-1")
+        assert resolved == "doc.pdf"
+        assert "/" not in resolved
+
+    def test_falls_back_to_upload_id_when_neither_given(self):
+        assert _resolve_source_file_name(None, None, "upload-1") == "upload-1"
+
+    def test_falls_back_to_upload_id_when_both_blank(self):
+        assert _resolve_source_file_name("   ", "   ", "upload-1") == "upload-1"
+
+    def test_source_file_name_takes_precedence_over_source_path(self):
+        assert _resolve_source_file_name(
+            "explicit.pdf", "/other/path.pdf", "upload-1"
+        ) == "explicit.pdf"
+
+
+class TestChunkSourceFileField:
+    """Integration tests verifying the chunk ``sourceFile`` wire field."""
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_source_file_name_written_to_chunks(
+        self, MockConverter, MockChunker, MockGetTokenizer,
+        processor, metadata_extractor, api_client, metadata,
+    ):
+        """The manifest basename appears in every chunk's sourceFile."""
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1"), _make_chunk("Chunk 2", page_no=2)]
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-src-name",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+            source_file_name="2023 Honda CBR600RR Service Manual.pdf",
+        )
+
+        await _wait_for_terminal_status(processor, job_id)
+        records = _uploaded_search_chunks(api_client)
+        assert len(records) == 2
+        for record in records:
+            assert record["sourceFile"] == "2023 Honda CBR600RR Service Manual.pdf"
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_source_path_basename_used_when_no_explicit_name(
+        self, MockConverter, MockChunker, MockGetTokenizer,
+        processor, metadata_extractor, api_client, metadata,
+    ):
+        """Falls back to basename(source_path) when source_file_name is absent."""
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1")]
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-src-path",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+            source_path="/data/manuals/2023/Honda/CBR600RR/manual.pdf",
+        )
+
+        await _wait_for_terminal_status(processor, job_id)
+        records = _uploaded_search_chunks(api_client)
+        assert records[0]["sourceFile"] == "manual.pdf"
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_upload_id_used_when_neither_given(
+        self, MockConverter, MockChunker, MockGetTokenizer,
+        processor, metadata_extractor, api_client, metadata,
+    ):
+        """API-direct ingest (no filename) falls back to upload_id."""
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1")]
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-fallback",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+
+        await _wait_for_terminal_status(processor, job_id)
+        records = _uploaded_search_chunks(api_client)
+        assert records[0]["sourceFile"] == "upload-fallback"

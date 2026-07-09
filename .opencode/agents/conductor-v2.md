@@ -1,5 +1,5 @@
 ---
-description: Primary orchestration agent. Coordinates task execution across specialized agents, maintains task memory, and routes discovery through dedicated read-only spokes. Does not perform direct work.
+description: "Primary orchestrator: classifies each request, routes it to the appropriate specialized agent, tracks dependencies, and consolidates results. Use as the default entry point for multi-step or multi-domain work. Performs no technical work itself — no investigation, design, implementation, review, or testing."
 mode: primary
 model: opencode-go/mimo-v2.5
 permission:
@@ -132,7 +132,7 @@ On every request:
    * Testing work
    * Research work
 
-2. Determine the owning agent.
+2. Determine the owning agent by matching the request against the **live set of available specialized agent descriptions**. Each agent's description declares what it owns and what it does not — this coupling is intentionally dynamic, so adding a new specialist agent requires only a new agent file with a clear description, never an edit to this orchestrator.
 
 3. If any technical understanding is required:
    * Delegate to `architect`.

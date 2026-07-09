@@ -346,7 +346,8 @@ public sealed class IngestionJobService : IIngestionJobService {
             Status = IngestionJobStatus.Queued,
             StartedAtUtc = null,
             ComputeProvider = "AdminLocalProcessor",
-            DocIngestionRunId = request.ProcessorRunId
+            DocIngestionRunId = request.ProcessorRunId,
+            SourceFileName = request.SourceFileName
         };
 
         job = await _repository.CreateAsync(job, ct).ConfigureAwait(false);
@@ -538,6 +539,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             CompletedAtUtc = job.CompletedAtUtc,
             InputType = job.InputType.ToString(),
             InputRef = job.InputRef,
+            SourceFileName = job.SourceFileName,
             ComputeProvider = job.ComputeProvider,
             ManualDocumentId = job.ManualDocumentId,
             TotalPages = job.TotalPages,
@@ -558,7 +560,9 @@ public sealed class IngestionJobService : IIngestionJobService {
             ExpectedChunkCount = job.ExpectedChunkCount,
             IndexedChunkCount = job.IndexedChunkCount,
             CurrentStage = job.CurrentStage,
-            StageSetAtUtc = job.StageSetAtUtc
+            StageSetAtUtc = job.StageSetAtUtc,
+            RequiresManualMetadata = job.Status == IngestionJobStatus.AwaitingMetadata
+                || string.Equals(job.CurrentStage, NeedsManualMetadataStage, StringComparison.OrdinalIgnoreCase)
         };
     }
 

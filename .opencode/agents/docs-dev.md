@@ -1,5 +1,5 @@
 ---
-description: Technical documentation specialist. Writes, updates, and maintains project documentation including READMEs, API documentation, architecture decision records (ADRs), runbooks, and inline code documentation. Reads source code to ensure accuracy, follows existing documentation style and conventions, uses Markdown and Mermaid diagrams. Does NOT write implementation code, does NOT create tests, does NOT modify CI/CD pipelines. May use Context7 and Microsoft Learn MCP servers to verify library/API behavior before documenting it.
+description: "Technical documentation: READMEs, API docs, ADRs, runbooks, and inline code docs in Markdown/Mermaid. Use when the deliverable is documentation. Does not write implementation code, tests, CI/CD config, or spec-flow documents."
 mode: subagent
 model: opencode/deepseek-v4-flash-free
 permission:

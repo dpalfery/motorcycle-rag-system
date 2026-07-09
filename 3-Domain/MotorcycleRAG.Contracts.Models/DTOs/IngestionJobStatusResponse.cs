@@ -14,6 +14,11 @@ public sealed record IngestionJobStatusResponse
     public DateTimeOffset? CompletedAtUtc { get; init; }
     public string InputType { get; init; } = string.Empty;
     public string InputRef { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Original filename of the uploaded document, if provided when the job was started.
+    /// </summary>
+    public string? SourceFileName { get; init; }
     public string? ComputeProvider { get; init; }
     public Guid? ManualDocumentId { get; init; }
     public int? TotalPages { get; init; }
@@ -33,5 +38,11 @@ public sealed record IngestionJobStatusResponse
     public int? IndexedChunkCount { get; init; }
     public string? CurrentStage { get; init; }
     public DateTimeOffset? StageSetAtUtc { get; init; }
+    /// <summary>
+    /// Indicates the job is paused awaiting manually-entered metadata. True when the job
+    /// status is <c>AwaitingMetadata</c> or the current stage is <c>needs-manual-metadata</c>.
+    /// Replaces fragile client-side substring sniffing of <see cref="FailureReason"/>.
+    /// </summary>
+    public bool RequiresManualMetadata { get; init; }
     public string? StatusUrl { get; init; }
 }

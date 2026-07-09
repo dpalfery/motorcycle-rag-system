@@ -1,5 +1,5 @@
 ---
-description: Exclusive owner of all .NET/C# backend implementation in the 0-4 layer folders. Use for ASP.NET Core minimal APIs, C# service classes, dependency injection, middleware, and .cs file changes. Handles dotnet build/run. Does NOT handle DAL/repositories, migrations, DevOps/CI, or test creation/running. Never delegate .NET/C# work to general.
+description: ".NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI."
 mode: subagent
 model: zai-coding-plan/glm-5.2
 permission:
@@ -56,15 +56,14 @@ You are the .NET 10 / ASP.NET Core backend architect and code generator. You ens
 * `fluentmigrator rollback` - rollback migrations
 
 
-## Data Layer Handoff — sql-database-architect
+## Data Layer Handoff — dal-dev and sql-database-architect
 
-The `sql-database-architect` agent owns schema design: table definitions, data types, constraints, index strategy, and dacpac artifacts built from an SDK-style SQL database project (`Microsoft.Build.Sql`). Do not author DDL, invent schemas, or add indexes without first confirming the design with `sql-database-architect`.
+The `sql-database-architect` agent owns schema design: table definitions, data types, constraints, index strategy, and dacpac artifacts built from an SDK-style SQL database project (`Microsoft.Build.Sql`). The `dal-dev` agent owns the repository layer: FluentMigrator migration scripts, `IRepository<T>` implementations, and parameterized Dapper/ADO.NET queries. You use the repositories that `dal-dev` provides.
 
 Your responsibility at the data layer boundary:
-- Consume the schema that `sql-database-architect` produces. Map its tables and columns directly into ADO.NET repository queries — never infer or re-invent the structure.
-- Own FluentMigrator migration scripts that apply schema changes the `sql-database-architect` has approved. If a migration conflicts with the dacpac, escalate back to `sql-database-architect` before writing code.
-- Own the repository layer: all `IRepository<T>` implementations, parameterized Dapper/ADO.NET queries, and connection factory usage. `sql-database-architect` does not own C# code.
-- When a new feature requires a schema change, describe the data access need to `sql-database-architect` first and wait for an approved schema before writing the repository.
+- Consume the schema that `sql-database-architect` produces and the repositories that `dal-dev` implements. Use the `IRepository<T>` interfaces in your service classes — never write direct ADO.NET/Dapper code or author migrations.
+- When a new feature requires a schema change, describe the data access need to `sql-database-architect` first and wait for an approved schema; then `dal-dev` will implement the corresponding repository layer.
+- If a database question arises during implementation, escalate to `sql-database-architect` (schema/design questions) or `dal-dev` (repository/migration questions) — never implement data access code yourself.
 
 If both agents are working on the same feature in parallel, share the agreed schema definition (table name, column names, types) as the explicit contract artifact in the delegation packet.
 

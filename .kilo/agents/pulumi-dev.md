@@ -1,5 +1,5 @@
 ---
-description: Use for Pulumi-based Azure infrastructure as code in C#. Expert in Azure Native, stack design, reusable components, and safe Pulumi workflows.
+description: Azure infrastructure-as-code in C# with Pulumi (Azure Native): stack design, reusable components, safe preview/apply workflows. Use to provision or modify Azure infrastructure. Does not own CI/CD pipelines, investigate live resource state, or design database schemas.
 mode: subagent
 permission:
   external_directory: deny

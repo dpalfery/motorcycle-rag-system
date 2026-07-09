@@ -1,5 +1,5 @@
 ---
-description: Owns the 4-Persistence layer — Dapper repositories, FluentMigrator migrations, and SQL schema consumption. Works from schemas approved by sql-database-architect; delivers IRepository<T> implementations to dotnet-dev.
+description: "Data-access layer implementation with Dapper and FluentMigrator: repository classes, IRepository<T>, and database migrations from an approved schema. Use for data-access code and migrations. Does not design database schemas or write application/domain logic."
 mode: subagent
 model: zai-coding-plan/glm-5.2
 permission:

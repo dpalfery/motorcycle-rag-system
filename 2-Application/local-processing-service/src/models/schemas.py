@@ -27,13 +27,19 @@ class ProcessPDFRequest(BaseModel):
         description='Type of document being processed (e.g., "manual-pdf", "spec-dataset")',
     )
     blob_container: str = Field(..., description="Azure Blob Storage container name")
-    source_access_token: Optional[str] = Field(
+    # AliasChoices accepts both snake_case and camelCase request keys. The field
+    # has a default (None) so it is not actually required; pydantic-mypy cannot
+    # determine this statically with warn_required_dynamic_aliases enabled.
+    source_access_token: Optional[str] = Field(  # type: ignore[pydantic-alias]
         None,
         description="Short-lived API token for downloading the source via the MotorcycleRAG API",
         validation_alias=AliasChoices("source_access_token", "sourceAccessToken"),
     )
     local_file_path: Optional[str] = Field(
         None, description="Absolute path to a local PDF file (skips API source download)"
+    )
+    job_id: Optional[str] = Field(
+        None, description="Existing job ID for resume"
     )
     metadata: Metadata = Field(
         default_factory=Metadata, description="Document metadata"
@@ -180,3 +186,55 @@ class JobStatus(BaseModel):
     pages_processed: Optional[int] = Field(
         None, description="Number of pages processed"
     )
+
+
+class MetadataResult(BaseModel):
+    """Structured result of LLM-based motorcycle metadata extraction.
+
+    Required-field fill rate = count of non-empty required fields
+    (make, model, year, category) / 4. The extractor stops as soon as
+    fill_rate reaches 1.0 or the maximum page sample is consumed.
+    """
+
+    make: Optional[str] = Field(None, description="Motorcycle make/manufacturer")
+    model: Optional[str] = Field(None, description="Motorcycle model")
+    year: int = Field(0, description="Model year (0 if unknown)")
+    category: Optional[str] = Field(
+        None,
+        description="Motorcycle category (e.g., sport, cruiser, touring, naked)",
+    )
+    tags: List[str] = Field(
+        default_factory=list, description="Optional tags extracted from the document"
+    )
+    fill_rate: float = Field(
+        0.0,
+        description="Fraction of required fields filled (make, model, year, category). 0.0-1.0",
+    )
+    pages_sampled: int = Field(
+        0, description="Number of PDF pages sampled to reach this result"
+    )
+
+    @classmethod
+    def from_extraction_dict(cls, data: Dict[str, Any]) -> "MetadataResult":
+        """Build a MetadataResult from the dict returned by MetadataExtractor.extract().
+
+        Args:
+            data: Dict with keys make, model, year, category, tags,
+                fill_rate, pages_sampled (missing keys default to empty).
+
+        Returns:
+            A validated MetadataResult instance.
+        """
+        try:
+            year_val = int(data.get("year", 0) or 0)
+        except (TypeError, ValueError):
+            year_val = 0
+        return cls(
+            make=data.get("make"),
+            model=data.get("model"),
+            year=year_val,
+            category=data.get("category"),
+            tags=data.get("tags") or [],
+            fill_rate=float(data.get("fill_rate", 0.0) or 0.0),
+            pages_sampled=int(data.get("pages_sampled", 0) or 0),
+        )

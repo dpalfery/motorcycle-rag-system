@@ -104,4 +104,39 @@ public interface IIngestionJobService {
         Guid jobId,
         IngestionJobStageRequest request,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Submits manually-entered metadata for a job that is paused in the
+    /// <see cref="IngestionJobStatus.AwaitingMetadata"/> state. Validates the JSON and required
+    /// field completeness, persists it to <see cref="IngestionJob.MetadataJson"/>, transitions
+    /// the job back to <see cref="IngestionJobStatus.Processing"/> via a CAS-guarded update,
+    /// and signals the processor to resume. Handles duplicate submissions idempotently: a
+    /// repeated call while the job is already past <see cref="IngestionJobStatus.AwaitingMetadata"/>
+    /// updates the metadata but does not re-trigger the resume.
+    /// </summary>
+    /// <param name="jobId">The ingestion job identifier.</param>
+    /// <param name="metadataJson">A JSON string with make, model, year, category, and optional tags.</param>
+    /// <param name="userId">The Entra ID subject (sub claim) of the admin submitting the metadata.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The updated job status response.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown when the job is not found.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="metadataJson"/> is not valid JSON, is not a JSON object, or is missing required fields.</exception>
+    Task<IngestionJobStatusResponse> SubmitManualMetadataAsync(
+        Guid jobId,
+        string metadataJson,
+        string userId,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves the current metadata (extracted or manually submitted) for an ingestion job.
+    /// Returns an empty response with <c>IsComplete = false</c> when no metadata has been recorded.
+    /// </summary>
+    /// <param name="jobId">The ingestion job identifier.</param>
+    /// <param name="userId">The Entra ID subject (sub claim) of the admin viewing the metadata (for audit logging).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The metadata response, or null when the job does not exist.</returns>
+    Task<IngestionJobMetadataResponse?> GetJobMetadataAsync(
+        Guid jobId,
+        string userId,
+        CancellationToken ct = default);
 }

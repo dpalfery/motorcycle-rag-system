@@ -1,6 +1,6 @@
-import { Fragment, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
+import { RefreshCw, RotateCcw, Trash2, X, CheckCircle2 } from "lucide-react";
 import axios from "axios";
 import { api } from "@/lib/apiClient";
 import { formatAdminError } from "@/lib/adminError";
@@ -8,9 +8,11 @@ import { useConfig } from "@/lib/config";
 import { isMissingProcessorJobError, processor } from "@/lib/processor";
 import { Button, PageHeader, Empty } from "@/components/ui";
 import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
+import ManualMetadataModal from "@/components/ManualMetadataModal";
 import {
   filterSupersededIngestionJobs,
   formatIngestionJobLabel,
+  isAwaitingMetadata,
   isIngestionFailed,
   isLocalProcessorJob,
   markIngestionJobRetrying,
@@ -18,6 +20,11 @@ import {
   type IngestionJobStatus,
   updateIngestionJobInList,
 } from "@/lib/ingestionJob";
+import {
+  getJobMetadata,
+  metadataResponseToJson,
+  submitManualMetadata,
+} from "@/lib/metadataApi";
 import { cn, formatLocalDateTime, parseUtcIso } from "@/lib/utils";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -31,6 +38,7 @@ const STATUS_COLOR: Record<string, string> = {
   processing:  "bg-primary/15 text-primary",
   queued:      "bg-warning/15 text-warning",
   pending:     "bg-warning/15 text-warning",
+  awaitingmetadata: "bg-warning/15 text-warning",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -206,6 +214,60 @@ export default function JobsScreen() {
     ["processing", "queued", "pending"].includes(j.status.toLowerCase())
   ).length;
 
+  // --- Manual metadata flow (Phase 4) ---
+  // The first job in an awaiting-metadata state drives the modal. `closedMetadataJobId`
+  // remembers a job the admin dismissed (or just submitted) so the modal does not re-open
+  // on the next 15s poll. A different job id clears the dismissal automatically.
+  const awaitingMetadataJob = useMemo(
+    () => jobList.find((j) => isAwaitingMetadata(j)),
+    [jobList],
+  );
+  const [closedMetadataJobId, setClosedMetadataJobId] = useState<string | null>(null);
+  const [metadataSuccess, setMetadataSuccess] = useState<string | null>(null);
+  const showMetadataModal =
+    !!awaitingMetadataJob && awaitingMetadataJob.jobId !== closedMetadataJobId;
+
+  const metadataQuery = useQuery({
+    queryKey: ["ingestion", "job-metadata", awaitingMetadataJob?.jobId],
+    queryFn: () => getJobMetadata(awaitingMetadataJob!.jobId),
+    enabled: showMetadataModal,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  const initialMetadata = useMemo(
+    () => (metadataQuery.data ? metadataResponseToJson(metadataQuery.data) : undefined),
+    [metadataQuery.data],
+  );
+
+  const handleSubmitMetadata = useCallback(
+    async (metadataJson: string) => {
+      const job = awaitingMetadataJob;
+      if (!job) throw new Error("No job is awaiting metadata.");
+
+      try {
+        await submitManualMetadata(job.jobId, metadataJson);
+      } catch (err) {
+        // Re-throw a formatted message so the modal can display it inline and stay open.
+        throw new Error(
+          formatAdminError(err, {
+            action: "Submitting manual metadata",
+            kind: "cloud-api",
+            apiBaseUrl,
+          }),
+        );
+      }
+
+      // Success: close the modal immediately, notify the user, and refresh the jobs list.
+      setClosedMetadataJobId(job.jobId);
+      setMetadataSuccess("Metadata submitted. Pipeline resuming.");
+      void qc.invalidateQueries({ queryKey: ["jobs"] });
+      void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
+      void qc.invalidateQueries({ queryKey: ["ingestion", "job-metadata"] });
+    },
+    [awaitingMetadataJob, apiBaseUrl, qc],
+  );
+
   return (
     <div>
       <PageHeader
@@ -224,6 +286,19 @@ export default function JobsScreen() {
           <button
             className="shrink-0 rounded p-0.5 text-danger hover:bg-danger/20"
             onClick={() => setDeleteError(null)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {metadataSuccess && (
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{metadataSuccess}</span>
+          <button
+            className="shrink-0 rounded p-0.5 text-success hover:bg-success/20"
+            onClick={() => setMetadataSuccess(null)}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -308,10 +383,20 @@ export default function JobsScreen() {
                   </tr>
                 </Fragment>
               ))}
-            </tbody>
+             </tbody>
           </table>
         )}
       </div>
+
+      {awaitingMetadataJob && (
+        <ManualMetadataModal
+          isOpen={showMetadataModal}
+          jobId={awaitingMetadataJob.jobId}
+          initialMetadata={initialMetadata}
+          onSubmit={handleSubmitMetadata}
+          onClose={() => setClosedMetadataJobId(awaitingMetadataJob.jobId)}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 # FastAPI Application for Motorcycle RAG Local Processing Service
+# ruff: noqa: E402 — app entry point manipulates sys.path before local imports
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.responses import JSONResponse
@@ -12,6 +13,7 @@ import logging.handlers
 import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 from dotenv import load_dotenv
 
 load_dotenv()  # Load .env file if present — no-op when env vars already set (production)
@@ -48,8 +50,8 @@ def _configure_logging() -> None:
         if getattr(handler, "_local_processor_handler", False):
             root.removeHandler(handler)
             handler.close()
-    console_handler._local_processor_handler = True
-    file_handler._local_processor_handler = True
+    console_handler._local_processor_handler = True  # type: ignore[attr-defined]
+    file_handler._local_processor_handler = True  # type: ignore[attr-defined]
     root.addHandler(console_handler)
     root.addHandler(file_handler)
 
@@ -68,6 +70,7 @@ from embeddings.embedder_factory import get_embedder
 from embeddings.model_discovery import ModelDiscoveryError, discover_embedding_models
 from embeddings.tokenizer_provider import describe_chunker_tokenizer
 from extraction.graph_extractor import GraphExtractor
+from extraction.metadata_extractor import MetadataExtractor
 from storage.blob_writer import BlobWriter
 from api.api_client import ApiClient
 from models.schemas import (
@@ -110,10 +113,15 @@ blob_writer = BlobWriter()
 api_client = ApiClient()
 embedder = get_embedder()
 graph_extractor = GraphExtractor()
+metadata_extractor = MetadataExtractor()
 
 # Initialize processors
 pdf_processor = PDFProcessor(
-    blob_writer=blob_writer, embedder=embedder, graph_extractor=graph_extractor, api_client=api_client
+    blob_writer=blob_writer,
+    embedder=embedder,
+    graph_extractor=graph_extractor,
+    metadata_extractor=metadata_extractor,
+    api_client=api_client,
 )
 
 csv_processor = CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
@@ -122,8 +130,8 @@ bike_graph_processor = BikeGraphProcessor(blob_writer=blob_writer, api_client=ap
 shutdown_requested = False
 uvicorn_server: uvicorn.Server | None = None
 watch_folder_worker: WatchFolderWorker | None = None
-_ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
-_last_health_log_signature: tuple | None = None
+_ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress", "awaiting-metadata"}
+_last_health_log_signature: tuple[Any, ...] | None = None
 
 
 async def _start_watch_folder_worker() -> None:
@@ -145,8 +153,8 @@ async def _stop_watch_folder_worker() -> None:
         await watch_folder_worker.stop()
 
 
-async def _list_all_jobs() -> list[dict]:
-    jobs: list[dict] = []
+async def _list_all_jobs() -> list[dict[str, Any]]:
+    jobs: list[dict[str, Any]] = []
     jobs.extend(await pdf_processor.list_jobs())
     jobs.extend(await csv_processor.list_jobs())
     jobs.extend(await bike_graph_processor.list_jobs())
@@ -215,7 +223,7 @@ def _build_health_response(
         )
         status_code = 503
         status = "unhealthy"
-        signature = (
+        signature: tuple[Any, ...] = (
             status,
             embedding_provider_status,
             blob_storage_connected,
@@ -409,7 +417,7 @@ async def health_check():
             embedding_provider_status=embedding_provider_status,
             active_jobs=active_jobs,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Health check failed")
         return JSONResponse(
             content={
@@ -503,6 +511,7 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
             metadata=request.metadata,
             source_access_token=request.source_access_token,
             local_file_path=local_file_path,
+            job_id=request.job_id,
         )
         logger.info(
             "PDF processing job accepted job_id=%s upload_id=%s document_type=%s",
@@ -520,7 +529,7 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in /process/pdf")
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred"
@@ -564,7 +573,7 @@ async def process_csv(request: ProcessCSVRequest, background_tasks: BackgroundTa
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in /process/csv")
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred"
@@ -613,7 +622,7 @@ async def process_bike_graph(request: ProcessBikeGraphRequest, background_tasks:
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in /process/bike-graph")
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
@@ -649,7 +658,7 @@ async def get_job_status(job_id: str):
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error in /jobs/{job_id}")
         raise HTTPException(
             status_code=500, detail="An unexpected error occurred"

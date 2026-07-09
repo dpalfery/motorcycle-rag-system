@@ -597,6 +597,178 @@ public sealed class IngestionJobsControllerTests
             Times.Once);
     }
 
+    // === POST /api/ingestion/jobs/{jobId}/metadata ===
+
+    [Fact]
+    public async Task SubmitManualMetadataAsync_HappyPath_ReturnsOkWithJobStatus() {
+        var jobId = Guid.NewGuid();
+        var metadataJson = """{"make":"Honda","model":"CBR600RR","year":2023,"category":"sport"}""";
+        var expected = new IngestionJobStatusResponse { JobId = jobId, Status = "Processing" };
+
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(s => s.SubmitManualMetadataAsync(jobId, metadataJson, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.SubmitManualMetadataAsync(jobId, new ManualMetadataSubmitRequest { MetadataJson = metadataJson }, CancellationToken.None);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(expected);
+
+        ingestionJobs.Verify(
+            s => s.SubmitManualMetadataAsync(jobId, metadataJson, "test-user", It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitManualMetadataAsync_NullBody_ReturnsBadRequest() {
+        var sut = CreateController(Mock.Of<IBlobStorageService>());
+
+        var result = await sut.SubmitManualMetadataAsync(Guid.NewGuid(), null, CancellationToken.None);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var problem = badRequest.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task SubmitManualMetadataAsync_EmptyMetadataJson_ReturnsBadRequest() {
+        var sut = CreateController(Mock.Of<IBlobStorageService>());
+
+        var result = await sut.SubmitManualMetadataAsync(
+            Guid.NewGuid(),
+            new ManualMetadataSubmitRequest { MetadataJson = "   " },
+            CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task SubmitManualMetadataAsync_JobNotFound_ReturnsNotFound() {
+        // H1: KeyNotFoundException → 404 (not InvalidOperationException → 500).
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(s => s.SubmitManualMetadataAsync(jobId, It.IsAny<string>(), "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new KeyNotFoundException($"Ingestion job '{jobId}' not found."));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.SubmitManualMetadataAsync(
+            jobId,
+            new ManualMetadataSubmitRequest { MetadataJson = """{"make":"a","model":"b","year":1,"category":"c"}""" },
+            CancellationToken.None);
+
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        var problem = notFound.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task SubmitManualMetadataAsync_InvalidJson_ReturnsBadRequest() {
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(s => s.SubmitManualMetadataAsync(jobId, It.IsAny<string>(), "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ArgumentException("metadataJson is not valid JSON."));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.SubmitManualMetadataAsync(
+            jobId,
+            new ManualMetadataSubmitRequest { MetadataJson = "{bad" },
+            CancellationToken.None);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var problem = badRequest.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task SubmitManualMetadataAsync_DbFailure_ThrowsInvalidOperationException_NotMappedTo404() {
+        // H1: DB failures (InvalidOperationException) must NOT map to 404 — they propagate as 500.
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(s => s.SubmitManualMetadataAsync(jobId, It.IsAny<string>(), "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Failed to update metadata"));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var act = () => sut.SubmitManualMetadataAsync(
+            jobId,
+            new ManualMetadataSubmitRequest { MetadataJson = """{"make":"a","model":"b","year":1,"category":"c"}""" },
+            CancellationToken.None);
+
+        // InvalidOperationException is NOT caught by the controller — it propagates to the
+        // global exception handler which returns 500. This is the H1 fix.
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    // === GET /api/ingestion/jobs/{jobId}/metadata ===
+
+    [Fact]
+    public async Task GetJobMetadataAsync_HappyPath_ReturnsOkWithMetadata() {
+        var jobId = Guid.NewGuid();
+        var expected = new IngestionJobMetadataResponse {
+            JobId = jobId,
+            Make = "Honda",
+            Model = "CBR600RR",
+            Year = 2023,
+            Category = "sport",
+            IsComplete = true,
+            FillRate = 1.0
+        };
+
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(s => s.GetJobMetadataAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.GetJobMetadataAsync(jobId, CancellationToken.None);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(expected);
+    }
+
+    [Fact]
+    public async Task GetJobMetadataAsync_JobNotFound_ReturnsNotFound() {
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(s => s.GetJobMetadataAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IngestionJobMetadataResponse?)null);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.GetJobMetadataAsync(jobId, CancellationToken.None);
+
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        var problem = notFound.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Status.Should().Be(StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task GetJobMetadataAsync_DbFailure_ReturnsInternalServerError() {
+        // DB failures (InvalidOperationException) must surface as 500, not 404.
+        var jobId = Guid.NewGuid();
+        var ingestionJobs = new Mock<IIngestionJobService>();
+        ingestionJobs
+            .Setup(s => s.GetJobMetadataAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("DB connection failed"));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), ingestionJobs.Object);
+
+        var result = await sut.GetJobMetadataAsync(jobId, CancellationToken.None);
+
+        var serverError = result.Should().BeOfType<ObjectResult>().Subject;
+        serverError.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
     private static IngestionJobsController CreateController(
         IBlobStorageService blobStorageService,
         IIngestionJobService? ingestionJobService = null,

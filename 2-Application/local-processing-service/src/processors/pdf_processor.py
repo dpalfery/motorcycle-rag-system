@@ -6,25 +6,35 @@ import logging
 import os
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from datetime import datetime, timezone
 
-from docling.chunking import HybridChunker
+# HybridChunker is re-exported through ``docling.chunking``, but that shim uses
+# bare ``from X import Y`` re-exports which type checkers (Pyright/Pylance) treat
+# as private side-effect imports, producing a "cannot resolve" / reportPrivateImportUsage
+# warning. Import from the canonical docling_core path instead — same class, resolvable.
 from docling.document_converter import DocumentConverter
+from docling_core.transforms.chunker.doc_chunk import DocMeta
+from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
 
-from typing import Any
+from typing import Any, cast
 from api.api_client import ApiClient
 from embeddings.tokenizer_provider import get_pdf_chunker_tokenizer
 from extraction.graph_extractor import GraphExtractor
+from extraction.metadata_extractor import MetadataExtractor
 from storage.blob_writer import BlobWriter
 
 logger = logging.getLogger(__name__)
-_ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
+# "awaiting-metadata" is a non-terminal pause state (job paused for manual
+# metadata entry) and must be preserved by clear_terminal_jobs().
+_ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress", "awaiting-metadata"}
 
 PDF_CHUNKER_MAX_TOKENS = int(os.getenv("PDF_CHUNKER_MAX_TOKENS", "512"))
 
 PIPELINE_STAGES = [
     "copying",
     "parsing",
+    "extracting-metadata",
     "chunking",
     "embedding",
     "uploading-chunks",
@@ -33,11 +43,11 @@ PIPELINE_STAGES = [
     "completed",
 ]
 
-_jobs: dict[str, dict] = {}
-_tasks: dict[str, asyncio.Task] = {}
+_jobs: dict[str, dict[str, Any]] = {}
+_tasks: dict[str, asyncio.Task[None]] = {}
 
 
-def _make_job(job_id: str, upload_id: str, document_type: str) -> dict:
+def _make_job(job_id: str, upload_id: str, document_type: str) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     return {
         "job_id": job_id,
@@ -88,17 +98,40 @@ def _format_safe_failure(exc: Exception) -> dict[str, str]:
     return {"status": "failed", "message": message, "error": message}
 
 
+def _merge_metadata(base: Any, extracted: dict[str, Any]) -> SimpleNamespace:
+    """Merge LLM-extracted metadata onto the request metadata object.
+
+    Non-empty extracted fields override the base values so search chunks carry
+    the most specific metadata available. Returns a SimpleNamespace so the
+    chunk-building loop can read make/model/year/category/tags uniformly
+    regardless of whether ``base`` was a pydantic ``Metadata`` model or a test
+    mock.
+    """
+    return SimpleNamespace(
+        make=str(extracted.get("make") or getattr(base, "make", "") or ""),
+        model=str(extracted.get("model") or getattr(base, "model", "") or ""),
+        year=extracted.get("year") or getattr(base, "year", 0) or 0,
+        category=extracted.get("category") or getattr(base, "category", None),
+        tags=list(extracted.get("tags") or getattr(base, "tags", []) or []),
+        document_type=getattr(base, "document_type", None),
+        language=getattr(base, "language", None),
+        custom=dict(getattr(base, "custom", {})),
+    )
+
+
 class PDFProcessor:
     def __init__(
         self,
         blob_writer: BlobWriter,
         embedder: Any,
         graph_extractor: GraphExtractor,
+        metadata_extractor: MetadataExtractor,
         api_client: ApiClient,
     ):
         self._blob_writer = blob_writer
         self._embedder = embedder
         self._graph_extractor = graph_extractor
+        self._metadata_extractor = metadata_extractor
         self._api_client = api_client
 
     async def process_pdf_async(
@@ -111,17 +144,37 @@ class PDFProcessor:
         local_file_path: str | None = None,
         job_id: str | None = None,
     ) -> str:
-        """Returns job_id immediately, fires background task via asyncio.create_task."""
+        """Returns job_id immediately, fires background task via asyncio.create_task.
+
+        If called with a ``job_id`` whose job is currently paused awaiting manual
+        metadata, the job is resumed: parsing re-runs and chunking proceeds with
+        the supplied (manual) metadata, skipping the LLM extraction stage.
+        """
         job_id = job_id or str(uuid.uuid4())
-        _jobs[job_id] = _make_job(job_id, upload_id, document_type)
+        existing = _jobs.get(job_id)
+        is_resume = existing is not None and bool(existing.get("paused_for_metadata"))
+
+        if is_resume:
+            # Reuse the existing job (preserving its stage history) and clear the
+            # pause markers so a subsequent call is treated as a fresh start.
+            job = _jobs[job_id]
+            job["status"] = "processing"
+            job["stage"] = "copying"
+            job["paused_for_metadata"] = False
+            job.pop("extracted_metadata", None)
+            logger.info("PDF job resuming after manual metadata job_id=%s", job_id)
+        else:
+            _jobs[job_id] = _make_job(job_id, upload_id, document_type)
+
         logger.info(
-            "PDF job queued job_id=%s upload_id=%s document_type=%s blob_container=%s has_source_access_token=%s has_local_file=%s",
+            "PDF job queued job_id=%s upload_id=%s document_type=%s blob_container=%s has_source_access_token=%s has_local_file=%s resume=%s",
             job_id,
             upload_id,
             document_type,
             blob_container,
             bool(source_access_token),
             bool(local_file_path),
+            is_resume,
         )
         task = asyncio.create_task(
             self._process_pdf(
@@ -132,16 +185,24 @@ class PDFProcessor:
                 metadata,
                 source_access_token,
                 local_file_path,
+                is_resume=is_resume,
             )
         )
         _tasks[job_id] = task
-        task.add_done_callback(lambda _task, jid=job_id: _tasks.pop(jid, None))
+
+        def _on_done(task, jid=job_id):
+            # Only pop if this is still the registered task; a resumed job may
+            # have registered a newer task with the same job_id.
+            if _tasks.get(jid) is task:
+                _tasks.pop(jid, None)
+
+        task.add_done_callback(_on_done)
         return job_id
 
-    async def get_job_status(self, job_id: str) -> dict | None:
+    async def get_job_status(self, job_id: str) -> dict[str, Any] | None:
         return _jobs.get(job_id)
 
-    async def list_jobs(self) -> list[dict]:
+    async def list_jobs(self) -> list[dict[str, Any]]:
         return list(_jobs.values())
 
     async def clear_terminal_jobs(self) -> int:
@@ -157,7 +218,7 @@ class PDFProcessor:
 
         return len(terminal_job_ids)
 
-    async def stop_job(self, job_id: str) -> dict | None:
+    async def stop_job(self, job_id: str) -> dict[str, Any] | None:
         job = _jobs.get(job_id)
         if not job:
             return None
@@ -224,6 +285,71 @@ class PDFProcessor:
         except Exception:
             logger.warning("Failed to report terminal processor failure for job %s", job_id, exc_info=True)
 
+    async def _report_paused(self, job_id: str, failure_reason: str) -> None:
+        """Report the needs-manual-metadata pause to the API (never raises)."""
+        if not self._api_client.is_configured():
+            return
+        try:
+            job = _jobs.get(job_id, {})
+            await self._api_client.report_stage(
+                job_id,
+                "needs-manual-metadata",
+                chunks_processed=job.get("chunks_processed", 0),
+                total_chunks=job.get("total_chunks", 0),
+                failure_reason=failure_reason,
+            )
+        except TypeError:
+            pass
+        except Exception:
+            logger.warning(
+                "Failed to report needs-manual-metadata for job %s",
+                job_id,
+                exc_info=True,
+            )
+
+    def _mark_paused_for_metadata(
+        self, job_id: str, extracted: dict[str, Any], message: str
+    ) -> None:
+        """Mark a job paused awaiting manual metadata (no API report)."""
+        job = _jobs[job_id]
+        now = datetime.now(timezone.utc).isoformat()
+        job.update({
+            "status": "awaiting-metadata",
+            "stage": "needs-manual-metadata",
+            "message": message,
+            "progress": 0.10,
+            "paused_for_metadata": True,
+            "extracted_metadata": extracted,
+            "updated_at": now,
+        })
+        self._append_stage_history(job, "needs-manual-metadata", message, now)
+
+    def _extract_page_texts(self, document: Any) -> list[str]:
+        """Extract per-page text from a parsed Docling document for metadata sampling.
+
+        Returns up to ``MetadataExtractor.PAGE_SAMPLE_SIZES[-1]`` (10) page
+        strings. Docling exposes ``document.pages`` as a ``dict[int, PageItem]``
+        keyed by 1-based page number and ``document.export_to_text(page_no=N)``
+        for per-page text. Returns an empty list when the document exposes no
+        pages or text export is unavailable, so the extractor falls back to
+        manual metadata entry.
+        """
+        cap = self._metadata_extractor.PAGE_SAMPLE_SIZES[-1]
+        try:
+            page_numbers = sorted(document.pages.keys())
+        except Exception:
+            return []
+
+        pages: list[str] = []
+        for page_no in page_numbers[:cap]:
+            try:
+                text = document.export_to_text(page_no=page_no)
+            except Exception:
+                continue
+            if text:
+                pages.append(str(text))
+        return pages
+
     def _mark_failed(self, job_id: str, message: str, error: str | None = None) -> None:
         job = _jobs[job_id]
         now = datetime.now(timezone.utc).isoformat()
@@ -268,7 +394,7 @@ class PDFProcessor:
                 pass  # mock client in tests
 
     @staticmethod
-    def _append_stage_history(job: dict, stage: str, message: str, set_at: str) -> None:
+    def _append_stage_history(job: dict[str, Any], stage: str, message: str, set_at: str) -> None:
         history = job.setdefault("stage_history", [])
         if history and history[-1].get("stage") == stage:
             history[-1].update({
@@ -298,8 +424,14 @@ class PDFProcessor:
         metadata,
         source_access_token: str | None = None,
         local_file_path: str | None = None,
+        is_resume: bool = False,
     ) -> None:
-        """Background coroutine that downloads, chunks, embeds, extracts, and uploads."""
+        """Background coroutine that downloads, chunks, embeds, extracts, and uploads.
+
+        When ``is_resume`` is True the job was previously paused awaiting manual
+        metadata; parsing re-runs but the LLM extraction stage is skipped in
+        favour of the metadata supplied with the resume request.
+        """
         try:
             logger.info(
                 "PDF job started job_id=%s upload_id=%s document_type=%s",
@@ -329,7 +461,54 @@ class PDFProcessor:
                 job_id, upload_id,
             )
 
-            # ── Stage 2: Chunking ─────────────────────────────
+            # ── Stage 2: Extracting metadata ─────────────────
+            if is_resume:
+                self._set_stage(
+                    job_id, "extracting-metadata",
+                    "Resuming with manual metadata", 0.08,
+                )
+                logger.info(
+                    "PDF job resuming after manual metadata; skipping LLM extraction job_id=%s",
+                    job_id,
+                )
+            else:
+                self._set_stage(
+                    job_id, "extracting-metadata",
+                    "Extracting metadata from PDF pages", 0.08,
+                )
+                page_texts = self._extract_page_texts(result.document)
+                metadata_result = await self._metadata_extractor.extract(
+                    page_texts, job_id=job_id
+                )
+                self._raise_if_cancelled(job_id)
+
+                if metadata_result["fill_rate"] >= 1.0:
+                    metadata = _merge_metadata(metadata, metadata_result)
+                    logger.info(
+                        "PDF job metadata extracted job_id=%s fill_rate=%.2f pages_sampled=%d",
+                        job_id,
+                        metadata_result["fill_rate"],
+                        metadata_result["pages_sampled"],
+                    )
+                else:
+                    # Pause for manual metadata entry and stop processing.
+                    failure_reason = (
+                        f"Metadata extraction incomplete after "
+                        f"{metadata_result['pages_sampled']} pages "
+                        f"(fill rate {metadata_result['fill_rate']:.0%}). "
+                        f"Manual entry required."
+                    )
+                    self._mark_paused_for_metadata(job_id, metadata_result, failure_reason)
+                    await self._report_paused(job_id, failure_reason)
+                    logger.info(
+                        "PDF job paused for manual metadata job_id=%s fill_rate=%.2f pages_sampled=%d",
+                        job_id,
+                        metadata_result["fill_rate"],
+                        metadata_result["pages_sampled"],
+                    )
+                    return  # Coroutine ends; job awaits resume.
+
+            # ── Stage 3: Chunking ─────────────────────────────
             self._set_stage(job_id, "chunking", "Loading chunker tokenizer", 0.1)
             logger.info(
                 "PDF job loading chunker tokenizer job_id=%s upload_id=%s max_tokens=%d",
@@ -358,13 +537,17 @@ class PDFProcessor:
                 await self._report_failed(job_id, "No chunks extracted from PDF")
                 return
 
-            # ── Stage 3: Embedding ────────────────────────────
-            records: list[dict] = []
+            # ── Stage 4: Embedding ────────────────────────────
+            records: list[dict[str, Any]] = []
             for i, chunk in enumerate(chunks):
                 self._raise_if_cancelled(job_id)
-                headings = list(chunk.meta.headings) if chunk.meta.headings else []
-                has_prov = chunk.meta.doc_items and chunk.meta.doc_items[0].prov
-                page_no = chunk.meta.doc_items[0].prov[0].page_no if has_prov else 0
+                # HybridChunker yields DocChunk objects whose ``meta`` is a DocMeta
+                # (a BaseMeta subclass that exposes headings/doc_items). The declared
+                # return type is BaseChunk/BaseMeta, so narrow once for the checker.
+                meta = cast(DocMeta, chunk.meta)
+                headings = list(meta.headings) if meta.headings else []
+                has_prov = bool(meta.doc_items) and bool(meta.doc_items[0].prov)
+                page_no = meta.doc_items[0].prov[0].page_no if has_prov else 0
                 embedding = await self._embedder.generate_embedding(chunk.text)
                 self._raise_if_cancelled(job_id)
 
@@ -381,6 +564,9 @@ class PDFProcessor:
                     year = int(year_val)
                 except (TypeError, ValueError):
                     year = 0
+                category = getattr(metadata, "category", None) or "Unknown"
+                base_tags = [t for t in [make, model] if t]
+                tags = list(getattr(metadata, "tags", None) or base_tags)
 
                 now_ts = datetime.now(timezone.utc).isoformat()
                 records.append({
@@ -388,7 +574,7 @@ class PDFProcessor:
                     "title": headings[0] if headings else f"Chunk {i}",
                     "content": chunk.text,
                     "documentType": document_type,
-                    "category": "Unknown",
+                    "category": category,
                     "make": make,
                     "model": model,
                     "year": year,
@@ -401,7 +587,7 @@ class PDFProcessor:
                     "sectionHeadings": headings,
                     "tableCaption": None,
                     "chunkIndex": i,
-                    "tags": [t for t in [make, model] if t],
+                    "tags": tags,
                     "contentVector": embedding,
                     "createdAt": now_ts,
                     "updatedAt": now_ts,
@@ -415,7 +601,7 @@ class PDFProcessor:
                     total_chunks=total_chunks,
                 )
 
-            # ── Stage 4: Uploading chunks ─────────────────────
+            # ── Stage 5: Uploading chunks ─────────────────────
             self._set_stage(job_id, "uploading-chunks",
                 f"Uploading {len(records)} search chunks", 0.55,
                 chunks_processed=len(records), total_chunks=total_chunks,
@@ -436,7 +622,7 @@ class PDFProcessor:
                 job_id, upload_id, len(chunks_bytes),
             )
 
-            # ── Stage 5: Extracting graph entities ────────────
+            # ── Stage 6: Extracting graph entities ────────────
             self._set_stage(job_id, "extracting-graph",
                 f"Extracting graph entities from {total_chunks} chunks", 0.8,
             )
@@ -449,7 +635,7 @@ class PDFProcessor:
             entities = await self._graph_extractor.extract(combined_text, source_document_id=upload_id)
             self._raise_if_cancelled(job_id)
 
-            # ── Stage 6: Uploading graph ──────────────────────
+            # ── Stage 7: Uploading graph ──────────────────────
             self._set_stage(job_id, "uploading-graph", "Uploading graph entities", 0.9)
             entities_bytes = json.dumps(entities).encode("utf-8")
             self._raise_if_cancelled(job_id)
@@ -462,7 +648,7 @@ class PDFProcessor:
                 job_id, upload_id, len(entities_bytes),
             )
 
-            # ── Stage 7: Completed ────────────────────────────
+            # ── Stage 8: Completed ────────────────────────────
             self._set_stage(
                 job_id,
                 "completed",

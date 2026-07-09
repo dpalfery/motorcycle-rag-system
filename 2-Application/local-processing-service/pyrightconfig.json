@@ -1,0 +1,17 @@
+{
+  "include": ["src"],
+  "exclude": ["**/__pycache__", "**/.venv", ".pytest_cache"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "reportPrivateImportUsage": "error",
+  "reportMissingImports": "error",
+  "reportDuplicateImport": "error",
+  "reportUnusedImport": "warning",
+  "reportUnusedVariable": "warning",
+  "reportGeneralTypeIssues": "warning",
+  "reportArgumentType": "warning",
+  "reportAttributeAccessIssue": "warning",
+  "reportCallIssue": "warning"
+}

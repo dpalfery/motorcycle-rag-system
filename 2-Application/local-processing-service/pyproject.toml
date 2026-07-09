@@ -30,6 +30,8 @@ pytest = "^7.4.0"
 pytest-asyncio = "^0.21.0"
 black = "^23.0.0"
 isort = "^5.12.0"
+mypy = "^1.11.0"
+pyright = "^1.1.380"
 
 [build-system]
 requires = ["poetry-core"]
@@ -67,3 +69,33 @@ python_functions = ["test_*"]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')", "asyncio: mark test as async"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
+
+# mypy is the authoritative type checker for Pydantic-aware validation.
+# It loads the pydantic.mypy plugin so patterns like
+# Field(default_factory=Metadata) and AliasChoices are type-checked correctly,
+# complementing Pyright (see pyrightConfig.json) which lacks a Pydantic plugin.
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+# NOTE: python_version is 3.12 (not 3.10 like pyrightConfig.json). The installed
+# numpy/pandas bundled stubs (.pyi) use PEP 695 `type` statements, which require
+# 3.12+. mypy parses stub files unconditionally (exclude / follow_imports cannot
+# suppress stub parsing), so targeting 3.10 raises a fatal [syntax] error in
+# numpy's stub and blocks all checking. The runtime venv is Python 3.14 and the
+# codebase targets >=3.9, so 3.12 is still conservative for our own code.
+python_version = "3.12"
+mypy_path = "src"
+namespace_packages = true
+explicit_package_bases = true
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+no_implicit_reexport = true
+# Allow third-party libs without stubs (docling, ollama, etc.) without forcing
+# per-line ignores across the codebase.
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true

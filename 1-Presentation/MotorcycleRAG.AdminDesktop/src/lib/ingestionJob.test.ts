@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterSupersededIngestionJobs,
   formatIngestionJobLabel,
+  isAwaitingMetadata,
   replaceRetriedIngestionJob,
   type IngestionJobStatus,
 } from "./ingestionJob";
@@ -65,5 +66,27 @@ describe("formatIngestionJobLabel", () => {
 
   it("falls back to the guid when no SQL identity exists", () => {
     expect(formatIngestionJobLabel({ jobId: "guid-22" } as IngestionJobStatus)).toBe("guid-22");
+  });
+});
+
+describe("isAwaitingMetadata", () => {
+  it("is true when the C# status is AwaitingMetadata", () => {
+    expect(isAwaitingMetadata({ status: "AwaitingMetadata", currentStage: undefined })).toBe(true);
+  });
+
+  it("is true regardless of status casing", () => {
+    expect(isAwaitingMetadata({ status: "awaitingmetadata", currentStage: undefined })).toBe(true);
+  });
+
+  it("is true when the processor reported the needs-manual-metadata stage", () => {
+    expect(isAwaitingMetadata({ status: "Processing", currentStage: "needs-manual-metadata" })).toBe(true);
+  });
+
+  it("is false for ordinary in-progress jobs", () => {
+    expect(isAwaitingMetadata({ status: "Processing", currentStage: "chunking" })).toBe(false);
+  });
+
+  it("is false for completed jobs", () => {
+    expect(isAwaitingMetadata({ status: "Completed", currentStage: "completed" })).toBe(false);
   });
 });

@@ -40,7 +40,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
                 [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
-                [CurrentStage], [StageSetAtUtc]";
+                [CurrentStage], [StageSetAtUtc], [MetadataJson]";
 
     private const string IngestionJobColumnsWithoutSqlId = @"
                 CAST(0 AS BIGINT) AS [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
@@ -49,7 +49,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 [TotalPages], [PagesCapturedViewableCount], [PagesWithSearchableTextCount],
                 [PagesWithOcrTextCount], [PagesWithNativeTextCount],
                 [MissingPagesJson], [MetricsJson], [ExpectedChunkCount], [IndexedChunkCount],
-                [CurrentStage], [StageSetAtUtc]";
+                [CurrentStage], [StageSetAtUtc], [MetadataJson]";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="IngestionJobRepository"/>.
@@ -705,9 +705,13 @@ public class IngestionJobRepository : IIngestionJobRepository
         // passes the service check actually succeed at the atomic UPDATE. Values are derived
         // from the IngestionJobStatus enum (not hard-coded) so the persisted string
         // representations stay in sync with the domain definition.
+        // AwaitingMetadata is a paused state — the job has no in-flight work, so it is safe to
+        // delete. Omitting it would produce a misleading 409 when an admin deletes a job that
+        // is waiting for manual metadata entry.
         var deletableStatuses = new[]
         {
             IngestionJobStatus.Queued,
+            IngestionJobStatus.AwaitingMetadata,
             IngestionJobStatus.Completed,
             IngestionJobStatus.Failed,
             IngestionJobStatus.Cancelled,
@@ -818,6 +822,97 @@ public class IngestionJobRepository : IIngestionJobRepository
         {
             _logger.LogError(ex, "Failed to get ingestion job by doc ingestion run id {DocIngestionRunId}", docIngestionRunId);
             throw new InvalidOperationException($"Failed to get ingestion job by doc ingestion run id {docIngestionRunId}", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateMetadataAsync(
+        Guid ingestionJobId,
+        string? metadataJson,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE [dbo].[IngestionJobs] SET
+                [MetadataJson] = @MetadataJson
+            WHERE [IngestionJobId] = @IngestionJobId;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            await connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IngestionJobId = ingestionJobId,
+                MetadataJson = metadataJson
+            }, cancellationToken: cancellationToken));
+
+            _logger.LogInformation(
+                "Updated metadata for ingestion job {IngestionJobId} ({Length} chars).",
+                ingestionJobId,
+                metadataJson?.Length ?? 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update metadata for ingestion job {IngestionJobId}", ingestionJobId);
+            throw new InvalidOperationException($"Failed to update metadata for ingestion job {ingestionJobId}", ex);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> TryTransitionFromAwaitingMetadataAsync(
+        Guid ingestionJobId,
+        string stage,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(stage);
+
+        // Compare-and-swap guard: the UPDATE only applies when the row is still in the
+        // AwaitingMetadata state. This prevents lost updates: if a concurrent request or the
+        // processor self-recovered between the service's read and this write, the WHERE clause
+        // matches zero rows and we return false. The column-scoped SET touches only the four
+        // columns relevant to the resume transition so it cannot clobber concurrent metadata
+        // writes (UpdateMetadataAsync) or other stage progress.
+        const string sql = @"
+            UPDATE [dbo].[IngestionJobs] SET
+                [Status] = @ToStatus,
+                [CurrentStage] = @Stage,
+                [StageSetAtUtc] = SYSUTCDATETIME(),
+                [FailureReason] = NULL
+            WHERE [IngestionJobId] = @IngestionJobId
+              AND [Status] = @FromStatus;
+        ";
+
+        try
+        {
+            using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+            var affectedRows = await connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IngestionJobId = ingestionJobId,
+                FromStatus = IngestionJobStatus.AwaitingMetadata.ToString(),
+                ToStatus = IngestionJobStatus.Processing.ToString(),
+                Stage = stage
+            }, cancellationToken: cancellationToken));
+
+            var success = affectedRows > 0;
+            if (success)
+            {
+                _logger.LogInformation(
+                    "Atomically transitioned ingestion job {IngestionJobId} from AwaitingMetadata to Processing (resume stage: {Stage}).",
+                    ingestionJobId, stage);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Did not transition ingestion job {IngestionJobId}: no longer in AwaitingMetadata state (idempotent no-op).",
+                    ingestionJobId);
+            }
+
+            return success;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to transition ingestion job {IngestionJobId} from AwaitingMetadata", ingestionJobId);
+            throw new InvalidOperationException($"Failed to transition ingestion job {ingestionJobId} from AwaitingMetadata", ex);
         }
     }
 }

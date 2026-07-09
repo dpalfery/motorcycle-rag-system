@@ -134,4 +134,38 @@ public interface IIngestionJobRepository
     Task<IngestionJob?> GetByDocIngestionRunIdAsync(
         string docIngestionRunId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates only the <see cref="IngestionJob.MetadataJson"/> column for a job.
+    /// Used to persist extracted or manually-submitted motorcycle metadata without
+    /// touching other columns. Idempotent: repeated calls with the same value produce
+    /// the same result.
+    /// </summary>
+    /// <param name="ingestionJobId">The job identifier.</param>
+    /// <param name="metadataJson">The metadata JSON blob to persist (null clears the field).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task UpdateMetadataAsync(
+        Guid ingestionJobId,
+        string? metadataJson,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Atomically transitions a job from <see cref="IngestionJobStatus.AwaitingMetadata"/> to
+    /// <see cref="IngestionJobStatus.Processing"/>, setting the resume stage and clearing the
+    /// failure reason. Uses a compare-and-swap guard (<c>WHERE [Status] = 'AwaitingMetadata'</c>)
+    /// to prevent lost updates and TOCTOU races. Returns true if the transition was applied;
+    /// false if the job was no longer in the AwaitingMetadata state (e.g. already resumed,
+    /// cancelled, or deleted).
+    /// </summary>
+    /// <param name="ingestionJobId">The job identifier.</param>
+    /// <param name="stage">The resume stage to set (e.g. <c>"resuming"</c>).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// <c>true</c> if the CAS-guarded transition matched (rows affected &gt; 0);
+    /// <c>false</c> if the job was not in the AwaitingMetadata state.
+    /// </returns>
+    Task<bool> TryTransitionFromAwaitingMetadataAsync(
+        Guid ingestionJobId,
+        string stage,
+        CancellationToken cancellationToken = default);
 }

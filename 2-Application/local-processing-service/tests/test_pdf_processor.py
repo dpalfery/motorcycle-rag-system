@@ -3,7 +3,7 @@
 import asyncio
 import uuid
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -42,6 +42,16 @@ async def _wait_for_terminal_status(processor, job_id: str, timeout: float = 5.0
     raise TimeoutError(f"Job {job_id} did not reach a terminal state")
 
 
+async def _wait_for_paused_for_metadata(processor, job_id: str, timeout: float = 5.0):
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        status = await processor.get_job_status(job_id)
+        if status and status.get("paused_for_metadata"):
+            return status
+        await asyncio.sleep(0.01)
+    raise TimeoutError(f"Job {job_id} did not pause for metadata")
+
+
 @pytest.fixture()
 def blob_writer():
     bw = MagicMock()
@@ -76,16 +86,39 @@ def graph_extractor():
 
 
 @pytest.fixture()
+def metadata_extractor():
+    """Mocked MetadataExtractor that reports a complete (100% fill) result.
+
+    The default mock lets existing pipeline tests sail through the
+    extracting-metadata stage. Tests that exercise the pause/resume paths
+    override ``extract.return_value`` or ``extract.side_effect``.
+    """
+    me = MagicMock()
+    me.PAGE_SAMPLE_SIZES = [3, 6, 9, 10]
+    me.extract = AsyncMock(return_value={
+        "make": "Honda",
+        "model": "CB500",
+        "year": 2020,
+        "category": "naked",
+        "tags": ["naked", "500cc"],
+        "fill_rate": 1.0,
+        "pages_sampled": 3,
+    })
+    return me
+
+
+@pytest.fixture()
 def metadata():
     return SimpleNamespace(make="Honda", model="CB500", year=2020)
 
 
 @pytest.fixture()
-def processor(blob_writer, embedder, graph_extractor, api_client):
+def processor(blob_writer, embedder, graph_extractor, metadata_extractor, api_client):
     return PDFProcessor(
         blob_writer=blob_writer,
         embedder=embedder,
         graph_extractor=graph_extractor,
+        metadata_extractor=metadata_extractor,
         api_client=api_client,
     )
 
@@ -97,17 +130,19 @@ def processor(blob_writer, embedder, graph_extractor, api_client):
 
 class TestPDFProcessorInstantiation:
     def test_instantiates_with_mocked_deps(
-        self, blob_writer, embedder, graph_extractor, api_client
+        self, blob_writer, embedder, graph_extractor, metadata_extractor, api_client
     ):
         proc = PDFProcessor(
             blob_writer=blob_writer,
             embedder=embedder,
             graph_extractor=graph_extractor,
+            metadata_extractor=metadata_extractor,
             api_client=api_client,
         )
         assert proc._blob_writer is blob_writer
         assert proc._embedder is embedder
         assert proc._graph_extractor is graph_extractor
+        assert proc._metadata_extractor is metadata_extractor
 
 
 class TestProcessPDFAsync:
@@ -225,6 +260,7 @@ class TestPDFBackgroundProcessing:
         for stage in [
             "copying",
             "parsing",
+            "extracting-metadata",
             "chunking",
             "embedding",
             "uploading-chunks",
@@ -241,6 +277,7 @@ class TestPDFBackgroundProcessing:
         assert history_stages == [
             "copying",
             "parsing",
+            "extracting-metadata",
             "chunking",
             "embedding",
             "uploading-chunks",
@@ -320,11 +357,26 @@ class TestPDFBackgroundProcessing:
         )
 
         await _wait_for_terminal_status(processor, job_id)
-        await asyncio.sleep(0)
+        # Drain pending fire-and-forget report_stage tasks so all reports are
+        # recorded before asserting. _set_stage reports via asyncio.create_task
+        # (best-effort), so the terminal "failed" report (directly awaited) is
+        # not guaranteed to be the last entry in await_args_list.
+        pending = [
+            t for t in asyncio.all_tasks()
+            if t is not asyncio.current_task() and not t.done()
+        ]
+        if pending:
+            await asyncio.wait(pending, timeout=5)
 
-        last_call = api_client.report_stage.await_args_list[-1]
-        assert last_call.args[1] == "failed"
-        assert last_call.kwargs["failure_reason"] == "PDF processing failed: Expected 1536 dims, got 2560"
+        # The terminal "failed" report must have been sent with the right
+        # failure reason. Assert by filtering rather than by position because
+        # fire-and-forget reports can interleave.
+        failed_calls = [
+            c for c in api_client.report_stage.await_args_list
+            if c.args[1] == "failed"
+        ]
+        assert failed_calls
+        assert failed_calls[-1].kwargs["failure_reason"] == "PDF processing failed: Expected 1536 dims, got 2560"
 
         status = await processor.get_job_status(job_id)
         assert status["status"] == "failed"
@@ -363,3 +415,256 @@ class TestPDFBackgroundProcessing:
 
         status = await processor.get_job_status(job_id)
         assert status["status"] == "failed"
+
+
+# ---------------------------------------------------------------------------
+# Metadata extraction integration (Phase 2)
+# ---------------------------------------------------------------------------
+
+
+class TestMetadataExtraction:
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_successful_metadata_extraction_completes_pipeline(
+        self, MockConverter, MockChunker, MockGetTokenizer,
+        processor, metadata_extractor, metadata,
+    ):
+        """100% fill rate merges metadata and proceeds to chunking/completion."""
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1"), _make_chunk("Chunk 2", page_no=2)]
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-meta-ok",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+
+        status = await _wait_for_terminal_status(processor, job_id)
+
+        # Extractor was called with the page texts produced from the document.
+        metadata_extractor.extract.assert_awaited_once()
+        assert status["status"] == "completed"
+        assert status["stage"] == "completed"
+        assert status["chunks_processed"] == 2
+
+        # The merged metadata stage appears in the reported stage history.
+        history_stages = [e["stage"] for e in status["stage_history"]]
+        assert "extracting-metadata" in history_stages
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_pauses_at_needs_manual_metadata_when_fill_rate_low(
+        self, MockConverter, MockChunker, MockGetTokenizer,
+        processor, metadata_extractor, api_client, metadata,
+    ):
+        """Fill rate < 1.0 pauses the job without error and reports to the API."""
+        api_client.is_configured.return_value = True
+        metadata_extractor.extract.return_value = {
+            "make": "Honda", "model": None, "year": 0, "category": None,
+            "tags": [], "fill_rate": 0.25, "pages_sampled": 10,
+        }
+        MockGetTokenizer.return_value = MagicMock()
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        # Chunker must never run when paused before chunking.
+        MockChunker.return_value.chunk.return_value = []
+
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-meta-pause",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+
+        status = await _wait_for_paused_for_metadata(processor, job_id)
+
+        assert status["stage"] == "needs-manual-metadata"
+        assert status["paused_for_metadata"] is True
+        assert status["status"] == "awaiting-metadata"
+        assert status["extracted_metadata"]["fill_rate"] == 0.25
+
+        # The API was told about the pause with a human-readable failure reason.
+        pause_calls = [
+            c for c in api_client.report_stage.await_args_list
+            if c.args[1] == "needs-manual-metadata"
+        ]
+        assert pause_calls
+        assert "Manual entry required" in pause_calls[-1].kwargs["failure_reason"]
+
+        # The pipeline stopped before chunking.
+        MockChunker.return_value.chunk.assert_not_called()
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_resumes_with_manual_metadata_after_pause(
+        self, MockConverter, MockChunker, MockGetTokenizer,
+        processor, metadata_extractor, metadata,
+    ):
+        """A second call with the same job_id resumes from chunking."""
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1"), _make_chunk("Chunk 2", page_no=2)]
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        # First pass: incomplete extraction -> pause.
+        metadata_extractor.extract.return_value = {
+            "make": None, "model": None, "year": 0, "category": None,
+            "tags": [], "fill_rate": 0.0, "pages_sampled": 10,
+        }
+        manual_metadata = SimpleNamespace(make="Kawasaki", model="Ninja 400", year=2022)
+
+        job_id = await processor.process_pdf_async(
+            upload_id="upload-meta-resume",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+            job_id="resume-job-1",
+        )
+
+        await _wait_for_paused_for_metadata(processor, job_id)
+        extract_calls_after_first = metadata_extractor.extract.await_count
+        assert extract_calls_after_first == 1
+
+        # Second pass: resume with manual metadata (same job_id).
+        job_id_2 = await processor.process_pdf_async(
+            upload_id="upload-meta-resume",
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=manual_metadata,
+            source_access_token="test-token",
+            job_id="resume-job-1",
+        )
+        assert job_id_2 == job_id
+
+        status = await _wait_for_terminal_status(processor, job_id)
+        assert status["status"] == "completed"
+        assert status["chunks_processed"] == 2
+
+        # Resume skipped LLM extraction entirely.
+        assert metadata_extractor.extract.await_count == extract_calls_after_first
+
+        # The paused state was cleared.
+        final = await processor.get_job_status(job_id)
+        assert not final.get("paused_for_metadata")
+
+        # L1: extracted_metadata is cleared on resume, not left stale.
+        assert "extracted_metadata" not in final
+
+
+# ---------------------------------------------------------------------------
+# _extract_page_texts edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestExtractPageTexts:
+    """Direct tests for PDFProcessor._extract_page_texts.
+
+    These do not exercise the background pipeline; they construct fake
+    Docling-like documents and assert the defensive handling for empty
+    documents and per-page export failures.
+    """
+
+    def _make_doc(self, pages: dict, export_side_effect=None):
+        """Build a fake Docling document.
+
+        Args:
+            pages: A dict mapping 1-based page numbers to placeholder values.
+            export_side_effect: If not None, ``export_to_text`` will raise this
+                instead of returning text.
+        """
+        doc = MagicMock()
+        doc.pages = pages
+
+        def _export(page_no):
+            if export_side_effect is not None:
+                raise export_side_effect
+            return f"page {page_no} text"
+
+        doc.export_to_text = MagicMock(side_effect=_export)
+        return doc
+
+    def test_returns_empty_list_when_document_has_no_pages(self, processor):
+        """A document with an empty ``pages`` dict yields no page texts."""
+        doc = self._make_doc(pages={})
+        result = processor._extract_page_texts(doc)
+        assert result == []
+
+    def test_returns_empty_list_when_pages_access_raises(self, processor):
+        """If ``document.pages`` access raises, the method returns [].
+
+        This guards against malformed documents that don't expose a usable
+        ``pages`` mapping.
+        """
+        doc = MagicMock()
+        # Simulate a document whose ``.pages`` property raises.
+        type(doc).pages = PropertyMock(side_effect=RuntimeError("no pages"))
+        doc.export_to_text = MagicMock()
+        result = processor._extract_page_texts(doc)
+        assert result == []
+        doc.export_to_text.assert_not_called()
+
+    def test_skips_pages_whose_export_raises(self, processor):
+        """A per-page ``export_to_text`` failure is skipped, not fatal."""
+        # Pages dict keyed by 1-based page number (Docling convention).
+        doc = MagicMock()
+        doc.pages = {1: object(), 2: object(), 3: object()}
+
+        call_count = {"n": 0}
+
+        def _export(page_no):
+            call_count["n"] += 1
+            if page_no == 2:
+                raise ValueError("export failed for page 2")
+            return f"page {page_no} text"
+
+        doc.export_to_text = MagicMock(side_effect=_export)
+
+        result = processor._extract_page_texts(doc)
+        # Page 2 is skipped but pages 1 and 3 are returned, in page order.
+        assert result == ["page 1 text", "page 3 text"]
+        assert call_count["n"] == 3
+
+    def test_capped_to_page_sample_upper_bound(self, processor):
+        """More pages than the max sample size are truncated to the cap."""
+        # metadata_extractor.PAGE_SAMPLE_SIZES[-1] == 10
+        cap = processor._metadata_extractor.PAGE_SAMPLE_SIZES[-1]
+        pages = {i: object() for i in range(1, cap + 5)}
+        doc = MagicMock()
+        doc.pages = pages
+        doc.export_to_text = MagicMock(
+            side_effect=lambda page_no: f"page {page_no} text"
+        )
+
+        result = processor._extract_page_texts(doc)
+        assert len(result) == cap
+        assert result[0] == "page 1 text"
+        assert result[-1] == f"page {cap} text"
+        # Only the first ``cap`` pages are exported.
+        assert doc.export_to_text.call_count == cap
+
+    def test_skips_empty_page_text(self, processor):
+        """Pages that export to empty/whitespace text are omitted."""
+        doc = MagicMock()
+        doc.pages = {1: object(), 2: object()}
+
+        def _export(page_no):
+            return "" if page_no == 1 else "page 2 text"
+
+        doc.export_to_text = MagicMock(side_effect=_export)
+
+        result = processor._extract_page_texts(doc)
+        assert result == ["page 2 text"]

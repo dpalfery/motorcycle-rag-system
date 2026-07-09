@@ -28,6 +28,8 @@ export interface IngestionJobStatus {
   expectedChunkCount?: number;
   indexedChunkCount?: number;
   statusUrl?: string;
+  /** Extracted/submitted metadata blob, surfaced for display when a job is awaiting manual entry. */
+  metadata?: Record<string, unknown>;
 }
 
 export function formatIngestionJobLabel(job: Pick<IngestionJobStatus, "id" | "jobId">): string {
@@ -39,6 +41,20 @@ export const INGESTION_FAILED_STATUSES = ["failed", "error", "cancelled"] as con
 export function isIngestionFailed(status: string): boolean {
   return INGESTION_FAILED_STATUSES.includes(
     status.toLowerCase() as (typeof INGESTION_FAILED_STATUSES)[number],
+  );
+}
+
+/**
+ * True when a job has paused for manual metadata entry. This is the case when the C# state
+ * machine has transitioned the job to `AwaitingMetadata`, or when the Python processor has
+ * reported the `needs-manual-metadata` stage (which the API mirrors into the awaiting state).
+ */
+export function isAwaitingMetadata(
+  job: Pick<IngestionJobStatus, "status" | "currentStage">,
+): boolean {
+  return (
+    job.status?.toLowerCase() === "awaitingmetadata" ||
+    job.currentStage === "needs-manual-metadata"
   );
 }
 

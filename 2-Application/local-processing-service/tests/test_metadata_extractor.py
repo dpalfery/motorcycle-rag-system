@@ -1,0 +1,362 @@
+"""Unit tests for MetadataExtractor - LLM calls fully mocked via openai.AsyncOpenAI."""
+
+import json
+from types import SimpleNamespace
+from typing import Optional
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _mock_llm_response(content: Optional[str]):
+    """Build a fake OpenAI chat completion response carrying ``content``."""
+    mock_choice = SimpleNamespace(message=SimpleNamespace(content=content))
+    return SimpleNamespace(choices=[mock_choice])
+
+
+def _configure_mock_client(MockOpenAI, responses):
+    """Wire ``responses`` (str | list[str] | side_effect) onto the mock client.
+
+    ``responses`` may be a single JSON string (returned for every call) or a
+    list of JSON strings (returned in order across iterations).
+    """
+    mock_client = MockOpenAI.return_value
+    if isinstance(responses, list):
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=[_mock_llm_response(c) for c in responses]
+        )
+    else:
+        mock_client.chat.completions.create = AsyncMock(
+            return_value=_mock_llm_response(responses)
+        )
+    return mock_client
+
+
+_FULL_RESULT = {
+    "make": "Honda",
+    "model": "CBR600RR",
+    "year": 2023,
+    "category": "sport",
+    "tags": ["sport", "inline-4", "600cc"],
+}
+
+_TEN_PAGES = [f"Page {i + 1} content about a motorcycle." for i in range(10)]
+
+
+# ---------------------------------------------------------------------------
+# Instantiation
+# ---------------------------------------------------------------------------
+
+
+class TestMetadataExtractorInstantiation:
+    def test_instantiates_without_error(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        extractor = MetadataExtractor()
+        assert extractor._endpoint is not None
+        assert extractor._model is not None
+
+    def test_reads_env_overrides(self, monkeypatch):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        monkeypatch.setenv("GRAPH_EXTRACTION_ENDPOINT", "http://override:9999/v1")
+        monkeypatch.setenv("GRAPH_EXTRACTION_MODEL", "override-model")
+        extractor = MetadataExtractor()
+        assert extractor._endpoint == "http://override:9999/v1"
+        assert extractor._model == "override-model"
+
+
+# ---------------------------------------------------------------------------
+# extract()
+# ---------------------------------------------------------------------------
+
+
+class TestExtract:
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_happy_path_all_fields_on_first_try(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        _configure_mock_client(MockOpenAI, json.dumps(_FULL_RESULT))
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        assert result["make"] == "Honda"
+        assert result["model"] == "CBR600RR"
+        assert result["year"] == 2023
+        assert result["category"] == "sport"
+        assert result["tags"] == ["sport", "inline-4", "600cc"]
+        assert result["fill_rate"] == 1.0
+        assert result["pages_sampled"] == 3
+        # Should stop after the first sample (3 pages) once fill rate is 1.0.
+        assert MockOpenAI.return_value.chat.completions.create.await_count == 1
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_partial_fill_then_complete(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        partial = {"make": "Honda", "model": "CBR", "year": 0, "category": ""}
+        complete = _FULL_RESULT
+        _configure_mock_client(
+            MockOpenAI, [json.dumps(partial), json.dumps(complete)]
+        )
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        # First sample (3 pages) gave 2 fields; second sample (6 pages) filled
+        # the rest, so extraction stops at 6 pages with 100% fill rate.
+        assert result["make"] == "Honda"
+        assert result["model"] == "CBR"
+        assert result["year"] == 2023
+        assert result["category"] == "sport"
+        assert result["fill_rate"] == 1.0
+        assert result["pages_sampled"] == 6
+        assert MockOpenAI.return_value.chat.completions.create.await_count == 2
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_partial_fill_accumulates_across_iterations(self, MockOpenAI):
+        """Fields discovered at 3 pages are retained when more pages are sampled."""
+        from extraction.metadata_extractor import MetadataExtractor
+
+        first = {"make": "Yamaha", "model": "", "year": 0, "category": ""}
+        second = {"make": "", "model": "MT-07", "year": 2021, "category": "naked"}
+        _configure_mock_client(
+            MockOpenAI, [json.dumps(first), json.dumps(second)]
+        )
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        assert result["make"] == "Yamaha"  # retained from first sample
+        assert result["model"] == "MT-07"
+        assert result["year"] == 2021
+        assert result["category"] == "naked"
+        assert result["fill_rate"] == 1.0
+        assert result["pages_sampled"] == 6
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_empty_response_from_llm(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        _configure_mock_client(MockOpenAI, "{}")
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        assert result["make"] is None
+        assert result["model"] is None
+        assert result["year"] == 0
+        assert result["category"] is None
+        assert result["tags"] == []
+        assert result["fill_rate"] == 0.0
+        # Exhausts all sample sizes (3 -> 6 -> 9 -> 10) since fill rate never
+        # reaches 1.0.
+        assert result["pages_sampled"] == 10
+        assert MockOpenAI.return_value.chat.completions.create.await_count == 4
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_null_content_treated_as_empty(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        mock_client = MockOpenAI.return_value
+        mock_client.chat.completions.create = AsyncMock(
+            return_value=_mock_llm_response(None)
+        )
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        assert result["fill_rate"] == 0.0
+        assert result["pages_sampled"] == 10
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_invalid_json_response(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        _configure_mock_client(MockOpenAI, "This is not JSON {{{")
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        assert result["fill_rate"] == 0.0
+        assert result["pages_sampled"] == 10
+        assert result["make"] is None
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_max_pages_reached_without_full_fill(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        partial = {"make": "Kawasaki", "model": "", "year": 0, "category": ""}
+        _configure_mock_client(MockOpenAI, json.dumps(partial))
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        assert result["make"] == "Kawasaki"
+        assert result["fill_rate"] == 0.25
+        assert result["pages_sampled"] == 10
+        assert MockOpenAI.return_value.chat.completions.create.await_count == 4
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_llm_connection_error(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        mock_client = MockOpenAI.return_value
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=ConnectionError("LM Studio unreachable")
+        )
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        # Connection errors are swallowed per-iteration; extraction exhausts the
+        # sample sizes and returns an empty result.
+        assert result["fill_rate"] == 0.0
+        assert result["pages_sampled"] == 10
+        assert result["make"] is None
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_empty_pages_returns_empty_result_without_calling_llm(
+        self, MockOpenAI
+    ):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract([])
+
+        assert result["fill_rate"] == 0.0
+        assert result["pages_sampled"] == 0
+        assert result["make"] is None
+        MockOpenAI.return_value.chat.completions.create.assert_not_called()
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_fewer_pages_than_sample_clamps(self, MockOpenAI):
+        """A 4-page document clamps sample sizes and still completes when full."""
+        from extraction.metadata_extractor import MetadataExtractor
+
+        _configure_mock_client(MockOpenAI, json.dumps(_FULL_RESULT))
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(["p1", "p2", "p3", "p4"])
+
+        assert result["fill_rate"] == 1.0
+        # First sample size (3) <= 4 pages, so it succeeds immediately.
+        assert result["pages_sampled"] == 3
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_short_document_skips_oversized_samples(self, MockOpenAI):
+        """A 4-page doc that never fully fills samples 3 then 4 pages only.
+
+        Sample sizes 9 and 10 clamp to 4, which does not exceed the already
+        sampled 4 pages, so those iterations are skipped (no extra LLM calls).
+        """
+        from extraction.metadata_extractor import MetadataExtractor
+
+        partial = {"make": "Honda", "model": "", "year": 0, "category": ""}
+        _configure_mock_client(MockOpenAI, json.dumps(partial))
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(["p1", "p2", "p3", "p4"])
+
+        assert result["make"] == "Honda"
+        assert result["fill_rate"] == 0.25
+        assert result["pages_sampled"] == 4
+        # Only two calls: sample size 3, then clamped 4. Sizes 9/10 skip.
+        assert MockOpenAI.return_value.chat.completions.create.await_count == 2
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_year_string_coerced_to_int(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        result_json = json.dumps(
+            {
+                "make": "Suzuki",
+                "model": "GSX-R750",
+                "year": "2019",  # LLM returned a string
+                "category": "sport",
+            }
+        )
+        _configure_mock_client(MockOpenAI, result_json)
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        assert result["year"] == 2019
+        assert result["fill_rate"] == 1.0
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_non_numeric_year_treated_as_unfilled(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        result_json = json.dumps(
+            {
+                "make": "Ducati",
+                "model": "Panigale",
+                "year": "unknown",
+                "category": "sport",
+            }
+        )
+        _configure_mock_client(MockOpenAI, result_json)
+
+        extractor = MetadataExtractor()
+        result = await extractor.extract(_TEN_PAGES)
+
+        # "unknown" cannot coerce to int -> year stays 0 (unfilled) -> 75%.
+        assert result["year"] == 0
+        assert result["fill_rate"] == 0.75
+
+
+# ---------------------------------------------------------------------------
+# MetadataResult schema bridge
+# ---------------------------------------------------------------------------
+
+
+class TestMetadataResultModel:
+    def test_from_extraction_dict_full(self):
+        from models.schemas import MetadataResult
+
+        data = {
+            "make": "Honda",
+            "model": "CBR600RR",
+            "year": 2023,
+            "category": "sport",
+            "tags": ["sport"],
+            "fill_rate": 1.0,
+            "pages_sampled": 3,
+        }
+        result = MetadataResult.from_extraction_dict(data)
+        assert result.make == "Honda"
+        assert result.model == "CBR600RR"
+        assert result.year == 2023
+        assert result.category == "sport"
+        assert result.tags == ["sport"]
+        assert result.fill_rate == 1.0
+        assert result.pages_sampled == 3
+
+    def test_from_extraction_dict_missing_keys_default(self):
+        from models.schemas import MetadataResult
+
+        result = MetadataResult.from_extraction_dict({})
+        assert result.make is None
+        assert result.year == 0
+        assert result.tags == []
+        assert result.fill_rate == 0.0
+        assert result.pages_sampled == 0
+
+    def test_from_extraction_dict_coerces_string_year(self):
+        from models.schemas import MetadataResult
+
+        result = MetadataResult.from_extraction_dict({"year": "2024"})
+        assert result.year == 2024
+
+    def test_from_extraction_dict_bad_year_defaults_to_zero(self):
+        from models.schemas import MetadataResult
+
+        result = MetadataResult.from_extraction_dict({"year": "abc"})
+        assert result.year == 0

@@ -6,6 +6,15 @@
             "model": "opencode/deepseek-v4-flash-free"
         }
     },
+    "provider": {
+        "zai-coding-plan": {
+            "models": {
+                "glm-5.2": {
+                    "name": "GLM 5.2"
+                }
+            }
+        }
+    },
     "permission": {
         "skill": {
             "*": "allow"

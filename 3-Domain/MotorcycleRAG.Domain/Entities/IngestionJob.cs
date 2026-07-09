@@ -71,6 +71,15 @@ public class IngestionJob
     public int RecordsWithWarnings { get; set; }
     public string? ErrorsJson { get; set; }
     public string? ErrorMessage { get; set; }
+    /// <summary>
+    /// Motorcycle metadata extracted by the PDF pipeline's LLM or submitted manually by an
+    /// admin. Stored as a JSON blob with the shape:
+    /// <c>{ "make": "...", "model": "...", "year": 2023, "category": "...", "tags": [...] }</c>.
+    /// Populated during the <c>extracting-metadata</c> pipeline stage. When automated extraction
+    /// is incomplete the job pauses in <see cref="IngestionJobStatus.AwaitingMetadata"/>
+    /// and this field holds the partial result; once an admin submits manual metadata it is
+    /// overwritten with the complete blob. Column is <c>nvarchar(max)</c>.
+    /// </summary>
     public string? MetadataJson { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }

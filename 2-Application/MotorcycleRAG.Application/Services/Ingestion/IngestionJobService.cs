@@ -20,6 +20,10 @@ namespace MotorcycleRAG.Application.Services.Ingestion;
 public sealed class IngestionJobService : IIngestionJobService {
     private const string PdfSourceFileName = "source.pdf";
     private const string GraphEntitiesPrefix = "graph-entities";
+    private const string NeedsManualMetadataStage = "needs-manual-metadata";
+    private const string MetadataResumingStage = "resuming";
+    private const int MetadataRequiredFieldCount = 4;
+    private const int MetadataMaxJsonLength = 10_000;
     private static readonly IngestionJobStatus[] ActiveStatuses = [IngestionJobStatus.Processing, IngestionJobStatus.Indexing];
     private static readonly IngestionJobStatus[] FailedStatuses = [IngestionJobStatus.Failed, IngestionJobStatus.Cancelled];
     private static readonly IngestionJobStatus[] FinishedStatuses = [IngestionJobStatus.Completed, IngestionJobStatus.PartiallyCompleted];
@@ -667,6 +671,20 @@ public sealed class IngestionJobService : IIngestionJobService {
             }
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
         }
+        else if (string.Equals(request.Stage, NeedsManualMetadataStage, StringComparison.OrdinalIgnoreCase))
+        {
+            // The processor's automated metadata extraction could not determine all required
+            // fields after sampling the maximum number of pages. Transition the job to the
+            // paused AwaitingMetadata state so the admin UI can surface a manual-entry modal.
+            // This is NOT a terminal state — the job resumes once an admin submits metadata.
+            job.Status = IngestionJobStatus.AwaitingMetadata;
+            job.CurrentStage = request.Stage;
+            job.StageSetAtUtc = stageSetAtUtc;
+            job.FailureReason = string.IsNullOrWhiteSpace(request.FailureReason)
+                ? "Metadata extraction incomplete. Manual entry required."
+                : request.FailureReason;
+            await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
+        }
         else
         {
             if (job.Status == IngestionJobStatus.Queued)
@@ -687,6 +705,138 @@ public sealed class IngestionJobService : IIngestionJobService {
             jobId, request.Stage, request.ChunksProcessed, request.TotalChunks);
 
         return MapToResponse(job);
+    }
+
+    /// <inheritdoc />
+    public async Task<IngestionJobStatusResponse> SubmitManualMetadataAsync(
+        Guid jobId,
+        string metadataJson,
+        string userId,
+        CancellationToken ct = default) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(metadataJson);
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
+        if (metadataJson.Length > MetadataMaxJsonLength) {
+            throw new ArgumentException(
+                $"metadataJson must not exceed {MetadataMaxJsonLength} characters.",
+                nameof(metadataJson));
+        }
+
+        // Validate that the input is well-formed JSON, is a top-level object, AND has all four
+        // required fields populated. Throws ArgumentException with a descriptive message listing
+        // the missing fields on validation failure — the admin must not be able to resume with
+        // incomplete metadata.
+        var parsed = ParseMetadataOrThrow(metadataJson);
+
+        var job = await _repository.GetByIdAsync(jobId, ct).ConfigureAwait(false);
+        if (job is null) {
+            // KeyNotFoundException (not InvalidOperationException) so the controller can
+            // distinguish "job not found" (404) from DB failures (500).
+            throw new KeyNotFoundException($"Ingestion job '{jobId}' not found.");
+        }
+
+        // Persist the metadata blob. This is idempotent — a duplicate submission with the
+        // same value overwrites harmlessly. UpdateMetadataAsync touches only the
+        // MetadataJson column so it cannot clobber concurrent stage/status writes.
+        job.MetadataJson = metadataJson;
+        await _repository.UpdateMetadataAsync(jobId, metadataJson, ct).ConfigureAwait(false);
+
+        // CAS-guarded transition: only flip to Processing if the row is still in
+        // AwaitingMetadata. This prevents lost updates / TOCTOU races where a concurrent
+        // request or the processor self-recovered between our read and this write. If the
+        // CAS does not match (returns false), the metadata was still persisted — this is the
+        // idempotent duplicate path: the resume is not re-triggered.
+        var resumed = await _repository.TryTransitionFromAwaitingMetadataAsync(
+            jobId, MetadataResumingStage, ct).ConfigureAwait(false);
+
+        if (resumed) {
+            // Reflect the transition in the in-memory entity for the response mapping.
+            job.Status = IngestionJobStatus.Processing;
+            job.CurrentStage = MetadataResumingStage;
+            job.StageSetAtUtc = DateTimeOffset.UtcNow;
+            job.FailureReason = null;
+
+            // Processor resume: In this architecture Admin Desktop orchestrates the Python
+            // local-processing-service (it starts the processor and the processor reports
+            // back via stage callbacks). The resume follows the same pattern: Admin Desktop
+            // polls /api/ingestion/jobs every 15 s, detects status=Processing +
+            // currentStage=resuming, and calls the Python POST /process/pdf endpoint with
+            // the job_id and metadata override. The C# API does NOT call the Python service
+            // directly — doing so would violate the existing orchestration boundary.
+            _logger.LogInformation(
+                "Manual metadata submitted for job {JobId} by user {UserId}. Transitioned AwaitingMetadata -> Processing. " +
+                "FillRate={FillRate:F2}, IsComplete={IsComplete}. Admin Desktop will detect the resume stage and trigger the processor.",
+                jobId, userId, parsed.FillRate, parsed.IsComplete);
+        }
+        else {
+            // The CAS did not match — the job was no longer in AwaitingMetadata. The metadata
+            // blob was still persisted above. Update the in-memory status from the stored value
+            // so the response is accurate.
+            _logger.LogInformation(
+                "Metadata updated for job {JobId} by user {UserId} but status is {Status} (not AwaitingMetadata). Resume not triggered.",
+                jobId, userId, job.Status);
+        }
+
+        return MapToResponse(job);
+    }
+
+    /// <inheritdoc />
+    public async Task<IngestionJobMetadataResponse?> GetJobMetadataAsync(
+        Guid jobId,
+        string userId,
+        CancellationToken ct = default) {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
+        var job = await _repository.GetByIdAsync(jobId, ct).ConfigureAwait(false);
+        if (job is null) {
+            return null;
+        }
+
+        // No metadata recorded yet — return an empty response with IsComplete = false so
+        // the admin UI can render an empty form.
+        if (string.IsNullOrWhiteSpace(job.MetadataJson)) {
+            _logger.LogInformation(
+                "Metadata view requested for job {JobId} by user {UserId}: no metadata recorded yet.",
+                jobId, userId);
+            return new IngestionJobMetadataResponse {
+                JobId = jobId,
+                IsComplete = false,
+                FillRate = 0.0,
+                RawJson = null
+            };
+        }
+
+        // Parse the stored JSON into structured fields. If the stored blob is corrupt
+        // (should not happen under normal operation), return the raw JSON with
+        // IsComplete = false rather than throwing — the admin can still see and fix the data.
+        var parsed = TryParseMetadata(job.MetadataJson);
+        if (parsed is null) {
+            _logger.LogWarning(
+                "Stored metadata JSON for job {JobId} could not be parsed (requested by user {UserId}). Returning raw blob.",
+                jobId, userId);
+            return new IngestionJobMetadataResponse {
+                JobId = jobId,
+                IsComplete = false,
+                FillRate = 0.0,
+                RawJson = job.MetadataJson
+            };
+        }
+
+        _logger.LogInformation(
+            "Metadata view for job {JobId} requested by user {UserId}: FillRate={FillRate:F2}, IsComplete={IsComplete}.",
+            jobId, userId, parsed.FillRate, parsed.IsComplete);
+
+        return new IngestionJobMetadataResponse {
+            JobId = jobId,
+            Make = parsed.Make,
+            Model = parsed.Model,
+            Year = parsed.Year,
+            Category = parsed.Category,
+            Tags = parsed.Tags,
+            FillRate = parsed.FillRate,
+            IsComplete = parsed.IsComplete,
+            RawJson = job.MetadataJson
+        };
     }
 
     private static bool IsFailedStatus(IngestionJobStatus status) =>
@@ -961,4 +1111,177 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         return false;
     }
+
+    // --- Metadata JSON parsing helpers ---
+
+    /// <summary>
+    /// Lightweight container for parsed motorcycle metadata fields and computed fill rate.
+    /// </summary>
+    private sealed record ParsedMetadata(
+        string? Make,
+        string? Model,
+        int? Year,
+        string? Category,
+        IReadOnlyList<string> Tags,
+        double FillRate,
+        bool IsComplete);
+
+    /// <summary>
+    /// Parses a metadata JSON string and throws <see cref="ArgumentException"/> when the
+    /// input is not valid JSON, is not a JSON object, or is missing one or more required
+    /// fields (make, model, year, category). Used by the submit path where invalid input
+    /// must be rejected with a clear, actionable error message.
+    /// </summary>
+    private static ParsedMetadata ParseMetadataOrThrow(string metadataJson) {
+        JsonDocument doc;
+        try {
+            doc = JsonDocument.Parse(metadataJson);
+        }
+        catch (JsonException ex) {
+            throw new ArgumentException("metadataJson is not valid JSON.", ex);
+        }
+
+        using (doc) {
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) {
+                throw new ArgumentException("metadataJson must be a JSON object.");
+            }
+
+            var parsed = ExtractMetadata(doc.RootElement);
+
+            // Enforce required-field completeness: an admin must not be able to resume the
+            // pipeline with empty or partial metadata. The automated extraction path already
+            // guarantees completeness before transitioning to AwaitingMetadata — but a manual
+            // submission is admin-controlled, so we validate here as a defence-in-depth guard.
+            if (!parsed.IsComplete) {
+                var missing = GetMissingMetadataFields(parsed);
+                throw new ArgumentException(
+                    $"The submitted metadata is incomplete. All four required fields (make, model, year, category) " +
+                    $"must be populated. Missing: {string.Join(", ", missing)}.");
+            }
+
+            return parsed;
+        }
+    }
+
+    /// <summary>
+    /// Returns the names of the required metadata fields that are missing or empty.
+    /// </summary>
+    private static List<string> GetMissingMetadataFields(ParsedMetadata parsed) {
+        var missing = new List<string>(MetadataRequiredFieldCount);
+        if (string.IsNullOrWhiteSpace(parsed.Make)) {
+            missing.Add("make");
+        }
+
+        if (string.IsNullOrWhiteSpace(parsed.Model)) {
+            missing.Add("model");
+        }
+
+        if (!parsed.Year.HasValue || parsed.Year.Value <= 0) {
+            missing.Add("year");
+        }
+
+        if (string.IsNullOrWhiteSpace(parsed.Category)) {
+            missing.Add("category");
+        }
+
+        return missing;
+    }
+
+    /// <summary>
+    /// Attempts to parse a metadata JSON string. Returns null when the input is not valid
+    /// JSON or is not a JSON object. Used by the GET path where corrupt stored data must
+    /// not cause a 500 error.
+    /// </summary>
+    private static ParsedMetadata? TryParseMetadata(string metadataJson) {
+        try {
+            using var doc = JsonDocument.Parse(metadataJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) {
+                return null;
+            }
+
+            return ExtractMetadata(doc.RootElement);
+        }
+        catch (JsonException) {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Extracts make, model, year, category, and tags from a JSON object element and
+    /// computes the fill rate (fraction of the four required fields that are populated).
+    /// </summary>
+    private static ParsedMetadata ExtractMetadata(JsonElement root) {
+        var make = TryGetMetadataString(root, "make");
+        var model = TryGetMetadataString(root, "model");
+        var year = TryGetMetadataInt(root, "year");
+        var category = TryGetMetadataString(root, "category");
+        var tags = TryGetMetadataStringList(root, "tags");
+
+        var filled = 0;
+        if (!string.IsNullOrWhiteSpace(make)) filled++;
+        if (!string.IsNullOrWhiteSpace(model)) filled++;
+        if (year.HasValue && year.Value > 0) filled++;
+        if (!string.IsNullOrWhiteSpace(category)) filled++;
+
+        var fillRate = (double)filled / MetadataRequiredFieldCount;
+
+        return new ParsedMetadata(
+            NormalizeMetadataString(make),
+            NormalizeMetadataString(model),
+            year,
+            NormalizeMetadataString(category),
+            tags,
+            fillRate,
+            filled == MetadataRequiredFieldCount);
+    }
+
+    private static string? TryGetMetadataString(JsonElement root, string propertyName) {
+        if (root.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.String) {
+            return prop.GetString();
+        }
+
+        return null;
+    }
+
+    private static int? TryGetMetadataInt(JsonElement root, string propertyName) {
+        if (!root.TryGetProperty(propertyName, out var prop)) {
+            return null;
+        }
+
+        // Accept year as a JSON number first, then fall back to a numeric string (some
+        // LLMs emit "2023" instead of 2023).
+        if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out var numValue)) {
+            return numValue;
+        }
+
+        if (prop.ValueKind == JsonValueKind.String) {
+            var str = prop.GetString();
+            if (int.TryParse(str, out var parsed)) {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> TryGetMetadataStringList(JsonElement root, string propertyName) {
+        if (!root.TryGetProperty(propertyName, out var prop) || prop.ValueKind != JsonValueKind.Array) {
+            return [];
+        }
+
+        var list = new List<string>();
+        foreach (var item in prop.EnumerateArray()) {
+            if (item.ValueKind == JsonValueKind.String) {
+                var value = item.GetString();
+                if (!string.IsNullOrWhiteSpace(value)) {
+                    list.Add(value.Trim());
+                }
+            }
+        }
+
+        return list;
+    }
+
+    private static string? NormalizeMetadataString(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

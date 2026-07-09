@@ -385,6 +385,121 @@ public sealed class IngestionJobsController : ControllerBase {
     }
 
     /// <summary>
+    /// Submits manually-entered metadata for a job that is paused in the AwaitingMetadata state.
+    /// Validates the JSON, persists it, transitions the job back to Processing, and signals the
+    /// processor to resume. Duplicate submissions are handled idempotently.
+    /// Route: POST /api/ingestion/jobs/{jobId}/metadata
+    /// </summary>
+    /// <remarks>
+    /// Requires the <c>mcr-api-admin</c> policy (inherited from the class-level
+    /// <see cref="AuthorizeAttribute"/>). Only admin operators may submit manual metadata.
+    /// </remarks>
+    /// <param name="jobId">The ingestion job identifier.</param>
+    /// <param name="request">The metadata submission request containing a JSON string.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>200 OK with the updated <see cref="IngestionJobStatusResponse"/>.</returns>
+    [HttpPost("jobs/{jobId:guid}/metadata")]
+    [IgnoreAntiforgeryToken]
+    [ProducesResponseType(typeof(IngestionJobStatusResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> SubmitManualMetadataAsync(
+        Guid jobId,
+        [FromBody] ManualMetadataSubmitRequest? request,
+        CancellationToken ct) {
+        if (request is null || string.IsNullOrWhiteSpace(request.MetadataJson)) {
+            return BadRequest(new ProblemDetails {
+                Title = "metadataJson is required",
+                Detail = "A non-empty metadataJson string must be provided in the request body.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+
+        _logger.LogInformation(
+            "Submitting manual metadata for ingestion job {JobId} by user {UserId} ({Length} chars).",
+            jobId,
+            userId,
+            request.MetadataJson.Length);
+
+        try {
+            var result = await _ingestionJobService
+                .SubmitManualMetadataAsync(jobId, request.MetadataJson, userId, ct)
+                .ConfigureAwait(false);
+            return Ok(result);
+        }
+        catch (ArgumentException ex) {
+            // Invalid JSON, not a JSON object, or missing required fields.
+            _logger.LogWarning(ex, "Manual metadata submission rejected for job {JobId} by user {UserId}: invalid or incomplete metadata.", jobId, userId);
+            return BadRequest(new ProblemDetails {
+                Title = "Invalid metadata",
+                Detail = ex.Message,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+        catch (KeyNotFoundException ex) {
+            // Job not found — distinct from DB failures so a 404 is not returned for a 500 error.
+            _logger.LogWarning(ex, "Manual metadata submission failed: job {JobId} not found.", jobId);
+            return NotFound(new ProblemDetails {
+                Title = "Ingestion job not found",
+                Detail = ex.Message,
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+        // NOTE: InvalidOperationException (DB failures from the repository) intentionally
+        // does NOT map to 404 — it falls through to the global exception handler as a 500.
+    }
+
+    /// <summary>
+    /// Retrieves the current metadata (extracted or manually submitted) for an ingestion job.
+    /// Returns parsed fields, fill rate, and the raw JSON blob for admin UI pre-fill.
+    /// Route: GET /api/ingestion/jobs/{jobId}/metadata
+    /// </summary>
+    /// <remarks>
+    /// Requires the <c>mcr-api-admin</c> policy (inherited from the class-level
+    /// <see cref="AuthorizeAttribute"/>). Only admin operators may view job metadata.
+    /// </remarks>
+    /// <param name="jobId">The ingestion job identifier.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>200 OK with <see cref="IngestionJobMetadataResponse"/> or 404 Not Found.</returns>
+    [HttpGet("jobs/{jobId:guid}/metadata")]
+    [IgnoreAntiforgeryToken]
+    [ProducesResponseType(typeof(IngestionJobMetadataResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetJobMetadataAsync(
+        Guid jobId,
+        CancellationToken ct) {
+        var userId = User.FindFirst("sub")?.Value ?? "unknown";
+
+        try {
+            var result = await _ingestionJobService
+                .GetJobMetadataAsync(jobId, userId, ct)
+                .ConfigureAwait(false);
+
+            if (result is null) {
+                return NotFound(new ProblemDetails {
+                    Title = "Ingestion job not found",
+                    Detail = $"No ingestion job with ID '{jobId}' was found.",
+                    Status = StatusCodes.Status404NotFound
+                });
+            }
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) {
+            // DB failure from the repository — must surface as 500, not 404.
+            _logger.LogError(ex, "Failed to retrieve metadata for ingestion job {JobId} requested by user {UserId}.", jobId, userId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
+                Title = "Failed to retrieve job metadata",
+                Detail = "The server could not retrieve the job metadata.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
+    }
+
+    /// <summary>
     /// Marks a queued or terminal ingestion job for asynchronous deletion.
     /// Route: DELETE /api/ingestion/jobs/{jobId}
     /// </summary>

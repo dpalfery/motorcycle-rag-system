@@ -389,7 +389,7 @@ class PDFProcessor:
     def _extract_page_texts(self, document: Any) -> list[str]:
         """Extract per-page text from a parsed Docling document for metadata sampling.
 
-        Returns up to ``MetadataExtractor.PAGE_SAMPLE_SIZES[-1]`` (10) page
+        Returns up to ``MetadataExtractor.PAGE_SAMPLE_SIZES[-1]`` (3) page
         strings. Docling exposes ``document.pages`` as a ``dict[int, PageItem]``
         keyed by 1-based page number and ``document.export_to_text(page_no=N)``
         for per-page text. Returns an empty list when the document exposes no

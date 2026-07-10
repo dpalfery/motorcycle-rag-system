@@ -13,9 +13,13 @@ LOAD_TESTS=false
 AZURE_INTEGRATION_TESTS=false
 GENERATE_REPORTS=true
 OPEN_REPORTS=false
+UNIT_COVERAGE_MODE=false
+GENERATE_COVERAGE_TESTS=false
 CONFIGURATION="Release"
 TEST_FILTER=""
 MAX_PARALLELISM=4
+GENERATION_BUDGET=5
+UNIT_COVERAGE_THRESHOLD=""
 
 # Colors
 RED='\033[0;31m'
@@ -70,9 +74,25 @@ while [[ $# -gt 0 ]]; do
             GENERATE_REPORTS=false
             shift
             ;;
+        --unit-coverage)
+            UNIT_COVERAGE_MODE=true
+            shift
+            ;;
+        --generate-coverage-tests)
+            GENERATE_COVERAGE_TESTS=true
+            shift
+            ;;
         --open-reports)
             OPEN_REPORTS=true
             shift
+            ;;
+        --coverage-threshold)
+            UNIT_COVERAGE_THRESHOLD="$2"
+            shift 2
+            ;;
+        --generation-budget)
+            GENERATION_BUDGET="$2"
+            shift 2
             ;;
         --configuration)
             CONFIGURATION="$2"
@@ -91,7 +111,11 @@ while [[ $# -gt 0 ]]; do
             echo "  --load-tests                 Run load tests"
             echo "  --azure-integration-tests    Run Azure integration tests"
             echo "  --no-reports                 Skip report generation"
+            echo "  --unit-coverage              Run the repo unit coverage pipeline"
+            echo "  --generate-coverage-tests    Auto-generate unit tests for weak spots"
             echo "  --open-reports              Open reports after generation"
+            echo "  --coverage-threshold VALUE   Override the unit coverage threshold"
+            echo "  --generation-budget COUNT    Limit auto-generation attempts"
             echo "  --configuration CONFIG       Build configuration (Debug/Release)"
             echo "  --filter FILTER             Test filter expression"
             echo "  --help                      Show this help message"
@@ -120,6 +144,66 @@ if [ -d "$RESULTS_DIR" ]; then
     rm -rf "$RESULTS_DIR"
 fi
 mkdir -p "$RESULTS_DIR"
+
+if [ "$UNIT_COVERAGE_MODE" = true ]; then
+    print_header "Running Unified Unit Coverage"
+    COVERAGE_ARGS=(
+        "5-Test/scripts/run_unit_coverage.py"
+        "--results-dir" "$RESULTS_DIR/UnitCoverage"
+        "--configuration" "$CONFIGURATION"
+    )
+
+    if [ -n "$UNIT_COVERAGE_THRESHOLD" ]; then
+        COVERAGE_ARGS+=("--threshold" "$UNIT_COVERAGE_THRESHOLD")
+    fi
+
+    if python3 "${COVERAGE_ARGS[@]}"; then
+        print_success "Unified unit coverage completed"
+    else
+        print_error "Unified unit coverage failed"
+        exit 1
+    fi
+
+    if [ "$GENERATE_COVERAGE_TESTS" = true ]; then
+        print_header "Running Coverage-Driven Test Generation"
+        AUTOGEN_ARGS=(
+            "5-Test/scripts/auto_generate_coverage_tests.py"
+            "--results-dir" "$RESULTS_DIR/UnitCoverage"
+            "--configuration" "$CONFIGURATION"
+            "--budget" "$GENERATION_BUDGET"
+        )
+        if [ -n "$UNIT_COVERAGE_THRESHOLD" ]; then
+            AUTOGEN_ARGS+=("--threshold" "$UNIT_COVERAGE_THRESHOLD")
+        fi
+
+        if python3 "${AUTOGEN_ARGS[@]}"; then
+            print_success "Coverage-driven test generation completed"
+        else
+            print_error "Coverage-driven test generation failed"
+            exit 1
+        fi
+
+        if python3 "${COVERAGE_ARGS[@]}"; then
+            print_success "Post-generation coverage run completed"
+        else
+            print_error "Post-generation coverage run failed"
+            exit 1
+        fi
+    fi
+
+    if [ "$OPEN_REPORTS" = true ]; then
+        REPORT_PATH="$RESULTS_DIR/UnitCoverage/CoverageReport/coverage-summary.html"
+        if [ -f "$REPORT_PATH" ]; then
+            if command -v xdg-open > /dev/null; then
+                xdg-open "$REPORT_PATH"
+            elif command -v open > /dev/null; then
+                open "$REPORT_PATH"
+            fi
+        fi
+    fi
+
+    exit 0
+fi
 
 # Build solution
 print_header "Building Solution"

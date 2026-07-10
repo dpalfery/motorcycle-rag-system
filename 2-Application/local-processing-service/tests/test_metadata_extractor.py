@@ -106,8 +106,8 @@ class TestExtract:
         assert result["category"] == "sport"
         assert result["tags"] == ["sport", "inline-4", "600cc"]
         assert result["fill_rate"] == 1.0
-        assert result["pages_sampled"] == 3
-        # Should stop after the first sample (3 pages) once fill rate is 1.0.
+        assert result["pages_sampled"] == 1
+        # Should stop after the first sample (1 page) once fill rate is 1.0.
         assert MockOpenAI.return_value.chat.completions.create.await_count == 1
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
@@ -123,19 +123,19 @@ class TestExtract:
         extractor = MetadataExtractor()
         result = await extractor.extract(_TEN_PAGES)
 
-        # First sample (3 pages) gave 2 fields; second sample (6 pages) filled
-        # the rest, so extraction stops at 6 pages with 100% fill rate.
+        # First sample (1 page) gave 2 fields; second sample (2 pages) filled
+        # the rest, so extraction stops at 2 pages with 100% fill rate.
         assert result["make"] == "Honda"
         assert result["model"] == "CBR"
         assert result["year"] == 2023
         assert result["category"] == "sport"
         assert result["fill_rate"] == 1.0
-        assert result["pages_sampled"] == 6
+        assert result["pages_sampled"] == 2
         assert MockOpenAI.return_value.chat.completions.create.await_count == 2
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
     async def test_partial_fill_accumulates_across_iterations(self, MockOpenAI):
-        """Fields discovered at 3 pages are retained when more pages are sampled."""
+        """Fields discovered at 1 page are retained when more pages are sampled."""
         from extraction.metadata_extractor import MetadataExtractor
 
         first = {"make": "Yamaha", "model": "", "year": 0, "category": ""}
@@ -152,7 +152,7 @@ class TestExtract:
         assert result["year"] == 2021
         assert result["category"] == "naked"
         assert result["fill_rate"] == 1.0
-        assert result["pages_sampled"] == 6
+        assert result["pages_sampled"] == 2
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
     async def test_empty_response_from_llm(self, MockOpenAI):
@@ -169,10 +169,10 @@ class TestExtract:
         assert result["category"] is None
         assert result["tags"] == []
         assert result["fill_rate"] == 0.0
-        # Exhausts all sample sizes (3 -> 6 -> 9 -> 10) since fill rate never
+        # Exhausts all sample sizes (1 -> 2 -> 3) since fill rate never
         # reaches 1.0.
-        assert result["pages_sampled"] == 10
-        assert MockOpenAI.return_value.chat.completions.create.await_count == 4
+        assert result["pages_sampled"] == 3
+        assert MockOpenAI.return_value.chat.completions.create.await_count == 3
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
     async def test_null_content_treated_as_empty(self, MockOpenAI):
@@ -187,7 +187,7 @@ class TestExtract:
         result = await extractor.extract(_TEN_PAGES)
 
         assert result["fill_rate"] == 0.0
-        assert result["pages_sampled"] == 10
+        assert result["pages_sampled"] == 3
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
     async def test_invalid_json_response(self, MockOpenAI):
@@ -199,7 +199,7 @@ class TestExtract:
         result = await extractor.extract(_TEN_PAGES)
 
         assert result["fill_rate"] == 0.0
-        assert result["pages_sampled"] == 10
+        assert result["pages_sampled"] == 3
         assert result["make"] is None
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
@@ -214,8 +214,8 @@ class TestExtract:
 
         assert result["make"] == "Kawasaki"
         assert result["fill_rate"] == 0.25
-        assert result["pages_sampled"] == 10
-        assert MockOpenAI.return_value.chat.completions.create.await_count == 4
+        assert result["pages_sampled"] == 3
+        assert MockOpenAI.return_value.chat.completions.create.await_count == 3
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
     async def test_llm_connection_error(self, MockOpenAI):
@@ -235,7 +235,7 @@ class TestExtract:
         assert result["fill_rate"] == 0.0
         assert result["pages_sampled"] == 0
         assert result["make"] is None
-        # First sample size (3 pages) tried 3 times, then exception propagates.
+        # First sample size (1 page) tried 3 times, then exception propagates.
         assert mock_client.chat.completions.create.await_count == 3
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
@@ -264,7 +264,7 @@ class TestExtract:
 
         assert result["fill_rate"] == 1.0
         # First sample size (3) <= 4 pages, so it succeeds immediately.
-        assert result["pages_sampled"] == 3
+        assert result["pages_sampled"] == 1
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
     async def test_short_document_skips_oversized_samples(self, MockOpenAI):
@@ -283,9 +283,9 @@ class TestExtract:
 
         assert result["make"] == "Honda"
         assert result["fill_rate"] == 0.25
-        assert result["pages_sampled"] == 4
-        # Only two calls: sample size 3, then clamped 4. Sizes 9/10 skip.
-        assert MockOpenAI.return_value.chat.completions.create.await_count == 2
+        assert result["pages_sampled"] == 3
+        # Only three calls: sample sizes 1, 2, 3 on a 4-page doc.
+        assert MockOpenAI.return_value.chat.completions.create.await_count == 3
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
     async def test_year_string_coerced_to_int(self, MockOpenAI):

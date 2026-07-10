@@ -8,4 +8,17 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
   },
+  coverage: {
+    provider: "v8",
+    reporter: ["text", "cobertura"],
+    reportsDirectory: "./coverage",
+    exclude: [
+      "src/**/*.test.ts",
+      "src/**/*.test.tsx",
+      "src/test/**",
+      "src/**/*.d.ts",
+      "src-tauri/**",
+      "dist/**",
+    ],
+  },
 });

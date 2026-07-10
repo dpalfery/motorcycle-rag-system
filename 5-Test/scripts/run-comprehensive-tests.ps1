@@ -9,9 +9,13 @@ param(
     [switch]$AzureIntegrationTests = $false,
     [switch]$GenerateReports = $true,
     [switch]$OpenReports = $false,
+    [switch]$UnitCoverage = $false,
+    [switch]$GenerateCoverageTests = $false,
     [string]$Configuration = "Release",
     [string]$TestFilter = "",
-    [int]$MaxDegreeOfParallelism = 4
+    [int]$MaxDegreeOfParallelism = 4,
+    [int]$GenerationBudget = 5,
+    [double]$CoverageThreshold = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,6 +56,16 @@ function Write-Warning($Message) {
     Write-ColorOutput $Yellow "⚠ $Message"
 }
 
+function Get-PythonCommand {
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        return @("py", "-3")
+    }
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        return @("python")
+    }
+    throw "Python runtime not found on PATH"
+}
+
 # Initialize
 $StartTime = Get-Date
 $TestResults = @()
@@ -69,6 +83,61 @@ if (Test-Path $ResultsDir) {
     Remove-Item $ResultsDir -Recurse -Force
 }
 New-Item -ItemType Directory -Path $ResultsDir -Force | Out-Null
+
+if ($UnitCoverage) {
+    Write-Header "Running Unified Unit Coverage"
+    $pythonCommand = Get-PythonCommand
+    $pythonArgs = @()
+    if ($pythonCommand.Length -gt 1) {
+        $pythonArgs = $pythonCommand[1..($pythonCommand.Length - 1)]
+    }
+    $coverageArgs = @(
+        "5-Test/scripts/run_unit_coverage.py",
+        "--results-dir", "$ResultsDir/UnitCoverage",
+        "--configuration", $Configuration
+    )
+
+    if ($CoverageThreshold -gt 0) {
+        $coverageArgs += "--threshold", "$CoverageThreshold"
+    }
+
+    & $pythonCommand[0] @pythonArgs $coverageArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unified unit coverage failed"
+    }
+
+    if ($GenerateCoverageTests) {
+        Write-Header "Running Coverage-Driven Test Generation"
+        $autogenArgs = @(
+            "5-Test/scripts/auto_generate_coverage_tests.py",
+            "--results-dir", "$ResultsDir/UnitCoverage",
+            "--configuration", $Configuration,
+            "--budget", "$GenerationBudget"
+        )
+        if ($CoverageThreshold -gt 0) {
+            $autogenArgs += "--threshold", "$CoverageThreshold"
+        }
+
+        & $pythonCommand[0] @pythonArgs $autogenArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Coverage-driven test generation failed"
+        }
+
+        & $pythonCommand[0] @pythonArgs $coverageArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Post-generation coverage run failed"
+        }
+    }
+
+    if ($OpenReports) {
+        $reportPath = Join-Path $ResultsDir "UnitCoverage/CoverageReport/coverage-summary.html"
+        if (Test-Path $reportPath) {
+            Start-Process $reportPath
+        }
+    }
+
+    exit 0
+}
 
 try {
     # Build solution

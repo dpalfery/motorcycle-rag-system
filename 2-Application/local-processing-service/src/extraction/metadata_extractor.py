@@ -1,6 +1,6 @@
 """Motorcycle metadata extraction using an OpenAI-compatible LLM.
 
-Iteratively samples the first N pages of a parsed PDF (3 -> 6 -> 9 -> 10 pages)
+Iteratively samples the first N pages of a parsed PDF (1 -> 2 -> 3 pages)
 and asks the LLM for make, model, year, category, and tags. Sampling stops as
 soon as all four required fields are filled (fill rate == 1.0).
 
@@ -74,8 +74,8 @@ class MetadataExtractor:
     endpoint is reconfigured to a remote host, see ``extract()`` for caveats.
     """
 
-    #: Iterative page sample sizes (inclusive growth, capped at 10 pages).
-    PAGE_SAMPLE_SIZES = [3, 6, 9, 10]
+    #: Iterative page sample sizes, capped at 3 pages.
+    PAGE_SAMPLE_SIZES = [1, 2, 3]
     #: Fields required for a 100% fill rate.
     REQUIRED_FIELDS = ["make", "model", "year", "category"]
 
@@ -326,6 +326,8 @@ class MetadataExtractor:
                 {"role": "user", "content": user_content},
             ],
             temperature=0.1,
+            max_tokens=300,
+            response_format={"type": "json_object"},
         )
         elapsed_ms = int((time.perf_counter() - call_start) * 1000)
 

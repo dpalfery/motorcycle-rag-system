@@ -101,7 +101,7 @@ def metadata_extractor():
     override ``extract.return_value`` or ``extract.side_effect``.
     """
     me = MagicMock()
-    me.PAGE_SAMPLE_SIZES = [3, 6, 9, 10]
+    me.PAGE_SAMPLE_SIZES = [1, 2, 3]
     me.extract = AsyncMock(return_value={
         "make": "Honda",
         "model": "CB500",
@@ -534,7 +534,7 @@ class TestMetadataExtraction:
         api_client.is_configured.return_value = True
         metadata_extractor.extract.return_value = {
             "make": "Honda", "model": None, "year": 0, "category": None,
-            "tags": [], "fill_rate": 0.25, "pages_sampled": 10,
+            "tags": [], "fill_rate": 0.25, "pages_sampled": 3,
         }
         MockGetTokenizer.return_value = MagicMock()
         mock_result = MagicMock()
@@ -587,7 +587,7 @@ class TestMetadataExtraction:
         # First pass: incomplete extraction -> pause.
         metadata_extractor.extract.return_value = {
             "make": None, "model": None, "year": 0, "category": None,
-            "tags": [], "fill_rate": 0.0, "pages_sampled": 10,
+            "tags": [], "fill_rate": 0.0, "pages_sampled": 3,
         }
         manual_metadata = SimpleNamespace(make="Kawasaki", model="Ninja 400", year=2022)
 
@@ -705,7 +705,7 @@ class TestExtractPageTexts:
 
     def test_capped_to_page_sample_upper_bound(self, processor):
         """More pages than the max sample size are truncated to the cap."""
-        # metadata_extractor.PAGE_SAMPLE_SIZES[-1] == 10
+        # metadata_extractor.PAGE_SAMPLE_SIZES[-1] == 3
         cap = processor._metadata_extractor.PAGE_SAMPLE_SIZES[-1]
         pages = {i: object() for i in range(1, cap + 5)}
         doc = MagicMock()

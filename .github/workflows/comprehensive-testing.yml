@@ -35,8 +35,8 @@ env:
   AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
 jobs:
-  unit-tests:
-    name: Unit Tests
+  unit-coverage-linux:
+    name: Unit Coverage (Linux)
     runs-on: ubuntu-latest
     
     steps:
@@ -46,34 +46,134 @@ jobs:
       uses: actions/setup-dotnet@v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Setup Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: 1-Presentation/MotorcycleRAG.AdminDesktop/package-lock.json
     
     - name: Restore dependencies
       run: dotnet restore
-    
-    - name: Build solution
-      run: dotnet build --no-restore --configuration Release
-    
-    - name: Run unit tests
+
+    - name: Install Python coverage dependencies
       run: |
-        dotnet test 5-Test/tests/MotorcycleRAG.UnitTests/MotorcycleRAG.UnitTests.csproj \
-          --no-build \
+        python -m pip install --upgrade pip
+        python -m pip install pytest pytest-asyncio pytest-cov
+
+    - name: Install Admin Desktop dependencies
+      run: npm ci
+      working-directory: 1-Presentation/MotorcycleRAG.AdminDesktop
+    
+    - name: Run unified unit coverage
+      run: |
+        python3 5-Test/scripts/run_unit_coverage.py \
+          --results-dir TestResults/UnitCoverage \
           --configuration Release \
-          --logger trx \
-          --results-directory TestResults \
-          --collect:"XPlat Code Coverage" \
-          --settings coverlet.runsettings
+          --suite dotnet-unit \
+          --suite bff-unit \
+          --suite python-unit \
+          --suite admindesktop-unit
     
     - name: Upload test results
       uses: actions/upload-artifact@v7
       if: always()
       with:
-        name: unit-test-results
-        path: TestResults/
+        name: unit-coverage-linux-results
+        path: TestResults/UnitCoverage/
     
+  unit-coverage-mobile:
+    name: Unit Coverage (Mobile)
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Select Xcode 26.5
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '26.5'
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Install MAUI workload
+      run: dotnet workload install maui
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Run mobile unit coverage
+      run: |
+        python3 5-Test/scripts/run_unit_coverage.py \
+          --results-dir TestResults/UnitCoverage \
+          --configuration Release \
+          --suite mobileapp-unit
+
+    - name: Upload mobile unit coverage results
+      uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: unit-coverage-mobile-results
+        path: TestResults/UnitCoverage/
+
+  unit-tests:
+    name: Unit Coverage Gate
+    runs-on: ubuntu-latest
+    needs:
+      - unit-coverage-linux
+      - unit-coverage-mobile
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Download Linux coverage artifacts
+      uses: actions/download-artifact@v7
+      with:
+        name: unit-coverage-linux-results
+        path: TestResults/UnitCoverage
+
+    - name: Download Mobile coverage artifacts
+      uses: actions/download-artifact@v7
+      with:
+        name: unit-coverage-mobile-results
+        path: TestResults/UnitCoverage
+
+    - name: Aggregate merged coverage and enforce threshold
+      run: |
+        python3 5-Test/scripts/aggregate_coverage.py \
+          --results-dir TestResults/UnitCoverage \
+          --output-dir TestResults/UnitCoverage/CoverageReport
+
+    - name: Upload merged coverage artifacts
+      uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: unit-coverage-merged-results
+        path: TestResults/UnitCoverage/CoverageReport/
+
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v7
       with:
-        directory: TestResults/
+        files: TestResults/UnitCoverage/CoverageReport/coverage-merged.cobertura.xml
         flags: unittests
         name: unit-tests-coverage
 

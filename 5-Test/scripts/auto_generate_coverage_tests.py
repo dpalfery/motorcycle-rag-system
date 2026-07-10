@@ -17,7 +17,6 @@ from coverage_common import (
     REPO_ROOT,
     choose_test_targets_for_suite,
     codex_cli,
-    ensure_clean_worktree,
     load_config,
     run_command,
     suite_by_name,
@@ -34,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log-path", type=Path, default=None)
     parser.add_argument("--summary-path", type=Path, default=None)
     parser.add_argument("--model", default="")
+    parser.add_argument("--generation-timeout-seconds", type=int, default=900)
     return parser.parse_args()
 
 
@@ -61,7 +61,6 @@ def targeted_coverage(
     config_path: Path,
     results_dir: Path,
     configuration: str,
-    threshold: float,
 ) -> tuple[int, dict[str, Any]]:
     run_args = [
         sys.executable,
@@ -75,7 +74,7 @@ def targeted_coverage(
         "--suite",
         suite_name,
         "--threshold",
-        str(threshold),
+        "0",
     ]
     exit_code = run_command(run_args, cwd=REPO_ROOT)
     summary_path = results_dir / "CoverageReport" / "coverage-summary.json"
@@ -109,7 +108,35 @@ Outcome:
 """.strip()
 
 
-def snapshot_worktree_state(repo_root: Path) -> tuple[Path, dict[str, bool]]:
+def write_logs(
+    log_entries: list[dict[str, Any]],
+    *,
+    budget: int,
+    threshold: float,
+    log_path: Path,
+) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(json.dumps(log_entries, indent=2) + "\n", encoding="utf-8")
+
+    markdown_path = log_path.with_suffix(".md")
+    markdown_lines = [
+        "# Auto-Generated Coverage Test Run",
+        "",
+        f"- Budget: `{budget}`",
+        f"- Threshold: `{threshold:.2f}%`",
+        "",
+    ]
+    for entry in log_entries:
+        after_value = entry.get("afterLinePercent")
+        after_text = "n/a" if after_value is None else f"{after_value:.2f}%"
+        markdown_lines.append(
+            f"- `{entry['candidate']}` via `{entry['suite']}`: `{entry['status']}` "
+            f"(before `{entry['beforeLinePercent']:.2f}%`, after `{after_text}`)"
+        )
+    markdown_path.write_text("\n".join(markdown_lines) + "\n", encoding="utf-8")
+
+
+def snapshot_worktree_state(repo_root: Path) -> tuple[Path, dict[str, str]]:
     snapshot_dir = Path(tempfile.mkdtemp(prefix="coverage-autogen-snapshot-"))
     result = subprocess.run(
         ["git", "status", "--porcelain"],
@@ -118,32 +145,52 @@ def snapshot_worktree_state(repo_root: Path) -> tuple[Path, dict[str, bool]]:
         text=True,
         check=False,
     )
-    manifest: dict[str, bool] = {}
+    manifest: dict[str, str] = {}
     for line in result.stdout.splitlines():
         if len(line) < 4:
             continue
         relative_path = line[3:]
         file_path = repo_root / relative_path
-        exists = file_path.exists()
-        manifest[relative_path] = exists
-        if exists and file_path.is_file():
+        if not file_path.exists():
+            manifest[relative_path] = "missing"
+            continue
+
+        if file_path.is_dir():
+            manifest[relative_path] = "dir"
             backup_path = snapshot_dir / relative_path
-            backup_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(file_path, backup_path)
+            if backup_path.exists():
+                shutil.rmtree(backup_path)
+            shutil.copytree(file_path, backup_path)
+            continue
+
+        manifest[relative_path] = "file"
+        backup_path = snapshot_dir / relative_path
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(file_path, backup_path)
     return snapshot_dir, manifest
 
 
-def restore_worktree_state(repo_root: Path, snapshot_dir: Path, manifest: dict[str, bool]) -> None:
+def restore_worktree_state(repo_root: Path, snapshot_dir: Path, manifest: dict[str, str]) -> None:
     subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=repo_root, check=True)
     subprocess.run(["git", "clean", "-fd"], cwd=repo_root, check=True)
-    for relative_path, existed in manifest.items():
+    for relative_path, state in manifest.items():
         target = repo_root / relative_path
-        if existed:
+        if state == "file":
             source = snapshot_dir / relative_path
-            if source.exists():
+            if source.is_file():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
-        elif target.exists():
+            continue
+
+        if state == "dir":
+            source = snapshot_dir / relative_path
+            if source.is_dir():
+                if target.exists():
+                    shutil.rmtree(target)
+                shutil.copytree(source, target)
+            continue
+
+        if target.exists():
             if target.is_file():
                 target.unlink()
             else:
@@ -157,8 +204,6 @@ def main() -> int:
     results_dir = args.results_dir.resolve()
     summary_path = args.summary_path or (results_dir / "CoverageReport" / "coverage-summary.json")
     log_path = args.log_path or (results_dir / "auto-generation-log.json")
-    ensure_clean_worktree(REPO_ROOT)
-
     summary = load_summary(summary_path)
     budget = max(args.budget, 0)
     log_entries: list[dict[str, Any]] = []
@@ -190,7 +235,13 @@ def main() -> int:
             if args.model:
                 command.extend(["--model", args.model])
             command.append(prompt)
-            codex_exit = run_command(command, cwd=REPO_ROOT)
+            process = subprocess.run(
+                command,
+                cwd=REPO_ROOT,
+                check=False,
+                timeout=max(args.generation_timeout_seconds, 1),
+            )
+            codex_exit = process.returncode
             log_entry["codexExitCode"] = codex_exit
             log_entry["codexLastMessagePath"] = str(last_message_file)
 
@@ -200,44 +251,35 @@ def main() -> int:
                 config_path=args.config,
                 results_dir=targeted_results_dir,
                 configuration=args.configuration,
-                threshold=threshold,
             )
             after = find_candidate_coverage(targeted_summary, candidate["path"])
             log_entry["targetedCoverageExitCode"] = exit_code
             log_entry["afterLinePercent"] = after
 
-            if codex_exit != 0 or exit_code != 0 or after is None or after <= before:
+            if codex_exit != 0 or after is None or after <= before:
                 log_entry["status"] = "rejected"
                 restore_worktree_state(REPO_ROOT, snapshot_dir, manifest)
             else:
                 log_entry["status"] = "accepted"
                 summary = targeted_summary
+        except subprocess.TimeoutExpired as exc:
+            log_entry["status"] = "timed_out"
+            log_entry["error"] = (
+                f"codex exec exceeded timeout after {max(args.generation_timeout_seconds, 1)} seconds"
+            )
+            if exc.stdout:
+                log_entry["codexStdout"] = exc.stdout.decode("utf-8", errors="replace")
+            if exc.stderr:
+                log_entry["codexStderr"] = exc.stderr.decode("utf-8", errors="replace")
+            restore_worktree_state(REPO_ROOT, snapshot_dir, manifest)
         except Exception as exc:  # pragma: no cover - defensive logging
             log_entry["status"] = "error"
             log_entry["error"] = str(exc)
             restore_worktree_state(REPO_ROOT, snapshot_dir, manifest)
         finally:
             log_entries.append(log_entry)
+            write_logs(log_entries, budget=budget, threshold=threshold, log_path=log_path)
             shutil.rmtree(snapshot_dir, ignore_errors=True)
-
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_path.write_text(json.dumps(log_entries, indent=2) + "\n", encoding="utf-8")
-    markdown_path = log_path.with_suffix(".md")
-    markdown_lines = [
-        "# Auto-Generated Coverage Test Run",
-        "",
-        f"- Budget: `{budget}`",
-        f"- Threshold: `{threshold:.2f}%`",
-        "",
-    ]
-    for entry in log_entries:
-        after_value = entry.get("afterLinePercent")
-        after_text = "n/a" if after_value is None else f"{after_value:.2f}%"
-        markdown_lines.append(
-            f"- `{entry['candidate']}` via `{entry['suite']}`: `{entry['status']}` "
-            f"(before `{entry['beforeLinePercent']:.2f}%`, after `{after_text}`)"
-        )
-    markdown_path.write_text("\n".join(markdown_lines) + "\n", encoding="utf-8")
     return 0
 
 

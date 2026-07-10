@@ -57,6 +57,7 @@ def suite_for_candidate(config: dict[str, Any], candidate: dict[str, Any]) -> di
 
 def targeted_coverage(
     *,
+    repo_root: Path,
     suite_name: str,
     config_path: Path,
     results_dir: Path,
@@ -64,7 +65,7 @@ def targeted_coverage(
 ) -> tuple[int, dict[str, Any]]:
     run_args = [
         sys.executable,
-        "5-Test/scripts/run_unit_coverage.py",
+        str((repo_root / "5-Test/scripts/run_unit_coverage.py").resolve()),
         "--config",
         str(config_path.resolve()),
         "--results-dir",
@@ -76,7 +77,7 @@ def targeted_coverage(
         "--threshold",
         "0",
     ]
-    exit_code = run_command(run_args, cwd=REPO_ROOT)
+    exit_code = run_command(run_args, cwd=repo_root)
     summary_path = results_dir / "CoverageReport" / "coverage-summary.json"
     return exit_code, load_summary(summary_path)
 
@@ -136,8 +137,20 @@ def write_logs(
     markdown_path.write_text("\n".join(markdown_lines) + "\n", encoding="utf-8")
 
 
-def snapshot_worktree_state(repo_root: Path) -> tuple[Path, dict[str, str]]:
-    snapshot_dir = Path(tempfile.mkdtemp(prefix="coverage-autogen-snapshot-"))
+def repo_relative_path(repo_root: Path, path: Path) -> Path:
+    return path.resolve().relative_to(repo_root.resolve())
+
+
+def create_temp_worktree(repo_root: Path) -> Path:
+    temp_dir = Path(tempfile.mkdtemp(prefix="coverage-autogen-worktree-"))
+    subprocess.run(
+        ["git", "worktree", "add", "--detach", str(temp_dir), "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
     result = subprocess.run(
         ["git", "status", "--porcelain"],
         cwd=repo_root,
@@ -145,56 +158,62 @@ def snapshot_worktree_state(repo_root: Path) -> tuple[Path, dict[str, str]]:
         text=True,
         check=False,
     )
-    manifest: dict[str, str] = {}
     for line in result.stdout.splitlines():
         if len(line) < 4:
             continue
         relative_path = line[3:]
         file_path = repo_root / relative_path
-        if not file_path.exists():
-            manifest[relative_path] = "missing"
-            continue
+        target_path = temp_dir / relative_path
 
         if file_path.is_dir():
-            manifest[relative_path] = "dir"
-            backup_path = snapshot_dir / relative_path
-            if backup_path.exists():
-                shutil.rmtree(backup_path)
-            shutil.copytree(file_path, backup_path)
+            if target_path.exists():
+                shutil.rmtree(target_path)
+            shutil.copytree(file_path, target_path)
             continue
 
-        manifest[relative_path] = "file"
-        backup_path = snapshot_dir / relative_path
-        backup_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(file_path, backup_path)
-    return snapshot_dir, manifest
-
-
-def restore_worktree_state(repo_root: Path, snapshot_dir: Path, manifest: dict[str, str]) -> None:
-    subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=repo_root, check=True)
-    subprocess.run(["git", "clean", "-fd"], cwd=repo_root, check=True)
-    for relative_path, state in manifest.items():
-        target = repo_root / relative_path
-        if state == "file":
-            source = snapshot_dir / relative_path
-            if source.is_file():
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source, target)
+        if file_path.is_file():
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(file_path, target_path)
             continue
 
-        if state == "dir":
-            source = snapshot_dir / relative_path
-            if source.is_dir():
-                if target.exists():
-                    shutil.rmtree(target)
-                shutil.copytree(source, target)
-            continue
-
-        if target.exists():
-            if target.is_file():
-                target.unlink()
+        if target_path.exists():
+            if target_path.is_dir():
+                shutil.rmtree(target_path)
             else:
+                target_path.unlink()
+
+    return temp_dir
+
+
+def remove_temp_worktree(repo_root: Path, temp_dir: Path) -> None:
+    subprocess.run(
+        ["git", "worktree", "remove", "--force", str(temp_dir)],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def sync_suite_test_changes(repo_root: Path, temp_repo_root: Path, suite: dict[str, Any]) -> None:
+    sync_paths = {Path(path) for path in suite.get("testRoots", [])}
+    if suite.get("project"):
+        sync_paths.add(Path(suite["project"]))
+
+    for relative_path in sorted(sync_paths):
+        source = temp_repo_root / relative_path
+        target = repo_root / relative_path
+        if not source.exists():
+            continue
+
+        if source.is_dir():
+            if target.exists():
                 shutil.rmtree(target)
+            shutil.copytree(source, target)
+            continue
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
 
 
 def main() -> int:
@@ -220,13 +239,14 @@ def main() -> int:
         }
 
         last_message_file = Path(tempfile.mkstemp(prefix="codex-last-message-", suffix=".txt")[1])
-        snapshot_dir, manifest = snapshot_worktree_state(REPO_ROOT)
+        temp_repo_root = create_temp_worktree(REPO_ROOT)
         try:
+            temp_config_path = temp_repo_root / repo_relative_path(REPO_ROOT, args.config.resolve())
             command = [
                 codex_cli(),
                 "exec",
                 "--cd",
-                str(REPO_ROOT),
+                str(temp_repo_root),
                 "--skip-git-repo-check",
                 "--dangerously-bypass-approvals-and-sandbox",
                 "--output-last-message",
@@ -237,7 +257,7 @@ def main() -> int:
             command.append(prompt)
             process = subprocess.run(
                 command,
-                cwd=REPO_ROOT,
+                cwd=temp_repo_root,
                 check=False,
                 timeout=max(args.generation_timeout_seconds, 1),
             )
@@ -247,8 +267,9 @@ def main() -> int:
 
             targeted_results_dir = results_dir / "autogen" / suite["name"]
             exit_code, targeted_summary = targeted_coverage(
+                repo_root=temp_repo_root,
                 suite_name=suite["name"],
-                config_path=args.config,
+                config_path=temp_config_path,
                 results_dir=targeted_results_dir,
                 configuration=args.configuration,
             )
@@ -258,9 +279,9 @@ def main() -> int:
 
             if codex_exit != 0 or after is None or after <= before:
                 log_entry["status"] = "rejected"
-                restore_worktree_state(REPO_ROOT, snapshot_dir, manifest)
             else:
                 log_entry["status"] = "accepted"
+                sync_suite_test_changes(REPO_ROOT, temp_repo_root, suite)
                 summary = targeted_summary
         except subprocess.TimeoutExpired as exc:
             log_entry["status"] = "timed_out"
@@ -271,15 +292,13 @@ def main() -> int:
                 log_entry["codexStdout"] = exc.stdout.decode("utf-8", errors="replace")
             if exc.stderr:
                 log_entry["codexStderr"] = exc.stderr.decode("utf-8", errors="replace")
-            restore_worktree_state(REPO_ROOT, snapshot_dir, manifest)
         except Exception as exc:  # pragma: no cover - defensive logging
             log_entry["status"] = "error"
             log_entry["error"] = str(exc)
-            restore_worktree_state(REPO_ROOT, snapshot_dir, manifest)
         finally:
             log_entries.append(log_entry)
             write_logs(log_entries, budget=budget, threshold=threshold, log_path=log_path)
-            shutil.rmtree(snapshot_dir, ignore_errors=True)
+            remove_temp_worktree(REPO_ROOT, temp_repo_root)
     return 0
 
 

@@ -95,10 +95,10 @@ describe("metadataResponseToJson", () => {
     ).toBe(JSON.stringify({ make: "Honda", model: "CBR600RR", year: 2023, category: "sport", tags: ["600cc"] }, null, 2));
   });
 
-  it("omits empty fields when building the fallback JSON", () => {
+  it("includes all known fields (as null) when building the fallback JSON so the admin sees what the LLM detected", () => {
     expect(
       metadataResponseToJson({ jobId: "j1", make: "Yamaha", year: 0 }),
-    ).toBe(JSON.stringify({ make: "Yamaha" }, null, 2));
+    ).toBe(JSON.stringify({ make: "Yamaha", model: null, year: null, category: null, tags: null }, null, 2));
   });
 });
 

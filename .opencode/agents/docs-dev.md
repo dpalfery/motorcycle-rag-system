@@ -2,6 +2,7 @@
 description: "Technical documentation: READMEs, API docs, ADRs, runbooks, and inline code docs in Markdown/Mermaid. Use when the deliverable is documentation. Does not write implementation code, tests, CI/CD config, or spec-flow documents."
 mode: subagent
 model: opencode/deepseek-v4-flash-free
+reasoningEffort: medium
 permission:
   external_directory: deny
   mcp: deny

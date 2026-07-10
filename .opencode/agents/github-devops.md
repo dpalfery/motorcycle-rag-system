@@ -2,6 +2,7 @@
 description: "CI/CD ownership: GitHub Actions workflows, Docker build configuration, environment secrets, and branch protection. Use for build, pipeline, or deployment configuration. Does not provision cloud infrastructure or investigate live cloud resource state."
 mode: subagent
 model: opencode-go/mimo-v2.5
+reasoningEffort: medium
 permission:
   external_directory: deny
   plan_exit: deny

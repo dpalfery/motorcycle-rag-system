@@ -790,6 +790,108 @@ public sealed class IngestionJobServiceDualModeTests {
     }
 
     [Fact]
+    public async Task RetryJobAsync_WhenPdfManualJobFailedAndBlobExists_ShouldResetJobToQueued() {
+        var jobId = Guid.NewGuid();
+        const string uploadId = "upload-retry-pdf-001";
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Failed,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = uploadId,
+                FailureReason = "Pipeline failed during chunking",
+                ErrorMessage = "Something went wrong",
+                ErrorsJson = "{\"error\":\"detail\"}",
+                CurrentStage = "chunking",
+                MetadataJson = "{\"make\":\"Honda\"}"
+            });
+        _blobStorage
+            .Setup(b => b.ExistsAsync("raw-uploads", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var sut = CreateSut();
+
+        var response = await sut.RetryJobAsync(jobId, TestUserId, CancellationToken.None);
+
+        response.Should().NotBeNull();
+        response.Status.Should().Be(IngestionJobStatus.Queued.ToString());
+        _blobStorage.Verify(
+            b => b.ExistsAsync("raw-uploads", It.Is<string>(p => p == $"{uploadId}/source.pdf"), It.IsAny<CancellationToken>()),
+            Times.Once);
+        _repository.Verify(
+            r => r.UpdateAsync(
+                It.Is<IngestionJob>(j =>
+                    j.Status == IngestionJobStatus.Queued
+                    && j.FailureReason == null
+                    && j.ErrorMessage == null
+                    && j.ErrorsJson == null
+                    && j.CurrentStage == null
+                    && j.MetadataJson == null
+                    && j.StartedAtUtc == null
+                    && j.CompletedAtUtc == null
+                    && j.StageSetAtUtc == null
+                    && j.ExpectedChunkCount == null
+                    && j.IndexedChunkCount == null),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task RetryJobAsync_WhenPdfManualJobFailedAndBlobMissing_ShouldThrowInvalidOperationException() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.Failed,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-retry-missing"
+            });
+        _blobStorage
+            .Setup(b => b.ExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var sut = CreateSut();
+
+        var act = async () => await sut.RetryJobAsync(jobId, TestUserId, CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("*was not found in blob storage*");
+        _repository.Verify(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RetryJobAsync_WhenPdfManualJobAwaitingMetadata_ShouldResetJobToQueued() {
+        var jobId = Guid.NewGuid();
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJob {
+                IngestionJobId = jobId,
+                Status = IngestionJobStatus.AwaitingMetadata,
+                InputType = IngestionJobType.PDFManual,
+                InputRef = "upload-retry-awaits",
+                CurrentStage = "needs-manual-metadata"
+            });
+        _blobStorage
+            .Setup(b => b.ExistsAsync("raw-uploads", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var sut = CreateSut();
+
+        var response = await sut.RetryJobAsync(jobId, TestUserId, CancellationToken.None);
+
+        response.Should().NotBeNull();
+        response.Status.Should().Be(IngestionJobStatus.Queued.ToString());
+        _repository.Verify(
+            r => r.UpdateAsync(
+                It.Is<IngestionJob>(j => j.Status == IngestionJobStatus.Queued),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task ImportGraphArtifactsAsync_WhenArtifactsAreMissing_ShouldThrowAndNotIngest() {
         _blobStorage
             .Setup(b => b.ExistsAsync("raw-uploads", "graph-entities/upload-missing-graph/entities.json", It.IsAny<CancellationToken>()))

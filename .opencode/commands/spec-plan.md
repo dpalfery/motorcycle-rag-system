@@ -41,7 +41,7 @@ When it returns its digest, read `docs/specs/{feature_name}/requirements.md` and
 
 ## 2. Design phase
 
-Delegate to the **design-architect** agent. Pass it: `feature_name` and the approved requirements.
+Delegate to the **systems-architect** agent. Pass it: `feature_name` and the approved requirements.
 
 Handle the returned digest:
 - `STATUS: REQUIREMENTS_GAP` → tell the user the design surfaced a requirements gap (quote the `GAPS`), return to **phase 1** to amend requirements, then come back here.
@@ -50,7 +50,7 @@ Handle the returned digest:
 **GATE 2** — ask, verbatim:
 > Does the design look good? If so, we can move on to the implementation plan.
 
-- On anything short of explicit approval, collect feedback, re-delegate to **design-architect**, re-present, ask again. Repeat until approved.
+- On anything short of explicit approval, collect feedback, re-delegate to **systems-architect**, re-present, ask again. Repeat until approved.
 - Only on explicit approval, continue to phase 3.
 
 ## 3. Tasks phase

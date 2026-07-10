@@ -26,6 +26,7 @@ import {
   submitManualMetadata,
 } from "@/lib/metadataApi";
 import { cn, formatLocalDateTime, parseUtcIso } from "@/lib/utils";
+import { useResumeAfterMetadata } from "@/hooks/useResumeAfterMetadata";
 
 const STATUS_COLOR: Record<string, string> = {
   completed:   "bg-success/15 text-success",
@@ -232,6 +233,13 @@ export default function JobsScreen() {
   const [selectedMetadataJobId, setSelectedMetadataJobId] = useState<string | null>(null);
   const [metadataSuccess, setMetadataSuccess] = useState<string | null>(null);
 
+  // --- Resume-after-metadata flow (shared hook) ---
+  // After metadata submission, the C# API transitions the job to Processing/resuming.
+  // The shared hook stores the submitted metadata and triggers the Python processor
+  // when it detects the "resuming" stage via polling.
+  const { storeMetadataForResume, resumeError, clearResumeError } =
+    useResumeAfterMetadata({ jobs: jobs.data, localProcessorPort });
+
   // The job the modal is about: manual selection takes priority (as long as it is still
   // awaiting metadata); otherwise fall back to the first auto-detected awaiting job.
   const metadataJob = useMemo(() => {
@@ -283,6 +291,10 @@ export default function JobsScreen() {
         );
       }
 
+      // Store the metadata for the resume flow. The shared hook's useEffect watching
+      // for "resuming" stage will detect the state change and call the Python processor.
+      storeMetadataForResume(job.jobId, metadataJson);
+
       // Success: close the modal immediately, notify the user, and refresh the jobs list.
       setClosedMetadataJobId(job.jobId);
       setSelectedMetadataJobId(null);
@@ -291,7 +303,7 @@ export default function JobsScreen() {
       void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
       void qc.invalidateQueries({ queryKey: ["ingestion", "job-metadata"] });
     },
-    [metadataJob, apiBaseUrl, qc],
+    [metadataJob, apiBaseUrl, qc, storeMetadataForResume],
   );
 
   return (
@@ -325,6 +337,18 @@ export default function JobsScreen() {
           <button
             className="shrink-0 rounded p-0.5 text-success hover:bg-success/20"
             onClick={() => setMetadataSuccess(null)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {resumeError && (
+        <div className="mb-4 flex items-center gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+          <span className="flex-1">{resumeError}</span>
+          <button
+            className="shrink-0 rounded p-0.5 text-danger hover:bg-danger/20"
+            onClick={clearResumeError}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -403,6 +427,7 @@ export default function JobsScreen() {
                         {isAwaitingMetadata(j) && (
                           <button
                             title="Enter Metadata"
+                            aria-label="Enter Metadata"
                             onClick={() => handleOpenMetadataModal(j)}
                             className="rounded p-1 text-muted hover:text-warning"
                           >
@@ -412,6 +437,7 @@ export default function JobsScreen() {
                         {isIngestionFailed(j.status) && (
                           <button
                             title="Retry"
+                            aria-label="Retry"
                             disabled={retry.isPending}
                             onClick={() => retry.mutate(j.jobId)}
                             className="rounded p-1 text-muted hover:text-primary disabled:opacity-50"
@@ -421,6 +447,7 @@ export default function JobsScreen() {
                         )}
                         <button
                           title="Delete"
+                          aria-label="Delete"
                           disabled={remove.isPending}
                           onClick={() => remove.mutate(j)}
                           className="rounded p-1 text-muted hover:text-danger disabled:opacity-50"

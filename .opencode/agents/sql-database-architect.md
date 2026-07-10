@@ -2,6 +2,7 @@
 description: "SQL Server / Azure SQL schema design: tables, T-SQL, indexing, security hardening, and source-controlled (dacpac) deployment. Use for schema/DDL design or query tuning. Does not write application data-access code or migrations."
 mode: subagent
 model: zai-coding-plan/glm-5.2
+reasoningEffort: medium
 permission:
   external_directory: deny
   mcp: deny

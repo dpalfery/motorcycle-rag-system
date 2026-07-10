@@ -58,8 +58,22 @@ class TestMetadataExtractorInstantiation:
         from extraction.metadata_extractor import MetadataExtractor
 
         extractor = MetadataExtractor()
-        assert extractor._endpoint is not None
-        assert extractor._model is not None
+        assert extractor._endpoint == "http://localhost:9999/v1"
+        assert extractor._model == "test-model"
+
+    def test_raises_value_error_without_endpoint(self, monkeypatch):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        monkeypatch.delenv("GRAPH_EXTRACTION_ENDPOINT", raising=False)
+        with pytest.raises(ValueError, match="GRAPH_EXTRACTION_ENDPOINT"):
+            MetadataExtractor()
+
+    def test_raises_value_error_without_model(self, monkeypatch):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        monkeypatch.delenv("GRAPH_EXTRACTION_MODEL", raising=False)
+        with pytest.raises(ValueError, match="GRAPH_EXTRACTION_MODEL"):
+            MetadataExtractor()
 
     def test_reads_env_overrides(self, monkeypatch):
         from extraction.metadata_extractor import MetadataExtractor
@@ -215,11 +229,14 @@ class TestExtract:
         extractor = MetadataExtractor()
         result = await extractor.extract(_TEN_PAGES)
 
-        # Connection errors are swallowed per-iteration; extraction exhausts the
-        # sample sizes and returns an empty result.
+        # Connection errors trigger retry (3 attempts per sample size).
+        # After exhausting retries, the exception propagates to extract(),
+        # which catches it and returns early with whatever was accumulated.
         assert result["fill_rate"] == 0.0
-        assert result["pages_sampled"] == 10
+        assert result["pages_sampled"] == 0
         assert result["make"] is None
+        # First sample size (3 pages) tried 3 times, then exception propagates.
+        assert mock_client.chat.completions.create.await_count == 3
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
     async def test_empty_pages_returns_empty_result_without_calling_llm(
@@ -432,3 +449,77 @@ class TestMetadataResultModel:
 
         result = MetadataResult.from_extraction_dict({"year": "abc"})
         assert result.year == 0
+
+
+# ---------------------------------------------------------------------------
+# _parse_llm_json() - robust JSON parsing for LLM output
+# ---------------------------------------------------------------------------
+
+
+class TestParseLlmJson:
+    """Tests for the robust JSON parser that handles LLM output quirks."""
+
+    def test_pure_json(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        result = MetadataExtractor._parse_llm_json('{"make":"Honda"}')
+        assert result == {"make": "Honda"}
+
+    def test_markdown_fences(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        result = MetadataExtractor._parse_llm_json(
+            '```json\n{"make":"Honda"}\n```'
+        )
+        assert result == {"make": "Honda"}
+
+    def test_fences_without_language_tag(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        result = MetadataExtractor._parse_llm_json(
+            '```\n{"make":"Honda"}\n```'
+        )
+        assert result == {"make": "Honda"}
+
+    def test_mixed_content(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        result = MetadataExtractor._parse_llm_json(
+            'Here is the metadata:\n{"make":"Honda"}'
+        )
+        assert result == {"make": "Honda"}
+
+    def test_empty_string_returns_empty_dict(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        assert MetadataExtractor._parse_llm_json("") == {}
+
+    def test_whitespace_only_returns_empty_dict(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        assert MetadataExtractor._parse_llm_json("   ") == {}
+
+    def test_none_content_returns_empty_dict(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        assert MetadataExtractor._parse_llm_json(None) == {}
+
+    def test_trailing_commas_in_object(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        result = MetadataExtractor._parse_llm_json('{"make":"Honda",}')
+        assert result == {"make": "Honda"}
+
+    def test_trailing_commas_in_array(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        result = MetadataExtractor._parse_llm_json(
+            '{"make":"Honda","tags":["sport","inline-4",]}'
+        )
+        assert result == {"make": "Honda", "tags": ["sport", "inline-4"]}
+
+    def test_partial_json_returns_empty_dict(self):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        result = MetadataExtractor._parse_llm_json('{"make":"Honda","model":')
+        assert result == {}

@@ -62,6 +62,21 @@ export function isAwaitingMetadata(
   );
 }
 
+/**
+ * True when a job has transitioned from AwaitingMetadata to Processing with the
+ * "resuming" stage. The C# API sets currentStage="resuming" after manual metadata
+ * submission; the Admin Desktop must detect this and call the Python processor to
+ * actually resume processing.
+ */
+export function isResumingAfterMetadata(
+  job: Pick<IngestionJobStatus, "status" | "currentStage">,
+): boolean {
+  return (
+    job.status?.toLowerCase() === "processing" &&
+    job.currentStage === "resuming"
+  );
+}
+
 export function markIngestionJobRetrying(
   job: IngestionJobStatus,
   retryStatus: string = "queued",

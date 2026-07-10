@@ -2,7 +2,7 @@
 
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -12,8 +12,22 @@ class TestGraphExtractorInstantiation:
         from extraction.graph_extractor import GraphExtractor
 
         extractor = GraphExtractor()
-        assert extractor._model is not None
-        assert extractor._endpoint is not None
+        assert extractor._endpoint == "http://localhost:9999/v1"
+        assert extractor._model == "test-model"
+
+    def test_raises_value_error_without_endpoint(self, monkeypatch):
+        from extraction.graph_extractor import GraphExtractor
+
+        monkeypatch.delenv("GRAPH_EXTRACTION_ENDPOINT", raising=False)
+        with pytest.raises(ValueError, match="GRAPH_EXTRACTION_ENDPOINT"):
+            GraphExtractor()
+
+    def test_raises_value_error_without_model(self, monkeypatch):
+        from extraction.graph_extractor import GraphExtractor
+
+        monkeypatch.delenv("GRAPH_EXTRACTION_MODEL", raising=False)
+        with pytest.raises(ValueError, match="GRAPH_EXTRACTION_MODEL"):
+            GraphExtractor()
 
 
 class TestExtract:

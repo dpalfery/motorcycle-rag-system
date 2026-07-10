@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   RefreshCw,
@@ -11,6 +11,8 @@ import {
   Workflow,
   X,
   RotateCcw,
+  Pencil,
+  CheckCircle2,
 } from "lucide-react";
 import axios from "axios";
 import { useConfig, type AppConfig } from "@/lib/config";
@@ -24,9 +26,11 @@ import {
 } from "@/lib/processor";
 import { Button, Card, MetricCard, PageHeader, StatusPill, Empty } from "@/components/ui";
 import IngestionJobFailurePanel from "@/components/IngestionJobFailurePanel";
+import ManualMetadataModal from "@/components/ManualMetadataModal";
 import {
   filterSupersededIngestionJobs,
   formatIngestionJobLabel,
+  isAwaitingMetadata,
   isIngestionFailed,
   markIngestionJobRetrying,
   replaceRetriedIngestionJob,
@@ -35,11 +39,17 @@ import {
 } from "@/lib/ingestionJob";
 import { cn, formatLocalDateTime, parseUtcIso } from "@/lib/utils";
 import {
+  getJobMetadata,
+  metadataResponseToJson,
+  submitManualMetadata,
+} from "@/lib/metadataApi";
+import {
   getTauriFilePath,
   pickLocalIngestionFile,
   queueLocalIngestionWorkItem,
 } from "@/lib/localIngestion";
 import { isPathSafe } from "@/lib/pathUtils";
+import { useResumeAfterMetadata } from "@/hooks/useResumeAfterMetadata";
 
 interface UploadConstraints {
   maxFileSizeBytes: number;
@@ -184,6 +194,16 @@ export default function ProcessorScreen() {
   );
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+
+  // --- Manual metadata flow (mirrors JobsScreen) ---
+  const [closedMetadataJobId, setClosedMetadataJobId] = useState<string | null>(null);
+  const [selectedMetadataJobId, setSelectedMetadataJobId] = useState<string | null>(null);
+  const [metadataSuccess, setMetadataSuccess] = useState<string | null>(null);
+
+  const handleOpenMetadataModal = useCallback((job: IngestionJobStatus) => {
+    setClosedMetadataJobId(null);
+    setSelectedMetadataJobId(job.jobId);
+  }, []);
   const queueIngestionAction = (sourcePath: string) =>
     `Creating local ${isPdfPath(sourcePath) ? "PDF manual" : "CSV specification"} ingestion work item`;
 
@@ -228,6 +248,13 @@ export default function ProcessorScreen() {
     },
     refetchInterval: 15_000,
   });
+
+  // --- Resume-after-metadata flow (shared hook) ---
+  // After metadata submission, the C# API transitions the job to Processing/resuming.
+  // The shared hook stores the submitted metadata and triggers the Python processor
+  // when it detects the "resuming" stage via polling.
+  const { storeMetadataForResume, resumeError, clearResumeError } =
+    useResumeAfterMetadata({ jobs: jobs.data, localProcessorPort: port });
 
   const submittedJob = useQuery({
     queryKey: ["ingestion", "job", submittedJobId],
@@ -546,6 +573,68 @@ export default function ProcessorScreen() {
   const apiConfigured = health.data?.api_client_configured === true;
   const selectedSourceName = selectedSourcePath ? fileNameFromPath(selectedSourcePath) : null;
 
+  // --- Manual metadata derived state (depends on jobList) ---
+  const awaitingMetadataJob = useMemo(
+    () => jobList.find((j) => isAwaitingMetadata(j)),
+    [jobList],
+  );
+
+  const metadataJob = useMemo(() => {
+    if (selectedMetadataJobId) {
+      const selected = jobList.find(
+        (j) => j.jobId === selectedMetadataJobId && isAwaitingMetadata(j),
+      );
+      if (selected) return selected;
+    }
+    return awaitingMetadataJob;
+  }, [jobList, selectedMetadataJobId, awaitingMetadataJob]);
+
+  const showMetadataModal = !!metadataJob && metadataJob.jobId !== closedMetadataJobId;
+
+  const metadataQuery = useQuery({
+    queryKey: ["ingestion", "job-metadata", metadataJob?.jobId],
+    queryFn: () => getJobMetadata(metadataJob!.jobId),
+    enabled: showMetadataModal,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  const initialMetadata = useMemo(
+    () => (metadataQuery.data ? metadataResponseToJson(metadataQuery.data) : undefined),
+    [metadataQuery.data],
+  );
+
+  const handleSubmitMetadata = useCallback(
+    async (metadataJson: string) => {
+      const job = metadataJob;
+      if (!job) throw new Error("No job is awaiting metadata.");
+
+      try {
+        await submitManualMetadata(job.jobId, metadataJson);
+      } catch (err) {
+        throw new Error(
+          formatAdminError(err, {
+            action: "Submitting manual metadata",
+            kind: "cloud-api",
+            apiBaseUrl: config.apiBaseUrl,
+          }),
+        );
+      }
+
+      // Store the metadata for the resume flow. The shared hook's useEffect watching
+      // for "resuming" stage will detect the state change and call the Python processor.
+      storeMetadataForResume(job.jobId, metadataJson);
+
+      setClosedMetadataJobId(job.jobId);
+      setSelectedMetadataJobId(null);
+      setMetadataSuccess("Metadata submitted. Pipeline resuming.");
+      void qc.invalidateQueries({ queryKey: ["jobs"] });
+      void qc.invalidateQueries({ queryKey: ["ingestion", "upload-jobs"] });
+      void qc.invalidateQueries({ queryKey: ["ingestion", "job-metadata"] });
+    },
+    [metadataJob, config.apiBaseUrl, qc, storeMetadataForResume],
+  );
+
   async function selectLocalSourceFile() {
     setSelectionError(null);
     upload.reset();
@@ -847,6 +936,31 @@ export default function ProcessorScreen() {
           </div>
         )}
 
+        {metadataSuccess && (
+          <div className="mb-4 flex items-center gap-2 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span className="flex-1">{metadataSuccess}</span>
+            <button
+              className="shrink-0 rounded p-0.5 text-success hover:bg-success/20"
+              onClick={() => setMetadataSuccess(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {resumeError && (
+          <div className="mb-4 flex items-center gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+            <span className="flex-1">{resumeError}</span>
+            <button
+              className="shrink-0 rounded p-0.5 text-danger hover:bg-danger/20"
+              onClick={clearResumeError}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {jobs.isLoading ? (
           <Empty>Loading jobs…</Empty>
         ) : jobs.isError ? (
@@ -884,7 +998,16 @@ export default function ProcessorScreen() {
                         {formatChunkProgress(j) && (
                           <div className="mt-1 text-xs text-muted">{formatChunkProgress(j)}</div>
                         )}
-                        {isIngestionFailed(j.status) && <IngestionJobFailurePanel job={j} />}
+                        {isIngestionFailed(j.status) && (
+                          <IngestionJobFailurePanel
+                            job={j}
+                            onEnterMetadata={
+                              isAwaitingMetadata(j)
+                                ? () => handleOpenMetadataModal(j)
+                                : undefined
+                            }
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-3 align-top">
                         <span
@@ -908,9 +1031,20 @@ export default function ProcessorScreen() {
                       </td>
                       <td className="px-4 py-3 align-top">
                         <div className="flex justify-end gap-1">
+                          {isAwaitingMetadata(j) && (
+                            <button
+                              title="Enter Metadata"
+                              aria-label="Enter Metadata"
+                              onClick={() => handleOpenMetadataModal(j)}
+                              className="rounded p-1 text-muted hover:text-warning"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
                           {isIngestionFailed(j.status) && (
                             <button
                               title="Retry"
+                              aria-label="Retry"
                               disabled={retry.isPending}
                               onClick={() => retry.mutate(j.jobId)}
                               className="rounded p-1 text-muted hover:text-primary disabled:opacity-50"
@@ -921,6 +1055,7 @@ export default function ProcessorScreen() {
                           {isActiveJobStatus(j.status) && (
                             <button
                               title="Stop"
+                              aria-label="Stop"
                               disabled={stopJob.isPending}
                               onClick={() => stopJob.mutate(j)}
                               className="rounded p-1 text-muted hover:text-primary disabled:opacity-50"
@@ -930,6 +1065,7 @@ export default function ProcessorScreen() {
                           )}
                           <button
                             title="Delete"
+                            aria-label="Delete"
                             disabled={remove.isPending}
                             onClick={() => remove.mutate(j)}
                             className="rounded p-1 text-muted hover:text-danger disabled:opacity-50"
@@ -946,6 +1082,19 @@ export default function ProcessorScreen() {
           </div>
         )}
       </Card>
+
+      {metadataJob && (
+        <ManualMetadataModal
+          isOpen={showMetadataModal}
+          jobId={metadataJob.jobId}
+          initialMetadata={initialMetadata}
+          onSubmit={handleSubmitMetadata}
+          onClose={() => {
+            setClosedMetadataJobId(metadataJob.jobId);
+            setSelectedMetadataJobId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

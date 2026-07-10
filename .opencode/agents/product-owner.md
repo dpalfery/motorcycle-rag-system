@@ -2,6 +2,7 @@
 description: Single-owner spec planning; produces requirements/design/tasks behind approval gates; planning artifacts only, does not implement.
 mode: subagent
 model: zai-coding-plan/glm-5.2
+reasoningEffort: high
 permission:
   external_directory: deny
   mcp: deny
@@ -13,7 +14,9 @@ permission:
   websearch: allow
   bash: allow
   read: allow
-  edit: "6-Docs/specs/**"
+  edit:
+    "*": deny
+    "6-Docs/specs/**": allow
   glob: allow
   grep: allow
   list: allow

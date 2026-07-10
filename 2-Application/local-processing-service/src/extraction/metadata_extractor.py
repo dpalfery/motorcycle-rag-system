@@ -11,9 +11,12 @@ Phase 2 (pdf_processor integration) wires that up; this module stays pure by
 operating on a ``list[str]``.
 """
 
+import asyncio
+import hashlib
 import json
 import logging
 import os
+import re
 from typing import Any
 
 import openai
@@ -21,37 +24,28 @@ import openai
 logger = logging.getLogger(__name__)
 
 METADATA_SYSTEM_PROMPT = """You are a motorcycle document metadata extractor.
-Given pages from a motorcycle manual or specification document, extract the following metadata:
 
-Required fields:
-- make: The manufacturer (e.g., "Honda", "Yamaha", "Kawasaki")
-- model: The specific model name (e.g., "CBR600RR", "YZF-R1")
-- year: The model year as an integer (e.g., 2023)
-- category: The motorcycle category (e.g., "sport", "cruiser", "touring", "naked", "adventure", "off-road")
+CRITICAL: Return ONLY a valid JSON object. No markdown, no explanations, no text before or after.
 
-Optional field:
-- tags: A list of relevant tags (e.g., ["sport", "inline-4", "600cc"])
+Extract these fields from the document:
+- make: Manufacturer name (e.g., "Honda", "Yamaha")
+- model: Model name (e.g., "CBR600RR", "YZF-R1")
+- year: Model year as integer (e.g., 2023)
+- category: Category (e.g., "sport", "cruiser", "touring")
+- tags: List of relevant tags (e.g., ["sport", "inline-4"])
 
-Return ONLY a JSON object with this exact structure:
-{
-  "make": "Honda",
-  "model": "CBR600RR",
-  "year": 2023,
-  "category": "sport",
-  "tags": ["sport", "inline-4", "600cc"]
-}
+If a field cannot be determined, use null for strings and 0 for year.
 
-If a field cannot be determined, use null or an empty string for strings, and 0 for year.
-Do not include markdown formatting or explanations."""
+Example output:
+{"make":"Honda","model":"CBR600RR","year":2023,"category":"sport","tags":["sport","inline-4","600cc"]}"""
 
 
 class MetadataExtractor:
     """Extracts motorcycle metadata from PDF text using an OpenAI-compatible LLM.
 
     Reads configuration from the same environment variables as GraphExtractor:
-        GRAPH_EXTRACTION_ENDPOINT - OpenAI-compatible base URL
-            (default: http://localhost:1234/v1)
-        GRAPH_EXTRACTION_MODEL     - model name (default: qwen3.5-0.8b)
+        GRAPH_EXTRACTION_ENDPOINT - OpenAI-compatible base URL (required)
+        GRAPH_EXTRACTION_MODEL     - model name (required)
 
     The extractor never raises: LLM connection errors and malformed JSON are
     logged as warnings and treated as a failed attempt so the pipeline can fall
@@ -69,8 +63,20 @@ class MetadataExtractor:
     REQUIRED_FIELDS = ["make", "model", "year", "category"]
 
     def __init__(self) -> None:
-        self._endpoint = os.getenv("GRAPH_EXTRACTION_ENDPOINT", "http://localhost:1234/v1")
-        self._model = os.getenv("GRAPH_EXTRACTION_MODEL", "qwen3.5-0.8b")
+        endpoint = os.getenv("GRAPH_EXTRACTION_ENDPOINT")
+        if not endpoint:
+            raise ValueError(
+                "GRAPH_EXTRACTION_ENDPOINT environment variable must be set"
+            )
+        self._endpoint = endpoint
+
+        model = os.getenv("GRAPH_EXTRACTION_MODEL")
+        if not model:
+            raise ValueError(
+                "GRAPH_EXTRACTION_MODEL environment variable must be set"
+            )
+        self._model = model
+
         # Cache a single client for the lifetime of the extractor instead of
         # creating one per extract() call. AsyncOpenAI reuses the underlying
         # httpx connection pool, which keeps the client lightweight to reuse.
@@ -98,13 +104,11 @@ class MetadataExtractor:
 
                 Security note: the entire filesystem path is transmitted to the
                 inference endpoint inside the LLM user message (see
-                ``_build_user_content``). This is safe by default because the
-                configured endpoint is a local LM Studio server
-                (``http://localhost:1234/v1``). If ``GRAPH_EXTRACTION_ENDPOINT``
-                is reconfigured to a remote host, absolute file paths will leave
-                the machine over the network; in that case pass
-                ``source_path=None`` for untrusted paths or strip the path to a
-                basename before calling.
+                ``_build_user_content``). If ``GRAPH_EXTRACTION_ENDPOINT``
+                points to a remote host rather than a local LM Studio server,
+                absolute file paths will leave the machine over the network; in
+                that case pass ``source_path=None`` for untrusted paths or
+                strip the path to a basename before calling.
 
         Returns:
             dict with keys: make, model, year, category, tags, fill_rate,
@@ -136,9 +140,16 @@ class MetadataExtractor:
                 continue
 
             sample_text = "\n\n".join(pages[:actual_size])
-            parsed = await self._query_llm(
-                self._client, sample_text, job_id=job_id, source_path=source_path
-            )
+            try:
+                parsed = await self._query_llm_with_retry(
+                    self._client, sample_text, job_id=job_id, source_path=source_path
+                )
+            except Exception:
+                logger.warning(
+                    "Metadata extraction LLM call failed after all retries%s",
+                    jid_tag,
+                )
+                break
             self._merge(best_result, parsed)
 
             best_result["pages_sampled"] = actual_size
@@ -162,39 +173,137 @@ class MetadataExtractor:
 
         return best_result
 
+    @staticmethod
+    def _parse_llm_json(content: str | None) -> dict[str, Any]:
+        """Parse JSON from LLM response, handling common formatting issues.
+
+        Handles markdown fences, explanatory text, trailing commas, and other
+        common LLM output quirks. Returns ``{}`` when no valid JSON is found.
+        """
+        if content is None:
+            return {}
+        if not content.strip():
+            return {}
+
+        text = content.strip()
+
+        # Strip markdown code fences (````json ... ````` or ```` ... `````)
+        if text.startswith("```"):
+            first_newline = text.find("\n")
+            if first_newline != -1:
+                text = text[first_newline + 1:]
+            if text.endswith("```"):
+                text = text[:-3].rstrip()
+            text = text.strip()
+
+        # Try direct parse
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        # Try to extract JSON object from mixed content
+        json_match = re.search(
+            r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL,
+        )
+        if json_match:
+            try:
+                return json.loads(json_match.group())
+            except json.JSONDecodeError:
+                pass
+
+        # Try to fix common issues (trailing commas before ] or })
+        fixed = re.sub(r',\s*([}\]])', r'\1', text)
+        try:
+            return json.loads(fixed)
+        except json.JSONDecodeError:
+            pass
+
+        return {}
+
     async def _query_llm(
         self, client: Any, text: str, job_id: str | None = None,
         source_path: str | None = None,
     ) -> dict[str, Any]:
         """Call the LLM and parse the JSON response.
 
-        Returns an empty dict on any failure (connection error, non-JSON
-        response, empty content) so the caller can treat it as a miss.
+        Raises on connection errors so the caller can implement retry logic.
+        JSON parse failures are handled gracefully by ``_parse_llm_json``.
 
         Args:
             source_path: Optional original file path. When provided it is
                 prepended (verbatim, not pre-parsed) to the page text so the
                 LLM can infer year/make/model from directory names.
         """
-        try:
-            user_content = self._build_user_content(text, source_path)
-            response = await client.chat.completions.create(
-                model=self._model,
-                messages=[
-                    {"role": "system", "content": METADATA_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_content},
-                ],
-                temperature=0.1,
-            )
-            content = response.choices[0].message.content or "{}"
-            return json.loads(content)
-        except Exception as exc:  # noqa: BLE001 - intentional broad guard for LLM calls
+        user_content = self._build_user_content(text, source_path)
+        response = await client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": METADATA_SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.1,
+        )
+        # Defensive check: LM Studio may return HTTP 200 with null choices
+        # when the model is not loaded or the request is malformed.
+        if response is None or not response.choices:
+            jid_suffix = f" job_id={job_id}" if job_id else ""
             logger.warning(
-                "Metadata extraction LLM call failed%s: %s",
-                f" job_id={job_id}" if job_id else "",
-                exc,
+                "LLM response has no choices (model=%s, id=%s)%s",
+                response.model if response else "N/A",
+                response.id if response else "N/A",
+                jid_suffix,
             )
             return {}
+        content = response.choices[0].message.content or ""
+        sha_prefix = (
+            hashlib.sha256(content.encode()).hexdigest()[:16] if content else "<empty>"
+        )
+        logger.debug(
+            "LLM response received: length=%d sha256_prefix=%s%s",
+            len(content),
+            sha_prefix,
+            f" job_id={job_id}" if job_id else "",
+        )
+        return self._parse_llm_json(content)
+
+    async def _query_llm_with_retry(
+        self, client: Any, text: str, job_id: str | None = None,
+        source_path: str | None = None, max_retries: int = 2,
+    ) -> dict[str, Any]:
+        """Call the LLM with retry for transient failures.
+
+        Retries up to ``max_retries`` times on ``openai.APITimeoutError``,
+        ``openai.APIConnectionError``, or exceptions whose message contains
+        "unreachable".  All other errors propagate immediately.  After retries
+        are exhausted the exception propagates to the caller.
+        """
+        for attempt in range(max_retries + 1):
+            try:
+                return await self._query_llm(
+                    client, text, job_id, source_path,
+                )
+            except Exception as exc:
+                exc_lower = str(exc).lower()
+                is_retryable = (
+                    isinstance(exc, (openai.APITimeoutError, openai.APIConnectionError))
+                    or "unreachable" in exc_lower
+                )
+                if is_retryable and attempt < max_retries:
+                    logger.warning(
+                        "LLM call failed (attempt %d/%d), retrying: %s",
+                        attempt + 1, max_retries + 1, exc,
+                    )
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                else:
+                    logger.warning(
+                        "Metadata extraction LLM call failed%s: %s",
+                        f" job_id={job_id}" if job_id else "",
+                        exc,
+                    )
+                    raise
+
+        return {}  # pragma: no cover
 
     @staticmethod
     def _build_user_content(text: str, source_path: str | None) -> str:

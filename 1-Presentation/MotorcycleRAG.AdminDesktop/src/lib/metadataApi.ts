@@ -107,19 +107,23 @@ export function validateMetadataJson(raw: string): MetadataValidationResult {
 /**
  * Render an `IngestionJobMetadataResponse` as a pretty-printed JSON string suitable for
  * pre-filling the modal textarea. Prefers the server-provided `rawJson` when present.
+ *
+ * All known schema fields are always included (even when `null`) so the admin can see
+ * exactly which fields the LLM detected and which still need manual entry. The `year`
+ * sentinel value of `0` (meaning "could not determine") is normalised to `null`.
  */
 export function metadataResponseToJson(meta: IngestionJobMetadataResponse): string {
   if (meta.rawJson && meta.rawJson.trim()) {
     return meta.rawJson;
   }
 
-  const obj: Record<string, unknown> = {};
-  if (meta.make) obj.make = meta.make;
-  if (meta.model) obj.model = meta.model;
-  // `year: 0` is the extractor's "could not determine" sentinel, so exclude it from pre-fill.
-  if (typeof meta.year === "number" && meta.year > 0) obj.year = meta.year;
-  if (meta.category) obj.category = meta.category;
-  if (meta.tags && meta.tags.length > 0) obj.tags = meta.tags;
+  const obj: Record<string, unknown> = {
+    make: meta.make ?? null,
+    model: meta.model ?? null,
+    year: typeof meta.year === "number" && meta.year > 0 ? meta.year : null,
+    category: meta.category ?? null,
+    tags: meta.tags && meta.tags.length > 0 ? meta.tags : null,
+  };
 
   return JSON.stringify(obj, null, 2);
 }

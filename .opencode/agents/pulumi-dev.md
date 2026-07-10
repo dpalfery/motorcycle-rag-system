@@ -2,6 +2,7 @@
 description: "Azure infrastructure-as-code in C# with Pulumi (Azure Native): stack design, reusable components, safe preview/apply workflows. Use to provision or modify Azure infrastructure. Does not own CI/CD pipelines, investigate live resource state, or design database schemas."
 mode: subagent
 model: zai-coding-plan/glm-5.2
+reasoningEffort: medium
 permission:
   external_directory: deny
   plan_exit: deny

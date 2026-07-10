@@ -2,6 +2,7 @@
 description: "Authors and maintains the automated test suite — unit, integration, and end-to-end — for .NET (xUnit), Python (pytest), and frontend (Vitest/Playwright). Use whenever tests need to be written or updated. Does not implement application logic; only tests it."
 mode: subagent
 model: opencode-go/deepseek-v4-pro
+reasoningEffort: medium
 permission:
   external_directory: deny
   plan_exit: deny

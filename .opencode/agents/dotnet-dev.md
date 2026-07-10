@@ -2,6 +2,7 @@
 description: ".NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI."
 mode: subagent
 model: zai-coding-plan/glm-5.2
+reasoningEffort: medium
 permission:
   external_directory: deny
   mcp: deny

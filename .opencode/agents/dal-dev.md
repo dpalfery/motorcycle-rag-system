@@ -2,6 +2,7 @@
 description: "Data-access layer implementation with Dapper and FluentMigrator: repository classes, IRepository<T>, and database migrations from an approved schema. Use for data-access code and migrations. Does not design database schemas or write application/domain logic."
 mode: subagent
 model: zai-coding-plan/glm-5.2
+reasoningEffort: medium
 permission:
   external_directory: deny
   plan_exit: deny

@@ -1,5 +1,7 @@
 """Shared pytest configuration for the local-processing-service tests."""
 
+import os
+
 import pytest
 
 
@@ -9,5 +11,13 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "asyncio: mark test as async")
 
 
-# Use auto mode for pytest-asyncio so every async def test_* is detected.
-pytest_plugins = []
+
+@pytest.fixture(autouse=True)
+def _default_extraction_env() -> None:
+    """Set default extraction env vars so tests can create extractors.
+
+    Individual tests that need to test missing-env-var behaviour should
+    ``monkeypatch.delenv()`` the relevant variable(s).
+    """
+    os.environ.setdefault("GRAPH_EXTRACTION_ENDPOINT", "http://localhost:9999/v1")
+    os.environ.setdefault("GRAPH_EXTRACTION_MODEL", "test-model")

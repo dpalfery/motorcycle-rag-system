@@ -52,6 +52,32 @@ export interface ProcessorJob {
   created_at?: string;
 }
 
+/**
+ * Metadata shape expected by the Python processor's /process/pdf endpoint.
+ * Mirrors the Pydantic `Metadata` model in local-processing-service.
+ */
+export interface ProcessorMetadata {
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+  document_type?: string | null;
+  language?: string;
+  custom?: Record<string, unknown>;
+}
+
+/**
+ * Payload for resuming a PDF processing job after manual metadata submission.
+ * The Python processor detects the existing job_id and resumes from the
+ * "awaiting-metadata" pause state.
+ */
+export interface ResumeProcessPdfPayload {
+  upload_id: string;
+  document_type: string;
+  blob_container: string;
+  job_id: string;
+  metadata: ProcessorMetadata;
+}
+
 const PROCESSOR_JOB_NOT_FOUND_PATTERN = /^404\s+not\s+found:\s*\{"detail":"job not found"\}/i;
 
 const DEFAULT_READY_TIMEOUT_MS = 45_000;
@@ -237,4 +263,12 @@ export const processor = {
       undefined,
       port,
     ),
+
+  /**
+   * Resume a PDF processing job after manual metadata submission. Calls the Python
+   * processor's POST /process/pdf endpoint with the existing job_id and metadata override.
+   * The Python processor detects the paused job and resumes from the "awaiting-metadata" state.
+   */
+  resumeProcessPdf: (payload: ResumeProcessPdfPayload, port?: number) =>
+    processor.request<unknown>("POST", "/process/pdf", payload, port),
 };

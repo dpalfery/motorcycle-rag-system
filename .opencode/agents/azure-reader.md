@@ -2,6 +2,7 @@
 description: "Read-only investigation of live Azure resource state via Azure MCP tools; gathers configuration and runtime facts for debugging, planning, and architecture. Use to learn how Azure is configured or behaving. Does not create or modify infrastructure, or run deployments."
 mode: subagent
 model: opencode/big-pickle
+reasoningEffort: medium
 permission:
   external_directory: deny
   mcp: deny

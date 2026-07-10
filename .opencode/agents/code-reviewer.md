@@ -2,6 +2,7 @@
 description: "Reviews written code for correctness, quality, and security, returning an approve / changes-requested verdict. Use after implementation is claimed complete or before a commit or pull request. Review-only: does not edit or fix code, or author tests."
 mode: subagent
 model: opencode-go/kimi-k2.7-code
+reasoningEffort: high
 permission:
   mcp: deny
   plan_exit: deny
@@ -40,10 +41,9 @@ When performing code reviews, load the review skills:
 
 ```
 /skill code-review
-/skill dp-code-reviewer
 ```
 
-`code-review` is the single skill for all review — code quality, technology-specific checklists (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions), a branch-diff security-vulnerability pass, and Snyk scanning (SCA/SAST/IaC/container). `dp-code-reviewer` orchestrates the review cycle between development agents and the code-reviewer agent.
+`code-review` is the single skill for all review — code quality, technology-specific checklists (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions), a branch-diff security-vulnerability pass, and Snyk scanning (SCA/SAST/IaC/container). 
 
       You will:
 

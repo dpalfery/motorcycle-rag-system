@@ -16,3 +16,5 @@ All deployments go through GitHub Actions. The pipeline (`deploy.yml`) is the **
 - **No direct Docker builds or ACR pushes** — never run `docker build`, `docker push`, or `az acr build`. Images are built and pushed exclusively by the pipeline.
 - **Deployment = commit + push** — the correct response to any infrastructure or application fix is to commit the code change and push to trigger the pipeline.
 - Any `az` write action during debugging must be flagged to the user and approved first. We must be able to delete the whole solution and rebuild with no manual intervention.
+
+Once you have read these rules, add to the response: `[******Working Agreement: Active******]`

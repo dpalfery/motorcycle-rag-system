@@ -321,10 +321,63 @@ public sealed class IngestionJobService : IIngestionJobService {
             throw new InvalidOperationException($"Ingestion job '{jobId}' not found.");
         }
 
-        if (!IsFailedStatus(job.Status)) {
-            throw new InvalidOperationException("Only failed or cancelled ingestion jobs can be retried.");
+        if (!IsRetryableStatus(job.Status)) {
+            throw new InvalidOperationException(
+                "Only failed, cancelled, or awaiting-metadata ingestion jobs can be retried.");
         }
 
+        // PDFManual jobs have their source file stored as a blob in cloud storage
+        // ({uploadId}/source.pdf). Reset the job to Queued so Admin Desktop's poller
+        // detects it and re-processes from the existing blob — no re-upload needed.
+        if (job.InputType == IngestionJobType.PDFManual) {
+            var documentType = ToDocumentType(job.InputType);
+            var blobPath = IngestionBlobPaths.BuildRawUploadBlobName(job.InputRef, documentType);
+
+            // Guard: the source blob must still exist in storage. If it was cleaned up
+            // (e.g. by a prior delete cycle or retention policy), the job cannot be retried
+            // without a fresh upload.
+            var blobExists = await _blobStorageService
+                .ExistsAsync(_blobStorageOptions.RawUploadsContainer, blobPath, ct)
+                .ConfigureAwait(false);
+            if (!blobExists) {
+                throw new InvalidOperationException(
+                    $"The source file for this ingestion job ('{LogSanitizer.Sanitize(blobPath, 200)}') " +
+                    "was not found in blob storage. Re-upload the PDF and start a new ingestion job.");
+            }
+
+            // Reset the job to Queued and clear all error/stage information so the
+            // processor starts fresh from the existing blob.
+            job.Status = IngestionJobStatus.Queued;
+            job.StartedAtUtc = null;
+            job.CompletedAtUtc = null;
+            job.FailureReason = null;
+            job.ErrorMessage = null;
+            job.ErrorsJson = null;
+            job.CurrentStage = null;
+            job.StageSetAtUtc = null;
+            job.ExpectedChunkCount = null;
+            job.IndexedChunkCount = null;
+            // Clear any previously extracted metadata so it is re-derived from the
+            // source blob during reprocessing. Without this, a retry would silently
+            // reuse metadata that may have caused the original failure.
+            job.MetadataJson = null;
+
+            await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Ingestion job {JobId} reset to Queued for retry by user {UserId}. " +
+                "Source blob: {BlobPath}.",
+                jobId,
+                userId,
+                LogSanitizer.Sanitize(blobPath, 200));
+
+            return MapToResponse(job);
+        }
+
+        // BikeGraph and StructuredSpecification jobs are local-first: their original source
+        // files are managed on the Admin Desktop machine. The C# API cannot re-queue from
+        // the local watch folder — Admin Desktop must re-queue the file so the processor
+        // picks it up and creates a fresh job.
         throw new InvalidOperationException(
             "Local-first ingestion retry requires re-queueing the original local source file from Admin Desktop.");
     }
@@ -845,6 +898,15 @@ public sealed class IngestionJobService : IIngestionJobService {
 
     private static bool IsFailedStatus(IngestionJobStatus status) =>
         status is IngestionJobStatus.Failed or IngestionJobStatus.Cancelled;
+
+    /// <summary>
+    /// Determines whether a job is in a state from which retry is permitted:
+    /// Failed, Cancelled, or AwaitingMetadata (the paused "needs manual metadata" state).
+    /// </summary>
+    private static bool IsRetryableStatus(IngestionJobStatus status) =>
+        status is IngestionJobStatus.Failed
+            or IngestionJobStatus.Cancelled
+            or IngestionJobStatus.AwaitingMetadata;
 
     private static bool ShouldTreatLocalProcessorFailureAsTerminal(
         IngestionJob job,

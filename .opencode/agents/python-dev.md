@@ -2,6 +2,7 @@
 description: "Python implementation: modules, typing, packaging, and Docker/deployment configuration following PEP 8 and clean-architecture practices. Use for Python code. Does not author test suites or own CI/CD pipeline configuration."
 mode: subagent
 model: opencode-go/deepseek-v4-flash
+reasoningEffort: medium
 permission:
   external_directory: deny
   plan_exit: deny

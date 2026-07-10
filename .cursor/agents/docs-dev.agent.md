@@ -39,7 +39,7 @@ You do **not** own:
 - **Never create or modify tests.** Hand off to `test-dev` if test documentation is needed.
 - **Never modify CI/CD pipelines or build scripts.** Hand off to `github-devops` if pipeline documentation is needed.
 - **Always verify library/API behavior** with Context7 or Microsoft Learn before documenting it.
-- **Follow existing documentation style and conventions.** Match tone, heading structure, and formatting patterns already in use.
+- **Follow existing documentation style and conventions.** Match tone, heading structure, and formatting patterns already in use. When documenting an application, you MUST follow the structure defined in the `app-docs-standard` skill (Overview, Onboarding, Architecture, Requirements).
 - **Prefer Mermaid diagrams** for visualizing architecture, flows, and relationships.
 - **Keep documentation close to the code it describes.** API docs belong near the endpoints; ADRs belong in `docs/adr/`.
 

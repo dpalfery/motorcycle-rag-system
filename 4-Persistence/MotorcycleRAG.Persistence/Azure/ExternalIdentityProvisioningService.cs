@@ -22,6 +22,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
     private readonly HttpClient _httpClient;
     private readonly ILogger<ExternalIdentityProvisioningService> _logger;
     private readonly ExternalIdentityProvisioningOptions _options;
+    private readonly TokenCredential? _tokenCredentialOverride;
     private readonly SemaphoreSlim _resourceServicePrincipalLock = new(1, 1);
     private readonly JsonSerializerOptions _jsonSerializerOptions = new(JsonSerializerDefaults.Web);
 
@@ -30,10 +31,23 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
     public ExternalIdentityProvisioningService(
         HttpClient httpClient,
         IOptions<ExternalIdentityProvisioningOptions> options,
-        ILogger<ExternalIdentityProvisioningService> logger) {
+        ILogger<ExternalIdentityProvisioningService> logger)
+        : this(httpClient, options, logger, tokenCredentialOverride: null) {
+    }
+
+    /// <summary>
+    /// Test seam that injects a <see cref="TokenCredential"/> so Graph HTTP flows can be unit-tested
+    /// without contacting Azure Identity.
+    /// </summary>
+    internal ExternalIdentityProvisioningService(
+        HttpClient httpClient,
+        IOptions<ExternalIdentityProvisioningOptions> options,
+        ILogger<ExternalIdentityProvisioningService> logger,
+        TokenCredential? tokenCredentialOverride) {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _tokenCredentialOverride = tokenCredentialOverride;
     }
 
     public async Task<string> ProvisionApprovedUserAsync(string email, string displayName, TierLabel tier, IdentityProvider provider) {
@@ -434,6 +448,10 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
     }
 
     private TokenCredential CreateCredential() {
+        if (_tokenCredentialOverride != null) {
+            return _tokenCredentialOverride;
+        }
+
         var credentials = new List<TokenCredential>();
 
         credentials.Add(string.IsNullOrWhiteSpace(_options.ManagedIdentityClientId)

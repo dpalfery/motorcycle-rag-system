@@ -1,47 +1,122 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { useConfig } from "./config";
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+/** Session shape returned by the Rust auth commands. */
+export interface AuthSession {
+  accessToken: string;
+  account: string;
+  /** Unix timestamp (seconds) when the access token expires. */
+  expiresAt: number;
+}
+
+/** A Chrome user profile discovered on disk. */
+export interface ChromeProfile {
+  directory: string;
+  name: string;
+  userName?: string;
+}
+
+// ── Store ────────────────────────────────────────────────────────────────────
 
 interface AuthState {
   accessToken: string | null;
   account: string | null;
   signedIn: boolean;
-  setToken: (token: string | null, account?: string | null) => void;
-  signOut: () => void;
+  /** Unix timestamp (seconds) when the current access token expires. */
+  expiresAt: number | null;
+  /** Prevents concurrent token-refresh calls. */
+  isRefreshing: boolean;
+
+  /** Replace the current session fields and mark signedIn = true. */
+  setSession: (token: string, account: string, expiresAt: number) => void;
+  /** Full Entra PKCE sign-in via Rust. Optional Chrome profile directory. */
+  signIn: (chromeProfileDirectory?: string) => Promise<void>;
+  /** Sign out: tells Rust to clear the keychain, then resets local state. */
+  signOut: () => Promise<void>;
+  /** Try to restore a previously-persisted session from the OS keychain. */
+  restoreSession: () => Promise<boolean>;
+  /** Refresh the access token using the stored refresh token. */
+  refreshToken: () => Promise<boolean>;
 }
 
-export const useAuth = create<AuthState>((set) => ({
+export const useAuth = create<AuthState>((set, get) => ({
   accessToken: null,
   account: null,
   signedIn: false,
-  setToken: (token, account = null) =>
-    set({ accessToken: token, account, signedIn: !!token }),
-  signOut: () => set({ accessToken: null, account: null, signedIn: false }),
+  expiresAt: null,
+  isRefreshing: false,
+
+  setSession: (token, account, expiresAt) =>
+    set({
+      accessToken: token,
+      account,
+      expiresAt,
+      signedIn: true,
+    }),
+
+  signIn: async (chromeProfileDirectory?: string) => {
+    const session = await invoke<AuthSession>("auth_sign_in", {
+      profileDirectory: chromeProfileDirectory ?? null,
+    });
+    get().setSession(session.accessToken, session.account, session.expiresAt);
+  },
+
+  signOut: async () => {
+    try {
+      await invoke<void>("auth_sign_out");
+    } finally {
+      // Local state must not remain authenticated when the OS keychain is unavailable.
+      set({
+        accessToken: null,
+        account: null,
+        signedIn: false,
+        expiresAt: null,
+      });
+    }
+  },
+
+  restoreSession: async () => {
+    const session = await invoke<AuthSession | null>("auth_restore_session");
+    if (session) {
+      get().setSession(session.accessToken, session.account, session.expiresAt);
+      return true;
+    }
+    return false;
+  },
+
+  refreshToken: async () => {
+    if (get().isRefreshing) return false;
+    set({ isRefreshing: true });
+    try {
+      const session = await invoke<AuthSession>("auth_refresh_token");
+      get().setSession(session.accessToken, session.account, session.expiresAt);
+      set({ isRefreshing: false });
+      return true;
+    } catch {
+      set({ isRefreshing: false });
+      return false;
+    }
+  },
 }));
 
-/** Token getter injected into the cloud API client. */
+// ── Standalone helpers ───────────────────────────────────────────────────────
+
+/** Token getter injected into the cloud API client (apiClient.ts). */
 export async function getAccessToken(): Promise<string | null> {
   return useAuth.getState().accessToken;
 }
 
+/** List Chrome user profiles available on this machine. */
+export async function listChromeProfiles(): Promise<ChromeProfile[]> {
+  return invoke<ChromeProfile[]>("auth_list_chrome_profiles");
+}
+
 /**
- * Entra auth-code + PKCE loopback flow.
- * Rust opens the browser, starts a localhost listener, catches the redirect,
- * exchanges the code, and returns the access token + account name.
+ * Convenience wrapper — delegates to the store's signIn method.
+ * Existing components (e.g. SignInScreen) can import this directly.
  */
-export async function signIn(): Promise<void> {
-  const { authAuthority, authClientId, authScope } = useConfig.getState().config;
-
-  if (!authAuthority || !authClientId) {
-    throw new Error(
-      "Auth authority and client ID must be configured in Settings before signing in."
-    );
-  }
-
-  const result = await invoke<{ accessToken: string; account: string; expiresIn: number }>(
-    "auth_sign_in",
-    { authority: authAuthority, clientId: authClientId, scope: authScope }
-  );
-
-  useAuth.getState().setToken(result.accessToken, result.account);
+export async function signIn(chromeProfileDirectory?: string): Promise<void> {
+  return useAuth.getState().signIn(chromeProfileDirectory);
 }

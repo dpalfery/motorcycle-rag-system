@@ -1,6 +1,6 @@
 name = "dotnet-dev"
 description = ".NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI."
-model = "gpt-5.4-mini"
+model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 # Source GitHub tools: execute, read, edit, search, web, azure-mcp/search, microsoftdocs/mcp/*, upstash/context7/*, agent, todo
 developer_instructions = '''

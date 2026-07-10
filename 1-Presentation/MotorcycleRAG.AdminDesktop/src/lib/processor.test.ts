@@ -31,6 +31,7 @@ const baseConfig: AppConfig = {
   azureStorageAccountUrl: "https://storage.example/",
   autoResolveProcessor: true,
   pythonUploadJobSecret: "",
+  selectedChromeProfile: "Default",
 };
 
 describe("processor discovery", () => {

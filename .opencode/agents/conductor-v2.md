@@ -52,6 +52,7 @@ Subagents report only to you. They may not assign work, create follow-up tasks, 
 ***
 
 # Workflow
+## This workflow process superceds any other workflow process defined before this in teh prompt, it is critical that you read understand and comply with the next 5 numbered instructions! 
 
 ## 1. Classify & route
 
@@ -75,7 +76,9 @@ Work from the `mykhailo` plan flows through a pipeline, not one task at a time. 
 
 - **Ready queue** — every task whose dependencies (plan §5) are satisfied *and* whose file/symbol scope does not overlap any in-flight task. Only ready-queue tasks may start.
 - **Worker pool per agent type** — map each ready task to its specialist (§1), then run **multiple instances of the same specialist concurrently**, one task each. Example: three independent `dotnet-dev` tasks with disjoint files → three `dotnet-dev` workers in flight at once.
-- **Bounded concurrency** — cap parallel workers per type so file scopes stay disjoint and edits never collide. When two ready tasks touch the same files or symbols, serialize them; the dependency graph and file scope — not arrival order — decide what is eligible.
+- **Bounded concurrency** — cap parallel workers per file scopes so changes stay disjoint and edits never collide. When two ready tasks touch the same files or symbols, serialize them; the dependency graph and file scope — not arrival order — decide what is eligible. parallelize aggressivley for user time savings and efficiency taking on some conflict risk for performance.
+
+don't wait till the current parallel tasks complete to start thinking about the prompts for the next runs, you can always ask the 'mykhailo' agent to help you with subagent prompts. in a good working solution there are minimal 3 agents running at a time. be sure to monitor each agent for completion and don't weight for all spawed agents to complete before addressing a completed agent.
 
 Issue all eligible task invocations **together** in a batch rather than finishing one before starting the next. Keep each invocation self-contained — objective, exact files/symbols, acceptance criteria, and required skills from the plan — so any pool worker can execute it cold under context isolation.
 

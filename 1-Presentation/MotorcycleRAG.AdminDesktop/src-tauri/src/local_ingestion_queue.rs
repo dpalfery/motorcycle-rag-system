@@ -81,8 +81,9 @@ pub fn queue_local_ingestion_work_item_to_watch_folder(
 
     let paired_local_file_name = build_paired_file_name(&request.upload_id, &source_file_name);
     let paired_file_path = files_dir.join(&paired_local_file_name);
-    std::fs::copy(&source_path, &paired_file_path)
-        .map_err(|e| format!("failed to copy selected source file into local ingestion queue: {e}"))?;
+    std::fs::copy(&source_path, &paired_file_path).map_err(|e| {
+        format!("failed to copy selected source file into local ingestion queue: {e}")
+    })?;
 
     let manifest = LocalIngestionManifest {
         job_id: request.job_id,

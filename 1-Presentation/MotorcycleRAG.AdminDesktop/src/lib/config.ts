@@ -27,6 +27,8 @@ export interface AppConfig {
   autoResolveProcessor: boolean;
   /** Client secret for the Python-Upload-Job Entra app registration. */
   pythonUploadJobSecret: string;
+  /** Name of the Chrome profile to use for browser automation. */
+  selectedChromeProfile: string;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -44,6 +46,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   azureStorageAccountUrl: "https://mcrragdevst0125c2ea3c.blob.core.windows.net/",
   autoResolveProcessor: true,
   pythonUploadJobSecret: "",
+  selectedChromeProfile: "Default",
 };
 
 const STORE_FILE = "config.json";

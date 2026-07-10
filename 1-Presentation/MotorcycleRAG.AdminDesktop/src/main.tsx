@@ -2,11 +2,12 @@ import React, { Component, type ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "sonner";
 import App from "./App";
 import { setApiBaseUrl, setTokenProvider } from "./lib/apiClient";
 import { useConfig } from "./lib/config";
 import { useHealthCheck } from "./lib/healthCheck";
-import { getAccessToken } from "./lib/auth";
+import { getAccessToken, useAuth } from "./lib/auth";
 import "./index.css";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -76,6 +77,14 @@ void useConfig
     const state = useConfig.getState();
     setApiBaseUrl(state.config.apiBaseUrl);
 
+    // Attempt silent session restoration from the OS keychain.
+    // Fire-and-forget: updates the Zustand auth store, which triggers a
+    // re-render in App.tsx (signedIn → AppShell instead of SignInScreen).
+    void useAuth
+      .getState()
+      .restoreSession()
+      .catch((err) => console.warn("Session restore failed:", err));
+
     // Early startup health probe: verifies (a) the cloud API is reachable and
     // (b) the Azure Search index is reachable, via the anonymous GET /health endpoint.
     // Fire-and-forget so the UI never hangs on this — the HealthStatusIndicator
@@ -104,6 +113,15 @@ try {
         <QueryClientProvider client={queryClient}>
           <HashRouter>
             <App />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                unstyled: true,
+                classNames: {
+                  toast: "bg-card text-card-foreground border border-border",
+                },
+              }}
+            />
           </HashRouter>
         </QueryClientProvider>
       </ErrorBoundary>

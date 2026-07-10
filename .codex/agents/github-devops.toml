@@ -1,6 +1,6 @@
 name = "github-devops"
 description = "CI/CD ownership: GitHub Actions workflows, Docker build configuration, environment secrets, and branch protection. Use for build, pipeline, or deployment configuration. Does not provision cloud infrastructure or investigate live cloud resource state."
-model = "gpt-5.4-mini"
+model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 
 developer_instructions = '''

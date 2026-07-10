@@ -17,12 +17,28 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Any
 
 import httpx
 import openai
 
 logger = logging.getLogger(__name__)
+
+_LOG_TRUNCATE = 2000
+
+
+def _truncate(text: str, limit: int = _LOG_TRUNCATE) -> str:
+    """Truncate text to ``limit`` chars, appending a count if truncated."""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"...[truncated {len(text) - limit} chars]"
+
+
+def _approx_tokens(text: str) -> int:
+    """Rough token estimate (4 chars per token)."""
+    return len(text) // 4
+
 
 METADATA_SYSTEM_PROMPT = """You are a motorcycle document metadata extractor.
 
@@ -120,22 +136,22 @@ class MetadataExtractor:
 
                 if self._model in available:
                     logger.info(
-                        "Graph extraction model '%s' confirmed on %s",
+                        "component=metadata_extraction model='%s' confirmed endpoint=%s",
                         self._model,
-                        models_url,
+                        self._endpoint,
                     )
                 else:
                     logger.warning(
-                        "Graph extraction model '%s' NOT FOUND on %s. "
-                        "Available: %s",
+                        "component=metadata_extraction model='%s' NOT FOUND endpoint=%s "
+                        "available=%s",
                         self._model,
-                        models_url,
+                        self._endpoint,
                         available,
                     )
         except Exception:
             logger.warning(
-                "Could not probe graph extraction endpoint %s",
-                models_url,
+                "component=metadata_extraction endpoint=%s probe_failed",
+                self._endpoint,
                 exc_info=True,
             )
 
@@ -211,6 +227,13 @@ class MetadataExtractor:
 
             best_result["pages_sampled"] = actual_size
             best_result["fill_rate"] = self._compute_fill_rate(best_result)
+
+            logger.info(
+                "component=metadata_extraction job_id=%s "
+                "sample_size=%d actual_pages=%d fill_rate=%.2f",
+                job_id or "?",
+                sample_size, actual_size, best_result["fill_rate"],
+            )
 
             if best_result["fill_rate"] >= 1.0:
                 logger.info(
@@ -293,6 +316,9 @@ class MetadataExtractor:
                 LLM can infer year/make/model from directory names.
         """
         user_content = self._build_user_content(text, source_path)
+        call_start = time.perf_counter()
+        input_chars = len(user_content)
+
         response = await client.chat.completions.create(
             model=self._model,
             messages=[
@@ -301,6 +327,8 @@ class MetadataExtractor:
             ],
             temperature=0.1,
         )
+        elapsed_ms = int((time.perf_counter() - call_start) * 1000)
+
         # Defensive check: LM Studio may return HTTP 200 with null choices
         # when the model is not loaded or the request is malformed.
         if response is None or not response.choices:
@@ -311,8 +339,31 @@ class MetadataExtractor:
                 response.id if response else "N/A",
                 jid_suffix,
             )
+            logger.info(
+                "component=metadata_extraction job_id=%s model=%s endpoint=%s "
+                "input_chars=%d tokens_approx=%d elapsed_ms=%d result=%s",
+                job_id or "?", self._model, self._endpoint,
+                input_chars, _approx_tokens(user_content), elapsed_ms,
+                "no_choices",
+            )
             return {}
         content = response.choices[0].message.content or ""
+
+        logger.info(
+            "component=metadata_extraction job_id=%s model=%s endpoint=%s "
+            "input_chars=%d tokens_approx=%d elapsed_ms=%d result=%s",
+            job_id or "?", self._model, self._endpoint,
+            input_chars, _approx_tokens(user_content), elapsed_ms,
+            "ok" if content else "empty",
+        )
+
+        logger.debug(
+            "component=metadata_extraction job_id=%s prompt=%s response=%s",
+            job_id or "?",
+            _truncate(user_content),
+            _truncate(content),
+        )
+
         sha_prefix = (
             hashlib.sha256(content.encode()).hexdigest()[:16] if content else "<empty>"
         )
@@ -347,16 +398,22 @@ class MetadataExtractor:
                     or "unreachable" in exc_lower
                 )
                 if is_retryable and attempt < max_retries:
+                    delay = 1.0 * (attempt + 1)
                     logger.warning(
-                        "LLM call failed (attempt %d/%d), retrying: %s",
-                        attempt + 1, max_retries + 1, exc,
+                        "component=metadata_extraction job_id=%s "
+                        "attempt=%d/%d error=%s retrying_in=%.1fs",
+                        job_id or "?",
+                        attempt + 1, max_retries + 1,
+                        str(exc)[:200], delay,
                     )
-                    await asyncio.sleep(1.0 * (attempt + 1))
+                    await asyncio.sleep(delay)
                 else:
                     logger.warning(
-                        "Metadata extraction LLM call failed%s: %s",
-                        f" job_id={job_id}" if job_id else "",
-                        exc,
+                        "component=metadata_extraction job_id=%s "
+                        "attempt=%d/%d error=%s retries_exhausted",
+                        job_id or "?",
+                        attempt + 1, max_retries + 1,
+                        str(exc)[:200],
                     )
                     raise
 

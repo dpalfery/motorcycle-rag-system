@@ -1,13 +1,27 @@
-"""Graph entity and relationship extraction using an OpenAI-compatible LLM."""
+"""Graph entity and relationship extraction using an OpenAI-compatible LLM.
 
+Batched + deduped + retrying graph extraction with per-call I/O telemetry.
+"""
+
+import asyncio
 import json
 import logging
+import math
 import os
+import time
 from typing import Any
 
 import openai
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Batching & retry constants
+# ---------------------------------------------------------------------------
+BATCH_TOKEN_BUDGET = 4000       # approximate token budget per batch
+BATCH_MAX_RETRIES = 2           # retries per batch before skipping
+BATCH_RETRY_BASE_DELAY = 1.0    # seconds, multiplied by (attempt + 1)
+_LOG_TRUNCATE = 2000            # chars for prompt/response body logging
 
 SYSTEM_PROMPT = """You are a knowledge graph extractor for motorcycle technical documentation.
 Extract entities and relationships from the provided text.
@@ -26,6 +40,212 @@ Return a JSON object with this exact structure:
 }
 
 Return ONLY the JSON object. No markdown. No explanation."""
+
+
+def _approx_tokens(text: str) -> int:
+    """Rough token estimate: chars // 4."""
+    return len(text) // 4
+
+
+def _truncate(text: str, limit: int = _LOG_TRUNCATE) -> str:
+    """Truncate text for logging, appending truncation notice."""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"...[truncated {len(text) - limit} chars]"
+
+
+def _split_into_batches(text: str) -> list[str]:
+    """Split text into ~BATCH_TOKEN_BUDGET-token approximate batches."""
+    total_chars = len(text)
+    if total_chars == 0:
+        return []
+    budget_chars = BATCH_TOKEN_BUDGET * 4  # approximate chars per batch
+    num_batches = max(1, math.ceil(total_chars / budget_chars))
+    batch_size_chars = math.ceil(total_chars / num_batches)
+    return [
+        text[i : i + batch_size_chars]
+        for i in range(0, total_chars, batch_size_chars)
+    ]
+
+
+def _merge_results(batch_results: list[dict[str, Any] | None]) -> dict[str, Any]:
+    """Merge batched graph extraction results.
+
+    Node dedupe by lowercased name (first-seen-wins id/type/description).
+    Edge endpoints rewritten from batch-local to canonical node ids.
+    Edge dedupe by (from_canonical, to_canonical, relationshipType).
+    """
+    all_nodes: list[dict[str, Any]] = []
+    all_edges: list[dict[str, Any]] = []
+
+    for result in batch_results:
+        if result is None:
+            continue
+        nodes = result.get("nodes", []) or []
+        edges = result.get("edges", []) or []
+        all_nodes.extend(nodes)
+        all_edges.extend(edges)
+
+    # Dedupe nodes by lowercased name (first-seen-wins)
+    name_to_canonical: dict[str, dict[str, Any]] = {}
+    for node in all_nodes:
+        name = (node.get("name") or "").strip().lower()
+        if not name:
+            continue
+        if name not in name_to_canonical:
+            name_to_canonical[name] = node
+
+    # Build id -> canonical_id mapping
+    id_to_canonical: dict[str, str] = {}
+    for node in all_nodes:
+        node_id: str | Any = node.get("id")
+        name = (node.get("name") or "").strip().lower()
+        if node_id and name and name in name_to_canonical:
+            id_to_canonical[node_id] = name_to_canonical[name].get("id", node_id)
+
+    # Rewrite and dedupe edges
+    # First-seen-wins edge deduplication: if multiple batches produce
+    # the same (from_canonical, to_canonical, relationshipType) edge,
+    # only the first occurrence is kept. Differing weight or context
+    # from duplicate edges is discarded.
+    seen_edges: set[tuple[str, str, str]] = set()
+    merged_edges: list[dict[str, Any]] = []
+    dropped = 0
+    for edge in all_edges:
+        from_id = id_to_canonical.get(
+            edge.get("fromNodeId", ""), edge.get("fromNodeId", "")
+        )
+        to_id = id_to_canonical.get(
+            edge.get("toNodeId", ""), edge.get("toNodeId", "")
+        )
+        rel_type = edge.get("relationshipType", "")
+
+        # Drop edges referencing unknown node ids
+        if not from_id or not to_id:
+            dropped += 1
+            logger.debug(
+                "graph_merge dropping edge: unresolved endpoint from=%s to=%s",
+                edge.get("fromNodeId"),
+                edge.get("toNodeId"),
+            )
+            continue
+
+        edge_key = (from_id, to_id, rel_type)
+        if edge_key not in seen_edges:
+            seen_edges.add(edge_key)
+            merged_edge: dict[str, Any] = dict(edge)
+            merged_edge["fromNodeId"] = from_id
+            merged_edge["toNodeId"] = to_id
+            merged_edges.append(merged_edge)
+
+    if dropped:
+        logger.debug("graph_merge dropped %d edges with unresolved endpoints", dropped)
+
+    return {
+        "nodes": list(name_to_canonical.values()),
+        "edges": merged_edges,
+    }
+
+
+async def _query_llm_with_retry(
+    client: openai.AsyncOpenAI,
+    model: str,
+    batch_text: str,
+    batch_index: int,
+    total_batches: int,
+    source_document_id: str,
+) -> dict[str, Any] | None:
+    """Send one batch to the LLM with retry logic. Returns parsed JSON or None."""
+    for attempt in range(BATCH_MAX_RETRIES + 1):
+        start = time.perf_counter()
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": batch_text},
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"},
+            )
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            content = response.choices[0].message.content if response.choices else ""
+
+            parsed: dict[str, Any] = json.loads(content) if content else {}
+            nodes = parsed.get("nodes", []) if isinstance(parsed, dict) else []
+            edges = parsed.get("edges", []) if isinstance(parsed, dict) else []
+            node_count = len(nodes)
+            edge_count = len(edges)
+
+            # LOG SUMMARY (info level)
+            logger.info(
+                "component=graph_extraction job_id=%s model=%s endpoint=%s "
+                "batch_index=%d/%d input_chars=%d tokens_approx=%d "
+                "elapsed_ms=%d result=%s node_count=%d edge_count=%d",
+                source_document_id,
+                model,
+                str(client.base_url),
+                batch_index + 1,
+                total_batches,
+                len(batch_text),
+                _approx_tokens(batch_text),
+                elapsed_ms,
+                "ok",
+                node_count,
+                edge_count,
+            )
+
+            # LOG BODY (debug level)
+            logger.debug(
+                "component=graph_extraction job_id=%s batch_index=%d/%d "
+                "prompt=%s response=%s",
+                source_document_id,
+                batch_index + 1,
+                total_batches,
+                _truncate(batch_text),
+                _truncate(content or ""),
+            )
+
+            return parsed
+
+        except Exception as e:
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            is_retryable = (
+                isinstance(e, (openai.APITimeoutError, openai.APIConnectionError))
+                or "unreachable" in str(e).lower()
+            )
+
+            if is_retryable and attempt < BATCH_MAX_RETRIES:
+                delay = BATCH_RETRY_BASE_DELAY * (attempt + 1)
+                logger.warning(
+                    "component=graph_extraction job_id=%s batch_index=%d/%d "
+                    "attempt=%d/%d error=%s retrying_in=%.1fs",
+                    source_document_id,
+                    batch_index + 1,
+                    total_batches,
+                    attempt + 1,
+                    BATCH_MAX_RETRIES + 1,
+                    str(e)[:200],
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                continue
+
+            logger.error(
+                "component=graph_extraction job_id=%s batch_index=%d/%d "
+                "attempt=%d/%d elapsed_ms=%d error=%s result=%s",
+                source_document_id,
+                batch_index + 1,
+                total_batches,
+                attempt + 1,
+                BATCH_MAX_RETRIES + 1,
+                elapsed_ms,
+                _truncate(str(e)),
+                "error",
+            )
+            return None
+
+    return None  # all retries exhausted
 
 
 class GraphExtractor:
@@ -56,39 +276,57 @@ class GraphExtractor:
         # httpx connection pool, which keeps the client lightweight to reuse.
         self._client = openai.AsyncOpenAI(base_url=self._endpoint, api_key="local")
 
-    async def extract(self, text: str, source_document_id: str = "") -> list[dict[str, Any]]:
-        """Extract graph entities and relationships. Always returns a list, never raises."""
-        try:
-            if not text or not text.strip():
-                return []
-
-            client = self._client
-            response = await client.chat.completions.create(
-                model=self._model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": text},
-                ],
-                temperature=0.1,
+    async def extract(
+        self, text: str, source_document_id: str = ""
+    ) -> list[dict[str, Any]]:
+        """Extract knowledge graph from text. Returns [{"nodes":[], "edges":[]}]."""
+        if not text or not text.strip():
+            logger.info(
+                "component=graph_extraction job_id=%s result=empty_text returning_empty",
+                source_document_id,
             )
-            # Defensive check: LM Studio may return HTTP 200 with null choices
-            # when the model is not loaded or the request is malformed.
-            if response is None or not response.choices:
-                logger.warning(
-                    "Graph extraction LLM response has no choices (response=%s)",
-                    response,
-                )
-                return []
-            content = response.choices[0].message.content or ""
-            result = json.loads(content)
-
-            nodes = result.get("nodes", [])
-            for node in nodes:
-                node["sourceDocumentId"] = source_document_id
-            edges = result.get("edges", [])
-
-            return [{"nodes": nodes, "edges": edges}]
-
-        except Exception as exc:
-            logger.warning("Graph extraction failed: %s", exc)
             return []
+
+        batches = _split_into_batches(text)
+        logger.info(
+            "component=graph_extraction job_id=%s total_chars=%d tokens_approx=%d "
+            "num_batches=%d",
+            source_document_id,
+            len(text),
+            _approx_tokens(text),
+            len(batches),
+        )
+
+        batch_results: list[dict[str, Any] | None] = []
+        for i, batch_text in enumerate(batches):
+            result = await _query_llm_with_retry(
+                self._client,
+                self._model,
+                batch_text,
+                i,
+                len(batches),
+                source_document_id,
+            )
+            batch_results.append(result)
+
+        merged = _merge_results(batch_results)
+        nodes = merged.get("nodes", [])
+        edges = merged.get("edges", [])
+
+        # Inject sourceDocumentId into each node (existing contract)
+        for node in nodes:
+            node["sourceDocumentId"] = source_document_id
+
+        logger.info(
+            "component=graph_extraction job_id=%s result=merged "
+            "batches_processed=%d/%d total_nodes=%d total_edges=%d",
+            source_document_id,
+            sum(1 for r in batch_results if r is not None),
+            len(batches),
+            len(nodes),
+            len(edges),
+        )
+
+        if not nodes and not edges:
+            return []
+        return [merged]

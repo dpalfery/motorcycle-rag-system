@@ -38,7 +38,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   embeddingModel: "qwen3-embedding",
   tokenizerModelPath: "",
   graphExtractionEndpoint: "http://localhost:1234/v1",
-  graphExtractionModel: "qwen3.5-0.8b",
+  graphExtractionModel: "microsoft/phi-4-reasoning-plus",
   localProcessorPort: 8100,
   localProcessorWorkingDir: "",
   azureStorageAccountUrl: "https://mcrragdevst0125c2ea3c.blob.core.windows.net/",

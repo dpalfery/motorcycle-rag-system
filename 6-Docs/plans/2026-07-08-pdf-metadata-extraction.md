@@ -64,7 +64,7 @@ The gap is a metadata extraction stage that:
 - No existing modal/popup component for metadata entry.
 
 ### 3.4 LM Studio configuration
-- `GraphExtractor` reads `GRAPH_EXTRACTION_ENDPOINT` (default `http://localhost:1234/v1`) and `GRAPH_EXTRACTION_MODEL` (default `qwen3.5-0.8b`).
+- `GraphExtractor` reads `GRAPH_EXTRACTION_ENDPOINT` and `GRAPH_EXTRACTION_MODEL` from the environment (set by Admin Desktop Settings; currently the model is `microsoft/phi-4-reasoning-plus`). Do not hard-code a model name — the operator may change Settings.
 - `MetadataExtractor` will read the same env vars.
 
 ### 3.5 Docling page access
@@ -277,7 +277,9 @@ class MetadataExtractor:
 
     def __init__(self) -> None:
         self._endpoint = os.getenv("GRAPH_EXTRACTION_ENDPOINT", "http://localhost:1234/v1")
-        self._model = os.getenv("GRAPH_EXTRACTION_MODEL", "qwen3.5-0.8b")
+        # Model comes from Admin Desktop Settings via GRAPH_EXTRACTION_MODEL (required at runtime).
+        # Do not hard-code a model name — the configured value may change (e.g. microsoft/phi-4-reasoning-plus).
+        self._model = os.environ["GRAPH_EXTRACTION_MODEL"]
 
     def _compute_fill_rate(self, metadata: dict[str, Any]) -> float:
         filled = sum(1 for f in self.REQUIRED_FIELDS if metadata.get(f))

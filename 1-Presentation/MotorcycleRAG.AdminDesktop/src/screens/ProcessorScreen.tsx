@@ -1101,7 +1101,7 @@ export default function ProcessorScreen() {
                         {formatChunkProgress(j) && (
                           <div className="mt-1 text-xs text-muted">{formatChunkProgress(j)}</div>
                         )}
-                        {isIngestionFailed(j.status) && (
+                        {(isIngestionFailed(j.status) || isAwaitingMetadata(j)) && (
                           <IngestionJobFailurePanel
                             job={j}
                             onEnterMetadata={

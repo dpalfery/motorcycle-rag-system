@@ -77,7 +77,7 @@ public static class IngestionJobStatusMapper
             Model = metadata?.Model,
             Year = metadata?.Year,
             Category = metadata?.Category,
-            Tags = metadata?.Tags,
+            Tags = metadata?.Tags?.AsReadOnly(),
             FillRate = metadata?.FillRate,
             IsComplete = metadata?.IsComplete
         };

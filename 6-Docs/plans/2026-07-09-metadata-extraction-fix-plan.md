@@ -10,7 +10,7 @@
 
 ### Symptoms
 
-1. **LM Studio `/chat/completions` errors** — Logs show requests reaching LM Studio with the wrong model name (`microsoft/phi-4-reasoning-plus` instead of the configured `qwen3.5-0.8b`) and sometimes with a `/chat/completions` path missing the `/v1` prefix. No useful response comes back, metadata extraction silently returns 0% fill rate.
+1. **LM Studio `/chat/completions` errors** — Logs show requests reaching LM Studio with the Settings-configured model (`microsoft/phi-4-reasoning-plus`) and sometimes with a `/chat/completions` path missing the `/v1` prefix. No useful response comes back, metadata extraction silently returns 0% fill rate. The model name is not a bug by itself — designs must use whatever model is configured in Settings (it may change); the failure is connectivity / response handling.
 
 2. **"Needs manual metadata" dead-end** — When extraction fails, the job enters `AwaitingMetadata`. The failure panel (with failure-reason text and the prominent "Enter Metadata →" button) never renders because `JobsScreen.tsx` condition on line 405 only shows it for `["failed", "error", "cancelled"]` statuses. The admin sees only a small pencil icon in the table actions which is easy to miss.
 
@@ -60,28 +60,26 @@ A large part of the 2026-07-08 plan *is already implemented*. Verifying against 
 
 ## 3. Investigation Findings
 
-### 3.1 Model Mismatch Confirmation
+### 3.1 Model Configuration Confirmation
 
-**Configured model:** `qwen3.5-0.8b` at two locations:
-- `config.ts:41` — `graphExtractionModel: "qwen3.5-0.8b"` (default in Admin Desktop)
-- `.env.example:70` — `GRAPH_EXTRACTION_MODEL=qwen3.5-0.8b` (template)
+**Source of truth:** Admin Desktop Settings → `graphExtractionModel` → persisted `config.json` → Rust `GRAPH_EXTRACTION_MODEL` env var → Python `MetadataExtractor`.
 
-**Error log shows:** `microsoft/phi-4-reasoning-plus` in the request body.
+There is **no fixed model name** and **no code fallback**. The operator chooses the LM Studio chat model in Settings; it may change over time. At the time of this investigation the configured value was `microsoft/phi-4-reasoning-plus`. Runtime must always use that Settings / env value; missing config is an error.
 
-**Why the mismatch — root cause chain:**
+**Why extraction still failed — root cause chain:**
 
 1. The **`.env` file** (the actual one, not `.env.example`) does **NOT contain** `GRAPH_EXTRACTION_MODEL` at all. The env var is only set by the Admin Desktop's Rust launcher, which reads from the persisted `AppConfig`.
 2. The `SettingsScreen.tsx` (lines 144-146) has an **editable text field** for `graphExtractionModel`. The user can type any model name, and it gets persisted to `config.json` via `tauri-plugin-store`.
 3. Once saved, the Rust `processor_start()` inserts it as the `GRAPH_EXTRACTION_MODEL` env var when spawning the Python process.
 4. The Python `MetadataExtractor.__init__` reads this env var and passes it to the OpenAI SDK.
-5. **Either** the user changed the model name in Settings to `microsoft/phi-4-reasoning-plus` and that name does not match what LM Studio expects, **or** the user loaded a different model in LM Studio than what's configured.
+5. Extraction fails when LM Studio is unreachable, the Settings model is not loaded, the endpoint lacks `/v1`, or the LLM response is not parseable JSON — not because a particular model name is "wrong."
 
 **Also noted:** The LM Studio error `[ERROR] Unexpected endpoint or method. (POST /chat/completions)` — note the missing `/v1` prefix in the path shown. This happens when `base_url` does not end with `/v1`. The default (`http://localhost:1234/v1`) is correct, but if the user changed the endpoint in Settings or the `.env` has `EMBEDDING_PROVIDER_ENDPOINT=http://localhost:1234` (which it does, line 14, without `/v1`), the OpenAI SDK constructs `POST /chat/completions` (no `/v1`) and LM Studio rejects it.
 
 **Resolution:** The user should verify in the Admin Desktop's Settings screen (or `config.json`) that:
 - `graphExtractionEndpoint` ends with `/v1` (e.g., `http://localhost:1234/v1`)
-- `graphExtractionModel` matches exactly the model loaded in LM Studio
-- LM Studio's local server is running and the model is loaded
+- `graphExtractionModel` matches exactly the model loaded in LM Studio (whatever the operator has chosen; currently `microsoft/phi-4-reasoning-plus`)
+- LM Studio's local server is running and that model is loaded
 
 ### 3.2 Settings Architecture Is Correct
 
@@ -187,12 +185,12 @@ The 2026-07-08 plan's implementation is 90% complete. The remaining gaps are con
 
 | Field | Value |
 |-------|-------|
-| **Description** | Add `GRAPH_EXTRACTION_ENDPOINT` and `GRAPH_EXTRACTION_MODEL` to the `.env` file (not just `.env.example`). Use the same values as `.env.example` lines 68-70. This ensures the processor works standalone without the Admin Desktop. |
+| **Description** | Add `GRAPH_EXTRACTION_ENDPOINT` and `GRAPH_EXTRACTION_MODEL` to the `.env` file (not just `.env.example`). Use the same endpoint/model the operator has configured in Admin Desktop Settings (currently `microsoft/phi-4-reasoning-plus` for the model). This ensures the processor works standalone without the Admin Desktop. Do not hard-code a historical model name. |
 | **Exact files** | `2-Application/local-processing-service/.env` |
 | **Skill** | `python-dev` |
 | **Dependencies** | None |
 | **Parallelism** | Yes — disjoint from all other files |
-| **Acceptance criteria** | 1. `.env` contains `GRAPH_EXTRACTION_ENDPOINT=http://localhost:1234/v1`. 2. `.env` contains `GRAPH_EXTRACTION_MODEL=qwen3.5-0.8b`. 3. Standalone `python src/main.py` no longer raises `ValueError: GRAPH_EXTRACTION_MODEL environment variable must be set`. |
+| **Acceptance criteria** | 1. `.env` contains `GRAPH_EXTRACTION_ENDPOINT=http://localhost:1234/v1`. 2. `.env` contains `GRAPH_EXTRACTION_MODEL=<Settings model>` (currently `microsoft/phi-4-reasoning-plus`). 3. Standalone `python src/main.py` no longer raises `ValueError: GRAPH_EXTRACTION_MODEL environment variable must be set`. |
 
 ---
 
@@ -281,7 +279,7 @@ Note: No `test-dev` tasks are listed because the unit tests already exist and co
 - **Admin Desktop:** `npm test` — existing modal, failure panel, and jobs screen tests pass
 
 ### Manual verification checklist
-1. Start LM Studio with **any model loaded** (not necessarily qwen3.5-0.8b)
+1. Start LM Studio with the model configured in Admin Desktop Settings loaded (currently `microsoft/phi-4-reasoning-plus`; do not assume a fixed model name)
 2. Start the Admin Desktop and navigate to the Processor screen
 3. Verify the graph extraction endpoint and model are displayed in the health section
 4. Verify the `.env` file has `GRAPH_EXTRACTION_ENDPOINT` and `GRAPH_EXTRACTION_MODEL`

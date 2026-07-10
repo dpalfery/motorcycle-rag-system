@@ -74,18 +74,18 @@ With `base_url = "http://localhost:1234/v1"`, the request URL becomes:
 `http://localhost:1234/v1/chat/completions`
 
 This is the correct OpenAI-compatible path for LM Studio. However, the error log shows:
-- Model in request: `microsoft/phi-4-reasoning-plus` (NOT the configured `qwen3.5-0.8b`)
+- Model in request: `microsoft/phi-4-reasoning-plus` (the Settings-configured model at the time of the failure)
 - Path in error: `/chat/completions` (appears to lack `/v1` prefix)
 
 **Possible explanations:**
-1. The model mismatch suggests the `GRAPH_EXTRACTION_MODEL` env var is not being passed correctly, or LM Studio has a different model loaded than what's configured
-2. LM Studio may not have `qwen3.5-0.8b` loaded — the error shows `microsoft/phi-4-reasoning-plus` which may be a different model entirely
-3. The endpoint might be hitting a different LM Studio server or a different port
+1. LM Studio may not have the Settings-configured model loaded, or the endpoint/port is wrong
+2. The endpoint might be hitting a different LM Studio server or a different port
+3. Designs must treat the model as operator-configurable via Settings — never hard-code or fall back to a model name in code
 
 **Evidence:**
 - `.env` file in `local-processing-service/` does NOT contain `GRAPH_EXTRACTION_ENDPOINT` or `GRAPH_EXTRACTION_MODEL` — it's a copy of `.env.example` with placeholder values
-- The Rust code correctly passes the env vars, but the user's LM Studio may not have the expected model loaded
-- The error model name (`microsoft/phi-4-reasoning-plus`) does not match the configured model (`qwen3.5-0.8b`)
+- The Rust code correctly passes the env vars from Admin Desktop Settings; the request model name should match Settings, not a plan hard-code
+- The observed request model (`microsoft/phi-4-reasoning-plus`) is the Settings value and is the correct source of truth; it may change when the operator updates Settings
 
 #### Bug 2: Metadata extractor doesn't validate model availability
 
@@ -138,7 +138,7 @@ This means:
 
 | # | Phase | Component | Description | Skills | Files |
 |---|-------|-----------|-------------|--------|-------|
-| 1 | Investigation | Python | Verify LM Studio model availability and endpoint reachability. Check if `qwen3.5-0.8b` is loaded and responding on `http://localhost:1234/v1/chat/completions`. | python-dev | (runtime check) |
+| 1 | Investigation | Python | Verify LM Studio model availability and endpoint reachability. Check that the Settings-configured model (currently `microsoft/phi-4-reasoning-plus`) is loaded and responding on `http://localhost:1234/v1/chat/completions`. | python-dev | (runtime check) |
 | 2 | Fix | Python | Add model validation on `MetadataExtractor` init — probe LM Studio `/v1/models` endpoint to verify the configured model is loaded. Log clear error if not. | python-dev | `src/extraction/metadata_extractor.py` |
 | 3 | Fix | Python | Improve `_query_llm` error handling — log the actual HTTP status, response body, and model name when LM Studio returns an error. Include endpoint URL in error messages. | python-dev | `src/extraction/metadata_extractor.py` |
 | 4 | Fix | Python | Add startup health check for the graph extraction endpoint — when `MetadataExtractor` initializes, make a lightweight GET to `/v1/models` to verify connectivity and model availability. Log the result. | python-dev | `src/extraction/metadata_extractor.py`, `src/main.py` |
@@ -185,7 +185,7 @@ Tasks 10-11 (tests)
 |----------|-------|--------|
 | Should the metadata extractor probe LM Studio at startup and fail fast, or degrade gracefully? | User | **Recommendation:** Probe at startup, log warning, don't fail fast — the model may be loaded later |
 | Should the API include metadata in the list response (Task 9) or keep it as a separate GET? | User | **Recommendation:** Include summary in list response for better UX; keep full detail in separate GET |
-| What LM Studio model should be the default? `qwen3.5-0.8b` may not be available | User | **Recommendation:** Make the model configurable and validate at startup |
+| What LM Studio model should be the default? | User | **Answer:** Use whatever is configured in Admin Desktop Settings (`graphExtractionModel` → `GRAPH_EXTRACTION_MODEL`). Currently `microsoft/phi-4-reasoning-plus`; designs must not hard-code a model name because it can change. Validate at startup that the configured model is loaded. |
 | Should there be an auto-retry mechanism when the model becomes available? | User | **Recommendation:** Not in this plan — adds significant complexity |
 
 ---
@@ -217,4 +217,4 @@ Tasks 10-11 (tests)
 - **C# tests:** `dotnet test` — verify mapper changes don't break existing tests
 - **TypeScript type-check:** `npx tsc --noEmit` — verify UI changes compile
 - **TypeScript tests:** `npm test` — verify new UI tests pass
-- **Manual verification:** Start LM Studio with `qwen3.5-0.8b` loaded, process a PDF, verify metadata extraction succeeds and displays in UI
+- **Manual verification:** Start LM Studio with the Settings-configured model loaded (currently `microsoft/phi-4-reasoning-plus`), process a PDF, verify metadata extraction succeeds and displays in UI

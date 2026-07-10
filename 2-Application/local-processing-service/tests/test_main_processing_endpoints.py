@@ -26,7 +26,7 @@ def _load_main_with_admin_environment(
     monkeypatch.setenv("AZURE_STORAGE_ACCOUNT_URL", "https://storage.example")
     monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "")
     monkeypatch.setenv("GRAPH_EXTRACTION_ENDPOINT", "http://127.0.0.1:1234")
-    monkeypatch.setenv("GRAPH_EXTRACTION_MODEL", "qwen3.5-0.8b")
+    monkeypatch.setenv("GRAPH_EXTRACTION_MODEL", "microsoft/phi-4-reasoning-plus")
     from embeddings import embedder_factory
     from embeddings.model_discovery import ModelDiscoveryResult
 

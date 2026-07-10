@@ -16,7 +16,7 @@ After investigation, the root causes are:
 2. **LM Studio availability** — Some calls fail with "LM Studio unreachable" when the server isn't running or is overloaded.
 3. **Settings are already centralized** — The admin app's settings page correctly configures `GRAPH_EXTRACTION_ENDPOINT` and `GRAPH_EXTRACTION_MODEL`, which are passed as env vars to the Python service. No architecture change needed for settings.
 
-The model choice (qwen3.5-0.8b) is **by-design** per plan decision D2. The fix should improve JSON parsing resilience, not change the model.
+The extraction model is **whatever is configured in Admin Desktop Settings** (`graphExtractionModel` → `GRAPH_EXTRACTION_MODEL`), per plan decision D2. Designs must not hard-code a model name — the operator may change it (currently `microsoft/phi-4-reasoning-plus`). The fix should improve JSON parsing resilience, not pin a specific model.
 
 ---
 
@@ -32,7 +32,7 @@ The admin app's settings page **already centralizes** the graph extraction confi
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │ Graph extraction                                          │  │
 │  │   Endpoint: [http://localhost:1234/v1]                    │  │
-│  │   Model:    [qwen3.5-0.8b]                               │  │
+│  │   Model:    [<from Settings, e.g. microsoft/phi-4-…>]   │  │
 │  └───────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -120,12 +120,12 @@ WARNING  extraction.metadata_extractor — Metadata extraction LLM call failed: 
 
 When LM Studio isn't running or is overloaded, all extraction attempts fail.
 
-### 3.3 Non-Cause: Model Choice
+### 3.3 Non-Cause: Hard-Coded Model Name
 
-The qwen3.5-0.8b model **is the correct model** per plan decision D2:
+Plan decision D2 requires reusing Settings / env config:
 > "Reuse GraphExtractor's LM Studio endpoint and model config"
 
-The model works for graph extraction and should work for metadata extraction with proper JSON parsing.
+There is no single correct model name in the design. The operator configures the model in Admin Desktop Settings (currently `microsoft/phi-4-reasoning-plus`); that value is passed through as `GRAPH_EXTRACTION_MODEL`. Metadata extraction should use that configured model with proper JSON parsing.
 
 ---
 
@@ -299,7 +299,7 @@ The current architecture is correct:
 
 ### Integration Test
 
-1. Start LM Studio with qwen3.5-0.8b model
+1. Start LM Studio with the model configured in Admin Desktop Settings (currently `microsoft/phi-4-reasoning-plus`)
 2. Upload a PDF with clear metadata (e.g., "2023 Honda CBR600RR Service Manual")
 3. Verify metadata extraction succeeds with 100% fill rate
 4. Check logs for raw LLM response (should be valid JSON)
@@ -312,7 +312,7 @@ The current architecture is correct:
 |------|------------|
 | Model may still return invalid JSON for some documents | The `_parse_llm_json()` method handles common formats; manual fallback remains |
 | LM Studio availability | Retry logic helps; manual fallback is the safety net |
-| Very small model may struggle with complex documents | This is by-design; manual fallback exists for this reason |
+| Configured model may struggle with complex documents | Manual fallback exists for this reason; operators may change the Settings model |
 
 ---
 
@@ -320,7 +320,7 @@ The current architecture is correct:
 
 | Item | Reason |
 |------|--------|
-| Changing the model | By-design per D2; model works for graph extraction |
+| Pinning a specific model name in code or plans | Model comes from Settings and may change; D2 requires reusing that config |
 | Adding a separate model config for metadata | Violates D2 ("no separate config") |
 | Changing settings architecture | Already correct; env vars are the mechanism |
 | Persisting extraction attempts in database | Only final metadata matters |

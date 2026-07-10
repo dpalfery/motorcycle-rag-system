@@ -40,7 +40,6 @@ struct ProcessorStartConfig {
     upload_job_secret: Option<String>,
     #[serde(default = "default_graph_extraction_endpoint")]
     graph_extraction_endpoint: String,
-    #[serde(default = "default_graph_extraction_model")]
     graph_extraction_model: String,
     #[serde(default = "default_api_base_url")]
     api_base_url: String,
@@ -72,10 +71,6 @@ fn default_azure_storage_account_url() -> String {
 
 fn default_graph_extraction_endpoint() -> String {
     "http://localhost:1234/v1".to_string()
-}
-
-fn default_graph_extraction_model() -> String {
-    "qwen3.5-0.8b".to_string()
 }
 
 fn local_ingestion_watch_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -521,6 +516,13 @@ async fn processor_start(
         return Err(format!(
             "local processor is already listening on port {port_value}; stop it before starting with new settings"
         ));
+    }
+
+    if config.graph_extraction_model.trim().is_empty() {
+        return Err(
+            "graphExtractionModel is required in Settings; set the LM Studio chat model before starting the processor"
+                .to_string(),
+        );
     }
 
     {

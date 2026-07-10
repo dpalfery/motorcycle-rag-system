@@ -198,12 +198,19 @@ def _build_health_response(
     global _last_health_log_signature
     blob_storage_connected = blob_writer.is_connected()
     api_client_configured = api_client.is_configured()
+    inner = getattr(embedder, "_embedder", embedder)  # unwrap TruncatingEmbedder
     embedding_endpoint = (
-        getattr(embedder, "_endpoint", None)
-        or getattr(embedder, "_host", None)
-        or getattr(embedder, "_base_url", None)
+        getattr(inner, "_endpoint", None)
+        or getattr(inner, "_host", None)
+        or getattr(inner, "_base_url", None)
     )
-    embedding_model = getattr(embedder, "_model", None)
+    embedding_model = getattr(inner, "_model", None)
+    logger.debug(
+        "Health: embedder endpoint=%s model=%s (type=%s)",
+        embedding_endpoint,
+        embedding_model,
+        type(embedder).__name__,
+    )
     tokenizer_config = describe_chunker_tokenizer()
     embedding_config = {
         "embedding_endpoint": embedding_endpoint,

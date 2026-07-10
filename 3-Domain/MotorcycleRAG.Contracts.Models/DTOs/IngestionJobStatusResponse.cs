@@ -58,7 +58,7 @@ public sealed record IngestionJobStatusResponse
     public string? Category { get; init; }
 
     /// <summary>Free-form tags extracted from the document. Null when no metadata is present.</summary>
-    public List<string>? Tags { get; init; }
+    public IReadOnlyList<string>? Tags { get; init; }
 
     /// <summary>Fraction (0.0–1.0) of the four required fields (make/model/year/category) populated.</summary>
     public double? FillRate { get; init; }

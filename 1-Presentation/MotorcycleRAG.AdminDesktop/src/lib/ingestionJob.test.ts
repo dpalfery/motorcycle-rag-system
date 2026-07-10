@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterSupersededIngestionJobs,
   formatIngestionJobLabel,
+  formatMetadataDisplay,
   isAwaitingMetadata,
   replaceRetriedIngestionJob,
   type IngestionJobStatus,
@@ -88,5 +89,68 @@ describe("isAwaitingMetadata", () => {
 
   it("is false for completed jobs", () => {
     expect(isAwaitingMetadata({ status: "Completed", requiresManualMetadata: false })).toBe(false);
+  });
+});
+
+describe("formatMetadataDisplay", () => {
+  it("returns null when no metadata fields are present", () => {
+    expect(formatMetadataDisplay({})).toBeNull();
+  });
+
+  it("returns null when all fields are empty/whitespace", () => {
+    expect(
+      formatMetadataDisplay({ make: "  ", model: "", category: "   " }),
+    ).toBeNull();
+  });
+
+  it("combines make and model into one segment", () => {
+    expect(
+      formatMetadataDisplay({ make: "Honda", model: "CBR600RR" }),
+    ).toBe("Honda CBR600RR");
+  });
+
+  it("includes the year in parentheses", () => {
+    expect(
+      formatMetadataDisplay({ make: "Honda", model: "CBR600RR", year: 2023 }),
+    ).toBe("Honda CBR600RR (2023)");
+  });
+
+  it("appends the category after an em-dash", () => {
+    expect(
+      formatMetadataDisplay({
+        make: "Honda",
+        model: "CBR600RR",
+        year: 2023,
+        category: "sport",
+      }),
+    ).toBe("Honda CBR600RR (2023) — sport");
+  });
+
+  it("shows only make when only make is present", () => {
+    expect(formatMetadataDisplay({ make: "Honda" })).toBe("Honda");
+  });
+
+  it("shows only model when only model is present", () => {
+    expect(formatMetadataDisplay({ model: "CBR600RR" })).toBe("CBR600RR");
+  });
+
+  it("shows only year when only year is present", () => {
+    expect(formatMetadataDisplay({ year: 2023 })).toBe("(2023)");
+  });
+
+  it("shows only category when only category is present", () => {
+    expect(formatMetadataDisplay({ category: "sport" })).toBe("— sport");
+  });
+
+  it("trims whitespace from make/model/category", () => {
+    expect(
+      formatMetadataDisplay({ make: "  Honda  ", model: " CBR600RR ", category: " sport " }),
+    ).toBe("Honda CBR600RR — sport");
+  });
+
+  it("ignores non-finite year values", () => {
+    expect(
+      formatMetadataDisplay({ make: "Honda", model: "CBR600RR", year: Number.NaN }),
+    ).toBe("Honda CBR600RR");
   });
 });

@@ -21,6 +21,12 @@ export interface ProcessorStartConfig {
   azureStorageAccountUrl: string;
 }
 
+export interface GraphExtractionServiceStatus {
+  endpoint: string;
+  model: string;
+  status: string;
+}
+
 export interface HealthResponse {
   status: string;
   accepting_work?: boolean;
@@ -34,6 +40,7 @@ export interface HealthResponse {
     embedding_model?: unknown;
     blob_storage?: unknown;
     service_uptime?: unknown;
+    graph_extraction?: GraphExtractionServiceStatus;
     [key: string]: unknown;
   };
 }

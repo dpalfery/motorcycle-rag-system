@@ -1,5 +1,5 @@
 ---
-description: ".NET MAUI mobile/desktop UI implementation: MVVM with CommunityToolkit.Maui, Shell navigation, cross-platform device features. Use for MAUI client apps. Does not handle web UI, backend services, or test authoring."
+description: ".NET C# MAUI mobile/desktop UI implementation: MVVM with CommunityToolkit.Maui, Shell navigation, cross-platform device features. Use for MAUI client apps. Not a typescript, React, Javascript, HTML, web UI tool or test authoring."
 mode: subagent
 model: zai-coding-plan/glm-5.2
 reasoningEffort: medium
@@ -9,7 +9,7 @@ permission:
   plan_exit: deny
   question: deny
   task: deny
-  todo: deny
+  todo: allow
   webfetch: deny
   websearch: deny
   bash: allow

@@ -45,4 +45,24 @@ public sealed record IngestionJobStatusResponse
     /// </summary>
     public bool RequiresManualMetadata { get; init; }
     public string? StatusUrl { get; init; }
+
+    /// <summary>
+    /// Parsed motorcycle metadata — populated from <c>job.MetadataJson</c> when present.
+    /// All fields are nullable because metadata may not have been extracted yet (e.g.
+    /// the job is still queued or in an early pipeline stage). When <c>MetadataJson</c>
+    /// is null/empty/invalid, every field below is null.
+    /// </summary>
+    public string? Make { get; init; }
+    public string? Model { get; init; }
+    public int? Year { get; init; }
+    public string? Category { get; init; }
+
+    /// <summary>Free-form tags extracted from the document. Null when no metadata is present.</summary>
+    public List<string>? Tags { get; init; }
+
+    /// <summary>Fraction (0.0–1.0) of the four required fields (make/model/year/category) populated.</summary>
+    public double? FillRate { get; init; }
+
+    /// <summary>True when all four required fields are populated; false otherwise.</summary>
+    public bool? IsComplete { get; init; }
 }

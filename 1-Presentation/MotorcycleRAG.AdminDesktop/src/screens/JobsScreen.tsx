@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, RotateCcw, Trash2, X, CheckCircle2, Pencil } from "lucide-react";
 import axios from "axios";
@@ -12,6 +12,7 @@ import ManualMetadataModal from "@/components/ManualMetadataModal";
 import {
   filterSupersededIngestionJobs,
   formatIngestionJobLabel,
+  formatMetadataDisplay,
   isAwaitingMetadata,
   isIngestionFailed,
   isLocalProcessorJob,
@@ -48,6 +49,49 @@ function StatusBadge({ status }: { status: string }) {
     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", cls)}>
       {status}
     </span>
+  );
+}
+
+/**
+ * Compact inline metadata preview shown beneath the status badge in a job row.
+ *
+ * - Shows "Honda CBR600RR (2023) — sport" (or partial) when parsed metadata exists.
+ * - Adds a fill-rate badge: warning style below 50%, muted percentage at 50–99%.
+ * - Renders nothing when the job has no metadata or is fully complete.
+ */
+function JobMetadataInline({ job }: { job: IngestionJobStatus }) {
+  const metadataDisplay = formatMetadataDisplay(job);
+
+  // Nothing to show when there is no parsed metadata at all.
+  if (metadataDisplay === null) return null;
+
+  const fillRate = job.fillRate;
+  const isComplete = job.isComplete === true;
+
+  // Fill-rate badge logic (omitted when fully complete).
+  let fillBadge: ReactNode = null;
+  if (typeof fillRate === "number" && Number.isFinite(fillRate) && !isComplete) {
+    const pct = Math.round(fillRate * 100);
+    if (fillRate < 0.5) {
+      fillBadge = (
+        <span className="ml-1.5 rounded bg-danger/15 px-1.5 py-0.5 text-[10px] font-medium text-danger">
+          {pct}% complete
+        </span>
+      );
+    } else if (fillRate < 1.0) {
+      fillBadge = (
+        <span className="ml-1.5 rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
+          {pct}% complete
+        </span>
+      );
+    }
+  }
+
+  return (
+    <div className="mt-1 leading-tight">
+      <span className="text-xs text-neutral-500">{metadataDisplay}</span>
+      {fillBadge}
+    </div>
   );
 }
 
@@ -402,7 +446,7 @@ export default function JobsScreen() {
                           {j.sourceFileName}
                         </div>
                       )}
-                      {isIngestionFailed(j.status) && (
+                      {(isIngestionFailed(j.status) || isAwaitingMetadata(j)) && (
                         <IngestionJobFailurePanel
                           job={j}
                           onEnterMetadata={
@@ -415,6 +459,7 @@ export default function JobsScreen() {
                     </td>
                     <td className="px-4 py-3 align-top">
                       <StatusBadge status={j.status} />
+                      <JobMetadataInline job={j} />
                     </td>
                     <td
                       className="px-4 py-3 align-top text-xs text-muted"

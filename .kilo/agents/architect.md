@@ -19,7 +19,6 @@ permission:
   question: allow
   skill: allow
   plan_exit: allow
-  task: allow
   lsp: allow
   todoread: allow
   todowrite: allow

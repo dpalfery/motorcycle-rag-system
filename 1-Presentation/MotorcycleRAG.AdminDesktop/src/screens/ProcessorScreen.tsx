@@ -181,6 +181,74 @@ function formatChunkProgress(job: IngestionJobStatus) {
   return `${job.indexedChunkCount ?? 0}/${job.expectedChunkCount ?? "?"} chunks`;
 }
 
+type ServiceTone = "success" | "warning" | "danger" | "default";
+
+function serviceStatusTone(status: string): ServiceTone {
+  const s = status.toLowerCase();
+  if (["healthy", "ok", "ready", "available"].includes(s)) return "success";
+  if (["degraded", "warning", "partial"].includes(s)) return "warning";
+  if (["unhealthy", "error", "down", "unavailable", "notconfigured", "not_configured"].includes(s))
+    return "danger";
+  return "default";
+}
+
+function serviceToneClass(tone: ServiceTone): string {
+  switch (tone) {
+    case "success":
+      return "bg-success/15 text-success";
+    case "warning":
+      return "bg-warning/15 text-warning";
+    case "danger":
+      return "bg-danger/15 text-danger";
+    default:
+      return "bg-secondary text-muted";
+  }
+}
+
+function ServiceStatusTile({
+  label,
+  endpoint,
+  model,
+  statusText,
+  tone,
+}: {
+  label: string;
+  endpoint?: string;
+  model?: string;
+  statusText: string;
+  tone: ServiceTone;
+}) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-medium text-muted">{label}</span>
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-xs capitalize",
+            serviceToneClass(tone),
+          )}
+        >
+          {statusText}
+        </span>
+      </div>
+      <div className="space-y-1 text-sm">
+        <div className="flex items-center justify-between gap-2">
+          <span className="shrink-0 text-muted">Endpoint</span>
+          <span className="truncate font-mono text-xs" title={endpoint}>
+            {endpoint ?? "—"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="shrink-0 text-muted">Model</span>
+          <span className="truncate text-xs" title={model}>
+            {model ?? "—"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProcessorScreen() {
   const { config } = useConfig();
   const qc = useQueryClient();
@@ -571,6 +639,9 @@ export default function ProcessorScreen() {
   const extList = allowedExtensions?.join(", ") ?? "";
   const maxLabel = constraints.data?.maxFileSizeBytes ? fmt(constraints.data.maxFileSizeBytes) : null;
   const apiConfigured = health.data?.api_client_configured === true;
+  const graphExtraction = health.data?.services?.graph_extraction;
+  const embeddingEndpoint = health.data?.services?.embedding_endpoint;
+  const embeddingModel = health.data?.services?.embedding_model;
   const selectedSourceName = selectedSourcePath ? fileNameFromPath(selectedSourcePath) : null;
 
   // --- Manual metadata derived state (depends on jobList) ---
@@ -759,6 +830,38 @@ export default function ProcessorScreen() {
         <MetricCard label="Cloud jobs" value={jobList.length} />
         <MetricCard label="API client" value={apiConfigured ? "Configured" : "Missing"} />
       </div>
+
+      {isRunning && health.data?.services && (
+        <Card className="mb-4">
+          <div className="mb-3 text-sm font-medium">Service status</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ServiceStatusTile
+              label="Embedding Provider"
+              endpoint={
+                typeof embeddingEndpoint === "string" ? embeddingEndpoint : undefined
+              }
+              model={typeof embeddingModel === "string" ? embeddingModel : undefined}
+              statusText={healthy ? "Healthy" : (health.data?.status ?? "Unknown")}
+              tone={healthy ? "success" : serviceStatusTone(health.data?.status ?? "")}
+            />
+            {graphExtraction ? (
+              <ServiceStatusTile
+                label="Graph Extraction"
+                endpoint={graphExtraction.endpoint}
+                model={graphExtraction.model}
+                statusText={graphExtraction.status}
+                tone={serviceStatusTone(graphExtraction.status)}
+              />
+            ) : (
+              <ServiceStatusTile
+                label="Graph Extraction"
+                statusText="Not configured"
+                tone="default"
+              />
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card className="mb-4">
         <div className="mb-3 flex items-center justify-between">

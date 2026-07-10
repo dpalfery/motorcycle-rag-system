@@ -9,7 +9,7 @@ permission:
   plan_exit: deny
   question: deny
   task: deny
-  todo: deny
+  todo: allow
   bash: allow
   read: allow
   edit: deny

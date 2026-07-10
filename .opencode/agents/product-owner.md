@@ -9,7 +9,7 @@ permission:
   plan_exit: deny
   question: deny
   task: allow
-  todo: deny
+  todo: allow
   webfetch: allow
   websearch: allow
   bash: allow

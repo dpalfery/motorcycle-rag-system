@@ -211,6 +211,23 @@ def _build_health_response(
         **tokenizer_config,
     }
 
+    # Graph extraction status — values from module-level metadata_extractor, falling
+    # back to environment variables if attributes are None.
+    graph_endpoint = (
+        getattr(metadata_extractor, "_endpoint", None)
+        or os.getenv("GRAPH_EXTRACTION_ENDPOINT")
+    )
+    graph_model = (
+        getattr(metadata_extractor, "_model", None)
+        or os.getenv("GRAPH_EXTRACTION_MODEL")
+    )
+    if graph_endpoint and graph_model:
+        graph_status = "healthy"
+    elif graph_endpoint or graph_model:
+        graph_status = "degraded"
+    else:
+        graph_status = "unhealthy"
+
     tokenizer_configured = tokenizer_config.get("tokenizer_status") == "configured"
     if embedding_provider_status != "connected" or not blob_storage_connected:
         message = (
@@ -256,6 +273,11 @@ def _build_health_response(
                 "services": {
                     "embedding_provider": embedding_provider_status,
                     **embedding_config,
+                    "graph_extraction": {
+                        "endpoint": graph_endpoint,
+                        "model": graph_model,
+                        "status": graph_status,
+                    },
                     "blob_storage": blob_storage_connected,
                     "service_uptime": "running",
                 },
@@ -303,6 +325,11 @@ def _build_health_response(
                 "services": {
                     "embedding_provider": embedding_provider_status,
                     **embedding_config,
+                    "graph_extraction": {
+                        "endpoint": graph_endpoint,
+                        "model": graph_model,
+                        "status": graph_status,
+                    },
                     "blob_storage": blob_storage_connected,
                     "service_uptime": "running",
                 },
@@ -351,6 +378,11 @@ def _build_health_response(
                 "services": {
                     "embedding_provider": embedding_provider_status,
                     **embedding_config,
+                    "graph_extraction": {
+                        "endpoint": graph_endpoint,
+                        "model": graph_model,
+                        "status": graph_status,
+                    },
                     "blob_storage": blob_storage_connected,
                     "service_uptime": "running",
                 },
@@ -397,6 +429,11 @@ def _build_health_response(
             "services": {
                 "embedding_provider": embedding_provider_status,
                 **embedding_config,
+                "graph_extraction": {
+                    "endpoint": graph_endpoint,
+                    "model": graph_model,
+                    "status": graph_status,
+                },
                 "blob_storage": blob_storage_connected,
                 "service_uptime": "running",
             },
@@ -428,6 +465,15 @@ async def health_check():
                 "message": "Processor health check failed",
                 "services": {
                     "embedding_provider": "unknown",
+                    "graph_extraction": {
+                        "endpoint": os.getenv("GRAPH_EXTRACTION_ENDPOINT"),
+                        "model": os.getenv("GRAPH_EXTRACTION_MODEL"),
+                        "status": (
+                            "healthy"
+                            if os.getenv("GRAPH_EXTRACTION_ENDPOINT") and os.getenv("GRAPH_EXTRACTION_MODEL")
+                            else "unhealthy"
+                        ),
+                    },
                     "blob_storage": "unknown",
                     "service_uptime": "running",
                 },

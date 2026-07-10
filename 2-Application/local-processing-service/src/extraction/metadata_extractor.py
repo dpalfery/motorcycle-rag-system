@@ -19,6 +19,7 @@ import os
 import re
 from typing import Any
 
+import httpx
 import openai
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,62 @@ class MetadataExtractor:
         # creating one per extract() call. AsyncOpenAI reuses the underlying
         # httpx connection pool, which keeps the client lightweight to reuse.
         self._client = openai.AsyncOpenAI(base_url=self._endpoint, api_key="local")
+
+        # Best-effort connectivity probe: fires a background task so it never
+        # blocks or fails startup.  Only schedules when there is a running
+        # event loop (async context); no-ops in sync contexts.
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            asyncio.create_task(self.check_connectivity())
+
+    async def check_connectivity(self) -> None:
+        """Probe the LLM endpoint to confirm the configured model is available.
+
+        Makes a ``GET`` request to ``{base_url}/models`` and logs whether the
+        configured model is found.  Never raises — all errors are swallowed
+        and logged as warnings for operator visibility.
+        """
+        models_url = f"{self._endpoint.rstrip('/')}/models"
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
+                response = await client.get(models_url)
+                response.raise_for_status()
+                data = response.json()
+
+                # OpenAI-compatible endpoints return {"data": [{"id": "...", ...}]}
+                available: list[str] = []
+                if isinstance(data, dict):
+                    raw_data = data.get("data")
+                    if isinstance(raw_data, list):
+                        available = [
+                            str(item["id"])
+                            for item in raw_data
+                            if isinstance(item, dict) and "id" in item
+                        ]
+
+                if self._model in available:
+                    logger.info(
+                        "Graph extraction model '%s' confirmed on %s",
+                        self._model,
+                        models_url,
+                    )
+                else:
+                    logger.warning(
+                        "Graph extraction model '%s' NOT FOUND on %s. "
+                        "Available: %s",
+                        self._model,
+                        models_url,
+                        available,
+                    )
+        except Exception:
+            logger.warning(
+                "Could not probe graph extraction endpoint %s",
+                models_url,
+                exc_info=True,
+            )
 
     async def extract(
         self,

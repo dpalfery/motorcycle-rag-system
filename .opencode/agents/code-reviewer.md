@@ -7,7 +7,7 @@ permission:
   mcp: deny
   plan_exit: deny
   question: deny
-  todo: deny
+  todo: allow
   external_directory: deny
   bash:
     git diff: allow

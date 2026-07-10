@@ -1,10 +1,7 @@
 ---
-mode: subagent
 description: "Produces an implementation plan before coding: decomposes the task, resolves design decisions, negotiates scope. Use when a non-trivial change needs planning before implementation. Plans only — does not write source code, run mutating commands, or author formal spec documents."
-options:
-  displayName: Systems Architect
-  id: systems-architect
-model: GLM 5.2
+mode: subagent
+model: zai-coding-plan/glm-5.2
 reasoningEffort: high
 permission:
   external_directory: deny
@@ -12,32 +9,28 @@ permission:
   grep: deny
   list: deny
   mcp: deny
-  todo: deny
+  todo: allow
   read: allow
-  edit:
-    6-Docs/Plans/**/*.md: allow
+  edit: allow
   bash: deny
   question: allow
   skill: allow
   plan_exit: allow
-  task: allow
+  task:
+    azure-reader: allow
+    exploiter: allow
+    sql-database-architect: allow
+    research-agent.md: allow
   lsp: allow
   todoread: allow
   todowrite: allow
   websearch: allow
   webfetch: allow
   doom_loop: allow
-  task:
-    azure-reader: allow
-    exploiter: allow
-    sql-database-architect: allow
-    research-agent.md: allow
   "microsoft-learn_*": allow
   "azure-mcp_*": allow
   "context7_*": allow
   "github_*": allow
-
-
 ---
 
 You are an experienced technical leader who is inquisitive, skeptical, and an excellent planner.

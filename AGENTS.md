@@ -32,7 +32,7 @@ The system is composed of four distinct applications, all located in the `1-Pres
 Before creating, moving, renaming, or choosing placement for any source or test file, or changing namespaces, project references, DTO placement, interface placement, or layer boundaries — read the architecture placement rules first at `6-Docs/rules/architecture-general.md`.
 
 **Key rules always in effect:**
-- **Folder Structure Responsibilities**: See the **Repository Folder Structure** section in `README.md` for definitions of what belongs in each root folder (`0-Base` through `7-Deployment`).
+- **Folder Structure Responsibilities**: See the [Repository Folder Structure](README.md#repository-folder-structure) and [Applications](README.md#applications) sections in the main README for definitions of what belongs in each root folder and details on the system's apps.
 - 1 class or interface per file in C#
 - Dependency Rule: inner layers never depend on outer layers
 - `MotorcycleRAG.Contracts` = interfaces only (no DTOs/models)

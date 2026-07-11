@@ -1,0 +1,3 @@
+# Kilo creates nested Git worktrees here. They are independent checkouts and
+# must not be analyzed as part of this workspace's Snyk Code scan.
+.kilo/worktrees/

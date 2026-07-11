@@ -29,7 +29,7 @@ permissions:
   security-events: write
 
 env:
-  DOTNET_VERSION: '9.0.x'
+  DOTNET_VERSION: '10.0.x'
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
   AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -82,7 +82,7 @@ jobs:
           --suite admindesktop-unit
     
     - name: Upload test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: unit-coverage-linux-results
@@ -124,7 +124,7 @@ jobs:
           --suite mobileapp-unit
 
     - name: Upload mobile unit coverage results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: unit-coverage-mobile-results
@@ -146,13 +146,13 @@ jobs:
         python-version: '3.12'
 
     - name: Download Linux coverage artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: unit-coverage-linux-results
         path: TestResults/UnitCoverage
 
     - name: Download Mobile coverage artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: unit-coverage-mobile-results
         path: TestResults/UnitCoverage
@@ -164,7 +164,7 @@ jobs:
           --output-dir TestResults/UnitCoverage/CoverageReport
 
     - name: Upload merged coverage artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: unit-coverage-merged-results
@@ -206,7 +206,7 @@ jobs:
           --filter "Category!=AzureIntegration"
     
     - name: Upload integration test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: integration-test-results
@@ -256,7 +256,7 @@ jobs:
         TestConfiguration__MockServerUrl: http://localhost:1080
     
     - name: Upload E2E test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: e2e-test-results
@@ -304,7 +304,7 @@ jobs:
         AzureAI__DocumentIntelligenceEndpoint: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT }}
     
     - name: Upload Azure integration test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: azure-integration-test-results
@@ -352,14 +352,14 @@ jobs:
         LoadTest__ConcurrentUsers: 20   # Reduced for CI environment
     
     - name: Upload load test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: load-test-results
         path: TestResults/LoadTests/
     
     - name: Upload NBomber reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: nbomber-reports
@@ -375,7 +375,7 @@ jobs:
     - uses: actions/checkout@v7
     
     - name: Download test results
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         path: TestResults/
     
@@ -430,7 +430,7 @@ jobs:
         python analyze_performance.py
     
     - name: Upload performance report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       if: always()
       with:
         name: performance-report
@@ -448,7 +448,7 @@ jobs:
         submodules: true
 
     - name: Setup .NET 10
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: '10.0.x'
 
@@ -537,7 +537,7 @@ jobs:
 
     - name: Upload SCA SARIF to GitHub Security
       uses: github/codeql-action/upload-sarif@v4
-      if: always()
+      if: always() && hashFiles('snyk-sca.sarif') != ''
       with:
         sarif_file: snyk-sca.sarif
         category: snyk-sca
@@ -550,7 +550,7 @@ jobs:
 
     - name: Upload SAST SARIF to GitHub Security
       uses: github/codeql-action/upload-sarif@v4
-      if: always()
+      if: always() && hashFiles('snyk-sast.sarif') != ''
       with:
         sarif_file: snyk-sast.sarif
         category: snyk-sast
@@ -563,7 +563,7 @@ jobs:
     
     steps:
     - name: Download all test results
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         path: TestResults/
     
@@ -593,7 +593,7 @@ jobs:
         echo "Generated on: $(date)" >> test-summary.md
     
     - name: Upload test summary
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-summary
         path: test-summary.md

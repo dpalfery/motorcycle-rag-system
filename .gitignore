@@ -429,3 +429,14 @@ device-id
 # Local Azure CLI credentials (isolated per workspace)
 .azure-local/
 2-Application/local-processing-service/uv.lock
+
+# Local tool caches
+.playwright-mcp/
+.pnpm-storem/
+.pytest_cache/
+
+# Editor plugin lock files and dependencies (not project source)
+.kilo/**/package-lock.json
+.kilo/**/node_modules/
+.opencode/**/package-lock.json
+.opencode/**/node_modules/

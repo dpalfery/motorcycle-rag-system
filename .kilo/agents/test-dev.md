@@ -80,7 +80,7 @@ You do **not** own:
 
 ## Workflow
 
-1. Read the relevant implementation code and its acceptance criteria (from `6-Docs/Plans/{feature_name}/tasks.md` if present).
+1. Read the relevant implementation code and its acceptance criteria (from `6-Docs/plans/{feature_name}/tasks.md` if present).
 2. Identify the test boundaries: what is a unit (pure logic), what needs integration (DB/HTTP), what needs E2E (full request path).
 3. Write the test file(s). Follow the naming convention for the layer.
 4. Run the tests and confirm they pass. For .NET: `dotnet test --filter <TestClass>`. For Python: `pytest tests/<module>`. Fix any test setup issues.

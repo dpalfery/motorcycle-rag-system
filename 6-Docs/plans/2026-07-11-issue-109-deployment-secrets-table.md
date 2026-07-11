@@ -52,7 +52,7 @@ Extracted via `grep -oE '\$\{\{ secrets\.[A-Z_]+ \}\}' deploy.yml | sort -u` —
 ### `PULUMI_ACCESS_TOKEN` is confirmed unused
 
 - `grep PULUMI_ACCESS_TOKEN` across `.github/workflows/` → **no matches**.
-- Repo-wide grep → only match is `6-Docs/deployment/overview.md` line 31 (the stale doc row).
+- Repo-wide grep → only match is `6-Docs/deployment/overview.md` line 31 (the stale doc row). (This grep was performed before this plan document was written; the plan itself now intentionally contains `PULUMI_ACCESS_TOKEN` in descriptive prose.)
 - The self-hosted backend model is confirmed by the `PULUMI_BACKEND_URL` + `AZURE_STORAGE_ACCOUNT`/`AZURE_STORAGE_KEY` env injection in the Pulumi steps (L72–75, L114–117). There is no Pulumi SaaS login, hence no access token.
 
 ### Scope of consistency updates
@@ -64,7 +64,7 @@ Extracted via `grep -oE '\$\{\{ secrets\.[A-Z_]+ \}\}' deploy.yml | sort -u` —
 
 **Conclusion: exactly one file requires editing.**
 
-### Current table state (overview.md lines 22–31, verbatim)
+### Previous table state (pre-fix, overview.md lines 22–31 verbatim)
 
 ```markdown
 ### Infrastructure & Deployment Secrets
@@ -130,7 +130,7 @@ Task 1 (edit) → Task 2 (verify). Single-file change; no parallelization needed
 ## 9. Verification harness
 
 1. **Completeness check:** After the edit, the "Infrastructure & Deployment Secrets" table MUST contain exactly these 10 rows and no others: `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `PULUMI_BACKEND_URL`, `PULUMI_CONFIG_PASSPHRASE`, `AZURE_STORAGE_ACCOUNT_PULUMI`, `AZURE_STORAGE_KEY_PULUMI`, `SQL_ADMIN_LOGIN`, `SQL_ADMIN_PASSWORD`.
-2. **Removal check:** `grep PULUMI_ACCESS_TOKEN` over the whole repo returns zero matches.
+2. **Removal check:** `grep PULUMI_ACCESS_TOKEN` over `.github/workflows/` and `6-Docs/deployment/` returns zero matches. (Exclude this plan document under `6-Docs/plans/` and historical content under `6-Docs/archive/`, which intentionally contain the token name in prose.)
 3. **Source-of-truth check:** `grep -oE '\$\{\{ secrets\.[A-Z_]+ \}\}' .github/workflows/deploy.yml | sort -u` returns exactly the same 10 names as the table.
 4. **Lint/validation:** Markdown linting and internal-link validation pass (per documentation-standard §Validation).
 5. **No-secrets check:** No real secret values, tokens, or connection strings appear anywhere in the edit.

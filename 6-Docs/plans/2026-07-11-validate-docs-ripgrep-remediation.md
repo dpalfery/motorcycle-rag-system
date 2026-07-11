@@ -18,12 +18,12 @@ Error: Process completed with exit code 1.
 
 These are **two symptoms of a single root cause**, not two independent bugs.
 
-**Root-cause chain (verified against live source):**
+**Root-cause chain (pre-fix behavior, verified against live source before this change):**
 
-1. `scripts/validate-docs.sh:83` invokes `rg --fixed-strings --quiet "$component" 6-Docs/catalog.md`. `rg` (ripgrep) is **not** guaranteed to be installed. It is the *only* use of `rg` in the script (confirmed: no other `rg` reference exists anywhere in `scripts/*.sh`).
-2. The script has `set -euo pipefail` (line 2) but a command used as an `if` condition is **exempt** from `set -e`. When `rg` is absent, the shell prints `rg: command not found` to stderr and returns exit code **127**.
-3. Line 83 is `if ! rg ...; then`. `!` negates the non-zero (127) result to success, so the `then` branch always executes whenever `rg` cannot run — printing `Catalog is missing component: <first component>` (line 84) and `exit 1` (line 85).
-4. The loop stops at the **first** component (`MotorcycleRAG system`) because of the immediate `exit 1`, so only one "missing component" line appears. With a working search tool, **all 9 components are found** (see §3).
+1. Before this fix, `scripts/validate-docs.sh:83` invoked `rg --fixed-strings --quiet "$component" 6-Docs/catalog.md`. `rg` (ripgrep) was **not** guaranteed to be installed. It was the *only* use of `rg` in the script (confirmed: no other `rg` reference existed anywhere in `scripts/*.sh`).
+2. The script has `set -euo pipefail` (line 2) but a command used as an `if` condition is **exempt** from `set -e`. When `rg` was absent, the shell printed `rg: command not found` to stderr and returned exit code **127**.
+3. Line 83 was `if ! rg ...; then`. `!` negated the non-zero (127) result to success, so the `then` branch always executed whenever `rg` could not run — printing `Catalog is missing component: <first component>` (line 84) and `exit 1` (line 85).
+4. The loop stopped at the **first** component (`MotorcycleRAG system`) because of the immediate `exit 1`, so only one "missing component" line appeared. With a working search tool, **all 9 components were found** (see §3).
 
 **Why it slipped through:** CI (`.github/workflows/docs.yml:26`, `runs-on: ubuntu-latest`) runs on GitHub-hosted Ubuntu runners where ripgrep is preinstalled at `/usr/bin/rg`, so the workflow passes. The bug only reproduces in clean environments lacking ripgrep (e.g., a stock macOS/zsh machine without `brew install ripgrep`, or an isolated pre-commit environment). It is a latent portability defect, not a catalog-content defect.
 
@@ -77,7 +77,7 @@ Conclusion: 9/9 present. The "missing component" message can **only** be produce
 
 File: `scripts/validate-docs.sh`, line 83.
 
-Current:
+Pre-fix (before this change):
 ```bash
   if ! rg --fixed-strings --quiet "$component" 6-Docs/catalog.md; then
 ```

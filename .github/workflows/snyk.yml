@@ -46,7 +46,7 @@ jobs:
       run: npm install -g snyk@1.1293.0
 
     - name: Snyk SCA test (all projects)
-      run: snyk test --severity-threshold=high --all-projects --sarif-file-output=snyk-sca.sarif
+      run: snyk test --severity-threshold=high --all-projects --exclude=".kilo,.opencode,.pnpm-store" --sarif-file-output=snyk-sca.sarif
 
     - name: Upload SCA SARIF to GitHub Security
       uses: github/codeql-action/upload-sarif@v4

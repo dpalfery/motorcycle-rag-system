@@ -81,13 +81,10 @@ Note: The agent will auto-detect `owner` and `repo` from the current git remote 
 - If the GitHub MCP server is available, healthy, and NOT in read-only mode, use it as the first choice for PR operations.
 - Use MCP to:
   - list existing PRs for the same source and target branch (`list_pull_requests`)
-  - create the PR if none exists (`create_pull_request`)
-  - update the PR if one already exists (`update_pull_request`)
-  - validate the created or updated PR by reading it back (`pull_request_read`)
-- MCP tool names (from the `pull_requests` toolset):
+  - validate an existing PR by reading it back (`pull_request_read`)
+- Note: In this repo the GitHub MCP server is configured read-only (`GITHUB_READ_ONLY=1`), so PR create/update must use the `gh` CLI fallback.
+- MCP tool names:
   - `list_pull_requests` — list PRs with optional filters (base, head, state)
-  - `create_pull_request` — open a new PR (owner, repo, head, base, title, body required)
-  - `update_pull_request` — edit an existing PR (owner, repo, pullNumber required)
   - `pull_request_read` — get PR details, diff, status, files, commits, reviews, comments
 
 ### 6. If GitHub MCP is not available, not installed, or unhealthy

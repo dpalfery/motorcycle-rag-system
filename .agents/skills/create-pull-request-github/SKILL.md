@@ -197,7 +197,7 @@ Summarized implementation detail here...
 $descriptionFile = Join-Path $env:TEMP 'create-pr-description.md'
 Set-Content -Path $descriptionFile -Value $description -Encoding utf8
 
-$existing = gh pr list --repo "$owner/$repo" --head $SB --base $TB --state open --json number --jq '.[0].number' 2>$null
+$existing = gh pr list --repo "$owner/$repo" --head $SB --base $TB --state open --json number --jq '.[0].number // empty' 2>$null
 if ($existing) {
   gh pr edit $existing --repo "$owner/$repo" --title $title --body-file $descriptionFile
 }

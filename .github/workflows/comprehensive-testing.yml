@@ -65,7 +65,11 @@ jobs:
     - name: Install Python coverage dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest pytest-asyncio pytest-cov
+        python -m pip install \
+          pytest pytest-asyncio pytest-cov \
+          fastapi pandas 'pydantic[email]' httpx ollama \
+          docling docling-core msal openai azure-storage-blob azure-identity \
+          python-multipart python-dotenv sentencepiece tokenizers transformers typer 'uvicorn[standard]'
 
     - name: Install Admin Desktop dependencies
       run: npm ci

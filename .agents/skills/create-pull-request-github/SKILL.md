@@ -147,7 +147,7 @@ Summarized implementation detail here...
 EOF
 
 # Check for existing PR
-EXISTING=$(gh pr list --repo "${OWNER}/${REPO}" --head "${SB}" --base "${TB}" --state open --json number --jq '.[0].number')
+EXISTING=$(gh pr list --repo "${OWNER}/${REPO}" --head "${SB}" --base "${TB}" --state open --json number --jq '.[0].number // empty')
 if [ -n "${EXISTING}" ]; then
   gh pr edit "${EXISTING}" --repo "${OWNER}/${REPO}" --title "${TITLE}" --body-file "${DESCRIPTION_FILE}"
 else

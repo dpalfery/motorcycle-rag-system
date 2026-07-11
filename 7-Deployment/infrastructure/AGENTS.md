@@ -15,6 +15,7 @@
 - Implement declarative infrastructure with explicit resource names, managed identity/RBAC, Key Vault-backed secrets, and configuration-driven environments.
 - `pulumi preview` is allowed after the root Azure guard rail. Local `pulumi up` and `pulumi destroy` are forbidden; deployment occurs only through GitHub Actions.
 - Do not run Azure write commands, direct Docker builds/pushes, or ACR builds. Do not expose secrets in outputs, state, or logs.
+- Keep only canonical infrastructure source files in version control; remove temporary scratch files and backup copies (for example, `inspect.cs` or `Program.cs.bak`) before finalizing changes.
 
 ## Verify
 

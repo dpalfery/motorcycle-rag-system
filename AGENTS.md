@@ -25,6 +25,10 @@ The system is composed of four distinct applications, all located in the `1-Pres
 @6-Docs/agent-instructions/azure-environment.md
 @6-Docs/agent-instructions/security.md
 
+## Documentation
+
+Before changing a cataloged component, read `6-Docs/documentation-standard.md` and `6-Docs/catalog.md`. Update the component's canonical README and detailed documentation when its public interface, configuration, architecture, supported runtime, operations, or workflow changes.
+
 **Deprecated docs:** `6-Docs/archive/` holds retired/deprecated documents and agent definitions kept only for historical reference. Ignore it. Do not read, cite, follow, or copy anything from `6-Docs/archive/` as current guidance, and do not treat agent definitions found there as active agents.
 
 # 3. Architecture

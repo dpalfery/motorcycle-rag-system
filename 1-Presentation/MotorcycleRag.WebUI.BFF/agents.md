@@ -1,11 +1,15 @@
 # Agent Context: MotorcycleRag.WebUI.BFF (1-Presentation / BFF)
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 This file is **BFF-specific** context. For global rules (security, clean architecture), use the root `AGENTS.md`.
 
 ## What to read first (authoritative)
 - Baseline requirements (auth split + trust policy): `specs/001-system-spec/spec.md`
 - Configuration rules: root `AGENTS.md`. BFF C# code uses Azure App Configuration + Key Vault, not direct environment-variable reads.
-- UI stack context: `6-Docs/ui-technology-stack.md`
+- UI stack context: `6-Docs/reference/ui-technology-stack.md`
 
 ## What this project is responsible for
 - Browser-facing backend for the WebUI (session/auth boundary)

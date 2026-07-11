@@ -1,5 +1,9 @@
 # Agent Context: MotorcycleRAG.MobileApp.Tests (5-Test)
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 This file is **mobile-test specific** context. Root rules live in `AGENTS.md`.
 
 ## What to read first (authoritative)

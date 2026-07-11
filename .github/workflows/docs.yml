@@ -1,0 +1,66 @@
+name: Documentation Quality
+
+on:
+  pull_request:
+    paths:
+      - "**/*.md"
+      - ".github/**"
+      - "scripts/validate-docs.sh"
+      - ".markdownlint-cli2.yaml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "**/*.md"
+      - ".github/**"
+      - "scripts/validate-docs.sh"
+      - ".markdownlint-cli2.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Lint Markdown
+        run: npx --yes markdownlint-cli2
+
+      - name: Validate documentation catalog and structure
+        run: bash scripts/validate-docs.sh
+
+      - name: Check internal documentation links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --offline --no-progress
+            README.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md SUPPORT.md
+            1-Presentation/MotorcycleRAG.API/README.md
+            1-Presentation/MotorcycleRAG.AdminDesktop/README.md
+            1-Presentation/MotorcycleRAG.MobileApp/README.md
+            1-Presentation/MotorcycleRag.WebUI/README.md
+            2-Application/local-processing-service/README.md
+            2-Application/MotorcycleRAG.Application/Services/Caching/README.md
+            7-Deployment/README.md 7-Deployment/DbSetup/README.md
+            7-Deployment/tools/SkillForge/README.md
+            6-Docs/README.md 6-Docs/catalog.md 6-Docs/documentation-standard.md
+            6-Docs/system 6-Docs/MotorcycleRAG.API 6-Docs/MotorcycleRAG.AdminDesktop
+            6-Docs/MotorcycleRAG.MobileApp 6-Docs/MotorcycleRag.WebUI
+            6-Docs/local-processing-service 6-Docs/AzureEnvironment
+            6-Docs/deployment/README.md 6-Docs/deployment/database-setup.md
+            6-Docs/reference/README.md 6-Docs/reference/skillforge.md
+
+      - name: Scan documentation changes for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -6,6 +6,6 @@ repos:
         description: Run SkillForge validate, lint, and scan on all skill directories
         entry: bash scripts/skillforge-validate.sh
         language: system
-        files: '^(\.agents/skills/|\.claude/skills/|\.kilo/skills/|scripts/skillforge-validate\.sh$|tools/SkillForge$|\.gitmodules$)'
+        files: '^(\.agents/skills/|\.claude/skills/|\.kilo/skills/|7-Deployment/scripts/skillforge-validate\.sh$|7-Deployment/tools/SkillForge/|\.gitmodules$)'
         pass_filenames: false
         always_run: false

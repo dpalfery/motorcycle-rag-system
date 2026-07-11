@@ -1,5 +1,9 @@
 # Agent Context: MotorcycleRAG.API (1-Presentation / ASP.NET Core)
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 This file adds **API-specific** reminders. For global rules (security, clean architecture, secrets), use the root `AGENTS.md`.
 
 ## What to read first (authoritative)

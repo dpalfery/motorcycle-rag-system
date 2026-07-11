@@ -1,5 +1,9 @@
 # Agent Context: MotorcycleRAG.Domain (3-Domain / Business Rules)
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 This file is **domain-layer specific** context. Global rules live in `AGENTS.md`.
 
 ## What to read first (authoritative)

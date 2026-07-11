@@ -149,6 +149,10 @@ The library is usable on its own (`SkillForge.Core`) — parse and analyze skill
 - **The routing simulator approximates, not replicates** the orchestrator. Confirm against the live reasoning view.
 - **Static scanning has limits.** Pair `scan` with human review.
 
+## Upstream attribution
+
+This repository vendors SkillForge from [bonaniibm/SkillForge](https://github.com/bonaniibm/SkillForge). The upstream project is MIT-licensed; this copy retains the upstream [LICENSE](LICENSE). The checked-in copy does not retain an import commit, so any refresh must record the verified upstream commit SHA in its pull request and update this section.
+
 ## License
 
 MIT. See [LICENSE](LICENSE). Built on [Markdig](https://github.com/xoofx/markdig), [YamlDotNet](https://github.com/aaubry/YamlDotNet), and [Spectre.Console](https://spectreconsole.net/).

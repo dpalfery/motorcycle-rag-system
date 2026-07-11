@@ -1,5 +1,9 @@
 # Agent Context: MotorcycleRAG.Contracts (3-Domain / Interfaces)
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 This file is **contracts-project specific** context. Root rules live in `AGENTS.md`.
 
 ## What to read first (authoritative)

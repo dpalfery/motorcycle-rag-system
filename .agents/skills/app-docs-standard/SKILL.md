@@ -1,46 +1,26 @@
 ---
 name: app-docs-standard
-description: Standardizes application-level documentation structure (Overview, Onboarding, Architecture, Requirements). Use when creating or updating documentation for a specific application in this repository.
+description: Apply the repository documentation standard when creating or updating application, service, tool, or system documentation.
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
-# Application Documentation Standard
+# Application Documentation Workflow
 
-When creating or updating documentation for an application in this repository, you must follow this standard structure.
+Use this skill for documentation changes that affect an application, runnable service, tool, system boundary, or component README.
 
-## Structure
+## Required workflow
 
-For each application, documentation is split between the code root and a dedicated folder in `6-Docs/`.
+1. Read `6-Docs/documentation-standard.md` in full.
+2. Read `6-Docs/catalog.md` and identify the owning component and canonical documents.
+3. Inspect the source-root README and detailed documentation before drafting changes. Ground claims in the current implementation.
+4. Apply the required documentation shape from the standard:
+   - source-root README for the concise overview;
+   - `onboarding.md`, `architecture.md`, and `requirements.md` for applications and runnable services;
+   - catalog update for a new, moved, renamed, or materially changed component.
+5. Keep one canonical source per topic. Link to existing system, deployment, operations, or reference material instead of copying it.
+6. Validate Markdown style, internal links, catalog coverage, and the absence of secrets before delivery.
 
-1. **Overview Document**: Located at the root of the application's code folder (e.g., `src/MyApp/README.md` or `src/MyApp/Overview.md`). This provides a high-level overview of the application.
-2. **Dedicated Documentation Folder**: Located in `6-Docs/{app-name}/`. This folder contains detailed application documentation.
+## Deliverable
 
-### Dedicated Documentation Folder Contents (`6-Docs/{app-name}/`)
-
-The dedicated folder must contain the following documents:
-
-#### 1. Developer Onboarding (`onboarding.md`)
-Describes how to get the application running.
-- **Audience:** Human developers and LLM-based agents.
-- **Goal:** Keep it concise but do not skip steps.
-- **Contents:**
-  - All developer environment and runtime dependencies needed.
-  - How to debug the application.
-  - Any non-standard procedures for this application.
-
-#### 2. Architecture Document (`architecture.md`)
-Follows the outline and standard set in the `product-owner` skill's Design Phase.
-- **Contents:**
-  - **Overview** — what is being built and the shape of the solution.
-  - **Architecture** — high-level structure; Mermaid diagram(s) where useful.
-  - **Components and Interfaces** — the parts and the contracts between them.
-  - **Data Models** — entities, fields, relationships, schemas.
-  - **Error Handling** — failure modes and how the system responds.
-  - **Testing Strategy** — how the design will be validated (unit, integration, e2e).
-
-#### 3. Requirements Document (`requirements.md`)
-Follows the outline and standard set in the `product-owner` skill's Requirements Phase.
-- **Contents:**
-  - **Introduction** — Short paragraph summarizing the feature/app and its purpose.
-  - **Requirements** — A hierarchical, numbered list of requirements. Each requirement has one user story and a numbered list of acceptance criteria written in EARS (Easy Approach to Requirements Syntax): WHEN/IF [trigger or precondition] THEN [system] SHALL [response].
+State the component documentation updated, the catalog impact, and the validation performed. If no documentation change is needed, state the reason explicitly.

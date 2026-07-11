@@ -1,0 +1,28 @@
+name: Bug report
+description: Report a reproducible problem in MotorcycleRAG.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include credentials, tokens, customer data, or security vulnerabilities. Use SECURITY.md for vulnerability reports."
+  - type: input
+    id: component
+    attributes:
+      label: Component
+      description: "Choose an entry from 6-Docs/catalog.md."
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: "Provide minimal, safe steps to reproduce."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true

@@ -1,9 +1,13 @@
 # Agent Context: MotorcycleRag.WebUI (1-Presentation / Frontend)
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 This file is **WebUI-specific** context. For global rules (security, clean architecture), use the root `AGENTS.md`.
 
 ## What to read first (authoritative)
-- UI stack guidance: `6-Docs/ui-technology-stack.md`
+- UI stack guidance: `6-Docs/reference/ui-technology-stack.md`
 - Baseline requirements: `specs/001-system-spec/spec.md` (US1/US1a)
 - If generating API types: `specs/001-system-spec/contracts/openapi.yaml`
 

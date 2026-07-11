@@ -1,0 +1,8 @@
+# Documentation and public-repository surfaces require maintainer review.
+/README.md @dpalfery
+/6-Docs/ @dpalfery
+/CONTRIBUTING.md @dpalfery
+/CODE_OF_CONDUCT.md @dpalfery
+/SECURITY.md @dpalfery
+/SUPPORT.md @dpalfery
+/.github/ @dpalfery

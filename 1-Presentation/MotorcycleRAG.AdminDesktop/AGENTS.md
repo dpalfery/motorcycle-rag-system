@@ -1,5 +1,9 @@
 # MotorcycleRAG.AdminDesktop — Agent Context
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 Tauri v2 desktop admin console (macOS + Windows 11) that replaces the retired MAUI admin app. Two backends: the cloud .NET API (`MotorcycleRAG.API`, port 7215) and the local Python processor (`2-Application/local-processing-service`, default port 8100).
 
 ## Stack

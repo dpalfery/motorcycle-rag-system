@@ -1,5 +1,9 @@
 # Agent Context: MotorcycleRAG.MobileApp (1-Presentation / MAUI Mobile)
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 This file is **mobile-app specific** context. Global rules live in the root `AGENTS.md`.
 
 ## What to read first (authoritative)

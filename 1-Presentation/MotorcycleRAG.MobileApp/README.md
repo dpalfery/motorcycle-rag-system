@@ -1,77 +1,11 @@
 # MotorcycleRAG Mobile App
 
-A .NET MAUI mobile application for the Motorcycle RAG System.
+MotorcycleRAG Mobile App is the end-user .NET MAUI client for motorcycle knowledge queries. It uses XAML and CommunityToolkit MVVM, authenticates with Entra through the system browser, calls the MotorcycleRAG API over HTTPS, and retains conversations, citations, and user memory in local SQLite storage.
 
-## Features
+The project currently targets Mac Catalyst on macOS and Windows/Mac Catalyst on Windows. Platform-specific services, including PDF rendering, live under `Platforms/` while shared UI and application behavior remain platform-neutral.
 
-- **Chat Interface**: Ask natural language questions about motorcycles.
-- **Multi-Turn Conversations**: Context-aware follow-up questions.
-- **User Memory**: Personalizes responses based on your profile and history.
-- **Conversation Management**: Search, delete, and resume conversations.
-- **Cross-Platform**: Current checked-in targets match the Admin app: Mac Catalyst on macOS, Windows and Mac Catalyst on Windows.
+## Documentation
 
-## Prerequisites
-
-- .NET 8.0 SDK or later
-- Visual Studio 2022 (17.8+) with .NET MAUI workload
-- Mac with Xcode (for Mac Catalyst)
-- Windows machine with .NET MAUI workload (for Windows builds)
-
-## Setup
-
-1.  **Clone the repository**:
-    ```bash
-    git clone <repo-url>
-    cd motoRagApp
-    ```
-
-2.  **Configure Settings**:
-    - Open `1-Presentation/MotorcycleRAG.MobileApp/appsettings.json`.
-    - Update `ApiSettings:BaseUrl` to point to your API backend.
-    - Update `Authentication:ClientId` and `TenantId` with your Azure AD B2C details.
-
-3.  **Build and Run**:
-    - Open `MotorcycleRAG.sln` in Visual Studio.
-    - Set `MotorcycleRAG.MobileApp` as the startup project.
-    - Select a Mac Catalyst or Windows target.
-    - Press F5 to run.
-
-## Architecture
-
-- **MVVM Pattern**: Uses CommunityToolkit.Mvvm.
-- **UI Toolkit**: Uses built-in MAUI controls plus CommunityToolkit.Maui helpers.
-- **Dependency Injection**: Configured in `MauiProgram.cs`.
-- **Persistence**: SQLite for local storage of conversations and messages.
-- **Resilience**: Polly policies for API retries and circuit breaking.
-
-## UI Toolkit
-
-This app uses **CommunityToolkit.Maui** plus built-in MAUI controls. The toolkit provides useful building blocks (behaviors, converters, and a small set of views) without forcing a full design system.
-
-### Usage Example
-
-```xml
-<ContentPage xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit">
-    <Grid>
-        <Grid.Behaviors>
-            <toolkit:TouchBehavior Command="{Binding SendCommand}" />
-        </Grid.Behaviors>
-        <Label Text="Tap to Send" />
-    </Grid>
-</ContentPage>
-```
-
-For more details, see `specs/001-mobile-app/research.md`.
-
-## Testing
-
-Run unit tests from the `5-Test/MotorcycleRAG.MobileApp.Tests` project.
-
-```bash
-dotnet test 5-Test/MotorcycleRAG.MobileApp.Tests
-```
-
-## Troubleshooting
-
-- **Authentication Issues**: Ensure the redirect URIs are correctly configured in Azure AD and in the platform-specific app manifests.
-- **API Connection**: Check if the API is running and accessible from the local app target.
+- [Developer onboarding](../../6-Docs/MotorcycleRAG.MobileApp/onboarding.md)
+- [Architecture](../../6-Docs/MotorcycleRAG.MobileApp/architecture.md)
+- [Requirements](../../6-Docs/MotorcycleRAG.MobileApp/requirements.md)

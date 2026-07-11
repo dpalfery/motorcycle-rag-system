@@ -447,22 +447,22 @@ jobs:
       with:
         submodules: true
 
-    - name: Setup .NET 8
+    - name: Setup .NET 10
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: '10.0.x'
 
     - name: Build SkillForge
-      run: dotnet build tools/SkillForge/src/SkillForge.Cli/SkillForge.Cli.csproj -c Release
+      run: dotnet build 7-Deployment/tools/SkillForge/src/SkillForge.Cli/SkillForge.Cli.csproj -c Release
 
     - name: Validate .agents/skills
-      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .agents/skills --format table
+      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .agents/skills --format table
 
     - name: Lint .agents/skills
-      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .agents/skills --min-desc-score 70 --format table
+      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .agents/skills --min-desc-score 70 --format table
 
     - name: Scan .agents/skills (SARIF)
-      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .agents/skills --fail-on critical --format sarif > skillforge-agents.sarif
+      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .agents/skills --fail-on critical --format sarif > skillforge-agents.sarif
 
     - name: Upload .agents/skills SARIF
       uses: github/codeql-action/upload-sarif@v3
@@ -470,13 +470,13 @@ jobs:
         sarif_file: skillforge-agents.sarif
 
     - name: Validate .claude/skills
-      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .claude/skills --format table
+      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .claude/skills --format table
 
     - name: Lint .claude/skills
-      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .claude/skills --min-desc-score 70 --format table
+      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .claude/skills --min-desc-score 70 --format table
 
     - name: Scan .claude/skills (SARIF)
-      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .claude/skills --fail-on critical --format sarif > skillforge-claude.sarif
+      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .claude/skills --fail-on critical --format sarif > skillforge-claude.sarif
 
     - name: Upload .claude/skills SARIF
       uses: github/codeql-action/upload-sarif@v3
@@ -484,13 +484,13 @@ jobs:
         sarif_file: skillforge-claude.sarif
 
     - name: Validate .kilo/skills
-      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .kilo/skills --format table
+      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .kilo/skills --format table
 
     - name: Lint .kilo/skills
-      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .kilo/skills --min-desc-score 70 --format table
+      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .kilo/skills --min-desc-score 70 --format table
 
     - name: Scan .kilo/skills (SARIF)
-      run: dotnet run --project tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .kilo/skills --fail-on critical --format sarif > skillforge-kilo.sarif
+      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .kilo/skills --fail-on critical --format sarif > skillforge-kilo.sarif
 
     - name: Upload .kilo/skills SARIF
       uses: github/codeql-action/upload-sarif@v3

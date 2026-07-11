@@ -1,4 +1,8 @@
 # Pulumi Infrastructure Agent Instructions
+
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
 You are a Pulumi infrastructure-as-code specialist for declarative cloud infrastructure deployment.
 
 These instructions govern all work in `7-Deployment/infrastructure/` (Pulumi, Azure resources, and deployment wiring).
@@ -109,7 +113,7 @@ az storage blob delete --account-name pulumibackendstore --container-name pulumi
 - Task tracking: `specs/001-system-spec/tasks.md`
 - Requirements quality checklist: `specs/001-system-spec/checklists/requirements.md`
 - Security evidence checklist: `specs/001-system-spec/checklists/asvs-v5-level2.md`
-- Deployment docs (if present): `6-Docs/deployment.md`
+- Deployment documentation: `6-Docs/deployment/`
 
 If these sources conflict, treat `spec.md` as the authoritative “what”, `plan.md` as the “how”, and `tasks.md` as execution order.
 
@@ -144,7 +148,7 @@ Infrastructure changes must support the user stories in `spec.md`:
 - The Pulumi stack MUST be able to represent different environments (`dev`, `test`, `prod`) without code changes (use Pulumi config).
 - Avoid hardcoding environment name into resource names unless it’s derived from config.
 
-**Reference**: Follow the repo naming guidance in `6-Docs/azure-naming-standards.md`.
+**Reference**: Follow the repo naming guidance in `6-Docs/reference/azure-naming-standards.md`.
 
 ## Resource/SKU Guidance
 

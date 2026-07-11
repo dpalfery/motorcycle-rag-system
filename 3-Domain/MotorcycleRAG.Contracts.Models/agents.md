@@ -1,5 +1,9 @@
 # Agent Context: MotorcycleRAG.Contracts.Models (3-Domain / Shared DTO Shapes)
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 This file is **supplemental** to the root `AGENTS.md`. It exists to prevent “DTO drift” and keep contract models clean and stable across boundaries in *this repository*.
 
 ## What to read first (authoritative)

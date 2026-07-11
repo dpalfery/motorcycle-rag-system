@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose a focused improvement to MotorcycleRAG.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: input
+    id: component
+    attributes:
+      label: Component
+      description: "Choose an entry from 6-Docs/catalog.md."
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: "What user or operator problem does this solve?"
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+    validations:
+      required: true

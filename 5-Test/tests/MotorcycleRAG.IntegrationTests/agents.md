@@ -1,5 +1,9 @@
 # Agent Context: MotorcycleRAG.IntegrationTests
 
+## Documentation
+
+Before changing this cataloged component, read the [documentation standard](../../../6-Docs/documentation-standard.md) and [component catalog](../../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+
 ## What this test suite covers
 - Cross-layer slices through API/Application/Domain/Persistence
 - Authn/authz and request/response contracts where feasible

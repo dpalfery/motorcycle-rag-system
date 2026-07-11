@@ -20,15 +20,20 @@ Refer to [`environment-variables.md`](environment-variables.md) for complete var
 Create the following secrets in the repository or organisation **Settings → Secrets and variables → Actions**:
 
 ### Infrastructure & Deployment Secrets
-These are used by Pulumi for deploying Azure resources:
+These are used by the GitHub Actions deploy workflow for Azure authentication, Pulumi state management via a self-hosted Azure Blob backend, and database schema migrations:
 
 | Secret | Purpose |
 | --- | --- |
-| `AZURE_CLIENT_ID` | Service-principal client ID used by Pulumi's Azure provider and the `azure/login` action. |
-| `AZURE_CLIENT_SECRET` | Service-principal client secret. |
-| `AZURE_TENANT_ID` | Azure Active Directory tenant ID. |
-| `AZURE_SUBSCRIPTION_ID` | Subscription that will contain the resources. |
-| `PULUMI_ACCESS_TOKEN` | Personal access token for the Pulumi SaaS backend (https://app.pulumi.com). |
+| `AZURE_CLIENT_ID` | Service-principal client ID used by the `azure/login` action and Pulumi's Azure provider (`ARM_CLIENT_ID`). |
+| `AZURE_CLIENT_SECRET` | Service-principal client secret (`ARM_CLIENT_SECRET`). |
+| `AZURE_TENANT_ID` | Microsoft Entra ID tenant ID (`ARM_TENANT_ID`). |
+| `AZURE_SUBSCRIPTION_ID` | Subscription that will contain the deployed resources (`ARM_SUBSCRIPTION_ID`). |
+| `PULUMI_BACKEND_URL` | URL of the self-hosted Pulumi backend (Azure Blob Storage, e.g. `azblob://<container>`). The project does **not** use the Pulumi SaaS backend. |
+| `PULUMI_CONFIG_PASSPHRASE` | Passphrase that encrypts secrets stored in Pulumi state and configuration. |
+| `AZURE_STORAGE_ACCOUNT_PULUMI` | Name of the Azure Storage account hosting the Pulumi backend; injected as the `AZURE_STORAGE_ACCOUNT` env var in the workflow. |
+| `AZURE_STORAGE_KEY_PULUMI` | Access key for the storage account hosting the Pulumi backend; injected as the `AZURE_STORAGE_KEY` env var in the workflow. |
+| `SQL_ADMIN_LOGIN` | SQL Server administrator login used by the workflow's schema-migration step (`sqlcmd`). |
+| `SQL_ADMIN_PASSWORD` | SQL Server administrator password used by the workflow's schema-migration step. |
 
 ### Application Runtime Secrets
 These are injected into the deployed applications at runtime. See [`environment-variables.md`](environment-variables.md) for complete details.

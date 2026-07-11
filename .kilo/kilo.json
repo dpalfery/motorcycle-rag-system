@@ -38,6 +38,25 @@
     "microsoft-learn": {
       "type": "remote",
       "url": "https://learn.microsoft.com/api/mcp"
+    },
+    "github": {
+      "type": "local",
+      "command": [
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e",
+        "GITHUB_READ_ONLY",
+        "ghcr.io/github/github-mcp-server@sha256:2afb26356481d1a350e14544a6e160f7f7ec1561a1ea309b823665abf0309036",
+        "stdio"
+      ],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}",
+        "GITHUB_READ_ONLY": "1"
+      }
     }
   }
 }

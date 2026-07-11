@@ -1,6 +1,6 @@
 # Admin Desktop Auth Enhancements — Persistent Sessions, Refresh, Logout, Chrome Profiles
 
-**Status:** Finalized
+**Status:** Review required
 **Date:** 2026-07-10
 **Goal:** Replace the hand-rolled PKCE-only auth in the Admin Desktop Tauri v2 app with `oauth2` + `keyring`-backed persistent sessions, refresh tokens, 401 interception, logout, Chrome profile selection, and expiry toasts.
 

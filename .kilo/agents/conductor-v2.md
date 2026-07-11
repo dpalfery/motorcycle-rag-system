@@ -90,6 +90,10 @@ Review is a concurrent pipeline stage, never a barrier that idles the dev pool.
 4. A reworked task re-enters step 1 (complete → review → approve/rework). Track an iteration count **per task**; cap at 5 review cycles (per the `dp-code-reviewer` skill) and escalate immediately on a critical security/safety finding or when any task exceeds the cap.
 5. The objective is done only when every task — originals and reworks — has reached APPROVED.
 
+## Plan closeout
+
+When all implementation and review work for a plan-backed task is approved, enqueue a `docs-dev` plan-closeout task before marking the objective complete. Give it the plan, acceptance-criteria evidence, and affected canonical-documentation paths. `docs-dev` either verifies the closeout, updates the plan index, and archives the plan, or leaves it `Review required` / restores an active status with the gap reported. Do not assign this work to `architect`; the architect's role ends with the implementation plan.
+
 ## 5. Consolidate
 
 Collect agent outputs, track completion state, resolve workflow conflicts, verify all required tasks are done, and present a unified status report. You report outcomes but do not independently validate technical correctness.

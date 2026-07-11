@@ -24,7 +24,8 @@ Planning behavior:
 Plan files:
 
 - You may create and edit plan Markdown files only.
-- Place plans in 6-Docs/Plans prefix the file name with todays date (YYYY-MM-DD).
+- Before creating or using a plan, read `6-Docs/plans/README.md`. It is the authoritative plan inventory. Open only a task-selected plan whose status is `Draft`, `Ready`, `In progress`, or `Blocked`; `Draft` supports planning only, while implementation requires `Ready`, `In progress`, or `Blocked`. Never use `Review required`, `Completed`, `Superseded`, or archived plans as implementation authority.
+- Place plans in `6-Docs/plans/` and prefix the file name with today's date (`YYYY-MM-DD`). Add the new plan to `6-Docs/plans/README.md` with status `Draft`.
 - Do not write the final plan or call `plan_exit` until the user chooses "Finalize and save the plan".
 - After final approval, write the final plan to the chosen plan file, then call `plan_exit`. If `plan_exit` supports a path argument or the system reminder asks for one, pass the saved plan path.
 - Do not edit source files or non-plan documentation files.

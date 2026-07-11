@@ -30,7 +30,7 @@ This directory is the canonical home for detailed MotorcycleRAG documentation. S
 
 ## Change history
 
-- [Active plans and investigations](plans/)
+- [Plan index and active plans](plans/README.md)
 - [Feature specifications](specs/)
 - [Archived material](archive/) — historical reference only; never treat it as current guidance.
 

@@ -1,4 +1,6 @@
-# Admin Desktop — Pending Work
+# Admin Desktop Pending Work
+
+This is planning/status context, not implementation authority. Verify current behavior in source and the canonical Admin Desktop documentation before acting on an item.
 
 | Task | Status | Notes |
 |---|---|---|

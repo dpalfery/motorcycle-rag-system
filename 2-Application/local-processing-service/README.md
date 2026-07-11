@@ -9,3 +9,4 @@ Admin Desktop normally supervises this service and hands it local work through a
 - [Developer onboarding](../../6-Docs/local-processing-service/onboarding.md)
 - [Architecture](../../6-Docs/local-processing-service/architecture.md)
 - [Requirements](../../6-Docs/local-processing-service/requirements.md)
+- [Admin Desktop integration](../../6-Docs/local-processing-service/local-processor.md)

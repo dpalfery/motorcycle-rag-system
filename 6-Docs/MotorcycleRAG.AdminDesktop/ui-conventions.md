@@ -3,6 +3,7 @@
 ## Theme Tokens
 
 Defined in `tailwind.config.js`:
+
 - `background` `#1a1a1a`, `card` `#222222`, `border` `#333333`
 - `primary` / `accent` `#ff6600`, `muted` `#999`, `secondary` `#2a2a2a`
 - `success` `#28c840`, `danger` `#e24b4a`, `warning` `#ef9f27`
@@ -16,6 +17,7 @@ Defined in `tailwind.config.js`:
 ## Shared Primitives
 
 Import from `@/components/ui`:
+
 - `Button` — variants: default/primary/danger
 - `Card`, `MetricCard`, `StatusPill`, `PageHeader` (supports `actions` slot), `Empty`
 

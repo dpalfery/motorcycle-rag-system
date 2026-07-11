@@ -65,13 +65,14 @@ All auth commands are registered in `lib.rs` via `tauri::generate_handler![]` an
 ### `auth_sign_in`
 
 | Aspect | Detail |
-|---|---|
+| --- | --- |
 | **File** | `auth.rs` → `sign_in()` |
 | **Signature** | `async fn sign_in(config: &AuthConfig, profile_directory: Option<String>) -> Result<AuthSession, String>` |
 | **Tauri command** | `async fn auth_sign_in(app: tauri::AppHandle, profile_directory: Option<String>)` — reads `authority`, `clientId`, `scope` from the Tauri config store internally via `read_auth_config()` |
 | **Purpose** | Full Entra auth-code + PKCE loopback flow |
 
 **Flow:**
+
 1. Generate PKCE `code_verifier` and `code_challenge` via `oauth2::PkceCodeChallenge::new_random_sha256()`.
 2. Bind `tokio::net::TcpListener` on `127.0.0.1:0` (random ephemeral port).
 3. Build the Entra authorize URL with scopes: `{scope}`, `openid`, `profile`, `offline_access`.
@@ -88,13 +89,14 @@ All auth commands are registered in `lib.rs` via `tauri::generate_handler![]` an
 ### `auth_refresh_token`
 
 | Aspect | Detail |
-|---|---|
+| --- | --- |
 | **File** | `auth.rs` → `refresh()` |
 | **Signature** | `async fn refresh(config: &AuthConfig) -> Result<AuthSession, String>` |
 | **Tauri command** | `async fn auth_refresh_token(app: tauri::AppHandle)` |
 | **Config source** | Reads `authAuthority`, `authClientId`, `authScope` from the Tauri config store (`config.json`) via `read_auth_config()` |
 
 **Flow:**
+
 1. Load stored tokens from the OS keyring via `load_tokens()`. Fail if no stored session or no refresh token.
 2. Build an OAuth2 client (no redirect URI needed for refresh).
 3. Exchange the refresh token via `POST {authority}/oauth2/v2.0/token` using `oauth2::Client::exchange_refresh_token()`.
@@ -104,12 +106,13 @@ All auth commands are registered in `lib.rs` via `tauri::generate_handler![]` an
 ### `auth_restore_session`
 
 | Aspect | Detail |
-|---|---|
+| --- | --- |
 | **File** | `auth.rs` → `restore()` |
 | **Signature** | `async fn restore(config: &AuthConfig) -> Result<Option<AuthSession>, String>` |
 | **Tauri command** | `async fn auth_restore_session(app: tauri::AppHandle)` |
 
 **Flow:**
+
 1. Load stored tokens from the OS keyring via `load_tokens()`. If none exist, return `Ok(None)`.
 2. If the access token is still valid (with a 60-second skew buffer), return the session immediately.
 3. If a refresh token is available, try to exchange it:
@@ -120,7 +123,7 @@ All auth commands are registered in `lib.rs` via `tauri::generate_handler![]` an
 ### `auth_sign_out`
 
 | Aspect | Detail |
-|---|---|
+| --- | --- |
 | **File** | `auth.rs` → `sign_out()` |
 | **Signature** | `fn sign_out() -> Result<(), String>` |
 | **Tauri command** | `fn auth_sign_out()` |
@@ -130,12 +133,13 @@ Deletes the persisted session tokens from the OS keyring via `delete_tokens()`. 
 ### `auth_list_chrome_profiles`
 
 | Aspect | Detail |
-|---|---|
+| --- | --- |
 | **File** | `auth.rs` → `list_chrome_profiles()` |
 | **Signature** | `fn list_chrome_profiles() -> Vec<ChromeProfile>` |
 | **Tauri command** | `fn auth_list_chrome_profiles()` |
 
 **Flow:**
+
 1. Resolve the Chrome `Local State` file path (platform-specific):
    - macOS: `~/Library/Application Support/Google/Chrome/Local State`
    - Windows: `%LOCALAPPDATA%\Google\Chrome\User Data\Local State`
@@ -149,7 +153,7 @@ Deletes the persisted session tokens from the OS keyring via `delete_tokens()`. 
 Tokens are persisted to the OS keychain using the `keyring` crate (v3).
 
 | Constant | Value |
-|---|---|
+| --- | --- |
 | `KEYRING_SERVICE` | `com.palfrey.motorcyclerag.admin.desktop` |
 | `KEYRING_ACCOUNT` | `session` |
 
@@ -169,7 +173,7 @@ struct StoredToken {
 ### Functions
 
 | Function | Purpose |
-|---|---|
+| --- | --- |
 | `store_tokens(token: &StoredToken)` | Serializes to JSON and writes to the OS keychain via `keyring::Entry::set_password()`. |
 | `load_tokens() -> Option<StoredToken>` | Reads and deserializes from the OS keychain. Returns `None` if no entry exists or deserialization fails. |
 | `delete_tokens()` | Deletes the credential from the OS keychain. Returns `Ok(())` even if no entry existed. |
@@ -179,7 +183,7 @@ struct StoredToken {
 The authorize URL includes four scopes:
 
 | Scope | Purpose |
-|---|---|
+| --- | --- |
 | `{config.scope}` | The API scope (default: `api://motorcyclerag-api/admin`) — grants access to the cloud .NET API |
 | `openid` | Required for OIDC — returns the `id_token` |
 | `profile` | Requests the `preferred_username` claim in the `id_token` |
@@ -248,7 +252,7 @@ The `SignInScreen` component offers a Chrome profile picker before sign-in:
 ## Entra App Registration Requirements
 
 | Setting | Value |
-|---|---|
+| --- | --- |
 | Platform | Mobile and desktop applications |
 | Redirect URI | `http://localhost` (Entra's loopback exception covers any ephemeral port) |
 | Allow public client flows | Yes |
@@ -261,7 +265,7 @@ The `SignInScreen` component offers a Chrome profile picker before sign-in:
 Auth configuration is read from the Tauri config store (`config.json`) by `read_auth_config()` in `lib.rs`:
 
 | Config Key | Default Value |
-|---|---|
+| --- | --- |
 | `authAuthority` | `https://login.microsoftonline.com/0f8f8a52-f135-43af-af88-e0b54ca9ff91` |
 | `authClientId` | `a86e8458-4482-4bb6-808a-28d65b2668ef` |
 | `authScope` | `api://motorcyclerag-api/admin` |
@@ -287,7 +291,7 @@ interface ChromeProfile {
 ## Zustand Store (`useAuth`)
 
 | State | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `accessToken` | `string \| null` | Current Bearer token |
 | `account` | `string \| null` | User identifier (email/username) |
 | `signedIn` | `boolean` | Whether a session is active |
@@ -295,7 +299,7 @@ interface ChromeProfile {
 | `isRefreshing` | `boolean` | Guards against concurrent `refreshToken()` calls from the store |
 
 | Action | Description |
-|---|---|
+| --- | --- |
 | `setSession(token, account, expiresAt)` | Sets session fields and flips `signedIn = true` |
 | `signIn(chromeProfileDirectory?)` | Calls `auth_sign_in` Rust command, then `setSession` |
 | `signOut()` | Calls `auth_sign_out` Rust command, then clears all state |
@@ -305,7 +309,7 @@ interface ChromeProfile {
 ## Dependencies
 
 | Crate | Version | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `oauth2` | 5 (no default features, `reqwest` feature) | OAuth2 client for PKCE, token exchange, refresh |
 | `keyring` | 3 | OS keychain integration (macOS Keychain, Windows Credential Manager, Linux Secret Service) |
 | `reqwest` | (via oauth2) | HTTP client for token endpoint calls |

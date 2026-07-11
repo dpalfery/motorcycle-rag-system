@@ -1,44 +1,37 @@
-# MotorcycleRAG.AdminDesktop — Agent Context
+# Admin Desktop Instructions
 
-## Documentation
+## Applies to
 
-Before changing this cataloged component, read the [documentation standard](../../6-Docs/documentation-standard.md) and [component catalog](../../6-Docs/catalog.md), then update the canonical documentation when applicable.
+`1-Presentation/MotorcycleRAG.AdminDesktop/` only. Read the repository [AGENTS.md](../../AGENTS.md) first.
 
-Tauri v2 desktop admin console (macOS + Windows 11) that replaces the retired MAUI admin app. Two backends: the cloud .NET API (`MotorcycleRAG.API`, port 7215) and the local Python processor (`2-Application/local-processing-service`, default port 8100).
+## Read before changing
 
-## Stack
+- [Admin Desktop onboarding](../../6-Docs/MotorcycleRAG.AdminDesktop/onboarding.md)
+- [Admin Desktop architecture](../../6-Docs/MotorcycleRAG.AdminDesktop/architecture.md)
+- [Admin Desktop requirements](../../6-Docs/MotorcycleRAG.AdminDesktop/requirements.md)
 
-| Layer | Choice |
-|---|---|
-| Shell | Tauri v2 |
-| Frontend | React 19 + TypeScript + Vite |
-| Styling | Tailwind CSS v3 (dark surface `#1a1a1a` / orange accent `#ff6600`) |
-| State | Zustand (`useAuth`, `useConfig`) |
-| Data fetching | TanStack Query v5 (15s polling; `retry: 1`, `refetchOnWindowFocus: false`) |
-| HTTP (cloud API) | axios: `api` (30s timeout), `uploadApi` (no timeout) |
-| HTTP (processor) | Rust `reqwest` via Tauri command |
-| Config persistence | `tauri-plugin-store` → `config.json` |
-| Routing | React Router v7 |
+## Scoped constraints
 
-## Running and Building
+- This Tauri v2 application hosts the local processor and provides administrative UI. The cloud API and local processor are distinct backends.
+- Preserve the established React/TypeScript, Rust, Zustand, TanStack Query, and Tailwind patterns. Use Rust commands for local-processor HTTP; do not call the processor directly from the webview.
+- Treat browser/client access tokens, persisted configuration, and processor secrets as sensitive. Follow the root security rules.
 
-```bash
-npm run tauri dev              # Dev (hot-reload Vite + Tauri watch)
-npx tsc --noEmit               # Type-check only
-npm test                       # Unit tests (Vitest + jsdom)
-npm run tauri build            # Production build
-~/.cargo/bin/cargo check --manifest-path src-tauri/Cargo.toml  # Rust only
-```
+## Task-specific guides
 
-VS Code: use the **`Admin Desktop + API`** compound launch (F5 dropdown). Starts Tauri dev mode and .NET API together. The Python processor is started from within the app's Processor screen.
+Read only the guide that matches the change, in addition to the canonical Admin Desktop documentation:
 
-## Detailed Instructions
+| Change | Required guide |
+| --- | --- |
+| Sign-in, refresh, keyring, or Chrome profile behavior | [Authentication](../../6-Docs/MotorcycleRAG.AdminDesktop/authentication.md) |
+| API client, upload timeout, or multipart behavior | [Cloud API client](../../6-Docs/MotorcycleRAG.AdminDesktop/api-client.md) |
+| Stored settings or defaults | [Configuration](../../6-Docs/MotorcycleRAG.AdminDesktop/configuration.md) |
+| Processor lifecycle, command bridge, or runtime variables | [Local processor integration](../../6-Docs/local-processing-service/local-processor.md) |
+| Screen/API contract changes | [Screen-to-endpoint map](../../6-Docs/MotorcycleRAG.AdminDesktop/endpoint-map.md) |
+| Component layout or visual conventions | [UI conventions](../../6-Docs/MotorcycleRAG.AdminDesktop/ui-conventions.md) |
+| File ownership and location | [Project layout](../../6-Docs/MotorcycleRAG.AdminDesktop/project-layout.md) |
 
-- [Project Layout](../../6-Docs/agent-instructions/admin-desktop/project-layout.md)
-- [Auth — Entra PKCE](../../6-Docs/agent-instructions/admin-desktop/auth.md)
-- [Config Persistence](../../6-Docs/agent-instructions/admin-desktop/config.md)
-- [Cloud API Client](../../6-Docs/agent-instructions/admin-desktop/cloud-api-client.md)
-- [Local Processor](../../6-Docs/agent-instructions/admin-desktop/local-processor.md)
-- [Screen → Endpoint Map](../../6-Docs/agent-instructions/admin-desktop/screen-endpoint-map.md)
-- [UI / Design Conventions](../../6-Docs/agent-instructions/admin-desktop/ui-conventions.md)
-- [Pending Work](../../6-Docs/agent-instructions/admin-desktop/pending-work.md)
+[Pending work](../../6-Docs/plans/admin-desktop-pending-work.md) is planning/status context only. It is not implementation authority; verify planned or historical claims in source and canonical documentation.
+
+## Verify
+
+Run `npx tsc --noEmit`, `npm test`, and the relevant Rust check or test.

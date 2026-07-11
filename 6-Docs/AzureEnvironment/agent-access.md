@@ -10,7 +10,7 @@
 Before running any `az` command, **always** verify the active subscription is in the allowlist. If it is not, stop and ask the user — never run `az` commands against a client or unknown subscription.
 
 | Subscription ID | Name | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `5df33f46-892f-4dc1-9d0c-701464efd7e5` | MotorcycleRAG (personal) | Primary — this project's Azure resources live here |
 | *(add more as needed)* | | |
 

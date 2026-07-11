@@ -1,47 +1,43 @@
-# 1. Project Overview
+# MotorcycleRAG Repository Instructions
 
-Multi-agent RAG system for motorcycle information retrieval. OWASP ASVS Level 2 security. Clean Architecture + DDD.
+`AGENTS.md` files are mandatory instructions, not optional background material. Read this file before work anywhere in the repository, then read the nearest scoped `AGENTS.md` before changing files in that subtree.
 
-## Applications
+## Non-negotiable rules
 
-The system is composed of four distinct applications, all located in the `1-Presentation` layer:
+- Do not create infrastructure, deployment assets, dependencies, cross-cutting concerns, or documentation files without user approval. Ask before an architectural decision; present the trade-offs.
+- Do not commit, push, reset, restore, checkout, clean, or rebase without explicit user approval. Keep agent-generated notes under `6-Docs/agent-notes/`, never at repository root.
+- Do not introduce fallbacks, stubs, or workarounds without explicit approval. Fix the root cause.
+- Never commit secrets, tokens, connection strings, passwords, customer data, or `.env` files. Use approved configuration and Key Vault patterns; redact prompts and PII from logs.
+- .NET code must use Azure App Configuration and Key Vault references for application configuration and secrets. Python local-processor runtime values set by Admin Desktop are the only approved environment-variable exception.
+- Before every `az` read, verify the active subscription against the allowlist in [Azure agent access](6-Docs/AzureEnvironment/agent-access.md). Azure writes, local `pulumi up`, direct Docker builds, and ACR pushes are forbidden.
+- Preserve Clean Architecture: inner layers never depend on outer layers; Contracts contains interfaces only; Contracts.Models contains shared DTOs only; business invariants belong in Domain; Application services belong in `Services`.
 
-1. **`MotorcycleRAG.API`**: The core backend REST API providing search, data ingestion, and multi-agent orchestration.
-   - **Subsystems**: Includes the Graph Database, Azure Foundry IQ, and Web Search modules.
-   - **Dependencies**: `MotorcycleRAG.Application`, `MotorcycleRAG.Domain`, `MotorcycleRAG.Persistence`, `MotorcycleRAG.Core`, `MotorcycleRAG.Contracts`.
-2. **`MotorcycleRag.WebUI`**: The web frontend application. It tightly couples a Vite-based SPA with a dedicated Backend-For-Frontend (BFF).
-   - **Subsystems**: A Vite/TypeScript frontend and an ASP.NET Core BFF (`MotorcycleRag.WebUI.BFF`) for OIDC auth and YARP reverse-proxying.
-   - **Dependencies**: The BFF routes to the `MotorcycleRAG.API`.
-3. **`MotorcycleRAG.AdminDesktop`**: A desktop application whose primary purpose is to host and run the **Local Processor** (the intelligent knowledge ingestion engine). System administration features are secondary.
-   - **Subsystems**: Built with Tauri (Rust backend + TypeScript/Vite frontend). The core subsystem is the Local Processor.
-   - **Dependencies**: Integrates with the `MotorcycleRAG.API`.
-4. **`MotorcycleRAG.MobileApp`**: A cross-platform mobile application for end-users.
-   - **Subsystems**: Built with .NET MAUI (XAML/MVVM) and local SQLite storage.
-   - **Dependencies**: Calls the `MotorcycleRAG.API` and uses MSAL for auth.
+Read the full [working agreement](6-Docs/system/agent-governance.md), [security directives](6-Docs/system/security.md), and [Azure environment rules](6-Docs/AzureEnvironment/agent-access.md) when the task touches their subject.
 
-# 2. Global Rules
+## Documentation and placement
 
-@6-Docs/agent-instructions/working-agreement.md
-@6-Docs/agent-instructions/azure-environment.md
-@6-Docs/agent-instructions/security.md
+Before changing a cataloged component, read the [documentation standard](6-Docs/documentation-standard.md), [component catalog](6-Docs/catalog.md), the source-root README, and the component's detailed documentation. Update canonical documentation when the public interface, configuration, architecture, runtime, operations, or workflow changes.
 
-## Documentation
+Before creating, moving, renaming, or placing source/test files, or changing namespaces, project references, DTO placement, interfaces, or layer boundaries, read the [architecture placement rules](6-Docs/rules/architecture-general.md).
 
-Before changing a cataloged component, read `6-Docs/documentation-standard.md` and `6-Docs/catalog.md`. Update the component's canonical README and detailed documentation when its public interface, configuration, architecture, supported runtime, operations, or workflow changes.
+`6-Docs/archive/` is historical only: do not follow, cite, or copy it as current guidance.
 
-**Deprecated docs:** `6-Docs/archive/` holds retired/deprecated documents and agent definitions kept only for historical reference. Ignore it. Do not read, cite, follow, or copy anything from `6-Docs/archive/` as current guidance, and do not treat agent definitions found there as active agents.
+## Task routing
 
-# 3. Architecture
+| Work area | Mandatory scoped instructions | Read when relevant |
+| --- | --- | --- |
+| API | [API AGENTS](1-Presentation/MotorcycleRAG.API/AGENTS.md) | [API documentation](6-Docs/MotorcycleRAG.API/) |
+| Web UI and BFF | [Web UI AGENTS](1-Presentation/MotorcycleRag.WebUI/AGENTS.md), [BFF AGENTS](1-Presentation/MotorcycleRag.WebUI.BFF/AGENTS.md) | [Web UI documentation](6-Docs/MotorcycleRag.WebUI/) |
+| Admin Desktop | [Admin Desktop AGENTS](1-Presentation/MotorcycleRAG.AdminDesktop/AGENTS.md) | [Admin Desktop documentation](6-Docs/MotorcycleRAG.AdminDesktop/) and task-specific guides |
+| Mobile App | [Mobile AGENTS](1-Presentation/MotorcycleRAG.MobileApp/AGENTS.md) | [Mobile documentation](6-Docs/MotorcycleRAG.MobileApp/) |
+| Local processor | [Processor AGENTS](2-Application/local-processing-service/AGENTS.md) | [Processor documentation](6-Docs/local-processing-service/) |
+| Core, Application, Domain, Contracts, Persistence | nearest scoped `AGENTS.md` | [Architecture rules](6-Docs/rules/architecture-general.md) |
+| Tests | nearest test-suite `AGENTS.md` | affected component documentation and requirements |
+| Infrastructure | [Infrastructure AGENTS](7-Deployment/infrastructure/AGENTS.md) | [Deployment documentation](6-Docs/deployment/) and [Azure environment](6-Docs/AzureEnvironment/) |
+| Codex configuration | [.codex AGENTS](.codex/AGENTS.md) | repository rules in this file remain controlling |
 
-Before creating, moving, renaming, or choosing placement for any source or test file, or changing namespaces, project references, DTO placement, interface placement, or layer boundaries — read the architecture placement rules first at `6-Docs/rules/architecture-general.md`.
+## Instruction hierarchy
 
-**Key rules always in effect:**
-- **Folder Structure Responsibilities**: See the [Repository Folder Structure](README.md#repository-folder-structure) and [Applications](README.md#applications) sections in the main README for definitions of what belongs in each root folder and details on the system's apps.
-- 1 class or interface per file in C#
-- Dependency Rule: inner layers never depend on outer layers
-- `MotorcycleRAG.Contracts` = interfaces only (no DTOs/models)
-- `MotorcycleRAG.Contracts.Models` = shared DTOs only (no interfaces, no implementations, no infrastructure deps)
-- Application services belong in the Application `Services` folder unless an explicit architecture rule or user approval says otherwise.
-- Do not create new feature/random folders such as `Pipeline` without explicit approval.
-- Do not add new top-level repository folders or root-level tooling directories without explicit user approval. Existing root folders such as `tools/` and `scripts/` are intentional and should only grow when there is a clear repo-wide need.
-- If a type enforces business rules/invariants → Domain. If it's for transport/serialization → Contracts.Models DTO.
+1. This root file supplies repository-wide mandatory policy.
+2. The nearest scoped `AGENTS.md` supplies additional rules for its subtree; it may not weaken this file.
+3. Canonical system, component, deployment, and environment documentation provides detailed task-specific guidance. Scoped instructions link directly to the owning document; they are not a substitute for root policy.

@@ -34,7 +34,7 @@ dotnet tool install --global --add-source ./nupkg SkillForge.Tool
 dotnet run --project src/SkillForge.Cli -- <command> [args]
 ```
 
-Requires the .NET 8 SDK.
+Requires the .NET 10 SDK.
 
 ---
 

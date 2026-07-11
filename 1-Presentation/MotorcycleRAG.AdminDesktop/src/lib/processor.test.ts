@@ -4,6 +4,7 @@ import {
   ensureProcessorReady,
   isMissingProcessorJobError,
   processor,
+  toStartConfig,
 } from "./processor";
 import { invoke } from "@tauri-apps/api/core";
 import type { AppConfig } from "./config";
@@ -79,10 +80,115 @@ describe("processor job control", () => {
       isMissingProcessorJobError(new Error('404 Not Found: {"detail":"Job not found"}'))
     ).toBe(true);
     expect(isMissingProcessorJobError("500 Internal Server Error")).toBe(false);
+    expect(isMissingProcessorJobError({ message: "Job not found" })).toBe(false);
+  });
+
+  it("maps app configuration and trims an optional upload secret", () => {
+    expect(toStartConfig({ ...baseConfig, pythonUploadJobSecret: " secret " }))
+      .toEqual({
+        port: 8100,
+        workingDir: "/repo/2-Application/local-processing-service",
+        embeddingProviderEndpoint: "http://localhost:1234/v1",
+        embeddingModel: "text-embedding-qwen",
+        tokenizerModelPath: "/models/qwen-tokenizer",
+        graphExtractionEndpoint: "http://localhost:1234/v1",
+        graphExtractionModel: "microsoft/phi-4-reasoning-plus",
+        apiBaseUrl: "https://motorag.api.palfery.com",
+        azureStorageAccountUrl: "https://storage.example/",
+        uploadJobSecret: "secret",
+      });
+  });
+
+  it("proxies processor lifecycle and endpoint operations", async () => {
+    vi.mocked(invoke).mockResolvedValue({ ok: true });
+
+    await processor.start(toStartConfig(baseConfig));
+    await processor.stop();
+    await processor.isRunning();
+    await processor.isListening();
+    await processor.health(8100);
+    await processor.jobs(8100);
+    await processor.cleanupJobs(8100);
+    await processor.shutdown(8100);
+    await processor.discoverModels("http://localhost:1234/v1?q=a", 8100);
+    await processor.resumeProcessPdf({
+      upload_id: "upload.pdf",
+      document_type: "manual-pdf",
+      blob_container: "raw-uploads",
+      job_id: "run-1",
+      metadata: { make: "Honda" },
+    }, 8100);
+
+    expect(invoke).toHaveBeenCalledWith("processor_stop", { port: null });
+    expect(invoke).toHaveBeenCalledWith("processor_running");
+    expect(invoke).toHaveBeenCalledWith("processor_is_listening", { port: null });
+    expect(invoke).toHaveBeenCalledWith("processor_request", {
+      method: "GET",
+      path: "/embedding/models?endpoint=http%3A%2F%2Flocalhost%3A1234%2Fv1%3Fq%3Da",
+      body: null,
+      port: 8100,
+    });
+    expect(invoke).toHaveBeenCalledWith("processor_request", {
+      method: "POST",
+      path: "/process/pdf",
+      body: expect.objectContaining({ job_id: "run-1" }),
+      port: 8100,
+    });
   });
 });
 
 describe("ensureProcessorReady", () => {
+  it("auto-resolves a missing working directory", async () => {
+    const resolvedConfig = { ...baseConfig, localProcessorWorkingDir: "" };
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "resolve_processor_path") {
+        return "/resolved/local-processing-service";
+      }
+      if (command === "processor_is_listening") return true;
+      if (command === "processor_request") {
+        return {
+          status: "healthy",
+          accepting_work: true,
+          services: {
+            blob_storage: true,
+            embedding_endpoint: baseConfig.embeddingProviderEndpoint,
+            embedding_model: baseConfig.embeddingModel,
+            tokenizer_path: baseConfig.tokenizerModelPath,
+          },
+        };
+      }
+      throw new Error(`unexpected command ${command}`);
+    });
+
+    const result = await ensureProcessorReady(resolvedConfig);
+
+    expect(result.localProcessorWorkingDir).toBe(
+      "/resolved/local-processing-service",
+    );
+  });
+
+  it("rejects when a missing working directory cannot be resolved", async () => {
+    vi.mocked(invoke).mockResolvedValue("");
+
+    await expect(
+      ensureProcessorReady({ ...baseConfig, localProcessorWorkingDir: "" }),
+    ).rejects.toThrow("could not be auto-resolved");
+  });
+
+  it("reports a timeout when the started processor is not ready", async () => {
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "processor_is_listening") return false;
+      if (command === "processor_start") return undefined;
+      throw new Error(`unexpected command ${command}`);
+    });
+
+    await expect(
+      ensureProcessorReady(baseConfig, { timeoutMs: 0 }),
+    ).rejects.toThrow(
+      "Local processor did not become ready on 127.0.0.1:8100 within 0s",
+    );
+  });
+
   it("keeps a running processor when health config matches settings", async () => {
     vi.mocked(invoke).mockImplementation(async (command) => {
       if (command === "processor_is_listening") return true;

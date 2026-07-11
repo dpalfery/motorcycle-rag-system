@@ -2,8 +2,9 @@
 
 import base64
 import json
+import asyncio
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -254,3 +255,209 @@ async def test_upload_artifact_uses_reduced_timeout_and_two_attempts(monkeypatch
     assert mock_ctor.call_args.kwargs.get("timeout") == 90.0
     # A successful 202 must result in exactly one attempt (no retries needed).
     assert mock_ctor.call_count == 1
+
+
+def test_get_token_returns_access_token_and_translates_msal_error(monkeypatch):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+    assert client._get_token() == "token"
+
+    mock_msal.acquire_token_for_client.return_value = {
+        "error_description": "invalid secret"
+    }
+    with pytest.raises(RuntimeError, match="invalid secret"):
+        client._get_token()
+
+
+async def test_acquire_token_async_caches_and_refreshes_token(monkeypatch):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {
+        "access_token": "fresh",
+        "expires_in": 600,
+    }
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    first = await client._acquire_token_async()
+    second = await client._acquire_token_async()
+
+    assert (first, second) == ("fresh", "fresh")
+    mock_msal.acquire_token_for_client.assert_called_once()
+
+    client._token_expires_at = 0
+    mock_msal.acquire_token_for_client.return_value = {"error_description": "denied"}
+    with pytest.raises(RuntimeError, match="denied"):
+        await client._acquire_token_async()
+
+
+@pytest.mark.parametrize(
+    "token, expected_key",
+    [
+        ("not-a-jwt", "token_format"),
+        ("header.!!!!.signature", "decode_error"),
+    ],
+)
+def test_get_token_diagnostics_handles_invalid_tokens(token, expected_key):
+    assert expected_key in ApiClient._get_token_diagnostics(token)
+
+
+async def test_download_source_requires_configuration_without_access_token(
+    monkeypatch,
+):
+    client = ApiClient()
+
+    with pytest.raises(RuntimeError, match="not configured"):
+        await client.download_source("upload", "manual-pdf")
+
+
+async def test_download_source_uses_bearer_token_and_handles_error(monkeypatch):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {
+        "access_token": "token",
+        "expires_in": 600,
+    }
+
+    class DownloadClient:
+        def __init__(self, response):
+            self.response = response
+            self.calls = []
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            return self.response
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    ok = DownloadClient(
+        httpx.Response(
+            200,
+            content=b"source",
+            request=httpx.Request("GET", "https://api.example/source"),
+        )
+    )
+    with patch("api.api_client.httpx.AsyncClient", return_value=ok):
+        assert await client.download_source("upload", "manual-pdf") == b"source"
+    assert ok.calls[0][1]["headers"] == {"Authorization": "Bearer token"}
+
+    denied = DownloadClient(
+        httpx.Response(
+            403,
+            text="forbidden",
+            request=httpx.Request("GET", "https://api.example/source"),
+        )
+    )
+    with patch("api.api_client.httpx.AsyncClient", return_value=denied):
+        with pytest.raises(RuntimeError, match="HTTP 403"):
+            await client.download_source("upload", "manual-pdf")
+
+
+async def test_upload_artifact_rejects_client_error_without_retry(monkeypatch):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {
+        "access_token": "header.eyJhdWQiOiAidGVzdCJ9.signature",
+        "expires_in": 600,
+    }
+
+    class DeniedClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, **kwargs):
+            return httpx.Response(
+                403,
+                text="forbidden",
+                request=httpx.Request("POST", url),
+            )
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    with patch("api.api_client.httpx.AsyncClient", return_value=DeniedClient()):
+        with pytest.raises(RuntimeError, match="HTTP 403 - forbidden"):
+            await client.upload_artifact(b"{}", "upload", "graph-entities", "application/json")
+
+
+async def test_report_stage_skips_unconfigured_and_reports_payload(monkeypatch):
+    unconfigured = ApiClient()
+    with patch("api.api_client.httpx.AsyncClient") as constructor:
+        await unconfigured.report_stage("job", "parsing")
+        await unconfigured.report_stage("", "parsing")
+    constructor.assert_not_called()
+
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {
+        "access_token": "token",
+        "expires_in": 600,
+    }
+
+    class ReportClient:
+        def __init__(self):
+            self.kwargs = None
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def patch(self, url, **kwargs):
+            self.kwargs = kwargs
+            return httpx.Response(200, request=httpx.Request("PATCH", url))
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        configured = ApiClient()
+    report = ReportClient()
+    with patch("api.api_client.httpx.AsyncClient", return_value=report):
+        await configured.report_stage(
+            "job", "embedding", chunks_processed=2, total_chunks=3, failure_reason="late"
+        )
+
+    assert report.kwargs["json"] == {
+        "stage": "embedding",
+        "chunksProcessed": 2,
+        "totalChunks": 3,
+        "failureReason": "late",
+    }
+
+
+async def test_report_stage_swallows_transport_errors(monkeypatch):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=MagicMock()
+    ):
+        client = ApiClient()
+    client._acquire_token_async = AsyncMock(side_effect=RuntimeError("offline"))
+
+    await client.report_stage("job", "failed")
+
+    client._acquire_token_async.assert_awaited_once()

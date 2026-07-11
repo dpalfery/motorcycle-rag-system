@@ -68,6 +68,40 @@ describe("config store", () => {
       expect(state.authAuthority).toBe("https://mytenant.com");
       expect(state.authClientId).toBe(DEFAULT_CONFIG.authClientId);
     });
+
+    it("falls back to defaults when the store cannot load", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      mockStore.get.mockRejectedValueOnce(new Error("store unavailable"));
+
+      await useConfig.getState().load();
+
+      expect(useConfig.getState()).toMatchObject({
+        config: DEFAULT_CONFIG,
+        loaded: true,
+      });
+      expect(warn).toHaveBeenCalledWith(
+        "Failed to load config from store, using defaults:",
+        expect.any(Error),
+      );
+    });
+  });
+
+  describe("save", () => {
+    it("merges, persists, and saves configuration updates", async () => {
+      await useConfig.getState().save({
+        localProcessorPort: 9000,
+        embeddingModel: "new-model",
+      });
+
+      const expected = {
+        ...DEFAULT_CONFIG,
+        localProcessorPort: 9000,
+        embeddingModel: "new-model",
+      };
+      expect(useConfig.getState().config).toEqual(expected);
+      expect(mockStore.set).toHaveBeenCalledWith("appConfig", expected);
+      expect(mockStore.save).toHaveBeenCalledOnce();
+    });
   });
 
   describe("autoResolveIfNeeded", () => {

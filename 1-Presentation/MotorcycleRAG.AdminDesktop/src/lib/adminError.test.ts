@@ -1,5 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { formatAdminError } from "./adminError";
+import { formatAdminError, sanitizeForLog } from "./adminError";
+
+describe("sanitizeForLog", () => {
+  it("redacts sensitive headers without mutating the original error", () => {
+    const error = {
+      config: {
+        headers: {
+          Authorization: "Bearer secret",
+          "X-API-Key": "api-secret",
+          Cookie: "session=secret",
+          Accept: "application/json",
+        },
+      },
+    };
+
+    expect(sanitizeForLog(error)).toEqual({
+      config: {
+        headers: {
+          Authorization: "[REDACTED]",
+          "X-API-Key": "[REDACTED]",
+          Cookie: "[REDACTED]",
+          Accept: "application/json",
+        },
+      },
+    });
+    expect(error.config.headers.Authorization).toBe("Bearer secret");
+  });
+
+  it("returns primitive and configuration-free values unchanged", () => {
+    expect(sanitizeForLog(null)).toBeNull();
+    expect(sanitizeForLog("failure")).toBe("failure");
+    const error = { message: "failure" };
+    expect(sanitizeForLog(error)).toBe(error);
+  });
+});
 
 describe("formatAdminError", () => {
   it("explains cloud API network errors as Admin Desktop to API failures", () => {
@@ -78,5 +112,76 @@ describe("formatAdminError", () => {
 
     expect(message).toContain("Starting the local processor failed in the desktop app's local processor integration");
     expect(message).not.toContain("127.0.0.1:8100");
+  });
+
+  it("formats non-Axios cloud errors and absolute request URLs", () => {
+    expect(
+      formatAdminError(new Error("plain failure"), {
+        action: "Loading jobs",
+        kind: "cloud-api",
+      }),
+    ).toBe("plain failure");
+
+    const message = formatAdminError(
+      {
+        isAxiosError: true,
+        message: "",
+        config: {
+          url: "https://other.example/jobs",
+        },
+      },
+      { action: "Loading jobs", kind: "cloud-api" },
+    );
+    expect(message).toContain(
+      "REQUEST https://other.example/jobs",
+    );
+    expect(message).not.toContain("Transport error:");
+  });
+
+  it("uses title and extension trace fields in ProblemDetails", () => {
+    const message = formatAdminError(
+      {
+        isAxiosError: true,
+        message: "fallback",
+        config: { method: "delete", url: "jobs/1" },
+        response: {
+          status: 503,
+          data: {
+            title: "Service unavailable",
+            extensions: { traceId: "trace-ext", referenceId: "ref-ext" },
+          },
+        },
+      },
+      {
+        action: "Deleting job",
+        kind: "cloud-api",
+        apiBaseUrl: "https://api.example/",
+      },
+    );
+
+    expect(message).toContain(
+      "DELETE https://api.example/jobs/1, HTTP 503",
+    );
+    expect(message).toContain("Service unavailable");
+    expect(message).toContain("trace: trace-ext, reference: ref-ext");
+  });
+
+  it("formats local queue errors and an unspecified processor endpoint", () => {
+    expect(
+      formatAdminError("watch folder unavailable", {
+        action: "Queueing manual",
+        kind: "local-queue",
+      }),
+    ).toContain(
+      "Queueing manual failed while the desktop app was queueing the file into the local watch folder. watch folder unavailable",
+    );
+
+    expect(
+      formatAdminError("offline", {
+        action: "Checking processor",
+        kind: "local-processor",
+        location: "endpoint",
+      }),
+    ).toContain("the configured local processor endpoint");
   });
 });

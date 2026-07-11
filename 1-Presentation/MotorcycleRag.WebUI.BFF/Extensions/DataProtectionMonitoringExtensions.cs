@@ -242,7 +242,9 @@ public static class DataProtectionMonitoringExtensions {
     /// Adds Data Protection monitoring services to the service collection.
     /// </summary>
     public static IServiceCollection AddDataProtectionMonitoring(this IServiceCollection services) {
-        services.AddSingleton<DataProtectionMonitoringService>();
+        services.AddSingleton(sp => new DataProtectionMonitoringService(
+            sp.GetService<TelemetryClient>(),
+            sp.GetRequiredService<ILogger<DataProtectionMonitoringService>>()));
         return services;
     }
 }

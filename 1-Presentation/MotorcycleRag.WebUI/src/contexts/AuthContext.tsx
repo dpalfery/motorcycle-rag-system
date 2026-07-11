@@ -1,6 +1,6 @@
-
+import { type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AuthContext } from './authContext';
+import { AuthContext } from './auth-context';
 
 interface User {
     user: string;
@@ -22,7 +22,7 @@ interface AuthContextType {
     logout: () => void;
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
     // Check auth status from BFF
     const { data, isLoading } = useQuery({
         queryKey: ['auth-me'],

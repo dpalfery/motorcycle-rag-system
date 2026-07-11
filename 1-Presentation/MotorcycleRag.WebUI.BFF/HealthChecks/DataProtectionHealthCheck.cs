@@ -13,11 +13,16 @@ public class DataProtectionHealthCheck : IHealthCheck
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<DataProtectionHealthCheck> _logger;
+    private readonly Func<Uri, CancellationToken, Task<bool>>? _blobExistsAsync;
 
-    public DataProtectionHealthCheck(IConfiguration configuration, ILogger<DataProtectionHealthCheck> logger)
+    public DataProtectionHealthCheck(
+        IConfiguration configuration,
+        ILogger<DataProtectionHealthCheck> logger,
+        Func<Uri, CancellationToken, Task<bool>>? blobExistsAsync = null)
     {
         _configuration = configuration;
         _logger = logger;
+        _blobExistsAsync = blobExistsAsync;
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(
@@ -35,13 +40,18 @@ public class DataProtectionHealthCheck : IHealthCheck
         try
         {
             var uri = new Uri(blobUri);
-            var blobClient = new BlobClient(uri, new DefaultAzureCredential());
+            bool exists;
+            if (_blobExistsAsync is not null)
+            {
+                exists = await _blobExistsAsync(uri, cancellationToken);
+            }
+            else
+            {
+                var blobClient = new BlobClient(uri, new DefaultAzureCredential());
+                exists = (await blobClient.ExistsAsync(cancellationToken)).Value;
+            }
 
-            // Check if the blob exists by attempting to get properties
-            // This validates both container access and blob access
-            var exists = await blobClient.ExistsAsync(cancellationToken);
-
-            if (exists.Value)
+            if (exists)
             {
                 _logger.LogDebug("Data Protection blob storage is accessible: {BlobUri}", blobUri);
                 

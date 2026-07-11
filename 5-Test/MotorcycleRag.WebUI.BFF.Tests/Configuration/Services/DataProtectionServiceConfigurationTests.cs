@@ -65,4 +65,19 @@ public class DataProtectionServiceConfigurationTests
         act.Should().Throw<InvalidOperationException>()
            .WithMessage("*DataProtection:BlobUri is required in production*");
     }
+
+    [Fact]
+    public void AddBffDataProtection_WithoutBlobUri_InStaging_UsesEphemeralKeys()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+        var env = new Mock<IWebHostEnvironment>();
+        env.Setup(m => m.EnvironmentName).Returns("Staging");
+
+        var result = services.AddBffDataProtection(configuration, env.Object);
+
+        result.Should().BeSameAs(services);
+        services.Should().Contain(s =>
+            s.ServiceType == typeof(Microsoft.AspNetCore.DataProtection.IDataProtectionProvider));
+    }
 }

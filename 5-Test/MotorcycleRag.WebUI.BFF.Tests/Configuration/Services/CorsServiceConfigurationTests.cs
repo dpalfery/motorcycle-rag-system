@@ -100,4 +100,25 @@ public class CorsServiceConfigurationTests {
         var policy = options.GetPolicy("AllowFrontend")!;
         policy.PreflightMaxAge.Should().Be(TimeSpan.FromMinutes(5));
     }
+
+    [Fact]
+    public void AddBffCors_InDevelopment_AddsViteDevOrigins() {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> {
+                ["Cors:AllowedOrigins:0"] = "https://app.example.com"
+            })
+            .Build();
+        var env = new Mock<IWebHostEnvironment>();
+        env.Setup(e => e.EnvironmentName).Returns("Development");
+        var services = new ServiceCollection();
+
+        services.AddBffCors(config, env.Object);
+        using var provider = services.BuildServiceProvider();
+        var policy = provider.GetRequiredService<IOptions<CorsOptions>>().Value.GetPolicy("AllowFrontend")!;
+
+        policy.Origins.Should().Contain("https://app.example.com");
+        policy.Origins.Should().Contain("http://localhost:5173");
+        policy.Origins.Should().Contain("https://localhost:5174");
+        policy.Origins.Should().Contain("http://127.0.0.1:5173");
+    }
 }

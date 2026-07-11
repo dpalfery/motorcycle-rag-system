@@ -4,7 +4,7 @@ import importlib
 import sys
 import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -192,3 +192,194 @@ async def test_bike_graph_endpoint_passes_local_file_path_from_admin_route(
         blob_container=None,
         local_file_path=str(csv_path.resolve()),
     )
+
+
+@pytest.mark.asyncio
+async def test_job_helpers_sort_count_find_stop_and_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+
+    def processor(jobs, *, stop_result=None, removed=0):
+        value = MagicMock()
+        value.list_jobs = AsyncMock(return_value=jobs)
+        value.get_job_status = AsyncMock(return_value=None)
+        value.stop_job = AsyncMock(return_value=stop_result)
+        value.clear_terminal_jobs = AsyncMock(return_value=removed)
+        return value
+
+    pdf = processor(
+        [{"job_id": "old", "status": "completed", "created_at": "2026-01-01"}],
+        removed=1,
+    )
+    csv = processor(
+        [{"job_id": "active", "status": " processing ", "created_at": "2026-02-01"}],
+        stop_result={"job_id": "active", "status": "cancelled"},
+        removed=2,
+    )
+    bike = processor([], removed=0)
+    monkeypatch.setattr(main, "pdf_processor", pdf)
+    monkeypatch.setattr(main, "csv_processor", csv)
+    monkeypatch.setattr(main, "bike_graph_processor", bike)
+
+    assert [job["job_id"] for job in await main.list_jobs()] == ["active", "old"]
+    assert await main._count_active_jobs() == 1
+    assert (await main.stop_job("active"))["status"] == "cancelled"
+    cleanup = await main.clear_finished_jobs()
+    assert cleanup["deleted_count"] == 3
+    assert cleanup["remaining_jobs"] == 2
+
+    csv.get_job_status.return_value = {"job_id": "active"}
+    assert await main.get_job_status("active") == {"job_id": "active"}
+    csv.get_job_status.return_value = None
+    with pytest.raises(Exception) as exc:
+        await main.get_job_status("missing")
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_worker_lifecycle_honors_disabled_and_enabled_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("WATCH_FOLDER_DISABLED", "yes")
+    constructor = MagicMock()
+    monkeypatch.setattr(main, "WatchFolderWorker", constructor)
+
+    await main._start_watch_folder_worker()
+    constructor.assert_not_called()
+
+    monkeypatch.setenv("WATCH_FOLDER_DISABLED", "false")
+    worker = MagicMock()
+    worker.stop = AsyncMock()
+    constructor.return_value = worker
+    await main._start_watch_folder_worker()
+    worker.start.assert_called_once()
+    await main._stop_watch_folder_worker()
+    worker.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_lifespan_starts_and_stops_worker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    start = AsyncMock()
+    stop = AsyncMock()
+    monkeypatch.setattr(main, "_start_watch_folder_worker", start)
+    monkeypatch.setattr(main, "_stop_watch_folder_worker", stop)
+
+    async with main.lifespan(main.app):
+        start.assert_awaited_once()
+
+    stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_requests_drain_task(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    monkeypatch.setattr(main, "_count_active_jobs", AsyncMock(return_value=2))
+    created = []
+
+    def capture(coroutine):
+        created.append(coroutine)
+        return MagicMock()
+
+    monkeypatch.setattr(main.asyncio, "create_task", capture)
+    result = await main.shutdown()
+    created[0].close()
+
+    assert main.shutdown_requested is True
+    assert result["active_jobs"] == 2
+
+
+@pytest.mark.asyncio
+async def test_graceful_shutdown_sets_uvicorn_exit_without_killing_process(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    monkeypatch.setattr(main, "_count_active_jobs", AsyncMock(return_value=0))
+    server = MagicMock()
+    main.uvicorn_server = server
+
+    await main._wait_for_graceful_shutdown()
+
+    assert server.should_exit is True
+
+
+@pytest.mark.asyncio
+async def test_embedding_model_discovery_translates_domain_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        main, "discover_embedding_models", AsyncMock(side_effect=ValueError("bad url"))
+    )
+    with pytest.raises(Exception) as invalid:
+        await main.list_embedding_models("bad")
+    assert invalid.value.status_code == 400
+
+    monkeypatch.setattr(
+        main,
+        "discover_embedding_models",
+        AsyncMock(side_effect=main.ModelDiscoveryError("offline")),
+    )
+    with pytest.raises(Exception) as unavailable:
+        await main.list_embedding_models("http://provider")
+    assert unavailable.value.status_code == 502
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("route", "processor_name", "method_name", "payload"),
+    [
+        (
+            "/process/pdf",
+            "pdf_processor",
+            "process_pdf_async",
+            {
+                "upload_id": "upload",
+                "document_type": "manual",
+                "blob_container": "raw",
+                "sourceAccessToken": "token",
+            },
+        ),
+        (
+            "/process/csv",
+            "csv_processor",
+            "process_csv_async",
+            {"upload_id": "upload", "blob_container": "raw"},
+        ),
+        (
+            "/process/bike-graph",
+            "bike_graph_processor",
+            "process_async",
+            {"upload_id": "upload", "blob_container": "raw"},
+        ),
+    ],
+)
+async def test_processing_routes_hide_unexpected_errors(
+    monkeypatch,
+    tmp_path,
+    route,
+    processor_name,
+    method_name,
+    payload,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    processor = MagicMock()
+    setattr(processor, method_name, AsyncMock(side_effect=RuntimeError("secret detail")))
+    monkeypatch.setattr(main, processor_name, processor)
+
+    response = await _post_json(main.app, route, payload)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "An unexpected error occurred"

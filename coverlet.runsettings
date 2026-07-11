@@ -5,7 +5,7 @@
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
           <Format>cobertura</Format>
-          <ExcludeByFile>**/Migrations/**,**/*.Designer.cs,**/*.generated.cs,**/*.g.cs</ExcludeByFile>
+          <ExcludeByFile>**/Migrations/**,**/*.Designer.cs,**/*.generated.cs,**/*.g.cs,**/MotorcycleRag.WebUI.BFF/**/Program.cs</ExcludeByFile>
           <ExcludeByAttribute>Obsolete,GeneratedCode,CompilerGenerated</ExcludeByAttribute>
           <Exclude>[MotorcycleRAG.*.Test*]*</Exclude>
           <Exclude>[xunit.*]*</Exclude>

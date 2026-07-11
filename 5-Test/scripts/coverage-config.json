@@ -1,0 +1,137 @@
+{
+  "thresholds": {
+    "fileLinePercent": 90.0,
+    "classLinePercent": 90.0
+  },
+  "coverageExclusions": {
+    "pathContains": [
+      "/Migrations/",
+      "\\Migrations\\",
+      ".Designer.cs",
+      ".generated.cs",
+      ".g.cs",
+      "/obj/",
+      "\\obj\\",
+      "/bin/",
+      "\\bin\\"
+    ],
+    "pathPrefixes": [
+      "5-Test/",
+      "5-Test\\"
+    ]
+  },
+  "suites": [
+    {
+      "name": "dotnet-unit",
+      "kind": "dotnet",
+      "project": "5-Test/tests/MotorcycleRAG.UnitTests/MotorcycleRAG.UnitTests.csproj",
+      "resultsSubdirectory": "dotnet-unit",
+      "supportedPlatforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "requiredInCi": true,
+      "sourceRoots": [
+        "0-Base/",
+        "1-Presentation/MotorcycleRAG.API/",
+        "2-Application/",
+        "3-Domain/",
+        "4-Persistence/",
+        "7-Deployment/AgentProvisioning/"
+      ],
+      "testRoots": [
+        "5-Test/tests/MotorcycleRAG.UnitTests/"
+      ]
+    },
+    {
+      "name": "bff-unit",
+      "kind": "dotnet",
+      "project": "5-Test/MotorcycleRag.WebUI.BFF.Tests/MotorcycleRag.WebUI.BFF.Tests.csproj",
+      "resultsSubdirectory": "bff-unit",
+      "supportedPlatforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "requiredInCi": true,
+      "sourceRoots": [
+        "1-Presentation/MotorcycleRag.WebUI.BFF/"
+      ],
+      "testRoots": [
+        "5-Test/MotorcycleRag.WebUI.BFF.Tests/"
+      ]
+    },
+    {
+      "name": "mobileapp-unit",
+      "kind": "dotnet",
+      "project": "5-Test/MotorcycleRAG.MobileApp.Tests/MotorcycleRAG.MobileApp.Tests.csproj",
+      "resultsSubdirectory": "mobileapp-unit",
+      "supportedPlatforms": [
+        "darwin",
+        "win32"
+      ],
+      "requiredInCi": true,
+      "sourceRoots": [
+        "1-Presentation/MotorcycleRAG.MobileApp/"
+      ],
+      "testRoots": [
+        "5-Test/MotorcycleRAG.MobileApp.Tests/"
+      ]
+    },
+    {
+      "name": "python-unit",
+      "kind": "python",
+      "workingDirectory": "2-Application/local-processing-service",
+      "resultsSubdirectory": "python-unit",
+      "supportedPlatforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "requiredInCi": true,
+      "sourceRoots": [
+        "2-Application/local-processing-service/src/"
+      ],
+      "testRoots": [
+        "2-Application/local-processing-service/tests/"
+      ]
+    },
+    {
+      "name": "admindesktop-unit",
+      "kind": "node",
+      "workingDirectory": "1-Presentation/MotorcycleRAG.AdminDesktop",
+      "resultsSubdirectory": "admindesktop-unit",
+      "supportedPlatforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "requiredInCi": true,
+      "sourceRoots": [
+        "1-Presentation/MotorcycleRAG.AdminDesktop/src/"
+      ],
+      "testRoots": [
+        "1-Presentation/MotorcycleRAG.AdminDesktop/src/"
+      ]
+    },
+    {
+      "name": "webui-unit",
+      "kind": "node",
+      "workingDirectory": "1-Presentation/MotorcycleRag.WebUI",
+      "resultsSubdirectory": "webui-unit",
+      "supportedPlatforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "requiredInCi": true,
+      "sourceRoots": [
+        "1-Presentation/MotorcycleRag.WebUI/src/"
+      ],
+      "testRoots": [
+        "1-Presentation/MotorcycleRag.WebUI/src/"
+      ]
+    }
+  ]
+}

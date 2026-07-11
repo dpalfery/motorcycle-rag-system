@@ -11,9 +11,22 @@ const { apiGet, apiPost, apiDelete } = vi.hoisted(() => ({
   apiPost: vi.fn(),
   apiDelete: vi.fn(),
 }));
+const { processorIsListening, processorStopJob } = vi.hoisted(() => ({
+  processorIsListening: vi.fn(),
+  processorStopJob: vi.fn(),
+}));
 
 vi.mock("@/lib/apiClient", () => ({
   api: { get: apiGet, post: apiPost, delete: apiDelete },
+}));
+vi.mock("@/lib/processor", () => ({
+  isMissingProcessorJobError: (error: unknown) =>
+    String(error).toLowerCase().includes("job not found"),
+  processor: {
+    isListening: processorIsListening,
+    stopJob: processorStopJob,
+    resumeProcessPdf: vi.fn(),
+  },
 }));
 
 /** Builds a minimal IngestionJobStatus; defaults to an awaiting-metadata PDF job. */
@@ -81,6 +94,8 @@ describe("JobsScreen — Enter Metadata button", () => {
     apiGet.mockReset();
     apiPost.mockReset();
     apiDelete.mockReset();
+    processorIsListening.mockReset().mockResolvedValue(false);
+    processorStopJob.mockReset().mockResolvedValue(undefined);
   });
   afterEach(() => cleanup());
 
@@ -168,6 +183,8 @@ describe("JobsScreen — source file name subtitle", () => {
     apiGet.mockReset();
     apiPost.mockReset();
     apiDelete.mockReset();
+    processorIsListening.mockReset().mockResolvedValue(false);
+    processorStopJob.mockReset().mockResolvedValue(undefined);
   });
   afterEach(() => cleanup());
 
@@ -219,5 +236,178 @@ describe("JobsScreen — source file name subtitle", () => {
     expect(subtitle).toBeInTheDocument();
     // The subtitle's title attribute carries the same value (used for the hover tooltip).
     expect(subtitle).toHaveAttribute("title", "owner-manual.pdf");
+  });
+
+  it("renders metadata fill rates and active job totals", async () => {
+    configureApiJobs([
+      makeJob({
+        id: 30,
+        jobId: "job-30",
+        status: "Processing",
+        make: "Honda",
+        model: "CBR600RR",
+        year: 2023,
+        category: "sport",
+        fillRate: 0.42,
+      }),
+      makeJob({
+        id: 31,
+        jobId: "job-31",
+        status: "Queued",
+        make: "Yamaha",
+        model: "MT-07",
+        fillRate: 0.75,
+      }),
+    ]);
+    renderScreen();
+
+    expect(await screen.findByText(/Honda CBR600RR/)).toBeInTheDocument();
+    expect(screen.getByText("42% complete")).toBeInTheDocument();
+    expect(screen.getByText("75% complete")).toBeInTheDocument();
+    expect(screen.getByText("Active").nextElementSibling).toHaveTextContent("2");
+  });
+
+  it("retries failed jobs and replaces a superseded job", async () => {
+    configureApiJobs([
+      makeJob({ id: 40, jobId: "job-40", status: "Failed", failureReason: "failed" }),
+    ]);
+    apiPost.mockResolvedValue({
+      data: makeJob({ id: 41, jobId: "job-41", status: "Queued" }),
+    });
+    renderScreen();
+    await screen.findByText("Job 40");
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith(
+      "/api/ingestion/jobs/job-40/retry",
+    ));
+  });
+
+  it("deletes completed jobs and refreshes the list", async () => {
+    configureApiJobs([
+      makeJob({ id: 50, jobId: "job-50", status: "Completed" }),
+    ]);
+    renderScreen();
+    await screen.findByText("Job 50");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(apiDelete).toHaveBeenCalledWith(
+      "/api/ingestion/jobs/job-50",
+    ));
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+    await waitFor(() => expect(apiGet.mock.calls.filter(
+      ([url]) => url === "/api/ingestion/jobs",
+    ).length).toBeGreaterThan(1));
+  });
+
+  it("shows conflict details when deletion is already underway", async () => {
+    configureApiJobs([
+      makeJob({ id: 60, jobId: "job-60", status: "Completed" }),
+    ]);
+    apiDelete.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: { detail: "Deletion is already underway." },
+      },
+    });
+    renderScreen();
+    await screen.findByText("Job 60");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText("Deletion is already underway.")).toBeInTheDocument();
+  });
+
+  it("renders empty and cloud API error states", async () => {
+    configureApiJobs([]);
+    const first = renderScreen();
+    expect(await screen.findByText("No jobs found.")).toBeInTheDocument();
+    first.unmount();
+
+    apiGet.mockReset().mockRejectedValue(new Error("API offline"));
+    renderScreen();
+    expect(await screen.findByText(/Could not load jobs: API offline/)).toBeInTheDocument();
+  });
+
+  it("cancels an active job before deleting it", async () => {
+    const active = makeJob({
+      id: 70,
+      jobId: "job-70",
+      status: "Processing",
+      docIngestionRunId: "run-70",
+    });
+    configureApiJobs([active]);
+    apiGet.mockImplementation(async (url: string) => {
+      if (url === "/api/ingestion/jobs") return { data: [active] };
+      if (url === "/api/ingestion/jobs/job-70") {
+        return { data: { ...active, status: "Cancelled" } };
+      }
+      return { data: {} };
+    });
+    renderScreen();
+    await screen.findByText("Job 70");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(apiPost).toHaveBeenCalledWith(
+        "/api/ingestion/jobs/job-70/cancel",
+      ),
+    );
+    expect(processorStopJob).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(apiDelete).toHaveBeenCalledWith("/api/ingestion/jobs/job-70"),
+    );
+  });
+
+  it("stops a local processor run before cancelling an active job", async () => {
+    const active = makeJob({
+      id: 71,
+      jobId: "job-71",
+      status: "Processing",
+      inputType: "manual-pdf",
+      docIngestionRunId: "run-71",
+      computeProvider: "LocalProcessor",
+    });
+    configureApiJobs([active]);
+    processorIsListening.mockResolvedValue(true);
+    apiGet.mockImplementation(async (url: string) => {
+      if (url === "/api/ingestion/jobs") return { data: [active] };
+      if (url === "/api/ingestion/jobs/job-71") {
+        return { data: { ...active, status: "Cancelled" } };
+      }
+      return { data: {} };
+    });
+    renderScreen();
+    await screen.findByText("Job 71");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(processorStopJob).toHaveBeenCalledWith("run-71", 8100),
+    );
+    await waitFor(() =>
+      expect(apiDelete).toHaveBeenCalledWith("/api/ingestion/jobs/job-71"),
+    );
+  });
+
+  it("shows and dismisses ordinary deletion failures", async () => {
+    configureApiJobs([
+      makeJob({ id: 72, jobId: "job-72", status: "Completed" }),
+    ]);
+    apiDelete.mockRejectedValue(new Error("permission denied"));
+    renderScreen();
+    await screen.findByText("Job 72");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    const message = await screen.findByText("permission denied");
+    fireEvent.click(message.parentElement!.querySelector("button")!);
+    await waitFor(() =>
+      expect(screen.queryByText("permission denied")).not.toBeInTheDocument(),
+    );
   });
 });

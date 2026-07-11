@@ -1,11 +1,13 @@
-# Admin Desktop — Local Processor
+# Local Processing Service — Admin Desktop Integration
+
+This document defines the Admin Desktop integration boundary for the Local Processing Service. For service ownership, lifecycle, and processing behavior, also read the [service architecture](architecture.md).
 
 All communication with the Python processor goes through Rust commands, not browser `fetch`. The Tauri webview cannot call `http://127.0.0.1` directly (CORS + mixed-content).
 
 ## Rust Commands
 
 | Command | What it does |
-|---|---|
+| --- | --- |
 | `processor_start(config)` | Spawns `python3 -m uvicorn main:app --host 127.0.0.1 --port {port}` in `{workingDir}/src` with env vars |
 | `processor_stop()` | POST `/control/shutdown` then kills the child process |
 | `processor_running()` | Returns whether a child handle exists |

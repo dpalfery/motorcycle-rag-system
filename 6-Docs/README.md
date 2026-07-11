@@ -25,7 +25,8 @@ This directory is the canonical home for detailed MotorcycleRAG documentation. S
 - [Operations runbooks](operations/)
 - [Reference material](reference/)
 - [Architecture placement rules](rules/architecture-general.md)
-- [Agent instructions](agent-instructions/)
+- [Agent governance](system/agent-governance.md)
+- [Security directives](system/security.md)
 
 ## Change history
 

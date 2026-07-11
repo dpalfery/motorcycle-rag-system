@@ -3,6 +3,7 @@ set -euo pipefail
 
 required_files=(
   "README.md"
+  "AGENTS.md"
   "6-Docs/README.md"
   "6-Docs/catalog.md"
   "6-Docs/documentation-standard.md"
@@ -25,12 +26,46 @@ required_files=(
   "CODEOWNERS"
 )
 
+required_agent_files=(
+  ".codex/AGENTS.md"
+  "0-Base/MotorcycleRAG.Core/AGENTS.md"
+  "1-Presentation/MotorcycleRAG.API/AGENTS.md"
+  "1-Presentation/MotorcycleRAG.AdminDesktop/AGENTS.md"
+  "1-Presentation/MotorcycleRAG.MobileApp/AGENTS.md"
+  "1-Presentation/MotorcycleRag.WebUI/AGENTS.md"
+  "1-Presentation/MotorcycleRag.WebUI.BFF/AGENTS.md"
+  "2-Application/MotorcycleRAG.Application/AGENTS.md"
+  "2-Application/local-processing-service/AGENTS.md"
+  "3-Domain/MotorcycleRAG.Contracts/AGENTS.md"
+  "3-Domain/MotorcycleRAG.Contracts.Models/AGENTS.md"
+  "3-Domain/MotorcycleRAG.Domain/AGENTS.md"
+  "4-Persistence/MotorcycleRAG.Persistence/AGENTS.md"
+  "5-Test/MotorcycleRAG.MobileApp.Tests/AGENTS.md"
+  "5-Test/tests/MotorcycleRAG.EndToEndTests/AGENTS.md"
+  "5-Test/tests/MotorcycleRAG.IntegrationTests/AGENTS.md"
+  "5-Test/tests/MotorcycleRAG.LoadTests/AGENTS.md"
+  "5-Test/tests/MotorcycleRAG.UnitTests/AGENTS.md"
+  "7-Deployment/infrastructure/AGENTS.md"
+)
+
 for file in "${required_files[@]}"; do
   if [[ ! -f "$file" ]]; then
     echo "Missing required documentation file: $file" >&2
     exit 1
   fi
 done
+
+for file in "${required_agent_files[@]}"; do
+  if [[ ! -f "$file" ]]; then
+    echo "Missing required agent instruction file: $file" >&2
+    exit 1
+  fi
+done
+
+while IFS= read -r file; do
+  echo "Lowercase agent instruction files are forbidden; rename to AGENTS.md: $file" >&2
+  exit 1
+done < <(find . \( -path './.git' -o -path './.kilo' \) -prune -o -type f -name 'agents.md' -print)
 
 components=(
   "MotorcycleRAG system"
@@ -71,6 +106,7 @@ done
 
 canonical_markdown=(
   "README.md"
+  "AGENTS.md"
   "CONTRIBUTING.md"
   "CODE_OF_CONDUCT.md"
   "SECURITY.md"
@@ -84,6 +120,10 @@ canonical_markdown=(
   "6-Docs/reference/skillforge.md"
   "2-Application/MotorcycleRAG.Application/Services/Caching/README.md"
 )
+
+while IFS= read -r file; do
+  canonical_markdown+=("$file")
+done < <(find . \( -path './.git' -o -path './.kilo' \) -prune -o -type f -name 'AGENTS.md' -print | sort)
 
 for directory in "6-Docs/system" "${application_docs[@]}"; do
   while IFS= read -r file; do
@@ -110,4 +150,4 @@ for file in "${canonical_markdown[@]}"; do
   done < <(grep -oE '\]\([^)]*\)' "$file" || true)
 done
 
-echo "Documentation structure, catalog, and local-link validation passed."
+echo "Documentation structure, agent instruction hierarchy, catalog, and local-link validation passed."

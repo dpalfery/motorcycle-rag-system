@@ -1,6 +1,12 @@
 repos:
   - repo: local
     hooks:
+      - id: validate-agent-instructions
+        name: Validate agent instruction hierarchy
+        entry: bash scripts/validate-docs.sh
+        language: system
+        files: '(^|/)AGENTS\.md$|^6-Docs/(system|AzureEnvironment|MotorcycleRAG.AdminDesktop|local-processing-service)/|^scripts/validate-docs\.sh$'
+        pass_filenames: false
       - id: skillforge-validate
         name: SkillForge Validate
         description: Run SkillForge validate, lint, and scan on all skill directories

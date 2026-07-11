@@ -1,6 +1,6 @@
 # Admin Desktop — Project Layout
 
-```
+```text
 src/
   main.tsx              Entry — wires QueryClient, BrowserRouter, config load, apiClient
   App.tsx               Auth gate: shows SignInScreen when !signedIn, AppShell+routes when signed in

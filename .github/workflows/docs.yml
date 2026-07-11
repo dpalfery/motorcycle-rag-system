@@ -6,6 +6,7 @@ on:
       - "**/*.md"
       - ".github/**"
       - "scripts/validate-docs.sh"
+      - "**/AGENTS.md"
       - ".markdownlint-cli2.yaml"
   push:
     branches: [main, develop]
@@ -13,6 +14,7 @@ on:
       - "**/*.md"
       - ".github/**"
       - "scripts/validate-docs.sh"
+      - "**/AGENTS.md"
       - ".markdownlint-cli2.yaml"
   workflow_dispatch:
 

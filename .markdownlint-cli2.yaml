@@ -5,6 +5,8 @@ config:
   MD041: false
 globs:
   - "README.md"
+  - "AGENTS.md"
+  - "**/AGENTS.md"
   - "CONTRIBUTING.md"
   - "CODE_OF_CONDUCT.md"
   - "SECURITY.md"
@@ -32,4 +34,5 @@ globs:
   - "2-Application/MotorcycleRAG.Application/Services/Caching/README.md"
 ignores:
   - ".git/**"
+  - ".kilo/**"
   - "**/node_modules/**"

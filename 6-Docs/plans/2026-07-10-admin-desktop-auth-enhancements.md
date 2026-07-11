@@ -104,8 +104,8 @@ The `pending-work.md` notes the redirect URI "needs to be added" — this is a p
 | T18 | 4-FE | Toaster | Mount `<Toaster />` from sonner in `main.tsx` (inside providers, after `<App />`). Wire toast calls in `useAuthExpiry.ts` (expiry warning) and `apiClient.ts` 401 interceptor (refresh failure). | `src/main.tsx`, `src/lib/useAuthExpiry.ts`, `src/lib/apiClient.ts` | react-dev |
 | T19 | 5-Test | Rust tests | Add `#[cfg(test)] mod tests` to `auth.rs`: test `StoredToken` serde round-trip, Chrome `Local State` parsing (mock JSON), scope construction includes `offline_access`, PKCE verifier/challenge non-empty, profile fallback when Chrome absent. | `src-tauri/src/auth.rs` | tauri-dev |
 | T20 | 5-Test | Frontend tests | Create `src/lib/auth.test.ts`: test `setSession`/`signOut` state transitions, `restoreSession` hydration from mock invoke, `refreshToken` store update. Create/update `apiClient` interceptor test: single-flight 401 refresh, retry with new token, sign-out on refresh failure. | `src/lib/auth.test.ts` (new), `src/lib/apiClient.test.ts` (new) | test-dev |
-| T21 | 6-Docs | Auth docs | Rewrite `auth.md`: document keyring storage model, scope with `offline_access`, refresh strategy (proactive + reactive), session restore, Chrome profile selection, sign-out flow, new Rust commands. | `6-Docs/agent-instructions/admin-desktop/auth.md` | docs-dev |
-| T22 | 6-Docs | Pending work | Update `pending-work.md`: mark Entra PKCE auth row as complete with all enhancements. | `6-Docs/agent-instructions/admin-desktop/pending-work.md` | docs-dev |
+| T21 | 6-Docs | Auth docs | Rewrite `authentication.md`: document keyring storage model, scope with `offline_access`, refresh strategy (proactive + reactive), session restore, Chrome profile selection, sign-out flow, new Rust commands. | `6-Docs/MotorcycleRAG.AdminDesktop/authentication.md` | docs-dev |
+| T22 | 6-Docs | Pending work | Update `admin-desktop-pending-work.md`: mark Entra PKCE auth row as complete with all enhancements. | `6-Docs/plans/admin-desktop-pending-work.md` | docs-dev |
 
 ---
 

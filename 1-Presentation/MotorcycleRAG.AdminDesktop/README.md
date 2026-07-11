@@ -17,3 +17,8 @@ The application also provides authenticated administration screens for processor
 - [Developer onboarding](../../6-Docs/MotorcycleRAG.AdminDesktop/onboarding.md)
 - [Architecture](../../6-Docs/MotorcycleRAG.AdminDesktop/architecture.md)
 - [Requirements](../../6-Docs/MotorcycleRAG.AdminDesktop/requirements.md)
+- [Authentication](../../6-Docs/MotorcycleRAG.AdminDesktop/authentication.md)
+- [Configuration](../../6-Docs/MotorcycleRAG.AdminDesktop/configuration.md)
+- [API client](../../6-Docs/MotorcycleRAG.AdminDesktop/api-client.md)
+- [Endpoint map](../../6-Docs/MotorcycleRAG.AdminDesktop/endpoint-map.md)
+- [UI conventions](../../6-Docs/MotorcycleRAG.AdminDesktop/ui-conventions.md)

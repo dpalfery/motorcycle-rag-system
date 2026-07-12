@@ -517,6 +517,61 @@ jobs:
         sarif_file: skillforge-kilo.sarif
 
   # ===========================================================================
+  # IaC SECURITY SCAN (runs on all nightly triggers)
+  # ===========================================================================
+
+  iac-scan:
+    name: "IaC Security Scan (Checkov)"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+
+    - name: Install Checkov
+      run: pip install checkov==3.3.8
+
+    - name: Run Checkov - Dockerfiles
+      run: |
+        checkov -d 7-Deployment \
+          --framework dockerfile \
+          --config-file 7-Deployment/scanning/.checkov.yaml \
+          --output sarif \
+          --output-file-path checkov-dockerfile.sarif
+      continue-on-error: true
+
+    - name: Run Checkov - GitHub Actions
+      run: |
+        checkov -d .github \
+          --framework github_actions \
+          --config-file 7-Deployment/scanning/.checkov.yaml \
+          --output sarif \
+          --output-file-path checkov-github-actions.sarif
+      continue-on-error: true
+
+    - name: Upload Dockerfile SARIF
+      uses: github/codeql-action/upload-sarif@v4
+      if: always() && hashFiles('checkov-dockerfile.sarif') != ''
+      with:
+        sarif_file: checkov-dockerfile.sarif
+        category: "nightly-checkov-dockerfile"
+
+    - name: Upload GitHub Actions SARIF
+      uses: github/codeql-action/upload-sarif@v4
+      if: always() && hashFiles('checkov-github-actions.sarif') != ''
+      with:
+        sarif_file: checkov-github-actions.sarif
+        category: "nightly-checkov-github-actions"
+
+  # ===========================================================================
   # SNYK JOBS (triggered by 3 AM schedule or workflow_dispatch)
   # ===========================================================================
 
@@ -680,7 +735,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, end-to-end-tests, azure-integration-tests, load-tests, performance-analysis, skill-gate, snyk-sca-sast, snyk-container-api, snyk-container-ui, snyk-container-processor]
+    needs: [unit-tests, integration-tests, end-to-end-tests, azure-integration-tests, load-tests, performance-analysis, skill-gate, iac-scan, snyk-sca-sast, snyk-container-api, snyk-container-ui, snyk-container-processor]
     if: always()
 
     steps:
@@ -704,6 +759,7 @@ jobs:
         echo "| Load Tests | ${{ needs.load-tests.result }} | Performance under load validation |" >> test-summary.md
         echo "| Performance Analysis | ${{ needs.performance-analysis.result }} | Performance metrics analysis |" >> test-summary.md
         echo "| Skill Gate | ${{ needs.skill-gate.result }} | SkillForge validation |" >> test-summary.md
+        echo "| IaC Security Scan | ${{ needs.iac-scan.result }} | Checkov IaC scan |" >> test-summary.md
         echo "| Snyk SCA + SAST | ${{ needs.snyk-sca-sast.result }} | Dependency & code security scan |" >> test-summary.md
         echo "| Snyk Container (API) | ${{ needs.snyk-container-api.result }} | API container security scan |" >> test-summary.md
         echo "| Snyk Container (UI) | ${{ needs.snyk-container-ui.result }} | UI container security scan |" >> test-summary.md

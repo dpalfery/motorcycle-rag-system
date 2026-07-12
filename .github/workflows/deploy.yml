@@ -60,6 +60,33 @@ jobs:
         env:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
+      # ── CrossGuard Policy Pack (advisory IaC security scan) ───────
+      - name: Build CrossGuard Policy Pack
+        working-directory: 7-Deployment/scanning/policy-packs/azure
+        run: |
+          npm ci
+          npm run build
+
+      - name: Pulumi Preview (CrossGuard Policy Scan)
+        uses: pulumi/actions@v7
+        with:
+          command: preview
+          stack-name: ${{ env.PULUMI_STACK }}
+          work-dir: ${{ env.PULUMI_WORK_DIR }}
+          policyPacks: ${{ github.workspace }}/7-Deployment/scanning/policy-packs/azure
+          non-interactive: true
+          diff: true
+        continue-on-error: true  # Advisory mode — scan results are informational only; never block deploys
+        env:
+          PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT_PULUMI }}
+          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY_PULUMI }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       # ── Pulumi Up (creates ACR and all infrastructure) ─────────────
       - name: Pulumi Up
         uses: pulumi/actions@v7

@@ -16,6 +16,13 @@
 - `pulumi preview` is allowed after the root Azure guard rail. Local `pulumi up` and `pulumi destroy` are forbidden; deployment occurs only through GitHub Actions.
 - Do not run Azure write commands, direct Docker builds/pushes, or ACR builds. Do not expose secrets in outputs, state, or logs.
 
+## Security Scanning
+
+Infrastructure code is scanned by two complementary tools:
+
+- **Pulumi CrossGuard** — TypeScript policy pack at `../scanning/policy-packs/azure/` runs during `deploy.yml` as an advisory scan before `pulumi up`. See `../scanning/README.md` for local-run commands and rule documentation.
+- **Checkov** — Scans Dockerfiles and GitHub Actions workflows during PR gate and nightly runs. See `../scanning/README.md` for configuration and findings baseline.
+
 ## Verify
 
 Run the applicable static checks and `pulumi preview` only when authorized by the root Azure guard rail.

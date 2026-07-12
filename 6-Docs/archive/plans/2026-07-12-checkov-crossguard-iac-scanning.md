@@ -1,7 +1,8 @@
 # Checkov + Pulumi CrossGuard IaC/Container/CI Security Scanning
 
-**Status:** Draft
+**Status:** Archived
 **Date:** 2026-07-12
+**Archived:** 2026-07-12
 **Goal:** Add security/compliance scanning for the Pulumi IaC (via Pulumi CrossGuard) and for the Dockerfiles and GitHub Actions workflows (via Checkov), integrated into the existing GitHub Actions pipeline.
 
 ---
@@ -87,12 +88,12 @@ A second, independent blocker: this repo's Pulumi program is **C#** (`7-Deployme
 1 (scaffold) ──┬─► 2 (policy rules) ──┬─► 3 (deploy.yml CrossGuard)
                │                       │
                └─► 4 (checkov config) ─┴─► 5 (pr-gate + nightly Checkov)
-                                              │
-                                              ▼
-                                            6 (remediate/triage) ──► 7 (docs)
-                                                                       │
-                                                                       ▼
-                                                                     8 (review) ──► 9 (closeout)
+                                               │
+                                               ▼
+                                             6 (remediate/triage) ──► 7 (docs)
+                                                                        │
+                                                                        ▼
+                                                                      8 (review) ──► 9 (closeout)
 ```
 
 - Task 1 blocks 2 and 4 (scaffolding precedes pack code and Checkov config).

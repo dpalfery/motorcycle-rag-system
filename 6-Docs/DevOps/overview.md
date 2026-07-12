@@ -98,6 +98,7 @@ flowchart LR
     P0 -->|code changed| P1B[Phase 1<br/>build-test]
     P0 -->|docs changed| P1D[Phase 1<br/>docs-quality]
     
+    P0 -->|infra changed| P2I[Phase 2<br/>iac-scan]
     P1B --> P2C[Phase 2<br/>codeql]
     P1B --> P2T[Phase 2<br/>trivy]
     P1B --> P2M[Phase 2<br/>semgrep]
@@ -120,6 +121,7 @@ flowchart LR
     P2C --> GATE
     P2T --> GATE
     P2M --> GATE
+    P2I --> GATE
     P3I --> GATE
     P3E --> GATE
     P3U --> GATE
@@ -142,6 +144,7 @@ flowchart LR
 - `codeql`: Initializes CodeQL with `security-extended` queries for C#, restores + builds, and runs the CodeQL analysis. Runs only when `code` or `infra` changed.
 - `trivy`: Downloads the pinned, SHA-256-verified Trivy CLI and fails the gate for high or critical dependency, misconfiguration, secret, or license findings. Uploads SARIF to GitHub Security. Runs only when `code` or `infra` changed.
 - `semgrep`: Installs the pinned Semgrep Community Edition CLI and fails the gate for `ERROR` security-rule findings. Telemetry is disabled and SARIF is uploaded to GitHub Security. Runs only when `code` or `infra` changed.
+- `iac-scan`: Runs Checkov against Dockerfiles and GitHub Actions workflows. Results are uploaded as SARIF to GitHub Security. Runs only when `infra` changed. Soft-fail mode (advisory) — findings never fail the gate.
 
 #### Phase 3 — Deep validation (needs security gate pass)
 
@@ -177,6 +180,10 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 - `performance-analysis`: Generates a performance report from E2E and load test results.
 - `skill-gate`: Same SkillForge validation as the PR gate, but runs after unit tests (not blocking deployment).
 
+**IaC security scan (runs on all triggers, 2 AM + 3 AM):**
+
+- `iac-scan`: Runs Checkov against Dockerfiles and GitHub Actions workflows for comprehensive scanning regardless of changed files. Results are uploaded as SARIF to GitHub Security. Soft-fail mode (advisory) — findings logged but do not fail the run.
+
 **Snyk security jobs (3 AM trigger):**
 
 - `snyk-sca-sast`: Full Snyk SCA + SAST scan with SARIF upload to GitHub Security.
@@ -192,13 +199,14 @@ Unchanged. Runs on push to `main` or `develop`:
 
 1. Builds the React UI and copies assets to the BFF's `wwwroot`.
 2. Azure login with OIDC (service principal).
-3. `pulumi up` against the `dev` stack: creates/updates the Azure Resource Group, Container Registry, Container App Environment, and all supporting resources.
-4. Reads Pulumi outputs (ACR server, resource group, app names, Key Vault URI, Foundry endpoint, model deployments).
-5. Runs database schema migrations via `sqlcmd` against Azure SQL.
-6. ACR login, Docker build & push for API and UI images (tagged with `latest` and commit SHA).
-7. Updates Container App revisions to pull fresh images.
-8. Provisions custom domain managed certificates for `motorag.api.palfery.com` and `motorag.palfery.com` (CNAME validation, polling up to 20 minutes).
-9. Provisions Foundry agents via `AgentProvisioning` CLI and writes agent reference IDs to Key Vault.
+3. CrossGuard policy scan: Builds the TypeScript policy pack (`7-Deployment/scanning/policy-packs/azure/`) and runs `pulumi preview --policy-pack` as an advisory scan. Scan results are informational and never block deployment (`continue-on-error: true`).
+4. `pulumi up` against the `dev` stack: creates/updates the Azure Resource Group, Container Registry, Container App Environment, and all supporting resources.
+5. Reads Pulumi outputs (ACR server, resource group, app names, Key Vault URI, Foundry endpoint, model deployments).
+6. Runs database schema migrations via `sqlcmd` against Azure SQL.
+7. ACR login, Docker build & push for API and UI images (tagged with `latest` and commit SHA).
+8. Updates Container App revisions to pull fresh images.
+9. Provisions custom domain managed certificates for `motorag.api.palfery.com` and `motorag.palfery.com` (CNAME validation, polling up to 20 minutes).
+10. Provisions Foundry agents via `AgentProvisioning` CLI and writes agent reference IDs to Key Vault.
 
 ### 4.4 Claude PR Assistant (`claude.yml`)
 
@@ -213,7 +221,7 @@ The following individual workflows were replaced by the unified `pr-gate.yml` an
 | `codeql.yml` | `pr-gate.yml` (Phase 2 `codeql` job) + `nightly.yml` (weekly CodeQL fallback schedule) |
 | `comprehensive-testing.yml` | `pr-gate.yml` (Phase 1 `build-test`, Phase 3 `integration`, `e2e`) + `nightly.yml` (full nightly matrix) |
 | `docs.yml` | `pr-gate.yml` (Phase 1 `docs-quality` job) |
-| `snyk.yml` | `pr-gate.yml` (Phase 2 `snyk` job) + `nightly.yml` (3 AM container + SCA+SAST scans) |
+| `snyk.yml` | `nightly.yml` (3 AM SCA+SAST + container scans) |
 
 ---
 

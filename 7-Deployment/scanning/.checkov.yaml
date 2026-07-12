@@ -1,0 +1,20 @@
+# Checkov configuration for MotorcycleRAG IaC scanning
+# Frameworks: dockerfile, github_actions
+# Enforcement: soft-fail (advisory) — findings logged but do not block CI
+
+framework:
+  - dockerfile
+  - github_actions
+
+soft-fail: true
+
+output:
+  - cli
+  - sarif
+
+# Skip checks (documented with justification)
+# Triage decisions documented in 7-Deployment/scanning/README.md
+skip-check:
+  - CKV_DOCKER_2  # Azure Container Apps health probes make Dockerfile HEALTHCHECK redundant
+  - CKV_DOCKER_3  # dotnet/aspnet:10.0 base image already runs as non-root 'app' user (UID 1654)
+  - CKV_GHA_7     # workflow_dispatch inputs are boolean test toggles with safe defaults

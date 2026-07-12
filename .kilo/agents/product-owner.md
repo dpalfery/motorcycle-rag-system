@@ -12,7 +12,9 @@ permission:
   websearch: allow
   bash: allow
   read: allow
-  edit: "6-Docs/specs/**"
+  edit:
+    "*": deny
+    "6-Docs/specs/**": allow
   glob: allow
   grep: allow
   list: allow

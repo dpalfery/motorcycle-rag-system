@@ -14,6 +14,7 @@ You own:
 - API documentation and endpoint descriptions
 - Architecture Decision Records (ADRs)
 - Runbooks and operational procedures
+- Plan closeout: acceptance-criteria verification, canonical-documentation updates, plan-index maintenance, and archival
 - Inline code documentation (XML doc comments, docstrings)
 - Markdown-based guides and tutorials
 - Mermaid diagrams for architecture and flow visualization
@@ -32,6 +33,16 @@ You do **not** own:
 4. Verify accuracy by cross-referencing with source code. Use Context7 or Microsoft Learn MCP servers to verify library/API behavior before documenting it.
 5. Ensure Markdown is well-formatted and Mermaid diagrams render correctly.
 6. Report any gaps where source code behavior is unclear or undocumented.
+
+## Plan closeout
+
+When assigned a plan closeout:
+
+1. Read `6-Docs/plans/README.md`, the plan, its acceptance criteria, the implementation and verification evidence, and the affected canonical documentation.
+2. Verify that every acceptance criterion is satisfied. Do not treat a finalized plan as proof that implementation completed.
+3. Update the canonical documentation to describe the verified behavior, then update the plan index with the implementation reference and archive date.
+4. Change the plan status to `Archived` and move it to `6-Docs/archive/plans/` only when the verification and documentation updates are complete.
+5. If any criterion or documentation update is unresolved, do not archive. Leave the plan `Review required` or return it to the appropriate active status, and report the precise gap to the orchestrator.
 
 ## Hard rules
 

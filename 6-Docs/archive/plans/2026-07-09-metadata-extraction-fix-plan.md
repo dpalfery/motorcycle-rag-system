@@ -1,6 +1,6 @@
 # Metadata Extraction Fix — Implementation Plan
 
-**Status:** Final  
+**Status:** Review required
 **Date:** 2026-07-09  
 **Goal:** Fix the three symptoms (LM Studio errors, dead-end UI, no metadata visibility) and finish the last missing pieces of the metadata extraction pipeline.
 

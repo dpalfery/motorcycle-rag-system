@@ -38,12 +38,14 @@
 
 | Region | Code |
 | --- | --- |
+| Australia East | `aue` |
+| Central US | `cus` |
 | East US | `eus` |
 | East US 2 | `eus2` |
-| West Europe | `weu` |
 | North Europe | `neu` |
 | UK South | `uks` |
-| Australia East | `aue` |
+| West Central US | `wcus` |
+| West Europe | `weu` |
 
 _For the full list, refer to the CAF article._
 

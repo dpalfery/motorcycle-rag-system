@@ -80,7 +80,7 @@ components=(
 )
 
 for component in "${components[@]}"; do
-  if ! rg --fixed-strings --quiet "$component" 6-Docs/catalog.md; then
+  if ! grep -Fq "$component" 6-Docs/catalog.md; then
     echo "Catalog is missing component: $component" >&2
     exit 1
   fi

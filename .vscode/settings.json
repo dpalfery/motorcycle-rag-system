@@ -95,5 +95,16 @@
     "github.copilot.chat.cli.autoCommit.enabled": false,
     "inlineChat.defaultModel": "rogueone//qwen3.5-9bt (customendpoint)",
     "chat.exploreAgent.defaultModel": "rogueone//qwen3.5-9bt (customendpoint)",
-    "chat.newSession.defaultMode": "orchestrator"
+    "chat.newSession.defaultMode": "orchestrator",
+    "python.defaultInterpreterPath": "${workspaceFolder}/2-Application/local-processing-service/.venv/bin/python",
+    "python.testing.cwd": "${workspaceFolder}/2-Application/local-processing-service",
+    "python.testing.pytestPath": "${workspaceFolder}/2-Application/local-processing-service/.venv/bin/pytest",
+    "python.testing.pytestArgs": [
+        "tests",
+        "--ignore=tests/integration",
+        "-m",
+        "not slow"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }

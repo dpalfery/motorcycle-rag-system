@@ -547,7 +547,7 @@ jobs:
 
     - name: Generate poetry.lock for Snyk
       working-directory: 2-Application/local-processing-service
-      run: poetry lock --no-update
+      run: poetry lock
 
     # Pin Snyk CLI for reproducible scans — update manually or via Dependabot
     - name: Install Snyk CLI

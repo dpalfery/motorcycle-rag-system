@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python compatible with the Poetry project and a local virtual environment. Use the service virtual environment for tests when it exists.
+- Python 3.10 or later, compatible with the Poetry project, and a local virtual environment. Use the service virtual environment for tests when it exists.
 - Poetry or an equivalent installation process for `pyproject.toml` dependencies, including FastAPI, Uvicorn, Docling, tokenizers, and the configured storage/identity clients.
 - A reachable embedding provider. LM Studio's OpenAI-compatible endpoint is the default local provider; Ollama and other supported OpenAI-compatible endpoints are configuration options.
 - A configured tokenizer model path or discoverable local model for PDF chunking.

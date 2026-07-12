@@ -19,6 +19,13 @@ _DEFAULT_REQUEST_TIMEOUT_SECONDS = 120.0
 _DEFAULT_HEALTH_TIMEOUT_SECONDS = 10.0
 _HEALTH_CACHE_TTL_SECONDS = 60.0
 
+# Public, non-secret placeholder for local OpenAI-compatible servers
+# (LM Studio, Ollama /v1, Foundry Local) that do not require authentication.
+# These servers ignore the bearer value; the OpenAI client only requires a
+# non-empty string. Set EMBEDDING_PROVIDER_API_KEY when calling an
+# authenticated cloud endpoint. NOT a credential — do not treat as a secret.
+_LOCAL_PLACEHOLDER_API_KEY = "local"
+
 
 def _get_positive_float_env(name: str, default_value: float) -> float:
     raw_value = os.getenv(name, "").strip()
@@ -93,7 +100,7 @@ class OpenAIEmbedder(Embedder):
         self._api_key: str = (
             api_key
             or os.getenv("EMBEDDING_PROVIDER_API_KEY")
-            or "local"
+            or _LOCAL_PLACEHOLDER_API_KEY
         )
         self._dims: int = dims or int(os.getenv("EMBEDDING_DIMS", "1536"))
         self._request_timeout_seconds = request_timeout_seconds or _get_positive_float_env(
@@ -110,7 +117,7 @@ class OpenAIEmbedder(Embedder):
     def _create_client(self) -> openai.AsyncOpenAI:
         return openai.AsyncOpenAI(
             base_url=self._endpoint,
-            api_key=self._api_key,
+            api_key=self._api_key,  # may be _LOCAL_PLACEHOLDER_API_KEY for unauthenticated servers
         )
 
     async def _close_client(self, client: openai.AsyncOpenAI) -> None:

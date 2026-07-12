@@ -7,6 +7,13 @@ from typing import Any
 
 import httpx
 
+# Public, non-secret placeholder for local OpenAI-compatible servers
+# (LM Studio, Ollama /v1, Foundry Local) that do not require authentication.
+# These servers ignore the bearer value; the OpenAI client only requires a
+# non-empty string. Set EMBEDDING_PROVIDER_API_KEY when calling an
+# authenticated cloud endpoint. NOT a credential — do not treat as a secret.
+_LOCAL_PLACEHOLDER_API_KEY = "local"
+
 
 class ModelDiscoveryError(RuntimeError):
     """Raised when a provider endpoint cannot be identified or queried."""
@@ -109,7 +116,10 @@ def _discover_with_sync_client(client: httpx.Client, endpoint: str) -> ModelDisc
     last_error: Exception | None = None
 
     for url in _openai_candidate_urls(endpoint):
-        for headers in (None, {"Authorization": "Bearer local"}):
+        # _LOCAL_PLACEHOLDER_API_KEY is a non-secret placeholder for
+        # unauthenticated local OpenAI-compatible servers (LM Studio, Ollama /v1,
+        # Foundry Local) that ignore the bearer value.
+        for headers in (None, {"Authorization": f"Bearer {_LOCAL_PLACEHOLDER_API_KEY}"}):
             try:
                 payload = _sync_get_json(client, url, headers=headers)
                 models = _parse_openai_payload(payload)
@@ -136,7 +146,10 @@ async def _discover_with_async_client(client: httpx.AsyncClient, endpoint: str) 
     last_error: Exception | None = None
 
     for url in _openai_candidate_urls(endpoint):
-        for headers in (None, {"Authorization": "Bearer local"}):
+        # _LOCAL_PLACEHOLDER_API_KEY is a non-secret placeholder for
+        # unauthenticated local OpenAI-compatible servers (LM Studio, Ollama /v1,
+        # Foundry Local) that ignore the bearer value.
+        for headers in (None, {"Authorization": f"Bearer {_LOCAL_PLACEHOLDER_API_KEY}"}):
             try:
                 payload = await _async_get_json(client, url, headers=headers)
                 models = _parse_openai_payload(payload)

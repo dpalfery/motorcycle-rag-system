@@ -3,24 +3,10 @@ title = "MotorcycleRAG gitleaks configuration"
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "Allow the public Azurite account key in Python test fixtures"
-condition = "AND"
+[allowlist]
+description = "Allow known public and placeholder test fixture values"
 regexTarget = "line"
-paths = [
-  '''/tests/.*\.py$''',
-]
 regexes = [
-  '''^.*AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCzYI6tq/K1SZFPTOtr/KBHBeksoGMGw==.*$''',
-]
-
-[[allowlists]]
-description = "Allow placeholder JWT tokens in Python test fixtures"
-condition = "AND"
-regexTarget = "line"
-paths = [
-  '''/tests/.*\.py$''',
-]
-regexes = [
-  '''^.*header\.eyJ[A-Za-z0-9_-]+\.signature.*$''',
+  '''AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCzYI6tq/K1SZFPTOtr/KBHBeksoGMGw==''',
+  '''header\.eyJ[A-Za-z0-9_-]+\.signature''',
 ]

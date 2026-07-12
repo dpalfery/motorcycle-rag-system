@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -212,7 +212,7 @@ jobs:
             6-Docs/reference/README.md 6-Docs/reference/skillforge.md
 
       - name: Scan documentation changes for secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -239,7 +239,6 @@ jobs:
         with:
           languages: csharp
           queries: security-extended
-          category: "/language:csharp"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5

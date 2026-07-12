@@ -5,6 +5,10 @@
         "explore": {
             "model": "opencode/deepseek-v4-flash-free",
             "reasoningEffort": "low"
+        },
+        "general": {
+            "model": "opencode/deepseek-v4-flash-free",
+            "reasoningEffort": "high"
         }
     },
     "provider": {
@@ -31,15 +35,29 @@
         },
         "playwright": {
             "type": "local",
-            "command": ["npx", "-y", "@playwright/mcp@latest"]
+            "command": [
+                "npx",
+                "-y",
+                "@playwright/mcp@latest"
+            ]
         },
         "azure-mcp": {
             "type": "local",
-            "command": ["npx", "-y", "@azure/mcp@latest", "server", "start"]
+            "command": [
+                "npx",
+                "-y",
+                "@azure/mcp@latest",
+                "server",
+                "start"
+            ]
         },
         "github": {
             "type": "local",
-            "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+            "command": [
+                "npx",
+                "-y",
+                "@modelcontextprotocol/server-github"
+            ],
             "environment": {
                 "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}"
             }

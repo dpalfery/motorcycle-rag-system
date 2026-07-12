@@ -18,6 +18,14 @@ Read the full [working agreement](6-Docs/system/agent-governance.md), [security 
 
 Before changing a cataloged component, read the [documentation standard](6-Docs/documentation-standard.md), [component catalog](6-Docs/catalog.md), the source-root README, and the component's detailed documentation. Update canonical documentation when the public interface, configuration, architecture, runtime, operations, or workflow changes.
 
+## Plan closeout
+
+For plan-backed work, implementation completion does not close the plan. After implementation verification is complete, the orchestrator SHALL assign a `docs-dev` plan-closeout task before reporting the work complete. The documentation specialist SHALL verify the plan's acceptance criteria against the implementation evidence, update the affected canonical documentation, and maintain the [plan index](6-Docs/plans/README.md). Only then may it archive the plan under `6-Docs/archive/plans/` with status `Archived`; otherwise the plan remains `Review required` or returns to an active status. The documentation standard defines the detailed lifecycle.
+
+## Agent configuration synchronization
+
+Shared agent-role behavior SHALL remain synchronized across all six supported development-tool configurations: Codex (`.codex/agents/`), Cursor (`.cursor/agents/`), GitHub Copilot (`.github/agents/`), OpenCode (`.opencode/agents/`), Kilo (`.kilo/agents/`), and Claude (`.claude/agents/`). When changing an agent's instructions, scope, workflow, responsibilities, or policy, update the corresponding role in every one of these locations in the same change. Platform-specific metadata such as model names, tools, permissions, and front matter may differ, but the role behavior must remain equivalent. If a required counterpart is missing or cannot represent the change, resolve or explicitly report the discrepancy before claiming the agent update is complete.
+
 Before creating, moving, renaming, or placing source/test files, or changing namespaces, project references, DTO placement, interfaces, or layer boundaries, read the [architecture placement rules](6-Docs/rules/architecture-general.md).
 
 `6-Docs/archive/` is historical only: do not follow, cite, or copy it as current guidance.

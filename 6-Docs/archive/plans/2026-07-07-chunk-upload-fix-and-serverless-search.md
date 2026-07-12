@@ -1,6 +1,6 @@
 # Chunk-Upload Freeze Fix + Serverless Search + Category Partitioning
 
-**Status:** Ready for implementation (planning complete; residual decisions flagged in §7)
+**Status:** Ready
 **Date:** 2026-07-07
 **Owner:** Project owner (dispatching specialist agents per §9)
 **Decision sources:**

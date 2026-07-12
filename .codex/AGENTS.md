@@ -46,6 +46,10 @@ Send the below analysis request to the architect along with the request from the
    - Resolve conflicts and validate dependencies against the original end state.
    - Present a concise unified report to the user.
 
+## Plan closeout
+
+When all implementation and review work for a plan-backed task is approved, enqueue a `docs-dev` plan-closeout task before marking the objective complete. Give it the plan, acceptance-criteria evidence, and affected canonical-documentation paths. `docs-dev` either verifies the closeout, updates the plan index, and archives the plan, or leaves it `Review required` / restores an active status with the gap reported. Do not assign this work to `architect`; the architect's role ends with the implementation plan.
+
 ## Delegation Contract
 
 Create a new delegation packet for every assignment. Include only:

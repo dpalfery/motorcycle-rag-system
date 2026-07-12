@@ -1,6 +1,6 @@
 # Pipeline Logging Audit + Graph Extraction Batching
 
-**Status:** Final
+**Status:** Review required
 **Date:** 2026-07-10
 **Goal:** Add per-call LLM telemetry and per-stage timing across the PDF pipeline, and replace the single full-document graph-extraction LLM call with batched + deduped extraction so `phi-4-reasoning-plus` reliably produces a non-empty knowledge graph for long manuals.
 

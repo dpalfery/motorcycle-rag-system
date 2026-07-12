@@ -1,0 +1,615 @@
+name: PR Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  schedule:
+    # Weekly CodeQL fallback — Monday 00:00 UTC (carried over from original codeql.yml)
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: pr-gate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  checks: write
+  pull-requests: write
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # Phase 0 — path classification (~15s, ubuntu)
+  # ─────────────────────────────────────────────────────────────────────
+  changes:
+    name: Classify Changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.flags.outputs.code }}
+      docs: ${{ steps.flags.outputs.docs }}
+      infra: ${{ steps.flags.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**/*.cs'
+              - '**/*.csproj'
+              - '**/*.sln'
+              - '2-Application/local-processing-service/**/*.py'
+              - '1-Presentation/**/*.{ts,tsx}'
+              - '**/package.json'
+              - '**/package-lock.json'
+              - '**/pyproject.toml'
+              - '**/poetry.lock'
+            docs:
+              - '**/*.md'
+              - '**/AGENTS.md'
+              - 'scripts/validate-docs.sh'
+              - '.markdownlint-cli2.yaml'
+            infra:
+              - '.github/**'
+              - '7-Deployment/**'
+
+      # Aggregate flags: schedule/dispatch bypass path filter (no PR diff available)
+      - name: Aggregate change flags
+        id: flags
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "docs=true" >> "$GITHUB_OUTPUT"
+            echo "infra=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=${{ steps.filter.outputs.code }}" >> "$GITHUB_OUTPUT"
+            echo "docs=${{ steps.filter.outputs.docs }}" >> "$GITHUB_OUTPUT"
+            echo "infra=${{ steps.filter.outputs.infra }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Phase 1 — build + unit tests (if code changed)
+  # ─────────────────────────────────────────────────────────────────────
+  build-test:
+    name: Build & Unit Tests (Linux)
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: 'MotorcycleRAG.sln'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 1-Presentation/MotorcycleRAG.AdminDesktop/package-lock.json
+
+      - name: Restore dependencies
+        run: dotnet restore MotorcycleRAG.sln
+
+      - name: Install Python coverage dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-asyncio pytest-cov
+
+      - name: Install Admin Desktop dependencies
+        run: npm ci
+        working-directory: 1-Presentation/MotorcycleRAG.AdminDesktop
+
+      - name: Run unified unit coverage
+        run: |
+          python3 5-Test/scripts/run_unit_coverage.py \
+            --results-dir TestResults/UnitCoverage \
+            --configuration Release \
+            --suite dotnet-unit \
+            --suite bff-unit \
+            --suite python-unit \
+            --suite admindesktop-unit
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: unit-coverage-linux-results
+          path: TestResults/UnitCoverage/
+          retention-days: 14
+
+      - name: Build solution for downstream jobs
+        run: dotnet build MotorcycleRAG.sln --configuration Release --no-restore
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-output
+          path: |
+            MotorcycleRAG.API/bin/
+            MotorcycleRAG.API/obj/
+            MotorcycleRAG.Application/bin/
+            MotorcycleRAG.Application/obj/
+            MotorcycleRAG.Contracts/bin/
+            MotorcycleRAG.Contracts/obj/
+            MotorcycleRAG.Core/bin/
+            MotorcycleRAG.Core/obj/
+            MotorcycleRAG.Domain/bin/
+            MotorcycleRAG.Domain/obj/
+            MotorcycleRAG.Persistence/bin/
+            MotorcycleRAG.Persistence/obj/
+            MotorcycleRag.WebUI.BFF/bin/
+            MotorcycleRag.WebUI.BFF/obj/
+            MotorcycleRAG.IntegrationTests/bin/
+            MotorcycleRAG.IntegrationTests/obj/
+            MotorcycleRAG.EndToEndTests/bin/
+            MotorcycleRAG.EndToEndTests/obj/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Phase 1 — docs quality (if docs changed, parallel with build-test)
+  # ─────────────────────────────────────────────────────────────────────
+  docs-quality:
+    name: Documentation Quality
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.docs == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Lint Markdown
+        run: npx --yes markdownlint-cli2
+
+      - name: Validate documentation catalog and structure
+        run: bash scripts/validate-docs.sh
+
+      - name: Check internal documentation links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --offline --no-progress
+            README.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md SUPPORT.md
+            1-Presentation/MotorcycleRAG.API/README.md
+            1-Presentation/MotorcycleRAG.AdminDesktop/README.md
+            1-Presentation/MotorcycleRAG.MobileApp/README.md
+            1-Presentation/MotorcycleRag.WebUI/README.md
+            2-Application/local-processing-service/README.md
+            2-Application/MotorcycleRAG.Application/Services/Caching/README.md
+            7-Deployment/README.md 7-Deployment/DbSetup/README.md
+            7-Deployment/tools/SkillForge/README.md
+            6-Docs/README.md 6-Docs/catalog.md 6-Docs/documentation-standard.md
+            6-Docs/system 6-Docs/MotorcycleRAG.API 6-Docs/MotorcycleRAG.AdminDesktop
+            6-Docs/MotorcycleRAG.MobileApp 6-Docs/MotorcycleRag.WebUI
+            6-Docs/local-processing-service 6-Docs/AzureEnvironment
+            6-Docs/deployment/README.md 6-Docs/deployment/database-setup.md
+            6-Docs/reference/README.md 6-Docs/reference/skillforge.md
+
+      - name: Scan documentation changes for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Phase 2 — security gate (needs build-test success)
+  # ─────────────────────────────────────────────────────────────────────
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    needs: [changes, build-test]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
+
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: csharp
+          queries: security-extended
+          category: "/language:csharp"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: 'MotorcycleRAG.sln'
+
+      - name: Build solution
+        run: |
+          dotnet restore MotorcycleRAG.sln
+          dotnet build MotorcycleRAG.sln --configuration Release --no-restore
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:csharp"
+
+  snyk:
+    name: Snyk SCA + SAST
+    runs-on: ubuntu-latest
+    needs: [changes, build-test]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Generate poetry.lock for Snyk
+        working-directory: 2-Application/local-processing-service
+        run: poetry lock --no-update
+
+      # Pin Snyk CLI for reproducible scans — update manually or via Dependabot
+      - name: Install Snyk CLI
+        run: npm install -g snyk@1.1293.0
+
+      - name: Snyk SCA (dependency scan)
+        run: snyk test --severity-threshold=high --all-projects --exclude=".kilo,.opencode,.pnpm-store" --sarif-file-output=snyk-sca.sarif
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload SCA SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('snyk-sca.sarif') != ''
+        with:
+          sarif_file: snyk-sca.sarif
+          category: snyk-sca
+
+      - name: Snyk SAST (code scan)
+        run: snyk code test --severity-threshold=high --sarif-file-output=snyk-sast.sarif
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload SAST SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('snyk-sast.sarif') != ''
+        with:
+          sarif_file: snyk-sast.sarif
+          category: snyk-sast
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Phase 3 — deep validation (needs security gate pass)
+  # ─────────────────────────────────────────────────────────────────────
+  unit-mobile:
+    name: Unit Coverage (Mobile)
+    runs-on: macos-latest
+    needs: [changes, build-test, codeql, snyk]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select Xcode 26.5
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.5'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui
+
+      - name: Restore dependencies
+        run: dotnet restore MotorcycleRAG.sln
+
+      - name: Run mobile unit coverage
+        run: |
+          python3 5-Test/scripts/run_unit_coverage.py \
+            --results-dir TestResults/UnitCoverage \
+            --configuration Release \
+            --suite mobileapp-unit
+
+      - name: Upload mobile unit coverage results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: unit-coverage-mobile-results
+          path: TestResults/UnitCoverage/
+          retention-days: 14
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [changes, build-test, codeql, snyk]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download build output
+        uses: actions/download-artifact@v7
+        with:
+          name: build-output
+
+      - name: Run integration tests
+        run: |
+          dotnet test 5-Test/tests/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj \
+            --no-build \
+            --configuration Release \
+            --logger trx \
+            --results-directory TestResults/Integration \
+            --filter "Category!=AzureIntegration"
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: integration-test-results
+          path: TestResults/Integration/
+          retention-days: 14
+
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: [changes, build-test, codeql, snyk]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
+
+    services:
+      # Mock services for E2E testing without real Azure dependencies
+      mockserver:
+        image: mockserver/mockserver:latest
+        ports:
+          - 1080:1080
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download build output
+        uses: actions/download-artifact@v7
+        with:
+          name: build-output
+
+      - name: Setup test data
+        run: |
+          mkdir -p 5-Test/tests/MotorcycleRAG.EndToEndTests/TestData
+          # Test data is created by TestDataManager during test execution
+
+      - name: Run end-to-end tests
+        run: |
+          dotnet test 5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj \
+            --no-build \
+            --configuration Release \
+            --logger trx \
+            --results-directory TestResults/EndToEnd \
+            --filter "Category!=Integration"
+        env:
+          TestConfiguration__UseRealAzureServices: false
+          TestConfiguration__MockServerUrl: http://localhost:1080
+
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: e2e-test-results
+          path: TestResults/EndToEnd/
+          retention-days: 14
+
+  skill-gate:
+    name: SkillForge Skill Gate
+    runs-on: ubuntu-latest
+    continue-on-error: true  # TODO: Remove continue-on-error once all skills pass SkillForge validation
+    needs: [changes, build-test, codeql, snyk]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build SkillForge
+        run: dotnet build 7-Deployment/tools/SkillForge/src/SkillForge.Cli/SkillForge.Cli.csproj -c Release
+
+      - name: Validate .agents/skills
+        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .agents/skills --format table
+
+      - name: Lint .agents/skills
+        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .agents/skills --min-desc-score 70 --format table
+
+      - name: Scan .agents/skills (SARIF)
+        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .agents/skills --fail-on critical --format sarif > skillforge-agents.sarif
+
+      - name: Upload .agents/skills SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: skillforge-agents.sarif
+
+      - name: Validate .claude/skills
+        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .claude/skills --format table
+
+      - name: Lint .claude/skills
+        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .claude/skills --min-desc-score 70 --format table
+
+      - name: Scan .claude/skills (SARIF)
+        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .claude/skills --fail-on critical --format sarif > skillforge-claude.sarif
+
+      - name: Upload .claude/skills SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: skillforge-claude.sarif
+
+      - name: Validate .kilo/skills
+        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .kilo/skills --format table
+
+      - name: Lint .kilo/skills
+        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .kilo/skills --min-desc-score 70 --format table
+
+      - name: Scan .kilo/skills (SARIF)
+        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .kilo/skills --fail-on critical --format sarif > skillforge-kilo.sarif
+
+      - name: Upload .kilo/skills SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: skillforge-kilo.sarif
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Gate summary — single required check
+  # ─────────────────────────────────────────────────────────────────────
+  pr-gate-summary:
+    name: PR Gate Summary
+    runs-on: ubuntu-latest
+    needs: [build-test, docs-quality, codeql, snyk, unit-mobile, integration, e2e, skill-gate]
+    if: always()
+
+    steps:
+      - name: Evaluate gate results
+        run: |
+          echo "## PR Gate Results" > results.md
+          echo "" >> results.md
+          echo "| Job | Status |" >> results.md
+          echo "|-----|--------|" >> results.md
+          echo "| Build & Unit Tests | ${{ needs.build-test.result }} |" >> results.md
+          echo "| Documentation Quality | ${{ needs.docs-quality.result }} |" >> results.md
+          echo "| CodeQL Analysis | ${{ needs.codeql.result }} |" >> results.md
+          echo "| Snyk SCA + SAST | ${{ needs.snyk.result }} |" >> results.md
+          echo "| Unit Tests (Mobile) | ${{ needs.unit-mobile.result }} |" >> results.md
+          echo "| Integration Tests | ${{ needs.integration.result }} |" >> results.md
+          echo "| End-to-End Tests | ${{ needs.e2e.result }} |" >> results.md
+          echo "| SkillForge Gate | ${{ needs.skill-gate.result }} |" >> results.md
+          echo "" >> results.md
+
+          # Fail if any non-skipped required job failed
+          FAILED=false
+          for result in \
+            "${{ needs.build-test.result }}" \
+            "${{ needs.docs-quality.result }}" \
+            "${{ needs.codeql.result }}" \
+            "${{ needs.snyk.result }}" \
+            "${{ needs.unit-mobile.result }}" \
+            "${{ needs.integration.result }}" \
+            "${{ needs.e2e.result }}"; do
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              FAILED=true
+              break
+            fi
+          done
+
+          if [ "$FAILED" = "true" ]; then
+            echo "## :x: Gate FAILED" >> results.md
+            echo "" >> results.md
+            echo "One or more required jobs failed or were cancelled." >> results.md
+            cat results.md
+            exit 1
+          else
+            echo "## :white_check_mark: Gate PASSED" >> results.md
+            echo "" >> results.md
+            echo "All required checks passed (or were skipped due to path filtering)." >> results.md
+            cat results.md
+          fi
+
+      - name: Upload gate results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: pr-gate-results
+          path: results.md
+          retention-days: 14
+
+      - name: Comment PR with gate status
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const results = fs.readFileSync('results.md', 'utf8');
+            const body = `### PR Gate Status\n\n${results}`;
+
+            // Find existing bot comment to update (avoid spam)
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100
+            });
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('### PR Gate Status')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }

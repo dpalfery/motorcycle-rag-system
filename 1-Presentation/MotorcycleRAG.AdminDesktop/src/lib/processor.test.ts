@@ -47,10 +47,20 @@ describe("processor discovery", () => {
   });
 
   it("handles backend failures gracefully", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.mocked(invoke).mockRejectedValue(new Error("Resolution failed"));
 
-    const result = await discoverProcessorWorkingDir();
-    expect(result).toBe("");
+    try {
+      const result = await discoverProcessorWorkingDir();
+
+      expect(result).toBe("");
+      expect(warn).toHaveBeenCalledWith(
+        "Path auto-resolution failed:",
+        expect.any(Error),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

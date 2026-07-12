@@ -35,7 +35,7 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
-          cache: "nuget"
+          cache: true
           cache-dependency-path: "MotorcycleRAG.sln"
 
       - name: Build solution

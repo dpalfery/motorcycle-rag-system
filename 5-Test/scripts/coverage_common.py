@@ -64,20 +64,20 @@ def ensure_clean_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def resolve_python_executable(service_dir: Path) -> str:
+def resolve_python_executable(service_dir: Path) -> list[str]:
     candidates = [
         service_dir / ".venv" / "bin" / "python",
         service_dir / ".venv" / "Scripts" / "python.exe",
     ]
     for candidate in candidates:
         if candidate.exists():
-            return str(candidate)
+            return [str(candidate)]
     for name in ("python3", "python", "py"):
         resolved = shutil.which(name)
         if resolved:
             if name == "py":
-                return f"{resolved} -3"
-            return resolved
+                return [resolved, "-3"]
+            return [resolved]
     raise FileNotFoundError("Unable to locate Python runtime for coverage tooling.")
 
 
@@ -86,22 +86,10 @@ def run_command(
     *,
     cwd: Path,
     env: dict[str, str] | None = None,
-    allow_shell: bool = False,
 ) -> int:
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
-
-    if allow_shell:
-        command = " ".join(args)
-        process = subprocess.run(
-            command,
-            cwd=cwd,
-            env=merged_env,
-            shell=True,
-            check=False,
-        )
-        return process.returncode
 
     process = subprocess.run(args, cwd=cwd, env=merged_env, check=False)
     return process.returncode
@@ -159,4 +147,3 @@ def choose_test_targets_for_suite(suite: dict[str, Any]) -> list[str]:
     if suite["kind"] == "dotnet":
         return [suite["project"]]
     return targets
-

@@ -15,6 +15,7 @@ Read this file before opening a plan. Open a plan only when it is both relevant 
 
 | Plan | Status | Goal / note |
 | --- | --- | --- |
+| [2026-07-12 Checkov + CrossGuard IaC scanning](2026-07-12-checkov-crossguard-iac-scanning.md) | Draft | Add Pulumi CrossGuard for the C# stack + Checkov for Dockerfiles/GitHub Actions workflows; premise correction: Checkov has no `pulumi` framework. |
 
 ## Operational status lists
 

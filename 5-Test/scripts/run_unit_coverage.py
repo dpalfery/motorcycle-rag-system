@@ -90,7 +90,7 @@ def run_python_suite(
     coverage_path = suite_dir / "coverage.cobertura.xml"
     python_command = resolve_python_executable(workdir)
     args = [
-        python_command,
+        *python_command,
         "-m",
         "pytest",
         "tests",
@@ -101,7 +101,7 @@ def run_python_suite(
         f"--cov-report=xml:{coverage_path}",
         "--cov-report=term-missing:skip-covered",
     ]
-    exit_code = run_command(args, cwd=workdir, allow_shell=python_command.endswith(" -3"))
+    exit_code = run_command(args, cwd=workdir)
     return {
         "name": suite["name"],
         "kind": suite["kind"],

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as DefusedElementTree
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -105,7 +106,7 @@ def parse_cobertura_file(
     class_metrics: list[ClassMetrics],
     exclusions: dict[str, Any],
 ) -> None:
-    root = ET.parse(coverage_path).getroot()
+    root = DefusedElementTree.parse(coverage_path).getroot()
     for class_element in root.findall(".//class"):
         raw_filename = class_element.attrib.get("filename")
         if not raw_filename:

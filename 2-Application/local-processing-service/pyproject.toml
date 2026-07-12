@@ -19,7 +19,7 @@ azure-storage-blob = "^12.21.1"
 azure-identity = "^1.18.0"
 pandas = "^2.1.0"
 pydantic = {extras = ["email"], version = "^2.5.0"}
-python-multipart = "^0.0.6"
+python-multipart = ">=0.0.6,<0.0.32"
 python-dotenv = "^1.0.0"
 openai = "^1.40.0"
 httpx = ">=0.28,<1.0.0"

@@ -14,6 +14,7 @@ The repository uses Markdown as documentation-as-code. The root [README](../READ
 - Deployment procedures belong in `6-Docs/deployment/`; operating a deployed system belongs in `6-Docs/operations/`; reusable configuration and technical reference belongs in `6-Docs/reference/`.
 - Plans are working documents in `6-Docs/plans/`; its [plan index](plans/README.md) is the authoritative inventory and lifecycle record. Superseded or historical material belongs in `6-Docs/archive/` and must be visibly non-authoritative.
 - GitHub-discovered community files remain at the repository root or under `.github/`: `LICENSE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `SUPPORT.md`, issue forms, pull-request templates, and `CODEOWNERS`.
+- `REVIEW.md` remains at the repository root. This is a tooling exception, not a component doc: Anthropic's Code Review (the managed GitHub App and the local `/code-review` command) only auto-discovers review-customization instructions at that exact path, and its contents are injected verbatim, so `@`-imports and links to other files do not resolve. Keep it review-only — general project context stays in `AGENTS.md` and `6-Docs/`. Do not move or duplicate it into `6-Docs/`; `6-Docs/review-guidelines.md` is a pointer to it for exactly this reason.
 
 Do not create a second canonical document for a topic. Link to the established source instead.
 

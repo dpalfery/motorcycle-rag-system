@@ -77,12 +77,117 @@ The GitHub Actions workflow automatically injects all required config values via
 
 ---
 ## 4. CI/CD Flow
-1. On every push to `main` or `develop` the workflow **builds** the .NET solution and **runs tests**.
-2. Pulumi performs a **preview** followed by an **update** (`pulumi up`) against the stack defined in `PULUMI_STACK` (defaults to `dev`).
-3. The Pulumi program will:
-   • create / update the Azure Resource Group, Container Registry and Container App Environment.
-   • build the Docker image for `MotorcycleRAG.API`, push it to the registry, and deploy it to Azure Container Apps.
-4. When the update completes, Pulumi outputs the public API URL (see `endpoint` stack output).
+
+The repository uses four GitHub Actions workflows. Three were consolidated into a unified PR pipeline and a nightly pipeline; the remaining two unchanged workflows handle deployment and on-demand assistance.
+
+### 4.1 PR Gate (`pr-gate.yml`)
+
+The unified pull-request and push pipeline replaces the former `codeql.yml`, `comprehensive-testing.yml`, `docs.yml`, and `snyk.yml` workflows. It runs on every push or PR to `main` or `develop`, on a weekly CodeQL-fallback schedule, and on `workflow_dispatch`.
+
+```mermaid
+flowchart LR
+    A[Push / PR<br/>main|develop] --> P0[Phase 0<br/>changes]
+    
+    P0 -->|code changed| P1B[Phase 1<br/>build-test]
+    P0 -->|docs changed| P1D[Phase 1<br/>docs-quality]
+    
+    P1B --> P2S[Phase 2<br/>snyk]
+    P1B --> P2C[Phase 2<br/>codeql]
+    
+    P2S --> P3I[Phase 3<br/>integration]
+    P2S --> P3E[Phase 3<br/>e2e]
+    P2S --> P3U[Phase 3<br/>unit-mobile]
+    P2S --> P3G[Phase 3<br/>skill-gate]
+    
+    P1B --> GATE[Gate<br/>pr-gate-summary]
+    P1D --> GATE
+    P2C --> GATE
+    P2S --> GATE
+    P3I --> GATE
+    P3E --> GATE
+    P3U --> GATE
+    P3G --> GATE
+```
+
+**Phase 0 — Change classification** (`changes` job)
+- Uses `dorny/paths-filter` to detect which categories of files changed: `code` (.cs, .csproj, .py, .ts/.tsx, package.json, pyproject.toml), `docs` (.md, AGENTS.md, markdownlint config), or `infra` (.github/, 7-Deployment/).
+- On schedule or workflow_dispatch, all flags are set to `true` (no diff available).
+- Outputs drive path-filtered execution downstream so unchanged subsystems are skipped.
+
+**Phase 1 — Build and docs (parallel, path-filtered)**
+- `build-test`: Restores .NET dependencies, installs Python coverage tools and Admin Desktop npm packages, runs the unified unit-coverage script (`run_unit_coverage.py` with `dotnet-unit`, `bff-unit`, `python-unit`, `admindesktop-unit` suites), uploads coverage artifacts, builds the solution (`dotnet build --configuration Release`), and uploads the build output for reuse by downstream jobs. Runs only when `code` or `infra` changed.
+- `docs-quality`: Runs markdownlint, validates documentation catalog/structure, checks internal links with lychee (offline), and scans docs changes for secrets with gitleaks. Runs only when `docs` changed.
+
+**Phase 2 — Security gate (needs build-test)**
+- `codeql`: Initializes CodeQL with `security-extended` queries for C#, restores + builds, and runs the CodeQL analysis. Runs only when `code` or `infra` changed.
+- `snyk`: Runs Snyk SCA (dependency scan) and SAST (code scan) at `high` severity threshold. Generates `poetry.lock` for the local-processing-service so Snyk can analyze it. Uploads SARIF results to GitHub Security for both scans. Runs only when `code` or `infra` changed.
+
+**Phase 3 — Deep validation (needs security gate pass)**
+- `unit-mobile`: Runs mobile-app unit tests on `macos-latest` with the MAUI workload installed.
+- `integration`: Runs integration tests (non-Azure, `Category!=AzureIntegration`) on the pre-built output from Phase 1.
+- `e2e`: Runs end-to-end tests with a MockServer container for external service stubs, using pre-built output.
+- `skill-gate`: Builds the SkillForge CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
+
+**Gate summary** (`pr-gate-summary`)
+- Single required check that depends on all Phase 1–3 jobs.
+- Evaluates results, generates a markdown table, and posts/updates a comment on the PR with the pass/fail status.
+- Branch protection should require `pr-gate / PR Gate Summary` as the sole mandatory check (see [branch protection update](../agent-notes/branch-protection-update.md)).
+
+### 4.2 Nightly Tests & Security Scans (`nightly.yml`)
+
+A consolidated scheduled-workflow pipeline that replaces the scheduled functionality previously spread across `comprehensive-testing.yml`, `snyk.yml`, and `codeql.yml`.
+
+| Schedule | Jobs | Purpose |
+| --- | --- | --- |
+| Daily 02:00 UTC | Test suite (unit, integration, E2E, Azure integration, load, performance, SkillForge) | Full regression validation |
+| Daily 03:00 UTC | Snyk scans (SCA+SAST, container scans for API, UI, Local Processor images) | Comprehensive security posture |
+
+**Test jobs (2 AM trigger):**
+- `unit-coverage-linux`: Full unit test matrix on Linux (dotnet, BFF, Python, Admin Desktop).
+- `unit-mobile`: Mobile unit tests on macOS with MAUI workload.
+- `unit-tests`: Aggregation gate that downloads both Linux and Mobile artifacts, runs `aggregate_coverage.py` to produce a merged Cobertura report, and uploads to Codecov.
+- `integration-tests`: Non-Azure integration tests against pre-built output.
+- `end-to-end-tests`: E2E tests with MockServer, building fresh.
+- `azure-integration-tests`: Tests against real Azure services (requires `environment: testing`). Only runs on schedule or when `run_integration_tests` input is `true`.
+- `load-tests`: NBomber-based load tests (3 min duration, 20 concurrent users in CI). Only runs on schedule or when `run_load_tests` input is `true`.
+- `performance-analysis`: Generates a performance report from E2E and load test results.
+- `skill-gate`: Same SkillForge validation as the PR gate, but runs after unit tests (not blocking deployment).
+
+**Snyk security jobs (3 AM trigger):**
+- `snyk-sca-sast`: Full Snyk SCA + SAST scan with SARIF upload to GitHub Security.
+- `snyk-container-api`: Builds the API Docker image and runs `snyk container test` with SARIF upload.
+- `snyk-container-ui`: Builds the UI Docker image and runs `snyk container test` with SARIF upload.
+- `snyk-container-processor`: Builds the Local Processor Docker image and runs `snyk container test` with SARIF upload.
+
+**Summary** (`test-summary`): Depends on all test and Snyk jobs, generates a consolidated markdown report.
+
+### 4.3 Build & Deploy (`deploy.yml`)
+
+Unchanged. Runs on push to `main` or `develop`:
+1. Builds the React UI and copies assets to the BFF's `wwwroot`.
+2. Azure login with OIDC (service principal).
+3. `pulumi up` against the `dev` stack: creates/updates the Azure Resource Group, Container Registry, Container App Environment, and all supporting resources.
+4. Reads Pulumi outputs (ACR server, resource group, app names, Key Vault URI, Foundry endpoint, model deployments).
+5. Runs database schema migrations via `sqlcmd` against Azure SQL.
+6. ACR login, Docker build & push for API and UI images (tagged with `latest` and commit SHA).
+7. Updates Container App revisions to pull fresh images.
+8. Provisions custom domain managed certificates for `motorag.api.palfery.com` and `motorag.palfery.com` (CNAME validation, polling up to 20 minutes).
+9. Provisions Foundry agents via `AgentProvisioning` CLI and writes agent reference IDs to Key Vault.
+
+### 4.4 Claude PR Assistant (`claude.yml`)
+
+Unchanged. On-demand @mention workflow triggered by `issue_comment`, `pull_request_review_comment`, `issues`, or `pull_request_review` events containing `@claude`. Runs the `anthropics/claude-code-action@beta` with the `ANTHROPIC_API_KEY` secret.
+
+### 4.5 Deleted / Replaced Workflows
+
+The following individual workflows were replaced by the unified `pr-gate.yml` and `nightly.yml`:
+
+| Workflow | Replaced By |
+| --- | --- |
+| `codeql.yml` | `pr-gate.yml` (Phase 2 `codeql` job) + `nightly.yml` (weekly CodeQL fallback schedule) |
+| `comprehensive-testing.yml` | `pr-gate.yml` (Phase 1 `build-test`, Phase 3 `integration`, `e2e`) + `nightly.yml` (full nightly matrix) |
+| `docs.yml` | `pr-gate.yml` (Phase 1 `docs-quality` job) |
+| `snyk.yml` | `pr-gate.yml` (Phase 2 `snyk` job) + `nightly.yml` (3 AM container + SCA+SAST scans) |
 
 ---
 ## 5. Application Environment Variables

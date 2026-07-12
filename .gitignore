@@ -432,7 +432,7 @@ device-id
 
 # Local tool caches
 .playwright-mcp/
-.pnpm-storem/
+.pnpm-store/
 .pytest_cache/
 
 # Editor plugin lock files and dependencies (not project source)
@@ -440,3 +440,6 @@ device-id
 .kilo/**/node_modules/
 .opencode/**/package-lock.json
 .opencode/**/node_modules/
+
+# Kilo Agent Manager worktrees (local git worktrees, never committed)
+.kilo/worktrees/

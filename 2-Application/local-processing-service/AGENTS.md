@@ -9,7 +9,7 @@
 - [Processor onboarding](../../6-Docs/local-processing-service/onboarding.md)
 - [Processor architecture](../../6-Docs/local-processing-service/architecture.md)
 - [Processor requirements](../../6-Docs/local-processing-service/requirements.md)
-- [Current local-processing plan](../../6-Docs/plans/2026-07-07-chunk-upload-fix-and-serverless-search.md) for ingestion/indexing changes
+- [Current local-processing plan](../../6-Docs/archive/plans/2026-07-07-chunk-upload-fix-and-serverless-search.md) for ingestion/indexing changes
 
 ## Scoped constraints
 

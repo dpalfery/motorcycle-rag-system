@@ -11,6 +11,7 @@
 - .NET code must use Azure App Configuration and Key Vault references for application configuration and secrets. Python local-processor runtime values set by Admin Desktop are the only approved environment-variable exception.
 - Before every `az` read, verify the active subscription against the allowlist in [Azure agent access](6-Docs/AzureEnvironment/agent-access.md). Azure writes, local `pulumi up`, direct Docker builds, and ACR pushes are forbidden.
 - Preserve Clean Architecture: inner layers never depend on outer layers; Contracts contains interfaces only; Contracts.Models contains shared DTOs only; business invariants belong in Domain; Application services belong in `Services`.
+- Do not create new files or folders at repository root. Scripts, tools, and deployment assets belong under `7-Deployment/`; documentation belongs under `6-Docs/`; generated notes belong under `6-Docs/agent-notes/`.
 
 Read the full [working agreement](6-Docs/system/agent-governance.md), [security directives](6-Docs/system/security.md), and [Azure environment rules](6-Docs/AzureEnvironment/agent-access.md) when the task touches their subject.
 
@@ -41,7 +42,7 @@ Before creating, moving, renaming, or placing source/test files, or changing nam
 | Local processor | [Processor AGENTS](2-Application/local-processing-service/AGENTS.md) | [Processor documentation](6-Docs/local-processing-service/) |
 | Core, Application, Domain, Contracts, Persistence | nearest scoped `AGENTS.md` | [Architecture rules](6-Docs/rules/architecture-general.md) |
 | Tests | nearest test-suite `AGENTS.md` | affected component documentation and requirements |
-| Infrastructure | [Infrastructure AGENTS](7-Deployment/infrastructure/AGENTS.md) | [Deployment documentation](6-Docs/deployment/) and [Azure environment](6-Docs/AzureEnvironment/) |
+| Infrastructure | [Infrastructure AGENTS](7-Deployment/infrastructure/AGENTS.md) | [DevOps documentation](6-Docs/DevOps/) and [Azure environment](6-Docs/AzureEnvironment/) |
 | Codex configuration | [.codex AGENTS](.codex/AGENTS.md) | repository rules in this file remain controlling |
 
 ## Instruction hierarchy

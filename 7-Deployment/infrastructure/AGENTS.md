@@ -6,7 +6,7 @@
 
 ## Read before changing
 
-- [Deployment documentation](../../6-Docs/deployment/README.md)
+- [DevOps documentation](../../6-Docs/DevOps/README.md)
 - [Azure environment](../../6-Docs/AzureEnvironment/agent-access.md)
 - [Azure naming reference](../../6-Docs/reference/azure-naming-standards.md)
 

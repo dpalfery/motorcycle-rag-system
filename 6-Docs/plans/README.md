@@ -38,4 +38,4 @@ Completed and superseded plans live in [`../archive/plans/`](../archive/plans/).
 | [2026-07-10 Pipeline logging and graph batching](../archive/plans/2026-07-10-pipeline-logging-and-graph-batching.md) | 2026-07-11 | Verified complete; see local-processing-service documentation. |
 | [2026-07-11 Deployment secrets table](../archive/plans/2026-07-11-issue-109-deployment-secrets-table.md) | 2026-07-11 | Proposal (Draft); historical only. |
 | [2026-07-11 Validate-docs ripgrep remediation](../archive/plans/2026-07-11-validate-docs-ripgrep-remediation.md) | 2026-07-11 | Proposal (Draft); historical only. |
-| [2026-07-11 Unified PR pipeline](../archive/plans/2026-07-11-unified-pr-pipeline.md) | 2026-07-11 | Implementation complete; see `6-Docs/deployment/overview.md` §4 (CI/CD Flow) and `6-Docs/agent-notes/branch-protection-update.md` for operational guidance. |
+| [2026-07-11 Unified PR pipeline](../archive/plans/2026-07-11-unified-pr-pipeline.md) | 2026-07-11 | Implementation complete; see `6-Docs/DevOps/overview.md` §4 (CI/CD Flow) and `6-Docs/agent-notes/branch-protection-update.md` for operational guidance. |

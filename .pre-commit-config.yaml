@@ -3,14 +3,14 @@ repos:
     hooks:
       - id: validate-agent-instructions
         name: Validate agent instruction hierarchy
-        entry: bash scripts/validate-docs.sh
+        entry: bash 7-Deployment/scripts/validate-docs.sh
         language: system
-        files: '(^|/)AGENTS\.md$|^6-Docs/(system|AzureEnvironment|MotorcycleRAG.AdminDesktop|local-processing-service)/|^scripts/validate-docs\.sh$'
+        files: '(^|/)AGENTS\.md$|^6-Docs/(system|AzureEnvironment|MotorcycleRAG.AdminDesktop|local-processing-service)/|^7-Deployment/scripts/validate-docs\.sh$'
         pass_filenames: false
       - id: skillforge-validate
         name: SkillForge Validate
         description: Run SkillForge validate, lint, and scan on all skill directories
-        entry: bash scripts/skillforge-validate.sh
+        entry: bash 7-Deployment/scripts/skillforge-validate.sh
         language: system
         files: '^(\.agents/skills/|\.claude/skills/|\.kilo/skills/|7-Deployment/scripts/skillforge-validate\.sh$|7-Deployment/tools/SkillForge/|\.gitmodules$)'
         pass_filenames: false

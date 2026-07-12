@@ -30,7 +30,7 @@ Read only the guide that matches the change, in addition to the canonical Admin 
 | Component layout or visual conventions | [UI conventions](../../6-Docs/MotorcycleRAG.AdminDesktop/ui-conventions.md) |
 | File ownership and location | [Project layout](../../6-Docs/MotorcycleRAG.AdminDesktop/project-layout.md) |
 
-[Pending work](../../6-Docs/plans/admin-desktop-pending-work.md) is planning/status context only. It is not implementation authority; verify planned or historical claims in source and canonical documentation.
+[Pending work](../../6-Docs/archive/plans/admin-desktop-pending-work.md) is planning/status context only. It is not implementation authority; verify planned or historical claims in source and canonical documentation.
 
 ## Verify
 

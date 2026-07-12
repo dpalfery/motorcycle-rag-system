@@ -16,5 +16,5 @@ GitHub Actions is the only approved path for infrastructure provisioning and app
 
 - [Azure Environment onboarding](../6-Docs/AzureEnvironment/onboarding.md)
 - [Azure Environment architecture](../6-Docs/AzureEnvironment/architecture.md)
-- [Deployment and tool references](../6-Docs/deployment/)
+- [DevOps and tool references](../6-Docs/DevOps/)
 - [Component catalog](../6-Docs/catalog.md)

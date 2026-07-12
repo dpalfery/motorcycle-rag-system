@@ -21,7 +21,7 @@ This directory is the canonical home for detailed MotorcycleRAG documentation. S
 
 ## Build, deployment, and operations
 
-- [Deployment documentation](deployment/)
+- [DevOps documentation](DevOps/)
 - [Operations runbooks](operations/)
 - [Reference material](reference/)
 - [Architecture placement rules](rules/architecture-general.md)

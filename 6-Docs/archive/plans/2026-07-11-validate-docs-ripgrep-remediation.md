@@ -2,16 +2,16 @@
 
 **Status:** Draft
 **Date:** 2026-07-11
-**Goal:** Make `scripts/validate-docs.sh` run successfully in environments without ripgrep, eliminating both reported errors.
+**Goal:** Make `7-Deployment/scripts/validate-docs.sh` run successfully in environments without ripgrep, eliminating both reported errors.
 
 ---
 
 ## 1. Problem / Motivation
 
-Running `bash scripts/validate-docs.sh` in an environment without ripgrep produces:
+Running `bash 7-Deployment/scripts/validate-docs.sh` in an environment without ripgrep produces:
 
 ```
-scripts/validate-docs.sh: line 83: rg: command not found
+7-Deployment/scripts/validate-docs.sh: line 83: rg: command not found
 Catalog is missing component: MotorcycleRAG system
 Error: Process completed with exit code 1.
 ```
@@ -20,7 +20,7 @@ These are **two symptoms of a single root cause**, not two independent bugs.
 
 **Root-cause chain (pre-fix behavior, verified against live source before this change):**
 
-1. Before this fix, `scripts/validate-docs.sh:83` invoked `rg --fixed-strings --quiet "$component" 6-Docs/catalog.md`. `rg` (ripgrep) was **not** guaranteed to be installed. It was the *only* use of `rg` in the script (confirmed: no other `rg` reference existed anywhere in `scripts/*.sh`).
+1. Before this fix, `7-Deployment/scripts/validate-docs.sh:83` invoked `rg --fixed-strings --quiet "$component" 6-Docs/catalog.md`. `rg` (ripgrep) was **not** guaranteed to be installed. It was the *only* use of `rg` in the script (confirmed: no other `rg` reference existed anywhere in `scripts/*.sh`).
 2. The script has `set -euo pipefail` (line 2) but a command used as an `if` condition is **exempt** from `set -e`. When `rg` was absent, the shell printed `rg: command not found` to stderr and returned exit code **127**.
 3. Line 83 was `if ! rg ...; then`. `!` negated the non-zero (127) result to success, so the `then` branch always executed whenever `rg` could not run — printing `Catalog is missing component: <first component>` (line 84) and `exit 1` (line 85).
 4. The loop stopped at the **first** component (`MotorcycleRAG system`) because of the immediate `exit 1`, so only one "missing component" line appeared. With a working search tool, **all 9 components were found** (see §3).
@@ -36,7 +36,7 @@ These are **two symptoms of a single root cause**, not two independent bugs.
 ## 3. Investigation findings
 
 **Files examined (read-only):**
-- `scripts/validate-docs.sh` (153 lines) — the validator. Full structure: required-files presence check (51–56), required-AGENTS check (58–63), lowercase-agents guard (65–68), **catalog component search (70–87)**, per-component doc-trio check (89–105), canonical-markdown link validation (107–151).
+- `7-Deployment/scripts/validate-docs.sh` (153 lines) — the validator. Full structure: required-files presence check (51–56), required-AGENTS check (58–63), lowercase-agents guard (65–68), **catalog component search (70–87)**, per-component doc-trio check (89–105), canonical-markdown link validation (107–151).
 - `6-Docs/catalog.md` (22 lines) — the component catalog; a single Markdown table (rows 7–18).
 - `6-Docs/documentation-standard.md` (64 lines) — canonical doc standard; confirms catalog is "the complete component inventory" and each entry needs owner/status/last-reviewed.
 - `.github/workflows/docs.yml` (68 lines) — `runs-on: ubuntu-latest`; calls the script at line 42.
@@ -64,7 +64,7 @@ Conclusion: 9/9 present. The "missing component" message can **only** be produce
 
 | # | Phase | Component | Description | Skills |
 |---|-------|-----------|-------------|--------|
-| 1 | Fix | `scripts/validate-docs.sh` | Apply D2 (option a): replace the `rg` invocation at line 83 with a portable `grep -Fq` invocation. Exact change in §5. | None (plain bash). `github-devops` adjacent for CI context only. |
+| 1 | Fix | `7-Deployment/scripts/validate-docs.sh` | Apply D2 (option a): replace the `rg` invocation at line 83 with a portable `grep -Fq` invocation. Exact change in §5. | None (plain bash). `github-devops` adjacent for CI context only. |
 | 2 | Verify | `6-Docs/catalog.md` (read-only) | Confirm no catalog edit is needed (per D1). No file change; this task is documentation of the no-op finding. | `app-docs-standard` (read-only reference only). |
 
 ## 5. Sequencing / dependency graph
@@ -75,7 +75,7 @@ Conclusion: 9/9 present. The "missing component" message can **only** be produce
 
 **Exact change for Task 1 (option a):**
 
-File: `scripts/validate-docs.sh`, line 83.
+File: `7-Deployment/scripts/validate-docs.sh`, line 83.
 
 Pre-fix (before this change):
 ```bash
@@ -121,7 +121,7 @@ No other line in the script references `rg`, so this single edit fully removes t
 
 1. In an environment where `command -v rg` returns nothing (simulate if needed, e.g. `PATH="$(echo "$PATH" | tr ':' '\n' | grep -v ripgrep | paste -sd: -)"` or a clean checkout), run:
    ```bash
-   bash scripts/validate-docs.sh
+   bash 7-Deployment/scripts/validate-docs.sh
    ```
    **Success =** exit code 0 and the final line printed exactly:
    ```
@@ -136,7 +136,7 @@ No other line in the script references `rg`, so this single edit fully removes t
 
 **Secondary gates:**
 
-3. Syntax check: `bash -n scripts/validate-docs.sh` (exit 0).
+3. Syntax check: `bash -n 7-Deployment/scripts/validate-docs.sh` (exit 0).
 4. Confirm grep equivalence directly: `grep -Fq "MotorcycleRAG system" 6-Docs/catalog.md && echo found` prints `found` (proves the search succeeds without rg).
 5. CI parity: the Documentation Quality workflow (`.github/workflows/docs.yml`) must still pass on `ubuntu-latest` after the change (it will, since grep is present there too).
 

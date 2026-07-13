@@ -358,6 +358,66 @@ def emit_html(output_path: Path, *, threshold: float, summary: dict[str, Any]) -
     output_path.write_text(html, encoding="utf-8")
 
 
+def emit_console_summary(
+    *,
+    threshold: float,
+    summary: dict[str, Any],
+    summary_path: Path,
+    failure_limit: int = 25,
+) -> None:
+    """Print the coverage-policy outcome prominently for CI logs."""
+    file_failures = summary["thresholdFailures"]["files"]
+    class_failures = summary["thresholdFailures"]["classes"]
+    failing = bool(file_failures or class_failures)
+    overall = summary["overall"]
+
+    print()
+    print("=" * 80)
+    print("UNIT COVERAGE POLICY")
+    print(
+        "Policy: Every in-scope source file and class must meet at least "
+        f"{threshold:.1f}% line coverage."
+    )
+    print(
+        "Overall: "
+        f"{overall['fileLinePercent']:.2f}% file coverage, "
+        f"{overall['classLinePercent']:.2f}% class coverage."
+    )
+
+    if not failing:
+        print("Result: PASS — all in-scope files and classes satisfy the policy.")
+        print("=" * 80)
+        return
+
+    print("Result: FAIL — the coverage policy is not satisfied.")
+    print(
+        f"Violations: {len(file_failures)} files and {len(class_failures)} classes "
+        "are below the required threshold."
+    )
+    print()
+    print(f"Worst file violations (first {min(len(file_failures), failure_limit)}):")
+    for entry in file_failures[:failure_limit]:
+        print(f"- {entry['path']}: {entry['linePercent']:.2f}%")
+
+    print()
+    print(f"Worst class violations (first {min(len(class_failures), failure_limit)}):")
+    for entry in class_failures[:failure_limit]:
+        print(
+            f"- {entry['className']} ({entry['filePath']}): "
+            f"{entry['linePercent']:.2f}%"
+        )
+
+    print()
+    print(f"Full coverage report: {summary_path}")
+    print("=" * 80)
+    print(
+        "::error title=Unit coverage policy failed::"
+        f"Every in-scope source file and class requires at least {threshold:.1f}% "
+        f"line coverage; {len(file_failures)} files and {len(class_failures)} "
+        "classes are below the threshold."
+    )
+
+
 def main() -> int:
     args = parse_args()
     config = load_config(args.config)
@@ -486,6 +546,11 @@ def main() -> int:
     emit_merged_cobertura(output_dir / "coverage-merged.cobertura.xml", files, classes)
 
     failing = bool(file_failures or class_failures)
+    emit_console_summary(
+        threshold=threshold,
+        summary=summary,
+        summary_path=summary_path,
+    )
     return 1 if failing else 0
 
 

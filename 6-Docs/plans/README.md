@@ -15,7 +15,7 @@ Read this file before opening a plan. Open a plan only when it is both relevant 
 
 | Plan | Status | Goal / note |
 | --- | --- | --- |
-| *(No active plans)* | | |
+| [2026-07-12 Python tests to 5-Test](2026-07-12-issue-118-python-tests-to-5-test.md) | In progress | Move the local-processing-service pytest suite under `5-Test/` and update config, CI, and docs. Tracks issue #118. |
 
 ## Operational status lists
 

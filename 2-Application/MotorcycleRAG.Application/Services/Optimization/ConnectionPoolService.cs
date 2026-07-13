@@ -231,10 +231,11 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
                 _httpClients.Clear();
                 _statistics.Clear();
                 _settings.Clear();
+
+                _logger.LogInformation("Connection pool service disposed");
             }
 
             _disposed = true;
-            _logger.LogInformation("Connection pool service disposed");
         }
     }
 
@@ -242,4 +243,3 @@ public class ConnectionPoolService : IConnectionPoolService, IDisposable {
         Dispose(false);
     }
 }
-

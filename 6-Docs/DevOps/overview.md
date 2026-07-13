@@ -136,7 +136,7 @@ flowchart LR
 
 #### Phase 1 — Build and docs (parallel, path-filtered)
 
-- `build-test`: Restores .NET dependencies, installs Python coverage tools and Admin Desktop npm packages, runs the unified unit-coverage script (`run_unit_coverage.py` with `dotnet-unit`, `bff-unit`, `python-unit`, `admindesktop-unit` suites), uploads coverage artifacts, builds the solution (`dotnet build --configuration Release`), and uploads the build output for reuse by downstream jobs. Runs only when `code` or `infra` changed.
+- `build-test`: Restores .NET dependencies, installs Python coverage tools and Admin Desktop npm packages, runs the unified unit-coverage script (`run_unit_coverage.py` with `dotnet-unit`, `bff-unit`, `python-unit`, `admindesktop-unit` suites), uploads coverage artifacts, builds the solution (`dotnet build --configuration Release`), and uploads the build output for reuse by downstream jobs. The coverage aggregation prints a prominent policy result in the job log: every in-scope source file and class must meet the configured 90% line-coverage threshold; failures include counts, the worst 25 files and classes, and the full-report path. Runs only when `code` or `infra` changed.
 - `docs-quality`: Runs markdownlint, validates documentation catalog/structure, checks internal links with lychee (offline), and scans docs changes for secrets with gitleaks. Runs only when `docs` changed.
 
 #### Phase 2 — Security gate (needs build-test)
@@ -172,7 +172,7 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 
 - `unit-coverage-linux`: Full unit test matrix on Linux (dotnet, BFF, Python, Admin Desktop).
 - `unit-mobile`: Mobile unit tests on macOS with MAUI workload.
-- `unit-tests`: Aggregation gate that downloads both Linux and Mobile artifacts, runs `aggregate_coverage.py` to produce a merged Cobertura report, and uploads to Codecov.
+- `unit-tests`: Aggregation gate that downloads both Linux and Mobile artifacts, runs `aggregate_coverage.py` to produce a merged Cobertura report, and uploads to Codecov. It prints the same 90%-per-file-and-class policy outcome and an actionable failure summary in the job log before failing the gate.
 - `integration-tests`: Non-Azure integration tests against pre-built output.
 - `end-to-end-tests`: E2E tests with MockServer, building fresh.
 - `azure-integration-tests`: Tests against real Azure services (requires `environment: testing`). Only runs on schedule or when `run_integration_tests` input is `true`.

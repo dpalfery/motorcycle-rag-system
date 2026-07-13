@@ -103,4 +103,156 @@ public class QuestionValidationServiceTests
         _bikeModels.VerifyNoOtherCalls();
         _graph.VerifyNoOtherCalls();
     }
+
+    [Fact]
+    public async Task ValidateAsync_EmptyQuery_ReturnsUnknownClarificationWithoutSearch()
+    {
+        var result = await CreateService().ValidateAsync(
+            "   ",
+            [],
+            CancellationToken.None);
+
+        Assert.False(result.MaySearch);
+        Assert.Equal("Unknown", result.Subject);
+        Assert.Equal("Clarification", result.ResponseType);
+        Assert.Equal("What motorcycle question would you like help with?", result.ClarificationQuestion);
+        _bikeModels.VerifyNoOtherCalls();
+        _graph.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_GenericMotorcycleQuestion_ReturnsAnswerWithoutRepositoryCalls()
+    {
+        var result = await CreateService().ValidateAsync(
+            "what do you think about this bike",
+            [],
+            CancellationToken.None);
+
+        Assert.True(result.MaySearch);
+        Assert.Equal("Answer", result.ResponseType);
+        Assert.Equal("MotorcycleSpecs", result.Subject);
+        Assert.Equal(0.65, result.Confidence);
+        _bikeModels.VerifyNoOtherCalls();
+        _graph.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_NonMotorcycleGenericQuestion_ReturnsAnswerWithUnknownSubjectAndLowerConfidence()
+    {
+        var result = await CreateService().ValidateAsync(
+            "hello there how are you today",
+            [],
+            CancellationToken.None);
+
+        Assert.True(result.MaySearch);
+        Assert.Equal("Answer", result.ResponseType);
+        Assert.Equal("Unknown", result.Subject);
+        Assert.Equal(0.45, result.Confidence);
+        _bikeModels.VerifyNoOtherCalls();
+        _graph.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_BikeRepositoryThrows_LogsWarningAndTreatsListAsEmpty()
+    {
+        _bikeModels
+            .Setup(r => r.ListAsync(0, 5000, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("bike repo down"));
+
+        _graph
+            .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<GraphNode>());
+
+        var result = await CreateService().ValidateAsync(
+            "what is the torque spec for my bike",
+            [],
+            CancellationToken.None);
+
+        Assert.False(result.MaySearch);
+        Assert.Equal("Clarification", result.ResponseType);
+        Assert.Equal("MotorcycleMaintenance", result.Subject);
+        Assert.Empty(result.Suggestions);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_GraphRepositoryThrows_LogsWarningPerTermAndContinues()
+    {
+        _bikeModels
+            .Setup(r => r.ListAsync(0, 5000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<BikeModel>());
+
+        _graph
+            .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("graph down"));
+
+        var result = await CreateService().ValidateAsync(
+            "what is the torque spec for my bike",
+            [],
+            CancellationToken.None);
+
+        Assert.False(result.MaySearch);
+        Assert.Equal("Clarification", result.ResponseType);
+        Assert.Empty(result.Suggestions);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_OilQuery_ClassifiesSubjectAsMotorcycleMaintenance()
+    {
+        _bikeModels
+            .Setup(r => r.ListAsync(0, 5000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<BikeModel>());
+
+        _graph
+            .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<GraphNode>());
+
+        var result = await CreateService().ValidateAsync(
+            "how often should I change the oil",
+            [],
+            CancellationToken.None);
+
+        Assert.Equal("MotorcycleMaintenance", result.Subject);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ComparisonQuery_ClassifiesSubjectAsMotorcycleComparison()
+    {
+        _bikeModels
+            .Setup(r => r.ListAsync(0, 5000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<BikeModel>());
+
+        _graph
+            .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<GraphNode>());
+
+        var result = await CreateService().ValidateAsync(
+            "compare these two bikes for me",
+            [],
+            CancellationToken.None);
+
+        Assert.Equal("MotorcycleComparison", result.Subject);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_GraphOnlyExactMatch_AllowsSearchWithHighConfidence()
+    {
+        _bikeModels
+            .Setup(r => r.ListAsync(0, 5000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<BikeModel>());
+
+        var node = new GraphNode { Name = "Ducati Panigale V4", Type = "Motorcycle" };
+
+        _graph
+            .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([node]);
+
+        var result = await CreateService().ValidateAsync(
+            "ducati panigale v4 specs",
+            [],
+            CancellationToken.None);
+
+        Assert.True(result.MaySearch);
+        Assert.Equal("Answer", result.ResponseType);
+        Assert.Equal(0.95, result.Confidence);
+    }
 }

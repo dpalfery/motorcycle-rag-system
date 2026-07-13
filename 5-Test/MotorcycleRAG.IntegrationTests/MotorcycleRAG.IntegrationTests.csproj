@@ -13,6 +13,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Azure.Search.Documents" Version="11.7.0" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.7" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
@@ -28,13 +29,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\1-Presentation\MotorcycleRAG.API\MotorcycleRAG.API.csproj" />
-    <ProjectReference Include="..\..\..\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj" />
-    <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj" />
-    <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Contracts.Models\MotorcycleRAG.Contracts.Models.csproj" />
-    <ProjectReference Include="..\..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
-    <ProjectReference Include="..\..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
-    <ProjectReference Include="..\..\..\0-Base\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
+    <ProjectReference Include="..\..\1-Presentation\MotorcycleRAG.API\MotorcycleRAG.API.csproj" />
+    <ProjectReference Include="..\..\2-Application\MotorcycleRAG.Application\MotorcycleRAG.Application.csproj" />
+    <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Contracts\MotorcycleRAG.Contracts.csproj" />
+    <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Contracts.Models\MotorcycleRAG.Contracts.Models.csproj" />
+    <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
+    <ProjectReference Include="..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
+    <ProjectReference Include="..\..\0-Base\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

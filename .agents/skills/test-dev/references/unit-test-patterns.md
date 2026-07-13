@@ -86,7 +86,7 @@ var job = new IngestionJobBuilder()
     .Build();
 ```
 
-Builders live in `5-Test/tests/.../Builders/`.
+Builders live in `5-Test/{ProjectName}.Tests/Builders/`.
 
 ---
 

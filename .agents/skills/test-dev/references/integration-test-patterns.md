@@ -131,5 +131,5 @@ public class IngestionJobsControllerTests : IClassFixture<WebApplicationFactory<
 ```powershell
 dotnet test --filter "Category=Integration"
 dotnet test --filter FullyQualifiedName~RepositoryTests
-dotnet test 5-Test/tests/MotorcycleRAG.IntegrationTests
+dotnet test 5-Test/MotorcycleRAG.IntegrationTests
 ```

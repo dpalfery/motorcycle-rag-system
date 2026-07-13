@@ -188,7 +188,7 @@ try {
     # Integration Tests
     if ($IntegrationTests) {
         Write-Header "Running Integration Tests"
-        $integrationTestPath = "5-Test/tests/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj"
+        $integrationTestPath = "5-Test/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj"
         
         $integrationTestArgs = @(
             "test", $integrationTestPath,
@@ -224,7 +224,7 @@ try {
     # End-to-End Tests
     if ($EndToEndTests) {
         Write-Header "Running End-to-End Tests"
-        $e2eTestPath = "5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj"
+        $e2eTestPath = "5-Test/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj"
         
         # Set environment variables for E2E tests
         $env:TestConfiguration__UseRealAzureServices = "false"
@@ -266,7 +266,7 @@ try {
         Write-Header "Running Azure Integration Tests"
         Write-Warning "These tests require real Azure service credentials"
         
-        $azureTestPath = "5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj"
+        $azureTestPath = "5-Test/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj"
         
         # Check for Azure credentials
         if (-not $env:AZURE_CLIENT_ID -or -not $env:AZURE_CLIENT_SECRET -or -not $env:AZURE_TENANT_ID) {
@@ -308,7 +308,7 @@ try {
         Write-Header "Running Load Tests"
         Write-Warning "Load tests require the application to be running"
         
-        $loadTestPath = "5-Test/tests/MotorcycleRAG.LoadTests/MotorcycleRAG.LoadTests.csproj"
+        $loadTestPath = "5-Test/MotorcycleRAG.LoadTests/MotorcycleRAG.LoadTests.csproj"
         
         # Check if application is running
         try {

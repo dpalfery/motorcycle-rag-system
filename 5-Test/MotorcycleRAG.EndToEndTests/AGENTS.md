@@ -2,11 +2,11 @@
 
 ## Applies to
 
-`5-Test/tests/MotorcycleRAG.EndToEndTests/` only. Read the repository [AGENTS.md](../../../AGENTS.md) first.
+`5-Test/MotorcycleRAG.EndToEndTests/` only. Read the repository [AGENTS.md](../../AGENTS.md) first.
 
 ## Read before changing
 
-- [System requirements](../../../6-Docs/system/requirements.md)
+- [System requirements](../../6-Docs/system/requirements.md)
 - affected application requirements and onboarding documentation
 
 ## Scoped constraints
@@ -16,4 +16,4 @@
 
 ## Verify
 
-Run `dotnet test --project 5-Test/tests/MotorcycleRAG.EndToEndTests`.
+Run `dotnet test --project 5-Test/MotorcycleRAG.EndToEndTests`.

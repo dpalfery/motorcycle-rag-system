@@ -80,6 +80,9 @@ jobs:
         poetry config virtualenvs.in-project true
         poetry install --with dev --no-root --no-interaction --no-ansi
 
+    - name: Install shared test-script dependencies
+      run: python -m pip install --requirement 5-Test/scripts/requirements.txt
+
     - name: Install Admin Desktop dependencies
       run: npm ci
       working-directory: 1-Presentation/MotorcycleRAG.AdminDesktop
@@ -90,8 +93,6 @@ jobs:
           --results-dir TestResults/UnitCoverage \
           --configuration Release \
           --suite dotnet-unit \
-          --suite domain-unit \
-          --suite bff-unit \
           --suite python-unit \
           --suite admindesktop-unit
 
@@ -124,6 +125,9 @@ jobs:
       uses: actions/setup-python@v6
       with:
         python-version: '3.12'
+
+    - name: Install shared test-script dependencies
+      run: python -m pip install --requirement 5-Test/scripts/requirements.txt
 
     - name: Install MAUI workload
       run: dotnet workload install maui
@@ -159,6 +163,9 @@ jobs:
       uses: actions/setup-python@v6
       with:
         python-version: '3.12'
+
+    - name: Install shared test-script dependencies
+      run: python -m pip install --requirement 5-Test/scripts/requirements.txt
 
     - name: Download Linux coverage artifacts
       uses: actions/download-artifact@v8
@@ -213,7 +220,7 @@ jobs:
 
     - name: Run integration tests
       run: |
-        dotnet test 5-Test/tests/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj \
+        dotnet test 5-Test/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj \
           --no-build \
           --configuration Release \
           --logger trx \
@@ -255,12 +262,12 @@ jobs:
 
     - name: Setup test data
       run: |
-        mkdir -p 5-Test/tests/MotorcycleRAG.EndToEndTests/TestData
+        mkdir -p 5-Test/MotorcycleRAG.EndToEndTests/TestData
         # Test data is created by TestDataManager during test execution
 
     - name: Run end-to-end tests
       run: |
-        dotnet test 5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj \
+        dotnet test 5-Test/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj \
           --no-build \
           --configuration Release \
           --logger trx \
@@ -310,7 +317,7 @@ jobs:
 
     - name: Run Azure integration tests
       run: |
-        dotnet test 5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj \
+        dotnet test 5-Test/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj \
           --no-build \
           --configuration Release \
           --logger trx \
@@ -361,7 +368,7 @@ jobs:
 
     - name: Run load tests
       run: |
-        dotnet test 5-Test/tests/MotorcycleRAG.LoadTests/MotorcycleRAG.LoadTests.csproj \
+        dotnet test 5-Test/MotorcycleRAG.LoadTests/MotorcycleRAG.LoadTests.csproj \
           --no-build \
           --configuration Release \
           --logger trx \
@@ -383,7 +390,7 @@ jobs:
       if: always()
       with:
         name: nbomber-reports
-        path: 5-Test/tests/MotorcycleRAG.LoadTests/load-test-results/
+        path: 5-Test/MotorcycleRAG.LoadTests/load-test-results/
 
   performance-analysis:
     name: Performance Analysis

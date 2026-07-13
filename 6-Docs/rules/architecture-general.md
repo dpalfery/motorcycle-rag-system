@@ -311,14 +311,23 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 
 **Purpose:** Comprehensive testing at all levels, proving independence of frameworks and testability.
 
+**Placement rule:** All test projects are **direct children of `5-Test/`**. Do not create subdirectories (e.g., `tests/`) under `5-Test/`. .NET test projects MUST be named `{ProductionProjectName}.Tests` and placed at `5-Test/{ProductionProjectName}.Tests/`.
+
 **Projects:**
 
-* `MotorcycleRAG.Domian.Tests` → Unit tests for domain logic
-* `MotorcycleRAG.Application.Tests` → Unit tests for use cases
-* `MotorcycleRAG.Api.Tests` → Integration tests for API endpoints
-* `MotorcycleRAG.IntegrationTests` → Full integration tests with database
-* `MotorcycleRAG.Playwright-UI.Tests` → End-to-end UI tests
-* `local-processing-service.Tests` → Python unit/integration tests for the local processing service (pytest, run from `2-Application/local-processing-service/` via `testpaths`)
+* `5-Test/MotorcycleRAG.API.Tests/` → Unit tests for API controllers, configuration, and middleware
+* `5-Test/MotorcycleRAG.AgentProvisioning.Tests/` → Unit tests for agent provisioning
+* `5-Test/MotorcycleRAG.Application.Tests/` → Unit tests for use cases
+* `5-Test/MotorcycleRAG.Contracts.Tests/` → Unit tests for contract validation
+* `5-Test/MotorcycleRAG.Core.Tests/` → Unit tests for shared kernel / base utilities
+* `5-Test/MotorcycleRAG.Domian.Tests/` → Unit tests for domain logic
+* `5-Test/MotorcycleRAG.EndToEndTests/` → End-to-end Playwright UI tests
+* `5-Test/MotorcycleRAG.IntegrationTests/` → Full integration tests with database
+* `5-Test/MotorcycleRAG.LoadTests/` → Load and performance tests
+* `5-Test/MotorcycleRAG.MobileApp.Tests/` → Unit tests for MAUI mobile app
+* `5-Test/MotorcycleRAG.Persistence.Tests/` → Unit tests for Persistence layer infrastructure (Dapper repositories, Azure SDK wrappers, health checks, telemetry, pipeline services)
+* `5-Test/MotorcycleRag.WebUI.BFF.Tests/` → Unit tests for the Web UI BFF
+* `5-Test/local-processing-service.Tests/` → Python unit/integration tests for the local processing service (pytest, run from `2-Application/local-processing-service/` via `testpaths`)
 
 **Test Strategy:**
 

@@ -1,0 +1,15 @@
+{
+  "solution": {
+    "path": "MotorcycleRAG.sln",
+    "projects": [
+      "5-Test\\MotorcycleRAG.API.Tests\\MotorcycleRAG.API.Tests.csproj",
+      "5-Test\\MotorcycleRAG.Application.Tests\\MotorcycleRAG.Application.Tests.csproj",
+      "5-Test\\MotorcycleRAG.Core.Tests\\MotorcycleRAG.Core.Tests.csproj",
+      "5-Test\\MotorcycleRAG.Contracts.Tests\\MotorcycleRAG.Contracts.Tests.csproj",
+      "5-Test\\MotorcycleRAG.Domian.Tests\\MotorcycleRAG.Domian.Tests.csproj",
+      "5-Test\\MotorcycleRAG.AgentProvisioning.Tests\\MotorcycleRAG.AgentProvisioning.Tests.csproj",
+      "5-Test\\MotorcycleRAG.Persistence.Tests\\MotorcycleRAG.Persistence.Tests.csproj",
+      "5-Test\\MotorcycleRag.WebUI.BFF.Tests\\MotorcycleRag.WebUI.BFF.Tests.csproj"
+    ]
+  }
+}

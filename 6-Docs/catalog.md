@@ -12,6 +12,7 @@ This catalog defines the maintained documentation surface. `Current` means the R
 | Local Processing Service | Service | `2-Application/local-processing-service` | [README](../2-Application/local-processing-service/README.md) | [Processor docs](local-processing-service/) | Ingestion maintainers | 2026-07-11 | Current |
 | Core, Application, Domain, and Persistence | Architecture layers | `0-Base` through `4-Persistence` | [root README](../README.md) | [architecture rules](rules/architecture-general.md) | Architecture maintainers | 2026-07-11 | Current |
 | Test suites | Verification | `5-Test` | [root README](../README.md) | [architecture rules](rules/architecture-general.md) | Test maintainers | 2026-07-12 | Current |
+| MotorcycleRAG Persistence Tests | Test suite | `5-Test/MotorcycleRAG.Persistence.Tests` | [root README](../README.md) | [architecture rules](rules/architecture-general.md) | Test maintainers | 2026-07-13 | Current |
 | Azure Environment | Deployment environment | `7-Deployment/infrastructure` | [README](../7-Deployment/README.md) | [Azure Environment docs](AzureEnvironment/) | Platform maintainers | 2026-07-11 | Current |
 | IaC Security Scanning | Tooling suite | `7-Deployment/scanning` | [README](../7-Deployment/scanning/README.md) | [DevOps overview](DevOps/overview.md) | Platform maintainers | 2026-07-12 | Current |
 | Database Setup CLI | CLI tool | `7-Deployment/DbSetup` | [README](../7-Deployment/DbSetup/README.md) | [database setup reference](DevOps/database-setup.md) | Platform maintainers | 2026-07-11 | Current |

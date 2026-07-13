@@ -52,10 +52,14 @@ def run_dotnet_suite(
 ) -> dict[str, Any]:
     suite_dir = suite_results_dir(results_dir, suite)
     ensure_clean_dir(suite_dir)
+
+    # Resolve target: solution-level (.sln / .slnf) or single project
+    target = suite.get("solution") or suite["project"]
+
     args = [
         "dotnet",
         "test",
-        suite["project"],
+        target,
         "--configuration",
         configuration,
         "--logger",
@@ -66,14 +70,25 @@ def run_dotnet_suite(
         "--settings",
         "coverlet.runsettings",
     ]
+
+    # Append --filter when targeting a solution with a suite-level filter
+    if suite.get("solution") and suite.get("filter"):
+        args.extend(["--filter", suite["filter"]])
+
     exit_code = run_command(args, cwd=REPO_ROOT)
-    coverage_file = find_latest_file(suite_dir, "coverage.cobertura.xml")
+
+    # Collect all coverage.cobertura.xml files (one per test project)
+    coverage_files = sorted(suite_dir.rglob("coverage.cobertura.xml"))
+    coverage_paths = [str(p.resolve()) for p in coverage_files]
+    first_coverage = coverage_paths[0] if coverage_paths else None
+
     return {
         "name": suite["name"],
         "kind": suite["kind"],
         "status": "passed" if exit_code == 0 else "failed",
         "exitCode": exit_code,
-        "coveragePath": None if coverage_file is None else str(coverage_file.resolve()),
+        "coveragePath": first_coverage,
+        "coveragePaths": coverage_paths,
         "resultsDirectory": str(suite_dir.resolve()),
         "command": args,
     }

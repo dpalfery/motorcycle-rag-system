@@ -245,7 +245,7 @@ fi
 # Integration Tests
 if [ "$INTEGRATION_TESTS" = true ]; then
     print_header "Running Integration Tests"
-    INTEGRATION_TEST_PATH="5-Test/tests/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj"
+    INTEGRATION_TEST_PATH="5-Test/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj"
     
     INTEGRATION_TEST_ARGS=(
         "test" "$INTEGRATION_TEST_PATH"
@@ -272,7 +272,7 @@ fi
 # End-to-End Tests
 if [ "$END_TO_END_TESTS" = true ]; then
     print_header "Running End-to-End Tests"
-    E2E_TEST_PATH="5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj"
+    E2E_TEST_PATH="5-Test/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj"
     
     # Set environment variables for E2E tests
     export TestConfiguration__UseRealAzureServices="false"
@@ -305,7 +305,7 @@ if [ "$AZURE_INTEGRATION_TESTS" = true ]; then
     print_header "Running Azure Integration Tests"
     print_warning "These tests require real Azure service credentials"
     
-    AZURE_TEST_PATH="5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj"
+    AZURE_TEST_PATH="5-Test/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj"
     
     # Check for Azure credentials
     if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_CLIENT_SECRET" ] || [ -z "$AZURE_TENANT_ID" ]; then
@@ -338,7 +338,7 @@ if [ "$LOAD_TESTS" = true ]; then
     print_header "Running Load Tests"
     print_warning "Load tests require the application to be running"
     
-    LOAD_TEST_PATH="5-Test/tests/MotorcycleRAG.LoadTests/MotorcycleRAG.LoadTests.csproj"
+    LOAD_TEST_PATH="5-Test/MotorcycleRAG.LoadTests/MotorcycleRAG.LoadTests.csproj"
     
     # Check if application is running
     if curl -f -s "http://localhost:5000/api/motorcycle/health" > /dev/null 2>&1; then

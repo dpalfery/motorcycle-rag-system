@@ -24,7 +24,8 @@
     {
       "name": "dotnet-unit",
       "kind": "dotnet",
-      "project": "5-Test/tests/MotorcycleRAG.UnitTests/MotorcycleRAG.UnitTests.csproj",
+      "solution": "MotorcycleRAG.UnitTests.slnf",
+      "filter": "Category!=Integration&Category!=AzureIntegration",
       "resultsSubdirectory": "dotnet-unit",
       "supportedPlatforms": [
         "linux",
@@ -35,33 +36,24 @@
       "sourceRoots": [
         "0-Base/",
         "1-Presentation/MotorcycleRAG.API/",
+        "1-Presentation/MotorcycleRag.WebUI.BFF/",
         "2-Application/",
         "3-Domain/",
         "4-Persistence/",
         "7-Deployment/AgentProvisioning/"
       ],
       "testRoots": [
-        "5-Test/tests/MotorcycleRAG.UnitTests/"
-      ]
-    },
-    {
-      "name": "bff-unit",
-      "kind": "dotnet",
-      "project": "5-Test/MotorcycleRag.WebUI.BFF.Tests/MotorcycleRag.WebUI.BFF.Tests.csproj",
-      "resultsSubdirectory": "bff-unit",
-      "supportedPlatforms": [
-        "linux",
-        "darwin",
-        "win32"
-      ],
-      "requiredInCi": true,
-      "sourceRoots": [
-        "1-Presentation/MotorcycleRag.WebUI.BFF/"
-      ],
-      "testRoots": [
+        "5-Test/MotorcycleRAG.API.Tests/",
+        "5-Test/MotorcycleRAG.Application.Tests/",
+        "5-Test/MotorcycleRAG.Core.Tests/",
+        "5-Test/MotorcycleRAG.Contracts.Tests/",
+        "5-Test/MotorcycleRAG.Domian.Tests/",
+        "5-Test/MotorcycleRAG.AgentProvisioning.Tests/",
+        "5-Test/MotorcycleRAG.Persistence.Tests/",
         "5-Test/MotorcycleRag.WebUI.BFF.Tests/"
       ]
     },
+
     {
       "name": "mobileapp-unit",
       "kind": "dotnet",
@@ -131,42 +123,6 @@
       ],
       "testRoots": [
         "1-Presentation/MotorcycleRag.WebUI/src/"
-      ]
-    },
-    {
-      "name": "domain-unit",
-      "kind": "dotnet",
-      "project": "5-Test/MotorcycleRAG.Domian.Tests/MotorcycleRAG.Domian.Tests.csproj",
-      "resultsSubdirectory": "domain-unit",
-      "supportedPlatforms": [
-        "linux",
-        "darwin",
-        "win32"
-      ],
-      "requiredInCi": true,
-      "sourceRoots": [
-        "3-Domain/MotorcycleRAG.Domain/"
-      ],
-      "testRoots": [
-        "5-Test/MotorcycleRAG.Domian.Tests/"
-      ]
-    },
-    {
-      "name": "persistence-unit",
-      "kind": "dotnet",
-      "project": "5-Test/tests/MotorcycleRAG.Persistence.Tests/MotorcycleRAG.Persistence.Tests.csproj",
-      "resultsSubdirectory": "persistence-unit",
-      "supportedPlatforms": [
-        "linux",
-        "darwin",
-        "win32"
-      ],
-      "requiredInCi": true,
-      "sourceRoots": [
-        "4-Persistence/"
-      ],
-      "testRoots": [
-        "5-Test/tests/MotorcycleRAG.Persistence.Tests/"
       ]
     }
   ]

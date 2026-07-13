@@ -63,7 +63,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotorcycleRAG.Contracts.Tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotorcycleRAG.AgentProvisioning.Tests", "5-Test\MotorcycleRAG.AgentProvisioning.Tests\MotorcycleRAG.AgentProvisioning.Tests.csproj", "{F2CA6260-B655-4D37-A810-9ADD67822D80}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotorcycleRAG.Persistence.Tests", "5-Test\tests\MotorcycleRAG.Persistence.Tests\MotorcycleRAG.Persistence.Tests.csproj", "{21302A8F-A52F-4CE4-AFD6-AFEECF24A5C9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MotorcycleRAG.Persistence.Tests", "5-Test\MotorcycleRAG.Persistence.Tests\MotorcycleRAG.Persistence.Tests.csproj", "{21302A8F-A52F-4CE4-AFD6-AFEECF24A5C9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

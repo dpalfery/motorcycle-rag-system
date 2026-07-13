@@ -54,10 +54,11 @@ class ClassMetrics:
     suite_name: str
     file_path: str
     class_name: str
-    line_hits: int
-    line_total: int
-    branch_hits: int
-    branch_total: int
+    line_hits: int = 0
+    line_total: int = 0
+    branch_hits: int = 0
+    branch_total: int = 0
+    lines: dict[int, dict[str, int]] = field(default_factory=dict)
 
     def line_percent(self) -> float:
         if self.line_total == 0:
@@ -133,7 +134,7 @@ def parse_cobertura_file(
     suite: dict[str, Any],
     coverage_path: Path,
     file_metrics: dict[str, FileMetrics],
-    class_metrics: list[ClassMetrics],
+    class_metrics: dict[tuple[str, str, str], ClassMetrics],
     exclusions: dict[str, Any],
 ) -> None:
     root = DefusedElementTree.parse(coverage_path).getroot()
@@ -148,40 +149,42 @@ def parse_cobertura_file(
         if should_exclude(normalized_path, exclusions):
             continue
 
-        line_hits = 0
-        line_total = 0
-        branch_hits_total = 0
-        branch_total = 0
+        lines_dict: dict[int, dict[str, int]] = {}
         for line_element in class_element.findall("./lines/line"):
-            hits = int(line_element.attrib.get("hits", "0"))
             line_number = int(line_element.attrib.get("number", "0"))
-            line_total += 1
-            if hits > 0:
-                line_hits += 1
+            hits = int(line_element.attrib.get("hits", "0"))
             branch_hits, branch_valid = branch_counts(line_element)
-            branch_hits_total += branch_hits
-            branch_total += branch_valid
+            current = lines_dict.setdefault(
+                line_number,
+                {"hits": 0, "branchHits": 0, "branchTotal": 0},
+            )
+            current["hits"] = max(current["hits"], hits)
+            current["branchHits"] = max(current["branchHits"], branch_hits)
+            current["branchTotal"] = max(current["branchTotal"], branch_valid)
 
         class_name = class_element.attrib.get("name", normalized_path)
-        class_metrics.append(
-            ClassMetrics(
+        class_key = (suite["name"], normalized_path, class_name)
+        if class_key in class_metrics:
+            existing = class_metrics[class_key]
+            for line_number, line_info in lines_dict.items():
+                current = existing.lines.setdefault(
+                    line_number,
+                    {"hits": 0, "branchHits": 0, "branchTotal": 0},
+                )
+                current["hits"] = max(current["hits"], line_info["hits"])
+                current["branchHits"] = max(current["branchHits"], line_info["branchHits"])
+                current["branchTotal"] = max(current["branchTotal"], line_info["branchTotal"])
+        else:
+            class_metrics[class_key] = ClassMetrics(
                 suite_name=suite["name"],
                 file_path=normalized_path,
                 class_name=class_name,
-                line_hits=line_hits,
-                line_total=line_total,
-                branch_hits=branch_hits_total,
-                branch_total=branch_total,
+                lines=lines_dict,
             )
-        )
 
         aggregate = file_metrics.setdefault(normalized_path, FileMetrics(path=normalized_path))
         aggregate.suite_names.add(suite["name"])
         aggregate.class_names.add(class_name)
-        aggregate.line_hits += line_hits
-        aggregate.line_total += line_total
-        aggregate.branch_hits += branch_hits_total
-        aggregate.branch_total += branch_total
         for line_element in class_element.findall("./lines/line"):
             line_number = int(line_element.attrib.get("number", "0"))
             hits = int(line_element.attrib.get("hits", "0"))
@@ -464,7 +467,7 @@ def main() -> int:
 
     summary_path = args.summary_path or output_dir / "coverage-summary.json"
     files: dict[str, FileMetrics] = {}
-    classes: list[ClassMetrics] = []
+    classes: dict[tuple[str, str, str], ClassMetrics] = {}
     suite_results: list[dict[str, Any]] = []
     skipped_suites: list[dict[str, Any]] = []
     for suite in config["suites"]:
@@ -475,6 +478,8 @@ def main() -> int:
             suite_status = json.loads(suite_summary_path.read_text(encoding="utf-8"))
 
         coverage_path_text = suite_status.get("coveragePath")
+        coverage_paths_list: list[str] | None = suite_status.get("coveragePaths")
+
         if suite_status.get("status") == "skipped":
             skipped_suites.append(
                 {
@@ -486,26 +491,61 @@ def main() -> int:
             suite_results.append(suite_status)
             continue
 
-        if not coverage_path_text:
+        # Determine coverage file(s) to parse for this suite.
+        # If the suite emits coveragePaths (list), use it; otherwise fall back
+        # to the legacy single coveragePath field for backward compatibility.
+        if isinstance(coverage_paths_list, list) and coverage_paths_list:
+            coverage_files: list[str] = coverage_paths_list
+        elif coverage_path_text:
+            coverage_files = [coverage_path_text]
+        else:
+            coverage_files = []
+
+        if not coverage_files:
             suite_results.append(suite_status)
             continue
 
-        coverage_path = Path(coverage_path_text)
-        if not coverage_path.is_absolute():
-            coverage_path = (REPO_ROOT / coverage_path).resolve()
-        if coverage_path.exists():
-            parse_cobertura_file(
-                suite=suite,
-                coverage_path=coverage_path,
-                file_metrics=files,
-                class_metrics=classes,
-                exclusions=config["coverageExclusions"],
-            )
+        has_parsed = False
+        for single_path_text in coverage_files:
+            coverage_path = Path(single_path_text)
+            if not coverage_path.is_absolute():
+                coverage_path = (REPO_ROOT / coverage_path).resolve()
+            if coverage_path.exists():
+                parse_cobertura_file(
+                    suite=suite,
+                    coverage_path=coverage_path,
+                    file_metrics=files,
+                    class_metrics=classes,
+                    exclusions=config["coverageExclusions"],
+                )
+                has_parsed = True
+
+        if has_parsed:
             suite_status["status"] = "passed" if suite_status.get("exitCode", 1) == 0 else "failed"
         suite_results.append(suite_status)
 
+    # Recompute FileMetrics totals from the merged lines dict to avoid
+    # double-counting when the same source file appears in multiple coverage
+    # files.  We cannot sum per-file totals — that would count overlapping
+    # lines more than once.  Instead, derive totals from the final unioned
+    # line data.
+    for fm in files.values():
+        fm.line_total = len(fm.lines)
+        fm.line_hits = sum(1 for info in fm.lines.values() if info["hits"] > 0)
+        fm.branch_total = sum(info["branchTotal"] for info in fm.lines.values())
+        fm.branch_hits = sum(info["branchHits"] for info in fm.lines.values())
+
+    # Recompute ClassMetrics totals from the merged lines dict to avoid
+    # double-counting when the same class appears in multiple coverage
+    # files.  Derive totals from the final unioned line data.
+    for cm in classes.values():
+        cm.line_total = len(cm.lines)
+        cm.line_hits = sum(1 for info in cm.lines.values() if info["hits"] > 0)
+        cm.branch_total = sum(info["branchTotal"] for info in cm.lines.values())
+        cm.branch_hits = sum(info["branchHits"] for info in cm.lines.values())
+
     weakest_files = sorted(files.values(), key=sort_rank_key)
-    weakest_classes = sorted(classes, key=sort_rank_key)
+    weakest_classes = sorted(classes.values(), key=sort_rank_key)
 
     file_failures = [item for item in weakest_files if item.line_percent() < threshold]
     class_threshold = (
@@ -517,8 +557,8 @@ def main() -> int:
 
     overall_file_hits = sum(item.line_hits for item in files.values())
     overall_file_total = sum(item.line_total for item in files.values())
-    overall_class_hits = sum(item.line_hits for item in classes)
-    overall_class_total = sum(item.line_total for item in classes)
+    overall_class_hits = sum(item.line_hits for item in classes.values())
+    overall_class_total = sum(item.line_total for item in classes.values())
     summary = {
         "thresholds": {"fileLinePercent": threshold, "classLinePercent": class_threshold},
         "overall": {
@@ -575,7 +615,7 @@ def main() -> int:
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     emit_markdown(output_dir / "coverage-summary.md", threshold=threshold, summary=summary)
     emit_html(output_dir / "coverage-summary.html", threshold=threshold, summary=summary)
-    emit_merged_cobertura(output_dir / "coverage-merged.cobertura.xml", files, classes)
+    emit_merged_cobertura(output_dir / "coverage-merged.cobertura.xml", files, list(classes.values()))
 
     failing = bool(file_failures or class_failures)
     emit_console_summary(

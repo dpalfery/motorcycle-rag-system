@@ -41,9 +41,9 @@ required_agent_files=(
   "3-Domain/MotorcycleRAG.Domain/AGENTS.md"
   "4-Persistence/MotorcycleRAG.Persistence/AGENTS.md"
   "5-Test/MotorcycleRAG.MobileApp.Tests/AGENTS.md"
-  "5-Test/tests/MotorcycleRAG.EndToEndTests/AGENTS.md"
-  "5-Test/tests/MotorcycleRAG.IntegrationTests/AGENTS.md"
-  "5-Test/tests/MotorcycleRAG.LoadTests/AGENTS.md"
+  "5-Test/MotorcycleRAG.EndToEndTests/AGENTS.md"
+  "5-Test/MotorcycleRAG.IntegrationTests/AGENTS.md"
+  "5-Test/MotorcycleRAG.LoadTests/AGENTS.md"
   "5-Test/tests/MotorcycleRAG.UnitTests/AGENTS.md"
   "7-Deployment/infrastructure/AGENTS.md"
 )

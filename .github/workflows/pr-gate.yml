@@ -130,8 +130,6 @@ jobs:
             --results-dir TestResults/UnitCoverage \
             --configuration Release \
             --suite dotnet-unit \
-            --suite domain-unit \
-            --suite bff-unit \
             --suite python-unit \
             --suite admindesktop-unit
 
@@ -151,24 +149,28 @@ jobs:
         with:
           name: build-output
           path: |
-            MotorcycleRAG.API/bin/
-            MotorcycleRAG.API/obj/
-            MotorcycleRAG.Application/bin/
-            MotorcycleRAG.Application/obj/
-            MotorcycleRAG.Contracts/bin/
-            MotorcycleRAG.Contracts/obj/
-            MotorcycleRAG.Core/bin/
-            MotorcycleRAG.Core/obj/
-            MotorcycleRAG.Domain/bin/
-            MotorcycleRAG.Domain/obj/
-            MotorcycleRAG.Persistence/bin/
-            MotorcycleRAG.Persistence/obj/
-            MotorcycleRag.WebUI.BFF/bin/
-            MotorcycleRag.WebUI.BFF/obj/
-            MotorcycleRAG.IntegrationTests/bin/
-            MotorcycleRAG.IntegrationTests/obj/
-            MotorcycleRAG.EndToEndTests/bin/
-            MotorcycleRAG.EndToEndTests/obj/
+            0-Base/MotorcycleRAG.Core/bin/
+            0-Base/MotorcycleRAG.Core/obj/
+            1-Presentation/MotorcycleRAG.API/bin/
+            1-Presentation/MotorcycleRAG.API/obj/
+            1-Presentation/MotorcycleRag.WebUI.BFF/bin/
+            1-Presentation/MotorcycleRag.WebUI.BFF/obj/
+            2-Application/MotorcycleRAG.Application/bin/
+            2-Application/MotorcycleRAG.Application/obj/
+            3-Domain/MotorcycleRAG.Contracts/bin/
+            3-Domain/MotorcycleRAG.Contracts/obj/
+            3-Domain/MotorcycleRAG.Contracts.Models/bin/
+            3-Domain/MotorcycleRAG.Contracts.Models/obj/
+            3-Domain/MotorcycleRAG.Domain/bin/
+            3-Domain/MotorcycleRAG.Domain/obj/
+            4-Persistence/MotorcycleRAG.Persistence/bin/
+            4-Persistence/MotorcycleRAG.Persistence/obj/
+            5-Test/MotorcycleRAG.IntegrationTests/bin/
+            5-Test/MotorcycleRAG.IntegrationTests/obj/
+            5-Test/MotorcycleRAG.EndToEndTests/bin/
+            5-Test/MotorcycleRAG.EndToEndTests/obj/
+            7-Deployment/AgentProvisioning/bin/
+            7-Deployment/AgentProvisioning/obj/
           retention-days: 1
 
   # ─────────────────────────────────────────────────────────────────────
@@ -480,7 +482,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          dotnet test 5-Test/tests/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj \
+          dotnet test 5-Test/MotorcycleRAG.IntegrationTests/MotorcycleRAG.IntegrationTests.csproj \
             --no-build \
             --configuration Release \
             --logger trx \
@@ -523,12 +525,12 @@ jobs:
 
       - name: Setup test data
         run: |
-          mkdir -p 5-Test/tests/MotorcycleRAG.EndToEndTests/TestData
+          mkdir -p 5-Test/MotorcycleRAG.EndToEndTests/TestData
           # Test data is created by TestDataManager during test execution
 
       - name: Run end-to-end tests
         run: |
-          dotnet test 5-Test/tests/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj \
+          dotnet test 5-Test/MotorcycleRAG.EndToEndTests/MotorcycleRAG.EndToEndTests.csproj \
             --no-build \
             --configuration Release \
             --logger trx \

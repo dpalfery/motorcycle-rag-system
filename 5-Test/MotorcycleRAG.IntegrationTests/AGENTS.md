@@ -2,12 +2,12 @@
 
 ## Applies to
 
-`5-Test/tests/MotorcycleRAG.IntegrationTests/` only. Read the repository [AGENTS.md](../../../AGENTS.md) first.
+`5-Test/MotorcycleRAG.IntegrationTests/` only. Read the repository [AGENTS.md](../../AGENTS.md) first.
 
 ## Read before changing
 
-- [System requirements](../../../6-Docs/system/requirements.md)
-- [Architecture placement rules](../../../6-Docs/rules/architecture-general.md)
+- [System requirements](../../6-Docs/system/requirements.md)
+- [Architecture placement rules](../../6-Docs/rules/architecture-general.md)
 
 ## Scoped constraints
 
@@ -16,4 +16,4 @@
 
 ## Verify
 
-Run `dotnet test --project 5-Test/tests/MotorcycleRAG.IntegrationTests`.
+Run `dotnet test --project 5-Test/MotorcycleRAG.IntegrationTests`.

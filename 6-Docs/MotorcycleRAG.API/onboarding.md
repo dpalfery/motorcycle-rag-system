@@ -20,7 +20,7 @@
 - Set breakpoints in controllers only to verify HTTP binding, authorization, and response mapping; follow the injected application service for use-case behavior.
 - Inspect structured logs and correlation IDs rather than logging raw prompts, query text, tokens, or other sensitive data.
 - Start with `/health` when a dependent service is suspected. For ingestion, compare API job state with the local processor health and its `processorRunId` correlation identifier.
-- Run the focused project build with `dotnet build 1-Presentation/MotorcycleRAG.API/MotorcycleRAG.API.csproj`, then the relevant test project under `5-Test/tests/`.
+- Run the focused project build with `dotnet build 1-Presentation/MotorcycleRAG.API/MotorcycleRAG.API.csproj`, then the relevant test project under `5-Test/`.
 
 ## Non-standard procedures
 

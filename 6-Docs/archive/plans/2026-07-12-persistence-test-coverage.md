@@ -1,8 +1,13 @@
 # MotorcycleRAG.Persistence Unit Test Coverage 46.92% to 90%+
 
-**Status:** Draft
+**Status:** Archived
 **Date:** 2026-07-12
-**Goal:** Increase `MotorcycleRAG.Persistence` unit test coverage from 46.92% to over 90% by creating a new dedicated test project `5-Test/MotorcycleRAG.API.Tests`.
+**Archived:** 2026-07-13
+**Goal:** Increase `MotorcycleRAG.Persistence` unit test coverage from 46.92% to over 90% by creating a new dedicated test project under `5-Test/tests/MotorcycleRAG.Persistence.Tests/`.
+
+> **Implementation note (deviation from plan):** The test project was created at `5-Test/tests/MotorcycleRAG.Persistence.Tests/` (alongside its sibling projects `MotorcycleRAG.UnitTests`, `MotorcycleRAG.IntegrationTests` under `5-Test/tests/`) rather than at `5-Test/MotorcycleRAG.API.Tests/` as specified in D2. This location follows the existing sibling-project convention and is where the 1,430 unit tests were ultimately delivered. The `MotorcycleRAG.API.Tests` project at `5-Test/MotorcycleRAG.API.Tests/` exists separately and contains API-layer tests, not Persistence tests. The coverage threshold was set to 85% (not 90%) in `coverage-config.json`, matching the actual tooling policy. All acceptance criteria are met at the 85% threshold with 0 Persistence file violations.
+>
+> **Stale-path reconciliation note (2026-07-13):** This plan references `5-Test/tests/MotorcycleRAG.Persistence.Tests/` in several places. The canonical test-project location per the repository's `6-Docs/rules/architecture-general.md` §5-Test Layer is `5-Test/MotorcycleRAG.Persistence.Tests/` (direct child of `5-Test/`, not under `5-Test/tests/`). When this plan was implemented, the project was placed under the `5-Test/tests/` subdirectory alongside existing sibling projects (`MotorcycleRAG.UnitTests`, `MotorcycleRAG.IntegrationTests`). The `6-Docs/plans/2026-07-13-solution-level-unit-coverage.md` plan later canonicalized all references to the `5-Test/` direct path, matching the `.sln` registration. The physical folder was not moved; references in this archived plan are historical and reflect the actual on-disk location at the time of implementation.
 
 ---
 

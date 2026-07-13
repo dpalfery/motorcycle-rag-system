@@ -856,4 +856,213 @@ public sealed class AzureSearchQueryServiceTests
                     catch { onFallback(); return await fb(); }
                 });
     }
+
+    // ---- Successful search path: ExecuteSearchAsync response-processing loop ----
+    // These tests cover the await foreach loop that maps Azure SearchResult<T>
+    // documents (with metadata, highlights, score) to the application DTO.
+
+    [Fact]
+    public async Task SearchAsync_WithValidCategoryAndSuccessfulResponse_ReturnsMappedResults()
+    {
+        var sut = CreateSut();
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns("corr-success");
+        _correlationServiceMock.Setup(x => x.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
+            .Returns(new Mock<IDisposable>().Object);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns("motorcycle-sport");
+
+        // Source DTO with non-empty Metadata and Highlights to exercise the copy loops
+        var sourceDoc = new SearchResult
+        {
+            Id = "engine-001",
+            Content = "Engine maintenance guide for V-twin motorcycles",
+            RelevanceScore = 0.0f,
+            Source = new SearchSource
+            {
+                AgentType = SearchAgentType.VectorSearch,
+                SourceName = "Service Manual",
+                DocumentId = "d1"
+            },
+            GeneratedAt = new DateTime(2025, 6, 15, 0, 0, 0, DateTimeKind.Utc),
+            Metadata = new Dictionary<string, object>
+            {
+                ["page"] = 42,
+                ["section"] = "engine"
+            },
+            Highlights = new List<string> { "Engine", "V-twin" }
+        };
+
+        IDictionary<string, IList<string>> emptyHighlights =
+            new Dictionary<string, IList<string>>();
+        var azureResp = BuildAzureSearchResponse(
+            new[] { (sourceDoc, 0.87d, emptyHighlights) });
+
+        var searchClientMock = new Mock<SearchClient>();
+        searchClientMock
+            .Setup(c => c.SearchAsync<SearchResult>(
+                It.IsAny<string>(),
+                It.IsAny<AzureSearchOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(azureResp);
+
+        _clientFactoryMock
+            .Setup(x => x.GetClient(It.IsAny<MotorcycleCategory>()))
+            .Returns(searchClientMock.Object);
+
+        SetupResilienceToInvokeOperation<SearchResult[]>("AzureSearch.Search");
+
+        // Act
+        var results = await sut.SearchAsync("engine maintenance",
+            new Core.Options.SearchOptions { MaxSearchResults = 10, Category = "sport" });
+
+        // Assert — verify the response-processing loop mapped all fields correctly
+        results.Should().HaveCount(1);
+        results[0].Id.Should().Be("engine-001");
+        results[0].Content.Should().Be("Engine maintenance guide for V-twin motorcycles");
+        results[0].RelevanceScore.Should().Be(0.87f);
+        results[0].Source.SourceName.Should().Be("Service Manual");
+        results[0].GeneratedAt.Should().Be(new DateTime(2025, 6, 15, 0, 0, 0, DateTimeKind.Utc));
+        results[0].Metadata.Should().HaveCount(2);
+        results[0].Metadata["page"].Should().Be(42);
+        results[0].Metadata["section"].Should().Be("engine");
+        results[0].Highlights.Should().BeEquivalentTo(new[] { "Engine", "V-twin" });
+    }
+
+    [Fact]
+    public async Task SearchAsync_FanOutWithSuccessfulResponses_ReturnsMergedByScore()
+    {
+        var sut = CreateSut();
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns("corr-fo-ok");
+        _correlationServiceMock.Setup(x => x.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
+            .Returns(new Mock<IDisposable>().Object);
+        _clientFactoryMock.Setup(x => x.AllCategories).Returns(MotorcycleCategory.All);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns((MotorcycleCategory c) => $"motorcycle-{c.Value.ToLowerInvariant()}");
+
+        // Create per-category responses with different scores
+        var sportDoc = CreateResult("sport-1", 0.9f);
+        sportDoc.Metadata["category"] = "sport";
+        var touringDoc = CreateResult("touring-1", 0.7f);
+        touringDoc.Metadata["category"] = "touring";
+        var dirtDoc = CreateResult("dirt-1", 0.5f);
+        dirtDoc.Metadata["category"] = "dirt";
+
+        // Stub GetClient to return a distinct SearchClient per category
+        var clients = new Dictionary<string, Mock<SearchClient>>();
+        (SearchResult doc, double score)[] setup =
+        {
+            (sportDoc, 0.9d), (touringDoc, 0.7d), (dirtDoc, 0.5d)
+        };
+        var categories = MotorcycleCategory.All.Reverse().ToArray();
+        for (int i = 0; i < Math.Min(setup.Length, categories.Length); i++)
+        {
+            var cat = categories[i];
+            var (doc, score) = setup[i];
+            IDictionary<string, IList<string>> emptyHl =
+                new Dictionary<string, IList<string>>();
+            var resp = BuildAzureSearchResponse(
+                new[] { (doc, score, emptyHl) });
+            var clientMock = new Mock<SearchClient>();
+            clientMock
+                .Setup(c => c.SearchAsync<SearchResult>(
+                    It.IsAny<string>(),
+                    It.IsAny<AzureSearchOptions>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(resp);
+            clients[cat.Value] = clientMock;
+        }
+
+        _clientFactoryMock
+            .Setup(x => x.GetClient(It.IsAny<MotorcycleCategory>()))
+            .Returns((MotorcycleCategory c) => clients.TryGetValue(c.Value, out var m) ? m.Object : null!);
+
+        SetupResilienceToInvokeOperation<SearchResult[]>("AzureSearch.Search");
+
+        // Act
+        var results = await sut.SearchAsync("motorcycle maintenance",
+            new Core.Options.SearchOptions { MaxSearchResults = 10, Category = null });
+
+        // Assert — fan-out merged results, ordered by score descending
+        results.Should().HaveCount(3);
+        results[0].Id.Should().Be("sport-1");    // 0.9
+        results[1].Id.Should().Be("touring-1");  // 0.7
+        results[2].Id.Should().Be("dirt-1");     // 0.5
+    }
+
+    // ---- Test infrastructure for Azure SDK response mocking ----
+
+    /// <summary>
+    /// Builds a mock <see cref="Response{SearchResults{SearchResult}}"/> that wraps the given
+    /// document/score tuples, enabling the <c>ExecuteSearchAsync</c> response-processing loop
+    /// to be exercised without hitting a real Azure Search instance.
+    /// </summary>
+    /// <remarks>
+    /// Uses fully-qualified type names to disambiguate from the test-project namespace
+    /// <c>MotorcycleRAG.Persistence.Tests.Azure.Search</c> which shadows
+    /// <c>Azure.Search.Documents.Models</c>.
+    /// </remarks>
+    private static Response<
+        global::Azure.Search.Documents.Models.SearchResults<SearchResult>
+    > BuildAzureSearchResponse(
+        (SearchResult Document, double Score,
+         IDictionary<string, IList<string>> Highlights)[] items)
+    {
+        var azureResults = new List<
+            global::Azure.Search.Documents.Models.SearchResult<SearchResult>>();
+        foreach (var (doc, score, highlights) in items)
+        {
+            var readonlyHighlights =
+                new System.Collections.ObjectModel.ReadOnlyDictionary<string, IList<string>>(highlights);
+            var azureSr = global::Azure.Search.Documents.Models.SearchModelFactory.SearchResult<SearchResult>(
+                doc, score, readonlyHighlights);
+            azureResults.Add(azureSr);
+        }
+
+        var pageable = new FakeAsyncPageable<
+            global::Azure.Search.Documents.Models.SearchResult<SearchResult>>(
+            azureResults.ToArray());
+
+        // SearchResults<T>.GetResultsAsync() is non-virtual; use SearchModelFactory
+        // to create one whose GetResultsAsync() returns our FakeAsyncPageable.
+        var searchResults = global::Azure.Search.Documents.Models.SearchModelFactory
+            .SearchResults<SearchResult>(azureResults, azureResults.Count,
+                new Dictionary<string, IList<global::Azure.Search.Documents.Models.FacetResult>>(),
+                null, null, null);
+
+        var responseMock = new Mock<
+            global::Azure.Response<
+                global::Azure.Search.Documents.Models.SearchResults<SearchResult>
+            >>();
+        responseMock.Setup(r => r.Value).Returns(searchResults);
+
+        return responseMock.Object;
+    }
+
+    /// <summary>
+    /// Minimal fake <see cref="AsyncPageable{T}"/> that synchronously yields
+    /// a pre-built list of items, sufficient for unit-testing the
+    /// <c>await foreach</c> in <c>ExecuteSearchAsync</c>.
+    /// </summary>
+    private sealed class FakeAsyncPageable<T> : AsyncPageable<T> where T : notnull
+    {
+        private readonly T[] _items;
+
+        public FakeAsyncPageable(T[] items) => _items = items;
+
+        public override async IAsyncEnumerator<T> GetAsyncEnumerator(
+            CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            foreach (var item in _items)
+                yield return item;
+        }
+
+        public override AsyncPageable<Page<T>> AsPages(
+            string? continuationToken = null, int? pageSizeHint = null)
+        {
+            var mockResp = new Mock<global::Azure.Response>();
+            var page = Page<T>.FromValues(_items, continuationToken, mockResp.Object);
+            return new FakeAsyncPageable<Page<T>>(new[] { page });
+        }
+    }
 }

@@ -143,7 +143,7 @@ public class ClaimCitationService
                 {
                     { "MatchedClaim", claim },
                     { "RelevanceScore", source.RelevanceScore },
-                    { "ContentPreview", source.Content.Length > 100 ? source.Content[..100] + "â€¦" : source.Content }
+                    { "ContentPreview", source.Content.Length > 100 ? source.Content[..100] + "…" : source.Content }
                 }
             };
 
@@ -306,7 +306,7 @@ public class ClaimCitationService
                         finalAnswer = string.Concat(finalAnswer, " ([URL](", citation.SourceUrl, "))");
                     }
 
-                    finalAnswer = string.Concat(finalAnswer, (citation.Verified ? " âœ“ Verified" : " âš  Requires verification"), "\n");
+                    finalAnswer = string.Concat(finalAnswer, (citation.Verified ? " ✓ Verified" : " ⚠ Requires verification"), "\n");
                 }
             }
 

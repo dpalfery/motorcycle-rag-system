@@ -343,4 +343,42 @@ public sealed class ClaimCitationServiceTests
         result.Answer.Should().Be(answer);
         result.Results.Should().BeSameAs(sources);
     }
+
+    // -------------------------------------------------------------------
+    // 12. Regression: citation footer glyphs must be real Unicode
+    // characters, not double-encoded mojibake (UTF-8 bytes misread as
+    // Windows-1252 and re-saved as UTF-8).
+    // -------------------------------------------------------------------
+
+    [Fact]
+    public async Task GenerateCitedResponseAsync_VerifiedCitation_UsesRealCheckMarkGlyph()
+    {
+        var source = MakeSource(
+            "src-1",
+            "Detailed specs: The engine is powerful and reliable across RPM ranges.",
+            relevanceScore: 0.9f);
+        var sources = new[] { source };
+        const string answer = "The engine is powerful.";
+
+        var result = await _sut.GenerateCitedResponseAsync(answer, sources, "how powerful is the engine?");
+
+        result.Answer.Should().Contain("✓ Verified");
+        result.Answer.Should().NotContain("âœ“");
+    }
+
+    [Fact]
+    public async Task GenerateCitedResponseAsync_UnverifiedCitation_UsesRealWarningGlyph()
+    {
+        var source = MakeSource(
+            "src-1",
+            "Detailed specs: The engine is powerful and reliable across RPM ranges.",
+            relevanceScore: 0.5f);
+        var sources = new[] { source };
+        const string answer = "The engine is powerful.";
+
+        var result = await _sut.GenerateCitedResponseAsync(answer, sources, "how powerful is the engine?");
+
+        result.Answer.Should().Contain("⚠ Requires verification");
+        result.Answer.Should().NotContain("âš ");
+    }
 }

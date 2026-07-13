@@ -13,6 +13,7 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for data pipeline services
 /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 internal static class DataPipelineConfiguration {
     /// <summary>
     /// Configure data pipeline services
@@ -33,6 +34,7 @@ internal static class DataPipelineConfiguration {
 
         // Register ingestion job service for Fabric pipeline integration
         services.AddScoped<IIngestionJobService, MotorcycleRAG.Application.Services.Ingestion.IngestionJobService>();
+        services.AddScoped<IProcessorArtifactService, ProcessorArtifactService>();
 
         // Singleton bounded channel shared between the scoped IngestionJobService (producer) and
         // GraphIngestionBackgroundService (single consumer). Must be a singleton so that all

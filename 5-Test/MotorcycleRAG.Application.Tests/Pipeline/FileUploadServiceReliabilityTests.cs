@@ -16,12 +16,14 @@ public class FileUploadServiceReliabilityTests {
     private static readonly string[] AllowedExtensionsArray = { ".csv", ".pdf" };
 
     private readonly Mock<ITelemetryService> _telemetryServiceMock;
+    private readonly Mock<ILocalFileStore> _localFileStoreMock;
     private readonly Mock<ILogger<FileUploadService>> _loggerMock;
     private readonly Mock<IOptions<FileUploadConfiguration>> _configMock;
     private readonly FileUploadService _service;
 
     public FileUploadServiceReliabilityTests() {
         _telemetryServiceMock = new Mock<ITelemetryService>();
+        _localFileStoreMock = new Mock<ILocalFileStore>();
         _loggerMock = new Mock<ILogger<FileUploadService>>();
         _configMock = new Mock<IOptions<FileUploadConfiguration>>();
 
@@ -34,8 +36,18 @@ public class FileUploadServiceReliabilityTests {
         };
 
         _configMock.Setup(x => x.Value).Returns(config);
+        _localFileStoreMock
+            .Setup(x => x.EnsureDirectoryExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _localFileStoreMock
+            .Setup(x => x.WriteAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-        _service = new FileUploadService(_configMock.Object, _telemetryServiceMock.Object, _loggerMock.Object);
+        _service = new FileUploadService(
+            _configMock.Object,
+            _localFileStoreMock.Object,
+            _telemetryServiceMock.Object,
+            _loggerMock.Object);
     }
 
     [Fact]
@@ -56,14 +68,13 @@ public class FileUploadServiceReliabilityTests {
         Assert.True(result.IsValid);
         Assert.Equal(FileType.CSV, result.DetectedFileType);
         Assert.Equal("test.csv", result.OriginalFileName);
-        Assert.True(File.Exists(result.FilePath));
+        _localFileStoreMock.Verify(
+            x => x.WriteAsync(result.FilePath, stream, It.IsAny<CancellationToken>()),
+            Times.Once);
 
         // Verify telemetry was tracked
         _telemetryServiceMock.Verify(x => x.TrackEvent("FileUploaded", It.IsAny<Dictionary<string, string>>()), Times.Once);
 
-        // Cleanup
-        if (File.Exists(result.FilePath))
-            File.Delete(result.FilePath);
     }
 
     [Fact]
@@ -84,11 +95,9 @@ public class FileUploadServiceReliabilityTests {
         Assert.True(result.IsValid);
         Assert.Equal(FileType.PDF, result.DetectedFileType);
         Assert.Equal("manual.pdf", result.OriginalFileName);
-        Assert.True(File.Exists(result.FilePath));
-
-        // Cleanup
-        if (File.Exists(result.FilePath))
-            File.Delete(result.FilePath);
+        _localFileStoreMock.Verify(
+            x => x.WriteAsync(result.FilePath, stream, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -165,11 +174,9 @@ public class FileUploadServiceReliabilityTests {
         Assert.Equal(1, result.FailedUploads);
         Assert.False(result.AllFilesUploaded);
 
-        // Cleanup valid uploads
-        foreach (var uploadResult in result.Results.Where(r => r.IsValid)) {
-            if (File.Exists(uploadResult.FilePath))
-                File.Delete(uploadResult.FilePath);
-        }
+        _localFileStoreMock.Verify(
+            x => x.WriteAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
     }
 
     [Fact]
@@ -209,21 +216,28 @@ public class FileUploadServiceReliabilityTests {
     [Fact]
     public async Task DeleteFileAsync_WithExistingFile_ShouldReturnTrue() {
         // Arrange
-        var tempFile = Path.GetTempFileName();
-        await File.WriteAllTextAsync(tempFile, "test content");
+        const string filePath = "/uploads/manual.pdf";
+        _localFileStoreMock
+            .Setup(x => x.DeleteIfExistsAsync(filePath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
         // Act
-        var result = await _service.DeleteFileAsync(tempFile);
+        var result = await _service.DeleteFileAsync(filePath);
 
         // Assert
         Assert.True(result);
-        Assert.False(File.Exists(tempFile));
+        _localFileStoreMock.Verify(
+            x => x.DeleteIfExistsAsync(filePath, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
     public async Task DeleteFileAsync_WithNonExistentFile_ShouldReturnFalse() {
         // Arrange
-        var nonExistentFile = Path.Combine(Path.GetTempPath(), "non-existent-file.txt");
+        const string nonExistentFile = "/uploads/non-existent-file.txt";
+        _localFileStoreMock
+            .Setup(x => x.DeleteIfExistsAsync(nonExistentFile, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
 
         // Act
         var result = await _service.DeleteFileAsync(nonExistentFile);

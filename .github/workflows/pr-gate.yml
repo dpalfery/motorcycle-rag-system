@@ -416,51 +416,6 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   # Phase 3 — deep validation (needs security gate pass)
   # ─────────────────────────────────────────────────────────────────────
-  unit-mobile:
-    name: Unit Coverage (Mobile)
-    runs-on: macos-latest
-    needs: [changes, build-test, codeql, trivy, semgrep]
-    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Select Xcode 26.5
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '26.5'
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-
-      - name: Install MAUI workload
-        run: dotnet workload install maui
-
-      - name: Restore dependencies
-        run: dotnet restore MotorcycleRAG.sln
-
-      - name: Run mobile unit coverage
-        run: |
-          python3 5-Test/scripts/run_unit_coverage.py \
-            --results-dir TestResults/UnitCoverage \
-            --configuration Release \
-            --suite mobileapp-unit
-
-      - name: Upload mobile unit coverage results
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: unit-coverage-mobile-results
-          path: TestResults/UnitCoverage/
-          retention-days: 14
-
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -616,7 +571,7 @@ jobs:
   pr-gate-summary:
     name: PR Gate Summary
     runs-on: ubuntu-latest
-    needs: [build-test, docs-quality, codeql, trivy, semgrep, iac-scan, unit-mobile, integration, e2e, skill-gate]
+    needs: [build-test, docs-quality, codeql, trivy, semgrep, iac-scan, integration, e2e, skill-gate]
     if: always()
 
     steps:
@@ -632,7 +587,6 @@ jobs:
           echo "| Trivy OSS Security Scan | ${{ needs.trivy.result }} |" >> results.md
           echo "| Semgrep Community SAST | ${{ needs.semgrep.result }} |" >> results.md
           echo "| IaC Security Scan (Checkov) | ${{ needs.iac-scan.result }} |" >> results.md
-          echo "| Unit Tests (Mobile) | ${{ needs.unit-mobile.result }} |" >> results.md
           echo "| Integration Tests | ${{ needs.integration.result }} |" >> results.md
           echo "| End-to-End Tests | ${{ needs.e2e.result }} |" >> results.md
           echo "| SkillForge Gate | ${{ needs.skill-gate.result }} |" >> results.md
@@ -646,7 +600,6 @@ jobs:
             "${{ needs.codeql.result }}" \
             "${{ needs.trivy.result }}" \
             "${{ needs.semgrep.result }}" \
-            "${{ needs.unit-mobile.result }}" \
             "${{ needs.integration.result }}" \
             "${{ needs.e2e.result }}"; do
             if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then

@@ -21,8 +21,9 @@ flowchart LR
 ## Components and Interfaces
 
 - **Presentation:** API, Web UI/BFF, Admin Desktop, and Mobile App own their user/system boundaries and have dedicated documentation folders.
-- **Application and Domain:** use cases, business rules, shared contracts, and orchestration follow the dependency and placement rules in [architecture-general.md](../rules/architecture-general.md).
-- **Persistence and integrations:** SQL, storage, search, AI, and configuration implementations stay behind application-facing abstractions.
+- **Application and Domain:** use cases depend on `MotorcycleRAG.Contracts` interfaces; business rules and concrete domain types remain in Domain. Shared data-only transport DTOs belong in `MotorcycleRAG.Contracts.Models`. The detailed dependency and placement rules are in [architecture-general.md](../rules/architecture-general.md).
+- **Persistence and integrations:** SQL, local-file, trusted-web, storage, search, AI, configuration, credential-provider, and SDK-factory implementations stay behind application-facing abstractions.
+- **Composition roots:** each host composes concrete framework and SDK dependencies in its bootstrap/registration extensions. Controllers and application services receive the resulting contracts through DI rather than resolving or constructing infrastructure dependencies themselves.
 - **Local ingestion:** Admin Desktop creates the cloud ingestion work and safely publishes the paired file/manifest; the Python service consumes it and reports status through the API.
 
 ## Data Models

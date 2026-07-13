@@ -15,10 +15,11 @@ public class SubAgentToolHandlersTests
     private readonly Mock<IAzureSearchClient> _mockSearchClient = new(MockBehavior.Strict);
     private readonly Mock<ITrustedSourcesLoader> _mockLoader = new(MockBehavior.Strict);
     private readonly Mock<IGraphRepository> _mockGraphRepo = new(MockBehavior.Strict);
+    private readonly Mock<ITrustedWebContentFetcher> _mockTrustedWebContentFetcher = new(MockBehavior.Strict);
     private readonly Mock<ILogger<SubAgentToolHandlers>> _mockLogger = new();
 
     private SubAgentToolHandlers CreateHandlers() =>
-        new(_mockSearchClient.Object, _mockLoader.Object, _mockGraphRepo.Object, _mockLogger.Object);
+        new(_mockSearchClient.Object, _mockLoader.Object, _mockGraphRepo.Object, _mockTrustedWebContentFetcher.Object, _mockLogger.Object);
 
     [Fact]
     public async Task HandleExecuteAzureSearchAsync_CallsSearchClient_ReturnsJson()

@@ -51,7 +51,7 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddPerformanceOptimization_RegistersSingletonServicesAndConfiguredNamedHttpClients()
+    public void AddPerformanceOptimization_RegistersApplicationOnlyOptimizationServices()
     {
         var services = new ServiceCollection();
 
@@ -62,23 +62,7 @@ public sealed class ServiceCollectionExtensionsTests
             descriptor.ImplementationType == typeof(VectorCompressionService) && descriptor.Lifetime == ServiceLifetime.Singleton);
         GetRegistration<IBatchProcessingService>(services).Should().Match<ServiceDescriptor>(descriptor =>
             descriptor.ImplementationType == typeof(BatchProcessingService) && descriptor.Lifetime == ServiceLifetime.Singleton);
-        GetRegistration<IConnectionPoolService>(services).Should().Match<ServiceDescriptor>(descriptor =>
-            descriptor.ImplementationType == typeof(ConnectionPoolService) && descriptor.Lifetime == ServiceLifetime.Singleton);
-
-        using var provider = services.BuildServiceProvider();
-        var factory = provider.GetRequiredService<IHttpClientFactory>();
-
-        using var azureOpenAi = factory.CreateClient("AzureOpenAI");
-        azureOpenAi.Timeout.Should().Be(TimeSpan.FromMinutes(5));
-        azureOpenAi.DefaultRequestHeaders.UserAgent.ToString().Should().Be("MotorcycleRAG/1.0");
-
-        using var azureSearch = factory.CreateClient("AzureSearch");
-        azureSearch.Timeout.Should().Be(TimeSpan.FromMinutes(2));
-        azureSearch.DefaultRequestHeaders.UserAgent.ToString().Should().Be("MotorcycleRAG/1.0");
-
-        using var webSearch = factory.CreateClient("WebSearch");
-        webSearch.Timeout.Should().Be(TimeSpan.FromSeconds(30));
-        webSearch.DefaultRequestHeaders.UserAgent.ToString().Should().Be("MotorcycleRAG-Bot/1.0");
+        services.Should().NotContain(descriptor => descriptor.ServiceType == typeof(IHttpClientFactory));
     }
 
     [Fact]

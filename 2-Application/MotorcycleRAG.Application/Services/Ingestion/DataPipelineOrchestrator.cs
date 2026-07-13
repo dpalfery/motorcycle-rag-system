@@ -21,6 +21,7 @@ public partial class DataPipelineOrchestrator : IDataPipelineOrchestrator
     private readonly IDataProcessor<PDFDocument> _pdfProcessor;
     private readonly IDataProcessor<CSVFile> _csvProcessor;
     private readonly IFileUploadService _fileUploadService;
+    private readonly ILocalFileStore _localFileStore;
     private readonly IAzureSearchDocumentService _searchService;
     private readonly ILogger<DataPipelineOrchestrator> _logger;
     private readonly PipelineConfiguration _config;
@@ -33,6 +34,7 @@ public partial class DataPipelineOrchestrator : IDataPipelineOrchestrator
         IDataProcessor<PDFDocument> pdfProcessor,
         IDataProcessor<CSVFile> csvProcessor,
         IFileUploadService fileUploadService,
+        ILocalFileStore localFileStore,
         IAzureSearchDocumentService searchService,
         IOptions<PipelineConfiguration> config,
         ILogger<DataPipelineOrchestrator> logger)
@@ -40,6 +42,7 @@ public partial class DataPipelineOrchestrator : IDataPipelineOrchestrator
         ArgumentNullException.ThrowIfNull(pdfProcessor);
         ArgumentNullException.ThrowIfNull(csvProcessor);
         ArgumentNullException.ThrowIfNull(fileUploadService);
+        ArgumentNullException.ThrowIfNull(localFileStore);
         ArgumentNullException.ThrowIfNull(searchService);
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(logger);
@@ -47,6 +50,7 @@ public partial class DataPipelineOrchestrator : IDataPipelineOrchestrator
         _pdfProcessor = pdfProcessor;
         _csvProcessor = csvProcessor;
         _fileUploadService = fileUploadService;
+        _localFileStore = localFileStore;
         _searchService = searchService;
         _config = config.Value;
         _logger = logger;
@@ -88,7 +92,7 @@ public partial class DataPipelineOrchestrator : IDataPipelineOrchestrator
             }
 
             // Read and validate the file
-            var (stream, validationError) = await ReadFileAsync(request);
+            var (stream, validationError) = await ReadFileAsync(request, cts.Token);
             if (validationError != null)
             {
                 result.Status = PipelineStatus.Failed;
@@ -382,18 +386,20 @@ public partial class DataPipelineOrchestrator : IDataPipelineOrchestrator
     /// <summary>
     /// Reads a file from the specified path in the request.
     /// </summary>
-    private async Task<(Stream? Stream, string? Error)> ReadFileAsync(DataPipelineRequest request)
+    private async Task<(Stream? Stream, string? Error)> ReadFileAsync(
+        DataPipelineRequest request,
+        CancellationToken cancellationToken)
     {
         try
         {
-            // Validate the file exists
-            if (!File.Exists(request.FilePath))
+            var fileBytes = await _localFileStore
+                .ReadAllBytesIfExistsAsync(request.FilePath, cancellationToken)
+                .ConfigureAwait(false);
+            if (fileBytes is null)
             {
                 return (null, $"File not found at path: {request.FilePath}");
             }
 
-            // Read the file into memory stream
-            var fileBytes = await File.ReadAllBytesAsync(request.FilePath).ConfigureAwait(false);
             var stream = new MemoryStream(fileBytes);
 
             // Validate using file upload service

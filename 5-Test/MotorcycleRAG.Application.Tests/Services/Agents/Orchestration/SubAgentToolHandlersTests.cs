@@ -20,6 +20,7 @@ public class SubAgentToolHandlersTests
     private readonly Mock<IAzureSearchClient> _searchClientMock;
     private readonly Mock<ITrustedSourcesLoader> _trustedSourcesMock;
     private readonly Mock<IGraphRepository> _graphRepoMock;
+    private readonly Mock<ITrustedWebContentFetcher> _trustedWebContentFetcherMock;
     private readonly SubAgentToolHandlers _handlers;
 
     public SubAgentToolHandlersTests()
@@ -27,11 +28,13 @@ public class SubAgentToolHandlersTests
         _searchClientMock = new Mock<IAzureSearchClient>();
         _trustedSourcesMock = new Mock<ITrustedSourcesLoader>();
         _graphRepoMock = new Mock<IGraphRepository>();
+        _trustedWebContentFetcherMock = new Mock<ITrustedWebContentFetcher>();
 
         _handlers = new SubAgentToolHandlers(
             _searchClientMock.Object,
             _trustedSourcesMock.Object,
             _graphRepoMock.Object,
+            _trustedWebContentFetcherMock.Object,
             NullLogger<SubAgentToolHandlers>.Instance
         );
     }
@@ -39,7 +42,7 @@ public class SubAgentToolHandlersTests
     [Fact]
     public void Constructor_NullDependencies_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => new SubAgentToolHandlers(null!, _trustedSourcesMock.Object, _graphRepoMock.Object, NullLogger<SubAgentToolHandlers>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new SubAgentToolHandlers(null!, _trustedSourcesMock.Object, _graphRepoMock.Object, _trustedWebContentFetcherMock.Object, NullLogger<SubAgentToolHandlers>.Instance));
     }
 
     [Fact]
@@ -72,6 +75,36 @@ public class SubAgentToolHandlersTests
 
         Assert.NotNull(result);
         Assert.Contains("0.95", result.Output);
+    }
+
+    [Fact]
+    public async Task HandleFetchWebContentAsync_WhenFetcherSucceeds_DelegatesAndReturnsTruncatedContent()
+    {
+        var content = new string('x', 2001);
+        var call = new AgentToolCall("call_web", "fetch_web_content", "{\"url\":\"https://example.com/article\",\"search_term\":\"Honda\"}");
+        _trustedWebContentFetcherMock
+            .Setup(fetcher => fetcher.FetchAsync(new Uri("https://example.com/article"), "Honda", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(content);
+
+        var result = await _handlers.HandleFetchWebContentAsync(call, CancellationToken.None);
+
+        Assert.Contains(new string('x', 2000), result.Output);
+        _trustedWebContentFetcherMock.Verify(
+            fetcher => fetcher.FetchAsync(new Uri("https://example.com/article"), "Honda", It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleFetchWebContentAsync_WhenFetcherFails_ReturnsErrorPayload()
+    {
+        var call = new AgentToolCall("call_web_failure", "fetch_web_content", "{\"url\":\"https://example.com/article\",\"search_term\":\"Honda\"}");
+        _trustedWebContentFetcherMock
+            .Setup(fetcher => fetcher.FetchAsync(It.IsAny<Uri>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("upstream unavailable"));
+
+        var result = await _handlers.HandleFetchWebContentAsync(call, CancellationToken.None);
+
+        Assert.Contains("upstream unavailable", result.Output);
     }
 
     [Fact]

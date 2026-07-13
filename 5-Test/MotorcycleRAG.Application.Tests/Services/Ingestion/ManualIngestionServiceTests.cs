@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using MotorcycleRAG.Application.Services.Ingestion;
-using MotorcycleRAG.Contracts.Constants;
+using MotorcycleRAG.Domain.Constants;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion;

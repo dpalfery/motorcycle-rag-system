@@ -1,5 +1,4 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
 namespace MotorcycleRAG.DbSetup;
@@ -7,10 +6,12 @@ namespace MotorcycleRAG.DbSetup;
 public class PreflightChecker
 {
     private readonly ILogger<PreflightChecker> _logger;
+    private readonly IDbSetupConnectionFactory _connectionFactory;
 
-    public PreflightChecker(ILogger<PreflightChecker> logger)
+    public PreflightChecker(ILogger<PreflightChecker> logger, IDbSetupConnectionFactory connectionFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }
 
     public async Task<bool> PerformPreflightChecksAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
@@ -79,21 +80,17 @@ public class PreflightChecker
     {
         try
         {
-            await using var connection = new SqlConnection(connectionString);
+            await using var connection = _connectionFactory.Create(connectionString);
             await connection.OpenAsync(cancellationToken);
 
             // Test with a simple query
             const string query = "SELECT SERVERPROPERTY('ProductVersion')";
-            await using var command = new SqlCommand(query, connection);
+            await using var command = connection.CreateCommand();
+            command.CommandText = query;
             var result = await command.ExecuteScalarAsync(cancellationToken);
 
             _logger.LogDebug("SQL Server connectivity test successful. Version: {Version}", result);
             return true;
-        }
-        catch (SqlException ex)
-        {
-            _logger.LogError(ex, "SQL Server connectivity failed");
-            return false;
         }
         catch (Exception ex)
         {
@@ -106,7 +103,7 @@ public class PreflightChecker
     {
         try
         {
-            await using var connection = new SqlConnection(connectionString);
+            await using var connection = _connectionFactory.Create(connectionString);
             await connection.OpenAsync(cancellationToken);
 
             // Check if we have sysadmin or sufficient privileges
@@ -117,7 +114,8 @@ public class PreflightChecker
                     HAS_PERMS_BY_NAME(null, null, 'CREATE ANY DATABASE') as CanCreateDatabase,
                     HAS_PERMS_BY_NAME(null, null, 'ALTER ANY LOGIN') as CanAlterLogin";
 
-            await using var command = new SqlCommand(query, connection);
+            await using var command = connection.CreateCommand();
+            command.CommandText = query;
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
             if (await reader.ReadAsync(cancellationToken))
@@ -135,11 +133,6 @@ public class PreflightChecker
                 return isSysAdmin || isServerAdmin || (canCreateDatabase && canAlterLogin);
             }
 
-            return false;
-        }
-        catch (SqlException ex)
-        {
-            _logger.LogError(ex, "Privileged credentials check failed");
             return false;
         }
         catch (Exception ex)

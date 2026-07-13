@@ -8,6 +8,10 @@
     "ses_0c069ade1ffeiHpm68cA3LOweO": {
       "worktreeId": null,
       "createdAt": "2026-07-08T02:37:23.872Z"
+    },
+    "ses_0a5c9a4adffeEOUHoVmTEcLWsw": {
+      "worktreeId": null,
+      "createdAt": "2026-07-13T06:42:19.604Z"
     }
   },
   "tabOrder": {
@@ -15,6 +19,5 @@
       "pending:1"
     ]
   },
-  "worktreeOrder": [],
   "sessionsCollapsed": false
 }

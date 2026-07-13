@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
@@ -33,23 +34,31 @@ public static class ServiceCollectionExtensions {
         services.AddSingleton<IValidateOptions<SqlOptions>, SqlOptionsValidator>();
 
         // Register SQL connection factory
-        services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+        services.TryAddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
 
         // Register SQL repositories
-        services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();
-        services.AddScoped<IGraphRepository, SqlGraphRepository>();
-        services.AddScoped<IBikeModelRepository, BikeModelRepository>();
-        services.AddScoped<IBikeModelCategoryRepository, BikeModelCategoryRepository>();
-        services.AddScoped<IAuditRepository, AuditRepository>();
-        services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IUsageRepository, UsageRepository>();
-        services.AddScoped<IPlanRepository, PlanRepository>();
-        services.AddScoped<IWebSourceRepository, WebSourceRepository>();
-        services.AddScoped<IManualDocumentRepository, ManualDocumentRepository>();
+        services.TryAddScoped<IIngestionJobRepository, IngestionJobRepository>();
+        services.TryAddScoped<IGraphRepository, SqlGraphRepository>();
+        services.TryAddScoped<IBikeModelRepository, BikeModelRepository>();
+        services.TryAddScoped<IBikeModelCategoryRepository, BikeModelCategoryRepository>();
+        services.TryAddScoped<IAuditRepository, AuditRepository>();
+        services.TryAddScoped<IUserRepository, UserRepository>();
+        services.TryAddScoped<IUsageRepository, UsageRepository>();
+        services.TryAddScoped<IPlanRepository, PlanRepository>();
+        services.TryAddScoped<IWebSourceRepository, WebSourceRepository>();
+        services.TryAddScoped<IManualDocumentRepository, ManualDocumentRepository>();
+        services.TryAddScoped<IAccessRequestRepository, AccessRequestRepository>();
+        services.TryAddScoped<IUserIdentityRepository, UserIdentityRepository>();
+        services.TryAddScoped<IUserManagementQueryRepository, UserManagementQueryRepository>();
+        services.TryAddScoped<IWebScrapeRunRepository, WebScrapeRunRepository>();
+        services.TryAddScoped<IIndexedArtifactRepository, IndexedArtifactRepository>();
+        services.TryAddScoped<IIndexedChunkRepository, IndexedChunkRepository>();
+        services.TryAddScoped<IToolConfigurationRepository, ToolConfigurationRepository>();
+        services.TryAddScoped<IToolConfigurationAuditRepository, ToolConfigurationAuditRepository>();
 
         // Register web trust policy store for domain allowlist enforcement
-        services.AddSingleton<WebTrustPolicyStore>();
-        services.AddSingleton<IWebTrustPolicyStore>(sp => sp.GetRequiredService<WebTrustPolicyStore>());
+        services.TryAddSingleton<WebTrustPolicyStore>();
+        services.TryAddSingleton<IWebTrustPolicyStore>(sp => sp.GetRequiredService<WebTrustPolicyStore>());
 
         return services;
     }

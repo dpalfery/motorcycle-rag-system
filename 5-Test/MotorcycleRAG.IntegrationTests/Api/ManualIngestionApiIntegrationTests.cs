@@ -10,7 +10,7 @@ using Moq;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion;
-using MotorcycleRAG.Contracts.Constants;
+using MotorcycleRAG.Domain.Constants;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;

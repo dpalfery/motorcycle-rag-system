@@ -7,6 +7,7 @@
           <Format>cobertura</Format>
           <ExcludeByFile>**/Migrations/**,**/*.Designer.cs,**/*.generated.cs,**/*.g.cs,**/MotorcycleRag.WebUI.BFF/**/Program.cs,**/SqlConnectionFactory.cs,**/AzureBlobStorageService.cs,**/SearchClientFactory.cs,**/BlobManualPageAssetStore.cs,**/FoundryAgentRunner.cs,**/Telemetry/TelemetryService.cs,**/Azure/AzureFoundryClientWrapper.cs,**/Azure/FoundryClientFactory.cs,**/HealthChecks/SqlDatabaseHealthCheck.cs</ExcludeByFile>
           <ExcludeByAttribute>Obsolete,GeneratedCode</ExcludeByAttribute>
+          <Exclude>[MotorcycleRAG.Contracts.Models]*</Exclude>
           <Exclude>[MotorcycleRAG.*.Test*]*</Exclude>
           <Exclude>[xunit.*]*</Exclude>
         </Configuration>

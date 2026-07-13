@@ -1,6 +1,7 @@
 using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -10,9 +11,13 @@ using MotorcycleRAG.Persistence.Resilience;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Search;
 using MotorcycleRAG.Persistence.Telemetry;
+using MotorcycleRAG.Persistence.Web;
 using MotorcycleRAG.Persistence.Azure.Blob;
 using MotorcycleRAG.Persistence.Azure.Search;
+using MotorcycleRAG.Persistence.DataProcessing;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Persistence.ExternalServices;
+using MotorcycleRAG.Persistence.Notifications;
 using Polly;
 
 namespace MotorcycleRAG.Persistence.Azure;
@@ -43,12 +48,16 @@ public static class ServiceCollectionExtensions {
             configuration.GetSection("Ingestion"));
         services.Configure<BlobStorageOptions>(
             configuration.GetSection("BlobStorage"));
+        services.AddOptions<CSVProcessingConfiguration>()
+            .Bind(configuration.GetSection("CsvProcessing"))
+            .ValidateOnStart();
 
         // Validate configuration on startup
         // AzureFoundryOptions and SearchOptions validation is owned by the API layer
         // (AzureAIConfigurationValidator / SearchConfigurationValidator) to avoid duplicate
         // validators that run with different strictness levels.
         services.AddSingleton<IValidateOptions<ResilienceOptions>, ResilienceConfigurationValidator>();
+        services.AddSingleton<IValidateOptions<CSVProcessingConfiguration>, CsvProcessingConfigurationValidator>();
 
         // Register resilience services as singletons
         services.AddSingleton<IResilienceService, MotorcycleRAG.Persistence.Resilience.ResilienceService>();
@@ -64,9 +73,19 @@ public static class ServiceCollectionExtensions {
         // safe singletons — they only construct Azure SDK clients and hold no per-request state.
         services.AddSingleton<IBlobServiceClientFactory, BlobServiceClientFactory>();
         services.AddSingleton<IFoundryClientFactory, FoundryClientFactory>();
+        services.AddSingleton<IAzureCredentialProvider, AzureCredentialProvider>();
+        services.AddSingleton<ILocalFileStore, LocalFileStore>();
+        services.AddSingleton<ILocalFileDiscovery, LocalFileDiscovery>();
+        services.AddSingleton<IIngestionTelemetryService, IngestionTelemetryService>();
+        services.AddScoped<ILocalPipelineService, LocalPipelineService>();
 
         // Register blob-backed asset store
         services.AddScoped<IManualPageAssetStore, BlobManualPageAssetStore>();
+        services.AddScoped<IBlobStorageService, AzureBlobStorageService>();
+        services.AddScoped<IApproverNotificationService, ApproverNotificationService>();
+        services.Configure<ExternalIdentityProvisioningOptions>(
+            configuration.GetSection("ExternalIdentityProvisioning"));
+        services.AddHttpClient<IExternalIdentityProvisioningService, ExternalIdentityProvisioningService>();
 
         // Register Azure service clients (scope aligns with dependencies)
         services.AddSingleton<IAzureFoundryClient>(serviceProvider => {
@@ -93,7 +112,8 @@ public static class ServiceCollectionExtensions {
         // "no singleton SearchClient bound to one index" rule).
         services.AddSingleton<SearchIndexClient>(serviceProvider => {
             var azureConfig = serviceProvider.GetRequiredService<IOptions<AzureFoundryOptions>>().Value;
-            return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), SearchCredential.Create());
+            var credentialProvider = serviceProvider.GetRequiredService<IAzureCredentialProvider>();
+            return new SearchIndexClient(new Uri(azureConfig.SearchServiceEndpoint), credentialProvider.GetSearchCredential());
         });
 
         // Per-index SearchClient factory (D4 category partitioning). Replaces the former
@@ -123,6 +143,7 @@ public static class ServiceCollectionExtensions {
         // NOTE: Resilience policies (retry + circuit breaker) are applied in the Presentation layer
         // at API startup time via Polly.Extensions.Http (Program.cs and Configuration/*.cs)
         services.AddHttpClient();
+        services.AddWebSearchHttpClient();
 
         // Classifier options + local OpenAI-compatible chat client (D7 category classifier, R6 prod reachability).
         services.AddClassifierServices(configuration);
@@ -166,16 +187,31 @@ public static class ServiceCollectionExtensions {
     }
 
     public static IServiceCollection AddPipelineHttpClients(this IServiceCollection services) {
-        services.AddTransient<HttpResilienceDelegatingHandler>();
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddTransient<HttpResilienceDelegatingHandler>();
         services.AddHttpClient("LocalPipelineService")
             .AddHttpMessageHandler<HttpResilienceDelegatingHandler>();
         return services;
     }
 
     public static IServiceCollection AddWebSearchHttpClient(this IServiceCollection services) {
-        services.AddTransient<HttpResilienceDelegatingHandler>();
-        services.AddHttpClient("WebSearchAgent")
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddTransient<HttpResilienceDelegatingHandler>();
+        services.AddSingleton<IWebContentExtractor, HtmlWebContentExtractor>();
+        services.AddHttpClient(TrustedWebContentFetcher.HttpClientName, client => {
+                client.Timeout = TimeSpan.FromSeconds(10);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; MotorcycleRAGBot/1.0)");
+            })
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler {
+                MaxConnectionsPerServer = 3,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(1),
+                UseCookies = false,
+            })
             .AddHttpMessageHandler<HttpResilienceDelegatingHandler>();
+        services.AddScoped<ITrustedWebContentFetcher>(serviceProvider => new TrustedWebContentFetcher(
+            serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(TrustedWebContentFetcher.HttpClientName),
+            serviceProvider.GetRequiredService<IWebContentExtractor>()));
         return services;
     }
 }

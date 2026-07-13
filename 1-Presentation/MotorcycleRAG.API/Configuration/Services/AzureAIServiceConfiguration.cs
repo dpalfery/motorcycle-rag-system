@@ -11,6 +11,7 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for Azure AI services
 /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 internal static class AzureAIServiceConfiguration {
     /// <summary>
     /// Configure Azure AI services

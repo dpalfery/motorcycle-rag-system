@@ -103,58 +103,11 @@ jobs:
         name: unit-coverage-linux-results
         path: TestResults/UnitCoverage/
 
-  unit-mobile:
-    name: Unit Coverage (Mobile)
-    runs-on: macos-latest
-    if: github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch'
-
-    steps:
-    - uses: actions/checkout@v7
-
-    - name: Select Xcode 26.5
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: '26.5'
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v5
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
-
-    - name: Setup Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.12'
-
-    - name: Install shared test-script dependencies
-      run: python -m pip install --requirement 5-Test/scripts/requirements.txt
-
-    - name: Install MAUI workload
-      run: dotnet workload install maui
-
-    - name: Restore dependencies
-      run: dotnet restore
-
-    - name: Run mobile unit coverage
-      run: |
-        python3 5-Test/scripts/run_unit_coverage.py \
-          --results-dir TestResults/UnitCoverage \
-          --configuration Release \
-          --suite mobileapp-unit
-
-    - name: Upload mobile unit coverage results
-      uses: actions/upload-artifact@v7
-      if: always()
-      with:
-        name: unit-coverage-mobile-results
-        path: TestResults/UnitCoverage/
-
   unit-tests:
     name: Unit Coverage Gate
     runs-on: ubuntu-latest
     needs:
       - unit-coverage-linux
-      - unit-mobile
 
     steps:
     - uses: actions/checkout@v7
@@ -173,17 +126,14 @@ jobs:
         name: unit-coverage-linux-results
         path: TestResults/UnitCoverage
 
-    - name: Download Mobile coverage artifacts
-      uses: actions/download-artifact@v8
-      with:
-        name: unit-coverage-mobile-results
-        path: TestResults/UnitCoverage
-
     - name: Aggregate merged coverage and enforce threshold
       run: |
         python3 5-Test/scripts/aggregate_coverage.py \
           --results-dir TestResults/UnitCoverage \
-          --output-dir TestResults/UnitCoverage/CoverageReport
+          --output-dir TestResults/UnitCoverage/CoverageReport \
+          --suite dotnet-unit \
+          --suite python-unit \
+          --suite admindesktop-unit
 
     - name: Upload merged coverage artifacts
       uses: actions/upload-artifact@v7

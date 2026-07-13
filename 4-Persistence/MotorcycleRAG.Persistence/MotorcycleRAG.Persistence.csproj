@@ -27,6 +27,7 @@
     <PackageReference Include="Dapper" Version="2.1.72" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.4" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.7" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.12.4" />
    </ItemGroup>
 
   <PropertyGroup>

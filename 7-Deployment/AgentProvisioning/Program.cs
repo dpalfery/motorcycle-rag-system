@@ -55,7 +55,8 @@ try
     var modelOptions = AgentProvisioningModelOptions.FromEnvironment(Environment.GetEnvironmentVariable);
 
     var provisioningLogger = loggerFactory.CreateLogger<AgentProvisioningService>();
-    var service = new AgentProvisioningService(foundryEndpoint, modelOptions, provisioningLogger);
+    var adminOperations = AgentProvisioningComposition.CreateAdminOperations(new Uri(foundryEndpoint));
+    var service = new AgentProvisioningService(adminOperations, modelOptions, provisioningLogger);
 
     logger.LogInformation(
         "Starting agent provisioning against {Endpoint} with orchestrator model candidates {OrchestratorCandidates} and subagent model {SubAgentModel}",

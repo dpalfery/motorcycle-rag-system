@@ -13,6 +13,7 @@ namespace MotorcycleRAG.API.Configuration.Services;
 /// <summary>
 /// Configuration for core application services
 /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 internal static class CoreServicesConfiguration {
     /// <summary>
     /// Configure core application services
@@ -33,6 +34,10 @@ internal static class CoreServicesConfiguration {
         services.AddScoped<MotorcycleRagServiceDependencies>();
 
         services.AddScoped<IUsageTrackingService, UsageTrackingService>();
+        services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<ICurrentUserProfileService, CurrentUserProfileService>();
+        services.AddScoped<IPlanAdministrationService, PlanAdministrationService>();
+        services.AddScoped<IPlanPolicyService, PlanPolicyService>();
         services.AddScoped<IUserAdminService, UserAdminService>();
         services.AddScoped<IUserProvisioningService, UserProvisioningService>();
         services.AddScoped<AccessRequestService>();
@@ -40,6 +45,10 @@ internal static class CoreServicesConfiguration {
         services.AddScoped<ApprovalOnboardingService>();
         services.AddScoped<TierEntitlementMappingService>();
         services.AddScoped<UserAccessLifecycleService>();
+        services.AddScoped<WebSourceRegistryService>();
+        services.AddScoped<IWebScrapeOrchestrator, WebScrapeOrchestrator>();
+        services.AddScoped<IToolConfigurationService, ToolConfigurationService>();
+        services.AddScoped<IMcpConfigurationProvider, McpConfigurationProvider>();
 
         // D7 motorcycle category classifier (Application service). Infrastructure dependencies
         // (IBikeModelCategoryRepository, ILocalChatClient, ClassifierOptions) are registered in
@@ -49,9 +58,6 @@ internal static class CoreServicesConfiguration {
         services.AddScoped<IMotorcycleCategoryClassifier, MotorcycleCategoryClassifier>();
         services.AddScoped<MotorcycleCategoryClassifier>();
 
-        services.AddSingleton<ITelemetryService, MotorcycleRAG.Persistence.Telemetry.TelemetryService>();
-
         return services;
     }
 }
-

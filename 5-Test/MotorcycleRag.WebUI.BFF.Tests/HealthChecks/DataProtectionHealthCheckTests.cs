@@ -11,7 +11,7 @@ public class DataProtectionHealthCheckTests {
 
     private static DataProtectionHealthCheck CreateHealthCheck(
         string? blobUri = BlobUri,
-        Func<Uri, CancellationToken, Task<bool>>? blobExistsAsync = null) {
+        IDataProtectionBlobProbe? blobProbe = null) {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> {
                 ["DataProtection:BlobUri"] = blobUri
@@ -20,8 +20,8 @@ public class DataProtectionHealthCheckTests {
 
         return new DataProtectionHealthCheck(
             configuration,
-            Mock.Of<ILogger<DataProtectionHealthCheck>>(),
-            blobExistsAsync);
+            blobProbe ?? Mock.Of<IDataProtectionBlobProbe>(),
+            Mock.Of<ILogger<DataProtectionHealthCheck>>());
     }
 
     [Theory]
@@ -38,18 +38,23 @@ public class DataProtectionHealthCheckTests {
 
     [Fact]
     public async Task CheckHealthAsync_WhenBlobExists_ReturnsHealthyAccessibleMessage() {
-        var healthCheck = CreateHealthCheck(blobExistsAsync: (_, _) => Task.FromResult(true));
+        var blobProbe = new Mock<IDataProtectionBlobProbe>();
+        blobProbe.Setup(probe => probe.ExistsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var healthCheck = CreateHealthCheck(blobProbe: blobProbe.Object);
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
         result.Status.Should().Be(HealthStatus.Healthy);
         result.Description.Should().Contain("blob storage is accessible");
         result.Description.Should().Contain("account.blob.core.windows.net/keys");
+        blobProbe.Verify(probe => probe.ExistsAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task CheckHealthAsync_WhenBlobDoesNotExist_ReturnsHealthyPendingCreationMessage() {
-        var healthCheck = CreateHealthCheck(blobExistsAsync: (_, _) => Task.FromResult(false));
+        var blobProbe = new Mock<IDataProtectionBlobProbe>();
+        blobProbe.Setup(probe => probe.ExistsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var healthCheck = CreateHealthCheck(blobProbe: blobProbe.Object);
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
@@ -60,8 +65,10 @@ public class DataProtectionHealthCheckTests {
 
     [Fact]
     public async Task CheckHealthAsync_WhenBlobAccessFailsWithRequestFailedException_ReturnsDegraded() {
-        var healthCheck = CreateHealthCheck(blobExistsAsync: (_, _) =>
-            throw new RequestFailedException(403, "Forbidden"));
+        var blobProbe = new Mock<IDataProtectionBlobProbe>();
+        blobProbe.Setup(probe => probe.ExistsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(403, "Forbidden"));
+        var healthCheck = CreateHealthCheck(blobProbe: blobProbe.Object);
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
@@ -83,13 +90,14 @@ public class DataProtectionHealthCheckTests {
     }
 
     [Fact]
-    public async Task CheckHealthAsync_WhenBlobUriUsesUnsupportedScheme_ReturnsUnhealthy() {
-        var healthCheck = CreateHealthCheck(blobUri: "file:///tmp/keys.xml");
+    public async Task CheckHealthAsync_WhenBlobUriUsesUnsupportedScheme_ReturnsUnhealthyWithoutProbing() {
+        var blobProbe = new Mock<IDataProtectionBlobProbe>();
+        var healthCheck = CreateHealthCheck(blobUri: "file:///tmp/keys.xml", blobProbe: blobProbe.Object);
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 
-        // BlobClient / DefaultAzureCredential path fails without Azure access
-        result.Status.Should().BeOneOf(HealthStatus.Unhealthy, HealthStatus.Degraded);
-        result.Exception.Should().NotBeNull();
+        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Exception.Should().BeOfType<InvalidOperationException>();
+        blobProbe.Verify(probe => probe.ExistsAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

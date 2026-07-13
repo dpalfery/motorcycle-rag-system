@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Microsoft.Identity.Client;
 using System.Reflection;
 using CommunityToolkit.Mvvm;
 using SQLite;
@@ -9,6 +12,7 @@ using MotorcycleRAG.MobileApp.Services;
 using MotorcycleRAG.MobileApp.Views;
 using MotorcycleRAG.MobileApp.ViewModels;
 using CommunityToolkit.Maui;
+using MotorcycleRAG.MobileApp.Configuration;
 
 namespace MotorcycleRAG.MobileApp;
 
@@ -53,6 +57,23 @@ public static class MauiProgram
 
         // Services
         builder.Services.AddHttpClient<IApiClient, MotorcycleRagApiClient>();
+        builder.Services.Configure<AuthenticationOptions>(
+            builder.Configuration.GetSection(AuthenticationOptions.SectionName));
+        builder.Services.AddSingleton<IValidateOptions<AuthenticationOptions>, AuthenticationOptionsValidator>();
+        builder.Services.AddOptions<AuthenticationOptions>().ValidateOnStart();
+        builder.Services.AddSingleton<IPublicClientApplication>(serviceProvider =>
+        {
+            var authentication = serviceProvider.GetRequiredService<IOptions<AuthenticationOptions>>().Value;
+            var msalBuilder = PublicClientApplicationBuilder.Create(authentication.ClientId)
+                .WithRedirectUri(authentication.RedirectUri)
+                .WithAuthority(AzureCloudInstance.AzurePublic, authentication.TenantId);
+
+#if ANDROID
+            msalBuilder = msalBuilder.WithParentActivityOrWindow(() => Platform.CurrentActivity);
+#endif
+
+            return msalBuilder.Build();
+        });
         builder.Services.AddSingleton<IAuthenticationService, AuthenticationService>();
         builder.Services.AddSingleton<IConversationService, ConversationService>();
         builder.Services.AddSingleton<IUserMemoryService, UserMemoryService>();
@@ -60,7 +81,7 @@ public static class MauiProgram
 
         // PDF Services
         builder.Services.AddTransient<IPdfRenderer, PdfRenderer>();
-        builder.Services.AddSingleton<IPdfViewerService, PdfViewerService>();
+        builder.Services.AddTransient<IPdfViewerService, PdfViewerService>();
         builder.Services.AddSingleton<IImageSourceFactory, ImageSourceFactory>();
 
         // Views & ViewModels

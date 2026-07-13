@@ -2,34 +2,29 @@ using Xunit;
 using Moq;
 using FluentAssertions;
 using MotorcycleRAG.MobileApp.Services;
-using Microsoft.Extensions.Configuration;
-using System.Collections.Generic;
+using Microsoft.Extensions.Options;
+using Microsoft.Identity.Client;
+using MotorcycleRAG.MobileApp.Configuration;
 
 namespace MotorcycleRAG.MobileApp.Tests.Services
 {
     public class AuthenticationServiceTests
     {
-        // NOTE: AuthenticationService instantiates IPublicClientApplication internally,
-        // making it difficult to unit test without refactoring to inject the client.
-        // For now, we are skipping deep unit tests for this service and relying on
-        // integration/manual tests for the authentication flow.
-
         [Fact]
-        public void Constructor_ShouldInitialize_WithValidConfiguration()
+        public void Constructor_WithConfiguredPublicClientAndOptions_Initializes()
         {
             // Arrange
-            var inMemorySettings = new Dictionary<string, string?> {
-                {"Authentication:ClientId", "test-client-id"},
-                {"Authentication:TenantId", "test-tenant-id"},
-                {"Authentication:RedirectUri", "msauth://com.companyname.appname"}
-            };
-
-            IConfiguration configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(inMemorySettings)
-                .Build();
+            var client = new Mock<IPublicClientApplication>();
+            var options = Options.Create(new AuthenticationOptions
+            {
+                ClientId = "test-client-id",
+                TenantId = "test-tenant-id",
+                RedirectUri = "msauth://com.companyname.appname",
+                Scopes = ["api://motorcyclerag-api/read"],
+            });
 
             // Act
-            var service = new AuthenticationService(configuration);
+            var service = new AuthenticationService(client.Object, options);
 
             // Assert
             service.Should().NotBeNull();

@@ -14,8 +14,8 @@ namespace MotorcycleRAG.Persistence.Azure.Blob;
 /// Azure Blob Storage implementation of <see cref="IManualPageAssetStore"/>.
 /// Stores per-page PNG images for motorcycle manuals under the key pattern:
 /// <c>manuals/{manualId}/pages/{pageNumber}.png</c>
-/// Uses DefaultAzureCredential in hosted environments and Development-only Azurite
-/// connection strings when locally configured.
+/// Uses the injected Azure credential policy in hosted environments and Development-only
+/// Azurite connection strings when locally configured.
 /// </summary>
 public class BlobManualPageAssetStore : IManualPageAssetStore
 {
@@ -30,15 +30,17 @@ public class BlobManualPageAssetStore : IManualPageAssetStore
         IOptions<BlobStorageOptions> options,
         IHostEnvironment environment,
         IBlobServiceClientFactory blobServiceClientFactory,
+        IAzureCredentialProvider credentialProvider,
         ILogger<BlobManualPageAssetStore> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(blobServiceClientFactory);
+        ArgumentNullException.ThrowIfNull(credentialProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         var serviceClient = BlobServiceClientFactory.CreateFromOptions(
-            options.Value, environment, blobServiceClientFactory);
+            options.Value, environment, blobServiceClientFactory, credentialProvider);
 
         _containerClient = serviceClient.GetBlobContainerClient(DefaultContainerName);
         _logger = logger;

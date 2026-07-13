@@ -7,6 +7,7 @@
       "5-Test\\MotorcycleRAG.Core.Tests\\MotorcycleRAG.Core.Tests.csproj",
       "5-Test\\MotorcycleRAG.Contracts.Tests\\MotorcycleRAG.Contracts.Tests.csproj",
       "5-Test\\MotorcycleRAG.Domian.Tests\\MotorcycleRAG.Domian.Tests.csproj",
+      "5-Test\\MotorcycleRAG.DbSetup.Tests\\MotorcycleRAG.DbSetup.Tests.csproj",
       "5-Test\\MotorcycleRAG.AgentProvisioning.Tests\\MotorcycleRAG.AgentProvisioning.Tests.csproj",
       "5-Test\\MotorcycleRAG.Persistence.Tests\\MotorcycleRAG.Persistence.Tests.csproj",
       "5-Test\\MotorcycleRag.WebUI.BFF.Tests\\MotorcycleRag.WebUI.BFF.Tests.csproj"

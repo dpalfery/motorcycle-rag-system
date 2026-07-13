@@ -40,6 +40,7 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
                 ["Authentication:Audience"] = "11111111-1111-1111-1111-111111111111",
                 ["Authentication:Issuers:Workforce"] = "https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0",
                 ["AppConfig:Endpoint"] = string.Empty,
+                ["AppConfig:ConnectionString"] = string.Empty,
                 ["ApplicationInsights:ConnectionString"] = string.Empty,
                 ["ApplicationInsights:EnableTelemetry"] = "false",
                 ["AzureAI:OpenAIEndpoint"] = "https://test-openai.openai.azure.com/",
@@ -52,6 +53,8 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
                 ["AzureAI:PDFSearchAgentName"] = "test-pdf-search",
                 ["AzureAI:GraphQueryAgentName"] = "test-graph-query",
                 ["BlobStorage:AccountEndpoint"] = "https://teststorage.blob.core.windows.net/",
+                ["BlobStorage:RawUploadsContainer"] = "raw-uploads",
+                ["Ingestion:LocalEndpoint"] = "http://127.0.0.1:65535",
                 ["Sql:ConnectionString"] = "Server=(localdb)\\MSSQLLocalDB;Database=MotorcycleRAG_Test;Integrated Security=true;TrustServerCertificate=true;",
                 ["Onboarding:ApproverAddress"] = "approver@example.invalid",
                 ["ExternalIdentityProvisioning:InviteRedirectUrl"] = "https://localhost/signin-oidc",
@@ -101,7 +104,7 @@ public class ProductionServicesWebApplicationFactory : WebApplicationFactory<Pro
                     PlanId = "free-plan",
                     AuthProvider = provider.ToString(),
                     ProviderUserId = providerUserId ?? subject
-                });
+            });
             services.AddSingleton(userProvisioning.Object);
         });
     }

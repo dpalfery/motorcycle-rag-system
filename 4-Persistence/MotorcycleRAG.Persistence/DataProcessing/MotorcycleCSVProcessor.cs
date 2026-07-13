@@ -1,6 +1,7 @@
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Utilities;
@@ -27,20 +28,13 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
     public MotorcycleCsvProcessor(
         IAzureFoundryClient openAIClient,
         IAzureSearchClient searchClient,
-        ILogger<MotorcycleCsvProcessor> logger)
-        : this(openAIClient, searchClient, logger, null)
-    {
-    }
-
-    public MotorcycleCsvProcessor(
-        IAzureFoundryClient openAIClient,
-        IAzureSearchClient searchClient,
         ILogger<MotorcycleCsvProcessor> logger,
-        CSVProcessingConfiguration? configuration) {
+        IOptions<CSVProcessingConfiguration> configuration) {
         _openAIClient = openAIClient ?? throw new ArgumentNullException(nameof(openAIClient));
         _searchClient = searchClient ?? throw new ArgumentNullException(nameof(searchClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _configuration = configuration ?? new CSVProcessingConfiguration();
+        ArgumentNullException.ThrowIfNull(configuration);
+        _configuration = configuration.Value;
     }
 
     /// <summary>

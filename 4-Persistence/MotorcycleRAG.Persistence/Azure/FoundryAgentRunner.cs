@@ -1,6 +1,5 @@
 using Azure.AI.Extensions.OpenAI;
 using Azure.AI.Projects;
-using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -27,10 +26,12 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
     public FoundryAgentRunner(
         IOptions<AzureFoundryOptions> options,
         IFoundryClientFactory foundryClientFactory,
+        IAzureCredentialProvider credentialProvider,
         ILogger<FoundryAgentRunner> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(foundryClientFactory);
+        ArgumentNullException.ThrowIfNull(credentialProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         var config = options.Value ?? throw new ArgumentNullException(nameof(options));
@@ -38,7 +39,7 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
             throw new InvalidOperationException("AzureAI:FoundryEndpoint is required for FoundryAgentRunner");
 
         var projectClient = foundryClientFactory.CreateProjectClient(
-            config.FoundryEndpoint, new DefaultAzureCredential());
+            config.FoundryEndpoint, credentialProvider.GetDefaultCredential());
         _openAIClient = foundryClientFactory.CreateOpenAIClient(projectClient);
         _conversationsClient = foundryClientFactory.CreateConversationsClient(projectClient);
         _agentVersions = BuildAgentVersionMap(config);

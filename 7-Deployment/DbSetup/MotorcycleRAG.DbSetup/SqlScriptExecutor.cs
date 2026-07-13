@@ -1,4 +1,3 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -8,10 +7,12 @@ namespace MotorcycleRAG.DbSetup;
 public class SqlScriptExecutor
 {
     private readonly ILogger<SqlScriptExecutor> _logger;
+    private readonly IDbSetupConnectionFactory _connectionFactory;
 
-    public SqlScriptExecutor(ILogger<SqlScriptExecutor> logger)
+    public SqlScriptExecutor(ILogger<SqlScriptExecutor> logger, IDbSetupConnectionFactory connectionFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }
 
     public async Task<bool> ExecuteScriptFileAsync(string connectionString, string scriptFilePath, CancellationToken cancellationToken = default)
@@ -31,7 +32,7 @@ public class SqlScriptExecutor
 
             _logger.LogInformation("Script contains {BatchCount} batches", batches.Count);
 
-            await using var connection = new SqlConnection(connectionString);
+            await using var connection = _connectionFactory.Create(connectionString);
             await connection.OpenAsync(cancellationToken);
 
             int batchNumber = 0;
@@ -48,14 +49,13 @@ public class SqlScriptExecutor
                 {
                     _logger.LogDebug("Executing batch {BatchNumber}/{TotalBatches}", batchNumber, batches.Count);
 
-                    await using var command = new SqlCommand(batch, connection)
-                    {
-                        CommandTimeout = 300 // 5 minutes
-                    };
+                    await using var command = connection.CreateCommand();
+                    command.CommandText = batch;
+                    command.CommandTimeout = 300; // 5 minutes
 
                     await command.ExecuteNonQueryAsync(cancellationToken);
                 }
-                catch (SqlException ex)
+                catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to execute batch {BatchNumber}", batchNumber);
                     _logger.LogError("Batch content: {BatchContent}", batch.Length > 200 ? batch.Substring(0, 200) + "..." : batch);

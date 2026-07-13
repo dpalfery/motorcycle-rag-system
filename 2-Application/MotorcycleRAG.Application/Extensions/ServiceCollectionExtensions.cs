@@ -72,51 +72,6 @@ public static class ServiceCollectionExtensions
         // Add batch processing service
         services.AddSingleton<IBatchProcessingService, BatchProcessingService>();
 
-        // Add connection pool service
-        services.AddSingleton<IConnectionPoolService, ConnectionPoolService>();
-
-        // Configure HTTP clients with optimized settings
-        // NOTE: Resilience policies (retry + circuit breaker) are applied in the Presentation layer
-        // at API startup time via Polly.Extensions.Http (Program.cs and Configuration/*.cs)
-        services.AddHttpClient("AzureOpenAI", client =>
-        {
-            client.Timeout = TimeSpan.FromMinutes(5);
-            client.DefaultRequestHeaders.Add("User-Agent", "MotorcycleRAG/1.0");
-        })
-        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-        {
-            MaxConnectionsPerServer = 10,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-            UseCookies = false
-        });
-
-        services.AddHttpClient("AzureSearch", client =>
-        {
-            client.Timeout = TimeSpan.FromMinutes(2);
-            client.DefaultRequestHeaders.Add("User-Agent", "MotorcycleRAG/1.0");
-        })
-        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-        {
-            MaxConnectionsPerServer = 5,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(15),
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
-            UseCookies = false
-        });
-
-        services.AddHttpClient("WebSearch", client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(30);
-            client.DefaultRequestHeaders.Add("User-Agent", "MotorcycleRAG-Bot/1.0");
-        })
-        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-        {
-            MaxConnectionsPerServer = 3,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(1),
-            UseCookies = false
-        });
-
         return services;
     }
 

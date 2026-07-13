@@ -16,16 +16,20 @@ namespace MotorcycleRAG.Application.Services.Ingestion;
 public class FileUploadService : IFileUploadService {
     private readonly ILogger<FileUploadService> _logger;
     private readonly FileUploadConfiguration _config;
+    private readonly ILocalFileStore _localFileStore;
     private readonly ITelemetryService _telemetryService;
 
     public FileUploadService(
         IOptions<FileUploadConfiguration> config,
+        ILocalFileStore localFileStore,
         ITelemetryService telemetryService,
         ILogger<FileUploadService> logger) {
         ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(localFileStore);
         ArgumentNullException.ThrowIfNull(telemetryService);
         ArgumentNullException.ThrowIfNull(logger);
         _config = config.Value;
+        _localFileStore = localFileStore;
         _telemetryService = telemetryService;
         _logger = logger;
     }
@@ -60,18 +64,12 @@ public class FileUploadService : IFileUploadService {
                 ? GenerateUniqueFileName(safeFileName)
                 : safeFileName;
 
-            // Ensure upload directory exists
+            // Path composition remains application-level; disk operations are delegated.
             var uploadPath = Path.Combine(_config.BaseUploadDirectory, options.UploadDirectory);
-            if (!Directory.Exists(uploadPath)) {
-                Directory.CreateDirectory(uploadPath);
-            }
+            await _localFileStore.EnsureDirectoryExistsAsync(uploadPath, cancellationToken).ConfigureAwait(false);
 
-            // Save file to disk
             result.FilePath = Path.Combine(uploadPath, result.StoredFileName);
-
-            using (var stream = new FileStream(result.FilePath, FileMode.Create)) {
-                await fileStream.CopyToAsync(stream, cancellationToken);
-            }
+            await _localFileStore.WriteAsync(result.FilePath, fileStream, cancellationToken).ConfigureAwait(false);
 
             // Add metadata
             result.Metadata["UploadedBy"] = "System"; // Could be extracted from user context
@@ -209,10 +207,8 @@ public class FileUploadService : IFileUploadService {
         if (string.IsNullOrWhiteSpace(fileId)) return false;
 
         try {
-            // In a real implementation, you would look up the file path by fileId
-            // For now, assuming fileId is the file path
-            if (File.Exists(fileId)) {
-                File.Delete(fileId);
+            // For now, fileId is the storage path. The storage contract owns deletion.
+            if (await _localFileStore.DeleteIfExistsAsync(fileId).ConfigureAwait(false)) {
                 _logger.LogInformation("File deleted: {FileName}", Path.GetFileName(fileId));
                 return true;
             }
@@ -341,5 +337,4 @@ public class FileUploadService : IFileUploadService {
         return $"{len:0.##} {sizes[order]}";
     }
 }
-
 

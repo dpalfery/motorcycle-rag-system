@@ -10,31 +10,23 @@ using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.UnitTests.Pipeline;
 
-public sealed class DataPipelineOrchestratorTests : IDisposable
+public sealed class DataPipelineOrchestratorTests
 {
     private readonly Mock<IDataProcessor<PDFDocument>> _pdfProcessorMock = new();
     private readonly Mock<IDataProcessor<CSVFile>> _csvProcessorMock = new();
     private readonly Mock<IFileUploadService> _fileUploadServiceMock = new();
+    private readonly Mock<ILocalFileStore> _localFileStoreMock = new();
     private readonly Mock<IAzureSearchDocumentService> _searchServiceMock = new();
-    private readonly string _tempDirectory;
     private readonly ILogger<DataPipelineOrchestrator> _logger = NullLogger<DataPipelineOrchestrator>.Instance;
 
     public DataPipelineOrchestratorTests()
     {
-        _tempDirectory = Path.Combine(Path.GetTempPath(), $"DataPipelineOrchestratorTests_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_tempDirectory);
-
         _fileUploadServiceMock
             .Setup(x => x.ValidateFileAsync(It.IsAny<Stream>(), It.IsAny<FileMetadata>(), It.IsAny<FileUploadOptions>()))
             .ReturnsAsync(new FileValidationResult { IsValid = true });
-    }
-
-    public void Dispose()
-    {
-        if (Directory.Exists(_tempDirectory))
-        {
-            Directory.Delete(_tempDirectory, recursive: true);
-        }
+        _localFileStoreMock
+            .Setup(x => x.ReadAllBytesIfExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((byte[]?)null);
     }
 
     [Fact]
@@ -44,6 +36,7 @@ public sealed class DataPipelineOrchestratorTests : IDisposable
             null!,
             _csvProcessorMock.Object,
             _fileUploadServiceMock.Object,
+            _localFileStoreMock.Object,
             _searchServiceMock.Object,
             Options.Create(new PipelineConfiguration()),
             _logger);
@@ -202,7 +195,7 @@ public sealed class DataPipelineOrchestratorTests : IDisposable
         var result = await sut.ProcessFileAsync(new DataPipelineRequest
         {
             FileName = "missing.pdf",
-            FilePath = Path.Combine(_tempDirectory, "missing.pdf"),
+            FilePath = "/ingestion/missing.pdf",
             FileType = FileType.PDF
         });
 
@@ -408,7 +401,7 @@ public sealed class DataPipelineOrchestratorTests : IDisposable
         var failedRequest = new DataPipelineRequest
         {
             FileName = "missing.pdf",
-            FilePath = Path.Combine(_tempDirectory, "missing.pdf"),
+            FilePath = "/ingestion/missing.pdf",
             FileType = FileType.PDF
         };
         _csvProcessorMock
@@ -447,7 +440,7 @@ public sealed class DataPipelineOrchestratorTests : IDisposable
         var failedRequest = new DataPipelineRequest
         {
             FileName = "missing.csv",
-            FilePath = Path.Combine(_tempDirectory, "missing.csv"),
+            FilePath = "/ingestion/missing.csv",
             FileType = FileType.CSV
         };
         _pdfProcessorMock
@@ -485,6 +478,7 @@ public sealed class DataPipelineOrchestratorTests : IDisposable
             _pdfProcessorMock.Object,
             _csvProcessorMock.Object,
             _fileUploadServiceMock.Object,
+            _localFileStoreMock.Object,
             _searchServiceMock.Object,
             Options.Create(new PipelineConfiguration
             {
@@ -496,8 +490,10 @@ public sealed class DataPipelineOrchestratorTests : IDisposable
 
     private string CreateFile(string fileName, string content)
     {
-        var path = Path.Combine(_tempDirectory, fileName);
-        File.WriteAllText(path, content);
+        var path = $"/ingestion/{fileName}";
+        _localFileStoreMock
+            .Setup(x => x.ReadAllBytesIfExistsAsync(path, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(System.Text.Encoding.UTF8.GetBytes(content));
         return path;
     }
 

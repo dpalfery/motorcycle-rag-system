@@ -27,7 +27,10 @@ public class AgentProvisioningServiceTests
         _mockOps.Setup(o => o.GetAgentNamesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<string>());
 
-        _service = new AgentProvisioningService(_mockOps.Object, _mockLogger.Object);
+        _service = new AgentProvisioningService(
+            _mockOps.Object,
+            AgentProvisioningModelOptions.Default,
+            _mockLogger.Object);
     }
 
     [Fact]
@@ -187,6 +190,7 @@ public class AgentProvisioningServiceTests
         var stub = new EmptyPromptStubOps();
         var svc = new AgentProvisioningService(
             stub,
+            AgentProvisioningModelOptions.Default,
             _mockLogger.Object,
             orchestratorSystemPrompt: string.Empty);
 

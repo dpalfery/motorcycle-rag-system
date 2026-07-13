@@ -12,6 +12,13 @@ public sealed class BlobServiceClientFactoryTests
 {
     private readonly BlobServiceClientFactory _factory = new();
 
+    private static IAzureCredentialProvider CreateCredentialProvider()
+    {
+        var provider = new Mock<IAzureCredentialProvider>();
+        provider.Setup(x => x.GetDefaultCredential()).Returns(new global::Azure.Identity.DefaultAzureCredential());
+        return provider.Object;
+    }
+
     [Fact]
     public void Create_WithConnectionString_ReturnsClientBoundToConnectionString()
     {
@@ -62,7 +69,8 @@ public sealed class BlobServiceClientFactoryTests
         var client = BlobServiceClientFactory.CreateFromOptions(
             new BlobStorageOptions { ConnectionString = "UseDevelopmentStorage=true" },
             new TestHostEnvironment(Environments.Development),
-            mockFactory.Object);
+            mockFactory.Object,
+            CreateCredentialProvider());
 
         client.Should().BeSameAs(expectedClient);
         mockFactory.Verify(f => f.Create("UseDevelopmentStorage=true"), Times.Once);
@@ -72,6 +80,8 @@ public sealed class BlobServiceClientFactoryTests
     public void CreateFromOptions_DelegatesToFactory_ForEndpoint()
     {
         var mockFactory = new Mock<IBlobServiceClientFactory>();
+        var credentialProvider = new Mock<IAzureCredentialProvider>();
+        credentialProvider.Setup(x => x.GetDefaultCredential()).Returns(new global::Azure.Identity.DefaultAzureCredential());
         var expectedClient = new BlobServiceClient("UseDevelopmentStorage=true");
         mockFactory.Setup(f => f.Create(It.IsAny<TokenCredential>(), It.IsAny<Uri>()))
             .Returns(expectedClient);
@@ -79,12 +89,14 @@ public sealed class BlobServiceClientFactoryTests
         var client = BlobServiceClientFactory.CreateFromOptions(
             new BlobStorageOptions { AccountEndpoint = "https://storage.example.blob.core.windows.net" },
             new TestHostEnvironment(Environments.Production),
-            mockFactory.Object);
+            mockFactory.Object,
+            credentialProvider.Object);
 
         client.Should().BeSameAs(expectedClient);
         mockFactory.Verify(
             f => f.Create(It.IsAny<TokenCredential>(), It.Is<Uri>(u => u == new Uri("https://storage.example.blob.core.windows.net"))),
             Times.Once);
+        credentialProvider.Verify(x => x.GetDefaultCredential(), Times.Once);
     }
 
     [Fact]
@@ -94,7 +106,8 @@ public sealed class BlobServiceClientFactoryTests
         var act = () => BlobServiceClientFactory.CreateFromOptions(
             new BlobStorageOptions { ConnectionString = "UseDevelopmentStorage=true" },
             new TestHostEnvironment(Environments.Production),
-            mockFactory.Object);
+            mockFactory.Object,
+            CreateCredentialProvider());
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*allowed only in Development*");
@@ -108,7 +121,8 @@ public sealed class BlobServiceClientFactoryTests
         var act = () => BlobServiceClientFactory.CreateFromOptions(
             new BlobStorageOptions(),
             new TestHostEnvironment(Environments.Production),
-            mockFactory.Object);
+            mockFactory.Object,
+            CreateCredentialProvider());
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*AccountEndpoint*required*");

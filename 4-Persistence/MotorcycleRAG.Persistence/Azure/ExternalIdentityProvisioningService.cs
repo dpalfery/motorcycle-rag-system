@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Azure.Core;
-using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -22,7 +21,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
     private readonly HttpClient _httpClient;
     private readonly ILogger<ExternalIdentityProvisioningService> _logger;
     private readonly ExternalIdentityProvisioningOptions _options;
-    private readonly TokenCredential? _tokenCredentialOverride;
+    private readonly TokenCredential _credential;
     private readonly SemaphoreSlim _resourceServicePrincipalLock = new(1, 1);
     private readonly JsonSerializerOptions _jsonSerializerOptions = new(JsonSerializerDefaults.Web);
 
@@ -31,8 +30,9 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
     public ExternalIdentityProvisioningService(
         HttpClient httpClient,
         IOptions<ExternalIdentityProvisioningOptions> options,
-        ILogger<ExternalIdentityProvisioningService> logger)
-        : this(httpClient, options, logger, tokenCredentialOverride: null) {
+        ILogger<ExternalIdentityProvisioningService> logger,
+        IAzureCredentialProvider credentialProvider)
+        : this(httpClient, options, logger, ResolveGraphCredential(options, credentialProvider)) {
     }
 
     /// <summary>
@@ -43,11 +43,11 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
         HttpClient httpClient,
         IOptions<ExternalIdentityProvisioningOptions> options,
         ILogger<ExternalIdentityProvisioningService> logger,
-        TokenCredential? tokenCredentialOverride) {
+        TokenCredential credential) {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _tokenCredentialOverride = tokenCredentialOverride;
+        _credential = credential ?? throw new ArgumentNullException(nameof(credential));
     }
 
     public async Task<string> ProvisionApprovedUserAsync(string email, string displayName, TierLabel tier, IdentityProvider provider) {
@@ -414,7 +414,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
         CancellationToken cancellationToken,
         string? consistencyLevel = null) {
         using var request = new HttpRequestMessage(method, BuildGraphRequestUri(relativePath));
-        var accessToken = await CreateCredential().GetTokenAsync(new TokenRequestContext([GraphScope]), cancellationToken);
+        var accessToken = await _credential.GetTokenAsync(new TokenRequestContext([GraphScope]), cancellationToken);
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -447,27 +447,14 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
         return new Uri($"{graphBaseUrl}/{relativePath.TrimStart('/')}", UriKind.Absolute);
     }
 
-    private TokenCredential CreateCredential() {
-        if (_tokenCredentialOverride != null) {
-            return _tokenCredentialOverride;
-        }
+    private static TokenCredential ResolveGraphCredential(
+        IOptions<ExternalIdentityProvisioningOptions> options,
+        IAzureCredentialProvider credentialProvider) {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(credentialProvider);
 
-        var credentials = new List<TokenCredential>();
-
-        credentials.Add(string.IsNullOrWhiteSpace(_options.ManagedIdentityClientId)
-            ? new ManagedIdentityCredential(new ManagedIdentityCredentialOptions())
-            : new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(_options.ManagedIdentityClientId.Trim())));
-
-        if (!string.IsNullOrWhiteSpace(_options.TenantId)
-            && !string.IsNullOrWhiteSpace(_options.ClientId)
-            && !string.IsNullOrWhiteSpace(_options.ClientSecret)) {
-            credentials.Add(new ClientSecretCredential(
-                _options.TenantId.Trim(),
-                _options.ClientId.Trim(),
-                _options.ClientSecret.Trim()));
-        }
-
-        return credentials.Count == 1 ? credentials[0] : new ChainedTokenCredential([.. credentials]);
+        var provisionOptions = options.Value ?? throw new ArgumentNullException(nameof(options));
+        return credentialProvider.GetGraphCredential(provisionOptions);
     }
 
     private static void EnsureSuccessStatusCode(HttpResponseMessage response, JsonDocument document, string operation) {

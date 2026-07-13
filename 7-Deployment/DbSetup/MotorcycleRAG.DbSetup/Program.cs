@@ -29,9 +29,10 @@ try
     var environmentManager = new EnvironmentManager(loggerFactory.CreateSecureLogger<EnvironmentManager>());
     var passwordManager = new PasswordManager(loggerFactory.CreateSecureLogger<PasswordManager>());
     var prompter = new InteractivePrompter(loggerFactory.CreateSecureLogger<InteractivePrompter>());
-    var provisioner = new SqlServerProvisioner(loggerFactory.CreateSecureLogger<SqlServerProvisioner>());
-    var preflightChecker = new PreflightChecker(loggerFactory.CreateSecureLogger<PreflightChecker>());
-    var scriptExecutor = new SqlScriptExecutor(loggerFactory.CreateSecureLogger<SqlScriptExecutor>());
+    var connectionFactory = new SqlDbSetupConnectionFactory();
+    var provisioner = new SqlServerProvisioner(loggerFactory.CreateSecureLogger<SqlServerProvisioner>(), connectionFactory);
+    var preflightChecker = new PreflightChecker(loggerFactory.CreateSecureLogger<PreflightChecker>(), connectionFactory);
+    var scriptExecutor = new SqlScriptExecutor(loggerFactory.CreateSecureLogger<SqlScriptExecutor>(), connectionFactory);
 
     // Prompt for missing values in interactive mode
     if (!parser.NonInteractive)

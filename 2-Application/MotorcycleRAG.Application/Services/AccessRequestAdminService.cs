@@ -34,7 +34,7 @@ public class AccessRequestAdminService {
     /// <summary>
     /// Gets the unified admin user-management list.
     /// </summary>
-    public async Task<UserManagementListResponse> GetUserManagementRowsAsync(
+    public virtual async Task<UserManagementListResponse> GetUserManagementRowsAsync(
         UserManagementRowState? rowState,
         string? search,
         int page,
@@ -60,7 +60,7 @@ public class AccessRequestAdminService {
     /// <summary>
     /// Approves a pending access request and executes approval-time onboarding.
     /// </summary>
-    public async Task<AdminActionResponse> ApproveAccessRequestAsync(string requestId, ApproveAccessRequestRequest request, string? approvedByUserId) {
+    public virtual async Task<AdminActionResponse> ApproveAccessRequestAsync(string requestId, ApproveAccessRequestRequest request, string? approvedByUserId) {
         if (string.IsNullOrWhiteSpace(requestId)) {
             throw new ArgumentException("Request ID cannot be null or empty", nameof(requestId));
         }
@@ -93,7 +93,7 @@ public class AccessRequestAdminService {
     /// <summary>
     /// Retries onboarding for an approved request that previously failed.
     /// </summary>
-    public async Task<AdminActionResponse> RetryOnboardingAsync(string requestId, RetryAccessRequestOnboardingRequest request) {
+    public virtual async Task<AdminActionResponse> RetryOnboardingAsync(string requestId, RetryAccessRequestOnboardingRequest request) {
         if (string.IsNullOrWhiteSpace(requestId)) {
             throw new ArgumentException("Request ID cannot be null or empty", nameof(requestId));
         }
@@ -126,7 +126,7 @@ public class AccessRequestAdminService {
     /// <summary>
     /// Cancels a pending or onboarding-failed access request.
     /// </summary>
-    public async Task<AdminActionResponse> CancelAccessRequestAsync(string requestId, CancelAccessRequestRequest request, string? cancelledByUserId) {
+    public virtual async Task<AdminActionResponse> CancelAccessRequestAsync(string requestId, CancelAccessRequestRequest request, string? cancelledByUserId) {
         if (string.IsNullOrWhiteSpace(requestId)) {
             throw new ArgumentException("Request ID cannot be null or empty", nameof(requestId));
         }

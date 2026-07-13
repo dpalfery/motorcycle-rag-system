@@ -25,9 +25,30 @@ namespace MotorcycleRAG.API;
     "Minor",
     "S1118:Utility classes should not have public constructors",
     Justification = "Program must be instantiable for WebApplicationFactory-based tests.")]
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 public class Program {
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static async Task Main(string[] args) {
         var builder = WebApplication.CreateBuilder(args);
+        ConfigureServices(builder);
+
+        // 7. Build and Configure Pipeline
+        var app = builder.Build();
+
+        app.UseMotorcycleRagMiddleware();
+
+        await app.PreWarmJwtSigningKeysAsync();
+        await app.RunAsync();
+    }
+
+    /// <summary>
+    /// Adds the API's production services to the supplied host builder.
+    /// Kept separate from host startup so composition can be validated without starting
+    /// hosted services or performing startup-time remote discovery.
+    /// </summary>
+    internal static void ConfigureServices(WebApplicationBuilder builder) {
+        ArgumentNullException.ThrowIfNull(builder);
+
         var configuration = builder.Configuration;
 
         // 1. Core Configuration & Logging
@@ -83,8 +104,6 @@ public class Program {
         builder.Services.AddDataProcessors(configuration);
         builder.Services.AddDataPipelineServices(configuration);
         builder.Services.AddCachingAndOptimization(configuration);
-        builder.Services.AddSqlPersistence(configuration);
-        builder.Services.AddWebTrustPolicyServices(configuration);
         builder.Services.AddHealthChecks().AddHealthChecks(configuration);
 
         // 6. Authentication & Authorization
@@ -97,13 +116,5 @@ public class Program {
 
         builder.Services.AddMotorcycleRagAuthorization(configuration, builder.Environment);
         builder.Services.AddMotorcycleRagRateLimiting();
-
-        // 7. Build and Configure Pipeline
-        var app = builder.Build();
-
-        app.UseMotorcycleRagMiddleware();
-
-        await app.PreWarmJwtSigningKeysAsync();
-        await app.RunAsync();
     }
 }

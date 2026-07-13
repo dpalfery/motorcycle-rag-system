@@ -21,6 +21,7 @@ public class OrchestratorToolHandlersValidationTests
     private readonly Mock<IAzureSearchClient> _search = new();
     private readonly Mock<ITrustedSourcesLoader> _sources = new();
     private readonly Mock<IGraphRepository> _graph = new();
+    private readonly Mock<ITrustedWebContentFetcher> _trustedWebContentFetcher = new();
     private readonly Mock<IBikeModelRepository> _bikes = new();
 
     private OrchestratorToolHandlers CreateHandlers(QuestionValidationState state)
@@ -37,6 +38,7 @@ public class OrchestratorToolHandlersValidationTests
             _search.Object,
             _sources.Object,
             _graph.Object,
+            _trustedWebContentFetcher.Object,
             new Mock<ILogger<SubAgentToolHandlers>>().Object);
         var subDispatcher = new FoundryToolDispatcher(_dispatcherLogger.Object);
         subAgentHandlers.RegisterOn(subDispatcher);

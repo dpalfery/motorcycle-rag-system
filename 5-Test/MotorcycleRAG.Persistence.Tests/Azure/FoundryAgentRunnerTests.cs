@@ -26,6 +26,13 @@ public class FoundryAgentRunnerTests
         string endpoint = "https://foundry.example.com")
         => Options.Create(new AzureFoundryOptions { FoundryEndpoint = endpoint });
 
+    private static IAzureCredentialProvider CreateCredentialProvider()
+    {
+        var provider = new Mock<IAzureCredentialProvider>();
+        provider.Setup(x => x.GetDefaultCredential()).Returns(new global::Azure.Identity.DefaultAzureCredential());
+        return provider.Object;
+    }
+
     private static FoundryAgentRunner CreateRunner(
         IOptions<AzureFoundryOptions>? options = null,
         IFoundryClientFactory? factory = null)
@@ -33,6 +40,7 @@ public class FoundryAgentRunnerTests
         return new FoundryAgentRunner(
             options ?? CreateValidOptions(),
             factory ?? CreateFactoryMock().Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<FoundryAgentRunner>());
     }
 
@@ -40,7 +48,7 @@ public class FoundryAgentRunnerTests
     public void Constructor_ShouldThrowArgumentNullException_WhenOptionsIsNull()
     {
         var act = () => new FoundryAgentRunner(
-            null!, CreateFactoryMock().Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            null!, CreateFactoryMock().Object, CreateCredentialProvider(), TestHelpers.CreateNullLogger<FoundryAgentRunner>());
         act.Should().Throw<ArgumentNullException>().WithParameterName("options");
     }
 
@@ -48,7 +56,7 @@ public class FoundryAgentRunnerTests
     public void Constructor_ShouldThrowArgumentNullException_WhenFactoryIsNull()
     {
         var act = () => new FoundryAgentRunner(
-            CreateValidOptions(), null!, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            CreateValidOptions(), null!, CreateCredentialProvider(), TestHelpers.CreateNullLogger<FoundryAgentRunner>());
         act.Should().Throw<ArgumentNullException>().WithParameterName("foundryClientFactory");
     }
 
@@ -56,7 +64,7 @@ public class FoundryAgentRunnerTests
     public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull()
     {
         var act = () => new FoundryAgentRunner(
-            CreateValidOptions(), CreateFactoryMock().Object, null!);
+            CreateValidOptions(), CreateFactoryMock().Object, CreateCredentialProvider(), null!);
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
     }
 
@@ -66,7 +74,7 @@ public class FoundryAgentRunnerTests
         var mock = new Mock<IOptions<AzureFoundryOptions>>();
         mock.SetupGet(o => o.Value).Returns((AzureFoundryOptions)null!);
         var act = () => new FoundryAgentRunner(
-            mock.Object, CreateFactoryMock().Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            mock.Object, CreateFactoryMock().Object, CreateCredentialProvider(), TestHelpers.CreateNullLogger<FoundryAgentRunner>());
         act.Should().Throw<ArgumentNullException>().WithParameterName("options");
     }
 
@@ -75,7 +83,7 @@ public class FoundryAgentRunnerTests
     {
         var opts = Options.Create(new AzureFoundryOptions { FoundryEndpoint = "" });
         var act = () => new FoundryAgentRunner(
-            opts, CreateFactoryMock().Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            opts, CreateFactoryMock().Object, CreateCredentialProvider(), TestHelpers.CreateNullLogger<FoundryAgentRunner>());
         act.Should().Throw<InvalidOperationException>().WithMessage("*FoundryEndpoint*required*");
     }
 
@@ -83,9 +91,11 @@ public class FoundryAgentRunnerTests
     public void Constructor_ShouldInvokeFactory_WhenOptionsAreValid()
     {
         var factory = CreateFactoryMock();
+        var credentialProvider = new Mock<IAzureCredentialProvider>();
+        credentialProvider.Setup(x => x.GetDefaultCredential()).Returns(new global::Azure.Identity.DefaultAzureCredential());
 
         var runner = new FoundryAgentRunner(
-            CreateValidOptions(), factory.Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            CreateValidOptions(), factory.Object, credentialProvider.Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
 
         runner.Should().NotBeNull();
         factory.Verify(
@@ -95,6 +105,7 @@ public class FoundryAgentRunnerTests
             Times.Once);
         factory.Verify(f => f.CreateOpenAIClient(It.IsAny<AIProjectClient>()), Times.Once);
         factory.Verify(f => f.CreateConversationsClient(It.IsAny<AIProjectClient>()), Times.Once);
+        credentialProvider.Verify(x => x.GetDefaultCredential(), Times.Once);
     }
 
     [Fact]
@@ -104,7 +115,7 @@ public class FoundryAgentRunnerTests
         var opts = Options.Create(new AzureFoundryOptions { FoundryEndpoint = "" });
 
         var act = () => new FoundryAgentRunner(
-            opts, factory.Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            opts, factory.Object, CreateCredentialProvider(), TestHelpers.CreateNullLogger<FoundryAgentRunner>());
 
         act.Should().Throw<InvalidOperationException>();
         factory.Verify(
@@ -122,7 +133,7 @@ public class FoundryAgentRunnerTests
             .Throws(new InvalidOperationException("Project client failure"));
 
         var act = () => new FoundryAgentRunner(
-            CreateValidOptions(), factory.Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            CreateValidOptions(), factory.Object, CreateCredentialProvider(), TestHelpers.CreateNullLogger<FoundryAgentRunner>());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("Project client failure");
     }
@@ -138,7 +149,7 @@ public class FoundryAgentRunnerTests
             .Throws(new InvalidOperationException("OpenAI client failure"));
 
         var act = () => new FoundryAgentRunner(
-            CreateValidOptions(), factory.Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            CreateValidOptions(), factory.Object, CreateCredentialProvider(), TestHelpers.CreateNullLogger<FoundryAgentRunner>());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("OpenAI client failure");
     }
@@ -154,7 +165,7 @@ public class FoundryAgentRunnerTests
             .Throws(new InvalidOperationException("Conversations client failure"));
 
         var act = () => new FoundryAgentRunner(
-            CreateValidOptions(), factory.Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            CreateValidOptions(), factory.Object, CreateCredentialProvider(), TestHelpers.CreateNullLogger<FoundryAgentRunner>());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("Conversations client failure");
     }
@@ -252,7 +263,7 @@ public class FoundryAgentRunnerTests
         });
 
         var act = () => new FoundryAgentRunner(
-            opts, CreateFactoryMock().Object, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+            opts, CreateFactoryMock().Object, CreateCredentialProvider(), TestHelpers.CreateNullLogger<FoundryAgentRunner>());
 
         act.Should().NotThrow();
     }

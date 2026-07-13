@@ -13,7 +13,8 @@
       "/obj/",
       "\\obj\\",
       "/bin/",
-      "\\bin\\"
+      "\\bin\\",
+      "/MotorcycleRAG.Contracts.Models/"
     ],
     "pathPrefixes": [
       "5-Test/",
@@ -40,7 +41,8 @@
         "2-Application/",
         "3-Domain/",
         "4-Persistence/",
-        "7-Deployment/AgentProvisioning/"
+        "7-Deployment/AgentProvisioning/",
+        "7-Deployment/DbSetup/"
       ],
       "testRoots": [
         "5-Test/MotorcycleRAG.API.Tests/",
@@ -48,6 +50,7 @@
         "5-Test/MotorcycleRAG.Core.Tests/",
         "5-Test/MotorcycleRAG.Contracts.Tests/",
         "5-Test/MotorcycleRAG.Domian.Tests/",
+        "5-Test/MotorcycleRAG.DbSetup.Tests/",
         "5-Test/MotorcycleRAG.AgentProvisioning.Tests/",
         "5-Test/MotorcycleRAG.Persistence.Tests/",
         "5-Test/MotorcycleRag.WebUI.BFF.Tests/"

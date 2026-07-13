@@ -57,7 +57,13 @@ public class ControllerDIRegistrationTests : IClassFixture<ProductionServicesWeb
     }
 
     // ── MeController ────────────────────────────────────────────────────────
-    // ICurrentUserService, IUserRepository, IUsageTrackingService, IPlanPolicyService — covered above
+
+    [Fact]
+    public void ICurrentUserProfileService_ShouldBeRegistered()
+    {
+        using var scope = _factory.Services.CreateScope();
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<ICurrentUserProfileService>());
+    }
 
     [Fact]
     public void IUserRepository_ShouldBeRegistered()
@@ -76,6 +82,13 @@ public class ControllerDIRegistrationTests : IClassFixture<ProductionServicesWeb
     }
 
     // ── PlansAdminController / UsersAdminController ──────────────────────────
+
+    [Fact]
+    public void IPlanAdministrationService_ShouldBeRegistered()
+    {
+        using var scope = _factory.Services.CreateScope();
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IPlanAdministrationService>());
+    }
 
     [Fact]
     public void IPlanRepository_ShouldBeRegistered()
@@ -108,6 +121,13 @@ public class ControllerDIRegistrationTests : IClassFixture<ProductionServicesWeb
     {
         using var scope = _factory.Services.CreateScope();
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<IIngestionJobService>());
+    }
+
+    [Fact]
+    public void IProcessorArtifactService_ShouldBeRegistered()
+    {
+        using var scope = _factory.Services.CreateScope();
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IProcessorArtifactService>());
     }
 
     [Fact]

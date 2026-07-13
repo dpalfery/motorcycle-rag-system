@@ -46,11 +46,6 @@ var dpBlobUri = builder.Configuration["DataProtection:BlobUri"];
 var hasBlobDataProtectionUri = Uri.TryCreate(dpBlobUri, UriKind.Absolute, out var dpBlobStorageUri);
 var usesBlobDataProtection = !builder.Environment.IsDevelopment() && hasBlobDataProtectionUri;
 
-var healthChecks = builder.Services.AddHealthChecks();
-if (usesBlobDataProtection) {
-    healthChecks.AddCheck<DataProtectionHealthCheck>("data_protection_blob");
-}
-
 var hasTelemetry = !string.IsNullOrEmpty(
     builder.Configuration.GetConnectionString("ApplicationInsights")
     ?? builder.Configuration["ApplicationInsights:ConnectionString"]);

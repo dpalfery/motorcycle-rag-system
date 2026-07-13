@@ -22,9 +22,11 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     private readonly Mock<ILogger<ScheduledPipelineService>> _loggerMock;
     private readonly Mock<IOptions<ScheduledProcessingConfiguration>> _configMock;
     private readonly Mock<IOptions<AzureFoundryOptions>> _azureFoundryOptionsMock;
+    private readonly Mock<ILocalFileStore> _localFileStoreMock;
+    private readonly Mock<ILocalFileDiscovery> _localFileDiscoveryMock;
     private readonly ScheduledPipelineService _service;
-    private readonly string _testDirectory;
     private readonly IServiceProvider _serviceProvider;
+    private const string ScheduledDirectory = "/scheduled-root/scheduled";
 
     public ScheduledPipelineServiceReliabilityTests() {
         _serviceScopeFactoryMock = new Mock<IServiceScopeFactory>();
@@ -33,23 +35,27 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         _loggerMock = new Mock<ILogger<ScheduledPipelineService>>();
         _configMock = new Mock<IOptions<ScheduledProcessingConfiguration>>();
         _azureFoundryOptionsMock = new Mock<IOptions<AzureFoundryOptions>>();
-
-        // Create a temporary directory for testing
-        _testDirectory = Path.Combine(Path.GetTempPath(), $"ScheduledPipelineTest_{Guid.NewGuid()}");
-        Directory.CreateDirectory(_testDirectory);
+        _localFileStoreMock = new Mock<ILocalFileStore>();
+        _localFileDiscoveryMock = new Mock<ILocalFileDiscovery>();
 
         var config = new ScheduledProcessingConfiguration {
             DefaultCronExpression = "0 2 * * *", // Daily at 2 AM
             IsEnabledByDefault = true,
             DefaultProcessingWindow = TimeSpan.FromHours(4),
             DefaultMaxConcurrentJobs = 3,
-            BaseDirectory = _testDirectory
+            BaseDirectory = "/scheduled-root"
         };
 
         _configMock.Setup(x => x.Value).Returns(config);
         _azureFoundryOptionsMock.Setup(x => x.Value).Returns(new AzureFoundryOptions {
             DocumentIntelligenceEndpoint = string.Empty
         });
+        _localFileStoreMock
+            .Setup(x => x.EnsureDirectoryExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _localFileDiscoveryMock
+            .Setup(x => x.GetTopLevelFilePathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<string>());
 
         // Setup service scope factory
         _serviceScopeFactoryMock.Setup(x => x.CreateScope()).Returns(_serviceScopeMock.Object);
@@ -65,6 +71,8 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
             _serviceScopeFactoryMock.Object,
             _configMock.Object,
             _azureFoundryOptionsMock.Object,
+            _localFileStoreMock.Object,
+            _localFileDiscoveryMock.Object,
             _loggerMock.Object);
     }
 
@@ -107,15 +115,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     [Fact]
     public async Task ExecuteImmediateRunAsync_WithCsvAndPdfFiles_ShouldSkipLegacyPdfAndProcessCsv() {
         // Arrange
-        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
-        Directory.CreateDirectory(scheduledDir);
-
-        // Create test files
-        var csvFile = Path.Combine(scheduledDir, "test.csv");
-
-        var pdfFile = Path.Combine(scheduledDir, "manual.pdf");
-        await File.WriteAllTextAsync(csvFile, "Make,Model\nHonda,CBR");
-        await File.WriteAllTextAsync(pdfFile, "%PDF-1.4 test content");
+        SetScheduledFiles("test.csv", "manual.pdf");
 
         var batchResult = new BatchPipelineResult {
             TotalFiles = 1,
@@ -148,9 +148,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     [Fact]
     public async Task ExecuteImmediateRunAsync_WithOnlyPdfFiles_ShouldSkipLegacyPdfBeforeOrchestrator() {
         // Arrange
-        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
-        Directory.CreateDirectory(scheduledDir);
-        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "manual.pdf"), "%PDF-1.4 test content");
+        SetScheduledFiles("manual.pdf");
 
         // Act
         var result = await _service.ExecuteImmediateRunAsync(CancellationToken.None);
@@ -166,9 +164,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     [Fact]
     public async Task ExecuteImmediateRunAsync_WithOnlyPdfFiles_ShouldCountRunAsSuccessfulSkip() {
         // Arrange
-        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
-        Directory.CreateDirectory(scheduledDir);
-        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "manual.pdf"), "%PDF-1.4 test content");
+        SetScheduledFiles("manual.pdf");
 
         // Act
         await _service.ExecuteImmediateRunAsync(CancellationToken.None);
@@ -186,9 +182,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     [Fact]
     public async Task ExecuteImmediateRunAsync_WithProcessingErrors_ShouldHandleGracefully() {
         // Arrange
-        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
-        Directory.CreateDirectory(scheduledDir);
-        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
+        SetScheduledFiles("test.csv");
 
         var batchResult = new BatchPipelineResult {
             TotalFiles = 1,
@@ -212,9 +206,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     [Fact]
     public async Task ExecuteImmediateRunAsync_WithException_ShouldReturnFailedResult() {
         // Arrange
-        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
-        Directory.CreateDirectory(scheduledDir);
-        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
+        SetScheduledFiles("test.csv");
 
         _orchestratorMock.Setup(x => x.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Processing failed"));
@@ -325,11 +317,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
         ArgumentNullException.ThrowIfNull(fileName);
 
         // Arrange
-        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
-        Directory.CreateDirectory(scheduledDir);
-
-        var content = "test,content";
-        await File.WriteAllTextAsync(Path.Combine(scheduledDir, fileName), content);
+        SetScheduledFiles(fileName);
 
         var batchResult = new BatchPipelineResult {
             TotalFiles = expectedType == FileType.Unknown ? 0 : 1,
@@ -361,9 +349,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     [Fact]
     public async Task ExecuteImmediateRunAsync_WithPdfFileAndDocumentIntelligenceEnabled_ShouldProcessPdf() {
         // Arrange
-        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
-        Directory.CreateDirectory(scheduledDir);
-        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "manual.pdf"), "%PDF-1.4 content");
+        SetScheduledFiles("manual.pdf");
 
         var services = new ServiceCollection();
         services.AddSingleton(_orchestratorMock.Object);
@@ -377,6 +363,8 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
             _serviceScopeFactoryMock.Object,
             _configMock.Object,
             _azureFoundryOptionsMock.Object,
+            _localFileStoreMock.Object,
+            _localFileDiscoveryMock.Object,
             _loggerMock.Object);
 
         var batchResult = new BatchPipelineResult {
@@ -405,10 +393,6 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     [Fact]
     public async Task ExecuteImmediateRunAsync_WithCancellation_ShouldHandleCancellationGracefully() {
         // Arrange
-        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
-        Directory.CreateDirectory(scheduledDir);
-        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
-
         using var cancellationTokenSource = new CancellationTokenSource();
         await cancellationTokenSource.CancelAsync();
 
@@ -421,9 +405,7 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
     [Fact]
     public async Task StatsTracking_ShouldUpdateCorrectlyAfterExecution() {
         // Arrange
-        var scheduledDir = Path.Combine(_testDirectory, "scheduled");
-        Directory.CreateDirectory(scheduledDir);
-        await File.WriteAllTextAsync(Path.Combine(scheduledDir, "test.csv"), "Make,Model\nHonda,CBR");
+        SetScheduledFiles("test.csv");
 
         _orchestratorMock.Setup(x => x.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new BatchPipelineResult {
@@ -453,18 +435,17 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
 
     protected virtual void Dispose(bool disposing) {
         if (disposing) {
-            // Cleanup test directory
-            if (Directory.Exists(_testDirectory)) {
-                try {
-                    Directory.Delete(_testDirectory, true);
-                }
-                catch {
-                    // Ignore cleanup errors in tests
-                }
-            }
-
             _service?.Dispose();
             (_serviceProvider as IDisposable)?.Dispose();
         }
+    }
+
+    private void SetScheduledFiles(params string[] fileNames) {
+        var filePaths = fileNames
+            .Select(fileName => Path.Combine(ScheduledDirectory, fileName))
+            .ToArray();
+        _localFileDiscoveryMock
+            .Setup(x => x.GetTopLevelFilePathsAsync(ScheduledDirectory, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(filePaths);
     }
 }

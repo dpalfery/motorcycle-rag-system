@@ -37,6 +37,13 @@ public class AzureBlobStorageServiceTests
         return factory;
     }
 
+    private static IAzureCredentialProvider CreateCredentialProvider()
+    {
+        var provider = new Mock<IAzureCredentialProvider>();
+        provider.Setup(x => x.GetDefaultCredential()).Returns(new global::Azure.Identity.DefaultAzureCredential());
+        return provider.Object;
+    }
+
     private static AzureBlobStorageService CreateService(
         IOptions<BlobStorageOptions>? options = null,
         IHostEnvironment? environment = null,
@@ -46,6 +53,7 @@ public class AzureBlobStorageServiceTests
             options ?? CreateValidDevelopmentOptions(),
             environment ?? CreateDevelopmentEnvironment(),
             factory ?? CreateFactoryReturningValidClient().Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
     }
 
@@ -55,6 +63,7 @@ public class AzureBlobStorageServiceTests
         var factory = new Mock<IBlobServiceClientFactory>();
         var act = () => new AzureBlobStorageService(
             null!, CreateDevelopmentEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
         act.Should().Throw<ArgumentNullException>().WithParameterName("options");
     }
@@ -65,7 +74,7 @@ public class AzureBlobStorageServiceTests
         var factory = new Mock<IBlobServiceClientFactory>();
         var opts = Options.Create(new BlobStorageOptions { AccountEndpoint = "https://mystorage.blob.core.windows.net" });
         var act = () => new AzureBlobStorageService(
-            opts, null!, factory.Object, TestHelpers.CreateNullLogger<AzureBlobStorageService>());
+            opts, null!, factory.Object, CreateCredentialProvider(), TestHelpers.CreateNullLogger<AzureBlobStorageService>());
         act.Should().Throw<ArgumentNullException>().WithParameterName("environment");
     }
 
@@ -75,6 +84,7 @@ public class AzureBlobStorageServiceTests
         var opts = CreateValidDevelopmentOptions();
         var act = () => new AzureBlobStorageService(
             opts, CreateDevelopmentEnvironment(), null!,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
         act.Should().Throw<ArgumentNullException>().WithParameterName("blobServiceClientFactory");
     }
@@ -85,7 +95,7 @@ public class AzureBlobStorageServiceTests
         var factory = new Mock<IBlobServiceClientFactory>();
         var opts = CreateValidDevelopmentOptions();
         var act = () => new AzureBlobStorageService(
-            opts, CreateDevelopmentEnvironment(), factory.Object, null!);
+            opts, CreateDevelopmentEnvironment(), factory.Object, CreateCredentialProvider(), null!);
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
     }
 
@@ -96,6 +106,7 @@ public class AzureBlobStorageServiceTests
         var opts = Options.Create(new BlobStorageOptions { ConnectionString = "", AccountEndpoint = "" });
         var act = () => new AzureBlobStorageService(
             opts, CreateDevelopmentEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
         act.Should().Throw<InvalidOperationException>().WithMessage("*AccountEndpoint*required*");
     }
@@ -109,6 +120,7 @@ public class AzureBlobStorageServiceTests
 
         var service = new AzureBlobStorageService(
             CreateValidDevelopmentOptions(), CreateDevelopmentEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
 
         factory.Verify(f => f.Create("UseDevelopmentStorage=true"), Times.Once);
@@ -130,6 +142,7 @@ public class AzureBlobStorageServiceTests
 
         var service = new AzureBlobStorageService(
             opts, env.Object, factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
 
         factory.Verify(
@@ -146,6 +159,7 @@ public class AzureBlobStorageServiceTests
 
         var act = () => new AzureBlobStorageService(
             CreateValidDevelopmentOptions(), env.Object, factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*ConnectionString*only in Development*");
@@ -161,6 +175,7 @@ public class AzureBlobStorageServiceTests
 
         var act = () => new AzureBlobStorageService(
             CreateValidDevelopmentOptions(), CreateDevelopmentEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("Factory failure");
@@ -175,6 +190,7 @@ public class AzureBlobStorageServiceTests
 
         var act = () => new AzureBlobStorageService(
             CreateValidProductionOptions(), CreateProductionEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("Factory failure");
@@ -336,6 +352,7 @@ public class AzureBlobStorageServiceTests
 
         var act = () => new AzureBlobStorageService(
             CreateValidProductionOptions(), CreateProductionEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
 
         act.Should().NotThrow();

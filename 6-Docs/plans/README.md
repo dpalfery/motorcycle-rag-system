@@ -13,7 +13,7 @@ Read this file before opening a plan. Open a plan only when it is both relevant 
 
 ## Active inventory
 
-*(No active plans — see archive for completed plans.)*
+No active implementation plans.
 
 Note: [2026-07-12-api-persistence-test-coverage-plan.md](2026-07-12-api-persistence-test-coverage-plan.md) was an earlier, narrower-scope draft of the same initiative. It is marked `Superseded` in its own header and is not implementation authority; the canonical plan was [2026-07-12-persistence-test-coverage.md](../archive/plans/2026-07-12-persistence-test-coverage.md) (now archived).
 
@@ -27,6 +27,7 @@ Completed and superseded plans live in [`../archive/plans/`](../archive/plans/).
 
 | Plan | Archived | Outcome / canonical guidance |
 | --- | --- | --- |
+| [2026-07-13 IoC/DI and Clean Architecture remediation](../archive/plans/2026-07-13-ioc-di-clean-architecture-remediation.md) | 2026-07-13 | Verified complete; DI composition and ownership rules are in `6-Docs/rules/architecture-general.md` and `6-Docs/system/architecture.md`; component specifics are in the API, Web UI/BFF, Mobile, and DbSetup documentation. Mobile verification remains host-blocked by the installed Xcode/MacCatalyst SDK mismatch. |
 | [2026-07-04 Local-first ingestion](../archive/plans/2026-07-04-local-first-ingestion.md) | Existing archive; review date unknown | Historical only; use current API, Admin Desktop, and local-processing-service documentation. |
 | [2026-07-07 Chunk upload fix and serverless search](../archive/plans/2026-07-07-chunk-upload-fix-and-serverless-search.md) | 2026-07-11 | Approved proposal (Ready); historical only. |
 | [2026-07-08 PDF chunking dimension mismatch](../archive/plans/2026-07-08-pdf-chunking-dimension-mismatch-analysis.md) | 2026-07-11 | Proposal (Draft); historical only. |
@@ -44,3 +45,4 @@ Completed and superseded plans live in [`../archive/plans/`](../archive/plans/).
 | [2026-07-12 Python tests to 5-Test](../archive/plans/2026-07-12-issue-118-python-tests-to-5-test.md) | 2026-07-12 | Verified complete (issue #118); see `6-Docs/rules/architecture-general.md` 5-Test Layer section, `5-Test/local-processing-service.Tests/AGENTS.md`, and `2-Application/local-processing-service/AGENTS.md` for the new test-suite location. |
 | [2026-07-12 Persistence test coverage 46.92% to 90%+](../archive/plans/2026-07-12-persistence-test-coverage.md) | 2026-07-13 | Verified complete; 1,430 tests created under `5-Test/MotorcycleRAG.Persistence.Tests/`, 95.87% aggregate coverage, 0 Persistence files below 85%. See `6-Docs/rules/architecture-general.md` §5-Test Layer, `6-Docs/catalog.md`, and `6-Docs/DevOps/overview.md` §4.1 (`persistence-unit` suite). |
 | [2026-07-13 Solution-level .NET unit coverage in CI](../archive/plans/2026-07-13-solution-level-unit-coverage.md) | 2026-07-13 | Verified complete; `MotorcycleRAG.UnitTests.slnf` created, runner/aggregator support multi-coverage merging, `coverage-config.json` consolidated to `dotnet-unit`/`python-unit`/`admindesktop-unit`, stale paths corrected in both workflows. See `6-Docs/DevOps/overview.md` §4 (CI/CD Flow) for solution-level `.slnf` coverage and multi-coverage aggregation. |
+| [2026-07-13 Contracts.Models testing & coverage strategy](../archive/plans/2026-07-13-contracts-models-testing-coverage-strategy.md) | 2026-07-13 | Verified complete; `MotorcycleRAG.Contracts.Models` excluded from the per-file/per-class 85% line gate via `coverlet.runsettings` `<Exclude>` + `coverage-config.json` `pathContains` (additive-only; `MotorcycleRAG.Contracts` still gated), `RecordCoverageTests.cs` trimmed to behavior-only, new `WebSourceValidationResultTests` added. See `6-Docs/DevOps/overview.md` §4.1 (Coverage exclusions), `5-Test/MotorcycleRAG.Contracts.Tests/AGENTS.md`, and `3-Domain/MotorcycleRAG.Contracts.Models/AGENTS.md`. |

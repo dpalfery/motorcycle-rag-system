@@ -6,15 +6,16 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.ValueObjects;
+using MotorcycleRAG.Persistence.Azure;
 
 namespace MotorcycleRAG.Persistence.Azure.Search;
 
 /// <summary>
 /// Default <see cref="ISearchClientFactory"/>. Lazily creates one
 /// <see cref="SearchClient"/> per category index and caches it for the lifetime of this
-/// factory instance. A single <see cref="TokenCredential"/> (see <see cref="SearchCredential"/>)
-/// is shared across all clients (it is the documented cold-auth source and should be reused,
-/// not recreated per request).
+/// factory instance. A single <see cref="TokenCredential"/> from
+/// <see cref="IAzureCredentialProvider"/> is shared across all clients (it is the documented
+/// cold-auth source and should be reused, not recreated per request).
 /// </summary>
 public sealed class SearchClientFactory : ISearchClientFactory
 {
@@ -31,9 +32,13 @@ public sealed class SearchClientFactory : ISearchClientFactory
     /// The service-level (not index-bound) <see cref="SearchIndexClient"/> used by
     /// <see cref="IndexExistsAsync"/> to verify index existence without creating indexes.
     /// </param>
-    public SearchClientFactory(IOptions<AzureFoundryOptions> azureOptions, SearchIndexClient indexClient)
+    public SearchClientFactory(
+        IOptions<AzureFoundryOptions> azureOptions,
+        SearchIndexClient indexClient,
+        IAzureCredentialProvider credentialProvider)
     {
         ArgumentNullException.ThrowIfNull(azureOptions);
+        ArgumentNullException.ThrowIfNull(credentialProvider);
         var azureConfig = azureOptions.Value ?? throw new ArgumentException("AzureFoundryOptions value is null.", nameof(azureOptions));
 
         if (!Uri.TryCreate(azureConfig.SearchServiceEndpoint, UriKind.Absolute, out var endpoint))
@@ -46,8 +51,9 @@ public sealed class SearchClientFactory : ISearchClientFactory
         _searchServiceEndpoint = endpoint;
         // The credential is intentionally shared (created once) — recreating it per client
         // multiplies the cold-auth latency that is the known freeze source (plan §1 root-cause #7).
-        // See SearchCredential for why this is pinned rather than a bare DefaultAzureCredential.
-        _credential = SearchCredential.Create();
+        // This policy is pinned rather than a bare DefaultAzureCredential because Search must
+        // prefer the system-assigned identity when the host has multiple managed identities.
+        _credential = credentialProvider.GetSearchCredential();
         _indexClient = indexClient ?? throw new ArgumentNullException(nameof(indexClient));
     }
 

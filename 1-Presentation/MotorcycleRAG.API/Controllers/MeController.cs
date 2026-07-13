@@ -1,9 +1,8 @@
+using System.Net.Mime;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-
-using System.Net.Mime;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -14,159 +13,39 @@ namespace MotorcycleRAG.API.Controllers;
 [Route("api/me")]
 [Authorize]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
-public sealed class MeController : ControllerBase {
-    private readonly ICurrentUserService _currentUserService;
-    private readonly IUserRepository _userRepository;
-    private readonly IUsageTrackingService _usageTrackingService;
-    private readonly IPlanPolicyService _planPolicyService;
-    private readonly ILogger<MeController> _logger;
+public sealed class MeController : ControllerBase
+{
+    private readonly ICurrentUserProfileService _currentUserProfileService;
 
-    public MeController(
-        ICurrentUserService currentUserService,
-        IUserRepository userRepository,
-        IUsageTrackingService usageTrackingService,
-        IPlanPolicyService planPolicyService,
-        ILogger<MeController> logger) {
-        _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
-        _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
-        _usageTrackingService = usageTrackingService ?? throw new ArgumentNullException(nameof(usageTrackingService));
-        _planPolicyService = planPolicyService ?? throw new ArgumentNullException(nameof(planPolicyService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    public MeController(ICurrentUserProfileService currentUserProfileService)
+    {
+        _currentUserProfileService = currentUserProfileService ?? throw new ArgumentNullException(nameof(currentUserProfileService));
     }
 
-    /// <summary>
-    /// Gets the current authenticated user's profile information.
-    /// </summary>
-    /// <returns>User profile information</returns>
     [HttpGet]
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UserProfileResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetProfileAsync() {
-        if (!_currentUserService.IsAuthenticated) {
-            _logger.LogWarning("Profile request without authenticated user");
-            return Unauthorized(new { error = "Authentication required" });
-        }
+    public async Task<IActionResult> GetProfileAsync() =>
+        MapProfileResult(await _currentUserProfileService.GetProfileAsync(RequestCancellationToken).ConfigureAwait(false));
 
-        var user = await _currentUserService.GetManagedUserAsync();
-        if (user == null) {
-            _logger.LogWarning("Authenticated principal does not resolve to an approved managed user for profile access");
-            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access has not been approved for this account" });
-        }
-
-        var dailyLimit = await _planPolicyService.GetDailyRequestLimitAsync(user);
-        var remaining = await _planPolicyService.GetRemainingDailyRequestsAsync(user.Id);
-
-        var response = new UserProfileResponse {
-            Id = user.Id,
-            Email = user.Email,
-            DisplayName = user.DisplayName,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
-            IsEnabled = user.IsEnabled,
-            CreatedDate = user.CreatedDate,
-            LastUpdatedDate = user.LastUpdatedDate,
-            PlanId = user.PlanId,
-            DailyRequestLimit = dailyLimit,
-            RemainingDailyRequests = remaining
-        };
-
-        _logger.LogInformation("Retrieved profile for user {UserId}", user.Id);
-        return Ok(response);
-    }
-
-    /// <summary>
-    /// Gets the current authenticated user's usage information (default 7 days).
-    /// </summary>
-    /// <returns>User usage information</returns>
     [HttpGet("usage")]
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UsageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetUsageAsync() {
-        return await GetUsageInternalAsync(7);
-    }
+    public async Task<IActionResult> GetUsageAsync() =>
+        MapUsageResult(await _currentUserProfileService.GetUsageAsync(7, RequestCancellationToken).ConfigureAwait(false));
 
-    /// <summary>
-    /// Gets the current authenticated user's usage information with custom date range.
-    /// </summary>
-    /// <param name="days">Number of days to retrieve usage for (max: 30)</param>
-    /// <returns>User usage information</returns>
     [HttpGet("usage-by-days")]
     [Produces(MediaTypeNames.Application.Json)]
     [ProducesResponseType(typeof(UsageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetUsageAsync([FromQuery] int days) {
-        return await GetUsageInternalAsync(days);
-    }
+    public async Task<IActionResult> GetUsageAsync([FromQuery] int days) =>
+        MapUsageResult(await _currentUserProfileService.GetUsageAsync(days, RequestCancellationToken).ConfigureAwait(false));
 
-    /// <summary>
-    /// Internal implementation for getting usage information.
-    /// </summary>
-    private async Task<IActionResult> GetUsageInternalAsync(int days) {
-        if (!_currentUserService.IsAuthenticated) {
-            _logger.LogWarning("Usage request without authenticated user");
-            return Unauthorized(new { error = "Authentication required" });
-        }
-
-        var user = await _currentUserService.GetManagedUserAsync();
-        if (user == null) {
-            _logger.LogWarning("Authenticated principal does not resolve to an approved managed user for usage access");
-            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access has not been approved for this account" });
-        }
-
-        var userId = user.Id;
-
-        // Validate and clamp days parameter
-        if (days < 1) {
-            days = 1;
-        }
-        else if (days > 30) {
-            days = 30;
-        }
-
-        var startDate = DateTime.UtcNow.AddDays(-days);
-        var endDate = DateTime.UtcNow;
-
-        var usageRecords = await _usageTrackingService.GetUsageByDateRangeAsync(userId, startDate, endDate);
-        var dailyCount = await _planPolicyService.GetDailyUsageCountAsync(userId);
-        var dailyLimit = await _planPolicyService.GetDailyRequestLimitAsync(user);
-
-        var response = new UsageResponse {
-            UserId = userId,
-            StartDate = startDate,
-            EndDate = endDate,
-            TotalRequests = usageRecords.Length,
-            SuccessfulRequests = usageRecords.Count(u => u.IsSuccess),
-            FailedRequests = usageRecords.Count(u => !u.IsSuccess),
-            DailyUsageCount = dailyCount,
-            DailyRequestLimit = dailyLimit,
-            RemainingDailyRequests = Math.Max(0, dailyLimit - dailyCount),
-            UsageRecords = usageRecords.Select(u => new UsageRecord {
-                Id = u.Id,
-                Endpoint = u.Endpoint,
-                HttpMethod = u.HttpMethod,
-                QueryId = u.QueryId,
-                RequestTime = u.RequestTime,
-                DurationMs = u.DurationMs,
-                StatusCode = u.StatusCode,
-                IsSuccess = u.IsSuccess
-            }).ToArray()
-        };
-
-        _logger.LogInformation("Retrieved usage for user {UserId} over {Days} days", userId, days);
-        return Ok(response);
-    }
-
-    /// <summary>
-    /// Updates the current authenticated user's profile information.
-    /// Only allowed fields: DisplayName, FirstName, LastName
-    /// </summary>
-    /// <param name="request">Profile update request</param>
-    /// <returns>Updated user profile</returns>
     [HttpPatch]
     [Consumes(MediaTypeNames.Application.Json)]
     [Produces(MediaTypeNames.Application.Json)]
@@ -174,86 +53,28 @@ public sealed class MeController : ControllerBase {
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> UpdateProfileAsync([FromBody] UpdateProfileRequest request) {
+    public async Task<IActionResult> UpdateProfileAsync([FromBody] UpdateProfileRequest request)
+    {
         ArgumentNullException.ThrowIfNull(request);
-
-        if (!_currentUserService.IsAuthenticated) {
-            _logger.LogWarning("Profile update request without authenticated user");
-            return Unauthorized(new { error = "Authentication required" });
-        }
-
-        var user = await _currentUserService.GetManagedUserAsync();
-        if (user == null) {
-            _logger.LogWarning("Authenticated principal does not resolve to an approved managed user for profile update");
-            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access has not been approved for this account" });
-        }
-
-        // Validate request
-        var errors = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(request.DisplayName) &&
-            string.IsNullOrWhiteSpace(request.FirstName) &&
-            string.IsNullOrWhiteSpace(request.LastName)) {
-            errors.Add("At least one field (DisplayName, FirstName, LastName) must be provided");
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.DisplayName) && request.DisplayName.Length > 100) {
-            errors.Add("DisplayName cannot exceed 100 characters");
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.FirstName) && request.FirstName.Length > 50) {
-            errors.Add("FirstName cannot exceed 50 characters");
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.LastName) && request.LastName.Length > 50) {
-            errors.Add("LastName cannot exceed 50 characters");
-        }
-
-        if (errors.Count > 0) {
-            return BadRequest(new { errors });
-        }
-
-        // Update allowed fields only
-        var needsUpdate = false;
-
-        if (!string.IsNullOrWhiteSpace(request.DisplayName) && user.DisplayName != request.DisplayName) {
-            user.DisplayName = request.DisplayName;
-            needsUpdate = true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.FirstName) && user.FirstName != request.FirstName) {
-            user.FirstName = request.FirstName;
-            needsUpdate = true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.LastName) && user.LastName != request.LastName) {
-            user.LastName = request.LastName;
-            needsUpdate = true;
-        }
-
-        if (needsUpdate) {
-            user.LastUpdatedDate = DateTime.UtcNow;
-            await _userRepository.UpdateUserAsync(user);
-            _logger.LogInformation("Updated profile for user {UserId}", user.Id);
-        }
-
-        var dailyLimit = await _planPolicyService.GetDailyRequestLimitAsync(user);
-        var remaining = await _planPolicyService.GetRemainingDailyRequestsAsync(user.Id);
-
-        var response = new UserProfileResponse {
-            Id = user.Id,
-            Email = user.Email,
-            DisplayName = user.DisplayName,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
-            IsEnabled = user.IsEnabled,
-            CreatedDate = user.CreatedDate,
-            LastUpdatedDate = user.LastUpdatedDate,
-            PlanId = user.PlanId,
-            DailyRequestLimit = dailyLimit,
-            RemainingDailyRequests = remaining
-        };
-
-        return Ok(response);
+        return MapProfileResult(await _currentUserProfileService.UpdateProfileAsync(request, RequestCancellationToken).ConfigureAwait(false));
     }
+
+    private IActionResult MapProfileResult(CurrentUserProfileResult result) => result.Status switch
+    {
+        CurrentUserProfileStatus.Success => Ok(result.Profile),
+        CurrentUserProfileStatus.Unauthenticated => Unauthorized(new { error = "Authentication required" }),
+        CurrentUserProfileStatus.AccessNotApproved => StatusCode(StatusCodes.Status403Forbidden, new { error = "Access has not been approved for this account" }),
+        CurrentUserProfileStatus.ValidationFailed => BadRequest(new { errors = result.ValidationErrors }),
+        _ => StatusCode(StatusCodes.Status500InternalServerError)
+    };
+
+    private IActionResult MapUsageResult(CurrentUserUsageResult result) => result.Status switch
+    {
+        CurrentUserProfileStatus.Success => Ok(result.Usage),
+        CurrentUserProfileStatus.Unauthenticated => Unauthorized(new { error = "Authentication required" }),
+        CurrentUserProfileStatus.AccessNotApproved => StatusCode(StatusCodes.Status403Forbidden, new { error = "Access has not been approved for this account" }),
+        _ => StatusCode(StatusCodes.Status500InternalServerError)
+    };
+
+    private CancellationToken RequestCancellationToken => ControllerContext.HttpContext?.RequestAborted ?? CancellationToken.None;
 }

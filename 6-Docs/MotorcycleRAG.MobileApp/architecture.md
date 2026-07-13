@@ -20,13 +20,13 @@ flowchart LR
 
 | Component | Responsibility | Interfaces |
 | --- | --- | --- |
-| Views and `AppShell` | Navigation and XAML presentation for authentication, chat, conversation list, user memory, and PDF viewing | XAML binding and Shell navigation |
+| `MauiProgram`, `App`, and `AppShell` | `MauiProgram` is the composition root: it builds the validated MSAL application, registers services, and supplies `AppShell` directly to `App`; `AppShell` provides navigation and XAML presentation | MAUI DI, XAML binding, and Shell navigation |
 | ViewModels | Observable state and commands using CommunityToolkit MVVM | Injected service interfaces |
-| `AuthenticationService` | MSAL account/session acquisition and sign-out | `IAuthenticationService` |
+| `AuthenticationService` | MSAL account/session acquisition and sign-out using the `IPublicClientApplication` composed by `MauiProgram` | `IAuthenticationService`, `IPublicClientApplication` |
 | `MotorcycleRagApiClient` | HTTPS calls for queries and profile data, retry and typed error mapping | `IApiClient` |
 | Conversation and memory services | Conversation workflows and user-memory extraction | `IConversationService`, `IUserMemoryService` |
 | SQLite repositories | Persist conversations, messages, citations, and user memory | Repository interfaces and `SQLiteAsyncConnection` |
-| Platform PDF services | Render and view PDFs using platform implementations | `IPdfRenderer`, `IPdfViewerService` |
+| Platform PDF services | Render and view PDFs using paired transient platform implementations so a singleton does not retain a transient renderer | `IPdfRenderer`, `IPdfViewerService` |
 
 ## Data Models
 

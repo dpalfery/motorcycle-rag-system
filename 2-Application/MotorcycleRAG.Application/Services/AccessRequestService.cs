@@ -37,7 +37,7 @@ public class AccessRequestService {
     /// <summary>
     /// Creates a new access request or returns the current requester-visible state for an existing request.
     /// </summary>
-    public async Task<(PublicAccessRequestResponse Response, bool Created)> CreateOrGetExistingAsync(CreateAccessRequestRequest request) {
+    public virtual async Task<(PublicAccessRequestResponse Response, bool Created)> CreateOrGetExistingAsync(CreateAccessRequestRequest request) {
         ArgumentNullException.ThrowIfNull(request);
 
         var stopwatch = Stopwatch.StartNew();

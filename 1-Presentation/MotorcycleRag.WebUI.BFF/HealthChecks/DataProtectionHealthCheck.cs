@@ -1,7 +1,5 @@
-using Azure.Storage.Blobs;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
-using Azure.Identity;
 
 namespace MotorcycleRag.WebUI.BFF.HealthChecks;
 
@@ -13,16 +11,16 @@ public class DataProtectionHealthCheck : IHealthCheck
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<DataProtectionHealthCheck> _logger;
-    private readonly Func<Uri, CancellationToken, Task<bool>>? _blobExistsAsync;
+    private readonly IDataProtectionBlobProbe _blobProbe;
 
     public DataProtectionHealthCheck(
         IConfiguration configuration,
-        ILogger<DataProtectionHealthCheck> logger,
-        Func<Uri, CancellationToken, Task<bool>>? blobExistsAsync = null)
+        IDataProtectionBlobProbe blobProbe,
+        ILogger<DataProtectionHealthCheck> logger)
     {
         _configuration = configuration;
+        _blobProbe = blobProbe;
         _logger = logger;
-        _blobExistsAsync = blobExistsAsync;
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(
@@ -39,37 +37,32 @@ public class DataProtectionHealthCheck : IHealthCheck
 
         try
         {
-            var uri = new Uri(blobUri);
-            bool exists;
-            if (_blobExistsAsync is not null)
+            var uri = new Uri(blobUri, UriKind.Absolute);
+            if (!Uri.UriSchemeHttps.Equals(uri.Scheme, StringComparison.OrdinalIgnoreCase))
             {
-                exists = await _blobExistsAsync(uri, cancellationToken);
+                throw new InvalidOperationException("DataProtection:BlobUri must use HTTPS.");
             }
-            else
-            {
-                var blobClient = new BlobClient(uri, new DefaultAzureCredential());
-                exists = (await blobClient.ExistsAsync(cancellationToken)).Value;
-            }
+
+            var exists = await _blobProbe.ExistsAsync(cancellationToken).ConfigureAwait(false);
 
             if (exists)
             {
-                _logger.LogDebug("Data Protection blob storage is accessible: {BlobUri}", blobUri);
+                _logger.LogDebug("Data Protection blob storage is accessible: {BlobLocation}", GetBlobLocation(uri));
                 
                 return HealthCheckResult.Healthy(
-                    $"Data Protection blob storage is accessible: {uri.Host}/{uri.Segments.ElementAtOrDefault(1)?.Trim('/')}");
+                    $"Data Protection blob storage is accessible: {GetBlobLocation(uri)}");
             }
 
             // Blob doesn't exist yet - this is OK for initial deployment
             // but we should verify we can create it
-            _logger.LogDebug("Data Protection blob does not exist yet, verifying write access: {BlobUri}", blobUri);
+            _logger.LogDebug("Data Protection blob does not exist yet, verifying write access: {BlobLocation}", GetBlobLocation(uri));
             
             return HealthCheckResult.Healthy(
-                $"Data Protection container is accessible, blob will be created on first use: {uri.Host}/{uri.Segments.ElementAtOrDefault(1)?.Trim('/')}");
+                $"Data Protection container is accessible, blob will be created on first use: {GetBlobLocation(uri)}");
         }
         catch (Azure.RequestFailedException ex)
         {
-            _logger.LogError(ex, "Failed to access Data Protection blob storage: {BlobUri}. Error: {ErrorMessage}", 
-                blobUri, ex.Message);
+            _logger.LogError(ex, "Failed to access Data Protection blob storage. Error: {ErrorMessage}", ex.Message);
             
             return HealthCheckResult.Degraded(
                 $"Data Protection blob storage is not accessible: {ex.Message}",
@@ -77,11 +70,14 @@ public class DataProtectionHealthCheck : IHealthCheck
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error checking Data Protection blob storage: {BlobUri}", blobUri);
+            _logger.LogError(ex, "Unexpected error checking Data Protection blob storage");
             
             return HealthCheckResult.Unhealthy(
                 $"Unexpected error checking Data Protection blob storage: {ex.Message}",
                 ex);
         }
     }
+
+    private static string GetBlobLocation(Uri blobUri) =>
+        $"{blobUri.Host}/{blobUri.Segments.ElementAtOrDefault(1)?.Trim('/')}";
 }

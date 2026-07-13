@@ -98,6 +98,25 @@ namespace MotorcycleRAG.UnitTests.Services {
         }
 
         [Fact]
+        public async Task GetDailyRequestLimitAsync_PlanRepositoryThrows_ReturnsDefaultLimit() {
+            // Arrange
+            var user = new User {
+                Id = "user-1",
+                Email = "test@example.com",
+                PlanId = "plan-1"
+            };
+            _mockPlanRepository
+                .Setup(repository => repository.GetPlanByIdAsync("plan-1"))
+                .ThrowsAsync(new InvalidOperationException("Plan store unavailable"));
+
+            // Act
+            var result = await _service.GetDailyRequestLimitAsync(user);
+
+            // Assert
+            Assert.Equal(100, result);
+        }
+
+        [Fact]
         public async Task GetDailyUsageCountAsync_ValidUserId_ReturnsCount() {
             // Arrange
             var userId = "user-1";
@@ -133,6 +152,21 @@ namespace MotorcycleRAG.UnitTests.Services {
             // Act & Assert
             await Assert.ThrowsAsync<ArgumentException>(() =>
                 _service.GetDailyUsageCountAsync(string.Empty, date));
+        }
+
+        [Fact]
+        public async Task GetDailyUsageCountAsync_UsageRepositoryThrows_ReturnsZero() {
+            // Arrange
+            var date = DateTime.UtcNow;
+            _mockUsageRepository
+                .Setup(repository => repository.GetDailyUsageCountAsync("user-1", date))
+                .ThrowsAsync(new InvalidOperationException("Usage store unavailable"));
+
+            // Act
+            var result = await _service.GetDailyUsageCountAsync("user-1", date);
+
+            // Assert
+            Assert.Equal(0, result);
         }
 
         [Fact]
@@ -303,6 +337,42 @@ namespace MotorcycleRAG.UnitTests.Services {
 
             // Assert
             Assert.Equal(0, result);
+        }
+
+        [Fact]
+        public async Task GetRemainingDailyRequestsAsync_UserIsMissing_ReturnsDefaultLimit() {
+            // Arrange
+            var date = DateTime.UtcNow;
+            _mockUsageRepository
+                .Setup(repository => repository.GetDailyUsageCountAsync("missing-user", date))
+                .ReturnsAsync(0);
+            _mockUserRepository
+                .Setup(repository => repository.GetUserByIdAsync("missing-user"))
+                .ReturnsAsync((User?)null);
+
+            // Act
+            var result = await _service.GetRemainingDailyRequestsAsync("missing-user", date);
+
+            // Assert
+            Assert.Equal(100, result);
+        }
+
+        [Fact]
+        public async Task GetRemainingDailyRequestsAsync_UserRepositoryThrows_ReturnsDefaultLimit() {
+            // Arrange
+            var date = DateTime.UtcNow;
+            _mockUsageRepository
+                .Setup(repository => repository.GetDailyUsageCountAsync("user-1", date))
+                .ReturnsAsync(0);
+            _mockUserRepository
+                .Setup(repository => repository.GetUserByIdAsync("user-1"))
+                .ThrowsAsync(new InvalidOperationException("User store unavailable"));
+
+            // Act
+            var result = await _service.GetRemainingDailyRequestsAsync("user-1", date);
+
+            // Assert
+            Assert.Equal(100, result);
         }
     }
 }

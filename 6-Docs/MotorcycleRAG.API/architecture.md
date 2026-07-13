@@ -23,11 +23,11 @@ flowchart LR
 
 | Component | Responsibility | Interfaces |
 | --- | --- | --- |
-| `Program` and configuration extensions | Composition root for configuration, telemetry, MVC, CORS, persistence, search/AI, health, authentication, authorization, and rate limiting | ASP.NET Core service registrations |
+| `Program` and configuration extensions | Composition root for configuration, telemetry, MVC, CORS, persistence, search/AI, health, authentication, authorization, and rate limiting; it invokes the single Persistence registration path | ASP.NET Core service registrations |
 | Middleware | Host validation, security headers, correlation IDs, authorization, timing, and exception-to-problem-details handling | HTTP request pipeline |
-| Controllers | Request validation and HTTP mapping for queries, ingestion, manuals, users, access requests, web sources, MCP administration, and health-related operations | `/api/*` endpoints and shared DTOs |
+| Controllers | Request validation and HTTP mapping for queries, ingestion, manuals, users, access requests, web sources, MCP administration, and health-related operations; they invoke application services rather than repositories | `/api/*` endpoints and shared DTOs |
 | Application services | Query planning, ingestion lifecycle, search, and administrative use cases | Contracts and application DTOs |
-| External integrations | SQL, blob storage, search, AI/Foundry, App Configuration, Key Vault, telemetry | Configuration-bound clients |
+| External integrations | SQL, blob storage, search, AI/Foundry, App Configuration, Key Vault, telemetry | Persistence-owned adapters, credential providers, and SDK client factories registered with documented lifetimes |
 
 ## Data Models
 

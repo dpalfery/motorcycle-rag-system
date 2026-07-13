@@ -4,6 +4,7 @@ using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Domain.ValueObjects;
 using MotorcycleRAG.Persistence.Azure.Search;
 
@@ -11,6 +12,13 @@ namespace MotorcycleRAG.Persistence.Tests.Azure.Search;
 
 public sealed class SearchClientFactoryTests
 {
+    private static IAzureCredentialProvider CreateCredentialProvider()
+    {
+        var provider = new Mock<IAzureCredentialProvider>();
+        provider.Setup(x => x.GetSearchCredential()).Returns(new global::Azure.Identity.DefaultAzureCredential());
+        return provider.Object;
+    }
+
     private static IOptions<AzureFoundryOptions> CreateValidOptions(string? endpoint = "https://search-test.search.windows.net") =>
         TestHelpers.OptionsFor(new AzureFoundryOptions
         {
@@ -28,7 +36,7 @@ public sealed class SearchClientFactoryTests
         // may not be mockable via Moq with parameterless construction, we use the fact
         // that the null check on options happens before anything else.
         // We pass a null options to test this path.
-        var act = () => new SearchClientFactory(null!, null!);
+        var act = () => new SearchClientFactory(null!, null!, CreateCredentialProvider());
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("azureOptions");
     }
@@ -36,7 +44,7 @@ public sealed class SearchClientFactoryTests
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenIndexClientIsNull()
     {
-        var act = () => new SearchClientFactory(CreateValidOptions(), null!);
+        var act = () => new SearchClientFactory(CreateValidOptions(), null!, CreateCredentialProvider());
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("indexClient");
     }
@@ -46,13 +54,11 @@ public sealed class SearchClientFactoryTests
     {
         // Testing through the mock of ISearchClientFactory interface is not possible here
         // since we need the concrete factory. The DefaultCategory property is pure logic.
-        // Because the constructor calls SearchCredential.Create() which invokes the
-        // Azure Identity chain, we test this property on a mock of the interface.
+        // The injected credential provider lets this test remain offline, so we test this
+        // pure interface behavior through a mock.
         //
-        // Design note: SearchClientFactory constructor creates Azure SDK dependencies
-        // (TokenCredential via SearchCredential.Create()) inline. Full constructor testing
-        // is deferred to integration tests. This test class verifies interface behavior
-        // and pure-logic methods where the factory instance is available.
+        // This test class verifies interface behavior and pure-logic methods where the
+        // concrete factory would otherwise require SDK client setup.
         var mockFactory = new Mock<ISearchClientFactory>();
         mockFactory.Setup(x => x.DefaultCategory).Returns(MotorcycleCategory.Sport);
 

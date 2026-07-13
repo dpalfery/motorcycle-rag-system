@@ -1,10 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Core.Utilities;
-using System.Text.Json.Serialization;
-
 using System.Net.Mime;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -15,261 +14,208 @@ namespace MotorcycleRAG.API.Controllers;
 [Route("api/admin/plans")]
 [Authorize(Policy = "mcr-api-admin")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "Controllers must be public for discovery")]
-public sealed class PlansAdminController : ControllerBase {
-    private readonly IPlanRepository _planRepository;
+public sealed class PlansAdminController : ControllerBase
+{
+    private readonly IPlanAdministrationService _planAdministrationService;
     private readonly ILogger<PlansAdminController> _logger;
 
-    public PlansAdminController(
-        IPlanRepository planRepository,
-        IUserAdminService userAdminService,
-        ILogger<PlansAdminController> logger) {
-        ArgumentNullException.ThrowIfNull(userAdminService);
-        _planRepository = planRepository ?? throw new ArgumentNullException(nameof(planRepository));
+    public PlansAdminController(IPlanAdministrationService planAdministrationService, ILogger<PlansAdminController> logger)
+    {
+        _planAdministrationService = planAdministrationService ?? throw new ArgumentNullException(nameof(planAdministrationService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <summary>
-    /// Gets all available plans.
-    /// </summary>
-    /// <returns>List of all plans</returns>
     [HttpGet]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserPlan[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UserPlan[]), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAllPlansAsync() {
-        try {
-            var plans = await _planRepository.GetAllPlansAsync();
-            _logger.LogInformation("Admin retrieved {Count} plans", plans.Length);
-            return Ok(plans);
+    public async Task<IActionResult> GetAllPlansAsync()
+    {
+        try
+        {
+            return Ok(await _planAdministrationService.GetAllPlansAsync(RequestCancellationToken).ConfigureAwait(false));
         }
-        catch (Exception ex) {
-            _logger.LogError(ex, "Error retrieving plans");
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Error retrieving plans");
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
 
-    /// <summary>
-    /// Gets a plan by ID.
-    /// </summary>
-    /// <param name="planId">Plan ID</param>
-    /// <returns>Plan details</returns>
     [HttpGet("{planId}")]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserPlan), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UserPlan), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPlanByIdAsync(string planId) {
-        if (string.IsNullOrWhiteSpace(planId)) {
+    public async Task<IActionResult> GetPlanByIdAsync(string planId)
+    {
+        if (string.IsNullOrWhiteSpace(planId))
+        {
             return BadRequest(new { error = "Plan ID is required" });
         }
 
-        try {
-            var plan = await _planRepository.GetPlanByIdAsync(planId);
-            if (plan == null) {
-                _logger.LogWarning("Plan {PlanId} not found", LogSanitizer.Sanitize(planId));
-                return NotFound(new { error = "Plan not found" });
-            }
-
-            _logger.LogInformation("Admin retrieved plan {PlanId}", LogSanitizer.Sanitize(planId));
-            return Ok(plan);
+        try
+        {
+            var plan = await _planAdministrationService.GetPlanByIdAsync(planId, RequestCancellationToken).ConfigureAwait(false);
+            return plan is null ? NotFound(new { error = "Plan not found" }) : Ok(plan);
         }
-        catch (Exception ex) {
-            _logger.LogError(ex, "Error retrieving plan {PlanId}", LogSanitizer.Sanitize(planId));
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Error retrieving plan");
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
 
-    /// <summary>
-    /// Creates a new plan.
-    /// </summary>
-    /// <param name="request">Plan creation request</param>
-    /// <returns>Created plan</returns>
     [HttpPost]
     [Consumes(MediaTypeNames.Application.Json)]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserPlan), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(UserPlan), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> CreatePlanAsync([FromBody] CreatePlanRequest request) {
-        if (request == null) {
+    public async Task<IActionResult> CreatePlanAsync([FromBody] CreatePlanRequest? request)
+    {
+        if (request is null)
+        {
             return BadRequest(new { error = "Request body is required" });
         }
 
-        var errors = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(request.Name)) {
-            errors.Add("Plan name is required");
-        }
-        else if (request.Name.Length > 100) {
-            errors.Add("Plan name cannot exceed 100 characters");
+        var validationErrors = Validate(request);
+        if (validationErrors.Count > 0)
+        {
+            return BadRequest(new { errors = validationErrors });
         }
 
-        if (request.DailyRequestLimit < 1) {
-            errors.Add("Daily request limit must be at least 1");
+        try
+        {
+            var createdPlan = await _planAdministrationService.CreatePlanAsync(
+                new PlanCreateCommand(request!.Name, request.Description ?? string.Empty, request.DailyRequestLimit, request.IsPaid),
+                RequestCancellationToken).ConfigureAwait(false);
+            return Created(new Uri($"/api/admin/plans/{createdPlan.Id}", UriKind.Relative), createdPlan);
         }
-        else if (request.DailyRequestLimit > 10000) {
-            errors.Add("Daily request limit cannot exceed 10000");
-        }
-
-        if (errors.Count > 0) {
-            return BadRequest(new { errors });
-        }
-
-        try {
-            var plan = new MotorcycleRAG.Contracts.Models.DTOs.UserPlan {
-                Id = Guid.NewGuid().ToString(),
-                Name = request.Name,
-                Description = request.Description ?? string.Empty,
-                DailyRequestLimit = request.DailyRequestLimit,
-                IsPaid = request.IsPaid,
-                CreatedDate = DateTime.UtcNow
-            };
-
-            var createdPlan = await _planRepository.CreatePlanAsync(plan);
-            _logger.LogInformation("Admin created plan {PlanId} with name {PlanName}", LogSanitizer.Sanitize(createdPlan.Id), LogSanitizer.Sanitize(createdPlan.Name));
-
-            // Avoid route generation failures under test hosts by returning an explicit location.
-            var location = new Uri($"/api/admin/plans/{createdPlan.Id}", UriKind.Relative);
-            return Created(location, createdPlan);
-        }
-        catch (Exception ex) {
-            _logger.LogError(ex, "Error creating plan");
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Error creating plan");
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
 
-    /// <summary>
-    /// Updates an existing plan.
-    /// </summary>
-    /// <param name="planId">Plan ID</param>
-    /// <param name="request">Plan update request</param>
-    /// <returns>Updated plan</returns>
     [HttpPut("{planId}")]
     [Consumes(MediaTypeNames.Application.Json)]
     [Produces(MediaTypeNames.Application.Json)]
-    [ProducesResponseType(typeof(MotorcycleRAG.Contracts.Models.DTOs.UserPlan), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UserPlan), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdatePlanAsync(string planId, [FromBody] UpdatePlanRequest request) {
-        if (string.IsNullOrWhiteSpace(planId)) {
+    public async Task<IActionResult> UpdatePlanAsync(string planId, [FromBody] UpdatePlanRequest? request)
+    {
+        if (string.IsNullOrWhiteSpace(planId))
+        {
             return BadRequest(new { error = "Plan ID is required" });
         }
 
-        if (request == null) {
+        if (request is null)
+        {
             return BadRequest(new { error = "Request body is required" });
         }
 
-        var errors = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(request.Name) && request.Name.Length > 100) {
-            errors.Add("Plan name cannot exceed 100 characters");
+        var validationErrors = Validate(request);
+        if (validationErrors.Count > 0)
+        {
+            return BadRequest(new { errors = validationErrors });
         }
 
-        if (request.DailyRequestLimit.HasValue && (request.DailyRequestLimit < 1 || request.DailyRequestLimit > 10000)) {
-            errors.Add("Daily request limit must be between 1 and 10000");
+        try
+        {
+            var plan = await _planAdministrationService.UpdatePlanAsync(
+                planId,
+                new PlanUpdateCommand(request!.Name, request.Description, request.DailyRequestLimit, request.IsPaid),
+                RequestCancellationToken).ConfigureAwait(false);
+            return plan is null ? NotFound(new { error = "Plan not found" }) : Ok(plan);
         }
-
-        if (errors.Count > 0) {
-            return BadRequest(new { errors });
-        }
-
-        try {
-            var plan = await _planRepository.GetPlanByIdAsync(planId);
-            if (plan == null) {
-                _logger.LogWarning("Plan {PlanId} not found for update", LogSanitizer.Sanitize(planId));
-                return NotFound(new { error = "Plan not found" });
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.Name)) {
-                plan.Name = request.Name;
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.Description)) {
-                plan.Description = request.Description;
-            }
-
-            if (request.DailyRequestLimit.HasValue) {
-                plan.DailyRequestLimit = request.DailyRequestLimit.Value;
-            }
-
-            var success = await _planRepository.UpdatePlanAsync(plan);
-            if (!success) {
-                _logger.LogError("Failed to update plan {PlanId}", LogSanitizer.Sanitize(planId));
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = "Failed to update plan" });
-            }
-
-            _logger.LogInformation("Admin updated plan {PlanId}", LogSanitizer.Sanitize(planId));
-            return Ok(plan);
-        }
-        catch (Exception ex) {
-            _logger.LogError(ex, "Error updating plan {PlanId}", LogSanitizer.Sanitize(planId));
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Error updating plan");
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
 
-    /// <summary>
-    /// Deletes a plan.
-    /// </summary>
-    /// <param name="planId">Plan ID</param>
-    /// <returns>No content on success</returns>
     [HttpDelete("{planId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeletePlanAsync(string planId) {
-        if (string.IsNullOrWhiteSpace(planId)) {
+    public async Task<IActionResult> DeletePlanAsync(string planId)
+    {
+        if (string.IsNullOrWhiteSpace(planId))
+        {
             return BadRequest(new { error = "Plan ID is required" });
         }
 
-        try {
-            var plan = await _planRepository.GetPlanByIdAsync(planId);
-            if (plan == null) {
-                _logger.LogWarning("Plan {PlanId} not found for deletion", LogSanitizer.Sanitize(planId));
-                return NotFound(new { error = "Plan not found" });
-            }
-
-            var success = await _planRepository.DeletePlanAsync(planId);
-            if (!success) {
-                _logger.LogError("Failed to delete plan {PlanId}", LogSanitizer.Sanitize(planId));
-                return StatusCode(StatusCodes.Status500InternalServerError, new { error = "Failed to delete plan" });
-            }
-
-            _logger.LogInformation("Admin deleted plan {PlanId}", LogSanitizer.Sanitize(planId));
-            return NoContent();
+        try
+        {
+            var result = await _planAdministrationService.DeletePlanAsync(planId, RequestCancellationToken).ConfigureAwait(false);
+            return !result.Found ? NotFound(new { error = "Plan not found" }) :
+                !result.Deleted ? StatusCode(StatusCodes.Status500InternalServerError, new { error = "Failed to delete plan" }) :
+                NoContent();
         }
-        catch (Exception ex) {
-            _logger.LogError(ex, "Error deleting plan {PlanId}", LogSanitizer.Sanitize(planId));
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Error deleting plan");
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
+
+    private static List<string> Validate(CreatePlanRequest? request)
+    {
+        var errors = new List<string>();
+        if (request is null)
+        {
+            errors.Add("Request body is required");
+            return errors;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Name)) errors.Add("Plan name is required");
+        else if (request.Name.Length > 100) errors.Add("Plan name cannot exceed 100 characters");
+        if (request.DailyRequestLimit < 1) errors.Add("Daily request limit must be at least 1");
+        else if (request.DailyRequestLimit > 10000) errors.Add("Daily request limit cannot exceed 10000");
+        return errors;
+    }
+
+    private static List<string> Validate(UpdatePlanRequest? request)
+    {
+        var errors = new List<string>();
+        if (request is null)
+        {
+            errors.Add("Request body is required");
+            return errors;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Name) && request.Name.Length > 100) errors.Add("Plan name cannot exceed 100 characters");
+        if (request.DailyRequestLimit.HasValue && (request.DailyRequestLimit < 1 || request.DailyRequestLimit > 10000)) errors.Add("Daily request limit must be between 1 and 10000");
+        return errors;
+    }
+
+    private CancellationToken RequestCancellationToken => ControllerContext.HttpContext?.RequestAborted ?? CancellationToken.None;
 }
 
-/// <summary>
-/// Create plan request model
-/// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
-public class CreatePlanRequest {
+public class CreatePlanRequest
+{
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
-    [JsonRequired]
-    public int DailyRequestLimit { get; set; } = 100;
-    [JsonRequired]
-    public bool IsPaid { get; set; }
+    [JsonRequired] public int DailyRequestLimit { get; set; } = 100;
+    [JsonRequired] public bool IsPaid { get; set; }
 }
 
-/// <summary>
-/// Update plan request model
-/// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1515:Consider making public types internal", Justification = "DTOs must be public for API documentation")]
-public class UpdatePlanRequest {
+public class UpdatePlanRequest
+{
     public string? Name { get; set; }
     public string? Description { get; set; }
     public int? DailyRequestLimit { get; set; }

@@ -1,5 +1,4 @@
 using Azure;
-using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,7 +19,6 @@ public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
     private readonly ICorrelationService _correlationService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
-    private readonly global::Azure.Core.TokenCredential _credential;
     private readonly AzureFoundryOptions _azureConfig;
 
     public AzureFoundryClientWrapper(
@@ -44,8 +42,6 @@ public class AzureFoundryClientWrapper : IAzureFoundryClient, IDisposable
         _correlationService = correlationService;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
-        _credential = new DefaultAzureCredential();
-
         _logger.LogInformation("Azure Foundry client initialized with endpoint: {Endpoint}",
             _azureConfig.FoundryEndpoint);
     }

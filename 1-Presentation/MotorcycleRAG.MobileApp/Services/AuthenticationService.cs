@@ -1,8 +1,8 @@
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.Identity.Client;
-using System;
 using System.Linq;
 using System.Threading.Tasks;
+using MotorcycleRAG.MobileApp.Configuration;
 
 namespace MotorcycleRAG.MobileApp.Services;
 
@@ -11,45 +11,14 @@ public class AuthenticationService : IAuthenticationService
     private readonly IPublicClientApplication _pca;
     private readonly string[] _scopes;
 
-    public AuthenticationService(IConfiguration configuration)
+    public AuthenticationService(
+        IPublicClientApplication publicClientApplication,
+        IOptions<AuthenticationOptions> authenticationOptions)
     {
-        var authSettings = configuration.GetSection("Authentication");
-
-        var clientId = authSettings["ClientId"];
-        var tenantId = authSettings["TenantId"];
-        var redirectUri = authSettings["RedirectUri"];
-
-        // Validate required settings
-        if (string.IsNullOrWhiteSpace(clientId))
-        {
-            throw new InvalidOperationException(
-                "Mobile authentication ClientId is not configured. " +
-                "Configure Authentication:ClientId through the approved configuration provider.");
-        }
-
-        if (string.IsNullOrWhiteSpace(tenantId))
-        {
-            throw new InvalidOperationException(
-                "Mobile authentication TenantId is not configured. " +
-                "Configure Authentication:TenantId through the approved configuration provider.");
-        }
-
-        // Default scopes if not provided in config
-        _scopes = authSettings.GetSection("Scopes").Get<string[]>() ?? new[] { "api://motorcyclerag-api/read", "api://motorcyclerag-api/chat" };
-
-        var builder = PublicClientApplicationBuilder.Create(clientId)
-            .WithRedirectUri(redirectUri ?? "msauth://com.companyname.motorcyclerag.mobileapp");
-
-        if (!string.IsNullOrEmpty(tenantId))
-        {
-            builder = builder.WithAuthority(AzureCloudInstance.AzurePublic, tenantId);
-        }
-
-#if ANDROID
-        builder = builder.WithParentActivityOrWindow(() => Platform.CurrentActivity);
-#endif
-
-        _pca = builder.Build();
+        ArgumentNullException.ThrowIfNull(publicClientApplication);
+        ArgumentNullException.ThrowIfNull(authenticationOptions);
+        _pca = publicClientApplication;
+        _scopes = authenticationOptions.Value.Scopes;
     }
 
     public async Task<bool> SignInAsync()

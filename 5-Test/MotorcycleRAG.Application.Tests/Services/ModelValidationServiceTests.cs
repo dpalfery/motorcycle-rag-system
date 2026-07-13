@@ -23,6 +23,20 @@ public class ModelValidationServiceTests {
     #region Null Citation Tests
 
     [Fact]
+    public void ValidateResponse_NullResponse_ReturnsFailureWithResponseError() {
+        // Arrange
+        MotorcycleQueryResponse? response = null;
+
+        // Act
+        var result = _sut.ValidateResponse(response!);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Single(result.Errors);
+        Assert.Equal("Response cannot be null", result.Errors[0]);
+    }
+
+    [Fact]
     public void ValidateCitation_NullCitation_ReturnsEmptyErrors_NoException() {
         // Arrange
         Citation? citation = null;
@@ -89,6 +103,35 @@ public class ModelValidationServiceTests {
     #endregion
 
     #region PageNumber and PageRange Validation Tests
+
+    [Fact]
+    public void ValidateResponse_ManualPdfCitationWithoutPageInformation_ReturnsSourceIndexedError() {
+        // Arrange
+        var response = new MotorcycleQueryResponse {
+            Sources = [
+                new SearchResult {
+                    Source = new SearchSource {
+                        Citation = new Citation {
+                            SourceType = CitationSourceType.ManualPdf,
+                            Locator = new ManualPdfCitationLocator {
+                                DocumentId = "doc-001",
+                                PageNumber = 0,
+                                PageRange = null
+                            }
+                        }
+                    }
+                }
+            ]
+        };
+
+        // Act
+        var result = _sut.ValidateResponse(response);
+
+        // Assert
+        Assert.False(result.IsValid);
+        Assert.Single(result.Errors);
+        Assert.Contains("Source[0]: Manual citation must have either PageNumber (> 0) or PageRange", result.Errors[0]);
+    }
 
     [Fact]
     public void ValidateCitation_ValidPageNumberOnly_ReturnsEmptyErrors() {

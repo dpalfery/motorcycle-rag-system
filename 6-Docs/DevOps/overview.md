@@ -109,9 +109,6 @@ flowchart LR
     P2C --> P3E[Phase 3<br/>e2e]
     P2T --> P3E
     P2M --> P3E
-    P2C --> P3U[Phase 3<br/>unit-mobile]
-    P2T --> P3U
-    P2M --> P3U
     P2C --> P3G[Phase 3<br/>skill-gate]
     P2T --> P3G
     P2M --> P3G
@@ -137,6 +134,9 @@ flowchart LR
 #### Phase 1 — Build and docs (parallel, path-filtered)
 
 - `build-test`: Restores .NET dependencies, installs Python coverage tools and Admin Desktop npm packages, runs the unified unit-coverage script (`run_unit_coverage.py` with `dotnet-unit`, `python-unit`, `admindesktop-unit` suites), uploads coverage artifacts, builds the solution (`dotnet build --configuration Release`), and uploads the build output for reuse by downstream jobs. The .NET unit tests execute at the **solution-filter level** — `run_unit_coverage.py` targets `MotorcycleRAG.UnitTests.slnf` (which excludes mobile, integration, E2E, and load projects) rather than per-project runs. This produces one `coverage.cobertura.xml` per test project; the runner collects all of them as a `coveragePaths` list in `suite-result.json`. The **multi-coverage aggregator** (`aggregate_coverage.py`) reads the `coveragePaths` list (falling back to the legacy `coveragePath` for backward compatibility), parses every Cobertura file, and merges them using max per-line coverage, deduplicating classes so that a source file covered by multiple test projects is counted only once. The aggregation prints a prominent policy result in the job log: every in-scope source file and class must meet the configured 85% line-coverage threshold; failures include counts, the worst 25 files and classes, and the full-report path. Collection follows [`coverlet.runsettings`](../../coverlet.runsettings): explicitly listed generated and migration files plus `Obsolete`/`GeneratedCode`-attributed code are excluded, while compiler-generated members remain in scope. Runs only when `code` or `infra` changed.
+
+  **Coverage exclusions.** Pure data-carrier assemblies may be excluded from the per-file/per-class 85% line-coverage gate when they contain no business invariants. `MotorcycleRAG.Contracts.Models` — the shared, data-only DTO project under `3-Domain/` — is excluded: `<Exclude>[MotorcycleRAG.Contracts.Models]*</Exclude>` in `coverlet.runsettings` removes it from coverlet collection, and `"/MotorcycleRAG.Contracts.Models/"` in `coverage-config.json` `coverageExclusions.pathContains` keeps the aggregator in agreement (the exclusion fragment cannot match the sibling interfaces-only `MotorcycleRAG.Contracts` assembly, which remains fully gated). The exclusion is additive only; every other in-scope assembly is still measured. Excluding a project from the *metric* does not remove it from the build/test pipeline: behavior-bearing members (factory methods, computed properties, validation logic, custom converters) are still directly unit-tested in `5-Test/MotorcycleRAG.Contracts.Tests/` and asserted by `dotnet test` — only the coverage number is no longer a gate input for that project. **Policy:** pure data-carrier DTO projects may be excluded from the line gate; behavior-bearing members within them must still be directly unit-tested.
+
 - `docs-quality`: Runs markdownlint, validates documentation catalog/structure, checks internal links with lychee (offline), and scans docs changes for secrets with gitleaks. Runs only when `docs` changed.
 
 #### Phase 2 — Security gate (needs build-test)
@@ -148,10 +148,11 @@ flowchart LR
 
 #### Phase 3 — Deep validation (needs security gate pass)
 
-- `unit-mobile`: Runs mobile-app unit tests on `macos-latest` with the MAUI workload installed.
 - `integration`: Runs integration tests (non-Azure, `Category!=AzureIntegration`) on the pre-built output from Phase 1.
 - `e2e`: Runs end-to-end tests with a MockServer container for external service stubs, using pre-built output.
 - `skill-gate`: Builds the SkillForge CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
+
+**Temporary Mobile CI exclusion.** GitHub-hosted PR and nightly coverage exclude the Mobile App until the Mac Catalyst toolchain is supported reliably there. This does not remove local verification: macOS developers continue to run the `mobileapp-unit` suite with the MAUI workload and Xcode installed, as documented in the [Mobile App onboarding guide](../MotorcycleRAG.MobileApp/onboarding.md).
 
 **Gate summary** (`pr-gate-summary`)
 
@@ -170,9 +171,8 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 
 **Test jobs (2 AM trigger):**
 
-- `unit-coverage-linux`: Full unit test matrix on Linux (dotnet, Python, Admin Desktop) running against `MotorcycleRAG.UnitTests.slnf` for .NET tests (8 test projects, consolidated from the former per-suite `dotnet-unit`, `domain-unit`, `bff-unit`, and `persistence-unit` suites).
-- `unit-mobile`: Mobile unit tests on macOS with MAUI workload.
-- `unit-tests`: Aggregation gate that downloads both Linux and Mobile artifacts, runs `aggregate_coverage.py` to produce a merged Cobertura report, and uploads to Codecov. It prints the same 90%-per-file-and-class policy outcome and an actionable failure summary in the job log before failing the gate.
+- `unit-coverage-linux`: Full unit test matrix on Linux (dotnet, Python, Admin Desktop) running against `MotorcycleRAG.UnitTests.slnf` for .NET tests (9 test projects, including `MotorcycleRAG.DbSetup.Tests`, consolidated from the former per-suite `dotnet-unit`, `domain-unit`, `bff-unit`, and `persistence-unit` suites).
+- `unit-tests`: Aggregation gate that downloads the Linux coverage artifact, selects the `dotnet-unit`, `python-unit`, and `admindesktop-unit` suites, runs `aggregate_coverage.py` to produce a merged Cobertura report, and uploads to Codecov. It prints the same 85%-per-file-and-class policy outcome and an actionable failure summary in the job log before failing the gate. Mobile coverage remains locally verified on macOS pending reliable GitHub-hosted Mac Catalyst support.
 - `integration-tests`: Non-Azure integration tests against pre-built output.
 - `end-to-end-tests`: E2E tests with MockServer, building fresh.
 - `azure-integration-tests`: Tests against real Azure services (requires `environment: testing`). Only runs on schedule or when `run_integration_tests` input is `true`.

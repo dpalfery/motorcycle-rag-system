@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import xml.etree.ElementTree as ET
 from defusedxml import ElementTree as DefusedElementTree
 from dataclasses import dataclass, field
@@ -21,7 +22,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--summary-path", type=Path, default=None)
     parser.add_argument("--threshold", type=float, default=None)
+    parser.add_argument(
+        "--suite",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="Aggregate only the named suite; repeat for multiple suites.",
+    )
     return parser.parse_args()
+
+
+def select_suites(config: dict[str, Any], suite_names: list[str]) -> list[dict[str, Any]]:
+    """Return all configured suites by default or the validated named selection."""
+    if not suite_names:
+        return config["suites"]
+
+    suites_by_name = {suite["name"]: suite for suite in config["suites"]}
+    unknown_suites = [name for name in suite_names if name not in suites_by_name]
+    if unknown_suites:
+        available_suites = ", ".join(sorted(suites_by_name))
+        raise ValueError(
+            f"Unknown suite selection: {', '.join(unknown_suites)}. "
+            f"Available suites: {available_suites}."
+        )
+
+    return [suites_by_name[name] for name in suite_names]
 
 
 @dataclass
@@ -456,6 +481,11 @@ def emit_console_summary(
 def main() -> int:
     args = parse_args()
     config = load_config(args.config)
+    try:
+        selected_suites = select_suites(config, args.suite)
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
     threshold = (
         float(config["thresholds"]["fileLinePercent"])
         if args.threshold is None
@@ -470,7 +500,7 @@ def main() -> int:
     classes: dict[tuple[str, str, str], ClassMetrics] = {}
     suite_results: list[dict[str, Any]] = []
     skipped_suites: list[dict[str, Any]] = []
-    for suite in config["suites"]:
+    for suite in selected_suites:
         suite_dir = results_dir / suite["resultsSubdirectory"]
         suite_summary_path = suite_dir / "suite-result.json"
         suite_status = {"name": suite["name"], "kind": suite["kind"], "status": "missing"}

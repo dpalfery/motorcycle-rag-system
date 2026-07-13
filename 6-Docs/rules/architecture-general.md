@@ -40,7 +40,7 @@ Presentation → Application → Domain ← Persistence
 
 1. **Always respect the Dependency Rule** - inner layers never depend on outer layers
 2. **Keep domain pure** - no framework code in domain entities
-3. **Use interfaces for boundaries** - Application defines interfaces, Infrastructure implements
+3. **Use interfaces for boundaries** - Application depends on Contracts interfaces and Persistence implements them
 4. **Thin controllers** - only call use cases and map responses
 5. **Rich domain models** - behavior with data, not anemic models
 6. **Test without infrastructure** - domain and application tests need no database
@@ -50,6 +50,14 @@ Presentation → Application → Domain ← Persistence
 10. **Liskov Substitution Principle** - derived classes must be substitutable for their base classes
 11. **Interface Segregation Principle** - many client-specific interfaces instead of one general-purpose interface
 12. **Dependency Inversion Principle** - high-level modules shouldn't depend on low-level ones; both should depend on abstractions
+
+### **Dependency Injection and Composition Rules**
+
+- A class receives its collaborators through constructor injection. Only host bootstrap code and its registration extensions select concrete implementations.
+- `MotorcycleRAG.Contracts` contains interfaces and delegate contracts only. Shared, data-only transport DTOs belong in `MotorcycleRAG.Contracts.Models`; domain constants, entities, and other concrete business types belong in `MotorcycleRAG.Domain`.
+- Application use cases call injected Contracts abstractions for HTTP, filesystem, storage, and other external I/O. They do not construct HTTP clients, credentials, SDK clients, or persistence file handles.
+- Persistence owns external adapters, credential providers, and SDK client factories. A factory may construct the SDK client it owns only after receiving its validated configuration and credential through DI.
+- Controllers are HTTP adapters: they validate/map requests and invoke application services, never repositories. `IServiceScopeFactory` is limited to singleton hosted services creating a short scope for scoped work; it is not a general service locator.
 
 ---
 
@@ -182,7 +190,7 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 **Critical Rules:**
 - No references to Presentation or Persistence projects
 - No Entity Framework, SQL, HTTP, or framework-specific code
-- All external dependencies accessed through interfaces defined here
+- All external dependencies accessed through injected Contracts interfaces
 - Orchestrates domain entities but doesn't contain domain logic
 
 > **Use Case Pattern:** Each use case handles one specific application action (IndexDocument, SearchMotorcycles, RetrieveContext). Use cases call domain entities to execute business rules and use interfaces to persist changes.
@@ -301,6 +309,7 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 - NEVER reference Presentation or Application
 - Implements interfaces defined in Domain.Contracts
 - Contains all SQL, EF Core, vector database, and database-specific code
+- Owns external adapters, credential providers, and SDK client factories; host composition chooses their registrations and lifetimes
 - Can be swapped for Dapper, Cosmos DB, or file storage without affecting domain
 
 > **Dependency Inversion:** Domain defines `IDocumentRepository`, Persistence implements it. Application depends on the interface, not the implementation. This allows the database to be swapped without changing business logic.
@@ -320,6 +329,7 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 * `5-Test/MotorcycleRAG.Application.Tests/` → Unit tests for use cases
 * `5-Test/MotorcycleRAG.Contracts.Tests/` → Unit tests for contract validation
 * `5-Test/MotorcycleRAG.Core.Tests/` → Unit tests for shared kernel / base utilities
+* `5-Test/MotorcycleRAG.DbSetup.Tests/` → Unit tests for the DbSetup CLI connection and provisioner boundary
 * `5-Test/MotorcycleRAG.Domian.Tests/` → Unit tests for domain logic
 * `5-Test/MotorcycleRAG.EndToEndTests/` → End-to-end Playwright UI tests
 * `5-Test/MotorcycleRAG.IntegrationTests/` → Full integration tests with database
@@ -406,5 +416,4 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 > **Clean Architecture Benefit:** Your deployment choices are details. You can deploy to Azure App Service, Container Apps, AKS, or even AWS without changing your application code.
 
 ---
-
 

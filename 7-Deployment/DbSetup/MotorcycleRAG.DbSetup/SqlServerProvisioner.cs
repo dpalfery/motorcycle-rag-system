@@ -7,11 +7,13 @@ namespace MotorcycleRAG.DbSetup;
 public class SqlServerProvisioner
 {
     private readonly ILogger<SqlServerProvisioner> _logger;
+    private readonly IDbSetupConnectionFactory _connectionFactory;
     private readonly List<string> _createdArtifacts;
 
-    public SqlServerProvisioner(ILogger<SqlServerProvisioner> logger)
+    public SqlServerProvisioner(ILogger<SqlServerProvisioner> logger, IDbSetupConnectionFactory connectionFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _createdArtifacts = new List<string>();
     }
 
@@ -79,12 +81,13 @@ public class SqlServerProvisioner
 
     public async Task<bool> DatabaseExistsAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = _connectionFactory.Create(connectionString);
         await connection.OpenAsync(cancellationToken);
 
         const string query = "SELECT database_id FROM sys.databases WHERE name = @dbName";
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@dbName", databaseName);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.AddParameter("@dbName", databaseName);
 
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result != null && result != DBNull.Value;
@@ -92,12 +95,13 @@ public class SqlServerProvisioner
 
     public async Task<bool> LoginExistsAsync(string connectionString, string loginName, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = _connectionFactory.Create(connectionString);
         await connection.OpenAsync(cancellationToken);
 
         const string query = "SELECT name FROM sys.server_principals WHERE name = @loginName AND type IN ('S', 'U')";
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@loginName", loginName);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.AddParameter("@loginName", loginName);
 
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result != null;
@@ -110,12 +114,13 @@ public class SqlServerProvisioner
             InitialCatalog = databaseName
         };
 
-        await using var connection = new SqlConnection(builder.ConnectionString);
+        await using var connection = _connectionFactory.Create(builder.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
         const string query = "SELECT name FROM sys.database_principals WHERE name = @userName AND type IN ('S', 'U')";
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@userName", loginName);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.AddParameter("@userName", loginName);
 
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result != null;
@@ -123,7 +128,7 @@ public class SqlServerProvisioner
 
     private async Task CreateDatabaseAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = _connectionFactory.Create(connectionString);
         await connection.OpenAsync(cancellationToken);
 
         // Use dynamic SQL with QUOTENAME for safe identifier handling
@@ -131,8 +136,9 @@ public class SqlServerProvisioner
 DECLARE @sql NVARCHAR(MAX) = 'CREATE DATABASE ' + QUOTENAME(@dbName);
 EXEC sp_executesql @sql, N'@dbName NVARCHAR(128)', @dbName;
 ";
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@dbName", databaseName);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.AddParameter("@dbName", databaseName);
 
         try
         {
@@ -147,7 +153,7 @@ EXEC sp_executesql @sql, N'@dbName NVARCHAR(128)', @dbName;
 
     private async Task CreateLoginAsync(string connectionString, string loginName, string password, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = _connectionFactory.Create(connectionString);
         await connection.OpenAsync(cancellationToken);
 
         // Build dynamic SQL properly - password needs to be quoted in the dynamic SQL string
@@ -155,9 +161,10 @@ EXEC sp_executesql @sql, N'@dbName NVARCHAR(128)', @dbName;
 DECLARE @sql NVARCHAR(MAX) = 'CREATE LOGIN ' + QUOTENAME(@loginName) + ' WITH PASSWORD = ' + QUOTENAME(@password, '''');
 EXEC sp_executesql @sql, N'@loginName NVARCHAR(128), @password NVARCHAR(128)', @loginName, @password;
 ";
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@loginName", loginName);
-        command.Parameters.AddWithValue("@password", password);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.AddParameter("@loginName", loginName);
+        command.AddParameter("@password", password);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Created login {LoginName}", loginName);
@@ -170,15 +177,16 @@ EXEC sp_executesql @sql, N'@loginName NVARCHAR(128), @password NVARCHAR(128)', @
             InitialCatalog = databaseName
         };
 
-        await using var connection = new SqlConnection(builder.ConnectionString);
+        await using var connection = _connectionFactory.Create(builder.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
         const string query = @"
 DECLARE @sql NVARCHAR(MAX) = 'CREATE USER ' + QUOTENAME(@loginName) + ' FOR LOGIN ' + QUOTENAME(@loginName);
 EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
 ";
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@loginName", loginName);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.AddParameter("@loginName", loginName);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Created user {LoginName} in database {DatabaseName}", loginName, databaseName);
@@ -191,7 +199,7 @@ EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
             InitialCatalog = databaseName
         };
 
-        await using var connection = new SqlConnection(builder.ConnectionString);
+        await using var connection = _connectionFactory.Create(builder.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
         // Grant CONNECT permission
@@ -199,9 +207,10 @@ EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
 DECLARE @sql NVARCHAR(MAX) = 'GRANT CONNECT TO ' + QUOTENAME(@loginName);
 EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
 ";
-        await using (var command = new SqlCommand(connectQuery, connection))
+        await using (var command = connection.CreateCommand())
         {
-            command.Parameters.AddWithValue("@loginName", loginName);
+            command.CommandText = connectQuery;
+            command.AddParameter("@loginName", loginName);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -210,9 +219,10 @@ EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
 DECLARE @sql NVARCHAR(MAX) = 'GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON SCHEMA::dbo TO ' + QUOTENAME(@loginName);
 EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
 ";
-        await using (var command = new SqlCommand(dmlQuery, connection))
+        await using (var command = connection.CreateCommand())
         {
-            command.Parameters.AddWithValue("@loginName", loginName);
+            command.CommandText = dmlQuery;
+            command.AddParameter("@loginName", loginName);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -272,15 +282,16 @@ EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
             InitialCatalog = databaseName
         };
 
-        await using var connection = new SqlConnection(builder.ConnectionString);
+        await using var connection = _connectionFactory.Create(builder.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
         const string query = @"
 DECLARE @sql NVARCHAR(MAX) = 'DROP USER IF EXISTS ' + QUOTENAME(@loginName);
 EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
 ";
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@loginName", loginName);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.AddParameter("@loginName", loginName);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Dropped user {LoginName} from database {DatabaseName}", loginName, databaseName);
@@ -288,15 +299,16 @@ EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
 
     private async Task DropLoginAsync(string connectionString, string loginName, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = _connectionFactory.Create(connectionString);
         await connection.OpenAsync(cancellationToken);
 
         const string query = @"
 DECLARE @sql NVARCHAR(MAX) = 'DROP LOGIN IF EXISTS ' + QUOTENAME(@loginName);
 EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
 ";
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@loginName", loginName);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.AddParameter("@loginName", loginName);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Dropped login {LoginName}", loginName);
@@ -304,15 +316,16 @@ EXEC sp_executesql @sql, N'@loginName NVARCHAR(128)', @loginName;
 
     private async Task DropDatabaseAsync(string connectionString, string databaseName, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = _connectionFactory.Create(connectionString);
         await connection.OpenAsync(cancellationToken);
 
         const string query = @"
 DECLARE @sql NVARCHAR(MAX) = 'DROP DATABASE IF EXISTS ' + QUOTENAME(@dbName);
 EXEC sp_executesql @sql, N'@dbName NVARCHAR(128)', @dbName;
 ";
-        await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@dbName", databaseName);
+        await using var command = connection.CreateCommand();
+        command.CommandText = query;
+        command.AddParameter("@dbName", databaseName);
 
         await command.ExecuteNonQueryAsync(cancellationToken);
         _logger.LogInformation("Dropped database {DatabaseName}", databaseName);

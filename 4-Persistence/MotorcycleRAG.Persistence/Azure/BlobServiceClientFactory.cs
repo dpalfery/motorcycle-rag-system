@@ -1,4 +1,3 @@
-using Azure.Identity;
 using Azure.Core;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Hosting;
@@ -42,11 +41,13 @@ public class BlobServiceClientFactory : IBlobServiceClientFactory
     internal static BlobServiceClient CreateFromOptions(
         BlobStorageOptions options,
         IHostEnvironment environment,
-        IBlobServiceClientFactory factory)
+        IBlobServiceClientFactory factory,
+        IAzureCredentialProvider credentialProvider)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(factory);
+        ArgumentNullException.ThrowIfNull(credentialProvider);
 
         if (!string.IsNullOrWhiteSpace(options.ConnectionString))
         {
@@ -54,7 +55,7 @@ public class BlobServiceClientFactory : IBlobServiceClientFactory
             {
                 throw new InvalidOperationException(
                     "BlobStorage:ConnectionString is allowed only in Development. " +
-                    "Use BlobStorage:AccountEndpoint with DefaultAzureCredential outside Development.");
+                    "Use BlobStorage:AccountEndpoint with the configured Azure credential outside Development.");
             }
 
             return factory.Create(options.ConnectionString);
@@ -67,6 +68,6 @@ public class BlobServiceClientFactory : IBlobServiceClientFactory
                 "Provide it through Azure App Configuration.");
         }
 
-        return factory.Create(new DefaultAzureCredential(), new Uri(options.AccountEndpoint));
+        return factory.Create(credentialProvider.GetDefaultCredential(), new Uri(options.AccountEndpoint));
     }
 }

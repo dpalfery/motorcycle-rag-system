@@ -1,6 +1,4 @@
 using Azure;
-using Azure.AI.Projects;
-using Azure.Identity;
 using Microsoft.Extensions.Logging;
 using OpenAI.Responses;
 using System.ClientModel;
@@ -22,32 +20,13 @@ public sealed class AgentProvisioningService {
     private readonly string _pdfSearchSystemPrompt;
     private readonly string _graphQuerySystemPrompt;
 
-    /// <summary>Production constructor — creates an <see cref="AIProjectClient"/> from options.</summary>
+    /// <summary>
+    /// Creates the provisioning service with the Foundry administration operations supplied by the CLI composition root.
+    /// </summary>
     public AgentProvisioningService(
-        string foundryEndpoint,
-        AgentProvisioningModelOptions modelOptions,
-        ILogger<AgentProvisioningService> logger) {
-        ArgumentNullException.ThrowIfNull(logger);
-
-        if (string.IsNullOrWhiteSpace(foundryEndpoint))
-            throw new InvalidOperationException("AzureAI:FoundryEndpoint is required for AgentProvisioningService");
-
-        var client = new AIProjectClient(new Uri(foundryEndpoint), new DefaultAzureCredential());
-        _adminOps = new FoundryAgentAdminClientAdapter(client.AgentAdministrationClient);
-        _logger = logger;
-        _modelOptions = modelOptions;
-        _orchestratorSystemPrompt = AgentDefinitions.OrchestratorSystemPrompt;
-        _vectorSearchSystemPrompt = AgentDefinitions.VectorSearchSystemPrompt;
-        _webSearchSystemPrompt = AgentDefinitions.WebSearchSystemPrompt;
-        _pdfSearchSystemPrompt = AgentDefinitions.PDFSearchSystemPrompt;
-        _graphQuerySystemPrompt = AgentDefinitions.GraphQuerySystemPrompt;
-    }
-
-    /// <summary>Test constructor — injects a mock <see cref="IAgentAdminOperations"/>.</summary>
-    internal AgentProvisioningService(
         IAgentAdminOperations adminOps,
+        AgentProvisioningModelOptions modelOptions,
         ILogger<AgentProvisioningService> logger,
-        AgentProvisioningModelOptions? modelOptions = null,
         string? orchestratorSystemPrompt = null,
         string? vectorSearchSystemPrompt = null,
         string? webSearchSystemPrompt = null,
@@ -55,7 +34,7 @@ public sealed class AgentProvisioningService {
         string? graphQuerySystemPrompt = null) {
         _adminOps = adminOps ?? throw new ArgumentNullException(nameof(adminOps));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _modelOptions = modelOptions ?? AgentProvisioningModelOptions.Default;
+        _modelOptions = modelOptions ?? throw new ArgumentNullException(nameof(modelOptions));
         _orchestratorSystemPrompt = orchestratorSystemPrompt ?? AgentDefinitions.OrchestratorSystemPrompt;
         _vectorSearchSystemPrompt = vectorSearchSystemPrompt ?? AgentDefinitions.VectorSearchSystemPrompt;
         _webSearchSystemPrompt = webSearchSystemPrompt ?? AgentDefinitions.WebSearchSystemPrompt;

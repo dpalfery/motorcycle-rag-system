@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Application.Services.Agents;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Contracts.Repositories;
@@ -19,21 +18,25 @@ public sealed class SubAgentToolHandlers
     private readonly IAzureSearchClient _searchClient;
     private readonly ITrustedSourcesLoader _trustedSourcesLoader;
     private readonly IGraphRepository _graphRepository;
+    private readonly ITrustedWebContentFetcher _trustedWebContentFetcher;
     private readonly ILogger<SubAgentToolHandlers> _logger;
 
     public SubAgentToolHandlers(
         IAzureSearchClient searchClient,
         ITrustedSourcesLoader trustedSourcesLoader,
         IGraphRepository graphRepository,
+        ITrustedWebContentFetcher trustedWebContentFetcher,
         ILogger<SubAgentToolHandlers> logger)
     {
         ArgumentNullException.ThrowIfNull(searchClient);
         ArgumentNullException.ThrowIfNull(trustedSourcesLoader);
         ArgumentNullException.ThrowIfNull(graphRepository);
+        ArgumentNullException.ThrowIfNull(trustedWebContentFetcher);
         ArgumentNullException.ThrowIfNull(logger);
         _searchClient = searchClient;
         _trustedSourcesLoader = trustedSourcesLoader;
         _graphRepository = graphRepository;
+        _trustedWebContentFetcher = trustedWebContentFetcher;
         _logger = logger;
     }
 
@@ -111,22 +114,7 @@ public sealed class SubAgentToolHandlers
 
         try
         {
-            using var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; MotorcycleRAGBot/1.0)");
-            httpClient.Timeout = TimeSpan.FromSeconds(10);
-            var html = await httpClient.GetStringAsync(new Uri(url), ct);
-
-            var extractor = new WebContentExtractor(_logger);
-            var source = new TrustedSourceOptions
-            {
-                Name = url,
-                BaseUrl = new Uri(url),
-                SearchUrlTemplate = new Uri(url),
-                ContentSelector = "//p|//article|//div[@class='content']",
-                CredibilityScore = 0.5f
-            };
-            var extracted = extractor.ExtractSearchResults(html, searchTerm, source);
-            var content = string.Join("\n\n", extracted.Select(r => r.Content));
+            var content = await _trustedWebContentFetcher.FetchAsync(new Uri(url), searchTerm, ct);
             var truncated = content[..Math.Min(content.Length, 2000)];
 
             _logger.LogInformation(

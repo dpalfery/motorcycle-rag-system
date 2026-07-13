@@ -26,6 +26,8 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger<ScheduledPipelineService> _logger;
     private readonly ScheduledProcessingConfiguration _config;
+    private readonly ILocalFileStore _localFileStore;
+    private readonly ILocalFileDiscovery _localFileDiscovery;
     private readonly SemaphoreSlim _executionSemaphore;
     private readonly bool _isDocumentIntelligenceEnabled;
 
@@ -39,14 +41,20 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         IServiceScopeFactory serviceScopeFactory,
         IOptions<ScheduledProcessingConfiguration> config,
         IOptions<AzureFoundryOptions> azureFoundryOptions,
+        ILocalFileStore localFileStore,
+        ILocalFileDiscovery localFileDiscovery,
         ILogger<ScheduledPipelineService> logger) {
         ArgumentNullException.ThrowIfNull(serviceScopeFactory);
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(azureFoundryOptions);
+        ArgumentNullException.ThrowIfNull(localFileStore);
+        ArgumentNullException.ThrowIfNull(localFileDiscovery);
         ArgumentNullException.ThrowIfNull(logger);
 
         _serviceScopeFactory = serviceScopeFactory;
         _config = config.Value;
+        _localFileStore = localFileStore;
+        _localFileDiscovery = localFileDiscovery;
 
         _isDocumentIntelligenceEnabled = Uri.TryCreate(
             azureFoundryOptions.Value.DocumentIntelligenceEndpoint,
@@ -192,7 +200,7 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
             _stats.LastExecutionStatus = PipelineStatus.Processing;
 
             // Find files to process
-            var discoveryResult = await DiscoverFilesToProcessAsync();
+            var discoveryResult = await DiscoverFilesToProcessAsync(cancellationToken);
             _logger.LogInformation("Found {FileCount} files to process", discoveryResult.Requests.Count);
 
             if (discoveryResult.SkippedLegacyPdfFiles.Count > 0) {
@@ -281,18 +289,16 @@ public class ScheduledPipelineService : BackgroundService, IScheduledPipelineSer
         }
     }
 
-    private async Task<FileDiscoveryResult> DiscoverFilesToProcessAsync() {
+    private async Task<FileDiscoveryResult> DiscoverFilesToProcessAsync(CancellationToken cancellationToken) {
         var discoveryResult = new FileDiscoveryResult();
 
         try {
             var processingDirectory = Path.Combine(_config.BaseDirectory, _scheduleConfig.ProcessingDirectory);
 
-            if (!Directory.Exists(processingDirectory)) {
-                Directory.CreateDirectory(processingDirectory);
-                return discoveryResult;
-            }
-
-            var files = Directory.GetFiles(processingDirectory, "*.*", SearchOption.TopDirectoryOnly);
+            await _localFileStore.EnsureDirectoryExistsAsync(processingDirectory, cancellationToken).ConfigureAwait(false);
+            var files = await _localFileDiscovery
+                .GetTopLevelFilePathsAsync(processingDirectory, cancellationToken)
+                .ConfigureAwait(false);
 
             foreach (var filePath in files) {
                 var fileName = Path.GetFileName(filePath);

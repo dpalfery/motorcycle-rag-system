@@ -41,6 +41,7 @@ public class FoundryAgentRunnerIntegrationTests
         return new FoundryAgentRunner(
             options,
             new MotorcycleRAG.Persistence.Azure.FoundryClientFactory(),
+            new AzureCredentialProvider(),
             NullLogger<FoundryAgentRunner>.Instance);
     }
 

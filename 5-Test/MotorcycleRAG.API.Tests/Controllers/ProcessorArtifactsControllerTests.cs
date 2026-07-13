@@ -1,223 +1,113 @@
 using System.Text;
+using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
+using Moq;
 using MotorcycleRAG.API.Controllers;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Domain.Entities;
-using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.UnitTests.Presentation.API.Controllers;
 
 public sealed class ProcessorArtifactsControllerTests
 {
     [Fact]
-    public async Task UploadArtifactAsync_WithSearchChunks_AttachesToStructuredSpecificationJob()
+    public void Constructor_NullDependencies_Throw()
     {
-        var uploadId = Guid.NewGuid().ToString();
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob
-        {
-            IngestionJobId = jobId,
-            InputRef = uploadId,
-            InputType = IngestionJobType.StructuredSpecification,
-            Status = IngestionJobStatus.Processing,
-            CreatedAtUtc = DateTimeOffset.UtcNow
-        };
-
-        var blobStorage = CreateBlobStorage();
-        var indexingService = CreateSuccessfulIndexingService(uploadId);
-        var jobRepository = new Mock<IIngestionJobRepository>();
-        var artifactRepository = CreateArtifactRepository();
-        var chunkRepository = CreateChunkRepository();
-
-        jobRepository
-            .Setup(repository => repository.GetLatestByInputAsync(uploadId, IngestionJobType.PDFManual, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IngestionJob?)null);
-        jobRepository
-            .Setup(repository => repository.GetLatestByInputAsync(uploadId, IngestionJobType.StructuredSpecification, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(job);
-        jobRepository
-            .Setup(repository => repository.GetLatestByInputAsync(uploadId, IngestionJobType.Batch, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IngestionJob?)null);
-        jobRepository
-            .Setup(repository => repository.TryTransitionToTerminalAsync(
-                jobId,
-                IngestionJobStatus.Processing,
-                IngestionJobStatus.Completed,
-                1,
-                1,
-                null,
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-
-        var sut = CreateController(
-            blobStorage.Object,
-            indexingService.Object,
-            jobRepository.Object,
-            artifactRepository.Object,
-            chunkRepository.Object);
-
-        var file = CreateFormFile("{\"id\":\"chunk-1\"}\n", "chunks.jsonl", "application/x-ndjson");
-
-        var result = await sut.UploadArtifactAsync(file, uploadId, "search-chunks", CancellationToken.None);
-
-        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
-        accepted.Value.Should().BeOfType<ProcessorArtifactUploadResponse>()
-            .Which.BlobPath.Should().Be($"{uploadId}/chunks.jsonl");
-
-        jobRepository.Verify(repository => repository.GetLatestByInputAsync(uploadId, IngestionJobType.PDFManual, It.IsAny<CancellationToken>()), Times.Once);
-        jobRepository.Verify(repository => repository.GetLatestByInputAsync(uploadId, IngestionJobType.StructuredSpecification, It.IsAny<CancellationToken>()), Times.Once);
-        jobRepository.Verify(repository => repository.TryTransitionToTerminalAsync(
-            jobId,
-            IngestionJobStatus.Indexing,
-            IngestionJobStatus.Completed,
-            1,
-            1,
-            null,
-            It.IsAny<CancellationToken>()), Times.Once);
-        jobRepository.Verify(repository => repository.TryTransitionToTerminalAsync(
-            jobId,
-            IngestionJobStatus.Processing,
-            IngestionJobStatus.Completed,
-            1,
-            1,
-            null,
-            It.IsAny<CancellationToken>()), Times.Once);
+        var service = new Mock<IProcessorArtifactService>();
+        ((Action)(() => new ProcessorArtifactsController(null!, NullLogger<ProcessorArtifactsController>.Instance))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new ProcessorArtifactsController(service.Object, null!))).Should().Throw<ArgumentNullException>();
     }
 
     [Fact]
-    public async Task UploadArtifactAsync_WithGraphEntities_StoresInRawUploadsWithoutIndexing()
+    public async Task UploadArtifactAsync_MapsHttpFileToApplicationRequest()
     {
-        var uploadId = Guid.NewGuid().ToString();
-        var blobStorage = CreateBlobStorage();
-        var indexingService = new Mock<IChunkIndexingService>();
+        var service = new Mock<IProcessorArtifactService>();
+        ProcessorArtifactUploadRequest? submitted = null;
+        service.Setup(x => x.UploadArtifactAsync(It.IsAny<ProcessorArtifactUploadRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<ProcessorArtifactUploadRequest, CancellationToken>((request, _) => submitted = request)
+            .ReturnsAsync(new ProcessorArtifactUploadResult(new ProcessorArtifactUploadResponse { UploadId = "00000000-0000-0000-0000-000000000001", ArtifactType = "search-chunks", BlobPath = "path" }, ProcessorArtifactOperationStatus.Success));
+        var controller = Create(service.Object);
 
-        var sut = CreateController(
-            blobStorage.Object,
-            indexingService.Object,
-            Mock.Of<IIngestionJobRepository>(),
-            Mock.Of<IIndexedArtifactRepository>(),
-            Mock.Of<IIndexedChunkRepository>());
-
-        var file = CreateFormFile("[{\"nodes\":[],\"edges\":[]}]", "entities.json", "application/json");
-
-        var result = await sut.UploadArtifactAsync(file, uploadId, "graph-entities", CancellationToken.None);
+        var result = await controller.UploadArtifactAsync(CreateFile("{\"id\":\"chunk-1\"}"), "00000000-0000-0000-0000-000000000001", "search-chunks", CancellationToken.None);
 
         result.Should().BeOfType<AcceptedResult>();
-        blobStorage.Verify(service => service.UploadAsync(
-            "raw-uploads",
-            $"graph-entities/{uploadId}/entities.json",
-            It.IsAny<Stream>(),
-            "application/json",
-            It.IsAny<CancellationToken>()), Times.Once);
-        indexingService.Verify(service => service.IndexFromJsonlAsync(
-            It.IsAny<Stream>(),
-            It.IsAny<string>(),
-            It.IsAny<CancellationToken>()), Times.Never);
+        submitted.Should().NotBeNull();
+        submitted!.UploadId.Should().Be("00000000-0000-0000-0000-000000000001");
+        submitted.ArtifactType.Should().Be("search-chunks");
+        submitted.ContentType.Should().Be("application/x-ndjson");
     }
 
-    private static ProcessorArtifactsController CreateController(
-        IBlobStorageService blobStorageService,
-        IChunkIndexingService chunkIndexingService,
-        IIngestionJobRepository jobRepository,
-        IIndexedArtifactRepository artifactRepository,
-        IIndexedChunkRepository chunkRepository,
-        IIngestionJobService? ingestionJobService = null)
+    [Theory]
+    [InlineData(ProcessorArtifactOperationStatus.InvalidUploadId)]
+    [InlineData(ProcessorArtifactOperationStatus.InvalidArtifactType)]
+    public async Task UploadArtifactAsync_MapsValidationResultsToBadRequest(ProcessorArtifactOperationStatus status)
     {
-        return new ProcessorArtifactsController(
-            blobStorageService,
-            Options.Create(new BlobStorageOptions
-            {
-                RawUploadsContainer = "raw-uploads"
-            }),
-            chunkIndexingService,
-            jobRepository,
-            artifactRepository,
-            chunkRepository,
-            new Mock<IIngestionSourceAccessTokenService>().Object,
-            ingestionJobService ?? new Mock<IIngestionJobService>().Object,
-            NullLogger<ProcessorArtifactsController>.Instance);
+        var service = new Mock<IProcessorArtifactService>();
+        service.Setup(x => x.UploadArtifactAsync(It.IsAny<ProcessorArtifactUploadRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessorArtifactUploadResult(null, status));
+
+        var result = await Create(service.Object).UploadArtifactAsync(CreateFile("content"), "00000000-0000-0000-0000-000000000001", "search-chunks", CancellationToken.None);
+
+        Status(result, StatusCodes.Status400BadRequest);
     }
 
-    private static Mock<IBlobStorageService> CreateBlobStorage()
+    [Fact]
+    public async Task DownloadSourceAsync_MapsApplicationResults()
     {
-        var blobStorage = new Mock<IBlobStorageService>();
-        blobStorage
-            .Setup(service => service.UploadAsync(
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<Stream>(),
-                It.IsAny<string>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync("https://storage.example/artifact");
-        blobStorage
-            .Setup(service => service.SetMetadataAsync(
-                It.IsAny<string>(),
-                It.IsAny<string>(),
-                It.IsAny<Dictionary<string, string>>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        var service = new Mock<IProcessorArtifactService>();
+        service.Setup(x => x.DownloadSourceAsync("valid", "manual-pdf", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessorArtifactSourceResult(new MemoryStream(), "application/pdf", ProcessorArtifactOperationStatus.Success));
+        service.Setup(x => x.DownloadSourceAsync("missing", "manual-pdf", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessorArtifactSourceResult(null, null, ProcessorArtifactOperationStatus.NotFound));
+        var controller = Create(service.Object);
 
-        return blobStorage;
+        (await controller.DownloadSourceAsync("valid", "manual-pdf", CancellationToken.None)).Should().BeOfType<FileStreamResult>();
+        Status(await controller.DownloadSourceAsync("missing", "manual-pdf", CancellationToken.None), StatusCodes.Status404NotFound);
     }
 
-    private static Mock<IChunkIndexingService> CreateSuccessfulIndexingService(string uploadId)
+    [Fact]
+    public async Task DownloadSourceWithAccessTokenAsync_DelegatesAccessTokenToUseCase()
     {
-        var indexingService = new Mock<IChunkIndexingService>();
-        indexingService
-            .Setup(service => service.IndexFromJsonlAsync(
-                It.IsAny<Stream>(),
-                uploadId,
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ChunkIndexingResult(
-                1,
-                1,
-                [
-                    new ChunkIndexOutcome(
-                        "chunk-1",
-                        true,
-                        null,
-                        7,
-                        0,
-                        "source.pdf")
-                ]));
+        var service = new Mock<IProcessorArtifactService>();
+        service.Setup(x => x.DownloadSourceAsync("upload", "manual-pdf", "token", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessorArtifactSourceResult(null, null, ProcessorArtifactOperationStatus.Unauthorized));
 
-        return indexingService;
+        var result = await Create(service.Object).DownloadSourceWithAccessTokenAsync("upload", "manual-pdf", "token", CancellationToken.None);
+
+        Status(result, StatusCodes.Status401Unauthorized);
+        service.Verify(x => x.DownloadSourceAsync("upload", "manual-pdf", "token", It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    private static Mock<IIndexedArtifactRepository> CreateArtifactRepository()
+    [Fact]
+    public async Task ReportJobStageByRunIdAsync_MapsUseCaseResponseAndNotFound()
     {
-        var artifactRepository = new Mock<IIndexedArtifactRepository>();
-        artifactRepository
-            .Setup(repository => repository.UpsertAsync(It.IsAny<IndexedArtifact>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IndexedArtifact artifact, CancellationToken _) => artifact);
-        return artifactRepository;
+        var service = new Mock<IProcessorArtifactService>();
+        service.Setup(x => x.ReportJobStageByRunIdAsync("run", It.IsAny<IngestionJobStageRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJobStatusResponse());
+        service.Setup(x => x.ReportJobStageByRunIdAsync("missing", It.IsAny<IngestionJobStageRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IngestionJobStatusResponse?)null);
+        var controller = Create(service.Object);
+        var request = new IngestionJobStageRequest { Stage = "extracting" };
+
+        (await controller.ReportJobStageByRunIdAsync("run", request, CancellationToken.None)).Should().BeOfType<OkObjectResult>();
+        Status(await controller.ReportJobStageByRunIdAsync("missing", request, CancellationToken.None), StatusCodes.Status404NotFound);
     }
 
-    private static Mock<IIndexedChunkRepository> CreateChunkRepository()
-    {
-        var chunkRepository = new Mock<IIndexedChunkRepository>();
-        chunkRepository
-            .Setup(repository => repository.DeleteByArtifactIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        chunkRepository
-            .Setup(repository => repository.UpsertManyAsync(It.IsAny<IReadOnlyCollection<IndexedChunk>>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        return chunkRepository;
-    }
+    private static ProcessorArtifactsController Create(IProcessorArtifactService service) =>
+        new(service, NullLogger<ProcessorArtifactsController>.Instance);
 
-    private static IFormFile CreateFormFile(string content, string fileName, string contentType)
+    private static IFormFile CreateFile(string content)
     {
-        var bytes = Encoding.UTF8.GetBytes(content);
-        var stream = new MemoryStream(bytes);
-        return new FormFile(stream, 0, stream.Length, "file", fileName)
+        var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+        return new FormFile(stream, 0, stream.Length, "file", "chunks.jsonl")
         {
             Headers = new HeaderDictionary(),
-            ContentType = contentType
+            ContentType = "application/x-ndjson"
         };
     }
+
+    private static void Status(IActionResult result, int expected) =>
+        result.Should().BeAssignableTo<ObjectResult>().Which.StatusCode.Should().Be(expected);
 }

@@ -4,6 +4,7 @@ using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Domain.ValueObjects;
 using MotorcycleRAG.Persistence.DataProcessing;
+using Microsoft.Extensions.Options;
 
 namespace MotorcycleRAG.Persistence.Tests.DataProcessing;
 
@@ -49,7 +50,7 @@ public class MotorcycleCSVProcessorTests
             foundryMock.Object,
             searchMock.Object,
             TestHelpers.CreateNullLogger<MotorcycleCsvProcessor>(),
-            CreateTestConfig());
+            Options.Create(CreateTestConfig()));
     }
 
     private static CSVFile CreateValidCsvFile(string csvContent = "Make,Model,Year\nHonda,CBR,2024\n")
@@ -79,7 +80,8 @@ public class MotorcycleCSVProcessorTests
     {
         var act = () => new MotorcycleCsvProcessor(
             null!, CreateSearchMock().Object,
-            TestHelpers.CreateNullLogger<MotorcycleCsvProcessor>());
+            TestHelpers.CreateNullLogger<MotorcycleCsvProcessor>(),
+            Options.Create(CreateTestConfig()));
         act.Should().Throw<ArgumentNullException>().WithParameterName("openAIClient");
     }
 
@@ -88,7 +90,8 @@ public class MotorcycleCSVProcessorTests
     {
         var act = () => new MotorcycleCsvProcessor(
             CreateFoundryMock().Object, null!,
-            TestHelpers.CreateNullLogger<MotorcycleCsvProcessor>());
+            TestHelpers.CreateNullLogger<MotorcycleCsvProcessor>(),
+            Options.Create(CreateTestConfig()));
         act.Should().Throw<ArgumentNullException>().WithParameterName("searchClient");
     }
 
@@ -96,7 +99,7 @@ public class MotorcycleCSVProcessorTests
     public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull()
     {
         var act = () => new MotorcycleCsvProcessor(
-            CreateFoundryMock().Object, CreateSearchMock().Object, null!);
+            CreateFoundryMock().Object, CreateSearchMock().Object, null!, Options.Create(CreateTestConfig()));
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
     }
 
@@ -108,14 +111,14 @@ public class MotorcycleCSVProcessorTests
     }
 
     [Fact]
-    public void Constructor_ShouldUseDefaultConfiguration_WhenConfigIsNull()
+    public void Constructor_ShouldThrowArgumentNullException_WhenConfigurationIsNull()
     {
         var act = () => new MotorcycleCsvProcessor(
             CreateFoundryMock().Object,
             CreateSearchMock().Object,
             TestHelpers.CreateNullLogger<MotorcycleCsvProcessor>(),
-            null);
-        act.Should().NotThrow();
+            null!);
+        act.Should().Throw<ArgumentNullException>().WithParameterName("configuration");
     }
 
     // ---- ProcessAsync tests ----
@@ -278,7 +281,7 @@ public class MotorcycleCSVProcessorTests
             CreateFoundryMock().Object,
             CreateSearchMock().Object,
             TestHelpers.CreateNullLogger<MotorcycleCsvProcessor>(),
-            config);
+            Options.Create(config));
 
         var csvContent = "Make,Model,Year\nHonda,CBR,2024\nKawasaki,Ninja,2024\n";
         var input = CreateValidCsvFile(csvContent);
@@ -406,7 +409,7 @@ public class MotorcycleCSVProcessorTests
             CreateFoundryMock().Object,
             CreateSearchMock().Object,
             TestHelpers.CreateNullLogger<MotorcycleCsvProcessor>(),
-            config);
+            Options.Create(config));
 
         var csvContent = "Make,Model,Year\nHonda,CBR,2024\nHonda,CBR,2023\nHonda,CBR,2022\n";
         var input = CreateValidCsvFile(csvContent);
@@ -434,7 +437,7 @@ public class MotorcycleCSVProcessorTests
             CreateFoundryMock().Object,
             CreateSearchMock().Object,
             TestHelpers.CreateNullLogger<MotorcycleCsvProcessor>(),
-            config);
+            Options.Create(config));
 
         // CSV has 3 columns but max is set to 2
         var csvContent = "Make,Model,Year\nHonda,CBR,2024\n";

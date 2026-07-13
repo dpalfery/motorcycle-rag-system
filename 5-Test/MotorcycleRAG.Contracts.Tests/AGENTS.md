@@ -10,7 +10,8 @@
 
 ## Scoped constraints
 
-- Test DTO serialization, model validation, and contract invariants without external dependencies.
+- Test DTO behavior without external dependencies. Direct unit tests target behavior only — factory methods, computed properties, validation logic, and serialization of custom converters — not per-property get/set round-trips on pure data-carrier DTOs.
+- The data-only `MotorcycleRAG.Contracts.Models` project is excluded from the per-file line-coverage gate, so property-padding tests are neither required nor wanted. See [`6-Docs/DevOps/overview.md`](../../6-Docs/DevOps/overview.md) §4.1 (Coverage exclusions).
 - Keep tests fast and deterministic.
 
 ## Verify

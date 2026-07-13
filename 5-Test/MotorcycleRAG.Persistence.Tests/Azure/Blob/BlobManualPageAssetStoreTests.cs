@@ -46,12 +46,20 @@ public class BlobManualPageAssetStoreTests
         return factory.Object;
     }
 
+    private static IAzureCredentialProvider CreateCredentialProvider()
+    {
+        var provider = new Mock<IAzureCredentialProvider>();
+        provider.Setup(x => x.GetDefaultCredential()).Returns(new global::Azure.Identity.DefaultAzureCredential());
+        return provider.Object;
+    }
+
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenOptionsIsNull()
     {
         var env = CreateDevelopmentEnvironment();
         var act = () => new BlobManualPageAssetStore(
             null!, env, CreateFactoryReturningValidClient(),
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
         act.Should().Throw<ArgumentNullException>().WithParameterName("options");
     }
@@ -61,6 +69,7 @@ public class BlobManualPageAssetStoreTests
     {
         var act = () => new BlobManualPageAssetStore(
             CreateValidDevOptions(), null!, CreateFactoryReturningValidClient(),
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
         act.Should().Throw<ArgumentNullException>().WithParameterName("environment");
     }
@@ -70,6 +79,7 @@ public class BlobManualPageAssetStoreTests
     {
         var act = () => new BlobManualPageAssetStore(
             CreateValidDevOptions(), CreateDevelopmentEnvironment(), null!,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
         act.Should().Throw<ArgumentNullException>().WithParameterName("blobServiceClientFactory");
     }
@@ -78,7 +88,7 @@ public class BlobManualPageAssetStoreTests
     public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull()
     {
         var act = () => new BlobManualPageAssetStore(
-            CreateValidDevOptions(), CreateDevelopmentEnvironment(), CreateFactoryReturningValidClient(), null!);
+            CreateValidDevOptions(), CreateDevelopmentEnvironment(), CreateFactoryReturningValidClient(), CreateCredentialProvider(), null!);
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
     }
 
@@ -93,6 +103,7 @@ public class BlobManualPageAssetStoreTests
         var env = CreateDevelopmentEnvironment();
         var act = () => new BlobManualPageAssetStore(
             opts, env, CreateFactoryReturningValidClient(),
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
         act.Should().Throw<InvalidOperationException>().WithMessage("*AccountEndpoint*required*");
     }
@@ -102,6 +113,7 @@ public class BlobManualPageAssetStoreTests
     {
         var act = () => new BlobManualPageAssetStore(
             CreateValidDevOptions(), CreateDevelopmentEnvironment(), CreateFactoryReturningValidClient(),
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
         act.Should().NotThrow();
     }
@@ -113,6 +125,7 @@ public class BlobManualPageAssetStoreTests
         env.SetupGet(e => e.EnvironmentName).Returns("Production");
         var act = () => new BlobManualPageAssetStore(
             CreateValidDevOptions(), env.Object, CreateFactoryReturningValidClient(),
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
         act.Should().Throw<InvalidOperationException>().WithMessage("*ConnectionString*only in Development*");
     }
@@ -122,6 +135,7 @@ public class BlobManualPageAssetStoreTests
     {
         var store = new BlobManualPageAssetStore(
             CreateValidDevOptions(), CreateDevelopmentEnvironment(), CreateFactoryReturningValidClient(),
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
         var act = () => store.UploadPageAsync(Guid.NewGuid(), 1, null!);
         act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("content");
@@ -136,6 +150,7 @@ public class BlobManualPageAssetStoreTests
 
         var store = new BlobManualPageAssetStore(
             CreateValidDevOptions(), CreateDevelopmentEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
 
         factory.Verify(f => f.Create("UseDevelopmentStorage=true"), Times.Once);
@@ -152,6 +167,7 @@ public class BlobManualPageAssetStoreTests
 
         var act = () => new BlobManualPageAssetStore(
             CreateValidDevOptions(), CreateDevelopmentEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("Factory failure");
@@ -166,6 +182,7 @@ public class BlobManualPageAssetStoreTests
 
         var act = () => new BlobManualPageAssetStore(
             CreateValidProdOptions(), CreateProductionEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
 
         act.Should().Throw<InvalidOperationException>().WithMessage("Factory failure");
@@ -183,6 +200,7 @@ public class BlobManualPageAssetStoreTests
 
         var store = new BlobManualPageAssetStore(
             CreateValidProdOptions(), CreateProductionEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
 
         store.Should().NotBeNull();
@@ -200,6 +218,7 @@ public class BlobManualPageAssetStoreTests
 
         var act = () => new BlobManualPageAssetStore(
             CreateValidProdOptions(), CreateProductionEnvironment(), factory.Object,
+            CreateCredentialProvider(),
             TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
 
         act.Should().NotThrow();

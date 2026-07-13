@@ -222,6 +222,8 @@ def main() -> int:
         ]
         if args.threshold is not None:
             aggregate_args.extend(["--threshold", str(args.threshold)])
+        for suite_name in args.suite:
+            aggregate_args.extend(["--suite", suite_name])
         aggregate_exit_code = run_command(aggregate_args, cwd=REPO_ROOT)
         if args.open_report:
             open_report(results_dir / "CoverageReport" / "coverage-summary.html")

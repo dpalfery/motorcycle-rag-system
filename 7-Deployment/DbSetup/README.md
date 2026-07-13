@@ -4,6 +4,10 @@
 
 The Motorcycle RAG Database Setup CLI is a .NET 10 console application that automates the provisioning of SQL Server databases for the Motorcycle RAG System. It connects to an existing SQL Server instance (running in Docker) and creates the database, schema, and application user.
 
+## Internal Boundary
+
+`Program` is the CLI composition root. It creates the CLI-local `SqlDbSetupConnectionFactory`, the only production component that constructs `SqlConnection`; the provisioner, preflight checks, and schema runner receive `DbConnection` instances through that factory. This keeps SQL connection ownership explicit and allows the test suite to use fake connections without contacting a server. See the [database setup reference](../../6-Docs/DevOps/database-setup.md) for operational scope.
+
 ## Features
 
 - **Works with existing SQL Server**: Connects to existing hotshot_sqlserver container at localhost:1433

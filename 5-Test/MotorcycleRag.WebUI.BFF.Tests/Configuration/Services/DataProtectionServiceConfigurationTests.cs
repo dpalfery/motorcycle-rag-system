@@ -2,8 +2,10 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Moq;
 using MotorcycleRag.WebUI.BFF.Configuration.Services;
+using MotorcycleRag.WebUI.BFF.HealthChecks;
 using Xunit;
 
 namespace MotorcycleRag.WebUI.BFF.Tests.Configuration.Services;
@@ -28,9 +30,9 @@ public class DataProtectionServiceConfigurationTests
         services.AddBffDataProtection(configuration, env.Object);
 
         // Assert
-        // We can't easily verify the internal PersistKeysToAzureBlobStorage call without more complex mocking,
-        // but we verify it doesn't throw.
         services.Should().Contain(s => s.ServiceType == typeof(Microsoft.AspNetCore.DataProtection.IDataProtectionProvider));
+        services.Should().Contain(s => s.ServiceType == typeof(IDataProtectionBlobProbe));
+        services.Should().Contain(s => s.ServiceType == typeof(HealthCheckService));
     }
 
     [Fact]

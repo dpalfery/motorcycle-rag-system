@@ -5,6 +5,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Persistence.Azure.Search;
+using MotorcycleRAG.Persistence.Web;
 using Azure.Search.Documents.Indexes;
 
 namespace MotorcycleRAG.Persistence.Tests.Azure;
@@ -36,6 +37,19 @@ public class AzureServiceCollectionExtensionsTests
         services.Should().Contain(sd => sd.ServiceType == typeof(IAzureFoundryClient));
         services.Should().Contain(sd => sd.ServiceType == typeof(IAzureSearchClient));
     }
+
+    [Fact]
+    public void AddAzureServices_ShouldRegisterOneSingletonCredentialProvider()
+    {
+        var services = new ServiceCollection();
+
+        services.AddAzureServices(BuildConfig(new() { ["Sql:ConnectionString"] = "Server=.;Database=test" }));
+
+        services.Count(sd => sd.ServiceType == typeof(IAzureCredentialProvider)).Should().Be(1);
+        services.Should().Contain(sd => sd.ServiceType == typeof(IAzureCredentialProvider)
+            && sd.ImplementationType == typeof(AzureCredentialProvider)
+            && sd.Lifetime == ServiceLifetime.Singleton);
+    }
     [Fact]
     public void AddAzureServices_ShouldRegisterOptions()
     {
@@ -59,6 +73,16 @@ public class AzureServiceCollectionExtensionsTests
         services.AddPipelineHttpClients();
         services.Should().Contain(sd => sd.ServiceType == typeof(HttpResilienceDelegatingHandler) && sd.Lifetime == ServiceLifetime.Transient);
     }
+
+    [Fact]
+    public void AddAzureServicesAndPipelineHttpClients_ShouldRegisterOneSharedResilienceHandler()
+    {
+        var services = new ServiceCollection();
+        services.AddAzureServices(BuildConfig(new() { ["Sql:ConnectionString"] = "Server=.;Database=test" }));
+        services.AddPipelineHttpClients();
+
+        services.Count(descriptor => descriptor.ServiceType == typeof(HttpResilienceDelegatingHandler)).Should().Be(1);
+    }
     [Fact]
     public void AddWebSearchHttpClient_ShouldThrowArgumentNullException_WhenServicesIsNull()
     {
@@ -66,11 +90,20 @@ public class AzureServiceCollectionExtensionsTests
         act.Should().Throw<ArgumentNullException>();
     }
     [Fact]
-    public void AddWebSearchHttpClient_ShouldRegisterHandler()
+    public void AddWebSearchHttpClient_ShouldRegisterOuterFetcherAndConfiguredNamedClient()
     {
         var services = new ServiceCollection();
         services.AddWebSearchHttpClient();
+
+        using var provider = services.BuildServiceProvider();
+        var factory = provider.GetRequiredService<IHttpClientFactory>();
+        using var client = factory.CreateClient(TrustedWebContentFetcher.HttpClientName);
+
         services.Should().Contain(sd => sd.ServiceType == typeof(HttpResilienceDelegatingHandler) && sd.Lifetime == ServiceLifetime.Transient);
+        services.Should().Contain(sd => sd.ServiceType == typeof(IWebContentExtractor) && sd.ImplementationType == typeof(HtmlWebContentExtractor));
+        services.Should().Contain(sd => sd.ServiceType == typeof(ITrustedWebContentFetcher) && sd.Lifetime == ServiceLifetime.Scoped);
+        client.Timeout.Should().Be(TimeSpan.FromSeconds(10));
+        client.DefaultRequestHeaders.UserAgent.ToString().Should().Be("Mozilla/5.0 (compatible; MotorcycleRAGBot/1.0)");
     }
     [Fact]
     public void AddClassifierServices_ShouldThrowArgumentNullException_WhenConfigurationIsNull()

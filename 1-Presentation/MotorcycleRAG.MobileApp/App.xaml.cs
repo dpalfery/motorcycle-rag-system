@@ -1,19 +1,17 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-
 namespace MotorcycleRAG.MobileApp;
 
 public partial class App : Application
 {
-	private readonly IServiceProvider _services;
+	private readonly AppShell _appShell;
 
-	public App(IServiceProvider services)
+	public App(AppShell appShell)
 	{
 		InitializeComponent();
-		_services = services;
+		_appShell = appShell;
 	}
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		return new Window(_services.GetRequiredService<AppShell>());
+		return new Window(_appShell);
 	}
 }

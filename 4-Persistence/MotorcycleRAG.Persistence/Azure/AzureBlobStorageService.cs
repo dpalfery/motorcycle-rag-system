@@ -13,7 +13,8 @@ namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
 /// Azure Blob Storage implementation of <see cref="IBlobStorageService"/>.
-/// Uses DefaultAzureCredential against <see cref="BlobStorageOptions.AccountEndpoint"/>.
+/// Uses the injected <see cref="IAzureCredentialProvider"/> against
+/// <see cref="BlobStorageOptions.AccountEndpoint"/>.
 /// In Development only, a local Azurite connection string can be supplied through
 /// developer-only configuration.
 /// </summary>
@@ -26,15 +27,17 @@ public class AzureBlobStorageService : IBlobStorageService
         IOptions<BlobStorageOptions> options,
         IHostEnvironment environment,
         IBlobServiceClientFactory blobServiceClientFactory,
+        IAzureCredentialProvider credentialProvider,
         ILogger<AzureBlobStorageService> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(blobServiceClientFactory);
+        ArgumentNullException.ThrowIfNull(credentialProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _blobServiceClient = BlobServiceClientFactory.CreateFromOptions(
-            options.Value, environment, blobServiceClientFactory);
+            options.Value, environment, blobServiceClientFactory, credentialProvider);
         _logger = logger;
     }
 

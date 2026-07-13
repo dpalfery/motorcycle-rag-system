@@ -61,6 +61,15 @@ When performing code reviews, load the review skills:
          - Only interfaces go into the contracts project. DTOs and Models **Never** go into the contracts project.
          - DTOs and Models go into the domain project.
 
+      6b **Dependency Injection / Inversion of Control (DI/IoC)** (CRITICAL)
+          - **NO LOCALLY CREATED DEPENDENCIES**: Verify that no class instantiates its own dependencies via `new` anywhere — not in constructors, methods, properties, or field initializers.
+            - Flag every `new <ServiceType>()`, `new <Repository>()`, `new HttpClient()`, `new <Client>()`, `new DbContext()`, or similar instantiation of injectable services inside a class body.
+            - The ONLY acceptable `new` usages are for value objects, DTOs, domain entities, records, collections, results, and other non-injectable data structures.
+          - **ALL DEPENDENCIES PASSED VIA CONSTRUCTOR**: Every external collaborator (services, repositories, API clients, loggers, factories, configuration, options, `IHttpClientFactory`, `TimeProvider`, etc.) MUST be injected through the constructor and stored as a field/property.
+          - **VERIFY DI REGISTRATION**: Confirm each injected dependency is registered in the DI container (`Program.cs` / `IServiceCollection` extension methods) so resolution does not fail at runtime.
+          - **FLAG ANTI-PATTERNS**: Service locator (`IServiceProvider.GetService` / `GetRequiredService` inside a class), static singletons masquerading as injected dependencies, hidden coupling via `new`, default-constructed nested services, and `ActivatorUtilities` used to hide constructor dependencies.
+          - **MAP EVERY ADDED/CHANGED CLASS**: For each class touched in the diff, read its constructor AND full body and confirm ZERO hidden instantiations of injectable types. Demand the diff be re-inspected if any are found.
+
       7. **REPORTING FORMAT**:
          - **FAILURES**: What the agent claimed vs what actually happened
          - **SKIPPED STEPS**: Instructions the agent ignored

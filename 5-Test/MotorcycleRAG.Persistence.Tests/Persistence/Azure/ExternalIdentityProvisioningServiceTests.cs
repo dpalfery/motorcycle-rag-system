@@ -21,6 +21,14 @@ public sealed class ExternalIdentityProvisioningServiceTests
     private const string AdminAppRoleId = "44444444-4444-4444-4444-444444444444";
     private const string InviteRedirectUrl = "https://app.example.com/signin";
 
+    private static IAzureCredentialProvider CreateCredentialProvider()
+    {
+        var provider = new Mock<IAzureCredentialProvider>();
+        provider.Setup(x => x.GetGraphCredential(It.IsAny<ExternalIdentityProvisioningOptions>()))
+            .Returns(new FakeTokenCredential());
+        return provider.Object;
+    }
+
     [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenHttpClientIsNull()
     {
@@ -29,7 +37,8 @@ public sealed class ExternalIdentityProvisioningServiceTests
         var act = () => new ExternalIdentityProvisioningService(
             null!,
             options,
-            NullLogger<ExternalIdentityProvisioningService>.Instance);
+            NullLogger<ExternalIdentityProvisioningService>.Instance,
+            CreateCredentialProvider());
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("httpClient");
     }
@@ -42,7 +51,8 @@ public sealed class ExternalIdentityProvisioningServiceTests
         var act = () => new ExternalIdentityProvisioningService(
             httpClient,
             null!,
-            NullLogger<ExternalIdentityProvisioningService>.Instance);
+            NullLogger<ExternalIdentityProvisioningService>.Instance,
+            CreateCredentialProvider());
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("options");
     }
@@ -57,7 +67,8 @@ public sealed class ExternalIdentityProvisioningServiceTests
         var act = () => new ExternalIdentityProvisioningService(
             httpClient,
             options.Object,
-            NullLogger<ExternalIdentityProvisioningService>.Instance);
+            NullLogger<ExternalIdentityProvisioningService>.Instance,
+            CreateCredentialProvider());
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("options");
     }
@@ -68,9 +79,30 @@ public sealed class ExternalIdentityProvisioningServiceTests
         using var httpClient = new HttpClient();
         var options = CreateOptions();
 
-        var act = () => new ExternalIdentityProvisioningService(httpClient, options, null!);
+        var act = () => new ExternalIdentityProvisioningService(httpClient, options, null!, CreateCredentialProvider());
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+    }
+
+    [Fact]
+    public void Constructor_ShouldResolveGraphCredentialOnceFromProvider()
+    {
+        using var httpClient = new HttpClient();
+        var options = CreateOptions();
+        var credentialProvider = new Mock<IAzureCredentialProvider>();
+        credentialProvider.Setup(x => x.GetGraphCredential(It.IsAny<ExternalIdentityProvisioningOptions>()))
+            .Returns(new FakeTokenCredential());
+
+        var service = new ExternalIdentityProvisioningService(
+            httpClient,
+            options,
+            NullLogger<ExternalIdentityProvisioningService>.Instance,
+            credentialProvider.Object);
+
+        service.Should().NotBeNull();
+        credentialProvider.Verify(
+            x => x.GetGraphCredential(It.Is<ExternalIdentityProvisioningOptions>(value => value == options.Value)),
+            Times.Once);
     }
 
     [Theory]

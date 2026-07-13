@@ -139,6 +139,7 @@ coverage*.json
 !5-Test/scripts/coverage-config.json
 coverage*.xml
 coverage*.info
+coveragereport/
 
 # Visual Studio code coverage results
 *.coverage

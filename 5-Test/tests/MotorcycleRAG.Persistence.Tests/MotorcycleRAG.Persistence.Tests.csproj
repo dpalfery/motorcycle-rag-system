@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!--
+      CA2000: xUnit test assets (FakeDbConnection, DataTable readers, Moq HttpMessageHandler
+      /HttpClient, HttpResponseMessage in mock setups) follow xUnit method-level lifetimes
+      where disposal is unreachable or would add noise without resource benefit in tests.
+      CA1806: Constructor-null-guard tests create instances for a specific throw assertion
+      only; unused-after-creation is by design.
+      CS8765: Test fakes (FakeDbParameter, etc.) override DbParameter properties whose base
+      class setters have [AllowNull]; full fidelity is unnecessary in test stubs.
+      CS0109: FakeDbCommand.SetConnection is a test helper exposing a protected base member;
+      the 'new' keyword is not needed vs DbCommand.SetConnection.
+      CA1507: WithParameterName("literal") is intentional in tests; replacing with nameof()
+      on the test method's input parameter would obscure the SUT parameter name being validated.
+      CA1861: Constant arrays in test [InlineData] and mock setup assertions are one-shot
+      calls where static readonly fields add ceremony without benefit.
+      CA2016: CancellationToken propagation through test-only HttpClient calls where the
+      SUT manages lifetime and cancellation would add noise.
+    -->
+    <NoWarn>$(NoWarn);OPENAI001;CA2000;CA1806;CS8765;CS0109;CA1507;CA1861;CA2016</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="10.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="Moq.Contrib.HttpClient" Version="1.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.7" />
+    <PackageReference Include="FluentAssertions" Version="8.9.0" />
+    <PackageReference Include="Microsoft.ApplicationInsights" Version="3.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Moq" />
+    <Using Include="FluentAssertions" />
+    <Using Include="System.Net" />
+    <Using Include="System.Net.Http.Json" />
+  </ItemGroup>
+
+</Project>

@@ -19,4 +19,4 @@
 
 ## Verify
 
-Run tests through the project-local environment, for example `.venv/bin/python -m pytest`.
+The test suite now lives under [`5-Test/local-processing-service.Tests/`](../../5-Test/local-processing-service.Tests/AGENTS.md). The run command is unchanged: `.venv/bin/python -m pytest` from this directory, which still works because `testpaths` in `pyproject.toml` points at the relocated tests.

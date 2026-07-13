@@ -84,6 +84,36 @@ def should_exclude(path_text: str, exclusions: dict[str, Any]) -> bool:
     return False
 
 
+def normalize_suite_source_path(raw_path: str, suite: dict[str, Any]) -> str | None:
+    """Resolve a coverage path and retain it only when it is in the suite's source roots."""
+    normalized = normalize_repo_path(raw_path)
+    source_roots = [root.replace("\\", "/").rstrip("/") for root in suite["sourceRoots"]]
+
+    def in_source_roots(path: str) -> bool:
+        return any(path == root or path.startswith(f"{root}/") for root in source_roots)
+
+    if in_source_roots(normalized):
+        return normalized
+
+    # Some reporters emit paths relative to their configured working directory
+    # (for example, ``src/screens/JobsScreen.tsx`` or Python's ``main.py``).
+    working_directory = suite.get("workingDirectory")
+    if working_directory:
+        candidate = f"{working_directory.rstrip('/')}/{normalized}"
+        if in_source_roots(candidate):
+            return candidate
+
+    # Python coverage commonly emits a path relative to its ``src`` root rather
+    # than the service working directory. Map that form only when it resolves
+    # beneath a configured source root.
+    for source_root in source_roots:
+        candidate = f"{source_root}/{normalized}"
+        if (REPO_ROOT / candidate).is_file() and in_source_roots(candidate):
+            return candidate
+
+    return None
+
+
 def branch_counts(line_element: ET.Element) -> tuple[int, int]:
     if line_element.attrib.get("branch") != "true":
         return 0, 0
@@ -100,7 +130,7 @@ def branch_counts(line_element: ET.Element) -> tuple[int, int]:
 
 def parse_cobertura_file(
     *,
-    suite_name: str,
+    suite: dict[str, Any],
     coverage_path: Path,
     file_metrics: dict[str, FileMetrics],
     class_metrics: list[ClassMetrics],
@@ -112,7 +142,9 @@ def parse_cobertura_file(
         if not raw_filename:
             continue
 
-        normalized_path = normalize_repo_path(raw_filename)
+        normalized_path = normalize_suite_source_path(raw_filename, suite)
+        if normalized_path is None:
+            continue
         if should_exclude(normalized_path, exclusions):
             continue
 
@@ -133,7 +165,7 @@ def parse_cobertura_file(
         class_name = class_element.attrib.get("name", normalized_path)
         class_metrics.append(
             ClassMetrics(
-                suite_name=suite_name,
+                suite_name=suite["name"],
                 file_path=normalized_path,
                 class_name=class_name,
                 line_hits=line_hits,
@@ -144,7 +176,7 @@ def parse_cobertura_file(
         )
 
         aggregate = file_metrics.setdefault(normalized_path, FileMetrics(path=normalized_path))
-        aggregate.suite_names.add(suite_name)
+        aggregate.suite_names.add(suite["name"])
         aggregate.class_names.add(class_name)
         aggregate.line_hits += line_hits
         aggregate.line_total += line_total
@@ -463,7 +495,7 @@ def main() -> int:
             coverage_path = (REPO_ROOT / coverage_path).resolve()
         if coverage_path.exists():
             parse_cobertura_file(
-                suite_name=suite["name"],
+                suite=suite,
                 coverage_path=coverage_path,
                 file_metrics=files,
                 class_metrics=classes,

@@ -410,4 +410,108 @@ describe("JobsScreen — source file name subtitle", () => {
       expect(screen.queryByText("permission denied")).not.toBeInTheDocument(),
     );
   });
+
+  it("continues deleting when the local processor has already forgotten the active run", async () => {
+    const active = makeJob({
+      id: 73,
+      jobId: "job-73",
+      status: "Processing",
+      docIngestionRunId: "run-73",
+      computeProvider: "LocalProcessor",
+    });
+    configureApiJobs([active]);
+    processorIsListening.mockResolvedValue(true);
+    processorStopJob.mockRejectedValue(new Error("job not found"));
+    apiGet.mockImplementation(async (url: string) => {
+      if (url === "/api/ingestion/jobs") return { data: [active] };
+      if (url === "/api/ingestion/jobs/job-73") {
+        return { data: { ...active, status: "Cancelled" } };
+      }
+      return { data: {} };
+    });
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    renderScreen();
+    await screen.findByText("Job 73");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(apiDelete).toHaveBeenCalledWith("/api/ingestion/jobs/job-73"),
+    );
+    expect(warning).toHaveBeenCalledWith(
+      "Per-job local processor stop skipped because the run is no longer present:",
+      "run-73",
+    );
+  });
+
+  it("submits valid manual metadata, announces success, and lets the operator dismiss it", async () => {
+    const job = makeJob({ id: 80, jobId: "job-80", status: "AwaitingMetadata" });
+    configureApiJobs([job]);
+    renderScreen();
+
+    await screen.findByRole("dialog");
+    const metadataJson = JSON.stringify({
+      make: "Honda",
+      model: "CBR600RR",
+      year: 2023,
+      category: "sport",
+      tags: ["600cc"],
+    });
+    fireEvent.change(screen.getByLabelText("Manual metadata JSON"), {
+      target: { value: metadataJson },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() =>
+      expect(apiPost).toHaveBeenCalledWith(
+        "/api/ingestion/jobs/job-80/metadata",
+        { metadataJson },
+      ),
+    );
+    const success = await screen.findByText("Metadata submitted. Pipeline resuming.");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(success.parentElement!.querySelector("button")!);
+    await waitFor(() =>
+      expect(screen.queryByText("Metadata submitted. Pipeline resuming.")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("keeps the manual metadata dialog open and surfaces a formatted submission failure", async () => {
+    const job = makeJob({ id: 81, jobId: "job-81", status: "AwaitingMetadata" });
+    configureApiJobs([job]);
+    apiPost.mockRejectedValue(new Error("metadata service unavailable"));
+    renderScreen();
+
+    await screen.findByRole("dialog");
+    fireEvent.change(screen.getByLabelText("Manual metadata JSON"), {
+      target: {
+        value: JSON.stringify({
+          make: "Honda",
+          model: "CBR600RR",
+          year: 2023,
+          category: "sport",
+        }),
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("metadata service unavailable");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("renders an unknown status and an older creation time without metadata", async () => {
+    configureApiJobs([
+      makeJob({
+        id: 82,
+        jobId: "job-82",
+        status: "WaitingForExternalService",
+        createdAtUtc: new Date(Date.now() - 2 * 24 * 60 * 60 * 1_000).toISOString(),
+      }),
+    ]);
+    renderScreen();
+
+    expect(await screen.findByText("WaitingForExternalService")).toBeInTheDocument();
+    expect(screen.getByText("2d ago")).toBeInTheDocument();
+  });
 });

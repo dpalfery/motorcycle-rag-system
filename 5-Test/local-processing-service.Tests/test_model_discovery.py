@@ -6,6 +6,9 @@ import pytest
 
 from embeddings.model_discovery import (
     ModelDiscoveryError,
+    _normalize_endpoint,
+    _parse_ollama_payload,
+    _parse_openai_payload,
     discover_embedding_models,
     discover_embedding_models_sync,
 )
@@ -60,6 +63,19 @@ class _FakeSyncClient:
         if response is None:
             raise RuntimeError(f"Unexpected URL {url}")
         return response
+
+
+def test_model_payload_parsers_reject_malformed_payloads_and_remove_duplicates():
+    with pytest.raises(ValueError, match="endpoint is required"):
+        _normalize_endpoint(" / ")
+    with pytest.raises(ValueError, match="JSON object"):
+        _parse_openai_payload([])
+    with pytest.raises(ValueError, match="data array"):
+        _parse_openai_payload({})
+    with pytest.raises(ValueError, match="models array"):
+        _parse_ollama_payload({})
+
+    assert _parse_ollama_payload({"models": [{"name": "qwen"}, {"model": "qwen"}]}) == ["qwen"]
 
 
 async def test_discover_embedding_models_prefers_openai_compatible_payload():

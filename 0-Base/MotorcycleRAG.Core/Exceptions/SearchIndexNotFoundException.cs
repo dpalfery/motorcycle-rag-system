@@ -22,6 +22,18 @@ public sealed class SearchIndexNotFoundException : Exception
     /// Initializes a new instance of the <see cref="SearchIndexNotFoundException"/> class.
     /// </summary>
     /// <param name="indexName">The name of the missing index.</param>
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SearchIndexNotFoundException"/> class.
+    /// </summary>
+    public SearchIndexNotFoundException()
+        : this(string.Empty)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SearchIndexNotFoundException"/> class.
+    /// </summary>
+    /// <param name="indexName">The name of the missing index.</param>
     public SearchIndexNotFoundException(string indexName)
         : base(BuildMessage(indexName))
     {

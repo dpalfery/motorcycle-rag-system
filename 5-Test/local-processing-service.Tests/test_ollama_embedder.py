@@ -90,6 +90,34 @@ class TestGenerateEmbedding:
 
         assert mock_wait_for.await_count == 3
 
+    @patch("embeddings.ollama_embedder.asyncio.sleep", new_callable=AsyncMock)
+    @patch("embeddings.ollama_embedder.ollama.AsyncClient")
+    async def test_retries_transient_error_then_returns_embedding(self, MockAsyncClient, mock_sleep):
+        from embeddings.ollama_embedder import OllamaEmbedder
+
+        mock_client = MockAsyncClient.return_value
+        mock_client.embed = AsyncMock(
+            side_effect=[ConnectionError("temporary"), SimpleNamespace(embeddings=[[0.5] * 1536])]
+        )
+
+        result = await OllamaEmbedder().generate_embedding("test")
+
+        assert result == [0.5] * 1536
+        assert mock_client.embed.await_count == 2
+        mock_sleep.assert_awaited_once_with(1)
+
+    @patch("embeddings.ollama_embedder.ollama.AsyncClient")
+    async def test_batch_runs_each_input(self, MockAsyncClient):
+        from embeddings.ollama_embedder import OllamaEmbedder
+
+        mock_client = MockAsyncClient.return_value
+        mock_client.embed = AsyncMock(return_value=SimpleNamespace(embeddings=[[0.5] * 1536]))
+
+        result = await OllamaEmbedder().generate_embeddings_batch(["one", "two"])
+
+        assert result == [[0.5] * 1536, [0.5] * 1536]
+        assert mock_client.embed.await_count == 2
+
 
 class TestCheckOllamaStatus:
     @patch("embeddings.ollama_embedder.ollama.AsyncClient")
@@ -127,3 +155,15 @@ class TestCheckOllamaStatus:
         status = await embedder.check_ollama_status()
 
         assert status == "disconnected"
+
+    @patch("embeddings.ollama_embedder.ollama.AsyncClient")
+    async def test_check_status_delegates_and_cached_status_skips_second_request(self, MockAsyncClient):
+        from embeddings.ollama_embedder import OllamaEmbedder
+
+        mock_client = MockAsyncClient.return_value
+        mock_client.list = AsyncMock(return_value={"models": []})
+        embedder = OllamaEmbedder()
+
+        assert await embedder.check_status() == "connected"
+        assert await embedder.check_ollama_status() == "connected"
+        assert mock_client.list.await_count == 1

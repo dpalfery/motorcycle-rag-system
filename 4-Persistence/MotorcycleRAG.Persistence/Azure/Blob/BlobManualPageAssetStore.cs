@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Persistence.Azure;
 
 namespace MotorcycleRAG.Persistence.Azure.Blob;
 
@@ -28,13 +29,16 @@ public class BlobManualPageAssetStore : IManualPageAssetStore
     public BlobManualPageAssetStore(
         IOptions<BlobStorageOptions> options,
         IHostEnvironment environment,
+        IBlobServiceClientFactory blobServiceClientFactory,
         ILogger<BlobManualPageAssetStore> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(blobServiceClientFactory);
         ArgumentNullException.ThrowIfNull(logger);
 
-        var serviceClient = BlobServiceClientFactory.Create(options.Value, environment);
+        var serviceClient = BlobServiceClientFactory.CreateFromOptions(
+            options.Value, environment, blobServiceClientFactory);
 
         _containerClient = serviceClient.GetBlobContainerClient(DefaultContainerName);
         _logger = logger;

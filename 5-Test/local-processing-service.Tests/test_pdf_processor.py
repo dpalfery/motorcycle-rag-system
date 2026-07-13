@@ -885,3 +885,77 @@ class TestChunkSourceFileField:
         await _wait_for_terminal_status(processor, job_id)
         records = _uploaded_search_chunks(api_client)
         assert records[0]["sourceFile"] == "upload-fallback"
+
+
+# ---------------------------------------------------------------------------
+# Job lifecycle operations
+# ---------------------------------------------------------------------------
+
+
+class TestJobLifecycle:
+    async def test_list_and_clear_terminal_jobs_preserves_active_jobs(self, processor):
+        """Completed jobs are removable while active and paused jobs remain visible."""
+        _jobs.update(
+            {
+                "completed-job": {"status": "completed"},
+                "processing-job": {"status": "processing"},
+                "paused-job": {"status": "awaiting-metadata"},
+            }
+        )
+        _tasks["completed-job"] = MagicMock()
+
+        jobs = await processor.list_jobs()
+        deleted_count = await processor.clear_terminal_jobs()
+
+        assert {job["status"] for job in jobs} == {
+            "completed",
+            "processing",
+            "awaiting-metadata",
+        }
+        assert deleted_count == 1
+        assert set(_jobs) == {"processing-job", "paused-job"}
+        assert "completed-job" not in _tasks
+
+    async def test_stop_job_with_unknown_id_returns_none(self, processor):
+        result = await processor.stop_job("unknown-job")
+
+        assert result is None
+
+    async def test_stop_job_with_terminal_status_leaves_job_unchanged(
+        self, processor, api_client
+    ):
+        _jobs["finished-job"] = {"status": "completed", "message": "Done"}
+
+        result = await processor.stop_job("finished-job")
+
+        assert result == {"status": "completed", "message": "Done"}
+        api_client.report_stage.assert_not_awaited()
+
+    async def test_stop_job_with_active_task_cancels_and_reports_status(
+        self, processor, api_client
+    ):
+        api_client.is_configured.return_value = True
+        running_task = MagicMock()
+        running_task.done.return_value = False
+        _tasks["active-job"] = running_task
+        _jobs["active-job"] = {
+            "status": "processing",
+            "progress": 0.4,
+            "chunks_processed": 2,
+            "total_chunks": 5,
+        }
+
+        result = await processor.stop_job("active-job")
+
+        assert result is not None
+        assert result["status"] == "cancelled"
+        assert result["stage"] == "cancelled"
+        assert result["message"] == "Cancelled by user"
+        running_task.cancel.assert_called_once()
+        api_client.report_stage.assert_awaited_once_with(
+            "active-job",
+            "cancelled",
+            chunks_processed=2,
+            total_chunks=5,
+            failure_reason="Cancelled by user",
+        )

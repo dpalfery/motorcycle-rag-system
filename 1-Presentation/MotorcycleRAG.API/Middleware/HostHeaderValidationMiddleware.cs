@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Core.Utilities;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 
 namespace MotorcycleRAG.API.Middleware;
 
@@ -19,6 +20,7 @@ public sealed class HostHeaderValidationMiddleware
     private readonly HashSet<string> _allowedHosts;
     private readonly bool _allowAll;
     private static readonly char[] HostSeparators = { ',', ';' };
+    private static readonly JsonSerializerOptions ProblemDetailsJsonOptions = new(JsonSerializerDefaults.Web);
 
     /// <summary>
     /// Initializes a new instance of the HostHeaderValidationMiddleware
@@ -48,7 +50,7 @@ public sealed class HostHeaderValidationMiddleware
                 StringComparer.OrdinalIgnoreCase);
 
         // Fail fast if AllowedHosts is empty - this indicates a misconfiguration
-        if (_allowedHosts.Count == 0)
+        if (!_allowAll && _allowedHosts.Count == 0)
         {
             const string errorMessage =
                 "HostHeaderValidationMiddleware configuration error: AllowedHosts is empty. " +
@@ -99,7 +101,7 @@ public sealed class HostHeaderValidationMiddleware
                 instance = context.Request.Path
             };
 
-            await context.Response.WriteAsJsonAsync(problemDetails);
+            await context.Response.WriteAsync(JsonSerializer.Serialize(problemDetails, ProblemDetailsJsonOptions));
             return;
         }
 
@@ -120,7 +122,7 @@ public sealed class HostHeaderValidationMiddleware
                 instance = context.Request.Path
             };
 
-            await context.Response.WriteAsJsonAsync(problemDetails);
+            await context.Response.WriteAsync(JsonSerializer.Serialize(problemDetails, ProblemDetailsJsonOptions));
             return;
         }
 
@@ -150,7 +152,7 @@ public sealed class HostHeaderValidationMiddleware
                 instance = context.Request.Path
             };
 
-            await context.Response.WriteAsJsonAsync(problemDetails);
+            await context.Response.WriteAsync(JsonSerializer.Serialize(problemDetails, ProblemDetailsJsonOptions));
             return;
         }
 

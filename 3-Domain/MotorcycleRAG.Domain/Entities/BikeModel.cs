@@ -48,13 +48,7 @@ public class BikeModel
     {
         ArgumentNullException.ThrowIfNull(raw);
 
-        var trimmed = raw.Trim();
-        if (trimmed.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        var tokens = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var tokens = raw.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
             return string.Empty;
@@ -97,11 +91,6 @@ public class BikeModel
     /// </summary>
     private static string TitleCase(string token)
     {
-        if (token.Length == 0)
-        {
-            return token;
-        }
-
         return char.ToUpperInvariant(token[0]) + token[1..].ToLowerInvariant();
     }
 }

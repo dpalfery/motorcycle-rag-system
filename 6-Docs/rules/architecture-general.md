@@ -313,11 +313,12 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 
 **Projects:**
 
-* `MotorcycleRAG.Domain.Tests` → Unit tests for domain logic
+* `MotorcycleRAG.Domian.Tests` → Unit tests for domain logic
 * `MotorcycleRAG.Application.Tests` → Unit tests for use cases
 * `MotorcycleRAG.Api.Tests` → Integration tests for API endpoints
 * `MotorcycleRAG.IntegrationTests` → Full integration tests with database
 * `MotorcycleRAG.Playwright-UI.Tests` → End-to-end UI tests
+* `local-processing-service.Tests` → Python unit/integration tests for the local processing service (pytest, run from `2-Application/local-processing-service/` via `testpaths`)
 
 **Test Strategy:**
 
@@ -396,6 +397,5 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 > **Clean Architecture Benefit:** Your deployment choices are details. You can deploy to Azure App Service, Container Apps, AKS, or even AWS without changing your application code.
 
 ---
-
 
 

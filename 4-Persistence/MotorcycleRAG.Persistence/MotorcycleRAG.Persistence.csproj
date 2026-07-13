@@ -40,6 +40,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="MotorcycleRAG.UnitTests" />
+    <InternalsVisibleTo Include="MotorcycleRAG.API.Tests" />
+    <InternalsVisibleTo Include="MotorcycleRAG.Persistence.Tests" />
   </ItemGroup>
 
 </Project>

@@ -58,6 +58,13 @@ public static class ServiceCollectionExtensions {
         services.AddSingleton<ITelemetryService, TelemetryService>();
         services.AddSingleton<IBudgetMonitorService, BudgetMonitorService>();
 
+        // Register Azure SDK client factories (singletons; stateless SDK client builders).
+        // IBlobServiceClientFactory is consumed by AzureBlobStorageService and
+        // BlobManualPageAssetStore; IFoundryClientFactory by FoundryAgentRunner. Both are
+        // safe singletons — they only construct Azure SDK clients and hold no per-request state.
+        services.AddSingleton<IBlobServiceClientFactory, BlobServiceClientFactory>();
+        services.AddSingleton<IFoundryClientFactory, FoundryClientFactory>();
+
         // Register blob-backed asset store
         services.AddScoped<IManualPageAssetStore, BlobManualPageAssetStore>();
 
@@ -74,12 +81,7 @@ public static class ServiceCollectionExtensions {
                 options, logger, resilience, correlation, httpFactory, config);
         });
         services.AddScoped<IAzureSearchClient, MotorcycleRAG.Persistence.Azure.AzureSearchClientWrapper>();
-        if (HasDocumentIntelligenceEndpoint(configuration)) {
-            services.AddSingleton<IDocumentIntelligenceClient, MotorcycleRAG.Persistence.Azure.DocumentIntelligenceClientWrapper>();
-        }
-        else {
-            services.AddSingleton<IDocumentIntelligenceClient, DisabledDocumentIntelligenceClient>();
-        }
+        services.AddSingleton<IDocumentIntelligenceClient, DisabledDocumentIntelligenceClient>();
         
         // Register extracted Azure Search services
         services.AddScoped<MotorcycleRAG.Contracts.Interfaces.IAzureSearchQueryService, MotorcycleRAG.Persistence.Azure.Search.AzureSearchQueryService>();
@@ -163,14 +165,9 @@ public static class ServiceCollectionExtensions {
         return services;
     }
 
-    private static bool HasDocumentIntelligenceEndpoint(IConfiguration configuration) =>
-        Uri.TryCreate(configuration["AzureAI:DocumentIntelligenceEndpoint"], UriKind.Absolute, out _);
-
     public static IServiceCollection AddPipelineHttpClients(this IServiceCollection services) {
         services.AddTransient<HttpResilienceDelegatingHandler>();
         services.AddHttpClient("LocalPipelineService")
-            .AddHttpMessageHandler<HttpResilienceDelegatingHandler>();
-        services.AddHttpClient("FabricPipelineService")
             .AddHttpMessageHandler<HttpResilienceDelegatingHandler>();
         return services;
     }

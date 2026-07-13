@@ -11,7 +11,14 @@ import pandas as pd
 import pytest
 
 from api.api_client import ApiClient
-from processors.bike_graph_processor import BikeGraphProcessor, _jobs, _tasks, _node_id
+from processors.bike_graph_processor import (
+    BikeGraphProcessor,
+    _build_description,
+    _node_id,
+    _split_make,
+    _jobs,
+    _tasks,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +95,13 @@ class TestInstantiation:
         proc = BikeGraphProcessor(blob_writer=blob_writer, api_client=api_client)
         assert proc.blob_writer is blob_writer
 
+    def test_helpers_split_make_build_descriptions_and_generate_stable_ids(self):
+        assert _split_make("Aprilia RS 660") == ("Aprilia", "RS 660")
+        assert _split_make("Honda") == ("Honda", "Honda")
+        assert _node_id("same") == _node_id("same")
+        row = pd.Series({"Category": "Sport", "Power HP": 100, "Gearbox": ""})
+        assert _build_description(row, {"category": "Category", "power hp": "Power HP", "gearbox": "Gearbox"}) == "Category: Sport; Power HP: 100"
+
 
 # ---------------------------------------------------------------------------
 # process_async
@@ -134,6 +148,32 @@ class TestGetJobStatus:
         result = await processor.get_job_status(job_id)
         assert isinstance(result, dict)
         assert "status" in result
+
+
+class TestJobControls:
+    async def test_lists_clears_and_stops_jobs_with_configured_reporting(self, processor, api_client):
+        _jobs.update(
+            {
+                "active": {"status": "processing", "progress": 0.5},
+                "done": {"status": "completed"},
+            }
+        )
+        api_client.is_configured.return_value = True
+
+        stopped = await processor.stop_job("active")
+        jobs = await processor.list_jobs()
+        cleared = await processor.clear_terminal_jobs()
+
+        assert stopped["status"] == "cancelled"
+        assert {job["status"] for job in jobs} == {"cancelled", "completed"}
+        assert cleared == 2
+        api_client.report_stage.assert_awaited_once_with("active", "cancelled", failure_reason="Cancelled by user")
+
+    async def test_stop_job_returns_none_for_missing_and_preserves_terminal_jobs(self, processor):
+        _jobs["finished"] = {"status": "failed"}
+
+        assert await processor.stop_job("missing") is None
+        assert await processor.stop_job("finished") is _jobs["finished"]
 
 
 # ---------------------------------------------------------------------------

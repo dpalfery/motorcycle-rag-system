@@ -26,18 +26,21 @@ public sealed class FoundryAgentRunner : IFoundryAgentRunner
 
     public FoundryAgentRunner(
         IOptions<AzureFoundryOptions> options,
+        IFoundryClientFactory foundryClientFactory,
         ILogger<FoundryAgentRunner> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(foundryClientFactory);
         ArgumentNullException.ThrowIfNull(logger);
 
         var config = options.Value ?? throw new ArgumentNullException(nameof(options));
         if (string.IsNullOrWhiteSpace(config.FoundryEndpoint))
             throw new InvalidOperationException("AzureAI:FoundryEndpoint is required for FoundryAgentRunner");
 
-        var projectClient = new AIProjectClient(new Uri(config.FoundryEndpoint), new DefaultAzureCredential());
-        _openAIClient = projectClient.ProjectOpenAIClient;
-        _conversationsClient = _openAIClient.GetProjectConversationsClient();
+        var projectClient = foundryClientFactory.CreateProjectClient(
+            config.FoundryEndpoint, new DefaultAzureCredential());
+        _openAIClient = foundryClientFactory.CreateOpenAIClient(projectClient);
+        _conversationsClient = foundryClientFactory.CreateConversationsClient(projectClient);
         _agentVersions = BuildAgentVersionMap(config);
         _logger = logger;
     }

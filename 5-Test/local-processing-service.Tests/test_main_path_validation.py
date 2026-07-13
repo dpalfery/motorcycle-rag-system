@@ -36,6 +36,20 @@ def test_resolve_local_csv_path_rejects_when_input_dir_not_configured(
     assert "disabled" in exc_info.value.detail
 
 
+def test_resolve_local_csv_path_rejects_when_configured_input_dir_is_not_a_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    configured_file = tmp_path / "not-a-directory"
+    configured_file.write_text("not a directory", encoding="utf-8")
+    monkeypatch.setenv(LOCAL_PROCESSOR_INPUT_DIR_ENV, str(configured_file))
+
+    with pytest.raises(HTTPException) as exc_info:
+        resolve_local_csv_path(str(tmp_path / "source.csv"))
+
+    assert exc_info.value.status_code == 500
+    assert "does not point to an existing directory" in exc_info.value.detail
+
+
 def test_resolve_local_csv_path_rejects_file_outside_configured_input_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

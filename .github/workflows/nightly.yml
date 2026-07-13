@@ -90,6 +90,7 @@ jobs:
           --results-dir TestResults/UnitCoverage \
           --configuration Release \
           --suite dotnet-unit \
+          --suite domain-unit \
           --suite bff-unit \
           --suite python-unit \
           --suite admindesktop-unit

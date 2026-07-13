@@ -43,7 +43,7 @@ public class ApprovalOnboardingService {
     /// <summary>
     /// Executes approval-time onboarding for an already-approved request in onboarding-in-progress state.
     /// </summary>
-    public async Task ExecuteAsync(AccessRequestAdminRecord accessRequest) {
+    public virtual async Task ExecuteAsync(AccessRequestAdminRecord accessRequest) {
         ArgumentNullException.ThrowIfNull(accessRequest);
 
         if (accessRequest.AssignedTier is null) {

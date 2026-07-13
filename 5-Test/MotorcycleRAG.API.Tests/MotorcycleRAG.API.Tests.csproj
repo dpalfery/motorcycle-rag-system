@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!--
+      CA2000 is suppressed project-wide: every Sql/Repositories test enqueues an
+      in-memory DbDataReader (TestHelpers.CreateReader/CreateMultiResultReader) directly
+      into FakeDbConnection.EnqueueReader(...). Ownership of the reader transfers to the
+      fake connection/Dapper's own disposal of the reader it obtains from ExecuteReader;
+      there is no real unmanaged resource or leak risk (the reader is backed by an
+      in-memory DataTable). The analyzer cannot see that transfer of ownership, producing
+      a false positive on this idiom across every repository test file in this project.
+    -->
+    <NoWarn>$(NoWarn);OPENAI001;CA2000</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="10.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="Moq.Contrib.HttpClient" Version="1.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.7" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.7" />
+    <PackageReference Include="FluentAssertions" Version="8.9.0" />
+    <PackageReference Include="Microsoft.ApplicationInsights" Version="3.1.1" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="4.9.0" />
+    <PackageReference Include="Microsoft.Identity.Web.MicrosoftGraph" Version="4.9.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\1-Presentation\MotorcycleRAG.API\MotorcycleRAG.API.csproj" />
+    <ProjectReference Include="..\..\4-Persistence\MotorcycleRAG.Persistence\MotorcycleRAG.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Moq" />
+    <Using Include="FluentAssertions" />
+  </ItemGroup>
+
+</Project>

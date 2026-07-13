@@ -13,9 +13,11 @@ Read this file before opening a plan. Open a plan only when it is both relevant 
 
 ## Active inventory
 
-| Plan | Status | Goal / note |
-| --- | --- | --- |
-| [2026-07-12 Python tests to 5-Test](2026-07-12-issue-118-python-tests-to-5-test.md) | In progress | Move the local-processing-service pytest suite under `5-Test/` and update config, CI, and docs. Tracks issue #118. |
+| Plan | Status |
+| --- | --- |
+| [2026-07-12 Persistence test coverage 46.92% to 90%+](2026-07-12-persistence-test-coverage.md) | Draft |
+
+Note: [2026-07-12-api-persistence-test-coverage-plan.md](2026-07-12-api-persistence-test-coverage-plan.md) was an earlier, narrower-scope draft of the same initiative. It is marked `Superseded` in its own header and is not implementation authority; the plan above is canonical.
 
 ## Operational status lists
 
@@ -41,3 +43,4 @@ Completed and superseded plans live in [`../archive/plans/`](../archive/plans/).
 | [2026-07-11 Validate-docs ripgrep remediation](../archive/plans/2026-07-11-validate-docs-ripgrep-remediation.md) | 2026-07-11 | Proposal (Draft); historical only. |
 | [2026-07-11 Unified PR pipeline](../archive/plans/2026-07-11-unified-pr-pipeline.md) | 2026-07-11 | Implementation complete; see `6-Docs/DevOps/overview.md` §4 (CI/CD Flow) and `6-Docs/agent-notes/branch-protection-update.md` for operational guidance. |
 | [2026-07-12 Checkov + CrossGuard IaC scanning](../archive/plans/2026-07-12-checkov-crossguard-iac-scanning.md) | 2026-07-12 | Verified complete; see `6-Docs/DevOps/overview.md` §4 (CI/CD Flow), `7-Deployment/scanning/README.md`, and `7-Deployment/infrastructure/AGENTS.md` for scanning tool documentation. |
+| [2026-07-12 Python tests to 5-Test](../archive/plans/2026-07-12-issue-118-python-tests-to-5-test.md) | 2026-07-12 | Verified complete (issue #118); see `6-Docs/rules/architecture-general.md` 5-Test Layer section, `5-Test/local-processing-service.Tests/AGENTS.md`, and `2-Application/local-processing-service/AGENTS.md` for the new test-suite location. |

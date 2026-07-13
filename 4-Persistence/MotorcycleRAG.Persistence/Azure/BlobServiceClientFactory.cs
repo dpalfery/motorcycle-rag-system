@@ -1,19 +1,52 @@
 using Azure.Identity;
+using Azure.Core;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using MotorcycleRAG.Core.Options;
 
 namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
-/// Creates Azure Blob Storage clients from validated application options.
+/// Default implementation of <see cref="IBlobServiceClientFactory"/>. Constructs Azure
+/// Storage Blobs SDK clients. Registered as a singleton in DI
+/// (see <c>ServiceCollectionExtensions.AddAzureServices</c>).
 /// </summary>
-internal static class BlobServiceClientFactory
+public class BlobServiceClientFactory : IBlobServiceClientFactory
 {
-    public static BlobServiceClient Create(BlobStorageOptions options, IHostEnvironment environment)
+    /// <inheritdoc />
+    public BlobServiceClient Create(string connectionString)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        return new BlobServiceClient(connectionString);
+    }
+
+    /// <inheritdoc />
+    public BlobServiceClient Create(TokenCredential credential, Uri endpoint)
+    {
+        ArgumentNullException.ThrowIfNull(credential);
+        ArgumentNullException.ThrowIfNull(endpoint);
+        return new BlobServiceClient(endpoint, credential);
+    }
+
+    /// <summary>
+    /// Resolves a <see cref="BlobServiceClient"/> from <see cref="BlobStorageOptions"/> using
+    /// the supplied <paramref name="factory"/>.
+    /// </summary>
+    /// <remarks>
+    /// Centralizes the environment-aware decision (Development connection string vs. managed
+    /// identity endpoint) so that every consumer resolves the client identically. Consumers
+    /// pass their injected <see cref="IBlobServiceClientFactory"/> so the SDK construction
+    /// remains mockable in unit tests.
+    /// </remarks>
+    internal static BlobServiceClient CreateFromOptions(
+        BlobStorageOptions options,
+        IHostEnvironment environment,
+        IBlobServiceClientFactory factory)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(factory);
 
         if (!string.IsNullOrWhiteSpace(options.ConnectionString))
         {
@@ -24,7 +57,7 @@ internal static class BlobServiceClientFactory
                     "Use BlobStorage:AccountEndpoint with DefaultAzureCredential outside Development.");
             }
 
-            return new BlobServiceClient(options.ConnectionString);
+            return factory.Create(options.ConnectionString);
         }
 
         if (string.IsNullOrWhiteSpace(options.AccountEndpoint))
@@ -34,8 +67,6 @@ internal static class BlobServiceClientFactory
                 "Provide it through Azure App Configuration.");
         }
 
-        return new BlobServiceClient(
-            new Uri(options.AccountEndpoint),
-            new DefaultAzureCredential());
+        return factory.Create(new DefaultAzureCredential(), new Uri(options.AccountEndpoint));
     }
 }

@@ -25,13 +25,16 @@ public class AzureBlobStorageService : IBlobStorageService
     public AzureBlobStorageService(
         IOptions<BlobStorageOptions> options,
         IHostEnvironment environment,
+        IBlobServiceClientFactory blobServiceClientFactory,
         ILogger<AzureBlobStorageService> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(blobServiceClientFactory);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _blobServiceClient = BlobServiceClientFactory.Create(options.Value, environment);
+        _blobServiceClient = BlobServiceClientFactory.CreateFromOptions(
+            options.Value, environment, blobServiceClientFactory);
         _logger = logger;
     }
 

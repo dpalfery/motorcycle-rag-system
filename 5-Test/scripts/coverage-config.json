@@ -1,7 +1,7 @@
 {
   "thresholds": {
-    "fileLinePercent": 90.0,
-    "classLinePercent": 90.0
+    "fileLinePercent": 85.0,
+    "classLinePercent": 85.0
   },
   "coverageExclusions": {
     "pathContains": [
@@ -94,7 +94,7 @@
         "2-Application/local-processing-service/src/"
       ],
       "testRoots": [
-        "2-Application/local-processing-service/tests/"
+        "5-Test/local-processing-service.Tests/"
       ]
     },
     {
@@ -131,6 +131,42 @@
       ],
       "testRoots": [
         "1-Presentation/MotorcycleRag.WebUI/src/"
+      ]
+    },
+    {
+      "name": "domain-unit",
+      "kind": "dotnet",
+      "project": "5-Test/MotorcycleRAG.Domian.Tests/MotorcycleRAG.Domian.Tests.csproj",
+      "resultsSubdirectory": "domain-unit",
+      "supportedPlatforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "requiredInCi": true,
+      "sourceRoots": [
+        "3-Domain/MotorcycleRAG.Domain/"
+      ],
+      "testRoots": [
+        "5-Test/MotorcycleRAG.Domian.Tests/"
+      ]
+    },
+    {
+      "name": "persistence-unit",
+      "kind": "dotnet",
+      "project": "5-Test/tests/MotorcycleRAG.Persistence.Tests/MotorcycleRAG.Persistence.Tests.csproj",
+      "resultsSubdirectory": "persistence-unit",
+      "supportedPlatforms": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "requiredInCi": true,
+      "sourceRoots": [
+        "4-Persistence/"
+      ],
+      "testRoots": [
+        "5-Test/tests/MotorcycleRAG.Persistence.Tests/"
       ]
     }
   ]

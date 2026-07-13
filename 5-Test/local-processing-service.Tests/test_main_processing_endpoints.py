@@ -4,6 +4,7 @@ import importlib
 import sys
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -383,3 +384,245 @@ async def test_processing_routes_hide_unexpected_errors(
 
     assert response.status_code == 500
     assert response.json()["detail"] == "An unexpected error occurred"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("route", "payload", "shutdown_requested", "expected_status", "expected_detail"),
+    [
+        (
+            "/process/pdf",
+            {
+                "upload_id": "upload",
+                "document_type": "manual",
+                "blob_container": "raw",
+                "sourceAccessToken": "token",
+            },
+            True,
+            409,
+            "shutting down",
+        ),
+        (
+            "/process/pdf",
+            {
+                "upload_id": "",
+                "document_type": "manual",
+                "blob_container": "raw",
+                "sourceAccessToken": "token",
+            },
+            False,
+            400,
+            "upload_id is required",
+        ),
+        (
+            "/process/pdf",
+            {
+                "upload_id": "upload",
+                "document_type": "",
+                "blob_container": "raw",
+                "sourceAccessToken": "token",
+            },
+            False,
+            400,
+            "document_type is required",
+        ),
+        (
+            "/process/pdf",
+            {
+                "upload_id": "upload",
+                "document_type": "manual",
+                "blob_container": "raw",
+            },
+            False,
+            400,
+            "source_access_token is required",
+        ),
+        (
+            "/process/csv",
+            {"upload_id": "upload", "blob_container": "raw"},
+            True,
+            409,
+            "shutting down",
+        ),
+        (
+            "/process/csv",
+            {"upload_id": "", "blob_container": "raw"},
+            False,
+            400,
+            "upload_id is required",
+        ),
+        (
+            "/process/csv",
+            {"upload_id": "upload"},
+            False,
+            400,
+            "Either blob_container or local_file_path is required",
+        ),
+        (
+            "/process/bike-graph",
+            {"upload_id": "upload", "blob_container": "raw"},
+            True,
+            409,
+            "shutting down",
+        ),
+        (
+            "/process/bike-graph",
+            {"upload_id": "", "blob_container": "raw"},
+            False,
+            400,
+            "upload_id is required",
+        ),
+        (
+            "/process/bike-graph",
+            {"upload_id": "upload"},
+            False,
+            400,
+            "Either blob_container or local_file_path is required",
+        ),
+    ],
+)
+async def test_processing_routes_reject_invalid_work_without_starting_jobs(
+    monkeypatch,
+    tmp_path,
+    route,
+    payload,
+    shutdown_requested,
+    expected_status,
+    expected_detail,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    monkeypatch.setattr(main, "shutdown_requested", shutdown_requested)
+
+    response = await _post_json(main.app, route, payload)
+
+    assert response.status_code == expected_status
+    assert expected_detail in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_embedding_model_discovery_returns_discovered_models(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        main,
+        "discover_embedding_models",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                provider="openai-compatible",
+                endpoint="http://provider/v1",
+                models=["motorcycle-embed"],
+            )
+        ),
+    )
+
+    response = await main.list_embedding_models("http://provider/v1")
+
+    assert response.status_code == 200
+    assert response.body == b'{"provider":"openai-compatible","endpoint":"http://provider/v1","models":["motorcycle-embed"]}'
+
+
+@pytest.mark.asyncio
+async def test_health_check_hides_unexpected_dependency_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    failed_embedder = MagicMock()
+    failed_embedder.check_status = AsyncMock(side_effect=RuntimeError("provider secret"))
+    monkeypatch.setattr(main, "embedder", failed_embedder)
+    monkeypatch.setenv("GRAPH_EXTRACTION_ENDPOINT", "http://graph")
+    monkeypatch.setenv("GRAPH_EXTRACTION_MODEL", "graph-model")
+
+    response = await main.health_check()
+
+    assert response.status_code == 503
+    assert response.body == b'{"status":"unhealthy","accepting_work":true,"shutdown_requested":false,"active_jobs":0,"message":"Processor health check failed","services":{"embedding_provider":"unknown","graph_extraction":{"endpoint":"http://graph","model":"graph-model","status":"healthy"},"blob_storage":"unknown","service_uptime":"running"}}'
+
+
+@pytest.mark.asyncio
+async def test_job_routes_search_bike_graph_and_hide_unexpected_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+
+    pdf = MagicMock(get_job_status=AsyncMock(return_value=None), stop_job=AsyncMock(return_value=None))
+    csv = MagicMock(get_job_status=AsyncMock(return_value=None), stop_job=AsyncMock(return_value=None))
+    bike = MagicMock(
+        get_job_status=AsyncMock(return_value={"job_id": "bike-job"}),
+        stop_job=AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(main, "pdf_processor", pdf)
+    monkeypatch.setattr(main, "csv_processor", csv)
+    monkeypatch.setattr(main, "bike_graph_processor", bike)
+
+    assert await main.get_job_status("bike-job") == {"job_id": "bike-job"}
+
+    bike.get_job_status.side_effect = RuntimeError("internal detail")
+    with pytest.raises(Exception) as status_error:
+        await main.get_job_status("broken-job")
+    assert status_error.value.status_code == 500
+    assert status_error.value.detail == "An unexpected error occurred"
+
+    bike.stop_job.side_effect = RuntimeError("internal detail")
+    with pytest.raises(Exception) as stop_error:
+        await main.stop_job("broken-job")
+    assert stop_error.value.status_code == 500
+    assert stop_error.value.detail == "An unexpected error occurred"
+
+
+@pytest.mark.asyncio
+async def test_stop_job_reports_not_found_after_all_processors_decline(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    for processor_name in ("pdf_processor", "csv_processor", "bike_graph_processor"):
+        monkeypatch.setattr(
+            main,
+            processor_name,
+            MagicMock(stop_job=AsyncMock(return_value=None)),
+        )
+
+    with pytest.raises(Exception) as error:
+        await main.stop_job("missing-job")
+
+    assert error.value.status_code == 404
+    assert error.value.detail == "Job not found"
+
+
+@pytest.mark.asyncio
+async def test_graceful_shutdown_forces_exit_at_deadline_without_sleeping(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    loop = MagicMock()
+    loop.time.side_effect = [0, 30]
+    monkeypatch.setattr(main.asyncio, "get_running_loop", lambda: loop)
+    monkeypatch.setattr(main, "_count_active_jobs", AsyncMock(return_value=1))
+    server = MagicMock()
+    main.uvicorn_server = server
+
+    await main._wait_for_graceful_shutdown()
+
+    assert server.should_exit is True
+
+
+@pytest.mark.asyncio
+async def test_graceful_shutdown_signals_process_when_server_is_not_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    monkeypatch.setattr(main, "_count_active_jobs", AsyncMock(return_value=0))
+    monkeypatch.setattr(main.os, "getpid", lambda: 4242)
+    kill = MagicMock()
+    monkeypatch.setattr(main.os, "kill", kill)
+    main.uvicorn_server = None
+
+    await main._wait_for_graceful_shutdown()
+
+    kill.assert_called_once_with(4242, main.signal.SIGTERM)

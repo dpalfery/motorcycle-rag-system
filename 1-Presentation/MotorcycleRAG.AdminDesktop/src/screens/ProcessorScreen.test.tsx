@@ -20,6 +20,7 @@ const {
   processorStop,
   cleanupJobs,
   stopJob,
+  isMissingProcessorJobError,
   pickLocalIngestionFile,
   getTauriFilePath,
   queueLocalIngestionWorkItem,
@@ -31,6 +32,7 @@ const {
   processorStop: vi.fn(),
   cleanupJobs: vi.fn(),
   stopJob: vi.fn(),
+  isMissingProcessorJobError: vi.fn(),
   pickLocalIngestionFile: vi.fn(),
   getTauriFilePath: vi.fn(),
   queueLocalIngestionWorkItem: vi.fn(),
@@ -42,7 +44,7 @@ vi.mock("@/lib/apiClient", () => ({
 
 // --- Mock the local processor Tauri bridge (not running in tests) ---
 vi.mock("@/lib/processor", () => ({
-  isMissingProcessorJobError: () => false,
+  isMissingProcessorJobError,
   toStartConfig: vi.fn(() => ({
     port: 8100,
     workingDir: "",
@@ -138,6 +140,7 @@ describe("ProcessorScreen — cloud job source file name subtitle", () => {
     processorStop.mockReset().mockResolvedValue(undefined);
     cleanupJobs.mockReset().mockResolvedValue(undefined);
     stopJob.mockReset().mockResolvedValue(undefined);
+    isMissingProcessorJobError.mockReset().mockReturnValue(false);
     pickLocalIngestionFile.mockReset();
     getTauriFilePath.mockReset();
     queueLocalIngestionWorkItem.mockReset().mockResolvedValue(undefined);
@@ -565,5 +568,143 @@ describe("ProcessorScreen — cloud job source file name subtitle", () => {
         screen.queryByText("Metadata submitted. Pipeline resuming."),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("reports a stale cloud job when the ready local processor no longer has its run", async () => {
+    const staleJob = makeJob({
+      id: 90,
+      jobId: "job-stale",
+      status: "Processing",
+      docIngestionRunId: "run-stale",
+      createdAtUtc: new Date(Date.now() - 31_000).toISOString(),
+    });
+    configureCloudJobs([staleJob]);
+    isListening.mockResolvedValue(true);
+    health.mockResolvedValue({
+      status: "ok",
+      accepting_work: true,
+      api_client_configured: true,
+    });
+    processorJobs.mockResolvedValue([]);
+    renderScreen();
+
+    await waitFor(() =>
+      expect(apiPost).toHaveBeenCalledWith(
+        "/api/ingestion/jobs/job-stale/fail",
+        null,
+        { params: { reason: "Local processor lost the job (stale)" } },
+      ),
+    );
+  });
+
+  it("rejects unsafe source paths and cleans up the created cloud job", async () => {
+    configureCloudJobs([]);
+    pickLocalIngestionFile.mockResolvedValue("../etc/manual.pdf");
+    apiPost.mockResolvedValue({
+      data: makeJob({ status: "Queued", jobId: "job-unsafe" }),
+    });
+    const deleteFailure = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    apiDelete.mockRejectedValue(new Error("cleanup failed"));
+    renderScreen({ pythonUploadJobSecret: "secret" });
+    await screen.findByText("Stopped");
+
+    fireEvent.click(screen.getByText(/Click to browse or drag a file here/));
+    await screen.findByText("manual.pdf");
+    fireEvent.click(screen.getByRole("button", { name: "Queue for local processing" }));
+
+    expect(await screen.findByText(/Invalid file path detected/)).toBeInTheDocument();
+    expect(queueLocalIngestionWorkItem).not.toHaveBeenCalled();
+    expect(apiDelete).toHaveBeenCalledWith("/api/ingestion/jobs/job-unsafe");
+    expect(deleteFailure).toHaveBeenCalledWith(
+      "Failed to clean up job after queue failure:",
+      expect.anything(),
+    );
+    deleteFailure.mockRestore();
+  });
+
+  it("deletes an active job after its cancellation reaches a terminal cloud status", async () => {
+    const activeJob = makeJob({
+      id: 91,
+      jobId: "job-delete-active",
+      status: "Processing",
+      docIngestionRunId: "run-delete-active",
+    });
+    apiGet.mockImplementation(async (url: string) => {
+      if (url.includes("upload-constraints")) {
+        return { data: { maxFileSizeBytes: 104_857_600, supportedExtensions: [".pdf", ".csv"] } };
+      }
+      if (url === "/api/ingestion/jobs") return { data: [activeJob] };
+      if (url === "/api/ingestion/jobs/job-delete-active") {
+        return { data: { ...activeJob, status: "Cancelled" } };
+      }
+      return { data: {} };
+    });
+    apiPost.mockResolvedValue({ data: {} });
+    apiDelete.mockResolvedValue({ data: {} });
+    renderScreen();
+    await screen.findByText("Job 91");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(apiPost).toHaveBeenCalledWith("/api/ingestion/jobs/job-delete-active/cancel");
+      expect(apiDelete).toHaveBeenCalledWith("/api/ingestion/jobs/job-delete-active");
+    });
+  });
+
+  it("shows an actionable error when stopping a local processor run fails", async () => {
+    configureCloudJobs([
+      makeJob({
+        id: 92,
+        jobId: "job-stop-error",
+        status: "Processing",
+        docIngestionRunId: "run-stop-error",
+      }),
+    ]);
+    isListening.mockResolvedValue(true);
+    health.mockResolvedValue({
+      status: "healthy",
+      accepting_work: true,
+      api_client_configured: true,
+    });
+    stopJob.mockRejectedValue(new Error("local stop failed"));
+    renderScreen();
+    await screen.findByText("Job 92");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Stop" })[1]);
+
+    expect(await screen.findByText(/local stop failed/)).toBeInTheDocument();
+    expect(apiPost).not.toHaveBeenCalledWith("/api/ingestion/jobs/job-stop-error/cancel");
+  });
+
+  it("shows the cloud-jobs query failure instead of an empty result", async () => {
+    apiGet.mockImplementation(async (url: string) => {
+      if (url.includes("upload-constraints")) {
+        return { data: { maxFileSizeBytes: 104_857_600, supportedExtensions: [".pdf", ".csv"] } };
+      }
+      if (url === "/api/ingestion/jobs") throw new Error("cloud unavailable");
+      return { data: {} };
+    });
+    renderScreen();
+
+    expect(await screen.findByText(/Could not load jobs:/)).toBeInTheDocument();
+  });
+
+  it("keeps the selection empty when the picker is cancelled and reports a dropped-path conversion failure", async () => {
+    configureCloudJobs([]);
+    pickLocalIngestionFile.mockResolvedValue(null);
+    getTauriFilePath.mockImplementation(() => {
+      throw new Error("path conversion failed");
+    });
+    renderScreen();
+    await screen.findByText("Stopped");
+    const dropZone = screen.getByText(/Click to browse or drag a file here/).parentElement!;
+
+    fireEvent.click(dropZone);
+    await waitFor(() => expect(pickLocalIngestionFile).toHaveBeenCalledOnce());
+    expect(screen.getByText(/Click to browse or drag a file here/)).toBeInTheDocument();
+
+    fireEvent.drop(dropZone, { dataTransfer: { files: [new File(["pdf"], "manual.pdf")] } });
+    expect(await screen.findByText("path conversion failed")).toBeInTheDocument();
   });
 });

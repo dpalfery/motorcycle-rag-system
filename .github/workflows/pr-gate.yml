@@ -47,6 +47,7 @@ jobs:
               - '**/*.csproj'
               - '**/*.sln'
               - '2-Application/local-processing-service/**/*.py'
+              - '5-Test/local-processing-service.Tests/**/*.py'
               - '1-Presentation/**/*.{ts,tsx}'
               - '**/package.json'
               - '**/package-lock.json'
@@ -129,6 +130,7 @@ jobs:
             --results-dir TestResults/UnitCoverage \
             --configuration Release \
             --suite dotnet-unit \
+            --suite domain-unit \
             --suite bff-unit \
             --suite python-unit \
             --suite admindesktop-unit

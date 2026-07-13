@@ -12,6 +12,7 @@ const {
   restoreSession,
   probe,
   getAccessToken,
+  App,
 } = vi.hoisted(() => ({
   createRoot: vi.fn(),
   render: vi.fn(),
@@ -23,6 +24,7 @@ const {
   restoreSession: vi.fn(),
   probe: vi.fn(),
   getAccessToken: vi.fn(),
+  App: vi.fn(),
 }));
 
 const state = {
@@ -35,7 +37,7 @@ vi.mock("react-dom/client", () => ({
   default: { createRoot },
   createRoot,
 }));
-vi.mock("./App", () => ({ default: () => null }));
+vi.mock("./App", () => ({ default: App }));
 vi.mock("./lib/apiClient", () => ({ setApiBaseUrl, setTokenProvider }));
 vi.mock("./lib/config", () => ({
   useConfig: {
@@ -73,6 +75,7 @@ describe("application bootstrap", () => {
     autoResolveIfNeeded.mockResolvedValue(undefined);
     restoreSession.mockResolvedValue(true);
     probe.mockResolvedValue(undefined);
+    App.mockImplementation(() => null);
   });
 
   afterEach(() => {
@@ -141,5 +144,21 @@ describe("application bootstrap", () => {
 
     expect(error).toHaveBeenCalledWith("React render failure:", expect.any(Error));
     expect(createRoot).not.toHaveBeenCalled();
+  });
+
+  it("shows the component crash panel when a descendant throws during rendering", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    App.mockImplementation(() => {
+      throw new Error("render regression");
+    });
+    vi.doUnmock("react-dom/client");
+
+    await import("./main");
+
+    await waitFor(() => {
+      expect(document.querySelector("h1")).toHaveTextContent("Component Crash");
+    });
+    expect(document.querySelector("pre")).toHaveTextContent("render regression");
+    expect(error).toHaveBeenCalled();
   });
 });

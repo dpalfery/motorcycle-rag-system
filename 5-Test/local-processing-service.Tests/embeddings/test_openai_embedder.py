@@ -329,3 +329,38 @@ class TestOpenAIEmbedderBatch:
         assert isinstance(results, list)
         assert len(results) == 2
         assert all(len(emb) == 1536 for emb in results)
+
+
+class TestOpenAIEmbedderHealth:
+    async def test_check_status_returns_connected_and_caches_the_success(self):
+        with patch("embeddings.openai_embedder.httpx.AsyncClient") as mock_httpx_client:
+            response = MagicMock()
+            response.raise_for_status = MagicMock()
+            client = MagicMock()
+            client.get = AsyncMock(return_value=response)
+            mock_httpx_client.return_value.__aenter__.return_value = client
+
+            from embeddings.openai_embedder import OpenAIEmbedder
+
+            embedder = OpenAIEmbedder()
+            assert await embedder.check_status() == "connected"
+            assert await embedder.check_status() == "connected"
+
+        assert client.get.await_count == 1
+
+
+class TestOpenAIEmbedderCleanup:
+    async def test_generate_embedding_closes_a_synchronous_client_close_method(self):
+        response = MagicMock()
+        response.data = [MagicMock(embedding=[0.1] * 2)]
+        client = MagicMock()
+        client.embeddings.create = AsyncMock(return_value=response)
+        client.close = MagicMock(return_value=None)
+
+        with patch("embeddings.openai_embedder.openai.AsyncOpenAI", return_value=client):
+            from embeddings.openai_embedder import OpenAIEmbedder
+
+            result = await OpenAIEmbedder(dims=2).generate_embedding("test")
+
+        assert result == [0.1, 0.1]
+        client.close.assert_called_once()

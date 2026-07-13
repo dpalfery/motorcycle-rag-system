@@ -41,7 +41,7 @@ public class UserAccessLifecycleService {
     /// <summary>
     /// Changes the tier for an existing managed user and returns the latest management row.
     /// </summary>
-    public async Task<AdminActionResponse> ChangeManagedUserTierAsync(string userId, ChangeManagedUserTierRequest request) {
+    public virtual async Task<AdminActionResponse> ChangeManagedUserTierAsync(string userId, ChangeManagedUserTierRequest request) {
         if (string.IsNullOrWhiteSpace(userId)) {
             throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
         }
@@ -85,7 +85,7 @@ public class UserAccessLifecycleService {
     /// <summary>
     /// Cancels an existing managed user and returns the latest management row.
     /// </summary>
-    public async Task<AdminActionResponse> CancelManagedUserAsync(string userId, CancelManagedUserRequest request, string? cancelledByUserId) {
+    public virtual async Task<AdminActionResponse> CancelManagedUserAsync(string userId, CancelManagedUserRequest request, string? cancelledByUserId) {
         if (string.IsNullOrWhiteSpace(userId)) {
             throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
         }

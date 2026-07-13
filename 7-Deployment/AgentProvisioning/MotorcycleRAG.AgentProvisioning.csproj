@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="MotorcycleRAG.UnitTests" />
+    <InternalsVisibleTo Include="MotorcycleRAG.AgentProvisioning.Tests" />
   </ItemGroup>
 
 </Project>

@@ -113,7 +113,7 @@ def _resolve_admin_queue_command() -> list[str]:
     if configured:
         return shlex.split(configured)
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve().parents[3]
     return [
         "cargo",
         "run",

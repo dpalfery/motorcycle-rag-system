@@ -1,3 +1,4 @@
+using System.Net;
 using Azure;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
@@ -81,6 +82,36 @@ public class MotorcycleIndexingServiceTests
             logger: NullLogger<MotorcycleIndexingService>.Instance);
 
         return (service, mockSearchClient);
+    }
+
+    /// <summary>
+    /// Builds a <see cref="MotorcycleIndexingService"/> with a mock
+    /// <see cref="SearchIndexClient"/> for testing rebuild and statistics operations
+    /// that require controlled responses from the index management client.
+    /// </summary>
+    private static (MotorcycleIndexingService Service, Mock<SearchIndexClient> MockIndexClient, Mock<IAzureSearchClient> MockSearchClient)
+        CreateServiceWithMockIndexClient(
+            string? indexName = null,
+            int batchSize = DefaultBatchSize)
+    {
+        var searchOptions = Options.Create(new SearchOptions
+        {
+            IndexName = indexName ?? TestIndexName,
+            BatchSize = batchSize
+        });
+
+        var mockSearchClient = new Mock<IAzureSearchClient>();
+        var mockIndexClient = new Mock<SearchIndexClient>(
+            new Uri("https://fake.search.windows.net"),
+            new AzureKeyCredential("fake-key"));
+
+        var service = new MotorcycleIndexingService(
+            searchClient: mockSearchClient.Object,
+            indexClient: mockIndexClient.Object,
+            searchOptions: searchOptions,
+            logger: NullLogger<MotorcycleIndexingService>.Instance);
+
+        return (service, mockIndexClient, mockSearchClient);
     }
 
     /// <summary>
@@ -614,5 +645,149 @@ public class MotorcycleIndexingServiceTests
             "should return failure when SearchIndexClient is unreachable");
         result.Message.Should().Contain("Index rebuild failed");
         result.Errors.Should().NotBeEmpty();
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // IndexDocumentsAsync — batch size = 1
+    // ─────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task IndexDocumentsAsync_WithBatchSizeOne_IndexesEveryDocumentIndividually()
+    {
+        // Arrange
+        const int batchSize = 1;
+        var (service, mockClient) = CreateServiceWithMockSearchClient(batchSize: batchSize);
+        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Returns(Task.CompletedTask);
+
+        var documents = Enumerable.Range(1, 5).Select(i =>
+            CreateDocument(i.ToString(), $"Doc {i}", $"Content {i}")).ToList();
+
+        // Act
+        var result = await service.IndexDocumentsAsync(documents);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.DocumentsProcessed.Should().Be(5);
+        result.DocumentsIndexed.Should().Be(5);
+        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+            Times.Exactly(5), "5 docs / batchSize 1 = 5 batches");
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // GetIndexingStatisticsAsync — inner try/catch
+    // ─────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetIndexingStatisticsAsync_WhenGetIndexThrows_RecordsUnhealthyIndex()
+    {
+        // Arrange
+        var (service, mockIndexClient, _) = CreateServiceWithMockIndexClient();
+
+        // Set up GetIndexNamesAsync to return two index names
+        var rawResponse = new Mock<Response>();
+        var page = Page<string>.FromValues(
+            new[] { "healthy-index", "unhealthy-index" },
+            continuationToken: null,
+            rawResponse.Object);
+        var indexNames = AsyncPageable<string>.FromPages(new[] { page });
+        mockIndexClient
+            .Setup(c => c.GetIndexNamesAsync(It.IsAny<CancellationToken>()))
+            .Returns(indexNames);
+
+        // GetIndexAsync succeeds for "healthy-index"
+        var healthyIndexResponse = new Mock<Response<SearchIndex>>();
+        healthyIndexResponse.Setup(r => r.Value)
+            .Returns(new SearchIndex("healthy-index")
+            {
+                Fields = { new SimpleField("id", SearchFieldDataType.String) { IsKey = true } }
+            });
+        mockIndexClient
+            .Setup(c => c.GetIndexAsync("healthy-index", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(healthyIndexResponse.Object);
+
+        // GetIndexAsync throws for "unhealthy-index"
+        mockIndexClient
+            .Setup(c => c.GetIndexAsync("unhealthy-index", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Index is in a bad state"));
+
+        // Act
+        var result = await service.GetIndexingStatisticsAsync();
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Indexes.Should().HaveCount(2);
+        result.HealthyIndexes.Should().Be(1);
+
+        var healthy = result.Indexes.Should().ContainSingle(i => i.Name == "healthy-index").Subject;
+        healthy.IsHealthy.Should().BeTrue();
+
+        var unhealthy = result.Indexes.Should().ContainSingle(i => i.Name == "unhealthy-index").Subject;
+        unhealthy.IsHealthy.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetIndexingStatisticsAsync_WhenGetIndexNamesReturnsEmpty_ReturnsEmptyStatistics()
+    {
+        // Arrange
+        var (service, mockIndexClient, _) = CreateServiceWithMockIndexClient();
+
+        // Set up GetIndexNamesAsync to return no index names
+        var rawResponse = new Mock<Response>();
+        var page = Page<string>.FromValues(
+            Array.Empty<string>(),
+            continuationToken: null,
+            rawResponse.Object);
+        var indexNames = AsyncPageable<string>.FromPages(new[] { page });
+        mockIndexClient
+            .Setup(c => c.GetIndexNamesAsync(It.IsAny<CancellationToken>()))
+            .Returns(indexNames);
+
+        // Act
+        var result = await service.GetIndexingStatisticsAsync();
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Indexes.Should().BeEmpty();
+        result.HealthyIndexes.Should().Be(0);
+        result.TotalDocuments.Should().Be(0);
+        result.TotalStorageSize.Should().Be(0);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // RebuildIndexAsync — 404 catch and success path
+    // ─────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RebuildIndexAsync_WhenDeleteIndexNotFound_Handles404AndCreatesNew()
+    {
+        // Arrange
+        var (service, mockIndexClient, _) = CreateServiceWithMockIndexClient();
+
+        // DeleteIndexAsync throws 404 (index doesn't exist yet)
+        mockIndexClient
+            .Setup(c => c.DeleteIndexAsync(TestIndexName, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException((int)HttpStatusCode.NotFound, "Not Found"));
+
+        // CreateIndexAsync succeeds
+        var createdIndex = new SearchIndex(TestIndexName)
+        {
+            Fields = { new SimpleField("id", SearchFieldDataType.String) { IsKey = true } }
+        };
+        var rawResponse = new Mock<Response>();
+        var createResponse = Response.FromValue(createdIndex, rawResponse.Object);
+        mockIndexClient
+            .Setup(c => c.CreateIndexAsync(It.IsAny<SearchIndex>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(createResponse);
+
+        // Act
+        var result = await service.RebuildIndexAsync();
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Success.Should().BeTrue("should succeed when 404 is handled and new index is created");
+        result.CreatedIndexes.Should().Contain(TestIndexName);
+        result.Message.Should().Contain("Successfully rebuilt index");
+        result.Errors.Should().BeEmpty();
     }
 }

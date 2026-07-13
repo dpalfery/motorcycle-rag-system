@@ -91,7 +91,40 @@ public class FoundryClientFactoryTests
             .WithParameterName("projectClient");
     }
 
-    // ---- CreateConversationsClient ----
+    // ---- CreateOpenAIClient valid path ----
+
+    [Fact]
+    public void CreateOpenAIClient_WithValidProjectClient_ShouldReturnNonNullClient()
+    {
+        // Use a real project client from CreateProjectClient to test the valid path
+        var sut = new FoundryClientFactory();
+        var projectClient = sut.CreateProjectClient(
+            "https://test-foundry.cognitiveservices.azure.com/",
+            CreateMockCredential());
+
+        var result = sut.CreateOpenAIClient(projectClient);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<ProjectOpenAIClient>();
+    }
+
+    // ---- CreateConversationsClient valid path ----
+
+    [Fact]
+    public void CreateConversationsClient_WithValidProjectClient_ShouldReturnNonNullClient()
+    {
+        var sut = new FoundryClientFactory();
+        var projectClient = sut.CreateProjectClient(
+            "https://test-foundry.cognitiveservices.azure.com/",
+            CreateMockCredential());
+
+        var result = sut.CreateConversationsClient(projectClient);
+
+        result.Should().NotBeNull();
+        result.Should().BeOfType<ProjectConversationsClient>();
+    }
+
+    // ---- CreateConversationsClient null guard ----
 
     [Fact]
     public void CreateConversationsClient_WithNullProjectClient_ShouldThrowArgumentNullException()

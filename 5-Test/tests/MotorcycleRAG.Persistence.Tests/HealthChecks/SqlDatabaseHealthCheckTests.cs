@@ -144,6 +144,53 @@ public class SqlDatabaseHealthCheckTests
         result.Description.Should().Contain("SQL Database health check failed");
     }
 
+    [Fact]
+    public async Task CheckHealthAsync_WhenFactoryReturnsNullTask_ReturnsUnhealthy()
+    {
+        // Arrange
+        // Factory returns a null IDbConnection — the `as SqlConnection` cast on
+        // null yields null, which exercises a distinct branch from the
+        // factory-returning-non-SqlConnection case.
+        var mockFactory = new Mock<ISqlConnectionFactory>();
+        mockFactory.Setup(f => f.CreateConnectionAsync())
+            .ReturnsAsync((IDbConnection?)null);
+
+        var sut = new SqlDatabaseHealthCheck(
+            mockFactory.Object,
+            TestHelpers.CreateNullLogger<SqlDatabaseHealthCheck>());
+
+        // Act
+        var result = await sut.CheckHealthAsync(DefaultContext);
+
+        // Assert
+        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Description.Should().Be("Failed to create SQL connection");
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_WhenSqlConnectionThrowsNetworkError_ReturnsUnhealthy()
+    {
+        // Arrange
+        // Use a non-existent server with a short timeout to provoke an exception
+        // type other than InvalidOperationException (e.g. a network-level error),
+        // exercising the general catch with a different exception type.
+        var mockFactory = new Mock<ISqlConnectionFactory>();
+        mockFactory.Setup(f => f.CreateConnectionAsync())
+            .ReturnsAsync(new Microsoft.Data.SqlClient.SqlConnection(
+                "Server=255.255.255.255;Database=master;Connect Timeout=1;Connect Retry Count=0"));
+
+        var sut = new SqlDatabaseHealthCheck(
+            mockFactory.Object,
+            TestHelpers.CreateNullLogger<SqlDatabaseHealthCheck>());
+
+        // Act
+        var result = await sut.CheckHealthAsync(DefaultContext);
+
+        // Assert
+        result.Status.Should().Be(HealthStatus.Unhealthy);
+        result.Description.Should().Contain("SQL Database health check failed");
+    }
+
     /// <summary>
     /// A fake DbConnection that throws on OpenAsync to simulate a connection
     /// that cannot be opened, without requiring a real SQL Server instance.

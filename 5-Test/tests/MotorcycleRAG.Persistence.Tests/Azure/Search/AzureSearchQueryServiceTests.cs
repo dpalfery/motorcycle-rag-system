@@ -757,6 +757,29 @@ public sealed class AzureSearchQueryServiceTests
         results[0].Id.Should().Be("fallback_searchresult");
     }
 
+    // ---- ConvertToAzureSearchOptions test ----
+
+    /// <summary>
+    /// Explicitly tests the private ConvertToAzureSearchOptions method, verifying it
+    /// maps Core SearchOptions to Azure SDK SearchOptions correctly. This provides
+    /// defensive coverage for the options-mapping logic.
+    /// </summary>
+    [Fact]
+    public void ConvertToAzureSearchOptions_ShouldMapMaxSearchResultsAndSetIncludeTotalCount()
+    {
+        var method = typeof(AzureSearchQueryService)
+            .GetMethod("ConvertToAzureSearchOptions", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(method);
+
+        var sut = CreateSut();
+        var options = new Core.Options.SearchOptions { MaxSearchResults = 42 };
+
+        var result = (AzureSearchOptions)method.Invoke(sut, new object[] { options })!;
+
+        result.Size.Should().Be(42);
+        result.IncludeTotalCount.Should().BeTrue();
+    }
+
     // ---- Helper methods ----
 
     private static SearchResult CreateResult(string id, float score) => new()

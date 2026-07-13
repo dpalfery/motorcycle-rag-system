@@ -1220,6 +1220,74 @@ public class MotorcyclePDFProcessorTests {
         chunkMetadata["Section"].Should().Be("Table Data");
     }
 
+    // ---- RefineChunkBoundariesAsync merge path ----
+
+    /// <summary>
+    /// Covers the RefineChunkBoundariesAsync merge path: when two adjacent chunks
+    /// have similar embeddings (>0.7 cosine similarity), same section, and combined
+    /// size fits MaxChunkSize, they are merged into one chunk.
+    /// </summary>
+    [Fact]
+    public async Task ProcessAsync_WithSimilarAdjacentChunks_MergesViaRefineBoundaries()
+    {
+        // Arrange: two pages with similar content to produce 2 chunks that
+        // will pass the similarity threshold and be merged into 1.
+        var page1 = new DocumentPage
+        {
+            PageNumber = 1,
+            Content = "Engine oil specification. Use 10W-40 oil.",
+            Width = 800,
+            Height = 1000
+        };
+        var page2 = new DocumentPage
+        {
+            PageNumber = 2,
+            Content = "Oil specification. Use 10W-40 synthetic oil.",
+            Width = 800,
+            Height = 1000
+        };
+
+        var pdfDocument = CreateTestPdfDocument(page1.Content + "\n" + page2.Content);
+        var analysisResult = new DocumentAnalysisResult
+        {
+            Content = page1.Content,
+            Pages = new[] { page1, page2 },
+            Tables = Array.Empty<DocumentTable>(),
+            Metadata = new Dictionary<string, object>()
+        };
+
+        _mockDocumentClient
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
+            .ReturnsAsync(analysisResult);
+
+        // Return N identical non-zero embeddings for N texts so:
+        //  - RefineChunkBoundariesAsync gets 2 embeddings with cosSim=1.0 > 0.7 → merge triggers
+        //  - GenerateEmbeddingsAsync gets N embeddings for N chunks
+        _mockOpenAIClient
+            .Setup(x => x.GetEmbeddingsAsync(It.IsAny<string>(), It.IsAny<string[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string model, string[] texts, CancellationToken ct) =>
+            {
+                var emb = new float[1536];
+                Array.Fill(emb, 0.5f);
+                return texts.Select(_ => emb).ToArray();
+            });
+
+        _mockSearchClient
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _processor.ProcessAsync(pdfDocument);
+
+        // Assert: the two similar chunks should be merged, producing fewer documents
+        // than the number of original chunks (2 pages → 2 chunks → 1 after merge).
+        result.Should().NotBeNull();
+        result.Documents.Should().HaveCount(1,
+            "two similar adjacent chunks should be merged into one by RefineChunkBoundaries");
+        result.Documents[0].Id.Should().Contain("merged",
+            "merged chunk ID should contain '_merged' suffix");
+    }
+
     // ---- DetermineTableSection keyword-based fallback tests ----
 
     /// <summary>

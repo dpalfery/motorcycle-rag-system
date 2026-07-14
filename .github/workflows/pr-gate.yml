@@ -431,7 +431,7 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Download build output
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: build-output
 
@@ -474,7 +474,7 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Download build output
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: build-output
 

@@ -81,6 +81,20 @@ public class ManualIngestionControllerTests
     }
 
     [Fact]
+    public async Task RegisterDocument_EmptyFile_ReturnsBadRequest()
+    {
+        var file = new Mock<IFormFile>();
+        file.SetupGet(x => x.Length).Returns(0);
+
+        var result = await _controller.RegisterDocument(
+            new RegisterManualDocumentRequest("test.pdf", "pdf", null, null, null, null),
+            file.Object,
+            CancellationToken.None);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
     public async Task GetDocument_ValidId_ReturnsOk()
     {
         // Arrange
@@ -291,6 +305,23 @@ public class ManualIngestionControllerTests
         // Assert
         var acceptedResult = result.Result.Should().BeOfType<AcceptedResult>().Subject;
         acceptedResult.Value.Should().Be(response);
+    }
+
+    [Fact]
+    public async Task CreateGraphSeedJob_WithoutSubjectClaim_UsesUnknownUser()
+    {
+        var request = new CreateGraphSeedJobRequest("file", null);
+        var service = new Mock<IManualIngestionService>();
+        service.Setup(x => x.CreateGraphSeedJobAsync(request, "unknown", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJobStatusResponse());
+        var controller = new ManualIngestionController(service.Object, _mockLogger.Object)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
+
+        var result = await controller.CreateGraphSeedJob(request, CancellationToken.None);
+
+        result.Result.Should().BeOfType<AcceptedResult>();
     }
 
     [Fact]

@@ -36,7 +36,9 @@ public class ResilienceServiceTests {
         var mockOptions = new Mock<IOptions<ResilienceOptions>>();
         mockOptions.Setup(x => x.Value).Returns(config);
 
-        _resilienceService = new ResilienceService(mockOptions.Object, _mockLogger.Object);
+        // Retry delay is overridden to zero so these tests exercise the real retry-count/
+        // circuit-breaker-trip logic without waiting out real exponential-backoff seconds.
+        _resilienceService = new ResilienceService(mockOptions.Object, _mockLogger.Object, retryDelayOverride: _ => TimeSpan.Zero);
     }
 
     [Fact]

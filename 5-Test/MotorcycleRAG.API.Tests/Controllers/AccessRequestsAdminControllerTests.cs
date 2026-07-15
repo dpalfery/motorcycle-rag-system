@@ -82,6 +82,17 @@ public class AccessRequestsAdminControllerTests
     }
 
     [Fact]
+    public void Constructor_NullDependencies_ThrowsArgumentNullException()
+    {
+        Func<object> nullService = () => new AccessRequestsAdminController(null!, _mockUserService.Object, _mockLogger.Object);
+        Func<object> nullUser = () => new AccessRequestsAdminController(_mockAdminService.Object, null!, _mockLogger.Object);
+        Func<object> nullLogger = () => new AccessRequestsAdminController(_mockAdminService.Object, _mockUserService.Object, null!);
+        nullService.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+        nullUser.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+        nullLogger.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
     public async Task GetUserManagementAsync_ValidRequest_ReturnsOk()
     {
         // Arrange
@@ -209,5 +220,47 @@ public class AccessRequestsAdminControllerTests
 
         // Assert
         result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task ApproveAccessRequestAsync_ServiceRejectsRequest_MapsBadRequestAndConflict()
+    {
+        var request = new ApproveAccessRequestRequest { Tier = TierLabel.RoadRunner, ExpectedRowVersion = "v1" };
+        _mockAdminService.Setup(s => s.ApproveAccessRequestAsync("req-1", request, "managed-admin-id"))
+            .ThrowsAsync(new ArgumentException("invalid"));
+        (await _controller.ApproveAccessRequestAsync("req-1", request)).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockAdminService.Setup(s => s.ApproveAccessRequestAsync("req-1", request, "managed-admin-id"))
+            .ThrowsAsync(new InvalidOperationException("conflict"));
+        (await _controller.ApproveAccessRequestAsync("req-1", request)).Should().BeOfType<ConflictObjectResult>();
+    }
+
+    [Fact]
+    public async Task RetryOnboardingAsync_GuardsAndServiceFailures_MapExpectedResults()
+    {
+        var request = new RetryAccessRequestOnboardingRequest { ExpectedRowVersion = "v1" };
+        (await _controller.RetryOnboardingAsync(" ", request)).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockAdminService.Setup(s => s.RetryOnboardingAsync("req-1", request)).ThrowsAsync(new ArgumentException("invalid"));
+        (await _controller.RetryOnboardingAsync("req-1", request)).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockAdminService.Setup(s => s.RetryOnboardingAsync("req-1", request)).ThrowsAsync(new InvalidOperationException("conflict"));
+        (await _controller.RetryOnboardingAsync("req-1", request)).Should().BeOfType<ConflictObjectResult>();
+    }
+
+    [Fact]
+    public async Task CancelAccessRequestAsync_GuardsAndServiceFailures_MapExpectedResults()
+    {
+        var request = new CancelAccessRequestRequest { Reason = "reason", ExpectedRowVersion = "v1" };
+        (await _controller.CancelAccessRequestAsync(" ", request)).Should().BeOfType<BadRequestObjectResult>();
+        (await _controller.CancelAccessRequestAsync("req-1", new CancelAccessRequestRequest { Reason = " " })).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockAdminService.Setup(s => s.CancelAccessRequestAsync("req-1", request, "managed-admin-id"))
+            .ThrowsAsync(new ArgumentException("invalid"));
+        (await _controller.CancelAccessRequestAsync("req-1", request)).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockAdminService.Setup(s => s.CancelAccessRequestAsync("req-1", request, "managed-admin-id"))
+            .ThrowsAsync(new InvalidOperationException("conflict"));
+        (await _controller.CancelAccessRequestAsync("req-1", request)).Should().BeOfType<ConflictObjectResult>();
     }
 }

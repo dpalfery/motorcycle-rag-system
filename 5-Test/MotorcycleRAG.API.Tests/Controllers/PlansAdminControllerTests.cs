@@ -74,6 +74,119 @@ public sealed class PlansAdminControllerTests
         submitted.Should().Be(new PlanUpdateCommand(null, null, null, false));
     }
 
+    [Fact]
+    public async Task GetAllPlansAsync_HappyAndErrorPaths()
+    {
+        var service = new Mock<IPlanAdministrationService>();
+        service.Setup(x => x.GetAllPlansAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new UserPlan { Id = "free" } });
+        var controller = Create(service.Object);
+
+        (await controller.GetAllPlansAsync()).Should().BeOfType<OkObjectResult>();
+
+        service.Setup(x => x.GetAllPlansAsync(It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException());
+        Status(await controller.GetAllPlansAsync(), StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task GetPlanByIdAsync_FoundReturnsOkAndErrorsMapTo500()
+    {
+        var service = new Mock<IPlanAdministrationService>();
+        service.Setup(x => x.GetPlanByIdAsync("free", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserPlan { Id = "free" });
+        var controller = Create(service.Object);
+
+        (await controller.GetPlanByIdAsync("free")).Should().BeOfType<OkObjectResult>();
+
+        service.Setup(x => x.GetPlanByIdAsync("boom", It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException());
+        Status(await controller.GetPlanByIdAsync("boom"), StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task CreatePlanAsync_NullRequestAndValidationAndErrorBranches()
+    {
+        var service = new Mock<IPlanAdministrationService>();
+        service.Setup(x => x.CreatePlanAsync(It.IsAny<PlanCreateCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserPlan { Id = "x" });
+        var controller = Create(service.Object);
+
+        Status(await controller.CreatePlanAsync(null), StatusCodes.Status400BadRequest);
+        Status(await controller.CreatePlanAsync(new CreatePlanRequest { Name = " ", DailyRequestLimit = 100 }), StatusCodes.Status400BadRequest);
+        Status(await controller.CreatePlanAsync(new CreatePlanRequest { Name = new string('n', 101), DailyRequestLimit = 100 }), StatusCodes.Status400BadRequest);
+        Status(await controller.CreatePlanAsync(new CreatePlanRequest { Name = "ok", DailyRequestLimit = 0 }), StatusCodes.Status400BadRequest);
+        Status(await controller.CreatePlanAsync(new CreatePlanRequest { Name = "ok", DailyRequestLimit = 10001 }), StatusCodes.Status400BadRequest);
+
+        service.Setup(x => x.CreatePlanAsync(It.IsAny<PlanCreateCommand>(), It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException());
+        Status(await controller.CreatePlanAsync(new CreatePlanRequest { Name = "ok", DailyRequestLimit = 100 }), StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task UpdatePlanAsync_GuardAndValidationAndErrorBranches()
+    {
+        var service = new Mock<IPlanAdministrationService>();
+        service.Setup(x => x.UpdatePlanAsync(It.IsAny<string>(), It.IsAny<PlanUpdateCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserPlan { Id = "free" });
+        var controller = Create(service.Object);
+
+        Status(await controller.UpdatePlanAsync(" ", new UpdatePlanRequest()), StatusCodes.Status400BadRequest);
+        Status(await controller.UpdatePlanAsync("free", null), StatusCodes.Status400BadRequest);
+        Status(await controller.UpdatePlanAsync("free", new UpdatePlanRequest { Name = new string('n', 101) }), StatusCodes.Status400BadRequest);
+        Status(await controller.UpdatePlanAsync("free", new UpdatePlanRequest { DailyRequestLimit = 0 }), StatusCodes.Status400BadRequest);
+
+        service.Setup(x => x.UpdatePlanAsync(It.IsAny<string>(), It.IsAny<PlanUpdateCommand>(), It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException());
+        Status(await controller.UpdatePlanAsync("free", new UpdatePlanRequest()), StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task DeletePlanAsync_GuardAndFoundNotDeletedAndErrorBranches()
+    {
+        var service = new Mock<IPlanAdministrationService>();
+        var controller = Create(service.Object);
+
+        Status(await controller.DeletePlanAsync(" "), StatusCodes.Status400BadRequest);
+
+        service.Setup(x => x.DeletePlanAsync("stuck", It.IsAny<CancellationToken>())).ReturnsAsync(new PlanDeleteResult(true, false));
+        Status(await controller.DeletePlanAsync("stuck"), StatusCodes.Status500InternalServerError);
+
+        service.Setup(x => x.DeletePlanAsync("gone", It.IsAny<CancellationToken>())).ReturnsAsync(new PlanDeleteResult(true, true));
+        (await controller.DeletePlanAsync("gone")).Should().BeOfType<NoContentResult>();
+
+        service.Setup(x => x.DeletePlanAsync("boom", It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException());
+        Status(await controller.DeletePlanAsync("boom"), StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public void Validate_CreatePlanRequestNull_ReturnsRequestBodyRequired()
+    {
+        var method = typeof(PlansAdminController).GetMethod(
+            "Validate",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+            binder: null,
+            types: new[] { typeof(CreatePlanRequest) },
+            modifiers: null);
+        method.Should().NotBeNull();
+
+        var errors = (List<string>)method!.Invoke(null, new object?[] { null })!;
+
+        errors.Should().ContainSingle().Which.Should().Be("Request body is required");
+    }
+
+    [Fact]
+    public void Validate_UpdatePlanRequestNull_ReturnsRequestBodyRequired()
+    {
+        var method = typeof(PlansAdminController).GetMethod(
+            "Validate",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+            binder: null,
+            types: new[] { typeof(UpdatePlanRequest) },
+            modifiers: null);
+        method.Should().NotBeNull();
+
+        var errors = (List<string>)method!.Invoke(null, new object?[] { null })!;
+
+        errors.Should().ContainSingle().Which.Should().Be("Request body is required");
+    }
+
     private static PlansAdminController Create(IPlanAdministrationService service) =>
         new(service, NullLogger<PlansAdminController>.Instance);
 

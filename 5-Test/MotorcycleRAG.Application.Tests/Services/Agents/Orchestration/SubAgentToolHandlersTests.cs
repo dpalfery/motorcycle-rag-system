@@ -8,9 +8,9 @@ using MotorcycleRAG.Application.Services.Agents;
 using MotorcycleRAG.Application.Services.Agents.Orchestration;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Domain.Entities;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Services.Agents.Orchestration;
@@ -113,7 +113,7 @@ public class SubAgentToolHandlersTests
         var call = new AgentToolCall("call_graph", "search_graph_nodes", "{\"search_term\":\"honda\"}");
         
         _graphRepoMock.Setup(x => x.SearchNodesAsync("honda", null, 10, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyList<GraphNode>)new List<GraphNode>());
+            .ReturnsAsync((IReadOnlyList<GraphNodeDto>)new List<GraphNodeDto>());
 
         var result = await _handlers.HandleSearchGraphNodesAsync(call, CancellationToken.None);
 

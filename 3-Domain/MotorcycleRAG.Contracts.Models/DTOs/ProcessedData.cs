@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
-using MotorcycleRAG.Domain.Entities;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Contracts.Models.DTOs;
 
 /// <summary>
@@ -11,7 +11,6 @@ namespace MotorcycleRAG.Contracts.Models.DTOs;
 /// </summary>
 public class ProcessedData {
     public string Id { get; set; } = string.Empty;
-    public Collection<MotorcycleDocument> Documents { get; } = new();
+    public Collection<MotorcycleDocumentDto> Documents { get; } = new();
     public Dictionary<string, object> Metadata { get; } = new();
 }
-

@@ -8,7 +8,7 @@ namespace MotorcycleRAG.UnitTests.Persistence.Configuration;
 public sealed class McpConfigurationStoreTests
 {
     [Fact]
-    public void AddOrUpdateConfiguration_AssignsIdUpdatesLookupAndRaisesEvents()
+    public void AddOrUpdateConfiguration_UpdatesLookupAndRaisesEvents()
     {
         var sut = CreateSut();
         var changes = new List<McpConfigurationChangedEventArgs>();
@@ -16,16 +16,18 @@ public sealed class McpConfigurationStoreTests
         var configuration = CreateConfiguration("web", "search", priority: 3);
 
         sut.AddOrUpdateConfiguration(configuration);
-        configuration.Name = "Updated web search";
-        sut.AddOrUpdateConfiguration(configuration);
+        // Callers assign a persistence identity once, upstream, so an "update" is
+        // represented by a fresh snapshot carrying the same Id (McpToolConfiguration
+        // is immutable outside its own named domain transitions).
+        var updated = CreateConfiguration("web", "search", priority: 3, id: configuration.Id, name: "Updated web search");
+        sut.AddOrUpdateConfiguration(updated);
 
         configuration.Id.Should().NotBeEmpty();
-        configuration.UpdatedAt.Should().NotBeNull();
         sut.Count.Should().Be(1);
         sut.Contains(configuration.Id).Should().BeTrue();
         sut.ContainsTool("web").Should().BeTrue();
-        sut.GetConfigurationById(configuration.Id).Should().BeSameAs(configuration);
-        sut.GetConfigurationByToolId("web").Should().BeSameAs(configuration);
+        sut.GetConfigurationById(configuration.Id).Should().BeSameAs(updated);
+        sut.GetConfigurationByToolId("web").Should().BeSameAs(updated);
         changes.Select(change => change.ChangeType).Should().Equal("added", "updated");
         sut.LastUpdated.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(2));
     }
@@ -88,10 +90,13 @@ public sealed class McpConfigurationStoreTests
         string toolType,
         int priority,
         bool enabled = true,
-        DateTime? createdAt = null) => new()
+        DateTime? createdAt = null,
+        Guid? id = null,
+        string? name = null) => new()
     {
+        Id = id ?? Guid.NewGuid(),
         ToolId = toolId,
-        Name = toolId,
+        Name = name ?? toolId,
         ToolType = toolType,
         IsEnabled = enabled,
         Priority = priority,

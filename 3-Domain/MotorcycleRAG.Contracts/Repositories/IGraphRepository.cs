@@ -1,5 +1,5 @@
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 
 namespace MotorcycleRAG.Contracts.Repositories;
 
@@ -11,19 +11,19 @@ namespace MotorcycleRAG.Contracts.Repositories;
 public interface IGraphRepository
 {
     /// <summary>Upserts a graph node (insert or update by Id).</summary>
-    Task UpsertNodeAsync(GraphNode node, CancellationToken cancellationToken = default);
+    Task UpsertNodeAsync(GraphNodeDto node, CancellationToken cancellationToken = default);
 
     /// <summary>Upserts a batch of graph nodes in a single transaction.</summary>
-    Task UpsertNodesAsync(IReadOnlyList<GraphNode> nodes, CancellationToken cancellationToken = default);
+    Task UpsertNodesAsync(IReadOnlyList<GraphNodeDto> nodes, CancellationToken cancellationToken = default);
 
     /// <summary>Upserts a graph edge between two existing nodes.</summary>
-    Task UpsertEdgeAsync(GraphEdge edge, CancellationToken cancellationToken = default);
+    Task UpsertEdgeAsync(GraphEdgeDto edge, CancellationToken cancellationToken = default);
 
     /// <summary>Upserts a batch of graph edges in a single transaction.</summary>
-    Task UpsertEdgesAsync(IReadOnlyList<GraphEdge> edges, CancellationToken cancellationToken = default);
+    Task UpsertEdgesAsync(IReadOnlyList<GraphEdgeDto> edges, CancellationToken cancellationToken = default);
 
     /// <summary>Returns all nodes for a given source document.</summary>
-    Task<IReadOnlyList<GraphNode>> GetNodesByDocumentAsync(
+    Task<IReadOnlyList<GraphNodeDto>> GetNodesByDocumentAsync(
         Guid sourceDocumentId,
         CancellationToken cancellationToken = default);
 
@@ -37,7 +37,7 @@ public interface IGraphRepository
     /// <summary>
     /// Searches graph nodes by name (fuzzy LIKE) with optional type filtering.
     /// </summary>
-    Task<IReadOnlyList<GraphNode>> SearchNodesAsync(
+    Task<IReadOnlyList<GraphNodeDto>> SearchNodesAsync(
         string searchTerm,
         string? typeFilter,
         int maxResults,
@@ -47,7 +47,7 @@ public interface IGraphRepository
     /// Returns all direct neighbours (1-hop) of a node via T-SQL MATCH.
     /// Optionally filters by relationship type.
     /// </summary>
-    Task<IReadOnlyList<GraphTraversalResult>> GetNeighboursAsync(
+    Task<IReadOnlyList<GraphTraversalResultDto>> GetNeighboursAsync(
         Guid nodeId,
         string? relationshipTypeFilter,
         CancellationToken cancellationToken = default);
@@ -56,7 +56,7 @@ public interface IGraphRepository
     /// Discovers multi-hop paths from a source node using a recursive CTE.
     /// The agent controls <paramref name="maxDepth"/> per-call — no fixed cap.
     /// </summary>
-    Task<IReadOnlyList<GraphPathResult>> FindPathsAsync(
+    Task<IReadOnlyList<GraphPathResultDto>> FindPathsAsync(
         Guid sourceNodeId,
         int maxDepth,
         int maxResults,
@@ -65,7 +65,7 @@ public interface IGraphRepository
     /// <summary>
     /// Returns all relationships of a specific type across the entire graph via T-SQL MATCH.
     /// </summary>
-    Task<IReadOnlyList<GraphTraversalResult>> GetEdgesByTypeAsync(
+    Task<IReadOnlyList<GraphTraversalResultDto>> GetEdgesByTypeAsync(
         string relationshipType,
         int maxResults,
         CancellationToken cancellationToken = default);

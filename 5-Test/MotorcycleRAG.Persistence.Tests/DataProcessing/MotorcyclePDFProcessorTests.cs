@@ -12,6 +12,7 @@ using MotorcycleRAG.Persistence.DataProcessing;
 using System.Text;
 using System.Reflection;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.UnitTests.DataProcessing;
 
 /// <summary>
@@ -87,7 +88,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -149,7 +150,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -209,7 +210,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -268,7 +269,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -351,7 +352,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536], new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -438,7 +439,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536], new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -502,7 +503,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -566,7 +567,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -605,7 +606,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -683,7 +684,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536], new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -760,7 +761,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536], new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -807,7 +808,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -884,11 +885,11 @@ public class MotorcyclePDFProcessorTests {
     public async Task IndexAsync_ShouldReturnSuccessfulResult_WithValidDocuments()
     {
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         var data = new ProcessedData { Id = "test-id" };
-        data.Documents.Add(new MotorcycleDocument
+        data.Documents.Add(new MotorcycleDocumentDto
         {
             Id = "doc-1",
             Title = "Test",
@@ -907,11 +908,11 @@ public class MotorcyclePDFProcessorTests {
     public async Task IndexAsync_ShouldReturnFailure_WhenSearchClientThrows()
     {
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .ThrowsAsync(new InvalidOperationException("Search indexing failure"));
 
         var data = new ProcessedData { Id = "test-id" };
-        data.Documents.Add(new MotorcycleDocument
+        data.Documents.Add(new MotorcycleDocumentDto
         {
             Id = "doc-1",
             Title = "Test",
@@ -930,11 +931,11 @@ public class MotorcyclePDFProcessorTests {
     public async Task IndexAsync_ShouldSetIndexingTime_OnSuccess()
     {
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         var data = new ProcessedData { Id = "test-id" };
-        data.Documents.Add(new MotorcycleDocument
+        data.Documents.Add(new MotorcycleDocumentDto
         {
             Id = "doc-1",
             Title = "Test",
@@ -1058,7 +1059,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536], new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1107,7 +1108,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536], new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1143,7 +1144,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1204,7 +1205,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536], new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1273,7 +1274,7 @@ public class MotorcyclePDFProcessorTests {
             });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1345,7 +1346,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536], new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1478,7 +1479,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1525,7 +1526,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1591,7 +1592,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536], new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1635,7 +1636,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1670,7 +1671,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1705,7 +1706,7 @@ public class MotorcyclePDFProcessorTests {
             .ReturnsAsync(new[] { new float[1536] });
 
         _mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -1762,4 +1763,3 @@ public class MotorcyclePDFProcessorTests {
 
     #endregion
 }
-

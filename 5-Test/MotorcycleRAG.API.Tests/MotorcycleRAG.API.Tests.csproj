@@ -7,15 +7,11 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <!--
-      CA2000 is suppressed project-wide: every Sql/Repositories test enqueues an
-      in-memory DbDataReader (TestHelpers.CreateReader/CreateMultiResultReader) directly
-      into FakeDbConnection.EnqueueReader(...). Ownership of the reader transfers to the
-      fake connection/Dapper's own disposal of the reader it obtains from ExecuteReader;
-      there is no real unmanaged resource or leak risk (the reader is backed by an
-      in-memory DataTable). The analyzer cannot see that transfer of ownership, producing
-      a false positive on this idiom across every repository test file in this project.
+      CA2000 is suppressed for all test projects in 5-Test/Directory.Build.props.
+      OPENAI001 is suppressed here: tests intentionally exercise the experimental
+      OpenAI SDK surface (agent/preview APIs).
     -->
-    <NoWarn>$(NoWarn);OPENAI001;CA2000</NoWarn>
+    <NoWarn>$(NoWarn);OPENAI001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -40,6 +36,7 @@
     <PackageReference Include="Microsoft.Identity.Web" Version="4.9.0" />
     <PackageReference Include="Microsoft.Identity.Web.MicrosoftGraph" Version="4.9.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.9.0" />
   </ItemGroup>
 
   <ItemGroup>

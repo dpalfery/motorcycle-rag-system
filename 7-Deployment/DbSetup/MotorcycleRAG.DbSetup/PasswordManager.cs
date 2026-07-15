@@ -24,7 +24,7 @@ public class PasswordManager
         }
 
         var password = new StringBuilder(length);
-        var random = RandomNumberGenerator.Create();
+        using var random = RandomNumberGenerator.Create();
 
         // Define character sets for each class
         const string uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -100,10 +100,7 @@ public class PasswordManager
         return true;
     }
 
-    public string GetPasswordPolicyDescription()
-    {
-        return $"Password must be at least {MinimumLength} characters long and contain at least one uppercase letter, one lowercase letter, one digit, and one symbol.";
-    }
+    public string PasswordPolicyDescription => $"Password must be at least {MinimumLength} characters long and contain at least one uppercase letter, one lowercase letter, one digit, and one symbol.";
 
     private static int RandomInt(RandomNumberGenerator random, int maxValue)
     {

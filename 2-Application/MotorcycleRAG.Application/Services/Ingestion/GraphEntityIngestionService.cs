@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Utilities;
-using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.Application.Services.Ingestion;
 
@@ -109,12 +109,12 @@ public sealed class GraphEntityIngestionService : IGraphEntityIngestionService {
             LogSanitizer.Sanitize(uploadId));
     }
 
-    private static List<GraphNode> MapNodes(List<GraphNodeJson>? nodeJsons) {
+    private static List<GraphNodeDto> MapNodes(List<GraphNodeJson>? nodeJsons) {
         if (nodeJsons is null || nodeJsons.Count == 0) {
             return [];
         }
 
-        var nodes = new List<GraphNode>(nodeJsons.Count);
+        var nodes = new List<GraphNodeDto>(nodeJsons.Count);
         foreach (var nj in nodeJsons) {
             var id = Guid.TryParse(nj.Id, out var parsedId) ? parsedId : Guid.NewGuid();
 
@@ -123,7 +123,7 @@ public sealed class GraphEntityIngestionService : IGraphEntityIngestionService {
                 sourceDocId = Guid.TryParse(nj.SourceDocumentId, out var parsed) ? parsed : null;
             }
 
-            nodes.Add(new GraphNode {
+            nodes.Add(new GraphNodeDto {
                 Id = id,
                 Name = nj.Name,
                 Type = nj.Type,
@@ -136,12 +136,12 @@ public sealed class GraphEntityIngestionService : IGraphEntityIngestionService {
         return nodes;
     }
 
-    private List<GraphEdge> MapEdges(List<GraphEdgeJson>? edgeJsons, string uploadId) {
+    private List<GraphEdgeDto> MapEdges(List<GraphEdgeJson>? edgeJsons, string uploadId) {
         if (edgeJsons is null || edgeJsons.Count == 0) {
             return [];
         }
 
-        var edges = new List<GraphEdge>(edgeJsons.Count);
+        var edges = new List<GraphEdgeDto>(edgeJsons.Count);
         foreach (var ej in edgeJsons) {
             if (!Guid.TryParse(ej.FromNodeId, out var fromId)) {
                 _logger.LogWarning(
@@ -159,7 +159,7 @@ public sealed class GraphEntityIngestionService : IGraphEntityIngestionService {
                 continue;
             }
 
-            edges.Add(new GraphEdge {
+            edges.Add(new GraphEdgeDto {
                 FromNodeId = fromId,
                 ToNodeId = toId,
                 RelationshipType = ej.RelationshipType,

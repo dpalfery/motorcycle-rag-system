@@ -7,35 +7,67 @@ namespace MotorcycleRAG.Domain.Entities;
 /// </summary>
 public class BikeModel
 {
+    /// <summary>
+    /// Creates a canonical bike model after validating the identity fields used by
+    /// matching and persistence.
+    /// </summary>
+    public static BikeModel Create(
+        string make,
+        string model,
+        int year,
+        string? aliases = null,
+        string? createdByUserId = null,
+        string? uploadRef = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(make);
+        ArgumentException.ThrowIfNullOrWhiteSpace(model);
+        if (year <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(year), year, "Year must be positive.");
+        }
+
+        return new BikeModel
+        {
+            Make = make.Trim(),
+            Model = model.Trim(),
+            Year = year,
+            Aliases = aliases,
+            CreatedByUserId = createdByUserId,
+            UploadRef = uploadRef
+        };
+    }
+
     /// <summary>Primary key — GUID assigned at creation time.</summary>
     public Guid Id { get; init; } = Guid.NewGuid();
 
     /// <summary>Manufacturer name, e.g. "Honda".</summary>
-    public string Make { get; set; } = string.Empty;
+    public string Make { get; init; } = string.Empty;
 
     /// <summary>Model designation, e.g. "CBR 1000RR".</summary>
-    public string Model { get; set; } = string.Empty;
+    public string Model { get; init; } = string.Empty;
 
     /// <summary>Production year.</summary>
-    public int Year { get; set; }
+    public int Year { get; init; }
 
     /// <summary>Comma-separated alias variants, nullable. E.g. "CBR1000RR,Fireblade".</summary>
-    public string? Aliases { get; set; }
+    public string? Aliases { get; init; }
 
     /// <summary>UTC timestamp when the record was created.</summary>
-    public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset CreatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>UTC timestamp when the record was last updated.</summary>
-    public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 
     /// <summary>Normalized "Make Model" name, e.g. "Honda CBR 1000RR". Computed via <see cref="NormalizeName"/>.</summary>
-    public string NormalizedName { get; set; } = string.Empty;
+    public string NormalizedName => string.IsNullOrWhiteSpace(Make) && string.IsNullOrWhiteSpace(Model)
+        ? string.Empty
+        : NormalizeName($"{Make} {Model}");
 
     /// <summary>Subject/user ID of the user who created or last uploaded this record.</summary>
-    public string? CreatedByUserId { get; set; }
+    public string? CreatedByUserId { get; init; }
 
     /// <summary>Upload reference (e.g. upload batch ID) that produced this record.</summary>
-    public string? UploadRef { get; set; }
+    public string? UploadRef { get; init; }
 
     /// <summary>
     /// Normalizes a raw bike name string.

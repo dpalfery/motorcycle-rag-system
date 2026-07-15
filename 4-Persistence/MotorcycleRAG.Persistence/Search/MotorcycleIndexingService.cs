@@ -6,9 +6,9 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Domain.Entities;
 using System.Diagnostics;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Persistence.Search;
 
 /// <summary>
@@ -32,7 +32,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
     }
 
     /// <inheritdoc />
-    public async Task<BatchIndexingResult> IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents) {
+    public async Task<BatchIndexingResult> IndexDocumentsAsync(IEnumerable<MotorcycleDocumentDto> documents) {
         var stopwatch = Stopwatch.StartNew();
         var result = new BatchIndexingResult {
             IndexName = _searchOptions.IndexName
@@ -45,7 +45,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
             _logger.LogInformation("Starting batch indexing of {DocumentCount} documents to index {IndexName}",
                 documentList.Count, _searchOptions.IndexName);
 
-            // T055: Locator metadata is now populated on MotorcycleDocument directly by PDF processor
+            // T055: Locator metadata is now populated on MotorcycleDocumentDto directly by PDF processor
             // Process in batches based on configured batch size
             var batches = documentList
                 .Select((doc, index) => new { doc, index })
@@ -171,7 +171,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
     }
 
     /// <summary>
-    /// Creates the Azure AI Search index schema for MotorcycleDocument including locator fields.
+    /// Creates the Azure AI Search index schema for MotorcycleDocumentDto including locator fields.
     /// </summary>
     /// <remarks>
     /// Marked <c>internal</c> so unit tests (via <c>InternalsVisibleTo</c>) can assert the
@@ -199,13 +199,13 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
                 new SearchField("model", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true, IsFacetable = true },
                 new SimpleField("year", SearchFieldDataType.Int32) { IsFilterable = true, IsSortable = true, IsFacetable = true },
                 
-                // Source metadata fields (from DocumentMetadata)
+                // Source metadata fields (from DocumentMetadataDto)
                 new SearchField("sourceFile", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
                 new SearchField("sourceUrl", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
                 new SearchField("author", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
                 new SimpleField("publishedDate", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
                 
-                // Section field (from DocumentMetadata - kept for backward compatibility)
+                // Section field (from DocumentMetadataDto - kept for backward compatibility)
                 new SearchField("section", SearchFieldDataType.String) { IsSearchable = true, IsFilterable = true },
                 
                 // T055: Locator metadata fields for citation support
@@ -221,7 +221,7 @@ public class MotorcycleIndexingService : IMotorcycleIndexingService {
                 new SimpleField("createdAt", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
                 new SimpleField("updatedAt", SearchFieldDataType.DateTimeOffset) { IsFilterable = true, IsSortable = true },
                 
-                // Tags field (from DocumentMetadata)
+                // Tags field (from DocumentMetadataDto)
                 new SearchField("tags", SearchFieldDataType.Collection(SearchFieldDataType.String)) { IsSearchable = true, IsFilterable = true, IsFacetable = true },
                 
                 // Vector field for semantic search

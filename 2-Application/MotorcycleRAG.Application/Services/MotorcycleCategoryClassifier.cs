@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
@@ -223,7 +224,7 @@ public class MotorcycleCategoryClassifier : IMotorcycleCategoryClassifier
 
             var now = DateTimeOffset.UtcNow;
 
-            var bikeNode = new GraphNode
+            var bikeNode = new GraphNodeDto
             {
                 Id = bikeNodeId,
                 Name = $"{normalizedMake} {normalizedModel}",
@@ -233,7 +234,7 @@ public class MotorcycleCategoryClassifier : IMotorcycleCategoryClassifier
                 UpdatedAtUtc = now
             };
 
-            var categoryNode = new GraphNode
+            var categoryNode = new GraphNodeDto
             {
                 Id = categoryNodeId,
                 Name = category.Value,
@@ -243,7 +244,7 @@ public class MotorcycleCategoryClassifier : IMotorcycleCategoryClassifier
                 UpdatedAtUtc = now
             };
 
-            var edge = new GraphEdge
+            var edge = new GraphEdgeDto
             {
                 FromNodeId = bikeNodeId,
                 ToNodeId = categoryNodeId,

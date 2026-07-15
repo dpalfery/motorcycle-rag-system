@@ -114,6 +114,31 @@ public sealed class WebScrapeRunRepositoryTests
     }
 
     [Fact]
+    public async Task UpdateWebScrapeRunAsync_WhenRunIsActive_ClearsTheTerminalTimestamp()
+    {
+        var connection = new FakeDbConnection();
+        connection.EnqueueNonQuery(
+            1,
+            command => command.Parameters["CrawlEndTime"].Should().Be(DBNull.Value));
+        var sut = CreateSut(connection);
+
+        var result = await sut.UpdateWebScrapeRunAsync(42, ScrapeRunStatus.Running, 0, 0, 0);
+
+        result.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateWebScrapeRunAsync_WhenFailedDiagnosticIsMissing_RejectsInvalidPersistenceState()
+    {
+        var sut = CreateSut();
+
+        var act = async () => await sut.UpdateWebScrapeRunAsync(42, ScrapeRunStatus.Failed, 0, 0, 1);
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithParameterName("errorMessage");
+    }
+
+    [Fact]
     public async Task UpdateWebScrapeRunAsync_ShouldWrapConnectionFailures()
     {
         var expected = new InvalidOperationException("boom");
@@ -131,7 +156,7 @@ public sealed class WebScrapeRunRepositoryTests
     {
         var connection = new FakeDbConnection();
         connection.EnqueueReader(
-            CreateReader(CreateRunRow(42, 5, "Completed")),
+            CreateReader(CreateRunRow(42, 5, ScrapeRunStatus.Completed)),
             command =>
             {
                 command.Parameters["RunId"].Should().Be(42L);
@@ -143,7 +168,7 @@ public sealed class WebScrapeRunRepositoryTests
         result.Should().NotBeNull();
         result!.Id.Should().Be(42);
         result.WebSourceId.Should().Be(5);
-        result.Status.Should().Be("Completed");
+        result.Status.Should().Be(ScrapeRunStatus.Completed);
         result.PagesCrawled.Should().Be(10);
         result.PagesIndexed.Should().Be(8);
     }
@@ -179,9 +204,9 @@ public sealed class WebScrapeRunRepositoryTests
         var connection = new FakeDbConnection();
         connection.EnqueueReader(
             CreateReader(
-                CreateRunRow(3, 5, "Completed"),
-                CreateRunRow(2, 5, "Failed"),
-                CreateRunRow(1, 5, "Completed")),
+                CreateRunRow(3, 5, ScrapeRunStatus.Completed),
+                CreateRunRow(2, 5, ScrapeRunStatus.Failed),
+                CreateRunRow(1, 5, ScrapeRunStatus.Completed)),
             command =>
             {
                 command.CommandText.Should().Contain("TOP (@Limit)");
@@ -227,8 +252,8 @@ public sealed class WebScrapeRunRepositoryTests
         var connection = new FakeDbConnection();
         connection.EnqueueReader(
             CreateReader(
-                CreateRunRow(1, 5, "Pending"),
-                CreateRunRow(2, 10, "Running")),
+                CreateRunRow(1, 5, ScrapeRunStatus.Pending),
+                CreateRunRow(2, 10, ScrapeRunStatus.Running)),
             command =>
             {
                 command.Parameters["PendingStatus"].Should().Be((int)ScrapeRunStatus.Pending);
@@ -282,19 +307,20 @@ public sealed class WebScrapeRunRepositoryTests
         return new WebScrapeRunRepository(factory.Object, NullLogger<WebScrapeRunRepository>.Instance);
     }
 
-    private static Dictionary<string, object?> CreateRunRow(long id, int webSourceId, string status) => new()
+    private static Dictionary<string, object?> CreateRunRow(long id, int webSourceId, ScrapeRunStatus status) => new()
     {
         ["Id"] = id,
         ["WebSourceId"] = webSourceId,
         ["CrawlStartTime"] = new DateTime(2026, 7, 10, 12, 0, 0, DateTimeKind.Utc),
-        ["CrawlEndTime"] = status == "Completed"
+        ["CrawlEndTime"] = status is ScrapeRunStatus.Completed or ScrapeRunStatus.Failed or ScrapeRunStatus.Cancelled
             ? new DateTime(2026, 7, 10, 13, 0, 0, DateTimeKind.Utc)
             : DBNull.Value,
-        ["Status"] = status,
+        // Repository persists Status as int; Dapper maps the int column onto ScrapeRunStatus.
+        ["Status"] = (int)status,
         ["PagesCrawled"] = 10,
         ["PagesIndexed"] = 8,
         ["Errors"] = 0,
-        ["ErrorMessage"] = DBNull.Value
+        ["ErrorMessage"] = status == ScrapeRunStatus.Failed ? "Crawl failed" : DBNull.Value
     };
 
     private static DbDataReader CreateReader(params IReadOnlyDictionary<string, object?>[] rows)

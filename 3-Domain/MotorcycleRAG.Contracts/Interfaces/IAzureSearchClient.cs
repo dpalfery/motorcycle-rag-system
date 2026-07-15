@@ -1,7 +1,7 @@
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Core.Options;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
@@ -26,7 +26,7 @@ public interface IAzureSearchClient {
     /// <summary>
     /// Indexes documents
     /// </summary>
-    Task IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents);
+    Task IndexDocumentsAsync(IEnumerable<MotorcycleDocumentDto> documents);
 
     /// <summary>
     /// Deletes documents from index

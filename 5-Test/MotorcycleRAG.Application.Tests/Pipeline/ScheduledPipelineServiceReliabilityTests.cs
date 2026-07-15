@@ -448,4 +448,106 @@ public class ScheduledPipelineServiceReliabilityTests : IDisposable {
             .Setup(x => x.GetTopLevelFilePathsAsync(ScheduledDirectory, It.IsAny<CancellationToken>()))
             .ReturnsAsync(filePaths);
     }
+
+    /// <summary>Exposes the protected BackgroundService.ExecuteAsync for direct invocation in tests.</summary>
+    private sealed class TestableScheduledPipelineService : ScheduledPipelineService {
+        public TestableScheduledPipelineService(
+            IServiceScopeFactory serviceScopeFactory,
+            IOptions<ScheduledProcessingConfiguration> config,
+            IOptions<AzureFoundryOptions> azureFoundryOptions,
+            ILocalFileStore localFileStore,
+            ILocalFileDiscovery localFileDiscovery,
+            ILogger<ScheduledPipelineService> logger)
+            : base(serviceScopeFactory, config, azureFoundryOptions, localFileStore, localFileDiscovery, logger) {
+        }
+
+        public Task InvokeExecuteAsync(CancellationToken stoppingToken) => ExecuteAsync(stoppingToken);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenScheduleDisabled_ReturnsImmediatelyWithoutProcessing() {
+        // Arrange
+        var configMock = new Mock<IOptions<ScheduledProcessingConfiguration>>();
+        configMock.Setup(x => x.Value).Returns(new ScheduledProcessingConfiguration {
+            DefaultCronExpression = "0 2 * * *",
+            IsEnabledByDefault = false,
+            BaseDirectory = "/scheduled-root"
+        });
+
+        using var service = new TestableScheduledPipelineService(
+            _serviceScopeFactoryMock.Object,
+            configMock.Object,
+            _azureFoundryOptionsMock.Object,
+            _localFileStoreMock.Object,
+            _localFileDiscoveryMock.Object,
+            _loggerMock.Object);
+
+        // Act
+        await service.InvokeExecuteAsync(CancellationToken.None);
+
+        // Assert
+        _orchestratorMock.Verify(x => x.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenCronCannotBeParsed_WaitsThenExitsGracefullyOnCancellation() {
+        // Arrange: an invalid cron expression leaves _schedule null, so ExecuteAsync's
+        // "no next scheduled time" branch is exercised (falls back to a 1-minute wait,
+        // which we cut short via cancellation instead of actually waiting a minute).
+        var configMock = new Mock<IOptions<ScheduledProcessingConfiguration>>();
+        configMock.Setup(x => x.Value).Returns(new ScheduledProcessingConfiguration {
+            DefaultCronExpression = "not a valid cron",
+            IsEnabledByDefault = true,
+            BaseDirectory = "/scheduled-root"
+        });
+
+        using var service = new TestableScheduledPipelineService(
+            _serviceScopeFactoryMock.Object,
+            configMock.Object,
+            _azureFoundryOptionsMock.Object,
+            _localFileStoreMock.Object,
+            _localFileDiscoveryMock.Object,
+            _loggerMock.Object);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        // Act: should return (via the internal OperationCanceledException handler) rather than throw.
+        await service.InvokeExecuteAsync(cts.Token);
+
+        // Assert
+        _orchestratorMock.Verify(x => x.ProcessBatchAsync(It.IsAny<IEnumerable<DataPipelineRequest>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenScheduleEnabled_ExecutesScheduledProcessingAndStopsOnCancellation() {
+        // Arrange: a per-second cron so the loop's scheduled-processing branch runs at least
+        // once within the cancellation window, then the loop exits cleanly on cancellation.
+        var configMock = new Mock<IOptions<ScheduledProcessingConfiguration>>();
+        configMock.Setup(x => x.Value).Returns(new ScheduledProcessingConfiguration {
+            DefaultCronExpression = "* * * * * *",
+            IsEnabledByDefault = true,
+            BaseDirectory = "/scheduled-root"
+        });
+
+        _localFileDiscoveryMock
+            .Setup(x => x.GetTopLevelFilePathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<string>());
+
+        using var service = new TestableScheduledPipelineService(
+            _serviceScopeFactoryMock.Object,
+            configMock.Object,
+            _azureFoundryOptionsMock.Object,
+            _localFileStoreMock.Object,
+            _localFileDiscoveryMock.Object,
+            _loggerMock.Object);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(1800));
+
+        // Act
+        await service.InvokeExecuteAsync(cts.Token);
+
+        // Assert
+        var stats = await service.GetProcessingStatsAsync();
+        Assert.True(stats.TotalScheduledRuns > 0);
+    }
 }

@@ -92,7 +92,12 @@
       "Bash(rmdir :*)",
       "Bash(Remove-Item *)",
       "Skill(github-cli)",
-      "Bash(gh)"
+      "Bash(gh)",
+      "mcp__computer-use",
+      "mcp__claude-in-chrome",
+      "mcp__ec1e594f-875a-45ae-9d46-414452f06bcd",
+      "mcp__35ca26a2-7627-4ece-95fb-7bb7cd9cbc9e",
+      "mcp__a7d3b409-8695-415c-8e31-a1f8c1d4c132"
     ]
   },
   "enableAllProjectMcpServers": true,

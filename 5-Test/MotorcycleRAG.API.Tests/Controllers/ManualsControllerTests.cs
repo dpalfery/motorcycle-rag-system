@@ -34,6 +34,16 @@ public class ManualsControllerTests
     }
 
     [Fact]
+    public void Constructor_WhenDependencyIsNull_ThrowsArgumentNullException()
+    {
+        var nullQueryService = () => new ManualsController(null!, _mockLogger.Object);
+        var nullLogger = () => new ManualsController(_mockService.Object, null!);
+
+        nullQueryService.Should().Throw<ArgumentNullException>().WithParameterName("queryService");
+        nullLogger.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+    }
+
+    [Fact]
     public async Task GetPage_ValidRequest_ReturnsFile()
     {
         // Arrange

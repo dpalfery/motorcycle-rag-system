@@ -142,9 +142,7 @@ public class PreflightChecker
         }
     }
 
-    public string GetRemediationInstructions()
-    {
-        return @"
+    public string RemediationInstructions => @"
 To resolve privilege issues:
 
 1. Ensure you're using SQL Server authentication with sufficient privileges
@@ -160,5 +158,4 @@ To resolve privilege issues:
 Example connection strings:
 - SQL Server: Server=localhost;Database=master;User Id=sa;Password=mypassword;TrustServerCertificate=true;
 ";
-    }
 }

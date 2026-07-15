@@ -6,6 +6,7 @@ using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.UnitTests.Services;
 
 public sealed class WebScrapeOrchestratorTests
@@ -126,7 +127,7 @@ public sealed class WebScrapeOrchestratorTests
             .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>()))
             .ReturnsAsync([CreateMatchingSearchResult(webSource.Url)]);
         _indexingService
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .ReturnsAsync(new BatchIndexingResult
             {
                 Success = true,
@@ -141,7 +142,7 @@ public sealed class WebScrapeOrchestratorTests
         runId.Should().Be(101L);
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
         _indexingService.Verify(
-            x => x.IndexDocumentsAsync(It.Is<IEnumerable<MotorcycleDocument>>(docs => docs.Any())),
+            x => x.IndexDocumentsAsync(It.Is<IEnumerable<MotorcycleDocumentDto>>(docs => docs.Any())),
             Times.Once);
         _webSourceRepository.Verify(
             x => x.UpdateWebSourceAsync(It.Is<WebSource>(source => source.Id == 11 && source.LastCrawledDate.HasValue)),
@@ -193,7 +194,7 @@ public sealed class WebScrapeOrchestratorTests
                 It.Is<string?>(message => message != null && message.Contains("No pages were successfully crawled"))),
             Times.Once);
         _indexingService.Verify(
-            x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+            x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
             Times.Never);
     }
 
@@ -241,7 +242,7 @@ public sealed class WebScrapeOrchestratorTests
         };
         indexResult.Errors.Add("partial index warning");
         _indexingService
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .ReturnsAsync(indexResult);
         _webSourceRepository.Setup(x => x.UpdateWebSourceAsync(It.IsAny<WebSource>())).ReturnsAsync(true);
         var sut = CreateSut();
@@ -290,7 +291,7 @@ public sealed class WebScrapeOrchestratorTests
     {
         _runRepository
             .Setup(x => x.GetWebScrapeRunAsync(8))
-            .ReturnsAsync(new WebScrapeRun { Id = 8, Status = "Completed" });
+            .ReturnsAsync(CreateRun(8, ScrapeRunStatus.Completed));
         var sut = CreateSut();
 
         var result = await sut.CancelScrapeRunAsync(8);
@@ -303,7 +304,7 @@ public sealed class WebScrapeOrchestratorTests
     {
         _runRepository
             .Setup(x => x.GetWebScrapeRunAsync(8))
-            .ReturnsAsync(new WebScrapeRun { Id = 8, Status = "Running" });
+            .ReturnsAsync(CreateRun(8, ScrapeRunStatus.Running));
         var sut = CreateSut();
 
         var result = await sut.CancelScrapeRunAsync(8);
@@ -322,7 +323,7 @@ public sealed class WebScrapeOrchestratorTests
         _runRepository.Setup(x => x.CreateWebScrapeRunAsync(15)).ReturnsAsync(505L);
         _runRepository
             .Setup(x => x.GetWebScrapeRunAsync(505L))
-            .ReturnsAsync(new WebScrapeRun { Id = 505L, Status = "Running" });
+            .ReturnsAsync(CreateRun(505L, ScrapeRunStatus.Running));
         _runRepository
             .Setup(x => x.UpdateWebScrapeRunAsync(
                 505L,
@@ -399,7 +400,7 @@ public sealed class WebScrapeOrchestratorTests
     [Fact]
     public async Task GetScrapeRunStatusAsync_ShouldReturnRun()
     {
-        var expected = new WebScrapeRun { Id = 3, Status = "Running" };
+        var expected = CreateRun(3, ScrapeRunStatus.Running);
         _runRepository.Setup(x => x.GetWebScrapeRunAsync(3)).ReturnsAsync(expected);
         var sut = CreateSut();
 
@@ -439,7 +440,7 @@ public sealed class WebScrapeOrchestratorTests
     {
         _runRepository
             .Setup(x => x.GetRecentScrapeRunsAsync(4, 10))
-            .ReturnsAsync([new WebScrapeRun { Id = 1 }]);
+            .ReturnsAsync([CreateRun(1, ScrapeRunStatus.Pending)]);
         var sut = CreateSut();
 
         var result = await sut.GetRecentScrapeRunsAsync(4, 0);
@@ -465,7 +466,7 @@ public sealed class WebScrapeOrchestratorTests
     [Fact]
     public async Task GetActiveScrapeRunsAsync_ShouldReturnActiveRuns()
     {
-        var expected = new[] { new WebScrapeRun { Id = 1, Status = "Running" } };
+        var expected = new[] { CreateRun(1, ScrapeRunStatus.Running) };
         _runRepository.Setup(x => x.GetActiveScrapeRunsAsync()).ReturnsAsync(expected);
         var sut = CreateSut();
 
@@ -515,7 +516,7 @@ public sealed class WebScrapeOrchestratorTests
             .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>()))
             .ReturnsAsync([CreateMatchingSearchResult(webSource.Url, metadata: new Dictionary<string, object> { ["k"] = "v" })]);
         _indexingService
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .ThrowsAsync(new InvalidOperationException("index down"));
         var sut = CreateSut();
 
@@ -560,7 +561,7 @@ public sealed class WebScrapeOrchestratorTests
             .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>()))
             .ReturnsAsync([CreateMatchingSearchResult(webSource.Url)]);
         _indexingService
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .ReturnsAsync(new BatchIndexingResult { Success = true, DocumentsIndexed = 1, DocumentsProcessed = 1 });
         _webSourceRepository
             .Setup(x => x.UpdateWebSourceAsync(It.IsAny<WebSource>()))
@@ -591,6 +592,23 @@ public sealed class WebScrapeOrchestratorTests
             Url = "https://docs.example.com/motorcycles",
             IsEnabled = isEnabled
         };
+
+    private static WebScrapeRun CreateRun(long id, ScrapeRunStatus status)
+    {
+        var startedAt = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        var terminal = status is ScrapeRunStatus.Completed or ScrapeRunStatus.Failed or ScrapeRunStatus.Cancelled;
+
+        return WebScrapeRun.Rehydrate(
+            id,
+            webSourceId: 1,
+            startedAt,
+            terminal ? startedAt.AddMinutes(1) : null,
+            status,
+            pagesCrawled: 0,
+            pagesIndexed: 0,
+            errors: 0,
+            errorMessage: status == ScrapeRunStatus.Failed ? "test failure" : null);
+    }
 
     private static SearchResult CreateMatchingSearchResult(
         string sourceUrl,

@@ -9,6 +9,14 @@ namespace MotorcycleRAG.API.Configuration;
 /// </summary>
 public static class AppConfigurationExtensions {
     internal const string AppConfigurationEnabledKey = "AppConfig:Enabled";
+    internal static Action<IConfigurationBuilder, string?, string?, TokenCredential, string> RegisterAzureAppConfiguration =
+        RegisterAzureAppConfigurationCore;
+    internal static Func<TokenCredential, Task> PreWarmManagedIdentityTokenAsyncForStartup =
+        PreWarmManagedIdentityTokenAsync;
+    internal static Func<string, Task> EnsureTcpConnectivityAsyncForStartup =
+        EnsureTcpConnectivityAsync;
+    internal static Func<string, int, Task> ConnectToAppConfigurationAsyncForStartup =
+        ConnectToAppConfigurationAsync;
 
     public static WebApplicationBuilder AddAzureAppConfigurationWithKeyVault(this WebApplicationBuilder builder) {
         var appConfigConnectionString = builder.Configuration["AppConfig:ConnectionString"];
@@ -26,79 +34,127 @@ public static class AppConfigurationExtensions {
 
             // Pre-warm the managed identity token before loading App Config in non-dev envs
             if (string.IsNullOrEmpty(appConfigConnectionString) && !string.IsNullOrEmpty(appConfigEndpoint)) {
-                PreWarmManagedIdentityTokenAsync(credential).GetAwaiter().GetResult();
-                EnsureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
+                PreWarmManagedIdentityTokenAsyncForStartup(credential).GetAwaiter().GetResult();
+                EnsureTcpConnectivityAsyncForStartup(appConfigEndpoint).GetAwaiter().GetResult();
             }
 
-            builder.Configuration.AddAzureAppConfiguration(options => {
-                if (!string.IsNullOrEmpty(appConfigConnectionString)) {
-                    options.Connect(appConfigConnectionString);
-                }
-                else {
-                    options.Connect(new Uri(appConfigEndpoint!), credential);
-                }
-
-                options.Select(KeyFilter.Any)
-                       .Select(KeyFilter.Any, "api")
-                       .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
-                       .ConfigureKeyVault(kv => kv.SetCredential(credential))
-                       .ConfigureRefresh(refreshOptions => {
-                           refreshOptions.Register("Settings:Sentinel", refreshAll: true)
-                                         .SetRefreshInterval(TimeSpan.FromSeconds(30));
-                       });
-            });
+            RegisterAzureAppConfiguration(
+                builder.Configuration,
+                appConfigConnectionString,
+                appConfigEndpoint,
+                credential,
+                builder.Environment.EnvironmentName);
 
             builder.Services.AddAzureAppConfiguration();
             builder.Configuration[AppConfigurationEnabledKey] = bool.TrueString;
         }
 
-        // Validate and derive configuration values (when config is built to IConfigurationRoot)
-        if (builder.Configuration is IConfigurationRoot configRoot) {
-            configRoot.WithDerivedAzureAdValues();
-            configRoot.WithValidatedAzureAIEndpoints();
-            configRoot.WithDerivedBlobStorageValues();
-        }
+        // WebApplicationBuilder.Configuration is always an IConfigurationRoot.
+        builder.Configuration.WithDerivedAzureAdValues();
+        builder.Configuration.WithValidatedAzureAIEndpoints();
+        builder.Configuration.WithDerivedBlobStorageValues();
 
         return builder;
     }
 
-    private static async Task PreWarmManagedIdentityTokenAsync(TokenCredential credential) {
+    private static Task PreWarmManagedIdentityTokenAsync(TokenCredential credential) =>
+        PreWarmManagedIdentityTokenAsync(credential, maxAttempts: 10, retryDelay: TimeSpan.FromSeconds(3));
+
+    internal static async Task PreWarmManagedIdentityTokenAsync(
+        TokenCredential credential,
+        int maxAttempts,
+        TimeSpan retryDelay) {
         var tokenCtx = new TokenRequestContext(["https://azconfig.io/.default"]);
-        for (var attempt = 1; attempt <= 10; attempt++) {
+        for (var attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 await credential.GetTokenAsync(tokenCtx, CancellationToken.None);
                 Console.WriteLine($"Managed identity token acquired on attempt {attempt}.");
                 break;
             }
-            catch (Exception ex) when (attempt < 10) {
-                Console.WriteLine($"IMDS not ready (attempt {attempt}/10): {ex.Message}. Retrying in 3s...");
-                await Task.Delay(TimeSpan.FromSeconds(3));
+            catch (Exception ex) when (attempt < maxAttempts) {
+                Console.WriteLine($"IMDS not ready (attempt {attempt}/{maxAttempts}): {ex.Message}. Retrying in {retryDelay.TotalSeconds}s...");
+                await Task.Delay(retryDelay);
             }
         }
     }
 
-    private static async Task EnsureTcpConnectivityAsync(string appConfigEndpoint) {
+    private static Task EnsureTcpConnectivityAsync(string appConfigEndpoint) =>
+        EnsureTcpConnectivityAsync(
+            appConfigEndpoint,
+            ConnectToAppConfigurationAsyncForStartup,
+            TimeProvider.System,
+            maxAttempts: 15,
+            connectTimeout: TimeSpan.FromSeconds(5),
+            retryDelay: TimeSpan.FromSeconds(2));
+
+    internal static async Task EnsureTcpConnectivityAsync(
+        string appConfigEndpoint,
+        Func<string, int, Task> connectAsync,
+        TimeProvider? timeProvider,
+        int maxAttempts,
+        TimeSpan? connectTimeout,
+        TimeSpan? retryDelay) {
+        var provider = timeProvider ?? TimeProvider.System;
         var appConfigUri = new Uri(appConfigEndpoint);
         var appConfigHost = appConfigUri.Host;
-        for (var attempt = 1; attempt <= 15; attempt++) {
+        var effectiveConnectTimeout = connectTimeout ?? TimeSpan.FromSeconds(5);
+        var effectiveRetryDelay = retryDelay ?? TimeSpan.FromSeconds(2);
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                using var tcp = new System.Net.Sockets.TcpClient();
-                var connectTask = tcp.ConnectAsync(appConfigHost, 443);
-                if (await Task.WhenAny(connectTask, Task.Delay(5000)) == connectTask) {
+                var connectTask = connectAsync(appConfigHost, 443);
+                if (await Task.WhenAny(connectTask, Task.Delay(effectiveConnectTimeout, provider)) == connectTask) {
                     await connectTask;
                     Console.WriteLine($"App Config TCP connectivity confirmed on attempt {attempt}.");
-                    break;
+                    return;
                 }
-                if (attempt < 15) {
-                    Console.WriteLine($"App Config TCP timed out (attempt {attempt}/15). Retrying in 2s...");
-                    await Task.Delay(TimeSpan.FromSeconds(2));
-                }
+
+                Console.WriteLine($"App Config TCP timed out (attempt {attempt}/{maxAttempts}).");
             }
-            catch (Exception ex) when (attempt < 15) {
-                Console.WriteLine($"App Config TCP failed (attempt {attempt}/15): {ex.Message}. Retrying in 2s...");
-                await Task.Delay(TimeSpan.FromSeconds(2));
+            catch (Exception ex) when (attempt < maxAttempts) {
+                Console.WriteLine($"App Config TCP failed (attempt {attempt}/{maxAttempts}): {ex.Message}.");
+                Console.WriteLine("Retrying in 2s...");
+                await Task.Delay(effectiveRetryDelay, provider);
             }
         }
+    }
+
+    private static async Task ConnectToAppConfigurationAsync(string host, int port) {
+        using var tcp = new System.Net.Sockets.TcpClient();
+        await tcp.ConnectAsync(host, port);
+    }
+
+    private static void RegisterAzureAppConfigurationCore(
+        IConfigurationBuilder configuration,
+        string? connectionString,
+        string? endpoint,
+        TokenCredential credential,
+        string environmentName) {
+        configuration.AddAzureAppConfiguration(options =>
+            ConfigureAzureAppConfigurationOptions(options, connectionString, endpoint, credential, environmentName));
+    }
+
+    internal static void ConfigureAzureAppConfigurationOptions(
+        AzureAppConfigurationOptions options,
+        string? connectionString,
+        string? endpoint,
+        TokenCredential credential,
+        string environmentName) {
+        if (!string.IsNullOrEmpty(connectionString)) {
+            options.Connect(connectionString);
+        }
+        else {
+            options.Connect(new Uri(endpoint!), credential);
+        }
+
+        options.Select(KeyFilter.Any)
+               .Select(KeyFilter.Any, "api")
+               .Select(KeyFilter.Any, environmentName)
+               .ConfigureKeyVault(kv => kv.SetCredential(credential))
+               .ConfigureRefresh(refreshOptions => {
+                   refreshOptions.Register("Settings:Sentinel", refreshAll: true)
+                                 .SetRefreshInterval(TimeSpan.FromSeconds(30));
+               });
     }
 
     /// <summary>
@@ -147,9 +203,9 @@ public static class AppConfigurationExtensions {
         var documentIntelligenceEndpoint = configuration["AzureAI:DocumentIntelligenceEndpoint"];
         var foundryEndpoint = configuration["AzureAI:FoundryEndpoint"];
 
-        ValidateEndpointIfProvided("Search", searchEndpoint, "AzureAI:SearchServiceEndpoint");
-        ValidateEndpointIfProvided("Document Intelligence", documentIntelligenceEndpoint, "AzureAI:DocumentIntelligenceEndpoint");
-        ValidateEndpointIfProvided("Foundry", foundryEndpoint, "AzureAI:FoundryEndpoint");
+        ValidateEndpointIfProvided("Search", searchEndpoint);
+        ValidateEndpointIfProvided("Document Intelligence", documentIntelligenceEndpoint);
+        ValidateEndpointIfProvided("Foundry", foundryEndpoint);
 
         return configuration;
     }
@@ -182,7 +238,7 @@ public static class AppConfigurationExtensions {
         return configuration;
     }
 
-    private static void ValidateEndpointIfProvided(string serviceName, string? endpoint, string configKey) {
+    private static void ValidateEndpointIfProvided(string serviceName, string? endpoint) {
         if (string.IsNullOrWhiteSpace(endpoint)) {
             return;
         }
@@ -191,7 +247,7 @@ public static class AppConfigurationExtensions {
             throw new InvalidOperationException($"Azure {serviceName} endpoint MUST use HTTPS protocol.");
         }
 
-        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || uri.Scheme != "https") {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out _)) {
             throw new InvalidOperationException($"Azure {serviceName} endpoint is not a valid HTTPS URL.");
         }
 

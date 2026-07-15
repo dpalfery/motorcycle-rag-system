@@ -33,9 +33,10 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         if (string.IsNullOrWhiteSpace(configuration.ToolId))
             throw new ArgumentException("Tool ID must not be empty", nameof(configuration));
 
-        // Ensure ID is set
+        // Callers assign a persistence identity before invoking this method
+        // (Id is init-only per the domain entity's invariant design).
         if (configuration.Id == Guid.Empty)
-            configuration.Id = Guid.NewGuid();
+            throw new ArgumentException("Configuration Id must be assigned before persistence.", nameof(configuration));
 
         const string sql = @"
             MERGE INTO [dbo].[ToolConfigurations] target

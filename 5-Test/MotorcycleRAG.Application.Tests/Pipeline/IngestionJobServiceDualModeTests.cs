@@ -9,6 +9,7 @@ using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 
 namespace MotorcycleRAG.UnitTests.Pipeline;
 
@@ -55,23 +56,23 @@ public sealed class IngestionJobServiceDualModeTests {
 
         _artifactRepository
             .Setup(r => r.GetByIngestionJobIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<IndexedArtifact>());
+            .ReturnsAsync(Array.Empty<IndexedArtifactDto>());
         _artifactRepository
             .Setup(r => r.GetByUploadIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<IndexedArtifact>());
+            .ReturnsAsync(Array.Empty<IndexedArtifactDto>());
         _artifactRepository
             .Setup(r => r.DeleteByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         _chunkRepository
             .Setup(r => r.GetByArtifactIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<IndexedChunk>());
+            .ReturnsAsync(Array.Empty<IndexedChunkDto>());
         _chunkRepository
             .Setup(r => r.GetByIngestionJobIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<IndexedChunk>());
+            .ReturnsAsync(Array.Empty<IndexedChunkDto>());
         _chunkRepository
             .Setup(r => r.GetByUploadIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<IndexedChunk>());
+            .ReturnsAsync(Array.Empty<IndexedChunkDto>());
         _chunkRepository
             .Setup(r => r.DeleteByArtifactIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -1127,16 +1128,7 @@ public sealed class IngestionJobServiceDualModeTests {
             .ReturnsAsync(job);
         _repository
             .Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask)
-            .Callback<IngestionJob, CancellationToken>((j, _) => {
-                // Reflect the mutation performed by the sut so the returned response
-                // carries the new status, mirroring the production EF/Dapper behavior.
-                job.Status = j.Status;
-                job.CurrentStage = j.CurrentStage;
-                job.StageSetAtUtc = j.StageSetAtUtc;
-                job.CompletedAtUtc = j.CompletedAtUtc;
-                job.FailureReason = j.FailureReason;
-            });
+            .Returns(Task.CompletedTask);
 
         var sut = CreateSut();
 
@@ -1178,15 +1170,7 @@ public sealed class IngestionJobServiceDualModeTests {
             .ReturnsAsync(job);
         _repository
             .Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask)
-            .Callback<IngestionJob, CancellationToken>((j, _) => {
-                job.Status = j.Status;
-                job.CurrentStage = j.CurrentStage;
-                job.StageSetAtUtc = j.StageSetAtUtc;
-                job.FailureReason = j.FailureReason;
-                job.ErrorsJson = j.ErrorsJson;
-                job.ErrorMessage = j.ErrorMessage;
-            });
+            .Returns(Task.CompletedTask);
 
         var sut = CreateSut();
 
@@ -1222,16 +1206,7 @@ public sealed class IngestionJobServiceDualModeTests {
             .ReturnsAsync(job);
         _repository
             .Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask)
-            .Callback<IngestionJob, CancellationToken>((j, _) => {
-                job.Status = j.Status;
-                job.CurrentStage = j.CurrentStage;
-                job.StageSetAtUtc = j.StageSetAtUtc;
-                job.CompletedAtUtc = j.CompletedAtUtc;
-                job.FailureReason = j.FailureReason;
-                job.ErrorsJson = j.ErrorsJson;
-                job.ErrorMessage = j.ErrorMessage;
-            });
+            .Returns(Task.CompletedTask);
 
         var sut = CreateSut();
 
@@ -1266,16 +1241,7 @@ public sealed class IngestionJobServiceDualModeTests {
             .ReturnsAsync(job);
         _repository
             .Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask)
-            .Callback<IngestionJob, CancellationToken>((j, _) => {
-                job.Status = j.Status;
-                job.CurrentStage = j.CurrentStage;
-                job.StageSetAtUtc = j.StageSetAtUtc;
-                job.CompletedAtUtc = j.CompletedAtUtc;
-                job.FailureReason = j.FailureReason;
-                job.ErrorsJson = j.ErrorsJson;
-                job.ErrorMessage = j.ErrorMessage;
-            });
+            .Returns(Task.CompletedTask);
 
         var sut = CreateSut();
 

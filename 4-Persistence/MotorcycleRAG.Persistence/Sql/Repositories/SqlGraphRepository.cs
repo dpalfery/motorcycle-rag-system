@@ -1,8 +1,8 @@
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
-using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories;
 
@@ -30,7 +30,7 @@ public class SqlGraphRepository : IGraphRepository
     }
 
     /// <inheritdoc/>
-    public async Task UpsertNodeAsync(GraphNode node, CancellationToken cancellationToken = default)
+    public async Task UpsertNodeAsync(GraphNodeDto node, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(node);
 
@@ -74,7 +74,7 @@ public class SqlGraphRepository : IGraphRepository
 
     /// <inheritdoc/>
     public async Task UpsertNodesAsync(
-        IReadOnlyList<GraphNode> nodes,
+        IReadOnlyList<GraphNodeDto> nodes,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(nodes);
@@ -136,7 +136,7 @@ public class SqlGraphRepository : IGraphRepository
     }
 
     /// <inheritdoc/>
-    public async Task UpsertEdgeAsync(GraphEdge edge, CancellationToken cancellationToken = default)
+    public async Task UpsertEdgeAsync(GraphEdgeDto edge, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(edge);
 
@@ -183,7 +183,7 @@ public class SqlGraphRepository : IGraphRepository
 
     /// <inheritdoc/>
     public async Task UpsertEdgesAsync(
-        IReadOnlyList<GraphEdge> edges,
+        IReadOnlyList<GraphEdgeDto> edges,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(edges);
@@ -242,7 +242,7 @@ public class SqlGraphRepository : IGraphRepository
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<GraphNode>> GetNodesByDocumentAsync(
+    public async Task<IReadOnlyList<GraphNodeDto>> GetNodesByDocumentAsync(
         Guid sourceDocumentId,
         CancellationToken cancellationToken = default)
     {
@@ -256,7 +256,7 @@ public class SqlGraphRepository : IGraphRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            var results = await connection.QueryAsync<GraphNode>(
+            var results = await connection.QueryAsync<GraphNodeDto>(
                 new CommandDefinition(sql, new { SourceDocumentId = sourceDocumentId },
                     cancellationToken: cancellationToken));
 
@@ -341,7 +341,7 @@ public class SqlGraphRepository : IGraphRepository
     // -------------------------------------------------------------------------
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<GraphNode>> SearchNodesAsync(
+    public async Task<IReadOnlyList<GraphNodeDto>> SearchNodesAsync(
         string searchTerm, string? typeFilter, int maxResults,
         CancellationToken cancellationToken = default)
     {
@@ -362,7 +362,7 @@ public class SqlGraphRepository : IGraphRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            var results = await connection.QueryAsync<GraphNode>(
+            var results = await connection.QueryAsync<GraphNodeDto>(
                 new CommandDefinition(sql, new
                 {
                     MaxResults = maxResults,
@@ -383,7 +383,7 @@ public class SqlGraphRepository : IGraphRepository
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<GraphTraversalResult>> GetNeighboursAsync(
+    public async Task<IReadOnlyList<GraphTraversalResultDto>> GetNeighboursAsync(
         Guid nodeId, string? relationshipTypeFilter,
         CancellationToken cancellationToken = default)
     {
@@ -425,7 +425,7 @@ public class SqlGraphRepository : IGraphRepository
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<GraphPathResult>> FindPathsAsync(
+    public async Task<IReadOnlyList<GraphPathResultDto>> FindPathsAsync(
         Guid sourceNodeId, int maxDepth, int maxResults,
         CancellationToken cancellationToken = default)
     {
@@ -477,12 +477,12 @@ public class SqlGraphRepository : IGraphRepository
                 new CommandDefinition(sql, new { SourceNodeId = sourceNodeId, MaxDepth = maxDepth, MaxResults = maxResults },
                     cancellationToken: cancellationToken));
 
-            var results = rows.Select(r => new GraphPathResult(
-                new GraphNode { Id = (Guid)r.SourceId, Name = (string)r.SourceName, Type = (string)r.SourceType, Description = (string?)r.SourceDescription },
+            var results = rows.Select(r => new GraphPathResultDto(
+                new GraphNodeDto { Id = (Guid)r.SourceId, Name = (string)r.SourceName, Type = (string)r.SourceType, Description = (string?)r.SourceDescription },
                 (string)r.FirstRelationship,
-                new GraphNode { Id = (Guid)r.IntermediateId, Name = (string)r.IntermediateName, Type = (string)r.IntermediateType, Description = (string?)r.IntermediateDescription },
+                new GraphNodeDto { Id = (Guid)r.IntermediateId, Name = (string)r.IntermediateName, Type = (string)r.IntermediateType, Description = (string?)r.IntermediateDescription },
                 (string)r.SecondRelationship,
-                new GraphNode { Id = (Guid)r.TargetId, Name = (string)r.TargetName, Type = (string)r.TargetType, Description = (string?)r.TargetDescription }
+                new GraphNodeDto { Id = (Guid)r.TargetId, Name = (string)r.TargetName, Type = (string)r.TargetType, Description = (string?)r.TargetDescription }
             )).ToList().AsReadOnly();
 
             _logger.LogInformation("FindPathsAsync: source={SourceNodeId} maxDepth={MaxDepth} found={Count}",
@@ -497,7 +497,7 @@ public class SqlGraphRepository : IGraphRepository
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<GraphTraversalResult>> GetEdgesByTypeAsync(
+    public async Task<IReadOnlyList<GraphTraversalResultDto>> GetEdgesByTypeAsync(
         string relationshipType, int maxResults,
         CancellationToken cancellationToken = default)
     {
@@ -536,8 +536,8 @@ public class SqlGraphRepository : IGraphRepository
     // Mapping helpers
     // -------------------------------------------------------------------------
 
-    private static GraphTraversalResult MapTraversalRow(dynamic r) => new(
-        new GraphNode
+    private static GraphTraversalResultDto MapTraversalRow(dynamic r) => new(
+        new GraphNodeDto
         {
             Id = (Guid)r.FromId,
             Name = (string)r.FromName,
@@ -550,7 +550,7 @@ public class SqlGraphRepository : IGraphRepository
         (string)r.RelationshipType,
         (double)r.Weight,
         (string?)r.Context,
-        new GraphNode
+        new GraphNodeDto
         {
             Id = (Guid)r.ToId,
             Name = (string)r.ToName,

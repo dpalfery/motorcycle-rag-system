@@ -8,6 +8,7 @@ using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.UnitTests.Pipeline;
 
 public sealed class DataPipelineOrchestratorTests
@@ -68,7 +69,7 @@ public sealed class DataPipelineOrchestratorTests
             .Callback<PDFDocument>(document => capturedDocument = document)
             .ReturnsAsync(CreateProcessedData(2));
         _searchServiceMock
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocumentDto[]>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         var sut = CreateSut();
@@ -121,7 +122,7 @@ public sealed class DataPipelineOrchestratorTests
         result.Message.Should().Be("Successfully processed 1 documents. Indexing skipped.");
         result.IndexingResult.Should().BeNull();
         _searchServiceMock.Verify(
-            x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()),
+            x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocumentDto[]>(), It.IsAny<CancellationToken>()),
             Times.Never);
         capturedFile.Should().NotBeNull();
         capturedFile!.Source.Should().Be("ingest://csv");
@@ -147,7 +148,7 @@ public sealed class DataPipelineOrchestratorTests
             .Setup(x => x.ProcessAsync(It.IsAny<PDFDocument>()))
             .ReturnsAsync(CreateProcessedData(2));
         _searchServiceMock
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocumentDto[]>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
         var sut = CreateSut();
@@ -270,7 +271,7 @@ public sealed class DataPipelineOrchestratorTests
         result.Status.Should().Be(PipelineStatus.Cancelled);
         result.Message.Should().Be("Pipeline execution was cancelled after processing.");
         _searchServiceMock.Verify(
-            x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()),
+            x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocumentDto[]>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -364,7 +365,7 @@ public sealed class DataPipelineOrchestratorTests
             .Setup(x => x.ProcessAsync(It.IsAny<PDFDocument>()))
             .ReturnsAsync(CreateProcessedData(2));
         _searchServiceMock
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocumentDto[]>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("search down"));
         var sut = CreateSut();
 
@@ -411,7 +412,7 @@ public sealed class DataPipelineOrchestratorTests
             .Setup(x => x.ProcessAsync(It.Is<PDFDocument>(doc => doc.FileName == "partial.pdf")))
             .ReturnsAsync(CreateProcessedData(2));
         _searchServiceMock
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocument[]>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<MotorcycleDocumentDto[]>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
         var sut = CreateSut(maxConcurrentProcessing: 2);
@@ -502,7 +503,7 @@ public sealed class DataPipelineOrchestratorTests
         var processedData = new ProcessedData();
         for (var i = 0; i < documentCount; i++)
         {
-            processedData.Documents.Add(new MotorcycleDocument
+            processedData.Documents.Add(new MotorcycleDocumentDto
             {
                 Id = $"doc-{i}",
                 Title = $"Document {i}",

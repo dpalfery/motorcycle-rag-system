@@ -8,6 +8,7 @@ using MotorcycleRAG.Persistence.Azure;
 using MotorcycleRAG.Persistence.Azure.Search;
 using MotorcycleRAG.Core.Options;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.UnitTests.Azure;
 
 public class AzureSearchClientWrapperTests : IDisposable {
@@ -236,12 +237,12 @@ public class AzureSearchClientWrapperTests : IDisposable {
             Times.Once);
     }
 
-    // ---- IndexDocumentsAsync (MotorcycleDocument enumerable) ----
+    // ---- IndexDocumentsAsync (MotorcycleDocumentDto enumerable) ----
 
     [Fact]
     public async Task IndexDocumentsAsync_MotorcycleDocument_ShouldDelegateToDocumentService() {
         using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockQueryService.Object, _mockDocumentService.Object, _mockHealthService.Object);
-        var documents = new List<MotorcycleDocument> { new() { Id = "doc1" } };
+        var documents = new List<MotorcycleDocumentDto> { new() { Id = "doc1" } };
 
         await client.IndexDocumentsAsync(documents);
 

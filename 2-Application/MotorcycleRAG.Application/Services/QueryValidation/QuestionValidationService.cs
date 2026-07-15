@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Domain.Entities;
 
@@ -277,7 +278,7 @@ public sealed class QuestionValidationService
         return terms.ToArray();
     }
 
-    private static double ScoreGraphCandidate(DetectedBikeTerms detected, GraphNode node)
+    private static double ScoreGraphCandidate(DetectedBikeTerms detected, GraphNodeDto node)
     {
         var score = 0.35 * Similarity(Compact(detected.ModelTerm), Compact(node.Name));
         if (detected.Year != null && node.Name.Contains(detected.Year.Value.ToString(), StringComparison.OrdinalIgnoreCase))
@@ -298,7 +299,7 @@ public sealed class QuestionValidationService
         return score;
     }
 
-    private static bool IsExactGraphMatch(DetectedBikeTerms detected, GraphNode node)
+    private static bool IsExactGraphMatch(DetectedBikeTerms detected, GraphNodeDto node)
     {
         var nodeCompact = Compact(node.Name);
         var queryCompact = Compact(detected.Query);

@@ -4,6 +4,7 @@
 
 ## Non-negotiable rules
 
+- **CodeGraph first:** Before using `grep`, `rg`, `find`, shell globbing, or direct file reads to locate or understand repository files or source code, use CodeGraph. Prefer the CodeGraph MCP tool; if it is unavailable, run `codegraph explore`. Use another discovery or read method only when CodeGraph fails to return a relevant, sufficiently complete source result, and state that failure before using the fallback.
 - Do not create infrastructure, deployment assets, dependencies, cross-cutting concerns, or documentation files without user approval. Ask before an architectural decision; present the trade-offs.
 - Do not commit, push, reset, restore, checkout, clean, or rebase without explicit user approval. Keep agent-generated notes under `6-Docs/agent-notes/`, never at repository root.
 - Do not introduce fallbacks, stubs, or workarounds without explicit approval. Fix the root cause.

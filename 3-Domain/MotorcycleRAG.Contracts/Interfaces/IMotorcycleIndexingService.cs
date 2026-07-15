@@ -1,7 +1,7 @@
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Domain.Entities;
 
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Contracts.Interfaces;
 
 /// <summary>
@@ -11,7 +11,7 @@ public interface IMotorcycleIndexingService {
     /// <summary>
     /// Indexes motorcycle documents
     /// </summary>
-    Task<BatchIndexingResult> IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents);
+    Task<BatchIndexingResult> IndexDocumentsAsync(IEnumerable<MotorcycleDocumentDto> documents);
 
     /// <summary>
     /// Gets indexing statistics

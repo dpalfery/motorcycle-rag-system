@@ -1,0 +1,28 @@
+<Project>
+  <!-- Inherit repository-wide analyzer/build settings from the root. -->
+  <Import Project="../Directory.Build.props" />
+
+  <PropertyGroup>
+    <!--
+      The following analyzers are relaxed for test projects only. They remain
+      active for production code under 0-4 (and will surface as errors there
+      once TreatWarningsAsErrors is enabled in the root Directory.Build.props).
+
+      CA2201 (do not raise reserved exception types):
+      Throwing a generic System.Exception/System.ApplicationException is the
+      idiomatic way to make a mock simulate "some failure" where the concrete
+      exception type is irrelevant to the assertion.
+
+      CA2000 (dispose objects before losing scope):
+      Every Sql/Repositories test enqueues an in-memory DbDataReader
+      (TestHelpers.CreateReader/CreateMultiResultReader) directly into
+      FakeDbConnection.EnqueueReader(...). Ownership of the reader transfers to
+      the fake connection / Dapper's disposal of the reader it obtains from
+      ExecuteReader; there is no real unmanaged resource or leak risk (the
+      reader is backed by an in-memory DataTable). The analyzer cannot see that
+      transfer of ownership and produces a false positive on this idiom across
+      every repository test file.
+    -->
+    <NoWarn>$(NoWarn);CA2201;CA2000</NoWarn>
+  </PropertyGroup>
+</Project>

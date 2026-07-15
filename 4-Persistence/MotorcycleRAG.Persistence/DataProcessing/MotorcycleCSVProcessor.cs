@@ -13,6 +13,7 @@ using System.Text;
 using System.Collections.ObjectModel;
 using CsvDataChunk = System.Collections.Generic.Dictionary<string, object>;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Persistence.DataProcessing;
 
 /// <summary>
@@ -44,7 +45,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
         ArgumentNullException.ThrowIfNull(input);
 
         var startTime = DateTime.UtcNow;
-        var documents = new List<MotorcycleDocument>();
+        var documents = new List<MotorcycleDocumentDto>();
         var errors = new List<string>();
 
         try {
@@ -114,7 +115,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
             // Use the search client for basic indexing (backward compatibility)
             // In production, this would be replaced with IMotorcycleIndexingService
             var batchSize = 100; // Optimal batch size for Azure AI Search
-            var batches = data.Documents.Chunk<MotorcycleDocument>(batchSize);
+            var batches = data.Documents.Chunk<MotorcycleDocumentDto>(batchSize);
             var totalIndexed = 0;
             var errors = new List<string>();
 
@@ -279,9 +280,9 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
     }
 
     /// <summary>
-    /// Process a single chunk into a MotorcycleDocument with embeddings
+    /// Process a single chunk into a MotorcycleDocumentDto with embeddings
     /// </summary>
-    private async Task<MotorcycleDocument> ProcessChunkAsync(CsvChunk chunk, string sourceFile, int chunkIndex, MotorcycleCategory? category) {
+    private async Task<MotorcycleDocumentDto> ProcessChunkAsync(CsvChunk chunk, string sourceFile, int chunkIndex, MotorcycleCategory? category) {
         // Create content for embedding
         var contentBuilder = new StringBuilder();
 
@@ -301,7 +302,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
         // T2: resolve the canonical category wire value for propagation.
         var categoryValue = category?.ToString() ?? string.Empty;
 
-        var dm = new DocumentMetadata();
+        var dm = new DocumentMetadataDto();
         dm.SourceFile = sourceFile;
         dm.Section = $"Chunk {chunkIndex}";
         dm.AdditionalProperties["ChunkIndex"] = chunkIndex;
@@ -314,7 +315,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
             dm.Tags.Add(categoryValue);
         }
 
-        return new MotorcycleDocument {
+        return new MotorcycleDocumentDto {
             Id = $"csv-chunk-{Guid.NewGuid()}",
             Title = title,
             Content = content,

@@ -173,11 +173,11 @@ public class ManualIngestionApiIntegrationTests : IClassFixture<TestWebApplicati
     {
         // Arrange
         var mockRepo = new Mock<IManualDocumentRepository>();
-        mockRepo.Setup(r => r.CreateStageAsync(It.IsAny<ManualProcessingStage>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ManualProcessingStage s, CancellationToken ct) => s);
+        mockRepo.Setup(r => r.CreateStageAsync(It.IsAny<ManualStageDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ManualStageDto s, CancellationToken ct) => s);
         
         mockRepo.Setup(r => r.GetRunByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ManualProcessingRun { RunId = Guid.NewGuid(), DocumentId = Guid.NewGuid() });
+            .ReturnsAsync(new ManualRunDto { RunId = Guid.NewGuid(), DocumentId = Guid.NewGuid() });
 
         var client = _factory.WithWebHostBuilder(builder =>
         {
@@ -206,7 +206,7 @@ public class ManualIngestionApiIntegrationTests : IClassFixture<TestWebApplicati
         // Arrange
         var mockManualRepo = new Mock<IManualDocumentRepository>();
         mockManualRepo.Setup(r => r.GetRecentManualOperationsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<(ManualDocument, ManualProcessingRun)>());
+            .ReturnsAsync(new List<(ManualDocument, ManualRunDto)>());
 
         var mockJobRepo = new Mock<IIngestionJobRepository>();
         mockJobRepo.Setup(r => r.GetRecentAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))

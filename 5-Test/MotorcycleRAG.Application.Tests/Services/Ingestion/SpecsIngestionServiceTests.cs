@@ -30,7 +30,6 @@ public sealed class SpecsIngestionServiceTests
             Make = "honda",
             Model = "cbr 600rr",
             Year = 2024,
-            NormalizedName = "Honda CBR 600RR",
             CreatedByUserId = "user-1",
             UploadRef = "upload-1",
         }, options => options.Excluding(model => model.Id)

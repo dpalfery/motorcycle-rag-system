@@ -8,12 +8,11 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using DomainSearchResult = MotorcycleRAG.Contracts.Models.DTOs.SearchResult;
-using MotorcycleRAG.Domain.Entities;
 using Polly;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
 using MotorcycleRAG.Persistence.Azure.Search;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Persistence.Azure;
 
 /// <summary>
@@ -52,17 +51,17 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
             azureConfigValue.SearchServiceEndpoint, 4);
     }
 
-    public Task<DomainSearchResult[]> SearchAsync(string searchText)
+    public Task<SearchResult[]> SearchAsync(string searchText)
     {
         return SearchAsync(searchText, 50, CancellationToken.None);
     }
 
-    public Task<DomainSearchResult[]> SearchAsync(string searchText, int maxResults)
+    public Task<SearchResult[]> SearchAsync(string searchText, int maxResults)
     {
         return SearchAsync(searchText, maxResults, CancellationToken.None);
     }
 
-    public async Task<DomainSearchResult[]> SearchAsync(
+    public async Task<SearchResult[]> SearchAsync(
         string searchText,
         int maxResults,
         CancellationToken cancellationToken) {
@@ -115,19 +114,19 @@ public class AzureSearchClientWrapper : IAzureSearchClient, IDisposable {
     }
 
     // Implement VectorSearchAsync
-    public async Task<DomainSearchResult[]> VectorSearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options) {
+    public async Task<SearchResult[]> VectorSearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options) {
         return await _queryService.VectorSearchAsync(query, options);
     }
 
-    public async Task<DomainSearchResult[]> HybridSearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options) {
+    public async Task<SearchResult[]> HybridSearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options) {
         return await _queryService.HybridSearchAsync(query, options);
     }
 
-    public async Task<DomainSearchResult[]> SearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options) {
+    public async Task<SearchResult[]> SearchAsync(string query, MotorcycleRAG.Core.Options.SearchOptions options) {
         return await _queryService.SearchAsync(query, options);
     }
 
-    public async Task IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents) {
+    public async Task IndexDocumentsAsync(IEnumerable<MotorcycleDocumentDto> documents) {
         await _documentService.IndexDocumentsAsync(documents);
     }
 

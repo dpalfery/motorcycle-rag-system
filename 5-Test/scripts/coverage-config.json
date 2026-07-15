@@ -56,24 +56,6 @@
         "5-Test/MotorcycleRag.WebUI.BFF.Tests/"
       ]
     },
-
-    {
-      "name": "mobileapp-unit",
-      "kind": "dotnet",
-      "project": "5-Test/MotorcycleRAG.MobileApp.Tests/MotorcycleRAG.MobileApp.Tests.csproj",
-      "resultsSubdirectory": "mobileapp-unit",
-      "supportedPlatforms": [
-        "darwin",
-        "win32"
-      ],
-      "requiredInCi": true,
-      "sourceRoots": [
-        "1-Presentation/MotorcycleRAG.MobileApp/"
-      ],
-      "testRoots": [
-        "5-Test/MotorcycleRAG.MobileApp.Tests/"
-      ]
-    },
     {
       "name": "python-unit",
       "kind": "python",

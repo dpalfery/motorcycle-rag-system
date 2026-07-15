@@ -107,10 +107,11 @@ public class ToolConfigurationService : IToolConfigurationService {
             if (existingTool != null)
                 throw new InvalidOperationException($"Tool with ID '{configuration.ToolId}' already exists");
 
-            // Set creation timestamp
-            configuration.CreatedAt = DateTime.UtcNow;
-            if (configuration.Id == Guid.Empty)
-                configuration.Id = Guid.NewGuid();
+            // Create an immutable snapshot with persistence identity assigned once.
+            configuration = CloneConfiguration(
+                configuration,
+                id: configuration.Id == Guid.Empty ? Guid.NewGuid() : configuration.Id,
+                createdAt: DateTime.UtcNow);
 
             // Save to database
             var savedConfig = await _configRepository.AddOrUpdateAsync(configuration);
@@ -164,18 +165,14 @@ public class ToolConfigurationService : IToolConfigurationService {
             // Record before state for audit
             var beforeJson = JsonSerializer.Serialize(existingConfig);
 
-            // Update mutable properties
-            existingConfig.Name = configuration.Name;
-            existingConfig.Description = configuration.Description;
-            existingConfig.ServerUrl = configuration.ServerUrl;
-            existingConfig.ToolType = configuration.ToolType;
-            existingConfig.IsEnabled = configuration.IsEnabled;
-            existingConfig.Priority = configuration.Priority;
-            existingConfig.TimeoutMs = configuration.TimeoutMs;
-            existingConfig.RetryOnFailure = configuration.RetryOnFailure;
-            existingConfig.MaxRetries = configuration.MaxRetries;
-            existingConfig.ConfigurationJson = configuration.ConfigurationJson;
-            existingConfig.UpdatedAt = DateTime.UtcNow;
+            // Build a new immutable state snapshot instead of mutating the entity
+            // outside its named domain transitions.
+            existingConfig = CloneConfiguration(
+                configuration,
+                id: existingConfig.Id,
+                toolId: existingConfig.ToolId,
+                createdAt: existingConfig.CreatedAt,
+                updatedAt: DateTime.UtcNow);
 
             // Save to database
             var updatedConfig = await _configRepository.AddOrUpdateAsync(existingConfig);
@@ -202,6 +199,35 @@ public class ToolConfigurationService : IToolConfigurationService {
             throw new InvalidOperationException($"Error updating MCP tool {toolId}", ex);
         }
     }
+
+    private static McpToolConfiguration CloneConfiguration(
+        McpToolConfiguration source,
+        Guid id,
+        DateTime createdAt,
+        DateTime? updatedAt = null,
+        string? toolId = null)
+        => new()
+        {
+            Id = id,
+            ToolId = toolId ?? source.ToolId,
+            Name = source.Name,
+            Description = source.Description,
+            ServerUrl = source.ServerUrl,
+            IsEnabled = source.IsEnabled,
+            ConfigurationJson = source.ConfigurationJson,
+            ToolType = source.ToolType,
+            Version = source.Version,
+            IsSystemTool = source.IsSystemTool,
+            Priority = source.Priority,
+            TimeoutMs = source.TimeoutMs,
+            RetryOnFailure = source.RetryOnFailure,
+            MaxRetries = source.MaxRetries,
+            DisabledReason = source.DisabledReason,
+            LastTestedAt = source.LastTestedAt,
+            LastConnectionStatus = source.LastConnectionStatus,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt
+        };
 
     /// <summary>
     /// Enable a tool configuration.

@@ -61,10 +61,10 @@ public sealed class WebTrustPolicyStoreTests
         var sut = CreateSut();
         var allowed = CreatePolicy("allowed.example", WebTrustTier.TierB, allowSubdomains: true);
         var blocked = CreatePolicy("blocked.example", WebTrustTier.TierA, isBlocked: true);
-        var untrusted = CreatePolicy("untrusted.example", WebTrustTier.None);
+        var lowTier = CreatePolicy("low-tier.example", WebTrustTier.TierC);
         sut.AddOrUpdatePolicy(allowed);
         sut.AddOrUpdatePolicy(blocked);
-        sut.AddOrUpdatePolicy(untrusted);
+        sut.AddOrUpdatePolicy(lowTier);
 
         // Act
         var tierBAllowlist = sut.GetAllowlistForTier(WebTrustTier.TierB);
@@ -73,9 +73,9 @@ public sealed class WebTrustPolicyStoreTests
         sut.IsDomainAllowed("allowed.example", WebTrustTier.TierB).Should().BeTrue();
         sut.IsDomainAllowed("allowed.example", WebTrustTier.TierA).Should().BeFalse();
         sut.IsDomainAllowed("blocked.example", WebTrustTier.TierC).Should().BeFalse();
-        sut.IsDomainAllowed("untrusted.example", WebTrustTier.None).Should().BeTrue();
+        sut.IsDomainAllowed("low-tier.example", WebTrustTier.TierB).Should().BeFalse();
         tierBAllowlist.Should().Contain("allowed.example");
-        sut.GetAllowlistForTier(WebTrustTier.TierC).Should().BeEmpty();
+        sut.GetAllowlistForTier(WebTrustTier.TierC).Should().Contain("low-tier.example");
     }
 
     [Fact]
@@ -115,13 +115,10 @@ public sealed class WebTrustPolicyStoreTests
         WebTrustTier tier,
         bool isBlocked = false,
         bool allowSubdomains = false) =>
-        new()
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = domainPattern,
-            Tier = tier,
-            IsBlocked = isBlocked,
-            AllowSubdomains = allowSubdomains,
-            Reason = "Unit test policy",
-        };
+        WebTrustPolicy.Create(
+            domainPattern,
+            tier,
+            allowSubdomains,
+            "Unit test policy",
+            isBlocked);
 }

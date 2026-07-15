@@ -9,6 +9,7 @@ using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 
 namespace MotorcycleRAG.Application.Services.Ingestion;
 
@@ -271,8 +272,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         catch (Exception ex) {
             // Asset teardown or final delete failed (or the caller's cleanup budget elapsed).
             // Roll the job back to Failed so it resurfaces for operator attention.
-            job.Status = IngestionJobStatus.Failed;
-            job.FailureReason = $"Background cleanup failed: {ex.Message}";
+            job.RollbackDeletion($"Background cleanup failed: {ex.Message}");
             await _repository.UpdateAsync(job, CancellationToken.None).ConfigureAwait(false);
             _logger.LogError(
                 ex,
@@ -347,20 +347,9 @@ public sealed class IngestionJobService : IIngestionJobService {
 
             // Reset the job to Queued and clear all error/stage information so the
             // processor starts fresh from the existing blob.
-            job.Status = IngestionJobStatus.Queued;
-            job.StartedAtUtc = null;
-            job.CompletedAtUtc = null;
-            job.FailureReason = null;
+            job.QueueForRetry();
             job.ErrorMessage = null;
             job.ErrorsJson = null;
-            job.CurrentStage = null;
-            job.StageSetAtUtc = null;
-            job.ExpectedChunkCount = null;
-            job.IndexedChunkCount = null;
-            // Clear any previously extracted metadata so it is re-derived from the
-            // source blob during reprocessing. Without this, a retry would silently
-            // reuse metadata that may have caused the original failure.
-            job.MetadataJson = null;
 
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
 
@@ -481,14 +470,11 @@ public sealed class IngestionJobService : IIngestionJobService {
     private async Task RunGraphIngestionAsync(IngestionJob job, string uploadId) {
         try {
             await _graphEntityIngestionService.IngestAsync(uploadId, CancellationToken.None).ConfigureAwait(false);
-            job.Status = IngestionJobStatus.Completed;
-            job.CompletedAtUtc = DateTimeOffset.UtcNow;
-            job.FailureReason = null;
+            job.Complete();
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Graph import failed for upload {UploadId}.", LogSanitizer.Sanitize(uploadId));
-            job.Status = IngestionJobStatus.Failed;
-            job.CompletedAtUtc = DateTimeOffset.UtcNow;
+            job.Fail(ex.ToString());
             ApplyJobFailure(job, ex.ToString());
         }
 
@@ -518,11 +504,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             return;
         }
 
-        job.Status = IngestionJobStatus.Cancelled;
-        job.CompletedAtUtc = DateTimeOffset.UtcNow;
-        job.FailureReason = "Cancelled by user.";
-        job.CurrentStage = "cancelled";
-        job.StageSetAtUtc = job.CompletedAtUtc;
+        job.Cancel();
 
         await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
 
@@ -555,11 +537,8 @@ public sealed class IngestionJobService : IIngestionJobService {
             return;
         }
 
-        job.Status = IngestionJobStatus.Failed;
-        job.CompletedAtUtc = DateTimeOffset.UtcNow;
-        job.FailureReason = reason;
-        job.CurrentStage = "failed";
-        job.StageSetAtUtc = job.CompletedAtUtc;
+        job.Fail(reason);
+        job.UpdateStage("failed", null, null);
 
         await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
 
@@ -668,30 +647,25 @@ public sealed class IngestionJobService : IIngestionJobService {
         var stageSetAtUtc = DateTimeOffset.UtcNow;
         if (string.Equals(request.Stage, "cancelled", StringComparison.OrdinalIgnoreCase))
         {
-            job.Status = IngestionJobStatus.Cancelled;
-            job.CompletedAtUtc = stageSetAtUtc;
-            job.CurrentStage = request.Stage;
-            job.StageSetAtUtc = stageSetAtUtc;
+            job.Cancel(string.IsNullOrWhiteSpace(request.FailureReason) ? "Cancelled by user." : request.FailureReason!, stageSetAtUtc);
             job.ExpectedChunkCount ??= request.TotalChunks;
             job.IndexedChunkCount = request.ChunksProcessed;
-            job.FailureReason = string.IsNullOrWhiteSpace(request.FailureReason)
-                ? "Cancelled by user."
-                : request.FailureReason;
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
         }
         else if (string.Equals(request.Stage, "failed", StringComparison.OrdinalIgnoreCase)
                  || ShouldTreatLocalProcessorFailureAsTerminal(job, request))
         {
-            job.Status = IngestionJobStatus.Failed;
-            job.CompletedAtUtc = stageSetAtUtc;
-            job.CurrentStage = "failed";
-            job.StageSetAtUtc = stageSetAtUtc;
-            job.ExpectedChunkCount ??= request.TotalChunks;
-            job.IndexedChunkCount = request.ChunksProcessed;
-
             var failureDetail = string.IsNullOrWhiteSpace(request.FailureReason)
                 ? $"Processor reported failure during stage '{request.Stage}'."
                 : request.FailureReason!;
+            // Compat path: local-processor mid-stage failures may report the active stage
+            // (e.g. "chunking") with a FailureReason. Normalize CurrentStage to "failed"
+            // before the terminal transition so status readers see a consistent failed stage.
+            var failedStage = string.Equals(request.Stage, "failed", StringComparison.OrdinalIgnoreCase)
+                ? request.Stage
+                : "failed";
+            job.UpdateStage(failedStage, request.ChunksProcessed, request.TotalChunks, stageSetAtUtc);
+            job.Fail(failureDetail, stageSetAtUtc);
 
             ApplyJobFailure(job, failureDetail);
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
@@ -712,18 +686,17 @@ public sealed class IngestionJobService : IIngestionJobService {
             // asserting the prior status. The terminal-status guard above (`IsTerminalStatus`)
             // still prevents flipping a job that already reached `Completed`/`Failed`/
             // `Cancelled`/`PartiallyCompleted`/`Deleting`.
-            job.Status = string.IsNullOrWhiteSpace(request.FailureReason)
-                ? IngestionJobStatus.Completed
-                : IngestionJobStatus.Failed;
-            job.CurrentStage = request.Stage;
-            job.StageSetAtUtc = stageSetAtUtc;
-            if (job.Status == IngestionJobStatus.Completed)
+            //
+            // Update stage fields while the job is still non-terminal; Complete/Fail make
+            // the job terminal and UpdateStage would then reject the write.
+            job.UpdateStage(request.Stage, request.ChunksProcessed, request.TotalChunks, stageSetAtUtc);
+            if (string.IsNullOrWhiteSpace(request.FailureReason))
             {
-                job.CompletedAtUtc = stageSetAtUtc;
-                job.FailureReason = null;
+                job.Complete(stageSetAtUtc);
             }
             else
             {
+                job.Fail(request.FailureReason!, stageSetAtUtc);
                 ApplyJobFailure(job, request.FailureReason!);
             }
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
@@ -734,26 +707,12 @@ public sealed class IngestionJobService : IIngestionJobService {
             // fields after sampling the maximum number of pages. Transition the job to the
             // paused AwaitingMetadata state so the admin UI can surface a manual-entry modal.
             // This is NOT a terminal state — the job resumes once an admin submits metadata.
-            job.Status = IngestionJobStatus.AwaitingMetadata;
-            job.CurrentStage = request.Stage;
-            job.StageSetAtUtc = stageSetAtUtc;
-            job.FailureReason = string.IsNullOrWhiteSpace(request.FailureReason)
-                ? "Metadata extraction incomplete. Manual entry required."
-                : request.FailureReason;
+            job.PauseForMetadata(request.FailureReason, request.Stage, stageSetAtUtc);
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
         }
         else
         {
-            if (job.Status == IngestionJobStatus.Queued)
-            {
-                job.Status = IngestionJobStatus.Processing;
-                job.StartedAtUtc ??= stageSetAtUtc;
-            }
-
-            job.CurrentStage = request.Stage;
-            job.StageSetAtUtc = stageSetAtUtc;
-            job.ExpectedChunkCount ??= request.TotalChunks;
-            job.IndexedChunkCount = request.ChunksProcessed;
+            job.UpdateStage(request.Stage, request.ChunksProcessed, request.TotalChunks, stageSetAtUtc);
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
         }
 
@@ -795,7 +754,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         // Persist the metadata blob. This is idempotent — a duplicate submission with the
         // same value overwrites harmlessly. UpdateMetadataAsync touches only the
         // MetadataJson column so it cannot clobber concurrent stage/status writes.
-        job.MetadataJson = metadataJson;
+        job.SetMetadata(metadataJson);
         await _repository.UpdateMetadataAsync(jobId, metadataJson, ct).ConfigureAwait(false);
 
         // CAS-guarded transition: only flip to Processing if the row is still in
@@ -808,10 +767,7 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         if (resumed) {
             // Reflect the transition in the in-memory entity for the response mapping.
-            job.Status = IngestionJobStatus.Processing;
-            job.CurrentStage = MetadataResumingStage;
-            job.StageSetAtUtc = DateTimeOffset.UtcNow;
-            job.FailureReason = null;
+            job.ResumeFromMetadata(MetadataResumingStage);
 
             // Processor resume: In this architecture Admin Desktop orchestrates the Python
             // local-processing-service (it starts the processor and the processor reports
@@ -991,7 +947,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         }
     }
 
-    private async Task<IReadOnlyList<IndexedArtifact>> GetDeleteArtifactsAsync(
+    private async Task<IReadOnlyList<IndexedArtifactDto>> GetDeleteArtifactsAsync(
         IngestionJob job,
         string uploadId,
         CancellationToken ct) {
@@ -1004,13 +960,13 @@ public sealed class IngestionJobService : IIngestionJobService {
             .ToArray();
     }
 
-    private async Task<IReadOnlyList<IndexedChunk>> GetDeleteChunksAsync(
+    private async Task<IReadOnlyList<IndexedChunkDto>> GetDeleteChunksAsync(
         IngestionJob job,
         string uploadId,
-        IReadOnlyList<IndexedArtifact> artifacts,
+        IReadOnlyList<IndexedArtifactDto> artifacts,
         CancellationToken ct) {
         var artifactIds = artifacts.Select(static a => a.IndexedArtifactId).ToArray();
-        var chunks = new List<IndexedChunk>();
+        var chunks = new List<IndexedChunkDto>();
         if (artifactIds.Length > 0) {
             chunks.AddRange(await _chunkRepository.GetByArtifactIdsAsync(artifactIds, ct).ConfigureAwait(false));
         }
@@ -1118,9 +1074,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             return;
         }
 
-        job.ErrorsJson = detail.Trim();
-        job.ErrorMessage = FirstFailureLine(detail);
-        job.FailureReason = detail.Length <= 2000 ? detail : detail[..2000];
+        job.RecordFailure(detail);
     }
 
     private static string FirstFailureLine(string detail) {

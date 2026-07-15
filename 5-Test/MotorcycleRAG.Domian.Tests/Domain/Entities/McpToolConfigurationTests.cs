@@ -102,4 +102,31 @@ public class McpToolConfigurationTests
         Assert.True(config.IsSystemTool);
         Assert.Equal(100, config.Priority);
     }
+
+    [Fact]
+    public void Create_ValidatesRequiredToolIdentity()
+    {
+        var config = McpToolConfiguration.Create(
+            "search",
+            "Search",
+            new Uri("https://mcp.example.test"),
+            "search");
+
+        Assert.Equal("search", config.ToolId);
+        Assert.True(config.IsEnabled);
+        Assert.Equal(30_000, config.TimeoutMs);
+    }
+
+    [Fact]
+    public void Disable_RejectsBlankReasonAndNormalizesValidReason()
+    {
+        var config = new McpToolConfiguration();
+
+        Assert.Throws<ArgumentException>(() => config.Disable(" "));
+
+        config.Disable("  maintenance  ");
+
+        Assert.False(config.IsEnabled);
+        Assert.Equal("maintenance", config.DisabledReason);
+    }
 }

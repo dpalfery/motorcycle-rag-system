@@ -1,21 +1,22 @@
 namespace MotorcycleRAG.Contracts.Interfaces;
 
-using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
+
 
 public interface IIndexedChunkRepository
 {
-    Task UpsertManyAsync(IReadOnlyCollection<IndexedChunk> chunks, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<IndexedChunk>> GetByArtifactIdAsync(Guid artifactId, CancellationToken cancellationToken = default);
+    Task UpsertManyAsync(IReadOnlyCollection<IndexedChunkDto> chunks, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<IndexedChunkDto>> GetByArtifactIdAsync(Guid artifactId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves all chunks for multiple artifact IDs in a single query.
     /// </summary>
-    Task<IReadOnlyList<IndexedChunk>> GetByArtifactIdsAsync(
+    Task<IReadOnlyList<IndexedChunkDto>> GetByArtifactIdsAsync(
         IReadOnlyCollection<Guid> artifactIds,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<IndexedChunk>> GetByIngestionJobIdAsync(Guid ingestionJobId, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<IndexedChunk>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<IndexedChunkDto>> GetByIngestionJobIdAsync(Guid ingestionJobId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<IndexedChunkDto>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default);
     Task DeleteByArtifactIdAsync(Guid artifactId, CancellationToken cancellationToken = default);
 
     /// <summary>

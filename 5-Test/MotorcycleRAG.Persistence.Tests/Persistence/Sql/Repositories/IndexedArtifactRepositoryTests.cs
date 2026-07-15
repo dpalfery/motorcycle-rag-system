@@ -1,7 +1,7 @@
-using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Sql.Repositories;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 
 namespace MotorcycleRAG.UnitTests.Persistence.Sql.Repositories;
 
@@ -624,7 +624,7 @@ public sealed class IndexedArtifactRepositoryTests
         return new IndexedArtifactRepository(factory.Object, TestHelpers.CreateNullLogger<IndexedArtifactRepository>());
     }
 
-    private static IndexedArtifact CreateArtifact() => new()
+    private static IndexedArtifactDto CreateArtifact() => new()
     {
         IndexedArtifactId = Guid.NewGuid(),
         IngestionJobId = Guid.NewGuid(),
@@ -680,4 +680,3 @@ public sealed class IndexedArtifactRepositoryTests
             ["UpdatedAtUtc"] = updatedAtUtc
         };
 }
-

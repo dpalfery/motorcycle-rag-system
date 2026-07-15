@@ -119,7 +119,7 @@ public class InteractivePrompter
     {
         if (IsNonInteractive())
         {
-            _logger.LogInformation(message);
+            _logger.LogInformation("{Message}", message);
         }
         else
         {
@@ -131,7 +131,7 @@ public class InteractivePrompter
     {
         if (IsNonInteractive())
         {
-            _logger.LogError(message);
+            _logger.LogError("{Message}", message);
         }
         else
         {
@@ -143,7 +143,7 @@ public class InteractivePrompter
     {
         if (IsNonInteractive())
         {
-            _logger.LogWarning(message);
+            _logger.LogWarning("{Message}", message);
         }
         else
         {
@@ -155,7 +155,7 @@ public class InteractivePrompter
     {
         if (IsNonInteractive())
         {
-            _logger.LogInformation(message);
+            _logger.LogInformation("{Message}", message);
         }
         else
         {

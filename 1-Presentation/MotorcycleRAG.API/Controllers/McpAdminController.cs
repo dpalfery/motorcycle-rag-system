@@ -240,51 +240,44 @@ public sealed class McpAdminController : ControllerBase {
                 return NotFound(new { error = "Tool not found" });
             }
 
-            // Update properties (only if provided)
-            if (!string.IsNullOrWhiteSpace(request.Name)) {
-                if (request.Name.Length > 255)
-                    return BadRequest(new { error = "Name exceeds maximum length of 255 characters" });
-                existingConfig.Name = request.Name;
-            }
+            // Validate provided fields up front (existingConfig is immutable outside its
+            // own named domain transitions; the merged snapshot is built once below).
+            if (!string.IsNullOrWhiteSpace(request.Name) && request.Name.Length > 255)
+                return BadRequest(new { error = "Name exceeds maximum length of 255 characters" });
 
-            if (!string.IsNullOrWhiteSpace(request.Description)) {
-                if (request.Description.Length > 1000)
-                    return BadRequest(new { error = "Description exceeds maximum length of 1000 characters" });
-                existingConfig.Description = request.Description;
-            }
+            if (!string.IsNullOrWhiteSpace(request.Description) && request.Description.Length > 1000)
+                return BadRequest(new { error = "Description exceeds maximum length of 1000 characters" });
 
-            if (!string.IsNullOrWhiteSpace(request.ServerUrl)) {
-                if (request.ServerUrl.Length > 500)
-                    return BadRequest(new { error = "Server URL exceeds maximum length of 500 characters" });
-                existingConfig.ServerUrl = new Uri(request.ServerUrl);
-            }
+            if (!string.IsNullOrWhiteSpace(request.ServerUrl) && request.ServerUrl.Length > 500)
+                return BadRequest(new { error = "Server URL exceeds maximum length of 500 characters" });
 
-            if (!string.IsNullOrWhiteSpace(request.ToolType))
-                existingConfig.ToolType = request.ToolType;
-
-            if (request.IsEnabled.HasValue)
-                existingConfig.IsEnabled = request.IsEnabled.Value;
-
-            if (request.Priority.HasValue)
-                existingConfig.Priority = request.Priority.Value;
-
-            if (request.TimeoutMs.HasValue)
-                existingConfig.TimeoutMs = request.TimeoutMs.Value;
-
-            if (request.RetryOnFailure.HasValue)
-                existingConfig.RetryOnFailure = request.RetryOnFailure.Value;
-
-            if (request.MaxRetries.HasValue)
-                existingConfig.MaxRetries = request.MaxRetries.Value;
-
-            if (request.ConfigurationJson != null)
-                existingConfig.ConfigurationJson = request.ConfigurationJson;
+            var mergedConfig = new McpToolConfiguration {
+                Id = existingConfig.Id,
+                ToolId = existingConfig.ToolId,
+                Name = !string.IsNullOrWhiteSpace(request.Name) ? request.Name : existingConfig.Name,
+                Description = !string.IsNullOrWhiteSpace(request.Description) ? request.Description : existingConfig.Description,
+                ServerUrl = !string.IsNullOrWhiteSpace(request.ServerUrl) ? new Uri(request.ServerUrl) : existingConfig.ServerUrl,
+                ToolType = !string.IsNullOrWhiteSpace(request.ToolType) ? request.ToolType : existingConfig.ToolType,
+                Version = existingConfig.Version,
+                IsEnabled = request.IsEnabled ?? existingConfig.IsEnabled,
+                IsSystemTool = existingConfig.IsSystemTool,
+                Priority = request.Priority ?? existingConfig.Priority,
+                TimeoutMs = request.TimeoutMs ?? existingConfig.TimeoutMs,
+                RetryOnFailure = request.RetryOnFailure ?? existingConfig.RetryOnFailure,
+                MaxRetries = request.MaxRetries ?? existingConfig.MaxRetries,
+                DisabledReason = existingConfig.DisabledReason,
+                LastTestedAt = existingConfig.LastTestedAt,
+                LastConnectionStatus = existingConfig.LastConnectionStatus,
+                ConfigurationJson = request.ConfigurationJson ?? existingConfig.ConfigurationJson,
+                CreatedAt = existingConfig.CreatedAt,
+                UpdatedAt = existingConfig.UpdatedAt,
+            };
 
             // Use application service for update (includes validation and audit)
             var sanitizedUserId = SanitizeUserId(_currentUserService.UserId);
             var updatedConfig = await _configService.UpdateToolAsync(
                 toolId,
-                existingConfig,
+                mergedConfig,
                 request.ChangeReason,
                 _currentUserService.UserId);
 

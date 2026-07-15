@@ -92,9 +92,9 @@ public sealed class MotorcycleControllerTests
         plans.Setup(service => service.HasExceededDailyLimitAsync("user-1", null)).ReturnsAsync(false);
         rag.Setup(service => service.QueryAsync(It.IsAny<MotorcycleQueryRequest>())).ReturnsAsync(response);
         usage.Setup(service => service.RecordSuccessAsync(
-                "user-1", "/api/motorcycles/query", "POST", "query-1", It.IsAny<long>(), null, "unit-test"))
+                "user-1", "/api/motorcycles/query", "POST", "query-1", It.IsAny<long>(), System.Net.IPAddress.Loopback.ToString(), "unit-test"))
             .ReturnsAsync(new Usage());
-        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext() };
+        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(System.Net.IPAddress.Loopback) };
 
         var result = await controller.QueryAsync(ValidRequest());
 
@@ -112,12 +112,34 @@ public sealed class MotorcycleControllerTests
         rag.Setup(service => service.QueryAsync(It.IsAny<MotorcycleQueryRequest>()))
             .ThrowsAsync(isArgumentError ? new ArgumentException("bad input") : new InvalidOperationException("internal detail"));
         usage.Setup(service => service.RecordFailureAsync(
-                "user-1", "/api/motorcycles/query", "POST", expectedStatus, null, It.IsAny<long>(), null, It.IsAny<string?>()))
+                "user-1", "/api/motorcycles/query", "POST", expectedStatus, null, It.IsAny<long>(), System.Net.IPAddress.Loopback.ToString(), It.IsAny<string?>()))
             .ReturnsAsync(new Usage());
+
+        controller.ControllerContext = new ControllerContext { HttpContext = CreateHttpContext(System.Net.IPAddress.Loopback) };
 
         var result = await controller.QueryAsync(ValidRequest());
 
         AssertStatus(result, expectedStatus);
+        usage.VerifyAll();
+    }
+
+    [Fact]
+    public async Task QueryAsync_WhenSuccessUsageRecordingFails_RecordsServerFailure()
+    {
+        var controller = CreateAuthenticatedController(out var rag, out _, out var plans, out var usage);
+        var response = new MotorcycleQueryResponse { QueryId = "query-1", Response = "Use the service manual." };
+        plans.Setup(service => service.HasExceededDailyLimitAsync("user-1", null)).ReturnsAsync(false);
+        rag.Setup(service => service.QueryAsync(It.IsAny<MotorcycleQueryRequest>())).ReturnsAsync(response);
+        usage.Setup(service => service.RecordSuccessAsync(
+                "user-1", "/api/motorcycles/query", "POST", "query-1", It.IsAny<long>(), null, "unit-test"))
+            .ThrowsAsync(new InvalidOperationException("usage persistence failed"));
+        usage.Setup(service => service.RecordFailureAsync(
+                "user-1", "/api/motorcycles/query", "POST", StatusCodes.Status500InternalServerError, null, It.IsAny<long>(), null, "unit-test"))
+            .ReturnsAsync(new Usage());
+
+        var result = await controller.QueryAsync(ValidRequest());
+
+        AssertStatus(result, StatusCodes.Status500InternalServerError);
         usage.VerifyAll();
     }
 
@@ -194,9 +216,10 @@ public sealed class MotorcycleControllerTests
 
     private static MotorcycleQueryRequest ValidRequest() => new() { Query = "How do I adjust the chain?" };
 
-    private static DefaultHttpContext CreateHttpContext()
+    private static DefaultHttpContext CreateHttpContext(System.Net.IPAddress? remoteIpAddress = null)
     {
         var context = new DefaultHttpContext();
+        context.Connection.RemoteIpAddress = remoteIpAddress;
         context.Request.Headers.UserAgent = "unit-test";
         return context;
     }

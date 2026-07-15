@@ -307,16 +307,18 @@ public sealed class McpAdminControllerTests
     {
         // Arrange
         var request = CreateValidCreateRequest();
-        var savedTool = CreateTool(toolId: request.ToolId, name: request.Name);
-        savedTool.Description = request.Description;
-        savedTool.ToolType = request.ToolType;
-        savedTool.Version = request.Version;
-        savedTool.IsEnabled = request.IsEnabled!.Value;
-        savedTool.Priority = request.Priority!.Value;
-        savedTool.TimeoutMs = request.TimeoutMs;
-        savedTool.RetryOnFailure = request.RetryOnFailure!.Value;
-        savedTool.MaxRetries = request.MaxRetries!.Value;
-        savedTool.ConfigurationJson = request.ConfigurationJson;
+        var savedTool = CreateTool(
+            toolId: request.ToolId,
+            name: request.Name,
+            isEnabled: request.IsEnabled!.Value,
+            description: request.Description,
+            toolType: request.ToolType,
+            version: request.Version,
+            priority: request.Priority!.Value,
+            timeoutMs: request.TimeoutMs,
+            retryOnFailure: request.RetryOnFailure!.Value,
+            maxRetries: request.MaxRetries!.Value,
+            configurationJson: request.ConfigurationJson);
 
         var configService = new Mock<IToolConfigurationService>();
         configService
@@ -422,6 +424,24 @@ public sealed class McpAdminControllerTests
     }
 
     [Fact]
+    public async Task UpdateToolAsync_WhenRequestIsNull_ThrowsArgumentNullException()
+    {
+        var sut = CreateController();
+
+        await sut.Invoking(controller => controller.UpdateToolAsync("tool-1", null!))
+            .Should().ThrowAsync<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task UpdateToolAsync_WhenModelStateIsInvalid_ReturnsBadRequest()
+    {
+        var sut = CreateController();
+        sut.ModelState.AddModelError("Name", "Required");
+
+        (await sut.UpdateToolAsync("tool-1", new UpdateMcpToolRequest())).Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
     public async Task UpdateToolAsync_WhenConfigurationJsonIsInvalid_ReturnsBadRequest()
     {
         // Arrange
@@ -516,10 +536,12 @@ public sealed class McpAdminControllerTests
     public async Task UpdateToolAsync_WhenPartialUpdateIsValid_ReturnsUpdatedDto()
     {
         // Arrange
-        var existingTool = CreateTool(toolId: "tool-1", name: "Original Name");
-        existingTool.Description = "Original description";
-        existingTool.Priority = 2;
-        existingTool.ConfigurationJson = """{"old":true}""";
+        var existingTool = CreateTool(
+            toolId: "tool-1",
+            name: "Original Name",
+            description: "Original description",
+            priority: 2,
+            configurationJson: """{"old":true}""");
 
         var request = new UpdateMcpToolRequest
         {
@@ -570,8 +592,13 @@ public sealed class McpAdminControllerTests
         var existingTool = CreateTool();
         var configService = new Mock<IToolConfigurationService>();
         configService.Setup(service => service.GetToolAsync("tool-1")).ReturnsAsync(existingTool);
+        // Controller builds a merged snapshot; match any config rather than the original instance.
         configService
-            .Setup(service => service.UpdateToolAsync("tool-1", existingTool, null, "admin-user"))
+            .Setup(service => service.UpdateToolAsync(
+                "tool-1",
+                It.IsAny<McpToolConfiguration>(),
+                null,
+                "admin-user"))
             .ThrowsAsync(new InvalidOperationException("invalid"));
         var sut = CreateController(configService);
 
@@ -591,7 +618,11 @@ public sealed class McpAdminControllerTests
         var configService = new Mock<IToolConfigurationService>();
         configService.Setup(service => service.GetToolAsync("tool-1")).ReturnsAsync(existingTool);
         configService
-            .Setup(service => service.UpdateToolAsync("tool-1", existingTool, null, "admin-user"))
+            .Setup(service => service.UpdateToolAsync(
+                "tool-1",
+                It.IsAny<McpToolConfiguration>(),
+                null,
+                "admin-user"))
             .ThrowsAsync(new ApplicationException("boom"));
         var sut = CreateController(configService);
 
@@ -693,8 +724,7 @@ public sealed class McpAdminControllerTests
     public async Task DisableToolAsync_WhenRequestIsNull_UsesDefaultReason()
     {
         // Arrange
-        var disabledTool = CreateTool(isEnabled: false);
-        disabledTool.DisabledReason = "Disabled by admin";
+        var disabledTool = CreateTool(isEnabled: false, disabledReason: "Disabled by admin");
 
         var configService = new Mock<IToolConfigurationService>();
         configService
@@ -715,8 +745,7 @@ public sealed class McpAdminControllerTests
     public async Task DisableToolAsync_WhenRequestIsValid_ReturnsOk()
     {
         // Arrange
-        var disabledTool = CreateTool(isEnabled: false);
-        disabledTool.DisabledReason = "Maintenance";
+        var disabledTool = CreateTool(isEnabled: false, disabledReason: "Maintenance");
 
         var configService = new Mock<IToolConfigurationService>();
         configService
@@ -839,7 +868,7 @@ public sealed class McpAdminControllerTests
     {
         // Arrange
         var configService = new Mock<IToolConfigurationService>();
-        configService.Setup(service => service.DeleteToolAsync("tool-1", "admin-user")).ThrowsAsync(new ApplicationException("boom"));
+        configService.Setup(service => service.DeleteToolAsync("tool-1", "admin-user")).ThrowsAsync(new InvalidOperationException("boom"));
         var sut = CreateController(configService);
 
         // Act
@@ -963,6 +992,18 @@ public sealed class McpAdminControllerTests
     }
 
     [Fact]
+    public async Task GetAuditHistoryAsync_WhenServiceThrows_ReturnsInternalServerError()
+    {
+        var configService = new Mock<IToolConfigurationService>();
+        configService.Setup(service => service.GetToolAsync("tool-1")).ThrowsAsync(new InvalidOperationException("boom"));
+        var sut = CreateController(configService);
+
+        var result = await sut.GetAuditHistoryAsync("tool-1");
+
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
     public async Task GetAuditSummaryAsync_WhenServiceReturnsSummary_ReturnsOk()
     {
         // Arrange
@@ -992,7 +1033,7 @@ public sealed class McpAdminControllerTests
     {
         // Arrange
         var configService = new Mock<IToolConfigurationService>();
-        configService.Setup(service => service.GetAuditSummaryAsync()).ThrowsAsync(new ApplicationException("boom"));
+        configService.Setup(service => service.GetAuditSummaryAsync()).ThrowsAsync(new InvalidOperationException("boom"));
         var sut = CreateController(configService);
 
         // Act
@@ -1002,6 +1043,74 @@ public sealed class McpAdminControllerTests
         var error = result.Should().BeOfType<ObjectResult>().Subject;
         error.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
         error.Value.Should().BeEquivalentTo(new { error = "An error occurred" });
+    }
+
+    [Theory]
+    [InlineData("toolIdTooLong", "Tool ID exceeds maximum length of 255 characters")]
+    [InlineData("nameRequired", "Name is required")]
+    [InlineData("nameTooLong", "Name exceeds maximum length of 255 characters")]
+    [InlineData("serverUrlRequired", "Server URL is required")]
+    [InlineData("serverUrlTooLong", "Server URL exceeds maximum length of 500 characters")]
+    public async Task CreateToolAsync_WhenManualInputValidationFails_ReturnsBadRequestWithErrors(string scenario, string expectedError)
+    {
+        // Arrange
+        var sut = CreateController();
+        var request = CreateValidCreateRequest();
+
+        switch (scenario)
+        {
+            case "toolIdTooLong":
+                request.ToolId = new string('t', 256);
+                break;
+            case "nameRequired":
+                request.Name = " ";
+                break;
+            case "nameTooLong":
+                request.Name = new string('n', 256);
+                break;
+            case "serverUrlRequired":
+                request.ServerUrl = null;
+                break;
+            case "serverUrlTooLong":
+                request.ServerUrl = "https://x.com/" + new string('a', 500);
+                break;
+        }
+
+        // Act
+        var result = await sut.CreateToolAsync(request);
+
+        // Assert
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().BeEquivalentTo(new { errors = new[] { expectedError } });
+    }
+
+    [Fact]
+    public async Task CreateToolAsync_WhenUserIdIsNull_StillCreatesToolSanitizingForLogging()
+    {
+        // Exercises the SanitizeUserId null/whitespace branch (returns "[system]").
+        var request = CreateValidCreateRequest();
+        var savedTool = CreateTool(toolId: request.ToolId, name: request.Name);
+        var configService = new Mock<IToolConfigurationService>();
+        configService
+            .Setup(service => service.CreateToolAsync(It.IsAny<McpToolConfiguration>(), It.IsAny<string?>()))
+            .ReturnsAsync(savedTool);
+
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(service => service.UserId).Returns((string?)null);
+
+        // Construct directly: the CreateController helper force-sets UserId to "admin-user",
+        // but this test must exercise the null-UserId sanitization branch.
+        var sut = new McpAdminController(
+            configService.Object,
+            NullLogger<McpAdminController>.Instance,
+            currentUser.Object);
+
+        // Act
+        var result = await sut.CreateToolAsync(request);
+
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        configService.Verify(service => service.CreateToolAsync(It.IsAny<McpToolConfiguration>(), null), Times.Once);
     }
 
     private static McpAdminController CreateController(
@@ -1039,27 +1148,36 @@ public sealed class McpAdminControllerTests
     private static McpToolConfiguration CreateTool(
         string toolId = "tool-1",
         string name = "Test Tool",
-        bool isEnabled = true)
+        bool isEnabled = true,
+        string? description = "Tool description",
+        string? toolType = "search",
+        string? version = "1.0.0",
+        int priority = 3,
+        int? timeoutMs = 1500,
+        bool retryOnFailure = true,
+        int maxRetries = 5,
+        string? disabledReason = null,
+        string? configurationJson = """{"mode":"fast"}""")
     {
         return new McpToolConfiguration
         {
             Id = Guid.NewGuid(),
             ToolId = toolId,
             Name = name,
-            Description = "Tool description",
+            Description = description,
             ServerUrl = new Uri("https://mcp.example.com"),
             IsEnabled = isEnabled,
-            ToolType = "search",
-            Version = "1.0.0",
+            ToolType = toolType ?? "search",
+            Version = version,
             IsSystemTool = false,
-            Priority = 3,
-            TimeoutMs = 1500,
-            RetryOnFailure = true,
-            MaxRetries = 5,
-            DisabledReason = isEnabled ? null : "Disabled by admin",
+            Priority = priority,
+            TimeoutMs = timeoutMs,
+            RetryOnFailure = retryOnFailure,
+            MaxRetries = maxRetries,
+            DisabledReason = disabledReason ?? (isEnabled ? null : "Disabled by admin"),
             LastConnectionStatus = "Healthy",
             LastTestedAt = new DateTime(2026, 7, 10, 9, 0, 0, DateTimeKind.Utc),
-            ConfigurationJson = """{"mode":"fast"}""",
+            ConfigurationJson = configurationJson,
             CreatedAt = new DateTime(2026, 7, 1, 9, 0, 0, DateTimeKind.Utc),
             UpdatedAt = new DateTime(2026, 7, 9, 9, 0, 0, DateTimeKind.Utc)
         };

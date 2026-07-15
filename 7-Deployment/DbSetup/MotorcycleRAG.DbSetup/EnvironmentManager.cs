@@ -306,6 +306,7 @@ public class EnvironmentManager
     }
 
     [DllImport("libc")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     private static extern uint geteuid();
 
     private enum Platform

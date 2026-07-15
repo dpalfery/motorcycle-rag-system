@@ -95,6 +95,99 @@ public sealed class ProcessorArtifactsControllerTests
         Status(await controller.ReportJobStageByRunIdAsync("missing", request, CancellationToken.None), StatusCodes.Status404NotFound);
     }
 
+    [Fact]
+    public async Task UploadArtifactAsync_RejectsMissingAndOversizedFiles()
+    {
+        var controller = Create(Mock.Of<IProcessorArtifactService>());
+        var oversized = new Mock<IFormFile>();
+        oversized.SetupGet(x => x.Length).Returns(500L * 1024 * 1024 + 1);
+
+        Status(await controller.UploadArtifactAsync(null, "upload", "search-chunks", CancellationToken.None), StatusCodes.Status400BadRequest);
+        Status(await controller.UploadArtifactAsync(oversized.Object, "upload", "search-chunks", CancellationToken.None), StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task UploadArtifactAsync_MapsUnexpectedResultAndExceptionToServerError()
+    {
+        var unexpected = new Mock<IProcessorArtifactService>();
+        unexpected.Setup(x => x.UploadArtifactAsync(It.IsAny<ProcessorArtifactUploadRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessorArtifactUploadResult(null, (ProcessorArtifactOperationStatus)999));
+        Status(await Create(unexpected.Object).UploadArtifactAsync(CreateFile("content"), "upload", "search-chunks", CancellationToken.None), StatusCodes.Status500InternalServerError);
+
+        var throwing = new Mock<IProcessorArtifactService>();
+        throwing.Setup(x => x.UploadArtifactAsync(It.IsAny<ProcessorArtifactUploadRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("storage failure"));
+        Status(await Create(throwing.Object).UploadArtifactAsync(CreateFile("content"), "upload", "search-chunks", CancellationToken.None), StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task UploadArtifactAsync_WhenContentTypeIsMissing_UsesOctetStream()
+    {
+        var service = new Mock<IProcessorArtifactService>();
+        service.Setup(x => x.UploadArtifactAsync(It.Is<ProcessorArtifactUploadRequest>(request => request.ContentType == "application/octet-stream"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessorArtifactUploadResult(new ProcessorArtifactUploadResponse(), ProcessorArtifactOperationStatus.Success));
+        var file = new Mock<IFormFile>();
+        file.SetupGet(x => x.Length).Returns(7);
+        file.SetupGet(x => x.ContentType).Returns((string?)null);
+        file.Setup(x => x.CopyToAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .Returns((Stream target, CancellationToken _) => target.WriteAsync("content"u8.ToArray()).AsTask());
+
+        var result = await Create(service.Object).UploadArtifactAsync(file.Object, "upload", "search-chunks", CancellationToken.None);
+
+        result.Should().BeOfType<AcceptedResult>();
+        service.VerifyAll();
+    }
+
+    [Theory]
+    [InlineData(ProcessorArtifactOperationStatus.InvalidUploadId, StatusCodes.Status400BadRequest)]
+    [InlineData(ProcessorArtifactOperationStatus.InvalidDocumentType, StatusCodes.Status400BadRequest)]
+    [InlineData((ProcessorArtifactOperationStatus)999, StatusCodes.Status500InternalServerError)]
+    public async Task DownloadSourceAsync_MapsEveryRemainingStatus(ProcessorArtifactOperationStatus operationStatus, int expectedStatus)
+    {
+        var service = new Mock<IProcessorArtifactService>();
+        service.Setup(x => x.DownloadSourceAsync("upload", "manual-pdf", null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessorArtifactSourceResult(null, null, operationStatus));
+
+        Status(await Create(service.Object).DownloadSourceAsync("upload", "manual-pdf", CancellationToken.None), expectedStatus);
+    }
+
+    [Fact]
+    public async Task DownloadSourceAsync_WhenServiceThrows_ReturnsServerError()
+    {
+        var service = new Mock<IProcessorArtifactService>();
+        service.Setup(x => x.DownloadSourceAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("download failure"));
+
+        Status(await Create(service.Object).DownloadSourceAsync("upload", "manual-pdf", CancellationToken.None), StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task ReportJobStageByRunIdAsync_RejectsMissingRequestStageAndRunId()
+    {
+        var controller = Create(Mock.Of<IProcessorArtifactService>());
+
+        Status(await controller.ReportJobStageByRunIdAsync("run", null, CancellationToken.None), StatusCodes.Status400BadRequest);
+        Status(await controller.ReportJobStageByRunIdAsync("run", new IngestionJobStageRequest { Stage = " " }, CancellationToken.None), StatusCodes.Status400BadRequest);
+        Status(await controller.ReportJobStageByRunIdAsync(" ", new IngestionJobStageRequest { Stage = "extract" }, CancellationToken.None), StatusCodes.Status400BadRequest);
+    }
+
+    [Fact]
+    public async Task ReportJobStageAsync_MapsValidationAndNotFoundExceptions()
+    {
+        var jobId = Guid.NewGuid();
+        var service = new Mock<IProcessorArtifactService>();
+        var controller = Create(service.Object);
+
+        Status(await controller.ReportJobStageAsync(jobId, null, CancellationToken.None), StatusCodes.Status400BadRequest);
+        service.Setup(x => x.ReportJobStageAsync(jobId, It.IsAny<IngestionJobStageRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new KeyNotFoundException("missing"));
+        Status(await controller.ReportJobStageAsync(jobId, new IngestionJobStageRequest { Stage = "extract" }, CancellationToken.None), StatusCodes.Status404NotFound);
+
+        service.Setup(x => x.ReportJobStageAsync(jobId, It.IsAny<IngestionJobStageRequest>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("job not found"));
+        Status(await controller.ReportJobStageAsync(jobId, new IngestionJobStageRequest { Stage = "extract" }, CancellationToken.None), StatusCodes.Status404NotFound);
+    }
+
     private static ProcessorArtifactsController Create(IProcessorArtifactService service) =>
         new(service, NullLogger<ProcessorArtifactsController>.Instance);
 

@@ -1,13 +1,14 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.Application.Services.Ingestion;
 
 /// <summary>
-/// After a PDF manual is ingested, links the <see cref="MotorcycleManual"/> entity
-/// to the matching <see cref="BikeModel"/> via SQL Graph by creating a <see cref="GraphEdge"/>.
+/// After a PDF manual is ingested, links the <see cref="ManualDocument"/> entity
+/// to the matching <see cref="BikeModel"/> via SQL Graph by creating a <see cref="GraphEdgeDto"/>.
 /// </summary>
 public sealed class ManualBikeLinker
 {
@@ -44,7 +45,7 @@ public sealed class ManualBikeLinker
             return;
         }
 
-        var edge = new GraphEdge
+        var edge = new GraphEdgeDto
         {
             FromNodeId = manualId,
             ToNodeId = bikeModel.Id,

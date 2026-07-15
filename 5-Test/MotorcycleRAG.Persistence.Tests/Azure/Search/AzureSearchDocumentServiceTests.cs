@@ -8,6 +8,7 @@ using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Persistence.Azure.Search;
 using System.ClientModel.Primitives;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Persistence.Tests.Azure.Search;
 
 public sealed class AzureSearchDocumentServiceTests
@@ -80,7 +81,7 @@ public sealed class AzureSearchDocumentServiceTests
     {
         var sut = CreateSut();
 
-        var result = await sut.IndexDocumentsAsync<MotorcycleDocument>(null!);
+        var result = await sut.IndexDocumentsAsync<MotorcycleDocumentDto>(null!);
 
         result.Should().BeTrue();
         _resilienceServiceMock.Verify(
@@ -93,7 +94,7 @@ public sealed class AzureSearchDocumentServiceTests
     {
         var sut = CreateSut();
 
-        var result = await sut.IndexDocumentsAsync(Array.Empty<MotorcycleDocument>());
+        var result = await sut.IndexDocumentsAsync(Array.Empty<MotorcycleDocumentDto>());
 
         result.Should().BeTrue();
         _resilienceServiceMock.Verify(
@@ -115,7 +116,7 @@ public sealed class AzureSearchDocumentServiceTests
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var documents = new MotorcycleDocument[] { new() { Id = "doc1" } };
+        var documents = new MotorcycleDocumentDto[] { new() { Id = "doc1" } };
 
         var result = await sut.IndexDocumentsAsync(documents);
 
@@ -144,7 +145,7 @@ public sealed class AzureSearchDocumentServiceTests
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        var documents = new MotorcycleDocument[] { new() { Id = "doc1" } };
+        var documents = new MotorcycleDocumentDto[] { new() { Id = "doc1" } };
 
         var result = await sut.IndexDocumentsAsync(documents);
 
@@ -166,21 +167,21 @@ public sealed class AzureSearchDocumentServiceTests
                 correlationId,
                 cts.Token))
             .ReturnsAsync(true);
-        var documents = new MotorcycleDocument[] { new() { Id = "doc1" } };
+        var documents = new MotorcycleDocumentDto[] { new() { Id = "doc1" } };
 
         var result = await sut.IndexDocumentsAsync(documents, cts.Token);
 
         result.Should().BeTrue();
     }
 
-    // ---- IndexDocumentsAsync (IEnumerable<MotorcycleDocument>) ----
+    // ---- IndexDocumentsAsync (IEnumerable<MotorcycleDocumentDto>) ----
 
     [Fact]
     public async Task IndexDocumentsAsync_EnumerableWithEmptyDocuments_ShouldReturnWithoutCallingResilience()
     {
         var sut = CreateSut();
 
-        await sut.IndexDocumentsAsync(Enumerable.Empty<MotorcycleDocument>());
+        await sut.IndexDocumentsAsync(Enumerable.Empty<MotorcycleDocumentDto>());
 
         _resilienceServiceMock.Verify(
             x => x.ExecuteAsync<bool>(It.IsAny<string>(), It.IsAny<Func<Task<bool>>>(), It.IsAny<Func<Task<bool>>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
@@ -201,7 +202,7 @@ public sealed class AzureSearchDocumentServiceTests
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        var documents = new List<MotorcycleDocument> { new() { Id = "doc1" } };
+        var documents = new List<MotorcycleDocumentDto> { new() { Id = "doc1" } };
 
         var act = async () => await sut.IndexDocumentsAsync(documents);
 
@@ -223,7 +224,7 @@ public sealed class AzureSearchDocumentServiceTests
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var documents = new List<MotorcycleDocument>
+        var documents = new List<MotorcycleDocumentDto>
         {
             new() { Id = "doc1", Title = "Test Doc 1" },
             new() { Id = "doc2", Title = "Test Doc 2" }
@@ -256,7 +257,7 @@ public sealed class AzureSearchDocumentServiceTests
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new TimeoutException("Timed out"));
-        var documents = new List<MotorcycleDocument> { new() { Id = "doc1" } };
+        var documents = new List<MotorcycleDocumentDto> { new() { Id = "doc1" } };
 
         var act = async () => await sut.IndexDocumentsAsync(documents);
 
@@ -279,7 +280,7 @@ public sealed class AzureSearchDocumentServiceTests
                 correlationId,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        var documents = new List<MotorcycleDocument> { new() { Id = "only-doc" } };
+        var documents = new List<MotorcycleDocumentDto> { new() { Id = "only-doc" } };
 
         await sut.IndexDocumentsAsync(documents);
 
@@ -465,15 +466,15 @@ public sealed class AzureSearchDocumentServiceTests
 
         var searchClient = new Mock<SearchClient>();
         searchClient
-            .Setup(c => c.UploadDocumentsAsync<MotorcycleDocument>(
-                It.IsAny<IEnumerable<MotorcycleDocument>>(),
+            .Setup(c => c.UploadDocumentsAsync<MotorcycleDocumentDto>(
+                It.IsAny<IEnumerable<MotorcycleDocumentDto>>(),
                 It.IsAny<IndexDocumentsOptions>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(azureResponse);
 
         _clientFactoryMock.Setup(x => x.GetDefaultClient()).Returns(searchClient.Object);
 
-        var documents = new MotorcycleDocument[] { new() { Id = "doc1" } };
+        var documents = new MotorcycleDocumentDto[] { new() { Id = "doc1" } };
         var success = await sut.IndexDocumentsAsync(documents);
 
         success.Should().BeTrue();
@@ -502,15 +503,15 @@ public sealed class AzureSearchDocumentServiceTests
 
         var searchClient = new Mock<SearchClient>();
         searchClient
-            .Setup(c => c.UploadDocumentsAsync<MotorcycleDocument>(
-                It.IsAny<IEnumerable<MotorcycleDocument>>(),
+            .Setup(c => c.UploadDocumentsAsync<MotorcycleDocumentDto>(
+                It.IsAny<IEnumerable<MotorcycleDocumentDto>>(),
                 It.IsAny<IndexDocumentsOptions>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(azureResponse);
 
         _clientFactoryMock.Setup(x => x.GetDefaultClient()).Returns(searchClient.Object);
 
-        var documents = new MotorcycleDocument[] { new() { Id = "doc1" } };
+        var documents = new MotorcycleDocumentDto[] { new() { Id = "doc1" } };
         var success = await sut.IndexDocumentsAsync(documents);
 
         success.Should().BeFalse();
@@ -541,15 +542,15 @@ public sealed class AzureSearchDocumentServiceTests
 
         var searchClient = new Mock<SearchClient>();
         searchClient
-            .Setup(c => c.UploadDocumentsAsync<MotorcycleDocument>(
-                It.IsAny<IEnumerable<MotorcycleDocument>>(),
+            .Setup(c => c.UploadDocumentsAsync<MotorcycleDocumentDto>(
+                It.IsAny<IEnumerable<MotorcycleDocumentDto>>(),
                 It.IsAny<IndexDocumentsOptions>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(azureResponse);
 
         _clientFactoryMock.Setup(x => x.GetDefaultClient()).Returns(searchClient.Object);
 
-        var documents = new MotorcycleDocument[] { new() { Id = "doc1" }, new() { Id = "doc2" } };
+        var documents = new MotorcycleDocumentDto[] { new() { Id = "doc1" }, new() { Id = "doc2" } };
         var success = await sut.IndexDocumentsAsync(documents);
 
         success.Should().BeFalse();

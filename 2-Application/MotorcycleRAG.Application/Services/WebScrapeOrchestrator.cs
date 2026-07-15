@@ -13,6 +13,7 @@ using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Domain.ValueObjects;
 using MotorcycleRAG.Core.Options;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Application.Services;
 
 /// <summary>
@@ -481,19 +482,19 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     /// <summary>
     /// Converts crawled search results to motorcycle documents
     /// </summary>
-    private MotorcycleDocument[] ConvertCrawledContentToDocuments(
+    private MotorcycleDocumentDto[] ConvertCrawledContentToDocuments(
         CrawlResult crawlResult,
         WebSource webSource) {
-        var documents = new List<MotorcycleDocument>();
+        var documents = new List<MotorcycleDocumentDto>();
 
         foreach (var searchResult in crawlResult.CrawledContent) {
             try {
-                var document = new MotorcycleDocument {
+                var document = new MotorcycleDocumentDto {
                     Id = $"web_{searchResult.Id}_{DateTime.UtcNow.Ticks}",
                     Title = searchResult.Source.SourceName ?? webSource.Name,
                     Content = searchResult.Content,
                     Type = Domain.Enums.DocumentType.WebContent,
-                    Metadata = new DocumentMetadata(),
+                    Metadata = new DocumentMetadataDto(),
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -541,7 +542,7 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     /// Indexes motorcycle documents
     /// </summary>
     private async Task<BatchIndexingResult> IndexDocumentsAsync(
-        MotorcycleDocument[] documents) {
+        MotorcycleDocumentDto[] documents) {
         try {
             _logger.LogInformation("Starting indexing of {DocumentCount} documents", documents.Length);
 
@@ -610,4 +611,3 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
 
     #endregion
 }
-

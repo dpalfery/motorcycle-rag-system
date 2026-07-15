@@ -6,7 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Sql.Repositories;
 
@@ -103,7 +103,7 @@ public sealed class SqlGraphRepositoryTests
         var factory = new Mock<ISqlConnectionFactory>(MockBehavior.Strict);
         var sut = new SqlGraphRepository(factory.Object, NullLogger<SqlGraphRepository>.Instance);
 
-        await sut.UpsertNodesAsync(Array.Empty<GraphNode>());
+        await sut.UpsertNodesAsync(Array.Empty<GraphNodeDto>());
 
         factory.Verify(x => x.CreateOpenConnectionAsync(), Times.Never);
     }
@@ -227,7 +227,7 @@ public sealed class SqlGraphRepositoryTests
         var factory = new Mock<ISqlConnectionFactory>(MockBehavior.Strict);
         var sut = new SqlGraphRepository(factory.Object, NullLogger<SqlGraphRepository>.Instance);
 
-        await sut.UpsertEdgesAsync(Array.Empty<GraphEdge>());
+        await sut.UpsertEdgesAsync(Array.Empty<GraphEdgeDto>());
 
         factory.Verify(x => x.CreateOpenConnectionAsync(), Times.Never);
     }
@@ -682,7 +682,7 @@ public sealed class SqlGraphRepositoryTests
         return new SqlGraphRepository(factory.Object, NullLogger<SqlGraphRepository>.Instance);
     }
 
-    private static GraphNode CreateNode(
+    private static GraphNodeDto CreateNode(
         Guid? id = null,
         string name = "Front Brake",
         string type = "Component",
@@ -701,7 +701,7 @@ public sealed class SqlGraphRepositoryTests
             UpdatedAtUtc = updatedAtUtc ?? new DateTimeOffset(2026, 7, 10, 13, 0, 0, TimeSpan.Zero)
         };
 
-    private static GraphEdge CreateEdge(
+    private static GraphEdgeDto CreateEdge(
         Guid? fromNodeId = null,
         Guid? toNodeId = null,
         string relationshipType = "REQUIRES",

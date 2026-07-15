@@ -769,10 +769,428 @@ public sealed class IngestionJobsControllerTests
         serverError.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
     }
 
+    // === POST /api/ingestion/jobs/{jobId}/reprocess ===
+
+    [Fact]
+    public async Task ReprocessJobAsync_WhenServiceSucceeds_ReturnsAcceptedWithResult()
+    {
+        var jobId = Guid.NewGuid();
+        var expected = new ReprocessResultDto(
+            ArtifactsProcessed: 3,
+            ArtifactsSucceeded: 2,
+            ArtifactsPartiallyIndexed: 1,
+            ArtifactsFailed: 0);
+
+        var reprocessService = new Mock<IChunkReprocessService>();
+        reprocessService
+            .Setup(service => service.ReprocessByJobIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), reprocessService: reprocessService.Object);
+
+        var result = await sut.ReprocessJobAsync(jobId, CancellationToken.None);
+
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(expected);
+        reprocessService.Verify(service => service.ReprocessByJobIdAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReprocessJobAsync_WhenServiceThrows_ReturnsInternalServerError()
+    {
+        var jobId = Guid.NewGuid();
+        var reprocessService = new Mock<IChunkReprocessService>();
+        reprocessService
+            .Setup(service => service.ReprocessByJobIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("job not found"));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), reprocessService: reprocessService.Object);
+
+        var result = await sut.ReprocessJobAsync(jobId, CancellationToken.None);
+
+        var statusCode = result.Should().BeOfType<ObjectResult>().Subject;
+        statusCode.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        var problem = statusCode.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Title.Should().Be("Reprocess operation failed");
+        problem.Detail.Should().Be("The reprocess operation could not be completed.");
+        problem.Detail.Should().NotContain("job not found");
+    }
+
+    // === POST /api/ingestion/jobs/reprocess/all ===
+
+    [Fact]
+    public async Task ReprocessAllAsync_WhenServiceSucceeds_ReturnsAcceptedWithResult()
+    {
+        var expected = new ReprocessResultDto(
+            ArtifactsProcessed: 10,
+            ArtifactsSucceeded: 8,
+            ArtifactsPartiallyIndexed: 1,
+            ArtifactsFailed: 1);
+
+        var reprocessService = new Mock<IChunkReprocessService>();
+        reprocessService
+            .Setup(service => service.ReprocessAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), reprocessService: reprocessService.Object);
+
+        var result = await sut.ReprocessAllAsync(CancellationToken.None);
+
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(expected);
+        reprocessService.Verify(service => service.ReprocessAllAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReprocessAllAsync_WhenServiceThrows_ReturnsInternalServerError()
+    {
+        var reprocessService = new Mock<IChunkReprocessService>();
+        reprocessService
+            .Setup(service => service.ReprocessAllAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("storage unavailable"));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), reprocessService: reprocessService.Object);
+
+        var result = await sut.ReprocessAllAsync(CancellationToken.None);
+
+        var statusCode = result.Should().BeOfType<ObjectResult>().Subject;
+        statusCode.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        var problem = statusCode.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Title.Should().Be("Reprocess operation failed");
+        problem.Detail.Should().Be("The reprocess operation could not be completed.");
+    }
+
+    // === POST /api/ingestion/jobs/reprocess/not-succeeded ===
+
+    [Fact]
+    public async Task ReprocessNotSucceededAsync_WhenServiceSucceeds_ReturnsAcceptedWithResult()
+    {
+        var expected = new ReprocessResultDto(
+            ArtifactsProcessed: 5,
+            ArtifactsSucceeded: 3,
+            ArtifactsPartiallyIndexed: 0,
+            ArtifactsFailed: 2);
+
+        var reprocessService = new Mock<IChunkReprocessService>();
+        reprocessService
+            .Setup(service => service.ReprocessAllNotSucceededAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), reprocessService: reprocessService.Object);
+
+        var result = await sut.ReprocessNotSucceededAsync(CancellationToken.None);
+
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(expected);
+        reprocessService.Verify(service => service.ReprocessAllNotSucceededAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReprocessNotSucceededAsync_WhenServiceThrows_ReturnsInternalServerError()
+    {
+        var reprocessService = new Mock<IChunkReprocessService>();
+        reprocessService
+            .Setup(service => service.ReprocessAllNotSucceededAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("storage unavailable"));
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), reprocessService: reprocessService.Object);
+
+        var result = await sut.ReprocessNotSucceededAsync(CancellationToken.None);
+
+        var statusCode = result.Should().BeOfType<ObjectResult>().Subject;
+        statusCode.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        var problem = statusCode.Value.Should().BeOfType<ProblemDetails>().Subject;
+        problem.Title.Should().Be("Reprocess operation failed");
+        problem.Detail.Should().Be("The reprocess operation could not be completed.");
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithOctetStreamPdf_AssumesApplicationPdfContentType()
+    {
+        // Covers GetContentType's fallback for manual-pdf when the client sent application/octet-stream.
+        var blobStorage = new Mock<IBlobStorageService>();
+        blobStorage
+            .Setup(service => service.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("https://storage.example/raw-uploads/source.pdf");
+
+        var sut = CreateController(blobStorage.Object);
+        await using var stream = new MemoryStream("%PDF-1.7"u8.ToArray());
+        var file = CreateFormFile(stream, "manual.pdf", "application/octet-stream");
+
+        await sut.UploadAsync(file, "manual-pdf", CancellationToken.None);
+
+        blobStorage.Verify(service => service.UploadAsync(
+            "raw-uploads",
+            It.IsAny<string>(),
+            It.IsAny<Stream>(),
+            "application/pdf",
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithOctetStreamCsv_AssumesTextCsvContentType()
+    {
+        // Covers GetContentType's fallback for CSV document types when the client sent application/octet-stream.
+        var blobStorage = new Mock<IBlobStorageService>();
+        blobStorage
+            .Setup(service => service.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("https://storage.example/raw-uploads/upload.csv");
+
+        var sut = CreateController(blobStorage.Object);
+        await using var stream = new MemoryStream("make,model\nHonda,CBR"u8.ToArray());
+        var file = CreateFormFile(stream, "bikes.csv", string.Empty);
+
+        await sut.UploadAsync(file, "bike-graph", CancellationToken.None);
+
+        blobStorage.Verify(service => service.UploadAsync(
+            "raw-uploads",
+            It.IsAny<string>(),
+            It.IsAny<Stream>(),
+            "text/csv",
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(201)]
+    public async Task GetRecentJobsAsync_WhenTopIsOutsideAllowedRange_ReturnsBadRequest(int top)
+    {
+        var result = await CreateController(Mock.Of<IBlobStorageService>())
+            .GetRecentJobsAsync(top, CancellationToken.None);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task UploadAsync_WhenFileIsMissingOrEmpty_ReturnsBadRequest()
+    {
+        var sut = CreateController(Mock.Of<IBlobStorageService>());
+        var missing = await sut.UploadAsync(null, "manual-pdf", CancellationToken.None);
+        await using var emptyStream = new MemoryStream();
+        var empty = await sut.UploadAsync(CreateFormFile(emptyStream, "manual.pdf", "application/pdf"), "manual-pdf", CancellationToken.None);
+
+        missing.Should().BeOfType<BadRequestObjectResult>();
+        empty.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task UploadAsync_WhenDocumentTypeIsInvalidOrExtensionDoesNotMatch_ReturnsBadRequest()
+    {
+        var sut = CreateController(Mock.Of<IBlobStorageService>());
+        await using var csv = new MemoryStream("make,model"u8.ToArray());
+        await using var pdf = new MemoryStream("%PDF"u8.ToArray());
+
+        var invalidType = await sut.UploadAsync(CreateFormFile(csv, "bikes.csv", "text/csv"), "unknown", CancellationToken.None);
+        var invalidExtension = await sut.UploadAsync(CreateFormFile(pdf, "manual.pdf", "application/pdf"), "spec-dataset", CancellationToken.None);
+
+        invalidType.Should().BeOfType<BadRequestObjectResult>();
+        invalidExtension.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task UploadAsync_WhenStorageThrows_ReturnsSanitizedServerError()
+    {
+        var storage = new Mock<IBlobStorageService>();
+        storage.Setup(x => x.UploadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("storage failure"));
+        await using var stream = new MemoryStream("make,model"u8.ToArray());
+
+        var result = await CreateController(storage.Object)
+            .UploadAsync(CreateFormFile(stream, "bikes.csv", "text/csv"), "spec-dataset", CancellationToken.None);
+
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task StartJobAsync_WhenBodyMissingOrValid_MapsBadRequestAndAccepted()
+    {
+        var service = new Mock<IIngestionJobService>();
+        var request = CreateValidStartRequest();
+        var expected = new IngestionJobStatusResponse { JobId = Guid.NewGuid(), Status = "Queued" };
+        service.Setup(x => x.StartJobAsync(request, "test-user", It.IsAny<CancellationToken>())).ReturnsAsync(expected);
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), service.Object);
+
+        (await sut.StartJobAsync(null, CancellationToken.None)).Should().BeOfType<BadRequestObjectResult>();
+        var accepted = await sut.StartJobAsync(request, CancellationToken.None);
+        accepted.Should().BeOfType<AcceptedResult>().Which.Value.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task ImportGraphAsync_WhenRequestIsMissingOrUploadIsBlank_ReturnsBadRequest()
+    {
+        var sut = CreateController(Mock.Of<IBlobStorageService>());
+
+        (await sut.ImportGraphAsync(null, CancellationToken.None)).Should().BeOfType<BadRequestObjectResult>();
+        (await sut.ImportGraphAsync(new GraphImportStartRequest { UploadId = " " }, CancellationToken.None)).Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task DeletePendingFileAsync_WhenUploadIdIsBlank_ReturnsBadRequest()
+    {
+        var result = await CreateController(Mock.Of<IBlobStorageService>())
+            .DeletePendingFileAsync(" ", "manual-pdf", CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task GetJobStatusAsync_MapsNotFoundAndSuccess()
+    {
+        var jobId = Guid.NewGuid();
+        var service = new Mock<IIngestionJobService>();
+        service.Setup(x => x.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IngestionJobStatusResponse?)null);
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), service.Object);
+
+        (await sut.GetJobStatusAsync(jobId, CancellationToken.None)).Should().BeOfType<NotFoundObjectResult>();
+        var expected = new IngestionJobStatusResponse { JobId = jobId, Status = "Processing" };
+        service.Setup(x => x.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>())).ReturnsAsync(expected);
+        (await sut.GetJobStatusAsync(jobId, CancellationToken.None)).Should().BeOfType<OkObjectResult>().Which.Value.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task ClearFailedJobsAsync_UsesAuthenticatedUser()
+    {
+        var service = new Mock<IIngestionJobService>();
+        service.Setup(x => x.ClearFailedJobsAsync("test-user", It.IsAny<CancellationToken>())).ReturnsAsync(4);
+
+        var result = await CreateController(Mock.Of<IBlobStorageService>(), service.Object)
+            .ClearFailedJobsAsync(CancellationToken.None);
+
+        result.Result.Should().BeOfType<OkObjectResult>().Which.Value.Should().BeEquivalentTo(new IngestionCleanupResponse { Scope = "failed-jobs", DeletedCount = 4 });
+    }
+
+    [Fact]
+    public async Task CancelAndFailJobAsync_WhenJobIsMissing_ReturnNotFound()
+    {
+        var jobId = Guid.NewGuid();
+        var service = new Mock<IIngestionJobService>();
+        service.Setup(x => x.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IngestionJobStatusResponse?)null);
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), service.Object);
+
+        (await sut.CancelJobAsync(jobId, CancellationToken.None)).Should().BeOfType<NotFoundObjectResult>();
+        (await sut.FailJobAsync(jobId, null!, CancellationToken.None)).Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task FailJobAsync_WhenJobExists_UsesDefaultReasonAndReturnsNoContent()
+    {
+        var jobId = Guid.NewGuid();
+        var service = new Mock<IIngestionJobService>();
+        service.Setup(x => x.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJobStatusResponse { JobId = jobId, Status = "Processing" });
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), service.Object);
+
+        var result = await sut.FailJobAsync(jobId, null!, CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        service.Verify(x => x.FailJobAsync(jobId, "Marked as failed.", "test-user", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RetryJobAsync_MapsMissingNonFailedAndServiceRejection()
+    {
+        var jobId = Guid.NewGuid();
+        var service = new Mock<IIngestionJobService>();
+        service.Setup(x => x.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IngestionJobStatusResponse?)null);
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), service.Object);
+        (await sut.RetryJobAsync(jobId, CancellationToken.None)).Should().BeOfType<NotFoundObjectResult>();
+
+        service.Setup(x => x.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJobStatusResponse { JobId = jobId, Status = "Completed" });
+        (await sut.RetryJobAsync(jobId, CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
+
+        service.Setup(x => x.GetJobStatusAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IngestionJobStatusResponse { JobId = jobId, Status = "Cancelled" });
+        service.Setup(x => x.RetryJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("retry rejected"));
+        (await sut.RetryJobAsync(jobId, CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
+    }
+
+    [Fact]
+    public void Constructor_RejectsEachRequiredDependency()
+    {
+        var service = Mock.Of<IIngestionJobService>();
+        var validator = new IngestionJobValidator();
+        var storage = Mock.Of<IBlobStorageService>();
+        var blobOptions = Options.Create(new BlobStorageOptions());
+        var ingestionOptions = Options.Create(new IngestionOptions());
+        var reprocess = Mock.Of<IChunkReprocessService>();
+        var logger = NullLogger<IngestionJobsController>.Instance;
+
+        ((Action)(() => new IngestionJobsController(null!, validator, storage, blobOptions, ingestionOptions, reprocess, logger))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new IngestionJobsController(service, null!, storage, blobOptions, ingestionOptions, reprocess, logger))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new IngestionJobsController(service, validator, null!, blobOptions, ingestionOptions, reprocess, logger))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new IngestionJobsController(service, validator, storage, null!, ingestionOptions, reprocess, logger))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new IngestionJobsController(service, validator, storage, blobOptions, null!, reprocess, logger))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, null!, logger))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, reprocess, null!))).Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task Actions_WithoutSubjectClaim_UseUnknownUser()
+    {
+        var jobId = Guid.NewGuid();
+        var start = CreateValidStartRequest();
+        var graph = new GraphImportStartRequest { UploadId = "upload" };
+        var metadata = new ManualMetadataSubmitRequest { MetadataJson = "{}" };
+        var status = new IngestionJobStatusResponse { JobId = jobId, Status = "Cancelled" };
+        var service = new Mock<IIngestionJobService>();
+        service.Setup(x => x.StartJobAsync(start, "unknown", It.IsAny<CancellationToken>())).ReturnsAsync(status);
+        service.Setup(x => x.ImportGraphArtifactsAsync(graph, "unknown", It.IsAny<CancellationToken>())).ReturnsAsync(status);
+        service.Setup(x => x.GetJobStatusAsync(jobId, "unknown", It.IsAny<CancellationToken>())).ReturnsAsync(status);
+        service.Setup(x => x.SubmitManualMetadataAsync(jobId, metadata.MetadataJson, "unknown", It.IsAny<CancellationToken>())).ReturnsAsync(status);
+        service.Setup(x => x.GetJobMetadataAsync(jobId, "unknown", It.IsAny<CancellationToken>())).ReturnsAsync(new IngestionJobMetadataResponse { JobId = jobId });
+        service.Setup(x => x.ClearFailedJobsAsync("unknown", It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        service.Setup(x => x.ClearFinishedJobsAsync("unknown", It.IsAny<CancellationToken>())).ReturnsAsync(1);
+        service.Setup(x => x.RetryJobAsync(jobId, "unknown", It.IsAny<CancellationToken>())).ReturnsAsync(status);
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), service.Object);
+        sut.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+
+        (await sut.StartJobAsync(start, CancellationToken.None)).Should().BeOfType<AcceptedResult>();
+        (await sut.ImportGraphAsync(graph, CancellationToken.None)).Should().BeOfType<AcceptedResult>();
+        (await sut.GetJobStatusAsync(jobId, CancellationToken.None)).Should().BeOfType<OkObjectResult>();
+        (await sut.SubmitManualMetadataAsync(jobId, metadata, CancellationToken.None)).Should().BeOfType<OkObjectResult>();
+        (await sut.GetJobMetadataAsync(jobId, CancellationToken.None)).Should().BeOfType<OkObjectResult>();
+        (await sut.DeleteJobAsync(jobId, CancellationToken.None)).Should().BeOfType<AcceptedResult>();
+        (await sut.CancelJobAsync(jobId, CancellationToken.None)).Should().BeOfType<NoContentResult>();
+        (await sut.FailJobAsync(jobId, "operator request", CancellationToken.None)).Should().BeOfType<NoContentResult>();
+        (await sut.ClearFailedJobsAsync(CancellationToken.None)).Result.Should().BeOfType<OkObjectResult>();
+        (await sut.ClearFinishedJobsAsync(CancellationToken.None)).Result.Should().BeOfType<OkObjectResult>();
+        (await sut.RetryJobAsync(jobId, CancellationToken.None)).Should().BeOfType<AcceptedResult>();
+    }
+
+    [Theory]
+    [InlineData("already being deleted", "Job deletion already in progress")]
+    [InlineData("service rejected deletion", "Job deletion rejected")]
+    public async Task DeleteJobAsync_WhenLegacyExceptionIsNotNotFound_MapsConflict(string message, string title)
+    {
+        var jobId = Guid.NewGuid();
+        var service = new Mock<IIngestionJobService>();
+        service.Setup(x => x.DeleteJobAsync(jobId, "test-user", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(message));
+
+        var result = await CreateController(Mock.Of<IBlobStorageService>(), service.Object)
+            .DeleteJobAsync(jobId, CancellationToken.None);
+
+        result.Should().BeOfType<ConflictObjectResult>().Which.Value.Should().BeOfType<ProblemDetails>().Which.Title.Should().Be(title);
+    }
+
+    private static IngestionJobStartRequest CreateValidStartRequest() => new()
+    {
+        UploadId = Guid.NewGuid().ToString(),
+        DocumentType = "manual-pdf",
+        ProcessorRunId = Guid.NewGuid().ToString("N"),
+        Configuration = new IngestionJobConfiguration { ExtractGraphRelationships = false, OcrEnabled = false }
+    };
+
     private static IngestionJobsController CreateController(
         IBlobStorageService blobStorageService,
         IIngestionJobService? ingestionJobService = null,
-        IngestionOptions? ingestionOptions = null)
+        IngestionOptions? ingestionOptions = null,
+        IChunkReprocessService? reprocessService = null)
     {
         var controller = new IngestionJobsController(
             ingestionJobService ?? Mock.Of<IIngestionJobService>(),
@@ -787,7 +1205,7 @@ public sealed class IngestionJobsControllerTests
             {
                 MaxInputBytes = 2_000_000_000L
             }),
-            Mock.Of<IChunkReprocessService>(),
+            reprocessService ?? Mock.Of<IChunkReprocessService>(),
             NullLogger<IngestionJobsController>.Instance);
 
         controller.ControllerContext = new ControllerContext {

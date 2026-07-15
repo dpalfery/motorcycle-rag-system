@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.DbSetup;
 
 // Create logger factory
-var loggerFactory = LoggerFactory.Create(builder =>
+using var loggerFactory = LoggerFactory.Create(builder =>
 {
     builder.AddConsole();
     builder.SetMinimumLevel(LogLevel.Information);
@@ -16,7 +16,8 @@ try
     var parser = new ArgumentParser(args);
     parser.ApplyEnvironmentOverrides();
 
-    if (!parser.Validate(out var errorMessage))
+    var (isValid, errorMessage) = parser.Validate();
+    if (!isValid)
     {
         logger.LogError("Validation failed: {ErrorMessage}", errorMessage);
         Environment.Exit(1);
@@ -95,7 +96,7 @@ try
     if (!preflightPassed)
     {
         logger.LogError("Preflight checks failed. Please review the errors above.");
-        logger.LogInformation("{RemediationInstructions}", preflightChecker.GetRemediationInstructions());
+        logger.LogInformation("{RemediationInstructions}", preflightChecker.RemediationInstructions);
         Environment.Exit(1);
     }
 
@@ -224,7 +225,7 @@ try
                     $"{envPrefix}_DB_SA_PASSWORD={parser.SaPassword}"
                 };
 
-                File.AppendAllLines(githubEnv, envLines);
+                await File.AppendAllLinesAsync(githubEnv, envLines);
                 logger.LogInformation("Environment variables written to GitHub Actions GITHUB_ENV");
             }
             catch (Exception ex)

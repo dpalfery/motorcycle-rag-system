@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion;
 using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories;
@@ -87,7 +88,7 @@ public class ManualDocumentRepository : IManualDocumentRepository
         await connection.ExecuteAsync(new CommandDefinition(sql, document, cancellationToken: cancellationToken));
     }
 
-    public async Task<ManualProcessingRun> CreateRunAsync(ManualProcessingRun run, CancellationToken cancellationToken = default)
+    public async Task<ManualRunDto> CreateRunAsync(ManualRunDto run, CancellationToken cancellationToken = default)
     {
         const string sql = $@"
             INSERT INTO [dbo].[ManualProcessingRuns] (
@@ -99,24 +100,24 @@ public class ManualDocumentRepository : IManualDocumentRepository
             SELECT {RunColumns} FROM [dbo].[ManualProcessingRuns] WHERE [RunId] = @RunId;";
 
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        return await connection.QuerySingleAsync<ManualProcessingRun>(new CommandDefinition(sql, run, cancellationToken: cancellationToken));
+        return await connection.QuerySingleAsync<ManualRunDto>(new CommandDefinition(sql, run, cancellationToken: cancellationToken));
     }
 
-    public async Task<ManualProcessingRun?> GetRunByIdAsync(Guid runId, CancellationToken cancellationToken = default)
+    public async Task<ManualRunDto?> GetRunByIdAsync(Guid runId, CancellationToken cancellationToken = default)
     {
         const string sql = $"SELECT {RunColumns} FROM [dbo].[ManualProcessingRuns] WHERE [RunId] = @RunId;";
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        return await connection.QueryFirstOrDefaultAsync<ManualProcessingRun>(new CommandDefinition(sql, new { RunId = runId }, cancellationToken: cancellationToken));
+        return await connection.QueryFirstOrDefaultAsync<ManualRunDto>(new CommandDefinition(sql, new { RunId = runId }, cancellationToken: cancellationToken));
     }
 
-    public async Task<IEnumerable<ManualProcessingRun>> GetRunsForDocumentAsync(Guid documentId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<ManualRunDto>> GetRunsForDocumentAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
         const string sql = $"SELECT {RunColumns} FROM [dbo].[ManualProcessingRuns] WHERE [DocumentId] = @DocumentId ORDER BY [StartedAtUtc] DESC;";
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        return await connection.QueryAsync<ManualProcessingRun>(new CommandDefinition(sql, new { DocumentId = documentId }, cancellationToken: cancellationToken));
+        return await connection.QueryAsync<ManualRunDto>(new CommandDefinition(sql, new { DocumentId = documentId }, cancellationToken: cancellationToken));
     }
 
-    public async Task UpdateRunAsync(ManualProcessingRun run, CancellationToken cancellationToken = default)
+    public async Task UpdateRunAsync(ManualRunDto run, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             UPDATE [dbo].[ManualProcessingRuns] SET
@@ -136,7 +137,7 @@ public class ManualDocumentRepository : IManualDocumentRepository
         await connection.ExecuteAsync(new CommandDefinition(sql, run, cancellationToken: cancellationToken));
     }
 
-    public async Task<ManualProcessingStage> CreateStageAsync(ManualProcessingStage stage, CancellationToken cancellationToken = default)
+    public async Task<ManualStageDto> CreateStageAsync(ManualStageDto stage, CancellationToken cancellationToken = default)
     {
         const string sql = $@"
             INSERT INTO [dbo].[ManualProcessingStages] (
@@ -148,17 +149,17 @@ public class ManualDocumentRepository : IManualDocumentRepository
             SELECT {StageColumns} FROM [dbo].[ManualProcessingStages] WHERE [StageId] = @StageId;";
 
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        return await connection.QuerySingleAsync<ManualProcessingStage>(new CommandDefinition(sql, stage, cancellationToken: cancellationToken));
+        return await connection.QuerySingleAsync<ManualStageDto>(new CommandDefinition(sql, stage, cancellationToken: cancellationToken));
     }
 
-    public async Task<IEnumerable<ManualProcessingStage>> GetStagesForRunAsync(Guid runId, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<ManualStageDto>> GetStagesForRunAsync(Guid runId, CancellationToken cancellationToken = default)
     {
         const string sql = $"SELECT {StageColumns} FROM [dbo].[ManualProcessingStages] WHERE [RunId] = @RunId ORDER BY [StartedAtUtc] ASC;";
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        return await connection.QueryAsync<ManualProcessingStage>(new CommandDefinition(sql, new { RunId = runId }, cancellationToken: cancellationToken));
+        return await connection.QueryAsync<ManualStageDto>(new CommandDefinition(sql, new { RunId = runId }, cancellationToken: cancellationToken));
     }
 
-    public async Task UpdateStageAsync(ManualProcessingStage stage, CancellationToken cancellationToken = default)
+    public async Task UpdateStageAsync(ManualStageDto stage, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             UPDATE [dbo].[ManualProcessingStages] SET
@@ -174,7 +175,7 @@ public class ManualDocumentRepository : IManualDocumentRepository
         await connection.ExecuteAsync(new CommandDefinition(sql, stage, cancellationToken: cancellationToken));
     }
 
-    public async Task<IEnumerable<(ManualDocument Document, ManualProcessingRun Run)>> GetRecentManualOperationsAsync(int top, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<(ManualDocument Document, ManualRunDto Run)>> GetRecentManualOperationsAsync(int top, CancellationToken cancellationToken = default)
     {
         var sql = $@"
             SELECT TOP (@Top)
@@ -189,7 +190,7 @@ public class ManualDocumentRepository : IManualDocumentRepository
             ORDER BY r.[StartedAtUtc] DESC;";
 
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        var results = await connection.QueryAsync<ManualDocument, ManualProcessingRun, (ManualDocument, ManualProcessingRun)>(
+        var results = await connection.QueryAsync<ManualDocument, ManualRunDto, (ManualDocument, ManualRunDto)>(
             new CommandDefinition(sql, new { Top = top }, cancellationToken: cancellationToken),
             (doc, run) => (doc, run),
             splitOn: "RunId");

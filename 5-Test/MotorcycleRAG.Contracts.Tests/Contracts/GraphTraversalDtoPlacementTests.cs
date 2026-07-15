@@ -62,10 +62,10 @@ public sealed class GraphTraversalDtoPlacementTests
         var contractsAssembly = typeof(IGraphRepository).Assembly;
         var contractsModelsAssembly = typeof(IngestionJobConfiguration).Assembly;
 
-        ReferenceEquals(typeof(GraphPathResult).Assembly, contractsModelsAssembly).Should().BeTrue();
-        ReferenceEquals(typeof(GraphTraversalResult).Assembly, contractsModelsAssembly).Should().BeTrue();
-        contractsAssembly.GetType(typeof(GraphPathResult).FullName!).Should().BeNull();
-        contractsAssembly.GetType(typeof(GraphTraversalResult).FullName!).Should().BeNull();
+        ReferenceEquals(typeof(GraphPathResultDto).Assembly, contractsModelsAssembly).Should().BeTrue();
+        ReferenceEquals(typeof(GraphTraversalResultDto).Assembly, contractsModelsAssembly).Should().BeTrue();
+        contractsAssembly.GetType(typeof(GraphPathResultDto).FullName!).Should().BeNull();
+        contractsAssembly.GetType(typeof(GraphTraversalResultDto).FullName!).Should().BeNull();
     }
 
     private static bool IsForbiddenProductionType(Type type, string contractsAssemblyName) =>

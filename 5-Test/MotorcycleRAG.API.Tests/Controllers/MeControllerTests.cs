@@ -48,6 +48,76 @@ public sealed class MeControllerTests
         await controller.Invoking(x => x.UpdateProfileAsync(null!)).Should().ThrowAsync<ArgumentNullException>();
     }
 
+    [Fact]
+    public async Task GetProfileAsync_WhenAccessNotApproved_Returns403()
+    {
+        var service = new Mock<ICurrentUserProfileService>();
+        service.Setup(x => x.GetProfileAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CurrentUserProfileResult(CurrentUserProfileStatus.AccessNotApproved));
+        var controller = new MeController(service.Object);
+
+        Status(await controller.GetProfileAsync(), StatusCodes.Status403Forbidden);
+    }
+
+    [Fact]
+    public async Task GetProfileAsync_WhenStatusUnknown_Returns500()
+    {
+        var service = new Mock<ICurrentUserProfileService>();
+        service.Setup(x => x.GetProfileAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CurrentUserProfileResult((CurrentUserProfileStatus)999));
+        var controller = new MeController(service.Object);
+
+        (await controller.GetProfileAsync()).Should().BeOfType<StatusCodeResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_WithoutDays_DefaultsToSevenDayWindow()
+    {
+        var service = new Mock<ICurrentUserProfileService>();
+        service.Setup(x => x.GetUsageAsync(7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CurrentUserUsageResult(CurrentUserProfileStatus.Success, new UsageResponse()));
+
+        (await new MeController(service.Object).GetUsageAsync()).Should().BeOfType<OkObjectResult>();
+        service.Verify(x => x.GetUsageAsync(7, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(CurrentUserProfileStatus.Unauthenticated, StatusCodes.Status401Unauthorized)]
+    [InlineData(CurrentUserProfileStatus.AccessNotApproved, StatusCodes.Status403Forbidden)]
+    public async Task GetUsageAsync_MapsAccessOutcomes(CurrentUserProfileStatus status, int expectedCode)
+    {
+        var service = new Mock<ICurrentUserProfileService>();
+        service.Setup(x => x.GetUsageAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CurrentUserUsageResult(status));
+        var controller = new MeController(service.Object);
+
+        Status(await controller.GetUsageAsync(7), expectedCode);
+    }
+
+    [Fact]
+    public async Task GetUsageAsync_WhenStatusUnknown_Returns500()
+    {
+        var service = new Mock<ICurrentUserProfileService>();
+        service.Setup(x => x.GetUsageAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CurrentUserUsageResult((CurrentUserProfileStatus)999));
+        var controller = new MeController(service.Object);
+
+        (await controller.GetUsageAsync(7)).Should().BeOfType<StatusCodeResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_WhenSuccess_ReturnsOk()
+    {
+        var service = new Mock<ICurrentUserProfileService>();
+        var request = new UpdateProfileRequest { DisplayName = "Display" };
+        service.Setup(x => x.UpdateProfileAsync(request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CurrentUserProfileResult(CurrentUserProfileStatus.Success, new UserProfileResponse { Id = "user" }));
+
+        (await new MeController(service.Object).UpdateProfileAsync(request)).Should().BeOfType<OkObjectResult>();
+    }
+
     private static void Status(IActionResult result, int expected) =>
         result.Should().BeAssignableTo<ObjectResult>().Which.StatusCode.Should().Be(expected);
 }

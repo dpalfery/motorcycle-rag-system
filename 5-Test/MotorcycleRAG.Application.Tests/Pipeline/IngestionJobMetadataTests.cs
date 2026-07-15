@@ -210,7 +210,6 @@ public sealed class IngestionJobMetadataTests
     {
         var jobId = Guid.NewGuid();
         var job = CreateJob(jobId, IngestionJobStatus.AwaitingMetadata);
-        job.MetadataJson = null;
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -232,8 +231,7 @@ public sealed class IngestionJobMetadataTests
     {
         var jobId = Guid.NewGuid();
         var corruptJson = "{ this is not valid";
-        var job = CreateJob(jobId, IngestionJobStatus.AwaitingMetadata);
-        job.MetadataJson = corruptJson;
+        var job = CreateJob(jobId, IngestionJobStatus.AwaitingMetadata, metadataJson: corruptJson);
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -252,8 +250,7 @@ public sealed class IngestionJobMetadataTests
     public async Task GetJobMetadataAsync_CompleteMetadata_ReturnsAllFieldsWithIsCompleteTrue()
     {
         var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId, IngestionJobStatus.Processing);
-        job.MetadataJson = CompleteMetadataJson;
+        var job = CreateJob(jobId, IngestionJobStatus.Processing, metadataJson: CompleteMetadataJson);
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -279,8 +276,7 @@ public sealed class IngestionJobMetadataTests
     {
         var jobId = Guid.NewGuid();
         var partialJson = """{"make":"Yamaha","model":"MT-07"}""";
-        var job = CreateJob(jobId, IngestionJobStatus.AwaitingMetadata);
-        job.MetadataJson = partialJson;
+        var job = CreateJob(jobId, IngestionJobStatus.AwaitingMetadata, metadataJson: partialJson);
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -330,8 +326,7 @@ public sealed class IngestionJobMetadataTests
     public async Task TransitionStageAsync_NeedsManualMetadata_TransitionsToAwaitingMetadata()
     {
         var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId, IngestionJobStatus.Processing);
-        job.CurrentStage = "extracting-metadata";
+        var job = CreateJob(jobId, IngestionJobStatus.Processing, currentStage: "extracting-metadata");
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -377,12 +372,18 @@ public sealed class IngestionJobMetadataTests
             _logger.Object);
     }
 
-    private static IngestionJob CreateJob(Guid jobId, IngestionJobStatus status)
+    private static IngestionJob CreateJob(
+        Guid jobId,
+        IngestionJobStatus status,
+        string? metadataJson = null,
+        string? currentStage = null)
     {
         return new IngestionJob
         {
             IngestionJobId = jobId,
             Status = status,
+            MetadataJson = metadataJson,
+            CurrentStage = currentStage,
             InputType = IngestionJobType.PDFManual,
             InputRef = "upload-test-123",
             ComputeProvider = "AdminLocalProcessor",

@@ -50,7 +50,9 @@ public class SqlScriptExecutor
                     _logger.LogDebug("Executing batch {BatchNumber}/{TotalBatches}", batchNumber, batches.Count);
 
                     await using var command = connection.CreateCommand();
+#pragma warning disable CA2100 // Batch is read from a trusted script file, not user input
                     command.CommandText = batch;
+#pragma warning restore CA2100
                     command.CommandTimeout = 300; // 5 minutes
 
                     await command.ExecuteNonQueryAsync(cancellationToken);
@@ -58,7 +60,7 @@ public class SqlScriptExecutor
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to execute batch {BatchNumber}", batchNumber);
-                    _logger.LogError("Batch content: {BatchContent}", batch.Length > 200 ? batch.Substring(0, 200) + "..." : batch);
+                    _logger.LogError("Batch content: {BatchContent}", batch.Length > 200 ? string.Concat(batch.AsSpan(0, 200), "...") : batch);
                     return false;
                 }
             }

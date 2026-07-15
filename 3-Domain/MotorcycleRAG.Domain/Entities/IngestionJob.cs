@@ -19,19 +19,27 @@ public class IngestionJob
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>UTC timestamp when the Fabric pipeline run actually started. Null until pipeline starts.</summary>
-    public DateTimeOffset? StartedAtUtc { get; set; }
+    private DateTimeOffset? _startedAtUtc;
+    private DateTimeOffset? _completedAtUtc;
+    private IngestionJobStatus _status = IngestionJobStatus.Queued;
+    private string? _failureReason;
+    private string? _metadataJson;
+    private string? _currentStage;
+    private DateTimeOffset? _stageSetAtUtc;
+
+    public DateTimeOffset? StartedAtUtc { get => _startedAtUtc; init => _startedAtUtc = value; }
 
     /// <summary>UTC timestamp when the job reached a terminal state (Completed, Failed, Cancelled).</summary>
-    public DateTimeOffset? CompletedAtUtc { get; set; }
+    public DateTimeOffset? CompletedAtUtc { get => _completedAtUtc; init => _completedAtUtc = value; }
 
     /// <summary>Entra ID subject (oid) of the user who initiated the job. Never logged raw.</summary>
     public string? CreatedBySubject { get; set; }
 
     /// <summary>Current job lifecycle status.</summary>
-    public IngestionJobStatus Status { get; set; } = IngestionJobStatus.Queued;
+    public IngestionJobStatus Status { get => _status; init => _status = value; }
 
     /// <summary>Human-readable failure description. Populated only on terminal failure.</summary>
-    public string? FailureReason { get; set; }
+    public string? FailureReason { get => _failureReason; init => _failureReason = value; }
 
     /// <summary>Type of ingestion input (PDFManual, StructuredSpecification, etc.).</summary>
     public IngestionJobType InputType { get; set; }
@@ -80,7 +88,7 @@ public class IngestionJob
     /// and this field holds the partial result; once an admin submits manual metadata it is
     /// overwritten with the complete blob. Column is <c>nvarchar(max)</c>.
     /// </summary>
-    public string? MetadataJson { get; set; }
+    public string? MetadataJson { get => _metadataJson; init => _metadataJson = value; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
 
@@ -127,8 +135,156 @@ public class IngestionJob
     /// Current pipeline stage reported by the local processor.
     /// Values: copying, parsing, chunking, embedding, uploading-chunks, extracting-graph, uploading-graph, completed.
     /// </summary>
-    public string? CurrentStage { get; set; }
+    public string? CurrentStage { get => _currentStage; init => _currentStage = value; }
 
     /// <summary>UTC timestamp when the current stage was last updated.</summary>
-    public DateTimeOffset? StageSetAtUtc { get; set; }
+    public DateTimeOffset? StageSetAtUtc { get => _stageSetAtUtc; init => _stageSetAtUtc = value; }
+
+    public void StartProcessing(DateTimeOffset? atUtc = null)
+    {
+        EnsureTransitionAllowed(IngestionJobStatus.Processing);
+        _status = IngestionJobStatus.Processing;
+        _startedAtUtc ??= atUtc ?? DateTimeOffset.UtcNow;
+    }
+
+    public void PauseForMetadata(string? reason, string stage, DateTimeOffset? atUtc = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(stage);
+        EnsureTransitionAllowed(IngestionJobStatus.AwaitingMetadata);
+        _status = IngestionJobStatus.AwaitingMetadata;
+        _currentStage = stage;
+        _stageSetAtUtc = atUtc ?? DateTimeOffset.UtcNow;
+        _failureReason = string.IsNullOrWhiteSpace(reason)
+            ? "Metadata extraction incomplete. Manual entry required."
+            : reason;
+    }
+
+    public void ResumeFromMetadata(string stage, DateTimeOffset? atUtc = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(stage);
+        if (_status != IngestionJobStatus.AwaitingMetadata)
+        {
+            throw new InvalidOperationException($"Only a job awaiting metadata can resume; current status is {_status}.");
+        }
+
+        _status = IngestionJobStatus.Processing;
+        _currentStage = stage;
+        _stageSetAtUtc = atUtc ?? DateTimeOffset.UtcNow;
+        _failureReason = null;
+    }
+
+    public void SetMetadata(string? metadataJson) => _metadataJson = metadataJson;
+
+    public void UpdateStage(string stage, int? chunksProcessed, int? totalChunks, DateTimeOffset? atUtc = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(stage);
+        if (_status == IngestionJobStatus.Queued)
+        {
+            StartProcessing(atUtc);
+        }
+
+        if (IsTerminal(_status))
+        {
+            throw new InvalidOperationException($"A job in {_status} state cannot update its stage.");
+        }
+
+        _currentStage = stage;
+        _stageSetAtUtc = atUtc ?? DateTimeOffset.UtcNow;
+        ExpectedChunkCount ??= totalChunks;
+        IndexedChunkCount = chunksProcessed;
+    }
+
+    public void Complete(DateTimeOffset? atUtc = null, bool partial = false)
+    {
+        EnsureTransitionAllowed(partial ? IngestionJobStatus.PartiallyCompleted : IngestionJobStatus.Completed);
+        var completedAt = atUtc ?? DateTimeOffset.UtcNow;
+        _status = partial ? IngestionJobStatus.PartiallyCompleted : IngestionJobStatus.Completed;
+        _completedAtUtc = completedAt;
+        _failureReason = null;
+    }
+
+    public void Fail(string reason, DateTimeOffset? atUtc = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        EnsureTransitionAllowed(IngestionJobStatus.Failed);
+        _status = IngestionJobStatus.Failed;
+        _completedAtUtc = atUtc ?? DateTimeOffset.UtcNow;
+        _failureReason = reason.Length <= 2000 ? reason : reason[..2000];
+    }
+
+    public void Cancel(string reason = "Cancelled by user.", DateTimeOffset? atUtc = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        EnsureTransitionAllowed(IngestionJobStatus.Cancelled);
+        var completedAt = atUtc ?? DateTimeOffset.UtcNow;
+        _status = IngestionJobStatus.Cancelled;
+        _completedAtUtc = completedAt;
+        _failureReason = reason;
+        _currentStage = "cancelled";
+        _stageSetAtUtc = completedAt;
+    }
+
+    public void MarkDeleting()
+    {
+        if (_status is not (IngestionJobStatus.Queued or IngestionJobStatus.AwaitingMetadata
+            or IngestionJobStatus.Completed or IngestionJobStatus.Failed
+            or IngestionJobStatus.Cancelled or IngestionJobStatus.PartiallyCompleted))
+        {
+            throw new InvalidOperationException($"A job in {_status} state cannot be marked for deletion.");
+        }
+
+        _status = IngestionJobStatus.Deleting;
+    }
+
+    public void QueueForRetry()
+    {
+        if (_status is not (IngestionJobStatus.Failed or IngestionJobStatus.Cancelled or IngestionJobStatus.AwaitingMetadata))
+        {
+            throw new InvalidOperationException($"Only failed, cancelled, or metadata-paused jobs can be retried; current status is {_status}.");
+        }
+
+        _status = IngestionJobStatus.Queued;
+        _startedAtUtc = null;
+        _completedAtUtc = null;
+        _failureReason = null;
+        _currentStage = null;
+        _stageSetAtUtc = null;
+        ExpectedChunkCount = null;
+        IndexedChunkCount = null;
+        _metadataJson = null;
+        ErrorMessage = null;
+        ErrorsJson = null;
+    }
+
+    public void RecordFailure(string detail)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(detail);
+        ErrorsJson = detail.Trim();
+        ErrorMessage = detail.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? detail.Trim();
+        _failureReason = detail.Length <= 2000 ? detail : detail[..2000];
+    }
+
+    public void RollbackDeletion(string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        if (_status != IngestionJobStatus.Deleting)
+        {
+            throw new InvalidOperationException("Only a deleting job can be rolled back.");
+        }
+
+        _status = IngestionJobStatus.Failed;
+        _failureReason = reason.Length <= 2000 ? reason : reason[..2000];
+    }
+
+    private void EnsureTransitionAllowed(IngestionJobStatus target)
+    {
+        if (IsTerminal(_status) && target != IngestionJobStatus.Deleting)
+        {
+            throw new InvalidOperationException($"A job in {_status} state cannot transition to {target}.");
+        }
+    }
+
+    private static bool IsTerminal(IngestionJobStatus status) => status is IngestionJobStatus.Completed
+        or IngestionJobStatus.Failed or IngestionJobStatus.Cancelled
+        or IngestionJobStatus.PartiallyCompleted or IngestionJobStatus.Deleting;
 }

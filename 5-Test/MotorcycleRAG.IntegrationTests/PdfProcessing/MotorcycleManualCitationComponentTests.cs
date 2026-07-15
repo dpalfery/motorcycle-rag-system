@@ -14,6 +14,7 @@ using MotorcycleRAG.Persistence.DataProcessing;
 using MotorcycleRAG.Persistence.Search;
 using Xunit;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.IntegrationTests.PdfProcessing;
 
 /// <summary>
@@ -76,7 +77,7 @@ public class MotorcycleManualCitationComponentTests {
 
         // Mock Azure Search upload (we're testing payload creation, not actual upload)
         mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Setup options
@@ -142,7 +143,7 @@ public class MotorcycleManualCitationComponentTests {
         var indexingResult = await indexingService.IndexDocumentsAsync(processedData.Documents);
 
         // Act - Step 3: Simulate search results that would come from Azure Search
-        // (using the same MotorcycleDocument objects that were created)
+        // (using the same MotorcycleDocumentDto objects that were created)
         var searchResults = CreateSimulatedSearchResultsFromDocuments(processedData.Documents);
 
         // Act - Step 4: Map search results to citations through real MotorcycleRagService logic
@@ -264,7 +265,7 @@ public class MotorcycleManualCitationComponentTests {
             .ReturnsAsync("Visual analysis completed.");
 
         mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         var pdfConfig = Options.Create(new PDFProcessingConfiguration {
@@ -347,7 +348,7 @@ public class MotorcycleManualCitationComponentTests {
             .ReturnsAsync("Visual analysis completed.");
 
         mockSearchClient
-            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         var pdfConfig = Options.Create(new PDFProcessingConfiguration {
@@ -610,7 +611,7 @@ public class MotorcycleManualCitationComponentTests {
     /// Creates simulated search results from processed documents
     /// Simulates what would come back from Azure Search
     /// </summary>
-    private static SearchResult[] CreateSimulatedSearchResultsFromDocuments(IEnumerable<MotorcycleDocument> documents) {
+    private static SearchResult[] CreateSimulatedSearchResultsFromDocuments(IEnumerable<MotorcycleDocumentDto> documents) {
         var results = new List<SearchResult>();
         var timestamp = DateTime.UtcNow;
 

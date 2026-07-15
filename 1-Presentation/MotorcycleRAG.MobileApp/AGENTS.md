@@ -18,4 +18,4 @@
 
 ## Verify
 
-Run `dotnet test --project 5-Test/MotorcycleRAG.MobileApp.Tests` and the affected platform build when available.
+Run the affected platform build when available. The retired mobile unit-test project is not a supported direct verification target.

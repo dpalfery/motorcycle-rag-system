@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
-using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.UnitTests.Services.Ingestion;
 
@@ -107,9 +107,9 @@ public sealed class GraphEntityIngestionServiceTests
         await sut.IngestAsync("upload-2");
 
         graphs.Verify(service => service.UpsertNodesAsync(
-            It.IsAny<IReadOnlyList<GraphNode>>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<IReadOnlyList<GraphNodeDto>>(), It.IsAny<CancellationToken>()), Times.Never);
         graphs.Verify(service => service.UpsertEdgesAsync(
-            It.IsAny<IReadOnlyList<GraphEdge>>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<IReadOnlyList<GraphEdgeDto>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -121,9 +121,9 @@ public sealed class GraphEntityIngestionServiceTests
         await sut.IngestAsync("upload-empty");
 
         graphs.Verify(service => service.UpsertNodesAsync(
-            It.IsAny<IReadOnlyList<GraphNode>>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<IReadOnlyList<GraphNodeDto>>(), It.IsAny<CancellationToken>()), Times.Never);
         graphs.Verify(service => service.UpsertEdgesAsync(
-            It.IsAny<IReadOnlyList<GraphEdge>>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<IReadOnlyList<GraphEdgeDto>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -148,19 +148,19 @@ public sealed class GraphEntityIngestionServiceTests
             }]
             """);
 
-        IReadOnlyList<GraphNode>? savedNodes = null;
-        IReadOnlyList<GraphEdge>? savedEdges = null;
-        graphs.Setup(service => service.UpsertNodesAsync(It.IsAny<IReadOnlyList<GraphNode>>(), It.IsAny<CancellationToken>()))
-            .Callback<IReadOnlyList<GraphNode>, CancellationToken>((nodes, _) => savedNodes = nodes)
+        IReadOnlyList<GraphNodeDto>? savedNodes = null;
+        IReadOnlyList<GraphEdgeDto>? savedEdges = null;
+        graphs.Setup(service => service.UpsertNodesAsync(It.IsAny<IReadOnlyList<GraphNodeDto>>(), It.IsAny<CancellationToken>()))
+            .Callback<IReadOnlyList<GraphNodeDto>, CancellationToken>((nodes, _) => savedNodes = nodes)
             .Returns(Task.CompletedTask);
-        graphs.Setup(service => service.UpsertEdgesAsync(It.IsAny<IReadOnlyList<GraphEdge>>(), It.IsAny<CancellationToken>()))
-            .Callback<IReadOnlyList<GraphEdge>, CancellationToken>((edges, _) => savedEdges = edges)
+        graphs.Setup(service => service.UpsertEdgesAsync(It.IsAny<IReadOnlyList<GraphEdgeDto>>(), It.IsAny<CancellationToken>()))
+            .Callback<IReadOnlyList<GraphEdgeDto>, CancellationToken>((edges, _) => savedEdges = edges)
             .Returns(Task.CompletedTask);
 
         await sut.IngestAsync("upload-3");
 
         savedNodes.Should().HaveCount(3);
-        savedNodes![0].Should().Match<GraphNode>(node =>
+        savedNodes![0].Should().Match<GraphNodeDto>(node =>
             node.Id == firstNodeId && node.Name == "Wheel" && node.Type == "Component" &&
             node.Description == "Front wheel" && node.SourceDocumentId == sourceDocumentId);
         savedNodes[1].Id.Should().NotBe(Guid.Empty);
@@ -169,7 +169,7 @@ public sealed class GraphEntityIngestionServiceTests
         savedNodes[2].SourceDocumentId.Should().BeNull();
 
         savedEdges.Should().ContainSingle();
-        savedEdges![0].Should().Match<GraphEdge>(edge =>
+        savedEdges![0].Should().Match<GraphEdgeDto>(edge =>
             edge.FromNodeId == firstNodeId && edge.ToNodeId == secondNodeId &&
             edge.RelationshipType == "PART_OF" && edge.Weight == 0.8 && edge.Context == "wheel assembly");
     }

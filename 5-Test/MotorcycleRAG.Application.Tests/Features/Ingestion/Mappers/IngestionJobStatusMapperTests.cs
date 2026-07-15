@@ -23,20 +23,20 @@ public sealed class IngestionJobStatusMapperTests
         // Arrange
         var jobId = Guid.NewGuid();
         var manualId = Guid.NewGuid();
-        var job = CreateJob();
+        var job = CreateJob(
+            status: IngestionJobStatus.AwaitingMetadata,
+            failureReason: "fallback reason",
+            metadataJson: """{"make":" Honda ","model":"CBR600RR","year":2023,"category":"sport","tags":[" abs ","fi",4]}""");
         job.Id = 42;
         job.IngestionJobId = jobId;
-        job.Status = IngestionJobStatus.AwaitingMetadata;
         job.ManualDocumentId = manualId;
         job.ErrorsJson = "processor failure detail";
-        job.FailureReason = "fallback reason";
         job.TotalPages = 10;
         job.PagesCapturedViewableCount = 9;
         job.PagesWithSearchableTextCount = 8;
         job.PagesWithOcrTextCount = 3;
         job.PagesWithNativeTextCount = 5;
         job.MissingPagesJson = "[2, 7]";
-        job.MetadataJson = """{"make":" Honda ","model":"CBR600RR","year":2023,"category":"sport","tags":[" abs ","fi",4]}""";
 
         // Act
         var result = IngestionJobStatusMapper.Map(job);
@@ -69,9 +69,9 @@ public sealed class IngestionJobStatusMapperTests
     public void Map_WithPascalCaseAndStringYearMetadata_UsesFallbackPropertiesAndManualStage()
     {
         // Arrange
-        var job = CreateJob();
-        job.CurrentStage = "NEEDS-MANUAL-METADATA";
-        job.MetadataJson = """{"Make":" Yamaha ","Model":" MT-07 ","Year":"2024","Category":" naked ","Tags":[" road ","",3]}""";
+        var job = CreateJob(
+            currentStage: "NEEDS-MANUAL-METADATA",
+            metadataJson: """{"Make":" Yamaha ","Model":" MT-07 ","Year":"2024","Category":" naked ","Tags":[" road ","",3]}""");
 
         // Act
         var result = IngestionJobStatusMapper.Map(job);
@@ -92,10 +92,8 @@ public sealed class IngestionJobStatusMapperTests
     public void Map_WithMalformedStoredJson_ReturnsSafeEmptyCollectionsAndFallbackFailureReason()
     {
         // Arrange
-        var job = CreateJob();
+        var job = CreateJob(failureReason: "stored failure", metadataJson: "{not-json");
         job.MissingPagesJson = "{not-json";
-        job.MetadataJson = "{not-json";
-        job.FailureReason = "stored failure";
 
         // Act
         var result = IngestionJobStatusMapper.Map(job);
@@ -115,10 +113,9 @@ public sealed class IngestionJobStatusMapperTests
     public void Map_WithNonObjectOrInvalidMetadataValues_NormalizesThemToIncompleteMetadata()
     {
         // Arrange
-        var arrayJob = CreateJob();
-        arrayJob.MetadataJson = "[\"not-an-object\"]";
-        var invalidValuesJob = CreateJob();
-        invalidValuesJob.MetadataJson = """{"make":42,"model":"   ","year":"not-a-year","tags":[1," "]}""";
+        var arrayJob = CreateJob(metadataJson: "[\"not-an-object\"]");
+        var invalidValuesJob = CreateJob(
+            metadataJson: """{"make":42,"model":"   ","year":"not-a-year","tags":[1," "]}""");
 
         // Act
         var arrayResult = IngestionJobStatusMapper.Map(arrayJob);
@@ -136,14 +133,21 @@ public sealed class IngestionJobStatusMapperTests
         invalidValuesResult.IsComplete.Should().BeFalse();
     }
 
-    private static IngestionJob CreateJob() =>
+    private static IngestionJob CreateJob(
+        IngestionJobStatus status = IngestionJobStatus.Processing,
+        string? failureReason = null,
+        string? metadataJson = null,
+        string? currentStage = null) =>
         new()
         {
             IngestionJobId = Guid.NewGuid(),
             CreatedAtUtc = new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero),
             StartedAtUtc = new DateTimeOffset(2026, 7, 12, 12, 1, 0, TimeSpan.Zero),
             CompletedAtUtc = new DateTimeOffset(2026, 7, 12, 12, 2, 0, TimeSpan.Zero),
-            Status = IngestionJobStatus.Processing,
+            Status = status,
+            FailureReason = failureReason,
+            MetadataJson = metadataJson,
+            CurrentStage = currentStage,
             InputType = IngestionJobType.PDFManual,
             InputRef = "uploads/manual.pdf",
             SourceFileName = "manual.pdf",

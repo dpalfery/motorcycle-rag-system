@@ -6,6 +6,7 @@ using MotorcycleRAG.Domain.ValueObjects;
 using MotorcycleRAG.Persistence.DataProcessing;
 using Microsoft.Extensions.Options;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Persistence.Tests.DataProcessing;
 
 public class MotorcycleCSVProcessorTests
@@ -23,7 +24,7 @@ public class MotorcycleCSVProcessorTests
     private static Mock<IAzureSearchClient> CreateSearchMock()
     {
         var mock = new Mock<IAzureSearchClient>();
-        mock.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        mock.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
         return mock;
     }
@@ -196,7 +197,7 @@ public class MotorcycleCSVProcessorTests
     {
         var sut = CreateSut();
         var data = new ProcessedData { Id = "test-id" };
-        data.Documents.Add(new MotorcycleDocument
+        data.Documents.Add(new MotorcycleDocumentDto
         {
             Id = "doc-1",
             Title = "Test",
@@ -312,12 +313,12 @@ public class MotorcycleCSVProcessorTests
     public async Task IndexAsync_ShouldCollectBatchErrors_WhenSearchClientThrows()
     {
         var searchMock = new Mock<IAzureSearchClient>();
-        searchMock.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        searchMock.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .ThrowsAsync(new InvalidOperationException("Search index error"));
         var sut = CreateSut(searchMock: searchMock);
 
         var data = new ProcessedData { Id = "test-id" };
-        data.Documents.Add(new MotorcycleDocument
+        data.Documents.Add(new MotorcycleDocumentDto
         {
             Id = "doc-1",
             Title = "Test",
@@ -337,7 +338,7 @@ public class MotorcycleCSVProcessorTests
     {
         var sut = CreateSut();
         var data = new ProcessedData { Id = "test-id" };
-        data.Documents.Add(new MotorcycleDocument
+        data.Documents.Add(new MotorcycleDocumentDto
         {
             Id = "doc-1",
             Title = "Test",
@@ -353,12 +354,12 @@ public class MotorcycleCSVProcessorTests
     public async Task IndexAsync_ShouldSetIndexingTime_OnFailure()
     {
         var searchMock = new Mock<IAzureSearchClient>();
-        searchMock.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        searchMock.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .ThrowsAsync(new InvalidOperationException("Search down"));
         var sut = CreateSut(searchMock: searchMock);
 
         var data = new ProcessedData { Id = "test-id" };
-        data.Documents.Add(new MotorcycleDocument { Id = "d", Title = "t", Content = "c", Type = DocumentType.Specification });
+        data.Documents.Add(new MotorcycleDocumentDto { Id = "d", Title = "t", Content = "c", Type = DocumentType.Specification });
 
         var result = await sut.IndexAsync(data);
         result.IndexingTime.Should().BeGreaterThan(TimeSpan.Zero);

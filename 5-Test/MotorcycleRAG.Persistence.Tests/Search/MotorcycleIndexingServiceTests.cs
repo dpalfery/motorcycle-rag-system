@@ -11,6 +11,7 @@ using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Persistence.Search;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.UnitTests.Search;
 
 /// <summary>
@@ -44,9 +45,14 @@ public class MotorcycleIndexingServiceTests
             BatchSize = batchSize
         });
 
+        // MaxRetries = 0: the dummy client points at an unreachable host, so without this the
+        // Azure SDK's own built-in retry policy would wait out several real seconds of
+        // exponential backoff before the "unreachable" tests observe the failure.
+        var dummyClientOptions = new global::Azure.Search.Documents.SearchClientOptions { Retry = { MaxRetries = 0 } };
         var dummyIndexClient = new SearchIndexClient(
             new Uri("https://localhost"),
-            new AzureKeyCredential("dummy-credential"));
+            new AzureKeyCredential("dummy-credential"),
+            dummyClientOptions);
 
         return new MotorcycleIndexingService(
             searchClient: new Mock<IAzureSearchClient>().Object,
@@ -73,7 +79,8 @@ public class MotorcycleIndexingServiceTests
         var mockSearchClient = new Mock<IAzureSearchClient>();
         var dummyIndexClient = new SearchIndexClient(
             new Uri("https://localhost"),
-            new AzureKeyCredential("dummy-credential"));
+            new AzureKeyCredential("dummy-credential"),
+            new global::Azure.Search.Documents.SearchClientOptions { Retry = { MaxRetries = 0 } });
 
         var service = new MotorcycleIndexingService(
             searchClient: mockSearchClient.Object,
@@ -115,11 +122,11 @@ public class MotorcycleIndexingServiceTests
     }
 
     /// <summary>
-    /// Creates a <see cref="MotorcycleDocument"/> with minimal required fields.
+    /// Creates a <see cref="MotorcycleDocumentDto"/> with minimal required fields.
     /// </summary>
-    private static MotorcycleDocument CreateDocument(string id, string title, string content)
+    private static MotorcycleDocumentDto CreateDocument(string id, string title, string content)
     {
-        return new MotorcycleDocument
+        return new MotorcycleDocumentDto
         {
             Id = id,
             Title = title,
@@ -202,10 +209,10 @@ public class MotorcycleIndexingServiceTests
     {
         // Arrange
         var (service, mockClient) = CreateServiceWithMockSearchClient(batchSize: 100);
-        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
-        var documents = new List<MotorcycleDocument>
+        var documents = new List<MotorcycleDocumentDto>
         {
             CreateDocument("1", "Doc One", "Content one"),
             CreateDocument("2", "Doc Two", "Content two"),
@@ -222,7 +229,7 @@ public class MotorcycleIndexingServiceTests
         result.DocumentsIndexed.Should().Be(3);
         result.IndexName.Should().Be(TestIndexName);
         result.Errors.Should().BeEmpty();
-        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
             Times.Once, "should index exactly one batch");
     }
 
@@ -233,13 +240,13 @@ public class MotorcycleIndexingServiceTests
         var (service, mockClient) = CreateServiceWithMockSearchClient();
 
         // Act
-        var result = await service.IndexDocumentsAsync(Array.Empty<MotorcycleDocument>());
+        var result = await service.IndexDocumentsAsync(Array.Empty<MotorcycleDocumentDto>());
 
         // Assert
         result.Success.Should().BeTrue();
         result.DocumentsProcessed.Should().Be(0);
         result.DocumentsIndexed.Should().Be(0);
-        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
             Times.Never, "should not attempt to index empty input");
     }
 
@@ -248,10 +255,10 @@ public class MotorcycleIndexingServiceTests
     {
         // Arrange
         var (service, mockClient) = CreateServiceWithMockSearchClient(batchSize: 100);
-        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
-        var documents = new List<MotorcycleDocument>
+        var documents = new List<MotorcycleDocumentDto>
         {
             CreateDocument("solo", "Solo Doc", "Solo content")
         };
@@ -263,7 +270,7 @@ public class MotorcycleIndexingServiceTests
         result.Success.Should().BeTrue();
         result.DocumentsProcessed.Should().Be(1);
         result.DocumentsIndexed.Should().Be(1);
-        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
             Times.Once);
     }
 
@@ -277,7 +284,7 @@ public class MotorcycleIndexingServiceTests
         // Arrange
         const int batchSize = 5;
         var (service, mockClient) = CreateServiceWithMockSearchClient(batchSize: batchSize);
-        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         var documents = Enumerable.Range(1, 12).Select(i =>
@@ -290,7 +297,7 @@ public class MotorcycleIndexingServiceTests
         result.Success.Should().BeTrue();
         result.DocumentsProcessed.Should().Be(12);
         result.DocumentsIndexed.Should().Be(12);
-        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
             Times.Exactly(3), "12 docs / batchSize 5 = 3 batches (5+5+2)");
     }
 
@@ -300,7 +307,7 @@ public class MotorcycleIndexingServiceTests
         // Arrange
         const int batchSize = 5;
         var (service, mockClient) = CreateServiceWithMockSearchClient(batchSize: batchSize);
-        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         var documents = Enumerable.Range(1, batchSize).Select(i =>
@@ -313,7 +320,7 @@ public class MotorcycleIndexingServiceTests
         result.Success.Should().BeTrue();
         result.DocumentsProcessed.Should().Be(batchSize);
         result.DocumentsIndexed.Should().Be(batchSize);
-        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
             Times.Once);
     }
 
@@ -330,7 +337,7 @@ public class MotorcycleIndexingServiceTests
 
         // First batch succeeds, second batch fails, third batch succeeds
         var callCount = 0;
-        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(() =>
             {
                 callCount++;
@@ -352,7 +359,7 @@ public class MotorcycleIndexingServiceTests
         result.DocumentsIndexed.Should().Be(6); // 3 from batch 1 + 3 from batch 3
         result.Errors.Should().HaveCount(1);
         result.Errors[0].Should().Contain("Batch 2 indexing failed");
-        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
             Times.Exactly(3));
     }
 
@@ -362,7 +369,7 @@ public class MotorcycleIndexingServiceTests
         // Arrange
         const int batchSize = 2;
         var (service, mockClient) = CreateServiceWithMockSearchClient(batchSize: batchSize);
-        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .ThrowsAsync(new InvalidOperationException("Batch failed"));
 
         var documents = Enumerable.Range(1, 4).Select(i =>
@@ -376,7 +383,7 @@ public class MotorcycleIndexingServiceTests
         result.DocumentsProcessed.Should().Be(4);
         result.DocumentsIndexed.Should().Be(0);
         result.Errors.Should().HaveCount(2);
-        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
             Times.Exactly(2));
     }
 
@@ -391,7 +398,7 @@ public class MotorcycleIndexingServiceTests
         var (service, mockClient) = CreateServiceWithMockSearchClient(batchSize: 10);
         // First call succeeds (inner), but we cause an exception in the batch enumeration
         // by making the documents collection throw after enumeration starts.
-        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         // Null input hits outer catch (ArgumentNullException from .ToList wrapped as InvalidOperationException)
@@ -657,7 +664,7 @@ public class MotorcycleIndexingServiceTests
         // Arrange
         const int batchSize = 1;
         var (service, mockClient) = CreateServiceWithMockSearchClient(batchSize: batchSize);
-        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()))
+        mockClient.Setup(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
             .Returns(Task.CompletedTask);
 
         var documents = Enumerable.Range(1, 5).Select(i =>
@@ -670,7 +677,7 @@ public class MotorcycleIndexingServiceTests
         result.Success.Should().BeTrue();
         result.DocumentsProcessed.Should().Be(5);
         result.DocumentsIndexed.Should().Be(5);
-        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocument>>()),
+        mockClient.Verify(c => c.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
             Times.Exactly(5), "5 docs / batchSize 1 = 5 batches");
     }
 

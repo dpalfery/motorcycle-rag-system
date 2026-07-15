@@ -34,7 +34,7 @@ public sealed class WebSourceValidatorTests
     {
         var policies = CreatePolicyStore();
         policies.Setup(store => store.GetPolicyForDomain("official.example"))
-            .Returns(new WebTrustPolicy { Tier = WebTrustTier.TierA });
+            .Returns(WebTrustPolicy.Create("official.example", WebTrustTier.TierA));
         var validator = CreateValidator(policies.Object, minimumScore: 0.8f);
         var result = CreateResult("content", "https://official.example/article", relevance: 1f, credibilityScore: 0.8f);
 
@@ -52,9 +52,9 @@ public sealed class WebSourceValidatorTests
         var policies = CreatePolicyStore();
         policies.Setup(store => store.GetPolicyForDomain("missing.example")).Returns((WebTrustPolicy?)null);
         policies.Setup(store => store.GetPolicyForDomain("blocked.example"))
-            .Returns(new WebTrustPolicy { IsBlocked = true, Tier = WebTrustTier.TierB, Reason = "blocked" });
+            .Returns(WebTrustPolicy.Create("blocked.example", WebTrustTier.TierB, reason: "blocked", isBlocked: true));
         policies.Setup(store => store.GetPolicyForDomain("low.example"))
-            .Returns(new WebTrustPolicy { Tier = WebTrustTier.TierC });
+            .Returns(WebTrustPolicy.Create("low.example", WebTrustTier.TierC));
         var validator = CreateValidator(policies.Object, minimumScore: 0.8f);
         var missing = CreateResult("missing", "https://missing.example", credibilityScore: 1f);
         var blocked = CreateResult("blocked", "https://blocked.example", credibilityScore: 1f);
@@ -93,7 +93,7 @@ public sealed class WebSourceValidatorTests
     {
         var policies = CreatePolicyStore();
         policies.Setup(store => store.GetPolicyForDomain("allowed.example"))
-            .Returns(new WebTrustPolicy { Tier = WebTrustTier.TierB });
+            .Returns(WebTrustPolicy.Create("allowed.example", WebTrustTier.TierB));
         var validator = CreateValidator(policies.Object, minimumScore: 0.5f);
 
         var valid = await validator.ValidateSourceAsync("https://allowed.example/path", "content");
@@ -106,7 +106,7 @@ public sealed class WebSourceValidatorTests
     {
         var policies = CreatePolicyStore();
         policies.Setup(store => store.GetPolicyForDomain("blocked.example"))
-            .Returns(new WebTrustPolicy { IsBlocked = true, Reason = "blocked" });
+            .Returns(WebTrustPolicy.Create("blocked.example", WebTrustTier.None, reason: "blocked", isBlocked: true));
         var policyValidator = CreateValidator(policies.Object, minimumScore: 0.5f);
         var credibilityValidator = CreateValidator(trustPolicyStore: null, minimumScore: 0.6f);
 

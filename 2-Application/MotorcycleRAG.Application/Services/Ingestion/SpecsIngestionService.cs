@@ -84,16 +84,12 @@ public sealed class SpecsIngestionService {
                 continue;
             }
 
-            var normalizedName = BikeModel.NormalizeName(make + " " + model);
-
-            var bikeModel = new BikeModel {
-                Make = make,
-                Model = model,
-                Year = year,
-                NormalizedName = normalizedName,
-                CreatedByUserId = userId,
-                UploadRef = uploadId
-            };
+            var bikeModel = BikeModel.Create(
+                make,
+                model,
+                year,
+                createdByUserId: userId,
+                uploadRef: uploadId);
 
             await _repository.UpsertAsync(bikeModel, ct).ConfigureAwait(false);
             rowCount++;

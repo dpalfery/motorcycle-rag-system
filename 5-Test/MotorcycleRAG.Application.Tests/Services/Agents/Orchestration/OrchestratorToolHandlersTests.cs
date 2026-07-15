@@ -78,4 +78,86 @@ public class OrchestratorToolHandlersTests
         Assert.NotNull(result);
         Assert.Contains("validation_required", result.Output);
     }
+
+    [Fact]
+    public async Task HandleValidateQuestionAsync_WithQueryInArgs_UsesProvidedQueryAndReturnsMatchingCallId()
+    {
+        var logger = NullLogger<OrchestratorToolHandlers>.Instance;
+        var state = new QuestionValidationState();
+        state.Initialize("fallback query should not be used", null);
+        var handlers = new OrchestratorToolHandlers(_runnerMock.Object, _dispatcher, _optionsMock.Object, logger, _tracker, _validationService, state);
+
+        var call = new AgentToolCall("call_abc", "validate_question", "{\"query\":\"hello there\"}");
+        var result = await handlers.HandleValidateQuestionAsync(call, CancellationToken.None);
+
+        Assert.Equal("call_abc", result.CallId);
+        Assert.Contains("\"subject\":\"Unknown\"", result.Output);
+        Assert.Contains("\"responseType\":\"Answer\"", result.Output);
+        Assert.Contains("\"maySearch\":true", result.Output);
+    }
+
+    [Fact]
+    public async Task HandleValidateQuestionAsync_WithMissingQueryInArgs_FallsBackToStateOriginalQuery()
+    {
+        var logger = NullLogger<OrchestratorToolHandlers>.Instance;
+        var state = new QuestionValidationState();
+        state.Initialize("hello there", null);
+        var handlers = new OrchestratorToolHandlers(_runnerMock.Object, _dispatcher, _optionsMock.Object, logger, _tracker, _validationService, state);
+
+        var call = new AgentToolCall("call_1", "validate_question", "{}");
+        var result = await handlers.HandleValidateQuestionAsync(call, CancellationToken.None);
+
+        Assert.Contains("\"subject\":\"Unknown\"", result.Output);
+        Assert.Contains("\"responseType\":\"Answer\"", result.Output);
+    }
+
+    [Fact]
+    public async Task HandleValidateQuestionAsync_WithWhitespaceOnlyQueryInArgs_FallsBackToStateOriginalQuery()
+    {
+        var logger = NullLogger<OrchestratorToolHandlers>.Instance;
+        var state = new QuestionValidationState();
+        state.Initialize("hello there", null);
+        var handlers = new OrchestratorToolHandlers(_runnerMock.Object, _dispatcher, _optionsMock.Object, logger, _tracker, _validationService, state);
+
+        var call = new AgentToolCall("call_2", "validate_question", "{\"query\":\"   \"}");
+        var result = await handlers.HandleValidateQuestionAsync(call, CancellationToken.None);
+
+        Assert.Contains("\"subject\":\"Unknown\"", result.Output);
+    }
+
+    [Fact]
+    public async Task HandleValidateQuestionAsync_AfterCall_RecordsResultOnState()
+    {
+        var logger = NullLogger<OrchestratorToolHandlers>.Instance;
+        var state = new QuestionValidationState();
+        state.Initialize("hello there", null);
+        var handlers = new OrchestratorToolHandlers(_runnerMock.Object, _dispatcher, _optionsMock.Object, logger, _tracker, _validationService, state);
+
+        Assert.False(state.IsValidated);
+
+        var call = new AgentToolCall("call_3", "validate_question", "{}");
+        await handlers.HandleValidateQuestionAsync(call, CancellationToken.None);
+
+        Assert.True(state.IsValidated);
+        Assert.NotNull(state.Result);
+        Assert.Equal("Unknown", state.Result!.Subject);
+    }
+
+    [Fact]
+    public async Task HandleValidateQuestionAsync_WhenQueryTriggersClarification_ReturnsMaySearchFalse()
+    {
+        var logger = NullLogger<OrchestratorToolHandlers>.Instance;
+        var state = new QuestionValidationState();
+        state.Initialize("original", null);
+        var handlers = new OrchestratorToolHandlers(_runnerMock.Object, _dispatcher, _optionsMock.Object, logger, _tracker, _validationService, state);
+
+        // "trip" is classified as TripPlanning, which always short-circuits to a clarification.
+        var call = new AgentToolCall("call_4", "validate_question", "{\"query\":\"plan a road trip for me\"}");
+        var result = await handlers.HandleValidateQuestionAsync(call, CancellationToken.None);
+
+        Assert.Contains("\"responseType\":\"Clarification\"", result.Output);
+        Assert.Contains("\"maySearch\":false", result.Output);
+        Assert.True(state.IsValidated);
+        Assert.False(state.Result!.MaySearch);
+    }
 }

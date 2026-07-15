@@ -2,7 +2,6 @@ using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Entities;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -10,6 +9,7 @@ using System.Threading.Tasks;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Persistence.Azure.Search;
 
 /// <summary>
@@ -55,7 +55,7 @@ public class AzureSearchDocumentService : IAzureSearchDocumentService
             cancellationToken);
     }
 
-    public async Task IndexDocumentsAsync(IEnumerable<MotorcycleDocument> documents)
+    public async Task IndexDocumentsAsync(IEnumerable<MotorcycleDocumentDto> documents)
     {
         try
         {

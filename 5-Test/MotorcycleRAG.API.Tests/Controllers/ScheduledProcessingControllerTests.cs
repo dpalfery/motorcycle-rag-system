@@ -113,4 +113,11 @@ public class ScheduledProcessingControllerTests
         var problemDetails = statusResult.Value.Should().BeOfType<ProblemDetails>().Subject;
         problemDetails.Status.Should().Be(500);
     }
+
+    [Fact]
+    public void Constructor_RejectsBothDependencies()
+    {
+        ((Action)(() => new ScheduledProcessingController(null!, _mockLogger.Object))).Should().Throw<ArgumentNullException>();
+        ((Action)(() => new ScheduledProcessingController(_mockService.Object, null!))).Should().Throw<ArgumentNullException>();
+    }
 }

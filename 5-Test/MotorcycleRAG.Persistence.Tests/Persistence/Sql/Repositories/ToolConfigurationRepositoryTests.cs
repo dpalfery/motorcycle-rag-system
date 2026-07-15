@@ -53,21 +53,16 @@ public sealed class ToolConfigurationRepositoryTests
     }
 
     [Fact]
-    public async Task AddOrUpdateAsync_ShouldAssignNewIdBeforeAttemptingPersistence_WhenIdIsEmpty()
+    public async Task AddOrUpdateAsync_ShouldThrowArgumentException_WhenIdIsEmpty()
     {
-        var configuration = CreateConfiguration();
-        configuration.Id = Guid.Empty;
-        var connection = new FakeDbConnection();
-        connection.EnqueueNonQuery(1);
-        var sut = CreateSut(connection);
+        // Id is assigned once, upstream, when the entity is created (it is init-only
+        // per the domain invariant design) — the repository no longer generates one.
+        var configuration = CreateConfiguration(id: Guid.Empty);
+        var sut = CreateSut();
 
-        // The Id-generation branch runs unconditionally before the SQL is attempted,
-        // so it is observable even though the call ultimately fails because Dapper has
-        // no Uri type handler for ServerUrl.
         var act = async () => await sut.AddOrUpdateAsync(configuration);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
-        configuration.Id.Should().NotBe(Guid.Empty);
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("configuration");
     }
 
     [Fact]

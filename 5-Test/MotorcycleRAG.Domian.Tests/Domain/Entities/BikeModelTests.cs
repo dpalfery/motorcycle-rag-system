@@ -84,6 +84,58 @@ public class BikeModelTests
     }
 
     [Fact]
+    public void Create_WithValidIdentity_TrimsValuesAndProducesCanonicalName()
+    {
+        // Act
+        var model = BikeModel.Create(
+            " Honda ",
+            " cbr 1000rr ",
+            2024,
+            aliases: "Fireblade",
+            createdByUserId: "user-1",
+            uploadRef: "upload-1");
+
+        // Assert
+        Assert.Equal("Honda", model.Make);
+        Assert.Equal("cbr 1000rr", model.Model);
+        Assert.Equal("Honda CBR 1000RR", model.NormalizedName);
+        Assert.Equal(2024, model.Year);
+        Assert.Equal("Fireblade", model.Aliases);
+        Assert.Equal("user-1", model.CreatedByUserId);
+        Assert.Equal("upload-1", model.UploadRef);
+    }
+
+    [Theory]
+    [InlineData(null, "CBR 1000RR", "make")]
+    [InlineData("   ", "CBR 1000RR", "make")]
+    [InlineData("Honda", null, "model")]
+    [InlineData("Honda", "   ", "model")]
+    public void Create_WhenIdentityFieldIsMissing_RejectsTheModel(
+        string? make,
+        string? model,
+        string expectedParameterName)
+    {
+        // Act
+        var exception = Assert.ThrowsAny<ArgumentException>(() => BikeModel.Create(make!, model!, 2024));
+
+        // Assert
+        Assert.Equal(expectedParameterName, exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Create_WhenYearIsNotPositive_RejectsTheModel(int year)
+    {
+        // Act
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => BikeModel.Create("Honda", "CBR 1000RR", year));
+
+        // Assert
+        Assert.Equal("year", exception.ParamName);
+    }
+
+    [Fact]
     public void Constructor_InitializesProperties()
     {
         var model = new BikeModel
@@ -92,7 +144,6 @@ public class BikeModelTests
             Model = "CBR 1000RR",
             Year = 2024,
             Aliases = "Fireblade",
-            NormalizedName = "Honda CBR 1000RR",
             CreatedByUserId = "User1",
             UploadRef = "Batch1"
         };

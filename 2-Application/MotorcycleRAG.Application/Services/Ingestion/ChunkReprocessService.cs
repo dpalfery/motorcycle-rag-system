@@ -7,6 +7,7 @@ using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 
 namespace MotorcycleRAG.Application.Services.Ingestion;
 
@@ -140,7 +141,7 @@ public sealed class ChunkReprocessService : IChunkReprocessService {
         await _chunkRepository.DeleteByArtifactIdAsync(artifact.IndexedArtifactId, ct).ConfigureAwait(false);
         var indexedChunks = indexingResult.Outcomes
             .Where(o => o.Succeeded)
-            .Select(o => new IndexedChunk {
+            .Select(o => new IndexedChunkDto {
                 ChunkId = o.ChunkId,
                 IndexedArtifactId = artifact.IndexedArtifactId,
                 IngestionJobId = jobId,
@@ -209,7 +210,7 @@ public sealed class ChunkReprocessService : IChunkReprocessService {
     }
 
     private async Task<ReprocessResultDto> ReprocessArtifactCollectionAsync(
-        IReadOnlyList<IndexedArtifact> artifacts,
+        IReadOnlyList<IndexedArtifactDto> artifacts,
         CancellationToken ct) {
         var processed = 0;
         var succeeded = 0;

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.Entities;
@@ -68,7 +69,7 @@ public class MotorcycleCategoryClassifierTests
             r => r.UpsertAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _graphRepo.Verify(
-            r => r.UpsertNodeAsync(It.IsAny<GraphNode>(), It.IsAny<CancellationToken>()),
+            r => r.UpsertNodeAsync(It.IsAny<GraphNodeDto>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -150,13 +151,13 @@ public class MotorcycleCategoryClassifierTests
 
         // Graph write-through: Motorcycle node + Category node + BELONGS_TO edge
         _graphRepo.Verify(
-            r => r.UpsertNodeAsync(It.Is<GraphNode>(n => n.Type == "Motorcycle" && n.Name == "Honda CBR 1000RR"), It.IsAny<CancellationToken>()),
+            r => r.UpsertNodeAsync(It.Is<GraphNodeDto>(n => n.Type == "Motorcycle" && n.Name == "Honda CBR 1000RR"), It.IsAny<CancellationToken>()),
             Times.Once);
         _graphRepo.Verify(
-            r => r.UpsertNodeAsync(It.Is<GraphNode>(n => n.Type == "Category" && n.Name == "sport"), It.IsAny<CancellationToken>()),
+            r => r.UpsertNodeAsync(It.Is<GraphNodeDto>(n => n.Type == "Category" && n.Name == "sport"), It.IsAny<CancellationToken>()),
             Times.Once);
         _graphRepo.Verify(
-            r => r.UpsertEdgeAsync(It.Is<GraphEdge>(e => e.RelationshipType == "BELONGS_TO"), It.IsAny<CancellationToken>()),
+            r => r.UpsertEdgeAsync(It.Is<GraphEdgeDto>(e => e.RelationshipType == "BELONGS_TO"), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -230,7 +231,7 @@ public class MotorcycleCategoryClassifierTests
             r => r.UpsertAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
         _graphRepo.Verify(
-            r => r.UpsertNodeAsync(It.IsAny<GraphNode>(), It.IsAny<CancellationToken>()),
+            r => r.UpsertNodeAsync(It.IsAny<GraphNodeDto>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -320,7 +321,7 @@ public class MotorcycleCategoryClassifierTests
             .ReturnsAsync("touring");
 
         _graphRepo
-            .Setup(r => r.UpsertNodeAsync(It.IsAny<GraphNode>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.UpsertNodeAsync(It.IsAny<GraphNodeDto>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Graph edge table locked"));
 
         var sut = CreateSut();
@@ -355,8 +356,8 @@ public class MotorcycleCategoryClassifierTests
         // Capture the bike node Ids the classifier emits across two classifications of the SAME bike.
         var capturedBikeNodeIds = new List<Guid>();
         _graphRepo
-            .Setup(r => r.UpsertNodeAsync(It.IsAny<GraphNode>(), It.IsAny<CancellationToken>()))
-            .Callback<GraphNode, CancellationToken>((node, _) =>
+            .Setup(r => r.UpsertNodeAsync(It.IsAny<GraphNodeDto>(), It.IsAny<CancellationToken>()))
+            .Callback<GraphNodeDto, CancellationToken>((node, _) =>
             {
                 if (node.Type == "Motorcycle")
                 {

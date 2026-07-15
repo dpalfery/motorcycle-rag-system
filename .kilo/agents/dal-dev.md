@@ -95,3 +95,13 @@ fluentmigrator rollback                  # rollback last migration
   - Microsoft.Data.SqlClient — `/microsoft/data.sqlclient/v5.0.0`
   - Dapper — search context7 for current version
   - FluentMigrator — https://fluentmigrator.github.io/
+
+
+## Model classification and placement (mandatory)
+
+- Property-bag DTO: a data carrier with no domain invariant or lifecycle behavior. Shared cross-layer DTOs belong in `MotorcycleRAG.Contracts.Models` and end in `Dto`; use-case-local DTOs belong in Application and also end in `Dto`.
+- Behavior Entity: a type in `MotorcycleRAG.Domain/Entities` must have stable identity plus a business invariant, legal state transition, or other domain behavior. Use controlled construction and mutation methods that preserve invariants.
+- Value object: an immutable, equality-by-value concept belongs in `MotorcycleRAG.Domain/ValueObjects`; it may contain domain behavior but has no independent identity.
+- Persistence row: a storage/schema projection belongs privately in `MotorcycleRAG.Persistence` and must be mapped at the adapter boundary; it is not a shared contract or Domain entity.
+- A database key, public auto-properties, default initializers, attributes, or property count alone do not make a type an Entity. Do not add getter/setter-only tests to pad coverage. Keep one top-level type per file and align filename, namespace, and suffix with the classification.
+- `MotorcycleRAG.Contracts` contains interfaces only; `MotorcycleRAG.Contracts.Models` is the approved location for shared DTOs. Any exception requires an explicit architecture decision and focused behavior tests.

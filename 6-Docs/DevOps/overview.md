@@ -152,8 +152,6 @@ flowchart LR
 - `e2e`: Runs end-to-end tests with a MockServer container for external service stubs, using pre-built output.
 - `skill-gate`: Builds the SkillForge CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
 
-**Temporary Mobile CI exclusion.** GitHub-hosted PR and nightly coverage exclude the Mobile App until the Mac Catalyst toolchain is supported reliably there. This does not remove local verification: macOS developers continue to run the `mobileapp-unit` suite with the MAUI workload and Xcode installed, as documented in the [Mobile App onboarding guide](../MotorcycleRAG.MobileApp/onboarding.md).
-
 **Gate summary** (`pr-gate-summary`)
 
 - Single required check that depends on all Phase 1–3 jobs.
@@ -172,7 +170,7 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 **Test jobs (2 AM trigger):**
 
 - `unit-coverage-linux`: Full unit test matrix on Linux (dotnet, Python, Admin Desktop) running against `MotorcycleRAG.UnitTests.slnf` for .NET tests (9 test projects, including `MotorcycleRAG.DbSetup.Tests`, consolidated from the former per-suite `dotnet-unit`, `domain-unit`, `bff-unit`, and `persistence-unit` suites).
-- `unit-tests`: Aggregation gate that downloads the Linux coverage artifact, selects the `dotnet-unit`, `python-unit`, and `admindesktop-unit` suites, runs `aggregate_coverage.py` to produce a merged Cobertura report, and uploads to Codecov. It prints the same 85%-per-file-and-class policy outcome and an actionable failure summary in the job log before failing the gate. Mobile coverage remains locally verified on macOS pending reliable GitHub-hosted Mac Catalyst support.
+- `unit-tests`: Aggregation gate that downloads the Linux coverage artifact, selects the `dotnet-unit`, `python-unit`, and `admindesktop-unit` suites, runs `aggregate_coverage.py` to produce a merged Cobertura report, and uploads to Codecov. It prints the same 85%-per-file-and-class policy outcome and an actionable failure summary in the job log before failing the gate.
 - `integration-tests`: Non-Azure integration tests against pre-built output.
 - `end-to-end-tests`: E2E tests with MockServer, building fresh.
 - `azure-integration-tests`: Tests against real Azure services (requires `environment: testing`). Only runs on schedule or when `run_integration_tests` input is `true`.

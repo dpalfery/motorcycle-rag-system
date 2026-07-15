@@ -62,6 +62,19 @@ public class UsersAdminControllerTests
     }
 
     [Fact]
+    public void Constructor_NullDependencies_ThrowsArgumentNullException()
+    {
+        Func<object> nullUserAdmin = () => new UsersAdminController(null!, _mockUserService.Object, _mockLifecycleService.Object, _mockLogger.Object);
+        Func<object> nullCurrentUser = () => new UsersAdminController(_mockUserAdminService.Object, null!, _mockLifecycleService.Object, _mockLogger.Object);
+        Func<object> nullLifecycle = () => new UsersAdminController(_mockUserAdminService.Object, _mockUserService.Object, null!, _mockLogger.Object);
+        Func<object> nullLogger = () => new UsersAdminController(_mockUserAdminService.Object, _mockUserService.Object, _mockLifecycleService.Object, null!);
+        nullUserAdmin.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+        nullCurrentUser.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+        nullLifecycle.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+        nullLogger.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
     public async Task SetUserEnabledStatusAsync_ValidRequest_ReturnsOk()
     {
         // Arrange
@@ -215,5 +228,70 @@ public class UsersAdminControllerTests
 
         // Assert
         result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task SetUserEnabledStatusAsync_ServiceFailures_MapBadRequestAndServerError()
+    {
+        var request = new SetUserEnabledRequest { IsEnabled = true };
+        _mockUserAdminService.Setup(s => s.SetUserEnabledStatusAsync("user", true)).ThrowsAsync(new ArgumentException("invalid"));
+        (await _controller.SetUserEnabledStatusAsync("user", request)).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockUserAdminService.Setup(s => s.SetUserEnabledStatusAsync("user", true)).ThrowsAsync(new ApplicationException("boom"));
+        (await _controller.SetUserEnabledStatusAsync("user", request)).Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(500);
+    }
+
+    [Fact]
+    public async Task AssignPlanToUserAsync_GuardsAndServiceFailures_MapExpectedResults()
+    {
+        var request = new AssignPlanRequest { PlanId = "plan" };
+        (await _controller.AssignPlanToUserAsync(" ", request)).Should().BeOfType<BadRequestObjectResult>();
+        (await _controller.AssignPlanToUserAsync("user", new AssignPlanRequest { PlanId = " " })).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockUserAdminService.Setup(s => s.AssignPlanToUserAsync("user", "plan")).ThrowsAsync(new ArgumentException("invalid"));
+        (await _controller.AssignPlanToUserAsync("user", request)).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockUserAdminService.Setup(s => s.AssignPlanToUserAsync("user", "plan")).ThrowsAsync(new ApplicationException("boom"));
+        (await _controller.AssignPlanToUserAsync("user", request)).Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(500);
+    }
+
+    [Fact]
+    public async Task ChangeManagedUserTierAsync_GuardsAndServiceFailures_MapExpectedResults()
+    {
+        var request = new ChangeManagedUserTierRequest { Tier = TierLabel.RoadRunner, ExpectedRowVersion = "v1" };
+        (await _controller.ChangeManagedUserTierAsync(" ", request)).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockLifecycleService.Setup(s => s.ChangeManagedUserTierAsync("user", request)).ThrowsAsync(new ArgumentException("invalid"));
+        (await _controller.ChangeManagedUserTierAsync("user", request)).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockLifecycleService.Setup(s => s.ChangeManagedUserTierAsync("user", request)).ThrowsAsync(new InvalidOperationException("conflict"));
+        (await _controller.ChangeManagedUserTierAsync("user", request)).Should().BeOfType<ConflictObjectResult>();
+    }
+
+    [Fact]
+    public async Task CancelManagedUserAsync_GuardsAndServiceFailures_MapExpectedResults()
+    {
+        var request = new CancelManagedUserRequest { Reason = "reason", ExpectedRowVersion = "v1" };
+        (await _controller.CancelManagedUserAsync(" ", request)).Should().BeOfType<BadRequestObjectResult>();
+        (await _controller.CancelManagedUserAsync("user", new CancelManagedUserRequest { Reason = " " })).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockLifecycleService.Setup(s => s.CancelManagedUserAsync("user", request, "managed-admin-id"))
+            .ThrowsAsync(new ArgumentException("invalid"));
+        (await _controller.CancelManagedUserAsync("user", request)).Should().BeOfType<BadRequestObjectResult>();
+
+        _mockLifecycleService.Setup(s => s.CancelManagedUserAsync("user", request, "managed-admin-id"))
+            .ThrowsAsync(new InvalidOperationException("conflict"));
+        (await _controller.CancelManagedUserAsync("user", request)).Should().BeOfType<ConflictObjectResult>();
+    }
+
+    [Fact]
+    public async Task GetAllUsersAsync_ServiceThrows_ReturnsServerError()
+    {
+        _mockUserAdminService.Setup(s => s.GetAllUsersAsync(1, 10)).ThrowsAsync(new ApplicationException("boom"));
+
+        (await _controller.GetAllUsersAsync(1, 10)).Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(500);
     }
 }

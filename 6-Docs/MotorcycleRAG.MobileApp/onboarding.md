@@ -12,9 +12,8 @@
 1. Restore the solution from the repository root with `dotnet restore MotorcycleRAG.sln`.
 2. Review `appsettings.json` and the development configuration embedded by the project. Supply only approved configuration values; do not store client secrets in the application.
 3. Build the platform target. For example, on macOS run `dotnet build -f net10.0-maccatalyst --project 1-Presentation/MotorcycleRAG.MobileApp`.
-4. Run the local Mobile coverage suite on macOS: `python3 5-Test/scripts/run_unit_coverage.py --results-dir TestResults/UnitCoverage --configuration Release --suite mobileapp-unit`. Keep Xcode and the MAUI workload installed for this Mac Catalyst verification.
-5. Launch through the IDE or a supported `dotnet` run target. Choose the real device/simulator appropriate to the target framework.
-6. Sign in through the system browser, then submit a query to verify API connectivity and local persistence.
+4. Launch through the IDE or a supported `dotnet` run target. Choose the real device/simulator appropriate to the target framework.
+5. Sign in through the system browser, then submit a query to verify API connectivity and local persistence.
 
 ## Debugging
 

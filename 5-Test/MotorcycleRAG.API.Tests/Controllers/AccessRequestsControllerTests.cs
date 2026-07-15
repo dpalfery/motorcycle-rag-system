@@ -47,6 +47,15 @@ public class AccessRequestsControllerTests
     }
 
     [Fact]
+    public void Constructor_NullDependencies_ThrowsArgumentNullException()
+    {
+        Func<object> nullService = () => new AccessRequestsController(null!, _mockLogger.Object);
+        Func<object> nullLogger = () => new AccessRequestsController(_mockService.Object, null!);
+        nullService.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+        nullLogger.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
     public async Task CreateAsync_NewRequest_ReturnsAccepted()
     {
         // Arrange

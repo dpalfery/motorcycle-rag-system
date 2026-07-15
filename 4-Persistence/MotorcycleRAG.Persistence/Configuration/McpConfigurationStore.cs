@@ -43,9 +43,12 @@ public class McpConfigurationStore
         if (string.IsNullOrWhiteSpace(configuration.ToolId))
             throw new ArgumentException("ToolId must not be empty", nameof(configuration));
 
-        var id = configuration.Id == Guid.Empty ? Guid.NewGuid() : configuration.Id;
-        configuration.Id = id;
-        configuration.UpdatedAt = DateTime.UtcNow;
+        // Callers assign a persistence identity before storing (Id is init-only per
+        // the domain entity's invariant design); the store no longer generates one.
+        if (configuration.Id == Guid.Empty)
+            throw new ArgumentException("Configuration Id must be assigned before storing.", nameof(configuration));
+
+        var id = configuration.Id;
         _lastUpdated = DateTime.UtcNow;
 
         var wasNew = !_configurations.ContainsKey(id);

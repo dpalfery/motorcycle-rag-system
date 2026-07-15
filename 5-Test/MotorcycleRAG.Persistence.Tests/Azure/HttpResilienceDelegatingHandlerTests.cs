@@ -7,7 +7,9 @@ public class HttpResilienceDelegatingHandlerTests
 {
     private static HttpClient CreateClientWithHandler(Mock<HttpMessageHandler> handler)
     {
-        return new HttpClient(new HttpResilienceDelegatingHandler { InnerHandler = handler.Object });
+        // Zero retry delay: these tests assert on retry count/status-code behavior, not on
+        // backoff timing, so there's no reason to wait out real exponential-backoff seconds.
+        return new HttpClient(new HttpResilienceDelegatingHandler(retryDelay: _ => TimeSpan.Zero) { InnerHandler = handler.Object });
     }
 
     [Fact]

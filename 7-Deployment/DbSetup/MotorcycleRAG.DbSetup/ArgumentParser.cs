@@ -177,21 +177,18 @@ public class ArgumentParser
         SaPassword ??= Environment.GetEnvironmentVariable($"{envPrefix}_SA_PASSWORD");
     }
 
-    public bool Validate(out string errorMessage)
+    public (bool IsValid, string ErrorMessage) Validate()
     {
-        errorMessage = string.Empty;
-
         // Project slug is always required
         if (string.IsNullOrEmpty(ProjectSlug))
         {
-            errorMessage = "Project slug is required. This should not happen - check default value.";
-            return false;
+            return (false, "Project slug is required. This should not happen - check default value.");
         }
 
         // Set default server
         Server ??= "localhost";
 
         // Remaining validation will be done in interactive mode or Program.cs
-        return true;
+        return (true, string.Empty);
     }
 }

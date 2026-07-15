@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -41,6 +42,15 @@ public class WebSourcesAdminControllerTests
         _mockUserService.Setup(u => u.IsAuthenticated).Returns(true);
         _mockUserService.Setup(u => u.IsInRole("mcr-api-admin")).Returns(true);
         _mockUserService.Setup(u => u.UserId).Returns("admin-user-id");
+    }
+
+    [Fact]
+    public void Constructor_NullDependencies_ThrowsArgumentNullException()
+    {
+        Func<object> nullService = () => new WebSourcesAdminController(null!, _mockControllerLogger.Object);
+        Func<object> nullLogger = () => new WebSourcesAdminController(_webSourceRegistryService, null!);
+        nullService.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
+        nullLogger.Invoking(factory => factory()).Should().Throw<ArgumentNullException>();
     }
 
     [Fact]
@@ -126,6 +136,27 @@ public class WebSourcesAdminControllerTests
         var returnedSource = createdResult.Value.Should().BeAssignableTo<WebSource>().Subject;
         returnedSource.Id.Should().Be(1);
     }
+
+    [Fact]
+    public async Task CreateWebSourceAsync_WhenOptionalValuesAreOmitted_UsesDocumentedDefaults()
+    {
+        WebSource? submitted = null;
+        _mockRepo.Setup(r => r.GetWebSourceByUrlAsync(It.IsAny<Uri>())).ReturnsAsync((WebSource)null!);
+        _mockRepo.Setup(r => r.CreateWebSourceAsync(It.IsAny<WebSource>()))
+            .Callback<WebSource>(source => submitted = source)
+            .ReturnsAsync((WebSource source) => source);
+
+        var result = await _controller.CreateWebSourceAsync(ValidCreateRequest());
+
+        result.Should().BeOfType<CreatedResult>();
+        submitted.Should().NotBeNull();
+        submitted!.Description.Should().BeEmpty();
+        submitted.IsEnabled.Should().BeTrue();
+        submitted.TrustTier.Should().Be(3);
+        submitted.CrawlFrequencyHours.Should().Be(24);
+        submitted.IncludeInSearch.Should().BeTrue();
+        submitted.MaxCrawlDepth.Should().Be(2);
+    }
     
     [Fact]
     public async Task CreateWebSourceAsync_NullRequest_ReturnsBadRequest()
@@ -170,4 +201,228 @@ public class WebSourcesAdminControllerTests
         // Assert
         result.Should().BeOfType<NoContentResult>();
     }
+
+    // === Validation branch coverage (ValidateCreateRequest / ValidateUpdateRequest) ===
+
+    [Theory]
+    [InlineData("urlNull", "URL is required")]
+    [InlineData("urlScheme", "URL must use HTTP or HTTPS scheme")]
+    [InlineData("nameEmpty", "Name is required")]
+    [InlineData("nameLong", "Name cannot exceed 255 characters")]
+    [InlineData("descLong", "Description cannot exceed 1000 characters")]
+    [InlineData("trustLow", "Trust tier must be between 1 and 5")]
+    [InlineData("trustHigh", "Trust tier must be between 1 and 5")]
+    [InlineData("crawlZero", "Crawl frequency must be at least 1 hour")]
+    [InlineData("depthLow", "Max crawl depth must be between 1 and 10")]
+    [InlineData("depthHigh", "Max crawl depth must be between 1 and 10")]
+    public async Task CreateWebSourceAsync_WhenValidationFails_ReturnsBadRequestWithErrors(string scenario, string expected)
+    {
+        var request = ValidCreateRequest();
+        switch (scenario)
+        {
+            case "urlNull": request.Url = null; break;
+            case "urlScheme": request.Url = new Uri("ftp://host"); break;
+            case "nameEmpty": request.Name = " "; break;
+            case "nameLong": request.Name = new string('n', 256); break;
+            case "descLong": request.Description = new string('d', 1001); break;
+            case "trustLow": request.TrustTier = 0; break;
+            case "trustHigh": request.TrustTier = 6; break;
+            case "crawlZero": request.CrawlFrequencyHours = 0; break;
+            case "depthLow": request.MaxCrawlDepth = 0; break;
+            case "depthHigh": request.MaxCrawlDepth = 11; break;
+        }
+
+        var result = await _controller.CreateWebSourceAsync(request);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().BeEquivalentTo(new { errors = new[] { expected } });
+    }
+
+    [Theory]
+    [InlineData("urlScheme", "URL must use HTTP or HTTPS scheme")]
+    [InlineData("nameLong", "Name cannot exceed 255 characters")]
+    [InlineData("descLong", "Description cannot exceed 1000 characters")]
+    [InlineData("trustLow", "Trust tier must be between 1 and 5")]
+    [InlineData("crawlZero", "Crawl frequency must be at least 1 hour")]
+    [InlineData("depthLow", "Max crawl depth must be between 1 and 10")]
+    public async Task UpdateWebSourceAsync_WhenValidationFails_ReturnsBadRequestWithErrors(string scenario, string expected)
+    {
+        var request = new UpdateWebSourceRequest();
+        switch (scenario)
+        {
+            case "urlScheme": request.Url = new Uri("ftp://host"); break;
+            case "nameLong": request.Name = new string('n', 256); break;
+            case "descLong": request.Description = new string('d', 1001); break;
+            case "trustLow": request.TrustTier = 0; break;
+            case "crawlZero": request.CrawlFrequencyHours = 0; break;
+            case "depthLow": request.MaxCrawlDepth = 0; break;
+        }
+
+        var result = await _controller.UpdateWebSourceAsync(1, request);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().BeEquivalentTo(new { errors = new[] { expected } });
+    }
+
+    [Fact]
+    public async Task UpdateWebSourceAsync_InvalidId_ReturnsBadRequest() =>
+        (await _controller.UpdateWebSourceAsync(0, new UpdateWebSourceRequest())).Should().BeOfType<BadRequestObjectResult>();
+
+    [Fact]
+    public async Task UpdateWebSourceAsync_NullRequest_ReturnsBadRequest() =>
+        (await _controller.UpdateWebSourceAsync(1, null!)).Should().BeOfType<BadRequestObjectResult>();
+
+    [Fact]
+    public async Task DeleteWebSourceAsync_InvalidId_ReturnsBadRequest() =>
+        (await _controller.DeleteWebSourceAsync(0)).Should().BeOfType<BadRequestObjectResult>();
+
+    // === Exception / edge branch coverage ===
+
+    [Fact]
+    public async Task GetAllWebSourcesAsync_WhenRepoThrows_ReturnsInternalServerError()
+    {
+        _mockRepo.Setup(r => r.GetAllWebSourcesAsync()).ThrowsAsync(new InvalidOperationException());
+        var result = await _controller.GetAllWebSourcesAsync();
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task GetWebSourceByIdAsync_WhenRepoThrows_ReturnsInternalServerError()
+    {
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ThrowsAsync(new InvalidOperationException());
+        var result = await _controller.GetWebSourceByIdAsync(1);
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task CreateWebSourceAsync_WhenUrlAlreadyExists_ReturnsConflict()
+    {
+        _mockRepo.Setup(r => r.GetWebSourceByUrlAsync(It.IsAny<Uri>())).ReturnsAsync(new WebSource { Id = 9 });
+        var result = await _controller.CreateWebSourceAsync(ValidCreateRequest());
+        var conflict = result.Should().BeOfType<ConflictObjectResult>().Subject;
+        conflict.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+    }
+
+    [Fact]
+    public async Task CreateWebSourceAsync_WhenRepoThrows_ReturnsInternalServerError()
+    {
+        // A non-InvalidOperationException surfaces as 500 (InvalidOperationException would map to 409 Conflict).
+        _mockRepo.Setup(r => r.GetWebSourceByUrlAsync(It.IsAny<Uri>())).ThrowsAsync(new ApplicationException("boom"));
+        var result = await _controller.CreateWebSourceAsync(ValidCreateRequest());
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task UpdateWebSourceAsync_PatchesAllProvidedFields_ReturnsOk()
+    {
+        var existing = new WebSource { Id = 1, Name = "Old", Description = "Old", TrustTier = 3 };
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ReturnsAsync(existing);
+        _mockRepo.Setup(r => r.UpdateWebSourceAsync(It.IsAny<WebSource>())).ReturnsAsync(true);
+
+        var request = new UpdateWebSourceRequest
+        {
+            Url = new Uri("https://new.example.com"),
+            Name = "New",
+            Description = "New desc",
+            IsEnabled = false,
+            TrustTier = 5,
+            CrawlFrequencyHours = 12,
+            IncludeInSearch = false,
+            MaxCrawlDepth = 4
+        };
+
+        var result = await _controller.UpdateWebSourceAsync(1, request);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var updated = ok.Value.Should().BeOfType<WebSource>().Subject;
+        updated.Url.Should().Be("https://new.example.com/");
+        updated.Name.Should().Be("New");
+        updated.Description.Should().Be("New desc");
+        updated.IsEnabled.Should().BeFalse();
+        updated.TrustTier.Should().Be(5);
+        updated.CrawlFrequencyHours.Should().Be(12);
+        updated.IncludeInSearch.Should().BeFalse();
+        updated.MaxCrawlDepth.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task UpdateWebSourceAsync_WhenUpdateFails_ReturnsConflict()
+    {
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ReturnsAsync(new WebSource { Id = 1 });
+        _mockRepo.Setup(r => r.UpdateWebSourceAsync(It.IsAny<WebSource>())).ReturnsAsync(false);
+
+        var result = await _controller.UpdateWebSourceAsync(1, new UpdateWebSourceRequest { Name = "New" });
+
+        var conflict = result.Should().BeOfType<ConflictObjectResult>().Subject;
+        conflict.StatusCode.Should().Be(StatusCodes.Status409Conflict);
+    }
+
+    [Fact]
+    public async Task UpdateWebSourceAsync_WhenSourceIsMissing_ReturnsNotFound()
+    {
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ReturnsAsync((WebSource)null!);
+
+        (await _controller.UpdateWebSourceAsync(1, new UpdateWebSourceRequest { Name = "New" }))
+            .Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task UpdateWebSourceAsync_WhenServiceRejectsArguments_ReturnsBadRequest()
+    {
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ReturnsAsync(new WebSource { Id = 1 });
+        _mockRepo.Setup(r => r.UpdateWebSourceAsync(It.IsAny<WebSource>())).ThrowsAsync(new ArgumentException("invalid"));
+
+        (await _controller.UpdateWebSourceAsync(1, new UpdateWebSourceRequest { Name = "New" }))
+            .Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task UpdateWebSourceAsync_WhenRepoThrows_ReturnsInternalServerError()
+    {
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ReturnsAsync(new WebSource { Id = 1 });
+        // A non-InvalidOperationException surfaces as 500 (InvalidOperationException would map to 409 Conflict).
+        _mockRepo.Setup(r => r.UpdateWebSourceAsync(It.IsAny<WebSource>())).ThrowsAsync(new ApplicationException("boom"));
+
+        var result = await _controller.UpdateWebSourceAsync(1, new UpdateWebSourceRequest { Name = "New" });
+
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    [Fact]
+    public async Task DeleteWebSourceAsync_WhenDeleteFails_ReturnsInternalServerErrorUnableToDelete()
+    {
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ReturnsAsync(new WebSource { Id = 1 });
+        _mockRepo.Setup(r => r.DeleteWebSourceAsync(1)).ReturnsAsync(false);
+
+        var result = await _controller.DeleteWebSourceAsync(1);
+
+        var serverError = result.Should().BeOfType<ObjectResult>().Subject;
+        serverError.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        serverError.Value.Should().BeEquivalentTo(new { error = "Unable to delete this resource" });
+    }
+
+    [Fact]
+    public async Task DeleteWebSourceAsync_WhenSourceIsMissing_ReturnsNotFound()
+    {
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ReturnsAsync((WebSource)null!);
+
+        (await _controller.DeleteWebSourceAsync(1)).Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task DeleteWebSourceAsync_WhenRepoThrows_ReturnsInternalServerError()
+    {
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ReturnsAsync(new WebSource { Id = 1 });
+        _mockRepo.Setup(r => r.DeleteWebSourceAsync(1)).ThrowsAsync(new InvalidOperationException());
+
+        var result = await _controller.DeleteWebSourceAsync(1);
+
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+    }
+
+    private static CreateWebSourceRequest ValidCreateRequest() => new()
+    {
+        Url = new Uri("https://example.com"),
+        Name = "Example"
+    };
 }

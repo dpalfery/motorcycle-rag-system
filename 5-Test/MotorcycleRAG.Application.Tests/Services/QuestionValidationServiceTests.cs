@@ -3,6 +3,7 @@ using Moq;
 using MotorcycleRAG.Application.Services.QueryValidation;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Domain.Entities;
 using Xunit;
@@ -29,7 +30,7 @@ public class QuestionValidationServiceTests
 
         _graph
             .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<GraphNode>());
+            .ReturnsAsync(Array.Empty<GraphNodeDto>());
 
         var result = await CreateService().ValidateAsync(
             "what are the specs on the 2026 Ducati Panigale V4",
@@ -52,7 +53,7 @@ public class QuestionValidationServiceTests
 
         _graph
             .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<GraphNode>());
+            .ReturnsAsync(Array.Empty<GraphNodeDto>());
 
         var result = await CreateService().ValidateAsync(
             "2026 honda cbr1000rr specs",
@@ -75,7 +76,7 @@ public class QuestionValidationServiceTests
 
         _graph
             .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<GraphNode>());
+            .ReturnsAsync(Array.Empty<GraphNodeDto>());
 
         var result = await CreateService().ValidateAsync(
             "what are the specs on the 2026 ducati vr4",
@@ -161,7 +162,7 @@ public class QuestionValidationServiceTests
 
         _graph
             .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<GraphNode>());
+            .ReturnsAsync(Array.Empty<GraphNodeDto>());
 
         var result = await CreateService().ValidateAsync(
             "what is the torque spec for my bike",
@@ -204,7 +205,7 @@ public class QuestionValidationServiceTests
 
         _graph
             .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<GraphNode>());
+            .ReturnsAsync(Array.Empty<GraphNodeDto>());
 
         var result = await CreateService().ValidateAsync(
             "how often should I change the oil",
@@ -223,7 +224,7 @@ public class QuestionValidationServiceTests
 
         _graph
             .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<GraphNode>());
+            .ReturnsAsync(Array.Empty<GraphNodeDto>());
 
         var result = await CreateService().ValidateAsync(
             "compare these two bikes for me",
@@ -240,7 +241,7 @@ public class QuestionValidationServiceTests
             .Setup(r => r.ListAsync(0, 5000, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<BikeModel>());
 
-        var node = new GraphNode { Name = "Ducati Panigale V4", Type = "Motorcycle" };
+        var node = new GraphNodeDto { Name = "Ducati Panigale V4", Type = "Motorcycle" };
 
         _graph
             .Setup(g => g.SearchNodesAsync(It.IsAny<string>(), "Motorcycle", 5, It.IsAny<CancellationToken>()))

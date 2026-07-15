@@ -13,6 +13,17 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories;
 /// </summary>
 public class WebScrapeRunRepository : IWebScrapeRunRepository
 {
+    private const string SelectColumns = @"
+        [Id],
+        [WebSourceId],
+        [CrawlStartTime],
+        [CrawlEndTime],
+        [Status],
+        [PagesCrawled],
+        [PagesIndexed],
+        [Errors],
+        [ErrorMessage]";
+
     private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<WebScrapeRunRepository> _logger;
 
@@ -64,6 +75,8 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
         int errors,
         string? errorMessage = null)
     {
+        ValidateUpdate(status, pagesCrawled, pagesIndexed, errors, errorMessage);
+
         const string sql = @"
             UPDATE [dbo].[WebSourceCrawlResults] SET
                 [CrawlEndTime] = @CrawlEndTime,
@@ -81,7 +94,7 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
             int rowsAffected = await connection.ExecuteAsync(sql, new 
             { 
                 RunId = runId,
-                CrawlEndTime = DateTime.UtcNow,
+                CrawlEndTime = IsTerminal(status) ? DateTime.UtcNow : (DateTime?)null,
                 Status = (int)status,
                 PagesCrawled = pagesCrawled,
                 PagesIndexed = pagesIndexed,
@@ -102,14 +115,13 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
 
     public async Task<WebScrapeRun?> GetWebScrapeRunAsync(long runId)
     {
-        const string sql = @"
-            SELECT * FROM [dbo].[WebSourceCrawlResults] WHERE [Id] = @RunId;
-        ";
+        var sql = $"SELECT {SelectColumns} FROM [dbo].[WebSourceCrawlResults] WHERE [Id] = @RunId;";
 
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            return await connection.QueryFirstOrDefaultAsync<WebScrapeRun>(sql, new { RunId = runId });
+            var row = await connection.QueryFirstOrDefaultAsync<WebScrapeRunRow>(sql, new { RunId = runId });
+            return row is null ? null : Map(row);
         }
         catch (Exception ex)
         {
@@ -120,8 +132,8 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
 
     public async Task<WebScrapeRun[]> GetRecentScrapeRunsAsync(int webSourceId, int limit = 10)
     {
-        const string sql = @"
-            SELECT TOP (@Limit) * FROM [dbo].[WebSourceCrawlResults]
+        var sql = $@"
+            SELECT TOP (@Limit) {SelectColumns} FROM [dbo].[WebSourceCrawlResults]
             WHERE [WebSourceId] = @WebSourceId
             ORDER BY [CrawlStartTime] DESC;
         ";
@@ -129,11 +141,11 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            return (await connection.QueryAsync<WebScrapeRun>(sql, new 
+            return (await connection.QueryAsync<WebScrapeRunRow>(sql, new
             { 
                 WebSourceId = webSourceId, 
                 Limit = limit 
-            })).ToArray();
+            })).Select(Map).ToArray();
         }
         catch (Exception ex)
         {
@@ -144,8 +156,8 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
 
     public async Task<WebScrapeRun[]> GetActiveScrapeRunsAsync()
     {
-        const string sql = @"
-            SELECT * FROM [dbo].[WebSourceCrawlResults]
+        var sql = $@"
+            SELECT {SelectColumns} FROM [dbo].[WebSourceCrawlResults]
             WHERE [Status] IN (@PendingStatus, @RunningStatus)
             ORDER BY [CrawlStartTime] ASC;
         ";
@@ -153,11 +165,11 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            return (await connection.QueryAsync<WebScrapeRun>(sql, new
+            return (await connection.QueryAsync<WebScrapeRunRow>(sql, new
             {
                 PendingStatus = (int)ScrapeRunStatus.Pending,
                 RunningStatus = (int)ScrapeRunStatus.Running
-            })).ToArray();
+            })).Select(Map).ToArray();
         }
         catch (Exception ex)
         {
@@ -165,6 +177,69 @@ public class WebScrapeRunRepository : IWebScrapeRunRepository
             throw new InvalidOperationException("Failed to get active scrape runs", ex);
         }
     }
+
+    private static WebScrapeRun Map(WebScrapeRunRow row) => WebScrapeRun.Rehydrate(
+        row.Id,
+        row.WebSourceId,
+        row.CrawlStartTime,
+        row.CrawlEndTime,
+        row.Status,
+        row.PagesCrawled,
+        row.PagesIndexed,
+        row.Errors,
+        row.ErrorMessage);
+
+    private static bool IsTerminal(ScrapeRunStatus status) => status is ScrapeRunStatus.Completed
+        or ScrapeRunStatus.Failed or ScrapeRunStatus.Cancelled;
+
+    private static void ValidateUpdate(
+        ScrapeRunStatus status,
+        int pagesCrawled,
+        int pagesIndexed,
+        int errors,
+        string? errorMessage)
+    {
+        if (!Enum.IsDefined(status))
+        {
+            throw new ArgumentOutOfRangeException(nameof(status), status, "Unknown scrape status.");
+        }
+
+        if (pagesCrawled < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pagesCrawled), "Scrape counters cannot be negative.");
+        }
+
+        if (pagesIndexed < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pagesIndexed), "Scrape counters cannot be negative.");
+        }
+
+        if (errors < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(errors), "Scrape counters cannot be negative.");
+        }
+
+        if (status == ScrapeRunStatus.Failed && string.IsNullOrWhiteSpace(errorMessage))
+        {
+            throw new ArgumentException("Failed scrape runs require an error message.", nameof(errorMessage));
+        }
+
+        if (errorMessage?.Trim().Length > 1000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(errorMessage), "Scrape error messages cannot exceed 1000 characters.");
+        }
+    }
+
+    private sealed class WebScrapeRunRow
+    {
+        public long Id { get; init; }
+        public int WebSourceId { get; init; }
+        public DateTime CrawlStartTime { get; init; }
+        public DateTime? CrawlEndTime { get; init; }
+        public ScrapeRunStatus Status { get; init; }
+        public int PagesCrawled { get; init; }
+        public int PagesIndexed { get; init; }
+        public int Errors { get; init; }
+        public string? ErrorMessage { get; init; }
+    }
 }
-
-

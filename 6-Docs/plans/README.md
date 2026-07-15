@@ -13,7 +13,9 @@ Read this file before opening a plan. Open a plan only when it is both relevant 
 
 ## Active inventory
 
-No active implementation plans.
+| Plan | Status | Goal |
+| --- | --- | --- |
+| [2026-07-13 Domain Entity and DTO Rationalization](2026-07-13-domain-entity-dto-rationalization.md) | Review required | DTO relocation and focused coverage are verified, but retained-entity setter bypasses and the skipped post-migration inventory gate prevent closeout. |
 
 Note: [2026-07-12-api-persistence-test-coverage-plan.md](2026-07-12-api-persistence-test-coverage-plan.md) was an earlier, narrower-scope draft of the same initiative. It is marked `Superseded` in its own header and is not implementation authority; the canonical plan was [2026-07-12-persistence-test-coverage.md](../archive/plans/2026-07-12-persistence-test-coverage.md) (now archived).
 

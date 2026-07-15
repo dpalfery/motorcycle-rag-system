@@ -10,6 +10,7 @@ using MotorcycleRAG.Domain.ValueObjects;
 using System.Text;
 using System.Text.RegularExpressions;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Persistence.DataProcessing;
 
 /// <summary>
@@ -70,7 +71,7 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
             // Step 4: Generate embeddings for all chunks
             await GenerateEmbeddingsAsync(chunks);
 
-            // Step 5: Create MotorcycleDocument objects
+            // Step 5: Create MotorcycleDocumentDto objects
             var processedDocuments = await CreateMotorcycleDocumentsAsync(chunks, input);
 
             var processed = new ProcessedData();
@@ -817,15 +818,15 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
     }
 
     /// <summary>
-    /// T053/T054: Creates MotorcycleDocument objects with locator metadata for citation support
+    /// T053/T054: Creates MotorcycleDocumentDto objects with locator metadata for citation support
     /// T055: Populates top-level locator fields for indexing
     /// </summary>
-    private async Task<List<MotorcycleDocument>> CreateMotorcycleDocumentsAsync(
+    private async Task<List<MotorcycleDocumentDto>> CreateMotorcycleDocumentsAsync(
         List<PDFChunk> chunks,
         PDFDocument input) {
-        _logger.LogDebug("Creating MotorcycleDocument objects from chunks with locator metadata");
+        _logger.LogDebug("Creating MotorcycleDocumentDto objects from chunks with locator metadata");
 
-        var documents = new List<MotorcycleDocument>();
+        var documents = new List<MotorcycleDocumentDto>();
 
         foreach (var chunk in chunks) {
             // T053/T055: Extract locator metadata from chunk metadata for citation support with defensive type checking
@@ -886,8 +887,8 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 isMultiPageTable = false;
             }
 
-            // build DocumentMetadata by mutating getter-only collections
-            var dm = new DocumentMetadata();
+            // build DocumentMetadataDto by mutating getter-only collections
+            var dm = new DocumentMetadataDto();
             dm.SourceFile = input.FileName;
             // convert source string to Uri safely
             if (!string.IsNullOrWhiteSpace(input.Source)) {
@@ -931,7 +932,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
                 ChunkIndex = chunkIndex
             };
 
-            var document = new MotorcycleDocument {
+            var document = new MotorcycleDocumentDto {
                 Id = chunk.Id,
                 Title = $"{input.Make} {input.Model} {input.Year} - {chunk.Section}",
                 Content = chunk.Content,
@@ -955,7 +956,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
             documents.Add(document);
         }
 
-        _logger.LogDebug("Created {DocumentCount} MotorcycleDocument objects with locator metadata", documents.Count);
+        _logger.LogDebug("Created {DocumentCount} MotorcycleDocumentDto objects with locator metadata", documents.Count);
         return documents;
     }
 

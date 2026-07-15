@@ -9,6 +9,7 @@ using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Domain.Entities;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Search;
 namespace MotorcycleRAG.Application.Services.Ingestion;
 
 /// <summary>
@@ -502,7 +503,7 @@ public partial class DataPipelineOrchestrator : IDataPipelineOrchestrator
     /// Indexes processed documents to Azure AI Search.
     /// </summary>
     private async Task<IndexingResult> IndexDocumentsAsync(
-        ICollection<MotorcycleDocument> documents,
+        ICollection<MotorcycleDocumentDto> documents,
         CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();

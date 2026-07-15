@@ -58,10 +58,13 @@ You are a strict code reviewer. Focus heavily on OWASP top 10 vulnerabilities...
          - ABSOLUTELY NO "temporary" solutions
          - All comments and documentation MUST be in English
 
-      6a **Architecture folder structure** and file placement
-         - All code must be in the correct folder structure as defined in the architecture.md file.
-         - Only interfaces go into the contracts project. DTOs and Models **Never** go into the contracts project.
-         - DTOs and Models go into the domain project.
+      6a **Model classification and placement** (MANDATORY)
+         - **Property-bag DTO:** A data carrier with no domain invariant or lifecycle behavior. Shared cross-layer DTOs belong in `MotorcycleRAG.Contracts.Models` and end in `Dto`; use-case-local DTOs belong in Application and also end in `Dto`.
+         - **Behavior Entity:** A type in `MotorcycleRAG.Domain/Entities` must have stable identity plus a business invariant, legal state transition, or other domain behavior. Require controlled construction and mutation methods that preserve invariants.
+         - **Value object:** An immutable, equality-by-value concept belongs in `MotorcycleRAG.Domain/ValueObjects`; it may contain domain behavior but has no independent identity.
+         - **Persistence row:** A storage/schema projection belongs privately in `MotorcycleRAG.Persistence` and must be mapped at the adapter boundary; it is not a shared contract or Domain entity.
+         - A database key, public auto-properties, default initializers, attributes, or property count alone do not make a type an Entity. Do not approve getter/setter-only tests to pad coverage. Keep one top-level type per file and align filename, namespace, and suffix with the classification.
+         - `MotorcycleRAG.Contracts` contains interfaces only; `MotorcycleRAG.Contracts.Models` is the approved location for shared DTOs. Any exception requires an explicit architecture decision and focused behavior tests.
 
       6b **Dependency Injection / Inversion of Control (DI/IoC)** (CRITICAL)
           - **NO LOCALLY CREATED DEPENDENCIES**: Verify that no class instantiates its own dependencies via `new` anywhere — not in constructors, methods, properties, or field initializers.

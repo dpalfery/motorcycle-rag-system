@@ -1,8 +1,8 @@
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 using MotorcycleRAG.Persistence.Sql;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories;
@@ -18,7 +18,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<IndexedArtifact> UpsertAsync(IndexedArtifact artifact, CancellationToken cancellationToken = default)
+    public async Task<IndexedArtifactDto> UpsertAsync(IndexedArtifactDto artifact, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(artifact);
 
@@ -75,7 +75,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
     }
 
-    public async Task<IndexedArtifact?> GetByIdAsync(Guid artifactId, CancellationToken cancellationToken = default)
+    public async Task<IndexedArtifactDto?> GetByIdAsync(Guid artifactId, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT [IndexedArtifactId], [IngestionJobId], [UploadId], [ArtifactType],
@@ -92,7 +92,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
             var row = await connection.QueryFirstOrDefaultAsync<dynamic>(
                 new CommandDefinition(sql, new { IndexedArtifactId = artifactId }, cancellationToken: cancellationToken));
 
-            return row == null ? null : MapToEntity(row);
+            return row == null ? null : MapToDto(row);
         }
         catch (Exception ex)
         {
@@ -101,7 +101,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
     }
 
-    public async Task<IndexedArtifact?> GetByUploadAndTypeAsync(string uploadId, string artifactType, CancellationToken cancellationToken = default)
+    public async Task<IndexedArtifactDto?> GetByUploadAndTypeAsync(string uploadId, string artifactType, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT [IndexedArtifactId], [IngestionJobId], [UploadId], [ArtifactType],
@@ -118,7 +118,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
             var row = await connection.QueryFirstOrDefaultAsync<dynamic>(
                 new CommandDefinition(sql, new { UploadId = uploadId, ArtifactType = artifactType }, cancellationToken: cancellationToken));
 
-            return row == null ? null : MapToEntity(row);
+            return row == null ? null : MapToDto(row);
         }
         catch (Exception ex)
         {
@@ -127,7 +127,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
     }
 
-    public async Task<IReadOnlyList<IndexedArtifact>> GetByStatesAsync(IReadOnlyCollection<IndexedArtifactState> states, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IndexedArtifactDto>> GetByStatesAsync(IReadOnlyCollection<IndexedArtifactState> states, CancellationToken cancellationToken = default)
     {
         if (states.Count == 0) return [];
 
@@ -148,7 +148,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
             var rows = await connection.QueryAsync<dynamic>(
                 new CommandDefinition(sql, new { States = stateStrings }, cancellationToken: cancellationToken));
 
-            return rows.Select(MapToEntity).ToList();
+            return rows.Select(MapToDto).ToList();
         }
         catch (Exception ex)
         {
@@ -157,7 +157,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
     }
 
-    public async Task<IReadOnlyList<IndexedArtifact>> GetAllAsync(int maxCount = 1000, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IndexedArtifactDto>> GetAllAsync(int maxCount = 1000, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT TOP (@MaxCount) [IndexedArtifactId], [IngestionJobId], [UploadId], [ArtifactType],
@@ -174,7 +174,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
             var rows = await connection.QueryAsync<dynamic>(
                 new CommandDefinition(sql, new { MaxCount = maxCount }, cancellationToken: cancellationToken));
 
-            return rows.Select(MapToEntity).ToList();
+            return rows.Select(MapToDto).ToList();
         }
         catch (Exception ex)
         {
@@ -183,7 +183,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
     }
 
-    public async Task<IReadOnlyList<IndexedArtifact>> GetByIngestionJobIdAsync(Guid jobId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IndexedArtifactDto>> GetByIngestionJobIdAsync(Guid jobId, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT [IndexedArtifactId], [IngestionJobId], [UploadId], [ArtifactType],
@@ -200,7 +200,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
             var rows = await connection.QueryAsync<dynamic>(
                 new CommandDefinition(sql, new { IngestionJobId = jobId }, cancellationToken: cancellationToken));
 
-            return rows.Select(MapToEntity).ToList();
+            return rows.Select(MapToDto).ToList();
         }
         catch (Exception ex)
         {
@@ -209,7 +209,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
     }
 
-    public async Task<IReadOnlyList<IndexedArtifact>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IndexedArtifactDto>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
 
@@ -228,7 +228,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
             var rows = await connection.QueryAsync<dynamic>(
                 new CommandDefinition(sql, new { UploadId = uploadId }, cancellationToken: cancellationToken));
 
-            return rows.Select(MapToEntity).ToList();
+            return rows.Select(MapToDto).ToList();
         }
         catch (Exception ex)
         {
@@ -277,9 +277,9 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
     }
 
-    private static IndexedArtifact MapToEntity(dynamic row)
+    private static IndexedArtifactDto MapToDto(dynamic row)
     {
-        return new IndexedArtifact
+        return new IndexedArtifactDto
         {
             IndexedArtifactId = row.IndexedArtifactId,
             IngestionJobId = row.IngestionJobId,

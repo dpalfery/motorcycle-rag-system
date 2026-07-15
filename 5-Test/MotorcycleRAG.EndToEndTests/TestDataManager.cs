@@ -2,6 +2,7 @@ using System.Text.Json;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Entities;
 
+using MotorcycleRAG.Contracts.Models.DTOs.Specifications;
 namespace MotorcycleRAG.EndToEndTests;
 
 /// <summary>
@@ -77,8 +78,8 @@ public class TestDataManager {
         };
     }
 
-    public async Task<List<MotorcycleSpecification>> GetTestMotorcycleSpecificationsAsync() {
-        var specifications = new List<MotorcycleSpecification>
+    public async Task<List<MotorcycleSpecificationDto>> GetTestMotorcycleSpecificationsAsync() {
+        var specifications = new List<MotorcycleSpecificationDto>
         {
             new()
             {
@@ -86,7 +87,7 @@ public class TestDataManager {
                 Make = "Honda",
                 Model = "CBR600RR",
                 Year = 2023,
-                Engine = new EngineSpecification
+                Engine = new EngineSpecificationDto
                 {
                     Type = "4-Stroke DOHC",
                     DisplacementCC = 599,
@@ -95,14 +96,14 @@ public class TestDataManager {
                     Torque = 64,
                     FuelSystem = "PGM-FI"
                 },
-                Performance = new PerformanceMetrics
+                Performance = new PerformanceMetricsDto
                 {
                     TopSpeedKmh = 260,
                     Acceleration0To100 = 2.8m,
                     FuelConsumptionL100Km = 4.5m,
                     RangeKm = 402
                 },
-                Pricing = new PricingInformation
+                Pricing = new PricingInformationDto
                 {
                     Msrp = 12999,
                     Currency = "USD",
@@ -115,7 +116,7 @@ public class TestDataManager {
                 Make = "Yamaha",
                 Model = "YZF-R1",
                 Year = 2023,
-                Engine = new EngineSpecification
+                Engine = new EngineSpecificationDto
                 {
                     Type = "4-Stroke DOHC",
                     DisplacementCC = 998,
@@ -124,14 +125,14 @@ public class TestDataManager {
                     Torque = 112,
                     FuelSystem = "Fuel Injection"
                 },
-                Performance = new PerformanceMetrics
+                Performance = new PerformanceMetricsDto
                 {
                     TopSpeedKmh = 299,
                     Acceleration0To100 = 2.6m,
                     FuelConsumptionL100Km = 4.8m,
                     RangeKm = 354
                 },
-                Pricing = new PricingInformation
+                Pricing = new PricingInformationDto
                 {
                     Msrp = 17399,
                     Currency = "USD",
@@ -144,7 +145,7 @@ public class TestDataManager {
                 Make = "Kawasaki",
                 Model = "Ninja ZX-10R",
                 Year = 2023,
-                Engine = new EngineSpecification
+                Engine = new EngineSpecificationDto
                 {
                     Type = "4-Stroke DOHC",
                     DisplacementCC = 998,
@@ -153,14 +154,14 @@ public class TestDataManager {
                     Torque = 114,
                     FuelSystem = "DFI"
                 },
-                Performance = new PerformanceMetrics
+                Performance = new PerformanceMetricsDto
                 {
                     TopSpeedKmh = 300,
                     Acceleration0To100 = 2.5m,
                     FuelConsumptionL100Km = 4.9m,
                     RangeKm = 347
                 },
-                Pricing = new PricingInformation
+                Pricing = new PricingInformationDto
                 {
                     Msrp = 16999,
                     Currency = "USD",

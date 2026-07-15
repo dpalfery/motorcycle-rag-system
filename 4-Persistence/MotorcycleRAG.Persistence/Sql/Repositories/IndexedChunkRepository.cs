@@ -1,8 +1,8 @@
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 using MotorcycleRAG.Persistence.Sql;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories;
@@ -18,7 +18,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task UpsertManyAsync(IReadOnlyCollection<IndexedChunk> chunks, CancellationToken cancellationToken = default)
+    public async Task UpsertManyAsync(IReadOnlyCollection<IndexedChunkDto> chunks, CancellationToken cancellationToken = default)
     {
         if (chunks.Count == 0) return;
 
@@ -72,7 +72,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         }
     }
 
-    public async Task<IReadOnlyList<IndexedChunk>> GetByArtifactIdAsync(Guid artifactId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IndexedChunkDto>> GetByArtifactIdAsync(Guid artifactId, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT [ChunkId], [IndexedArtifactId], [IngestionJobId], [UploadId],
@@ -88,7 +88,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
             var rows = await connection.QueryAsync<dynamic>(
                 new CommandDefinition(sql, new { IndexedArtifactId = artifactId }, cancellationToken: cancellationToken));
 
-            return rows.Select(MapToEntity).ToList();
+            return rows.Select(MapToDto).ToList();
         }
         catch (Exception ex)
         {
@@ -98,13 +98,13 @@ public class IndexedChunkRepository : IIndexedChunkRepository
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<IndexedChunk>> GetByArtifactIdsAsync(
+    public async Task<IReadOnlyList<IndexedChunkDto>> GetByArtifactIdsAsync(
         IReadOnlyCollection<Guid> artifactIds,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(artifactIds);
         if (artifactIds.Count == 0)
-            return Array.Empty<IndexedChunk>();
+            return Array.Empty<IndexedChunkDto>();
 
         const string sql = @"
             SELECT [ChunkId], [IndexedArtifactId], [IngestionJobId], [UploadId],
@@ -120,7 +120,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
             var rows = await connection.QueryAsync<dynamic>(
                 new CommandDefinition(sql, new { IndexedArtifactIds = artifactIds.ToArray() }, cancellationToken: cancellationToken));
 
-            return rows.Select(MapToEntity).ToList();
+            return rows.Select(MapToDto).ToList();
         }
         catch (Exception ex)
         {
@@ -129,7 +129,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         }
     }
 
-    public async Task<IReadOnlyList<IndexedChunk>> GetByIngestionJobIdAsync(Guid ingestionJobId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IndexedChunkDto>> GetByIngestionJobIdAsync(Guid ingestionJobId, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT [ChunkId], [IndexedArtifactId], [IngestionJobId], [UploadId],
@@ -145,7 +145,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
             var rows = await connection.QueryAsync<dynamic>(
                 new CommandDefinition(sql, new { IngestionJobId = ingestionJobId }, cancellationToken: cancellationToken));
 
-            return rows.Select(MapToEntity).ToList();
+            return rows.Select(MapToDto).ToList();
         }
         catch (Exception ex)
         {
@@ -154,7 +154,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         }
     }
 
-    public async Task<IReadOnlyList<IndexedChunk>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IndexedChunkDto>> GetByUploadIdAsync(string uploadId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
 
@@ -172,7 +172,7 @@ public class IndexedChunkRepository : IIndexedChunkRepository
             var rows = await connection.QueryAsync<dynamic>(
                 new CommandDefinition(sql, new { UploadId = uploadId }, cancellationToken: cancellationToken));
 
-            return rows.Select(MapToEntity).ToList();
+            return rows.Select(MapToDto).ToList();
         }
         catch (Exception ex)
         {
@@ -289,9 +289,9 @@ public class IndexedChunkRepository : IIndexedChunkRepository
         }
     }
 
-    private static IndexedChunk MapToEntity(dynamic row)
+    private static IndexedChunkDto MapToDto(dynamic row)
     {
-        return new IndexedChunk
+        return new IndexedChunkDto
         {
             ChunkId = row.ChunkId,
             IndexedArtifactId = row.IndexedArtifactId,

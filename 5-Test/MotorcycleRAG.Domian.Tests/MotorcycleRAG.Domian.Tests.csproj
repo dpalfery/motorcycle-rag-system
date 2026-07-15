@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Domain\MotorcycleRAG.Domain.csproj" />
+    <ProjectReference Include="..\..\3-Domain\MotorcycleRAG.Contracts.Models\MotorcycleRAG.Contracts.Models.csproj" />
   </ItemGroup>
 
   <ItemGroup>

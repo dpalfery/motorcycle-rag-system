@@ -46,10 +46,18 @@ public class RequestPipelineTimingMiddlewareTests
     {
         var middleware = Create(TestHelpers.ContinueNext);
         var context = TestHelpers.CreateContext();
-        context.Request.Path = new PathString(); // empty path
+        context.Request.Path = new PathString((string?)null); // Path.Value is null
 
         await middleware.InvokeAsync(context);
 
         context.Response.StatusCode.Should().Be(299);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SlowRequest_Completes()
+    {
+        var middleware = Create(async _ => await Task.Delay(1_010));
+
+        await middleware.InvokeAsync(TestHelpers.CreateContext("/slow-request"));
     }
 }

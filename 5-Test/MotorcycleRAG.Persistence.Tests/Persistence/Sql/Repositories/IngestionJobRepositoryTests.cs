@@ -175,10 +175,10 @@ public sealed class IngestionJobRepositoryTests : IDisposable
     [Fact]
     public async Task UpdateAsync_ShouldPersistAllMutableFields()
     {
-        var job = CreateJob();
-        job.Status = IngestionJobStatus.Processing;
+        var job = CreateJob(
+            status: IngestionJobStatus.Processing,
+            stageSetAtUtc: new DateTimeOffset(2026, 7, 10, 14, 0, 0, TimeSpan.Zero));
         job.PagesCapturedViewableCount = 3;
-        job.StageSetAtUtc = new DateTimeOffset(2026, 7, 10, 14, 0, 0, TimeSpan.Zero);
         var connection = new FakeDbConnection();
         connection.EnqueueNonQuery(
             1,
@@ -953,12 +953,15 @@ public sealed class IngestionJobRepositoryTests : IDisposable
         return new IngestionJobRepository(factory.Object, NullLogger<IngestionJobRepository>.Instance);
     }
 
-    private static IngestionJob CreateJob() =>
+    private static IngestionJob CreateJob(
+        IngestionJobStatus status = IngestionJobStatus.Queued,
+        DateTimeOffset? stageSetAtUtc = null) =>
         new()
         {
             IngestionJobId = Guid.NewGuid(),
             CreatedAtUtc = new DateTimeOffset(2026, 7, 10, 13, 0, 0, TimeSpan.Zero),
-            Status = IngestionJobStatus.Queued,
+            Status = status,
+            StageSetAtUtc = stageSetAtUtc,
             InputType = IngestionJobType.PDFManual,
             InputRef = "manuals/honda-vfr.pdf",
             SourceFileName = "honda-vfr.pdf",

@@ -16,15 +16,18 @@ public class ResilienceService : IResilienceService
     private readonly ResilienceOptions _config;
     private readonly Dictionary<string, IAsyncPolicy> _policies;
     private readonly Dictionary<string, CircuitBreakerState> _circuitStates;
+    private readonly Func<int, TimeSpan>? _retryDelayOverride;
 
     public ResilienceService(
         IOptions<ResilienceOptions> config,
-        ILogger<ResilienceService> logger)
+        ILogger<ResilienceService> logger,
+        Func<int, TimeSpan>? retryDelayOverride = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(logger);
         _config = config.Value ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _retryDelayOverride = retryDelayOverride;
         _policies = new Dictionary<string, IAsyncPolicy>();
         _circuitStates = new Dictionary<string, CircuitBreakerState>();
         InitializePolicies();
@@ -143,9 +146,9 @@ public class ResilienceService : IResilienceService
             .Or<TimeoutException>()
             .WaitAndRetryAsync(
                 retryConfig.MaxRetries,
-                attempt => retryConfig.UseExponentialBackoff
+                attempt => _retryDelayOverride?.Invoke(attempt) ?? (retryConfig.UseExponentialBackoff
                     ? TimeSpan.FromSeconds(Math.Min(retryConfig.BaseDelaySeconds * Math.Pow(2, attempt - 1), retryConfig.MaxDelaySeconds))
-                    : TimeSpan.FromSeconds(retryConfig.BaseDelaySeconds),
+                    : TimeSpan.FromSeconds(retryConfig.BaseDelaySeconds)),
                 (_, span, retryCount, _) =>
                     _logger.LogWarning(
                         "Retry attempt {RetryCount} for {PolicyName} after {Delay}ms",

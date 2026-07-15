@@ -68,18 +68,10 @@ Layer           | Can Depend On
 Presentation    | Application, Base
 Application     | Domain, Contracts, Base
 Domain          | Base (minimal)
-Contracts       | Domain, Base
+Contracts       | Base, Contracts.Models
 Persistence     | Domain, Contracts, Base
 Tests           | Anything (for testing)
 ```
-
-**Important Note on Contracts → Domain Dependency:**
-Contracts referencing Domain is **CORRECT** in this architecture because:
-- Repository interfaces need to reference Domain entities (e.g., `IRepository<Document>`)
-- Service interfaces need to use Domain value objects and entities in method signatures
-- DTOs in Contracts may need to reference Domain types for proper contract definitions
-- Both projects are conceptually part of the "Domain Layer" (3-Domain folder)
-- This follows the Dependency Inversion Principle: Application depends on Contracts (abstractions), Persistence implements them using Domain entities
 
 ## **Key Benefits Achieved**
 
@@ -214,11 +206,11 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 
 * **Entities:** Aggregate roots with identity
   *Folder:* `Entities`
-  *Example:* `Document.cs`, `MotorcycleManual.cs`, `VectorChunk.cs`
+  *Example:* `IngestionJob.cs`, `ManualDocument.cs`, `BikeModel.cs`
   *Rule:* Rich domain models with behavior, not anemic data bags
 * **Value Objects:** Immutable types without identity
   *Folder:* `ValueObjects`
-  *Example:* `DocumentMetadata.cs`, `Embedding.cs`, `SearchQuery.cs`
+  *Example:* `MotorcycleCategory.cs`
 * **Domain Services:** Business rules spanning multiple entities
   *Folder:* `Services`
   *Example:* `DocumentChunkingService.cs`
@@ -237,7 +229,7 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 **Dependencies:** Base (minimal - only utilities/enums)
 **Dependency Rule:** ✓ No outward dependencies. Most stable layer.
 
-### **3b. Contracts (Abstractions Owned by Domain)**
+### **3b. Contracts (Shared Interfaces)**
 
 **Contents:**
 
@@ -249,26 +241,36 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
   *Example:* `IEmbeddingService.cs`, `ILlmService.cs`
 * **Factories (Domain Contracts):** Factory abstractions for creating aggregates/value objects while enforcing invariants
   *Folder:* `Factories`
-  *Example names:* `IDocumentFactory`, `IMotorcycleManualFactory`, `IVectorChunkFactory`
+  *Usage:* Define one only when a domain construction boundary needs an abstraction.
 
 * **Rule:** `MotorcycleRAG.Contracts` contains interfaces only (no DTOs/models)
 
-**Dependencies:** Domain, Base
-
-**Why Contracts → Domain is Correct:**
-- Interfaces must reference Domain entities to define proper contracts
-- Example: `Task<Document> GetDocumentAsync(Guid id)` requires `Document` from Domain
-- Prevents duplicate model definitions between Contracts and Domain
-- Maintains single source of truth for domain entities
-- Both are in 3-Domain layer, conceptually part of the core domain
+**Dependencies:** Base and `Contracts.Models` only. `MotorcycleRAG.Contracts` must not reference
+`MotorcycleRAG.Domain`; interface signatures use shared DTOs from `Contracts.Models` or other
+contract abstractions. Domain entities and value objects stay behind the Domain boundary and are
+mapped by Application or Persistence adapters as needed.
 
 **Critical Rules:**
 - NO references to any infrastructure concerns (EF Core, Azure, SQL, HTTP, etc.)
 - NO persistence logic - only interfaces defining what domain needs
-- CAN reference Domain entities and value objects for interface definitions
+- MUST NOT reference Domain entities or value objects directly; use a contract model or an
+  interface-owned abstraction instead
 - All domain logic testable without any infrastructure
 
 > **Key Principle:** If you removed all outer layers (UI, DB, frameworks), your domain layer should still compile and contain all core business rules. This is the "screaming architecture" - the domain tells you what the system does.
+
+### **Model classification and placement policy**
+
+Use the model's responsibility—not its folder, persistence key, or property count—to classify it:
+
+| Classification | Required characteristics | Placement and naming |
+|---|---|---|
+| Entity | Stable identity plus at least one invariant, legal state transition, or other domain behavior | `MotorcycleRAG.Domain/Entities`; use controlled construction and transition methods; do not expose public mutation that bypasses invariants |
+| DTO | Data carrier/property bag with no domain invariant or lifecycle behavior | Shared cross-layer DTOs live in `MotorcycleRAG.Contracts.Models` and end in `Dto`; use-case-local DTOs live in Application and also end in `Dto` |
+| Value object | Immutable, equality-by-value concept that may contain domain behavior but has no independent identity | `MotorcycleRAG.Domain/ValueObjects`; do not classify it as an Entity or DTO |
+| Persistence row | Storage/schema projection that is not a shared application contract | Private to `MotorcycleRAG.Persistence`; map it to/from Domain or DTOs at the adapter boundary |
+
+A database key, public auto-properties, default initializers, or validation attributes alone are insufficient to make a type an Entity. Do not test compiler-generated getter/setter round-trips to pad coverage. Keep one top-level type per file, and align the filename, namespace, and suffix with the classification. Any exception requires an explicit architecture decision and focused behavior tests.
 
 ---
 
@@ -416,4 +418,3 @@ Contracts referencing Domain is **CORRECT** in this architecture because:
 > **Clean Architecture Benefit:** Your deployment choices are details. You can deploy to Azure App Service, Container Apps, AKS, or even AWS without changing your application code.
 
 ---
-

@@ -31,6 +31,7 @@ public sealed class DisabledDocumentIntelligenceClient : IDocumentIntelligenceCl
     {
         ArgumentNullException.ThrowIfNull(documentStream);
         _logger.LogWarning("Document Intelligence stream analysis was requested while disabled. ContentType: {ContentType}", contentType);
+
         throw new InvalidOperationException(ErrorMessage);
     }
 }

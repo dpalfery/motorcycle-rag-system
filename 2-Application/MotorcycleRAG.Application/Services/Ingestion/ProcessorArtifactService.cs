@@ -7,6 +7,7 @@ using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 
 namespace MotorcycleRAG.Application.Services.Ingestion;
 
@@ -190,7 +191,7 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
             }
             else
             {
-                var artifact = new IndexedArtifact
+                var artifact = new IndexedArtifactDto
                 {
                     IndexedArtifactId = Guid.NewGuid(),
                     IngestionJobId = job.IngestionJobId,
@@ -359,12 +360,12 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         _ => IngestionJobStatus.Queued
     };
 
-    private static IReadOnlyList<IndexedChunk> ConvertToIndexedChunks(
+    private static IReadOnlyList<IndexedChunkDto> ConvertToIndexedChunks(
         IReadOnlyList<ChunkIndexOutcome> outcomes,
         Guid artifactId,
         Guid jobId,
         string uploadId,
-        DateTimeOffset now) => outcomes.Select(outcome => new IndexedChunk
+        DateTimeOffset now) => outcomes.Select(outcome => new IndexedChunkDto
     {
         ChunkId = outcome.ChunkId,
         IndexedArtifactId = artifactId,

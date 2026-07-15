@@ -1,7 +1,7 @@
-using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Sql.Repositories;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 
 namespace MotorcycleRAG.UnitTests.Persistence.Sql.Repositories;
 
@@ -42,7 +42,7 @@ public sealed class IndexedChunkRepositoryTests
         var factory = new Mock<ISqlConnectionFactory>();
         var sut = new IndexedChunkRepository(factory.Object, TestHelpers.CreateNullLogger<IndexedChunkRepository>());
 
-        await sut.UpsertManyAsync(Array.Empty<IndexedChunk>());
+        await sut.UpsertManyAsync(Array.Empty<IndexedChunkDto>());
 
         factory.Verify(x => x.CreateOpenConnectionAsync(), Times.Never);
     }
@@ -688,7 +688,7 @@ public sealed class IndexedChunkRepositoryTests
         return new IndexedChunkRepository(factory.Object, TestHelpers.CreateNullLogger<IndexedChunkRepository>());
     }
 
-    private static IndexedChunk CreateChunk() => new()
+    private static IndexedChunkDto CreateChunk() => new()
     {
         ChunkId = Guid.NewGuid().ToString("D"),
         IndexedArtifactId = Guid.NewGuid(),
@@ -732,4 +732,3 @@ public sealed class IndexedChunkRepositoryTests
             ["FailureReason"] = failureReason
         };
 }
-

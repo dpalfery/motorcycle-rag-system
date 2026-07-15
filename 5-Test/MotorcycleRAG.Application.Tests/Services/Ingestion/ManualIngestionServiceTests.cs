@@ -9,8 +9,10 @@ using MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using DomainDocumentStatus = MotorcycleRAG.Domain.Enums.ManualDocumentStatus;
-using DomainRunStatus = MotorcycleRAG.Domain.Enums.ManualRunStatus;
-using DomainStageStatus = MotorcycleRAG.Domain.Enums.ManualStageStatus;
+using DomainRunStatus = MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion.ManualRunStatus;
+using DomainStageStatus = MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion.ManualStageStatus;
+using ManualProcessingRun = MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion.ManualRunDto;
+using ManualProcessingStage = MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion.ManualStageDto;
 
 namespace MotorcycleRAG.UnitTests.Services.Ingestion;
 

@@ -31,109 +31,21 @@ public class WebTrustPolicyStore : IWebTrustPolicyStore
     /// </summary>
     private void InitializeDefaultPolicies()
     {
-        // Tier A: OEM websites
-        AddOrUpdatePolicy(new WebTrustPolicy
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = "*.honda.com",
-            Tier = WebTrustTier.TierA,
-            IsBlocked = false,
-            Reason = "Official Honda Motorcycle website",
-            AllowSubdomains = true,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        AddOrUpdatePolicy(new WebTrustPolicy
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = "*.yamaha-motor.com",
-            Tier = WebTrustTier.TierA,
-            IsBlocked = false,
-            Reason = "Official Yamaha Motorcycle website",
-            AllowSubdomains = true,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        AddOrUpdatePolicy(new WebTrustPolicy
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = "*.kawasaki.com",
-            Tier = WebTrustTier.TierA,
-            IsBlocked = false,
-            Reason = "Official Kawasaki website",
-            AllowSubdomains = true,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        AddOrUpdatePolicy(new WebTrustPolicy
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = "*.bmwmotorcycles.com",
-            Tier = WebTrustTier.TierA,
-            IsBlocked = false,
-            Reason = "Official BMW Motorcycles website",
-            AllowSubdomains = true,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        AddOrUpdatePolicy(new WebTrustPolicy
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = "*.suzuki.com",
-            Tier = WebTrustTier.TierA,
-            IsBlocked = false,
-            Reason = "Official Suzuki website",
-            AllowSubdomains = true,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        AddOrUpdatePolicy(new WebTrustPolicy
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = "*.ducati.com",
-            Tier = WebTrustTier.TierA,
-            IsBlocked = false,
-            Reason = "Official Ducati website",
-            AllowSubdomains = true,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        // Tier B: Reputable media sites
-        AddOrUpdatePolicy(new WebTrustPolicy
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = "*.cycleworld.com",
-            Tier = WebTrustTier.TierB,
-            IsBlocked = false,
-            Reason = "Cycle World - Reputable motorcycle media",
-            AllowSubdomains = true,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        AddOrUpdatePolicy(new WebTrustPolicy
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = "*.motorcycle.com",
-            Tier = WebTrustTier.TierB,
-            IsBlocked = false,
-            Reason = "Motorcycle.com - Established motorcycle publication",
-            AllowSubdomains = true,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        AddOrUpdatePolicy(new WebTrustPolicy
-        {
-            Id = Guid.NewGuid(),
-            DomainPattern = "*.motorcycle-usa.com",
-            Tier = WebTrustTier.TierB,
-            IsBlocked = false,
-            Reason = "MotorcycleUSA - Reputable motorcycle news",
-            AllowSubdomains = true,
-            CreatedAt = DateTime.UtcNow
-        });
+        AddDefaultPolicy("*.honda.com", WebTrustTier.TierA, "Official Honda Motorcycle website");
+        AddDefaultPolicy("*.yamaha-motor.com", WebTrustTier.TierA, "Official Yamaha Motorcycle website");
+        AddDefaultPolicy("*.kawasaki.com", WebTrustTier.TierA, "Official Kawasaki website");
+        AddDefaultPolicy("*.bmwmotorcycles.com", WebTrustTier.TierA, "Official BMW Motorcycles website");
+        AddDefaultPolicy("*.suzuki.com", WebTrustTier.TierA, "Official Suzuki website");
+        AddDefaultPolicy("*.ducati.com", WebTrustTier.TierA, "Official Ducati website");
+        AddDefaultPolicy("*.cycleworld.com", WebTrustTier.TierB, "Cycle World - Reputable motorcycle media");
+        AddDefaultPolicy("*.motorcycle.com", WebTrustTier.TierB, "Motorcycle.com - Established motorcycle publication");
+        AddDefaultPolicy("*.motorcycle-usa.com", WebTrustTier.TierB, "MotorcycleUSA - Reputable motorcycle news");
 
         _logger.LogInformation("Initialized default web trust policies with {Count} entries", _policies.Count);
     }
+
+    private void AddDefaultPolicy(string domainPattern, WebTrustTier tier, string reason) =>
+        AddOrUpdatePolicy(WebTrustPolicy.Create(domainPattern, tier, allowSubdomains: true, reason));
 
     /// <summary>
     /// Add or update a trust policy
@@ -142,7 +54,7 @@ public class WebTrustPolicyStore : IWebTrustPolicyStore
     {
         ArgumentNullException.ThrowIfNull(policy);
 
-        policy.UpdatedAt = DateTime.UtcNow;
+        policy.MarkUpdated();
         _policies.AddOrUpdate(policy.DomainPattern, policy, (_, _) => policy);
 
         // Update allowlist cache
@@ -173,19 +85,13 @@ public class WebTrustPolicyStore : IWebTrustPolicyStore
             return exactPolicy;
         }
 
-        // Try wildcard pattern matching
+        // Try wildcard pattern matching. The entity owns normalization and
+        // host-pattern semantics so this adapter only orders candidates.
         foreach (var kvp in _policies.OrderByDescending(x => x.Key.Length))
         {
-            var pattern = kvp.Key;
-
-            if (pattern.StartsWith("*.") && (domain.EndsWith(pattern.Substring(2)) || domain == pattern.Substring(2)))
+            if (kvp.Value.MatchesDomain(domain))
             {
-                var wildcardDomain = pattern.Substring(2);
-                // Check if subdomains are allowed
-                if (kvp.Value.AllowSubdomains || domain == wildcardDomain)
-                {
-                    return kvp.Value;
-                }
+                return kvp.Value;
             }
         }
 

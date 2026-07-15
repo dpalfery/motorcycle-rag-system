@@ -51,7 +51,6 @@ public class ManualIngestionService : IManualIngestionService {
             Make = request.Make,
             Model = request.Model,
             Year = request.Year,
-            CurrentStatus = Domain.Enums.ManualDocumentStatus.Pending
         };
 
         var created = await _repository.CreateDocumentAsync(document, ct);
@@ -69,13 +68,13 @@ public class ManualIngestionService : IManualIngestionService {
     }
 
     public async Task<ManualRunDto> CreateRunAsync(CreateManualRunRequest request, CancellationToken ct) {
-        var run = new ManualProcessingRun {
+        var run = new ManualRunDto {
             RunId = Guid.NewGuid(),
             DocumentId = request.DocumentId,
             RunType = request.RunType,
             StartedFromStage = request.StartedFromStage,
             LocalWorkingFolder = request.LocalWorkingFolder,
-            Status = Domain.Enums.ManualRunStatus.Started
+            Status = Contracts.Models.DTOs.ManualIngestion.ManualRunStatus.Started
         };
 
         var created = await _repository.CreateRunAsync(run, ct);
@@ -83,8 +82,7 @@ public class ManualIngestionService : IManualIngestionService {
         // Update document status
         var doc = await _repository.GetDocumentByIdAsync(request.DocumentId, ct);
         if (doc != null) {
-            doc.CurrentStatus = Domain.Enums.ManualDocumentStatus.Processing;
-            doc.CurrentStage = request.StartedFromStage ?? ManualIngestionStages.Source;
+            doc.BeginProcessing(request.StartedFromStage ?? ManualIngestionStages.Source);
             await _repository.UpdateDocumentAsync(doc, ct);
         }
 
@@ -107,11 +105,11 @@ public class ManualIngestionService : IManualIngestionService {
     }
 
     public async Task ReportStageStartAsync(Guid runId, string stageName, ManualStageStartRequest request, CancellationToken ct) {
-        var stage = new ManualProcessingStage {
+        var stage = new ManualStageDto {
             StageId = Guid.NewGuid(),
             RunId = runId,
             StageName = stageName,
-            Status = Domain.Enums.ManualStageStatus.Started,
+            Status = Contracts.Models.DTOs.ManualIngestion.ManualStageStatus.Started,
             MetadataJson = request.MetadataJson
         };
 
@@ -120,12 +118,12 @@ public class ManualIngestionService : IManualIngestionService {
         // Update run and document current stage
         var run = await _repository.GetRunByIdAsync(runId, ct);
         if (run != null) {
-            run.Status = Domain.Enums.ManualRunStatus.InProgress;
+            run.Status = Contracts.Models.DTOs.ManualIngestion.ManualRunStatus.InProgress;
             await _repository.UpdateRunAsync(run, ct);
 
             var doc = await _repository.GetDocumentByIdAsync(run.DocumentId, ct);
             if (doc != null) {
-                doc.CurrentStage = stageName;
+                doc.SetStage(stageName);
                 await _repository.UpdateDocumentAsync(doc, ct);
             }
         }
@@ -133,10 +131,10 @@ public class ManualIngestionService : IManualIngestionService {
 
     public async Task ReportStageCompleteAsync(Guid runId, string stageName, ManualStageCompleteRequest request, CancellationToken ct) {
         var stages = await _repository.GetStagesForRunAsync(runId, ct);
-        var stage = stages.FirstOrDefault(s => s.StageName == stageName && s.Status == Domain.Enums.ManualStageStatus.Started);
+        var stage = stages.FirstOrDefault(s => s.StageName == stageName && s.Status == Contracts.Models.DTOs.ManualIngestion.ManualStageStatus.Started);
 
         if (stage != null) {
-            stage.Status = Domain.Enums.ManualStageStatus.Completed;
+            stage.Status = Contracts.Models.DTOs.ManualIngestion.ManualStageStatus.Completed;
             stage.CompletedAtUtc = DateTimeOffset.UtcNow;
             stage.ArtifactPath = request.ArtifactPath;
             stage.ArtifactHash = request.ArtifactHash;
@@ -147,16 +145,14 @@ public class ManualIngestionService : IManualIngestionService {
         if (stageName == ManualIngestionStages.Complete) {
             var run = await _repository.GetRunByIdAsync(runId, ct);
             if (run != null) {
-                run.Status = Domain.Enums.ManualRunStatus.Succeeded;
+                run.Status = Contracts.Models.DTOs.ManualIngestion.ManualRunStatus.Succeeded;
                 run.CompletedAtUtc = DateTimeOffset.UtcNow;
                 run.CompletedStage = stageName;
                 await _repository.UpdateRunAsync(run, ct);
 
                 var doc = await _repository.GetDocumentByIdAsync(run.DocumentId, ct);
                 if (doc != null) {
-                    doc.CurrentStatus = Domain.Enums.ManualDocumentStatus.Processed;
-                    doc.LastSuccessfulRunId = runId;
-                    doc.LastProcessedAtUtc = DateTimeOffset.UtcNow;
+                    doc.MarkProcessed(runId);
                     await _repository.UpdateDocumentAsync(doc, ct);
                 }
             }
@@ -165,10 +161,10 @@ public class ManualIngestionService : IManualIngestionService {
 
     public async Task ReportStageFailAsync(Guid runId, string stageName, ManualStageFailRequest request, CancellationToken ct) {
         var stages = await _repository.GetStagesForRunAsync(runId, ct);
-        var stage = stages.FirstOrDefault(s => s.StageName == stageName && s.Status == Domain.Enums.ManualStageStatus.Started);
+        var stage = stages.FirstOrDefault(s => s.StageName == stageName && s.Status == Contracts.Models.DTOs.ManualIngestion.ManualStageStatus.Started);
 
         if (stage != null) {
-            stage.Status = Domain.Enums.ManualStageStatus.Failed;
+            stage.Status = Contracts.Models.DTOs.ManualIngestion.ManualStageStatus.Failed;
             stage.CompletedAtUtc = DateTimeOffset.UtcNow;
             stage.ErrorDetail = request.ErrorDetail;
             stage.MetadataJson = request.MetadataJson;
@@ -177,15 +173,14 @@ public class ManualIngestionService : IManualIngestionService {
 
         var run = await _repository.GetRunByIdAsync(runId, ct);
         if (run != null) {
-            run.Status = Domain.Enums.ManualRunStatus.Failed;
+            run.Status = Contracts.Models.DTOs.ManualIngestion.ManualRunStatus.Failed;
             run.CompletedAtUtc = DateTimeOffset.UtcNow;
             run.ErrorSummary = request.ErrorDetail;
             await _repository.UpdateRunAsync(run, ct);
 
             var doc = await _repository.GetDocumentByIdAsync(run.DocumentId, ct);
             if (doc != null) {
-                doc.CurrentStatus = Domain.Enums.ManualDocumentStatus.Failed;
-                doc.LastFailure = request.ErrorDetail;
+                doc.MarkFailed(request.ErrorDetail);
                 await _repository.UpdateDocumentAsync(doc, ct);
             }
         }
@@ -273,7 +268,7 @@ public class ManualIngestionService : IManualIngestionService {
         return Uri.TryCreate(canonicalBlobUri, UriKind.Absolute, out var uri) ? uri : null;
     }
 
-    private ManualRunDto Map(ManualProcessingRun run) {
+    private ManualRunDto Map(ManualRunDto run) {
         return new ManualRunDto(
             run.RunId,
             run.DocumentId,
@@ -293,7 +288,7 @@ public class ManualIngestionService : IManualIngestionService {
         );
     }
 
-    private ManualStageDto Map(ManualProcessingStage stage) {
+    private ManualStageDto Map(ManualStageDto stage) {
         return new ManualStageDto(
             stage.StageId,
             stage.RunId,

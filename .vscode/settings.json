@@ -15,7 +15,7 @@
     "files.watcherExclude": {
         ".kilo/worktrees/**": true
     },
-    "dotnet.defaultSolution": "MotorcycleRAG.sln",
+    "dotnet.defaultSolution": "MotorcycleRAG.UnitTests.slnf",
     "editor.formatOnSave": true,
     "git.autofetch": true,
     "git.autofetchPeriod": 180,

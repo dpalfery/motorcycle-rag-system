@@ -110,19 +110,32 @@ def should_exclude(path_text: str, exclusions: dict[str, Any]) -> bool:
     return False
 
 
-def normalize_suite_source_path(raw_path: str, suite: dict[str, Any]) -> str | None:
+def normalize_suite_source_path(
+    raw_path: str,
+    suite: dict[str, Any],
+    report_sources: list[str],
+) -> str | None:
     """Resolve a coverage path and retain it only when it is in the suite's source roots."""
-    normalized = normalize_repo_path(raw_path)
     source_roots = [root.replace("\\", "/").rstrip("/") for root in suite["sourceRoots"]]
 
     def in_source_roots(path: str) -> bool:
         return any(path == root or path.startswith(f"{root}/") for root in source_roots)
 
-    if in_source_roots(normalized):
-        return normalized
+    candidate_paths = [raw_path]
+    if not Path(raw_path).is_absolute():
+        candidate_paths.extend(
+            str(Path(source_root) / raw_path)
+            for source_root in report_sources
+        )
+
+    for candidate_path in candidate_paths:
+        normalized = normalize_repo_path(candidate_path)
+        if in_source_roots(normalized):
+            return normalized
 
     # Some reporters emit paths relative to their configured working directory
     # (for example, ``src/screens/JobsScreen.tsx`` or Python's ``main.py``).
+    normalized = normalize_repo_path(raw_path)
     working_directory = suite.get("workingDirectory")
     if working_directory:
         candidate = f"{working_directory.rstrip('/')}/{normalized}"
@@ -163,12 +176,21 @@ def parse_cobertura_file(
     exclusions: dict[str, Any],
 ) -> None:
     root = DefusedElementTree.parse(coverage_path).getroot()
+    report_sources = [
+        source.text.strip()
+        for source in root.findall("./sources/source")
+        if source.text and source.text.strip()
+    ]
     for class_element in root.findall(".//class"):
         raw_filename = class_element.attrib.get("filename")
         if not raw_filename:
             continue
 
-        normalized_path = normalize_suite_source_path(raw_filename, suite)
+        normalized_path = normalize_suite_source_path(
+            raw_filename,
+            suite,
+            report_sources,
+        )
         if normalized_path is None:
             continue
         if should_exclude(normalized_path, exclusions):

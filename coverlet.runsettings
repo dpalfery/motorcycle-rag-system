@@ -5,7 +5,7 @@
     <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
             <Format>cobertura</Format>
-            <ExcludeByFile>**/Migrations/**,**/*.Designer.cs,**/*.generated.cs,**/*.g.cs,**/MotorcycleRag.WebUI.BFF/**/Program.cs,**/SqlConnectionFactory.cs,**/SearchClientFactory.cs,**/Telemetry/TelemetryService.cs,**/Azure/AzureFoundryClientWrapper.cs,**/Azure/FoundryClientFactory.cs,**/HealthChecks/SqlDatabaseHealthCheck.cs</ExcludeByFile>
+            <ExcludeByFile>**/Migrations/**,**/*.Designer.cs,**/*.generated.cs,**/*.g.cs,**/MotorcycleRag.WebUI.BFF/**/Program.cs,**/SqlConnectionFactory.cs,**/SearchClientFactory.cs,**/Telemetry/TelemetryService.cs,**/Azure/AzureFoundryClientWrapper.cs,**/Azure/FoundryClientFactory.cs,**/Azure/FoundryAgentRunner.cs,**/HealthChecks/SqlDatabaseHealthCheck.cs</ExcludeByFile>
             <ExcludeByAttribute>Obsolete,GeneratedCode</ExcludeByAttribute>
             <Exclude>[MotorcycleRAG.Contracts.Models]*,[MotorcycleRAG.DbSetup]*,[MotorcycleRAG.*.Test*]*,[xunit.*]*</Exclude>
         </Configuration>

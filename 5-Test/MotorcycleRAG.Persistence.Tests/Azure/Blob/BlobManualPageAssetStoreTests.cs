@@ -85,6 +85,16 @@ public class BlobManualPageAssetStoreTests
     }
 
     [Fact]
+    public void Constructor_ShouldThrowArgumentNullException_WhenCredentialProviderIsNull()
+    {
+        var act = () => new BlobManualPageAssetStore(
+            CreateValidDevOptions(), CreateDevelopmentEnvironment(),
+            CreateFactoryReturningValidClient(), null!,
+            TestHelpers.CreateNullLogger<BlobManualPageAssetStore>());
+        act.Should().Throw<ArgumentNullException>().WithParameterName("credentialProvider");
+    }
+
+    [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull()
     {
         var act = () => new BlobManualPageAssetStore(

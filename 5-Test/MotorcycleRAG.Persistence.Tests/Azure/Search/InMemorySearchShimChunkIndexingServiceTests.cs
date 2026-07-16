@@ -330,4 +330,136 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
         await act.Should().ThrowAsync<JsonException>()
             .WithMessage("*missing required field 'id'*");
     }
+
+    // ---- IndexFromJsonlAsync - endpoint with trailing slash ----
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WithTrailingSlashEndpoint_ShouldPostCorrectly()
+    {
+        var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Loose);
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req =>
+                    req.Method == HttpMethod.Post &&
+                    req.RequestUri!.AbsoluteUri.Contains("/index-jsonl?uploadId=")),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent("{}")
+            });
+
+        using var httpClient = new HttpClient(handlerMock.Object);
+        // Endpoint already has a trailing slash
+        var sut = new InMemorySearchShimChunkIndexingService(
+            httpClient,
+            Options.Create(CreateOptions("http://localhost:9090/")),
+            TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
+        using var stream = CreateJsonlStream(("chunk-1", 1, 0));
+
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-trailing");
+
+        result.TotalParsed.Should().Be(1);
+        result.Outcomes.Should().AllSatisfy(o => o.Succeeded.Should().BeTrue());
+    }
+
+    // ---- IndexFromJsonlAsync - empty JSONL stream ----
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WithEmptyJsonl_ShouldPostEmptyBodyAndReturnZeroOutcomes()
+    {
+        var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Loose);
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Post),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent("{}")
+            });
+
+        using var httpClient = new HttpClient(handlerMock.Object);
+        var sut = new InMemorySearchShimChunkIndexingService(
+            httpClient,
+            Options.Create(CreateOptions("http://127.0.0.1:9090")),
+            TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(""));
+
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-empty");
+
+        result.TotalParsed.Should().Be(0);
+        result.BatchCount.Should().Be(0);
+        result.Outcomes.Should().BeEmpty();
+    }
+
+    // ---- IndexFromJsonlAsync - cancellation token propagation ----
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WhenCancellationRequested_ShouldThrowOperationCanceledException()
+    {
+        var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Loose);
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Returns(async (HttpRequestMessage req, CancellationToken ct) =>
+            {
+                // Use infinite delay so the test is completely delay-free — the
+                // pre-cancelled token will throw immediately.
+                try { await Task.Delay(Timeout.Infinite, ct); } catch { /* expected */ }
+                ct.ThrowIfCancellationRequested();
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            });
+
+        using var httpClient = new HttpClient(handlerMock.Object);
+        var sut = new InMemorySearchShimChunkIndexingService(
+            httpClient,
+            Options.Create(CreateOptions("http://127.0.0.1:9090")),
+            TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
+        using var stream = CreateJsonlStream(("chunk-1", 1, 0));
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-cancel", cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    // ---- IndexFromJsonlAsync - IPv6 loopback ----
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_ShouldAcceptIpv6Loopback()
+    {
+        var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Loose);
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent("{}")
+            });
+
+        using var httpClient = new HttpClient(handlerMock.Object);
+        var sut = new InMemorySearchShimChunkIndexingService(
+            httpClient,
+            Options.Create(CreateOptions("http://[::1]:9090")),
+            TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
+        using var stream = CreateJsonlStream(("chunk-1", 1, 0));
+
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-ipv6");
+
+        result.TotalParsed.Should().Be(1);
+        result.Outcomes.Should().AllSatisfy(o => o.Succeeded.Should().BeTrue());
+    }
 }

@@ -154,6 +154,16 @@ public class AuthControllerTests {
         capturedRequest.Headers.Authorization.Parameter.Should().Be("access-token");
     }
 
+    [Fact]
+    public async Task GetUser_WhenApiApprovesAndIdentityNameIsMissing_UsesFallbackUserName() {
+        SetupClient(CreateClient(HttpStatusCode.OK, """{"id":"user-42"}"""));
+        var controller = CreateController(authenticated: true, accessToken: "token", name: null);
+
+        var result = await controller.GetUser();
+
+        Json(result).GetProperty("user").GetString().Should().Be("User");
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, """{"error":"Approval pending"}""", "ApprovalRequired", "Approval pending")]
     [InlineData(HttpStatusCode.Unauthorized, """{"title":"Token rejected"}""", "ApiUnauthorized", "Token rejected")]
@@ -187,6 +197,16 @@ public class AuthControllerTests {
     }
 
     [Fact]
+    public async Task GetUser_WhenApiDeniesAndIdentityNameIsMissing_UsesFallbackUserName() {
+        SetupClient(CreateClient(HttpStatusCode.Forbidden, """{"error":"Approval pending"}"""));
+        var controller = CreateController(authenticated: true, accessToken: "token", name: null);
+
+        var result = await controller.GetUser();
+
+        Json(result).GetProperty("user").GetString().Should().Be("User");
+    }
+
+    [Fact]
     public async Task GetUser_WhenClientThrows_ReturnsUnknownStateAndLogsError() {
         SetupClient(CreateThrowingClient());
         var controller = CreateController(authenticated: true, accessToken: "token");
@@ -203,6 +223,16 @@ public class AuthControllerTests {
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task GetUser_WhenClientThrowsAndIdentityNameIsMissing_UsesFallbackUserName() {
+        SetupClient(CreateThrowingClient());
+        var controller = CreateController(authenticated: true, accessToken: "token", name: null);
+
+        var result = await controller.GetUser();
+
+        Json(result).GetProperty("user").GetString().Should().Be("User");
     }
 
     private AuthController CreateController(

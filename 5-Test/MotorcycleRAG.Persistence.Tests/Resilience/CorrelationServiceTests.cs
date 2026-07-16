@@ -26,6 +26,15 @@ public class CorrelationServiceTests
     }
 
     [Fact]
+    public void Constructor_WithNullLogger_ShouldThrowArgumentNullException()
+    {
+        var act = () => new CorrelationService(null!);
+
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("logger");
+    }
+
+    [Fact]
     public void GetOrCreateCorrelationId_NoExistingId_GeneratesNewId()
     {
         // Act

@@ -141,4 +141,48 @@ public sealed class SearchIndexResiliencePipelineProviderTests
 
         result.Should().BeFalse();
     }
+
+    // ---- ShouldRetry - edge case status codes ----
+
+    [Theory]
+    [InlineData(308)] // redirect — not in non-transient set, not >=500, not 429, not 0 → false
+    [InlineData(499)] // client closed request — not in non-transient set, not >=500, not 429, not 0 → false
+    [InlineData(301)] // moved permanently → false
+    public void ShouldRetry_WithRedirectOrClientClosedStatusCode_ShouldReturnFalse(int statusCode)
+    {
+        var ex = new RequestFailedException(statusCode, $"Status {statusCode}");
+
+        var result = SearchIndexResiliencePipelineProvider.ShouldRetry(ex);
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ShouldRetry_WithAggregateExceptionContainingTransientInner_ShouldReturnFalse()
+    {
+        // AggregateException is not specially handled — falls through to return false
+        var inner = new HttpRequestException("Connection refused");
+        var ex = new AggregateException(inner);
+
+        var result = SearchIndexResiliencePipelineProvider.ShouldRetry(ex);
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ShouldRetry_WithNullExceptionInOutcome_ShouldNotCallShouldRetry()
+    {
+        // The ShouldHandle callback in the Polly retry strategy checks
+        // args.Outcome.Exception for null before calling ShouldRetry.
+        // Invoke the pipeline with a successful outcome and verify the
+        // null-guard works: a null Exception in the outcome must not reach
+        // ShouldRetry (which would throw on null input).
+        var sut = new SearchIndexResiliencePipelineProvider();
+
+        var result = await sut.Pipeline.ExecuteAsync(
+            _ => new ValueTask<int>(42),
+            CancellationToken.None);
+
+        result.Should().Be(42);
+    }
 }

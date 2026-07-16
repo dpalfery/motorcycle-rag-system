@@ -1,8 +1,11 @@
 using System.Text;
+using Azure.Search.Documents;
+using SearchOptions = MotorcycleRAG.Core.Options.SearchOptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Exceptions;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.ValueObjects;
 using MotorcycleRAG.Persistence.Azure.Search;
@@ -366,6 +369,166 @@ public sealed class ChunkIndexingServiceTests
 
         // Only 2 valid records should be parsed, blank lines skipped
         result.TotalParsed.Should().Be(2);
+    }
+
+    // ---- IndexFromJsonlAsync - precheck: index existence ----
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WhenIndexDoesNotExist_ShouldThrowSearchIndexNotFoundException()
+    {
+        var sut = CreateSut();
+        _clientFactoryMock.Setup(x => x.DefaultCategory).Returns(MotorcycleCategory.Sport);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>())).Returns((MotorcycleCategory c) => $"motorcycle-{c.Value}");
+        // Return false for the resolved category so the precheck fails
+        _clientFactoryMock
+            .Setup(x => x.IndexExistsAsync(MotorcycleCategory.Dirt, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var jsonl = "{\"id\":\"chunk-1\",\"category\":\"dirt\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
+
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-missing-index");
+
+        await act.Should().ThrowAsync<SearchIndexNotFoundException>()
+            .WithMessage("*motorcycle-dirt*");
+    }
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WhenIndexExists_ShouldNotThrowSearchIndexNotFoundException()
+    {
+        // Use a real resilience pipeline (not the mocked one whose Pipeline returns null)
+        // so the batch processing code runs through a real Polly pipeline rather than
+        // silently swallowing a NullReferenceException. The SearchClient is mocked to
+        // throw a non-missing-index exception, which the pipeline propagates and the
+        // catch (Exception) block swallows (IsNonTransient returns false). The test
+        // verifies the precheck-succeed path: when IndexExistsAsync returns true, no
+        // SearchIndexNotFoundException is thrown.
+        //
+        // Note: several pre-existing IndexFromJsonlAsync tests in this file also rely on
+        // the mocked pipeline (Mock<ISearchIndexResiliencePipeline> whose Pipeline
+        // property is null). That NullReferenceException is silently swallowed at line
+        // ~339 of ChunkIndexingService.cs (catch (Exception) when IsNonTransient is
+        // false), making those tests pass for the wrong reason. Those tests are left
+        // as-is per scope; this test demonstrates the corrected pattern.
+        var realPipeline = new SearchIndexResiliencePipelineProvider();
+
+        _clientFactoryMock.Setup(x => x.DefaultCategory).Returns(MotorcycleCategory.Sport);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns((MotorcycleCategory c) => $"motorcycle-{c.Value}");
+        _clientFactoryMock
+            .Setup(x => x.IndexExistsAsync(It.IsAny<MotorcycleCategory>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // Mock the SearchClient returned by GetClient to throw a non-SearchIndexNotFoundException
+        // so the precheck-succeed path is exercised end-to-end without needing a real Azure Search.
+        var searchClientMock = new Mock<SearchClient>();
+        searchClientMock
+            .Setup(c => c.MergeOrUploadDocumentsAsync(
+                It.IsAny<IEnumerable<ChunkIndexingService.ChunkIndexRecord>>(),
+                It.IsAny<IndexDocumentsOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Simulated batch failure"));
+        _clientFactoryMock.Setup(x => x.GetClient(It.IsAny<MotorcycleCategory>()))
+            .Returns(searchClientMock.Object);
+
+        var sut = new ChunkIndexingService(
+            _clientFactoryMock.Object,
+            _categoryClassifierMock.Object,
+            realPipeline,
+            TestHelpers.OptionsFor(_searchOptions),
+            TestHelpers.CreateNullLogger<ChunkIndexingService>());
+
+        var jsonl = "{\"id\":\"chunk-10\",\"category\":\"sport\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
+
+        // The precheck passed (index exists). The batch processing fails but NOT with
+        // SearchIndexNotFoundException — the exception is swallowed by the catch (Exception)
+        // block because IsNonTransient(InvalidOperationException) returns false.
+        // IndexFromJsonlAsync completes without throwing.
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-index-exists");
+        await act.Should().NotThrowAsync();
+    }
+
+    // ── Note about pre-existing tests with swallowed NullReferenceException ──
+    // Several IndexFromJsonlAsync tests in this file (ShouldParseOnlyValidJsonLines,
+    // ShouldSkipBlankLines, and their kin) use the mocked resilience pipeline whose
+    // Pipeline property is null. That NullReferenceException is silently swallowed
+    // inside IndexBatchForCategoryAsync's catch (Exception) block because
+    // IsNonTransient(NullReferenceException) returns false. These tests pass, but
+    // for the wrong reason — they do not actually exercise the indexing code path.
+    // Fixing them is deferred per scoping guidance; future test work should follow
+    // the pattern shown in IndexFromJsonlAsync_WhenIndexExists_ShouldNotThrowSearchIndexNotFoundException
+    // above (real SearchIndexResiliencePipelineProvider + Mock<AzureSearchClient>).
+
+    // ---- ResolveChunkCategoryAsync - edge case: undefined category with null Category string ----
+
+    [Fact]
+    public async Task ResolveChunkCategoryAsync_WithUndefinedEmbeddedCategoryAndNoMakeModel_ShouldFallBackToDefault()
+    {
+        var sut = CreateSut();
+        var chunk = new ChunkIndexingService.ChunkIndexRecord
+        {
+            Id = "chunk-undefined",
+            Category = "invalid-category-value",
+            Make = null,
+            Model = null,
+            Content = "Generic content"
+        };
+        var cache = new Dictionary<string, MotorcycleCategory>();
+        _clientFactoryMock.Setup(x => x.DefaultCategory).Returns(MotorcycleCategory.Cruiser);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>())).Returns("motorcycle-cruiser");
+
+        var result = await sut.ResolveChunkCategoryAsync(chunk, cache, CancellationToken.None);
+
+        result.Should().Be(MotorcycleCategory.Cruiser);
+    }
+
+    // ---- ResolveChunkCategoryAsync - make-only (no model) input ----
+
+    [Fact]
+    public async Task ResolveChunkCategoryAsync_WithMakeButNoModel_ShouldUseClassifier()
+    {
+        var sut = CreateSut();
+        var chunk = new ChunkIndexingService.ChunkIndexRecord
+        {
+            Id = "chunk-make-only",
+            Category = "",
+            Make = "Kawasaki",
+            Model = null,
+            Content = "Engine specs"
+        };
+        var cache = new Dictionary<string, MotorcycleCategory>();
+        _categoryClassifierMock
+            .Setup(x => x.ResolveCategoryAsync("Kawasaki", "", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MotorcycleCategory.Sport);
+
+        var result = await sut.ResolveChunkCategoryAsync(chunk, cache, CancellationToken.None);
+
+        result.Should().Be(MotorcycleCategory.Sport);
+    }
+
+    // ---- ResolveChunkCategoryAsync - model-only (no make) input ----
+
+    [Fact]
+    public async Task ResolveChunkCategoryAsync_WithModelButNoMake_ShouldUseClassifier()
+    {
+        var sut = CreateSut();
+        var chunk = new ChunkIndexingService.ChunkIndexRecord
+        {
+            Id = "chunk-model-only",
+            Category = "",
+            Make = null,
+            Model = "Ninja",
+            Content = "Engine specs"
+        };
+        var cache = new Dictionary<string, MotorcycleCategory>();
+        _categoryClassifierMock
+            .Setup(x => x.ResolveCategoryAsync("", "Ninja", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MotorcycleCategory.Sport);
+
+        var result = await sut.ResolveChunkCategoryAsync(chunk, cache, CancellationToken.None);
+
+        result.Should().Be(MotorcycleCategory.Sport);
     }
 
     // ---- Helpers ----

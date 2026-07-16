@@ -1,4 +1,5 @@
 using Azure;
+using Azure.Storage.Blobs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -99,5 +100,43 @@ public class DataProtectionHealthCheckTests {
         result.Status.Should().Be(HealthStatus.Unhealthy);
         result.Exception.Should().BeOfType<InvalidOperationException>();
         blobProbe.Verify(probe => probe.ExistsAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public void AzureBlobDataProtectionProbe_WhenBlobClientIsNull_ThrowsArgumentNullException() {
+        var createProbe = () => new AzureBlobDataProtectionProbe(null!);
+
+        createProbe.Should().Throw<ArgumentNullException>()
+            .WithParameterName("blobClient");
+    }
+
+    [Fact]
+    public async Task AzureBlobDataProtectionProbe_WhenBlobExists_ReturnsSdkResponseValue() {
+        var blobClient = new Mock<BlobClient>(
+            new Uri("https://account.blob.core.windows.net/keys/keys.xml"),
+            new BlobClientOptions());
+        blobClient
+            .Setup(client => client.ExistsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(true, Mock.Of<Response>()));
+        var probe = new AzureBlobDataProtectionProbe(blobClient.Object);
+
+        var exists = await probe.ExistsAsync(CancellationToken.None);
+
+        exists.Should().BeTrue();
+        blobClient.Verify(client => client.ExistsAsync(CancellationToken.None), Times.Once);
+    }
+
+    [Fact]
+    public async Task CheckHealthAsync_WhenBlobUriHasNoContainer_ReturnsHealthyHostLocation() {
+        var blobProbe = new Mock<IDataProtectionBlobProbe>();
+        blobProbe.Setup(probe => probe.ExistsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var healthCheck = CreateHealthCheck(
+            blobUri: "https://account.blob.core.windows.net/",
+            blobProbe: blobProbe.Object);
+
+        var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Description.Should().Contain("account.blob.core.windows.net/");
     }
 }

@@ -141,6 +141,19 @@ public class AuthenticationServiceConfigurationTests {
     }
 
     [Fact]
+    public void AddBffAuthentication_WithPathAddressWithoutTrailingSlash_AddsTrailingSlash() {
+        var services = new ServiceCollection();
+        var configuration = CreateValidConfiguration("https://localhost:7215/api");
+
+        services.AddBffAuthentication(configuration);
+        using var serviceProvider = services.BuildServiceProvider();
+        var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+        using var client = httpClientFactory.CreateClient(AuthenticationServiceConfiguration.ApprovalStatusHttpClientName);
+
+        client.BaseAddress.Should().Be(new Uri("https://localhost:7215/api/"));
+    }
+
+    [Fact]
     public void AddBffAuthentication_WithoutApiClusterAddress_LeavesClientBaseAddressNull() {
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder()
@@ -232,7 +245,7 @@ public class AuthenticationServiceConfigurationTests {
         httpContext.Response.Headers.Location.ToString().Should().Be("/signin?error=auth_failed");
     }
 
-    private static IConfiguration CreateValidConfiguration() =>
+    private static IConfiguration CreateValidConfiguration(string apiClusterAddress = "https://localhost:7215") =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -240,7 +253,7 @@ public class AuthenticationServiceConfigurationTests {
                 { "AzureAd:TenantId", "tenant-id" },
                 { "AzureAd:ClientId", "client-id" },
                 { "AzureAd:ClientSecret", "client-secret" },
-                { "ReverseProxy:Clusters:api-cluster:Destinations:destination1:Address", "https://localhost:7215" }
+                { "ReverseProxy:Clusters:api-cluster:Destinations:destination1:Address", apiClusterAddress }
             })
             .Build();
 }

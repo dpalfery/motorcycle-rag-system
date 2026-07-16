@@ -393,4 +393,64 @@ public sealed class AzureSearchHealthServiceTests
 
         results[0].Metadata["query"].Should().Be("unique fallback query");
     }
+
+    // ---- IsHealthyAsync - already cancelled token ----
+
+    [Fact]
+    public async Task IsHealthyAsync_WhenTokenAlreadyCancelled_StillInvokesResilience()
+    {
+        var sut = CreateSut();
+        var correlationId = "corr-pre-cancel";
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns(correlationId);
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync<bool>(
+                "AzureSearch.HealthCheck",
+                It.IsAny<Func<Task<bool>>>(),
+                It.IsAny<Func<Task<bool>>>(),
+                correlationId,
+                cts.Token))
+            .ReturnsAsync(false);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns("motorcycle-sport");
+
+        var result = await sut.IsHealthyAsync(cts.Token);
+
+        result.Should().BeFalse();
+        _resilienceServiceMock.Verify(
+            x => x.ExecuteAsync<bool>(
+                "AzureSearch.HealthCheck",
+                It.IsAny<Func<Task<bool>>>(),
+                It.IsAny<Func<Task<bool>>>(),
+                correlationId,
+                cts.Token),
+            Times.Once,
+            "the pre-cancelled token should be passed through to the resilience service");
+    }
+
+    // ---- SearchAsync - empty text ----
+
+    [Fact]
+    public async Task SearchAsync_WithEmptySearchText_ShouldReturnResultsWithEmptyQuery()
+    {
+        var sut = CreateSut();
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns("corr-empty-text");
+        _correlationServiceMock.Setup(x => x.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
+            .Returns(new Mock<IDisposable>().Object);
+
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync<SearchResult[]>(
+                "AzureSearch.BasicSearch",
+                It.IsAny<Func<Task<SearchResult[]>>>(),
+                It.IsAny<Func<Task<SearchResult[]>>>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((string key, Func<Task<SearchResult[]>> op, Func<Task<SearchResult[]>> fb, string cid, CancellationToken ct) => op());
+
+        var results = await sut.SearchAsync("", 5, CancellationToken.None);
+
+        results.Should().HaveCount(5);
+        results[0].Metadata["query"].Should().Be("");
+    }
 }

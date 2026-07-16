@@ -61,6 +61,14 @@ public class FoundryAgentRunnerTests
     }
 
     [Fact]
+    public void Constructor_ShouldThrowArgumentNullException_WhenCredentialProviderIsNull()
+    {
+        var act = () => new FoundryAgentRunner(
+            CreateValidOptions(), CreateFactoryMock().Object, null!, TestHelpers.CreateNullLogger<FoundryAgentRunner>());
+        act.Should().Throw<ArgumentNullException>().WithParameterName("credentialProvider");
+    }
+
+    [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull()
     {
         var act = () => new FoundryAgentRunner(

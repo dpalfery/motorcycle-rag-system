@@ -133,6 +133,148 @@ public class AgentOrchestratorRunTests
         Assert.Equal(string.Empty, answer);
     }
 
+    [Fact]
+    public async Task GenerateResponseAsync_WithFoundryAnswerResult_ReturnsFoundryContent()
+    {
+        var sut = CreateOrchestrator();
+        var results = new[]
+        {
+            new SearchResult
+            {
+                Id = "foundry",
+                Content = "Foundry synthesized answer",
+                Metadata = new Dictionary<string, object> { ["FoundryAnswer"] = true }
+            }
+        };
+
+        var answer = await sut.GenerateResponseAsync(results, "query");
+
+        answer.Should().Be("Foundry synthesized answer");
+    }
+
+    [Fact]
+    public async Task GenerateResponseAsync_WithoutFoundryAnswer_FallsBackToConcatenation()
+    {
+        var sut = CreateOrchestrator();
+        var results = new[]
+        {
+            new SearchResult { Id = "r1", Content = "Answer one" },
+            new SearchResult { Id = "r2", Content = "Answer two" }
+        };
+
+        var answer = await sut.GenerateResponseAsync(results, "query");
+
+        answer.Should().Be("Answer one\n\nAnswer two");
+    }
+
+    [Fact]
+    public async Task OrchestrateSearchAsync_EmptyQuery_ReturnsEmptyResults()
+    {
+        var sut = CreateOrchestrator();
+
+        var results = await sut.OrchestrateSearchAsync("   ", new SearchParameters { MaxResults = 10 });
+
+        results.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OrchestrateSearchAsync_NullOptions_ThrowsArgumentNullException()
+    {
+        var sut = CreateOrchestrator();
+
+        var act = () => sut.OrchestrateSearchAsync("query", null!);
+
+        await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("options");
+    }
+
+    [Fact]
+    public async Task OrchestrateSearchAsync_WithValidQuery_ExecutesSearchAndReturnsResults()
+    {
+        var completedStatus = new AgentResponseStatus(ResponseId, AgentRunState.Completed, null, "Final answer");
+        SetupBaseResponseFlow(completedStatus);
+        _mockRunner.Setup(r => r.DeleteConversationAsync(ConversationId, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var sut = CreateOrchestrator();
+
+        var results = await sut.OrchestrateSearchAsync("best motorcycle", new SearchParameters { MaxResults = 10, MinRelevanceScore = 0.5F });
+
+        results.Should().NotBeEmpty();
+        results.Should().Contain(r => r.Content.Contains("Final answer"));
+    }
+
+    [Fact]
+    public async Task GetAvailableAgents_ReturnsInjectedAgents()
+    {
+        var agent = new Mock<ISearchAgent>().Object;
+        var sut = new AgentOrchestrator(
+            [agent],
+            _mockLogger.Object,
+            _mockRunner.Object,
+            new FoundryToolDispatcher(_mockDispatcherLogger.Object),
+            _mockOptions.Object,
+            _mockCorrelation.Object,
+            _questionValidationState);
+
+        var agents = sut.GetAvailableAgents();
+
+        agents.Should().ContainSingle().Which.Should().BeSameAs(agent);
+    }
+
+    [Fact]
+    public async Task ExecuteSequentialSearchAsync_WithRecentMessages_BuildsContextMessage()
+    {
+        var completedStatus = new AgentResponseStatus(ResponseId, AgentRunState.Completed, null, "Final answer");
+        SetupBaseResponseFlow(completedStatus);
+        _mockRunner.Setup(r => r.DeleteConversationAsync(ConversationId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateOrchestrator();
+        var context = new SearchContext
+        {
+            QueryContext = new QueryContext()
+        };
+        context.QueryContext.RecentMessages.Add(new QueryRecentMessage { Role = "user", Content = "Hello" });
+        context.QueryContext.RecentMessages.Add(new QueryRecentMessage { Role = "assistant", Content = "Hi there" });
+
+        var results = await sut.ExecuteSequentialSearchAsync("best motorcycle", context);
+
+        results.Should().NotBeEmpty();
+        _mockRunner.Verify(r => r.SendAgentMessageAsync(
+            ConversationId,
+            AgentName,
+            It.Is<string>(m => m.Contains("Recent conversation context") && m.Contains("Hello")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteSequentialSearchAsync_SafeDeleteConversationFailure_DoesNotThrow()
+    {
+        var completedStatus = new AgentResponseStatus(ResponseId, AgentRunState.Completed, null, "Final answer");
+        SetupBaseResponseFlow(completedStatus);
+        _mockRunner.Setup(r => r.DeleteConversationAsync(ConversationId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("delete failed"));
+
+        var sut = CreateOrchestrator();
+
+        var results = await sut.ExecuteSequentialSearchAsync("query", new SearchContext());
+
+        results.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void Constructor_NullAgents_ThrowsArgumentNullException()
+    {
+        var act = () => new AgentOrchestrator(
+            null!,
+            _mockLogger.Object,
+            _mockRunner.Object,
+            new FoundryToolDispatcher(_mockDispatcherLogger.Object),
+            _mockOptions.Object,
+            _mockCorrelation.Object,
+            _questionValidationState);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("agents");
+    }
+
     private void SetupBaseResponseFlow(AgentResponseStatus responseStatus)
     {
         _mockRunner.Setup(r => r.CreateConversationAsync(It.IsAny<CancellationToken>()))

@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using MotorcycleRAG.Application.Services.Mcp;
@@ -13,12 +14,12 @@ namespace MotorcycleRAG.UnitTests.Services.Mcp;
 public class McpToolManagerTests
 {
     private readonly Mock<IToolConfigurationService> _configServiceMock;
-    private readonly McpToolManager _sut;
+    private readonly Mock<ILogger<McpToolManager>> _loggerMock;
 
     public McpToolManagerTests()
     {
         _configServiceMock = new Mock<IToolConfigurationService>();
-        _sut = new McpToolManager(_configServiceMock.Object, NullLogger<McpToolManager>.Instance);
+        _loggerMock = new Mock<ILogger<McpToolManager>>();
     }
 
     [Fact]
@@ -29,14 +30,127 @@ public class McpToolManagerTests
         Assert.Throws<ArgumentNullException>(() => new McpToolManager(_configServiceMock.Object, null!));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_InvalidRefreshInterval_ThrowsArgumentOutOfRangeException(int seconds)
+    {
+        var interval = TimeSpan.FromSeconds(seconds);
+        var logger = NullLogger<McpToolManager>.Instance;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => 
+            new McpToolManager(_configServiceMock.Object, interval, logger));
+    }
+
     [Fact]
-    public async Task GetEnabledToolsAsync_ReturnsFromService()
+    public async Task InitializeAsync_Success_LogsInformation()
     {
         var configs = new[] { new McpToolConfiguration { ToolId = "1", IsEnabled = true } };
         _configServiceMock.Setup(x => x.GetEnabledToolsAsync()).ReturnsAsync(configs);
 
-        var result = await _sut.GetEnabledToolsAsync();
+        var sut = new McpToolManager(_configServiceMock.Object, _loggerMock.Object);
+        await sut.InitializeAsync();
+
+        _configServiceMock.Verify(x => x.GetEnabledToolsAsync(), Times.Once);
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("MCP tools initialized successfully")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_Exception_LogsWarning()
+    {
+        var exception = new Exception("DB failed");
+        _configServiceMock.Setup(x => x.GetEnabledToolsAsync()).ThrowsAsync(exception);
+
+        var sut = new McpToolManager(_configServiceMock.Object, _loggerMock.Object);
+        await sut.InitializeAsync();
+
+        _configServiceMock.Verify(x => x.GetEnabledToolsAsync(), Times.Once);
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to refresh MCP tools")),
+                exception,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetEnabledToolsAsync_ReturnsCachedValue_WhenWithinRefreshInterval()
+    {
+        var configs1 = new[] { new McpToolConfiguration { ToolId = "1", IsEnabled = true } };
+        var configs2 = new[] { new McpToolConfiguration { ToolId = "2", IsEnabled = true } };
         
-        result.Should().HaveCount(1);
+        _configServiceMock.SetupSequence(x => x.GetEnabledToolsAsync())
+            .ReturnsAsync(configs1)
+            .ReturnsAsync(configs2);
+
+        var sut = new McpToolManager(_configServiceMock.Object, TimeSpan.FromSeconds(30), NullLogger<McpToolManager>.Instance);
+
+        // First call - should hit the provider
+        var result1 = await sut.GetEnabledToolsAsync();
+        result1.Should().BeEquivalentTo(configs1);
+
+        // Second call - should return cached values
+        var result2 = await sut.GetEnabledToolsAsync();
+        result2.Should().BeEquivalentTo(configs1);
+
+        _configServiceMock.Verify(x => x.GetEnabledToolsAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetEnabledToolsAsync_Refreshes_WhenIntervalElapsed()
+    {
+        var configs1 = new[] { new McpToolConfiguration { ToolId = "1", IsEnabled = true } };
+        var configs2 = new[] { new McpToolConfiguration { ToolId = "2", IsEnabled = true } };
+        
+        _configServiceMock.SetupSequence(x => x.GetEnabledToolsAsync())
+            .ReturnsAsync(configs1)
+            .ReturnsAsync(configs2);
+
+        // Set refresh interval to 1 millisecond
+        var sut = new McpToolManager(_configServiceMock.Object, TimeSpan.FromMilliseconds(1), NullLogger<McpToolManager>.Instance);
+
+        // First call
+        var result1 = await sut.GetEnabledToolsAsync();
+        result1.Should().BeEquivalentTo(configs1);
+
+        // Wait for interval to elapse
+        await Task.Delay(5);
+
+        // Second call - should hit the provider again
+        var result2 = await sut.GetEnabledToolsAsync();
+        result2.Should().BeEquivalentTo(configs2);
+
+        _configServiceMock.Verify(x => x.GetEnabledToolsAsync(), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task RefreshToolsAsync_Exception_LogsWarningAndSetsEmptyCache()
+    {
+        var exception = new Exception("Connection timeout");
+        _configServiceMock.Setup(x => x.GetEnabledToolsAsync()).ThrowsAsync(exception);
+
+        var sut = new McpToolManager(_configServiceMock.Object, TimeSpan.FromSeconds(30), _loggerMock.Object);
+
+        // Call GetEnabledToolsAsync which triggers RefreshToolsAsync internally
+        var result = await sut.GetEnabledToolsAsync();
+
+        result.Should().BeEmpty();
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to refresh MCP tools")),
+                exception,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 }

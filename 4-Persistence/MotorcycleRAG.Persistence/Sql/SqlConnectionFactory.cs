@@ -119,7 +119,7 @@ namespace MotorcycleRAG.Persistence.Sql
                 // Retry on Azure SQL transient errors (4060, 40197, 40501, etc.)
                 await _sqlRetryPolicy.ExecuteAsync(async () =>
                 {
-                    await ((SqlConnection)connection).OpenAsync();
+                    await OpenSqlConnectionCore((SqlConnection)connection);
                 });
                 _logger.LogDebug("Opened SQL connection");
                 return connection;
@@ -130,6 +130,17 @@ namespace MotorcycleRAG.Persistence.Sql
                 connection.Dispose();
                 throw new InvalidOperationException("An error occurred while opening a SQL connection.", ex);
             }
+        }
+
+        /// <summary>
+        /// Opens the SQL connection. Overridable in tests so the catch-block logic
+        /// (disposal, error logging, InvalidOperationException wrapping) is
+        /// testable without a real SQL Server instance.
+        /// </summary>
+        /// <param name="connection">The SQL connection to open.</param>
+        protected virtual async Task OpenSqlConnectionCore(SqlConnection connection)
+        {
+            await connection.OpenAsync();
         }
 
         /// <summary>

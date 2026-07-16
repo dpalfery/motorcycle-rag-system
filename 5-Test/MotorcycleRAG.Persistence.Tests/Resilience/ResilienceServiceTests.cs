@@ -41,6 +41,103 @@ public class ResilienceServiceTests {
         _resilienceService = new ResilienceService(mockOptions.Object, _mockLogger.Object, retryDelayOverride: _ => TimeSpan.Zero);
     }
 
+    // ── Constructor null guards ──────────────────────────────────────────────
+
+    [Fact]
+    public void Constructor_WithNullConfig_ShouldThrowArgumentNullException()
+    {
+        var act = () => new ResilienceService(null!, _mockLogger.Object);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("config");
+    }
+
+    [Fact]
+    public void Constructor_WithNullLogger_ShouldThrowArgumentNullException()
+    {
+        var mockOptions = new Mock<IOptions<ResilienceOptions>>();
+        mockOptions.Setup(x => x.Value).Returns(new ResilienceOptions
+        {
+            CircuitBreaker = new CircuitBreakerOptions
+            {
+                OpenAI = new ServiceCircuitBreakerOptions { FailureThreshold = 2, SamplingDuration = TimeSpan.FromSeconds(30) },
+                Search = new ServiceCircuitBreakerOptions { FailureThreshold = 2, SamplingDuration = TimeSpan.FromSeconds(30) },
+                DocumentIntelligence = new ServiceCircuitBreakerOptions { FailureThreshold = 2, SamplingDuration = TimeSpan.FromSeconds(30) }
+            },
+            Retry = new RetryOptions { MaxRetries = 1, BaseDelaySeconds = 1, MaxDelaySeconds = 5 }
+        });
+
+        var act = () => new ResilienceService(mockOptions.Object, null!);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+    }
+
+    [Fact]
+    public void Constructor_WhenConfigValueIsNull_ShouldThrowArgumentNullException()
+    {
+        var mockOptions = new Mock<IOptions<ResilienceOptions>>();
+        mockOptions.Setup(x => x.Value).Returns((ResilienceOptions)null!);
+
+        var act = () => new ResilienceService(mockOptions.Object, _mockLogger.Object);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("config");
+    }
+
+    // ── Linear (non-exponential) backoff path ────────────────────────────────
+    //
+    // NOTE: the following test verifies retry count correctness under linear backoff.
+    // Because the ResilienceService uses real TimeSpan.FromSeconds(1) per-attempt
+    // delays, this test takes ~2 seconds wall-clock time. The test does not assert
+    // that the delay is constant (that would require a TimeProvider/delayFactory
+    // abstraction in the production code). It renames the original test from
+    // "UsesConstantDelay" to accurately describe what it actually verifies.
+
+    [Fact]
+    public async Task ExecuteAsync_WithLinearBackoff_RetriesConfiguredNumberOfTimes()
+    {
+        // Arrange: configure a ResilienceService with UseExponentialBackoff = false
+        // and no retryDelayOverride, so the linear-delay branch executes.
+        var linearConfig = new ResilienceOptions
+        {
+            CircuitBreaker = new CircuitBreakerOptions
+            {
+                OpenAI = new ServiceCircuitBreakerOptions
+                {
+                    FailureThreshold = 5,
+                    SamplingDuration = TimeSpan.FromSeconds(30),
+                    MinimumThroughput = 1
+                }
+            },
+            Retry = new RetryOptions
+            {
+                MaxRetries = 2,
+                BaseDelaySeconds = 1,
+                MaxDelaySeconds = 5,
+                UseExponentialBackoff = false
+            }
+        };
+        var linearMockOptions = new Mock<IOptions<ResilienceOptions>>();
+        linearMockOptions.Setup(x => x.Value).Returns(linearConfig);
+        var linearService = new ResilienceService(linearMockOptions.Object, _mockLogger.Object);
+
+        var callCount = 0;
+        Func<Task<string>> operation = async () =>
+        {
+            callCount++;
+            await Task.Yield();
+            throw new HttpRequestException("Transient failure");
+        };
+
+        // Act & Assert — should retry (linear delay is ~1 second per attempt;
+        // with 2 retries that's up to 2 seconds of real wait, but the
+        // 3-attempt retry loop is the unit under test, not the actual delay).
+        var exception = await Assert.ThrowsAsync<HttpRequestException>(
+            () => linearService.ExecuteAsync("AzureOpenAI", operation, fallback: null, correlationId: null, CancellationToken.None));
+
+        Assert.Equal("Transient failure", exception.Message);
+        // MaxRetries=2 means the operation should be called 3 times total (initial + 2 retries)
+        Assert.Equal(3, callCount);
+    }
+
     [Fact]
     public async Task ExecuteAsync_SuccessfulOperation_ReturnsResult() {
         // Arrange

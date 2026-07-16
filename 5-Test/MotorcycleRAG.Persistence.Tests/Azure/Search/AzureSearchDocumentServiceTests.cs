@@ -630,6 +630,74 @@ public sealed class AzureSearchDocumentServiceTests
         await sut.DeleteDocumentsAsync(ids);
     }
 
+    // ---- DeleteDocumentsAsync - fallback invocation ----
+
+    [Fact]
+    public async Task DeleteDocumentsAsync_WhenOperationFailsAndFallbackRuns_ShouldCompleteWithoutThrowing()
+    {
+        var sut = CreateSut();
+        var correlationId = "corr-del-fallback";
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns(correlationId);
+
+        // Operation throws, waterfall to fallback which succeeds
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync(
+                "AzureSearch.DeleteDocuments",
+                It.IsAny<Func<Task>>(),
+                It.IsAny<Func<Task>>(),
+                correlationId,
+                It.IsAny<CancellationToken>()))
+            .Returns(async (string key, Func<Task> op, Func<Task> fb, string cid, CancellationToken ct) =>
+            {
+                try { await op(); }
+                catch { /* resilience catches and calls fallback */ }
+                await fb();
+            });
+
+        var searchClient = new Mock<SearchClient>();
+        searchClient
+            .Setup(c => c.DeleteDocumentsAsync(
+                It.IsAny<string>(),
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<IndexDocumentsOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Search service unavailable"));
+
+        _clientFactoryMock.Setup(x => x.GetDefaultClient()).Returns(searchClient.Object);
+
+        var ids = new[] { "id1" };
+        var act = async () => await sut.DeleteDocumentsAsync(ids);
+
+        // Should not throw since the fallback runs and completes
+        await act.Should().NotThrowAsync();
+    }
+
+    // ---- IndexDocumentsAsync (generic) - resilience invokes fallback ----
+
+    [Fact]
+    public async Task IndexDocumentsAsync_Generic_WhenResilienceInvokesFallback_ReturnsFalse()
+    {
+        var sut = CreateSut();
+        var correlationId = "corr-fallback-idx";
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns(correlationId);
+
+        // The resilience fallback returns false for IndexDocuments
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync<bool>(
+                "AzureSearch.IndexDocuments",
+                It.IsAny<Func<Task<bool>>>(),
+                It.IsAny<Func<Task<bool>>>(),
+                correlationId,
+                It.IsAny<CancellationToken>()))
+            .Returns(async (string key, Func<Task<bool>> op, Func<Task<bool>> fb, string cid, CancellationToken ct) =>
+                await fb());
+
+        var documents = new MotorcycleDocumentDto[] { new() { Id = "doc1" } };
+        var success = await sut.IndexDocumentsAsync(documents);
+
+        success.Should().BeFalse();
+    }
+
     private static IndexDocumentsResult CreateIndexDocumentsResult(
         params (string Key, bool Succeeded, int Status, string? ErrorMessage)[] items)
     {

@@ -90,6 +90,17 @@ public class AzureBlobStorageServiceTests
     }
 
     [Fact]
+    public void Constructor_ShouldThrowArgumentNullException_WhenCredentialProviderIsNull()
+    {
+        var factory = new Mock<IBlobServiceClientFactory>();
+        var opts = CreateValidDevelopmentOptions();
+        var act = () => new AzureBlobStorageService(
+            opts, CreateDevelopmentEnvironment(), factory.Object, null!,
+            TestHelpers.CreateNullLogger<AzureBlobStorageService>());
+        act.Should().Throw<ArgumentNullException>().WithParameterName("credentialProvider");
+    }
+
+    [Fact]
     public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull()
     {
         var factory = new Mock<IBlobServiceClientFactory>();

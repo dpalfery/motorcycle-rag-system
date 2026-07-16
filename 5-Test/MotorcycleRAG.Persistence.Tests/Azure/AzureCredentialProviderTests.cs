@@ -47,4 +47,44 @@ public sealed class AzureCredentialProviderTests
         first.Should().BeOfType<ChainedTokenCredential>();
         second.Should().BeSameAs(first);
     }
+
+    [Fact]
+    public void GetGraphCredential_WhenOptionsIsNull_ShouldThrowArgumentNullException()
+    {
+        var provider = new AzureCredentialProvider();
+
+        var act = () => provider.GetGraphCredential(null!);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+    }
+
+    [Fact]
+    public void GetGraphCredential_WhenNoClientSecretConfigured_ShouldReturnSingleManagedIdentity()
+    {
+        var provider = new AzureCredentialProvider();
+        var options = new ExternalIdentityProvisioningOptions
+        {
+            // No TenantId/ClientId/ClientSecret — only ManagedIdentity path
+        };
+
+        var credential = provider.GetGraphCredential(options);
+
+        // When only ManagedIdentity is configured (no client secret),
+        // the returned credential is a single ManagedIdentityCredential, not ChainedTokenCredential.
+        credential.Should().BeOfType<ManagedIdentityCredential>();
+    }
+
+    [Fact]
+    public void GetGraphCredential_WhenManagedIdentityClientIdIsSet_ShouldReturnManagedIdentityCredential()
+    {
+        var provider = new AzureCredentialProvider();
+        var options = new ExternalIdentityProvisioningOptions
+        {
+            ManagedIdentityClientId = "user-assigned-client-id"
+        };
+
+        var credential = provider.GetGraphCredential(options);
+
+        credential.Should().BeOfType<ManagedIdentityCredential>();
+    }
 }

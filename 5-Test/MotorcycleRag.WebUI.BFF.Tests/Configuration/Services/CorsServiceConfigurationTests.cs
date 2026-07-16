@@ -121,4 +121,21 @@ public class CorsServiceConfigurationTests {
         policy.Origins.Should().Contain("https://localhost:5174");
         policy.Origins.Should().Contain("http://127.0.0.1:5173");
     }
+
+    [Fact]
+    public void AddBffCors_WhenOriginsSectionIsUnavailable_FallsBackToLocalhost() {
+        var configuration = new Mock<IConfiguration>();
+        configuration
+            .Setup(item => item.GetSection("Cors:AllowedOrigins"))
+            .Returns((IConfigurationSection)null!);
+        var environment = new Mock<IWebHostEnvironment>();
+        environment.Setup(item => item.EnvironmentName).Returns("Production");
+        var services = new ServiceCollection();
+
+        services.AddBffCors(configuration.Object, environment.Object);
+        using var provider = services.BuildServiceProvider();
+        var policy = provider.GetRequiredService<IOptions<CorsOptions>>().Value.GetPolicy("AllowFrontend")!;
+
+        policy.Origins.Should().Contain("http://localhost:3000");
+    }
 }

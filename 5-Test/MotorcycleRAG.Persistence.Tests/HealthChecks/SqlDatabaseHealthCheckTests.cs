@@ -191,6 +191,66 @@ public class SqlDatabaseHealthCheckTests
         result.Description.Should().Contain("SQL Database health check failed");
     }
 
+    [Fact]
+    public async Task CheckHealthAsync_WhenDatabaseIsResponding_ReturnsHealthy()
+    {
+        // Arrange
+        var mockFactory = new Mock<ISqlConnectionFactory>();
+        mockFactory.Setup(f => f.CreateConnectionAsync())
+            .ReturnsAsync((IDbConnection)new HealthyDbConnection());
+
+        var sut = new SqlDatabaseHealthCheck(
+            mockFactory.Object,
+            TestHelpers.CreateNullLogger<SqlDatabaseHealthCheck>());
+
+        // Act
+        var result = await sut.CheckHealthAsync(DefaultContext);
+
+        // Assert
+        result.Status.Should().Be(HealthStatus.Healthy);
+        result.Description.Should().Be("SQL Database is healthy");
+        result.Data.Should().ContainKey("response_time_ms");
+    }
+
+    private sealed class HealthyDbConnection : DbConnection
+    {
+        public override string ConnectionString { get; set; } = string.Empty;
+        public override string Database => "fake";
+        public override string DataSource => "fake";
+        public override string ServerVersion => "1.0";
+        public override ConnectionState State => ConnectionState.Closed;
+
+        public override void Open() { }
+        public override Task OpenAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public override void Close() { }
+        public override void ChangeDatabase(string databaseName) { }
+        protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
+            => throw new NotSupportedException();
+        protected override DbCommand CreateDbCommand()
+            => new HealthyDbCommand();
+    }
+
+    private sealed class HealthyDbCommand : DbCommand
+    {
+        public override string CommandText { get; set; } = string.Empty;
+        public override int CommandTimeout { get; set; }
+        public override CommandType CommandType { get; set; }
+        public override bool DesignTimeVisible { get; set; }
+        public override UpdateRowSource UpdatedRowSource { get; set; }
+        protected override DbConnection? DbConnection { get; set; }
+        protected override DbParameterCollection DbParameterCollection => throw new NotSupportedException();
+        protected override DbTransaction? DbTransaction { get; set; }
+
+        public override void Cancel() { }
+        public override int ExecuteNonQuery() => 1;
+        public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken) => Task.FromResult(1);
+        public override object? ExecuteScalar() => 1;
+        public override Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken) => Task.FromResult<object?>(1);
+        public override void Prepare() { }
+        protected override DbParameter CreateDbParameter() => throw new NotSupportedException();
+        protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior) => throw new NotSupportedException();
+    }
+
     /// <summary>
     /// A fake DbConnection that throws on OpenAsync to simulate a connection
     /// that cannot be opened, without requiring a real SQL Server instance.

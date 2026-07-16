@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
@@ -29,7 +30,7 @@ public class SqlDatabaseHealthCheck : IHealthCheck
             var startTime = DateTime.UtcNow;
             
             // Get a connection from the factory and test it
-            await using (var connection = await _connectionFactory.CreateConnectionAsync() as SqlConnection)
+            await using (var connection = await _connectionFactory.CreateConnectionAsync() as DbConnection)
             {
                 if (connection == null)
                 {

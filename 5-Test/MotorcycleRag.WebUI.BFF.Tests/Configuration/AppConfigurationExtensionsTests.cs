@@ -163,6 +163,51 @@ public class AppConfigurationExtensionsTests {
         await act.Should().ThrowAsync<SocketException>();
     }
 
+    [Fact]
+    public void AddBffAzureAppConfiguration_InProductionWithEndpoint_RegistersAzureAppConfiguration() {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions {
+            EnvironmentName = Environments.Production
+        });
+        builder.Configuration["AppConfig:ConnectionString"] = null;
+        builder.Configuration["AppConfig:Endpoint"] = "https://motorcycle-rag-config.azconfig.io";
+
+        var result = builder.AddBffAzureAppConfiguration(skipRemoteConfigurationLoad: true);
+
+        result.Should().BeSameAs(builder);
+        builder.Services.Should().Contain(descriptor =>
+            descriptor.ServiceType.FullName!.Contains("IConfigurationRefresher", StringComparison.Ordinal)
+            || descriptor.ServiceType.Name.Contains("AzureAppConfiguration", StringComparison.Ordinal)
+            || descriptor.ServiceType.FullName!.Contains("AzureAppConfiguration", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task PreWarmManagedIdentityTokenAsync_WhenAllAttemptsFail_ThrowsException() {
+        var method = GetPrivateMethod("PreWarmManagedIdentityTokenAsync");
+
+        var credential = new Mock<TokenCredential>();
+        credential
+            .Setup(c => c.GetTokenAsync(It.IsAny<TokenRequestContext>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("IMDS failure"));
+
+        var act = async () => {
+            await ((Task)method.Invoke(null, [credential.Object, 3, 1])!);
+        };
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("IMDS failure");
+    }
+
+    [Fact]
+    public async Task EnsureTcpConnectivityAsync_WhenAllAttemptsTimeout_CompletesSuccessfully() {
+        var method = GetPrivateMethod("EnsureTcpConnectivityAsync");
+
+        var act = async () => {
+            var task = (Task)method.Invoke(null, ["https://192.0.2.1", 1, 10, 1, 443])!;
+            await task;
+        };
+
+        await act.Should().NotThrowAsync();
+    }
+
     private static MethodInfo GetPrivateMethod(string name) {
         var method = typeof(AppConfigurationExtensions).GetMethod(
             name,

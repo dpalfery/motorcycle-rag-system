@@ -980,6 +980,140 @@ public class TelemetryServiceTests : IDisposable
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // Exception and Redaction Fallback coverage
+    // ─────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void TrackEvent_WhenTrackThrows_ThrowsInvalidOperationException()
+    {
+        var sut = CreateService(t => throw new InvalidOperationException("track error"));
+        var act = () => sut.TrackEvent("TestEvent");
+        act.Should().Throw<InvalidOperationException>().WithMessage("Failed to track event: TestEvent");
+    }
+
+    [Fact]
+    public void TrackException_WhenTrackThrows_ThrowsInvalidOperationException()
+    {
+        var sut = CreateService(t => throw new InvalidOperationException("track error"));
+        var act = () => sut.TrackException(new Exception("test"));
+        act.Should().Throw<InvalidOperationException>().WithMessage("Failed to track exception");
+    }
+
+    [Fact]
+    public void TrackMetric_WhenTrackThrows_ThrowsInvalidOperationException()
+    {
+        var sut = CreateService(t => throw new InvalidOperationException("track error"));
+        var act = () => sut.TrackMetric("TestMetric", 123.45);
+        act.Should().Throw<InvalidOperationException>().WithMessage("Failed to track metric: TestMetric");
+    }
+
+    [Fact]
+    public void TrackRequest_WhenTrackThrows_ThrowsInvalidOperationException()
+    {
+        var sut = CreateService(t => throw new InvalidOperationException("track error"));
+        var act = () => sut.TrackRequest("TestReq", DateTimeOffset.UtcNow, TimeSpan.FromSeconds(1), "200", true);
+        act.Should().Throw<InvalidOperationException>().WithMessage("Failed to track request: TestReq");
+    }
+
+    [Fact]
+    public void TrackQuery_WhenTrackThrows_ThrowsInvalidOperationException()
+    {
+        var sut = CreateService(t => throw new InvalidOperationException("track error"));
+        var act = () => sut.TrackQuery("TestQuery", "SELECT 1", TimeSpan.FromSeconds(1), 1, 0.0m);
+        act.Should().Throw<InvalidOperationException>().WithMessage("Failed to track query: TestQuery");
+    }
+
+    [Fact]
+    public void Flush_WhenTelemetryClientIsNull_ThrowsInvalidOperationException()
+    {
+        var sut = CreateService();
+        var field = typeof(TelemetryService).GetField("_telemetryClient", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        field.Should().NotBeNull();
+        field!.SetValue(sut, null);
+
+        var act = () => ((TelemetryService)sut).Flush();
+        act.Should().Throw<InvalidOperationException>().WithMessage("Failed to flush telemetry client");
+    }
+
+    [Fact]
+    public void TrackDegradedMode_WhenTrackThrows_ThrowsInvalidOperationException()
+    {
+        var sut = CreateService(t => throw new InvalidOperationException("track error"));
+        var act = () => sut.TrackDegradedMode("corr-123", new[] { "src1" }, new[] { "src2" }, TimeSpan.FromSeconds(1), 5);
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void TrackSourceFailure_WhenTrackThrows_ThrowsInvalidOperationException()
+    {
+        var sut = CreateService(t => throw new InvalidOperationException("track error"));
+        var act = () => sut.TrackSourceFailure("corr-123", "src1", "Reason", TimeSpan.FromSeconds(1));
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void TrackSearchExecution_WhenTrackThrows_ThrowsInvalidOperationException()
+    {
+        var sut = CreateService(t => throw new InvalidOperationException("track error"));
+        var act = () => sut.TrackSearchExecution("corr-123", "q", TimeSpan.FromSeconds(1), 5, 2, 1, true);
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void TrackEvent_WhenRedactionRegexThrows_LogsWarningAndReturnsOriginalString()
+    {
+        var sut = CreateService();
+        
+        var field = typeof(TelemetryService).GetField("_queryTextPattern", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        field.Should().NotBeNull();
+        field!.SetValue(sut, null);
+
+        var act = () => sut.TrackEvent("EventWithPatternFailure", new Dictionary<string, string> { ["Description"] = "sk-key" });
+        act.Should().NotThrow();
+
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to redact sensitive data")),
+                It.IsAny<NullReferenceException>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public void TrackEvent_WhenPropertiesEnumerationThrows_LogsWarningAndThrowsInvalidOperationException()
+    {
+        var sut = CreateService();
+        var throwingProps = new ThrowingDictionary { ["Description"] = "sk-key" };
+
+        var act = () => sut.TrackEvent("EventWithEnumFailure", throwingProps);
+        act.Should().Throw<InvalidOperationException>().WithMessage("Failed to track event: EventWithEnumFailure");
+
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to redact sensitive properties")),
+                It.IsAny<InvalidOperationException>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    private class ThrowingDictionary : Dictionary<string, string>, IDictionary<string, string>
+    {
+        System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<string, string>> System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string>>.GetEnumerator()
+        {
+            throw new InvalidOperationException("enumeration failed");
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            throw new InvalidOperationException("enumeration failed");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // Disposal
     // ─────────────────────────────────────────────────────────────────
 

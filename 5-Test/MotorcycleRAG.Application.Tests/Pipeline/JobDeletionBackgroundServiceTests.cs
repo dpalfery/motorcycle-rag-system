@@ -210,4 +210,170 @@ public class JobDeletionBackgroundServiceTests
             s => s.ExecuteJobCleanupAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
+
+    [Fact]
+    public void Constructor_WithNullArguments_ThrowsArgumentNullException()
+    {
+        var scopeFactory = new Mock<IServiceScopeFactory>();
+        var logger = new Mock<ILogger<JobDeletionBackgroundService>>();
+
+        var act1 = () => new JobDeletionBackgroundService(null!, logger.Object);
+        act1.Should().Throw<ArgumentNullException>().WithParameterName("scopeFactory");
+
+        var act2 = () => new JobDeletionBackgroundService(scopeFactory.Object, null!);
+        act2.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+    }
+
+    [Fact]
+    public async Task Dispose_DisposesSemaphore()
+    {
+        var (scopeFactory, _, _) = CreateMockScopeChain();
+        var logger = new Mock<ILogger<JobDeletionBackgroundService>>();
+        var service = new JobDeletionBackgroundService(scopeFactory.Object, logger.Object);
+
+        service.Dispose();
+
+        var cleanupMethod = typeof(JobDeletionBackgroundService).GetMethod(
+            "CleanupJobAsync",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        cleanupMethod.Should().NotBeNull();
+
+        var act = async () =>
+        {
+            var task = (Task)cleanupMethod!.Invoke(service, [Guid.NewGuid(), TimeSpan.FromMinutes(5), CancellationToken.None])!;
+            await task;
+        };
+
+        await act.Should().ThrowAsync<ObjectDisposedException>();
+    }
+
+    [Fact]
+    public async Task CleanupJobAsync_WhenStoppingTokenCancelled_ThrowsOperationCanceledException()
+    {
+        var (scopeFactory, _, _) = CreateMockScopeChain();
+        var logger = new Mock<ILogger<JobDeletionBackgroundService>>();
+        var service = new JobDeletionBackgroundService(scopeFactory.Object, logger.Object);
+
+        var cleanupMethod = typeof(JobDeletionBackgroundService).GetMethod(
+            "CleanupJobAsync",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        cleanupMethod.Should().NotBeNull();
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var act = async () =>
+        {
+            var task = (Task)cleanupMethod!.Invoke(service, [Guid.NewGuid(), TimeSpan.FromMinutes(5), cts.Token])!;
+            await task;
+        };
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task CleanupJobAsync_WhenCleanupTimesOut_LogsTimeoutErrorAndDoesNotThrow()
+    {
+        var jobId = Guid.NewGuid();
+        var (scopeFactory, repoMock, jobServiceMock) = CreateMockScopeChain();
+        var loggerMock = new Mock<ILogger<JobDeletionBackgroundService>>();
+
+        jobServiceMock
+            .Setup(s => s.ExecuteJobCleanupAsync(jobId, It.IsAny<CancellationToken>()))
+            .Callback<Guid, CancellationToken>((_, token) =>
+            {
+                token.WaitHandle.WaitOne(1000);
+                token.ThrowIfCancellationRequested();
+            });
+
+        var service = new JobDeletionBackgroundService(scopeFactory.Object, loggerMock.Object);
+
+        var cleanupMethod = typeof(JobDeletionBackgroundService).GetMethod(
+            "CleanupJobAsync",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        cleanupMethod.Should().NotBeNull();
+
+        var task = (Task)cleanupMethod!.Invoke(service, [jobId, TimeSpan.FromMilliseconds(10), CancellationToken.None])!;
+        await task;
+
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("timed out")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenShutdownRequestedDuringLoop_SkipsRemainingJobs()
+    {
+        var job1 = new IngestionJob { IngestionJobId = Guid.NewGuid(), Status = IngestionJobStatus.Deleting };
+        var job2 = new IngestionJob { IngestionJobId = Guid.NewGuid(), Status = IngestionJobStatus.Deleting };
+
+        var (scopeFactory, repoMock, jobServiceMock) = CreateMockScopeChain();
+        var loggerMock = new Mock<ILogger<JobDeletionBackgroundService>>();
+
+        repoMock
+            .Setup(r => r.GetByStatusesAsync(
+                It.IsAny<IReadOnlyCollection<IngestionJobStatus>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<IngestionJob> { job1, job2 });
+
+        using var cts = new CancellationTokenSource();
+
+        jobServiceMock
+            .Setup(s => s.ExecuteJobCleanupAsync(job1.IngestionJobId, It.IsAny<CancellationToken>()))
+            .Callback(() => cts.Cancel())
+            .Returns(Task.CompletedTask);
+
+        var service = new JobDeletionBackgroundService(scopeFactory.Object, loggerMock.Object);
+
+        await InvokeExecuteAsync(service, cts.Token);
+
+        jobServiceMock.Verify(
+            s => s.ExecuteJobCleanupAsync(job1.IngestionJobId, It.IsAny<CancellationToken>()),
+            Times.Once);
+        jobServiceMock.Verify(
+            s => s.ExecuteJobCleanupAsync(job2.IngestionJobId, It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("skipping remaining")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenPollOnceAsyncThrowsException_LogsErrorAndContinuesLoop()
+    {
+        var (scopeFactory, repoMock, jobServiceMock) = CreateMockScopeChain();
+        var loggerMock = new Mock<ILogger<JobDeletionBackgroundService>>();
+
+        repoMock
+            .SetupSequence(r => r.GetByStatusesAsync(
+                It.IsAny<IReadOnlyCollection<IngestionJobStatus>>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db error"))
+            .ReturnsAsync(new List<IngestionJob>());
+
+        var service = new JobDeletionBackgroundService(scopeFactory.Object, loggerMock.Object);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        await InvokeExecuteAsync(service, cts.Token);
+
+        loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Error,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Unexpected error")),
+                It.IsAny<InvalidOperationException>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
+    }
 }

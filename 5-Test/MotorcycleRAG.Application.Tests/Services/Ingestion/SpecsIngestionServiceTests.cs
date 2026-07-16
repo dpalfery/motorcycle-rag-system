@@ -82,9 +82,11 @@ public sealed class SpecsIngestionServiceTests
         var sut = CreateSut(CreateRepository().Object);
         await using var csv = CreateCsv("Make,Model,Year\n");
 
+#pragma warning disable CA2025 // tasks are awaited before disposal scope ends
         var missingUpload = () => sut.IngestCsvAsync(" ", "user", csv);
         var missingUser = () => sut.IngestCsvAsync("upload", " ", csv);
         var missingStream = () => sut.IngestCsvAsync("upload", "user", null!);
+#pragma warning restore CA2025
 
         await missingUpload.Should().ThrowAsync<ArgumentException>();
         await missingUser.Should().ThrowAsync<ArgumentException>();
@@ -96,10 +98,8 @@ public sealed class SpecsIngestionServiceTests
     {
         var repository = CreateRepository().Object;
 
-        ((Action)(() => new SpecsIngestionService(null!, NullLogger<SpecsIngestionService>.Instance)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new SpecsIngestionService(repository, null!)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new SpecsIngestionService(null!, NullLogger<SpecsIngestionService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new SpecsIngestionService(repository, null!));
     }
 
     private static Mock<IBikeModelRepository> CreateRepository() => new(MockBehavior.Strict);

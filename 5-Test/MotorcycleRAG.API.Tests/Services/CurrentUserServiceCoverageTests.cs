@@ -73,9 +73,9 @@ public sealed class CurrentUserServiceCoverageTests
     public void Constructor_NullDependencies_Throw()
     {
         var accessor = new HttpContextAccessor(); var provisioning = Mock.Of<IUserProvisioningService>();
-        ((Action)(() => new CurrentUserService(null!, provisioning, NullLogger<CurrentUserService>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new CurrentUserService(accessor, null!, NullLogger<CurrentUserService>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new CurrentUserService(accessor, provisioning, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new CurrentUserService(null!, provisioning, NullLogger<CurrentUserService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new CurrentUserService(accessor, null!, NullLogger<CurrentUserService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new CurrentUserService(accessor, provisioning, null!));
     }
 
     private static CurrentUserService Create(ClaimsIdentity identity, IUserProvisioningService? provisioning = null)

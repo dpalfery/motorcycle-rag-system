@@ -14,8 +14,8 @@ public class AuthorizationMiddlewareTests
     [Fact]
     public void Constructor_NullArgs_Throw()
     {
-        ((Action)(() => new AuthorizationMiddleware(null!, NullLogger<AuthorizationMiddleware>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new AuthorizationMiddleware(TestHelpers.NoopNext, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new AuthorizationMiddleware(null!, NullLogger<AuthorizationMiddleware>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new AuthorizationMiddleware(TestHelpers.NoopNext, null!));
     }
 
     [Fact]

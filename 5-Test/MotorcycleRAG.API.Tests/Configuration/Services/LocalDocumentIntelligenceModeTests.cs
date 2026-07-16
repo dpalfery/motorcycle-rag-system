@@ -59,7 +59,9 @@ public class LocalDocumentIntelligenceModeTests
         using var stream = new MemoryStream([1, 2, 3]);
 
         // Act
+#pragma warning disable CA2025 // task is awaited before disposal scope ends
         var action = () => client.AnalyzeDocumentAsync(stream, "application/pdf");
+#pragma warning restore CA2025
 
         // Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(action);

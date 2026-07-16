@@ -142,6 +142,7 @@ public class ToolConfigurationServiceTests
         _auditRepoMock.Verify(x => x.RecordChangeAsync(config.Id, "tool-id", "deleted", It.IsAny<string>(), null, "user1", It.IsAny<string>()), Times.Once);
     }
 
+#pragma warning disable CA1054 // string params are intentional for InlineData flexibility
     [Theory]
     [InlineData("http://localhost", true)]
     [InlineData("https://localhost:443", true)]

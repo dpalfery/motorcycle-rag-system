@@ -17,12 +17,9 @@ public sealed class HostHeaderValidationMiddlewareTests
         RequestDelegate next = _ => Task.CompletedTask;
         var configuration = CreateConfiguration("api.example.com");
 
-        ((Action)(() => new HostHeaderValidationMiddleware(null!, NullLogger<HostHeaderValidationMiddleware>.Instance, configuration)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new HostHeaderValidationMiddleware(next, null!, configuration)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new HostHeaderValidationMiddleware(next, NullLogger<HostHeaderValidationMiddleware>.Instance, null!)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new HostHeaderValidationMiddleware(null!, NullLogger<HostHeaderValidationMiddleware>.Instance, configuration));
+        Assert.Throws<ArgumentNullException>(() => new HostHeaderValidationMiddleware(next, null!, configuration));
+        Assert.Throws<ArgumentNullException>(() => new HostHeaderValidationMiddleware(next, NullLogger<HostHeaderValidationMiddleware>.Instance, null!));
         ((Action)(() => CreateMiddleware(string.Empty, next))).Should().Throw<InvalidOperationException>();
     }
 

@@ -20,11 +20,11 @@ public sealed class MotorcycleControllerTests
         var plans = new Mock<IPlanPolicyService>();
         var usage = new Mock<IUsageTrackingService>();
 
-        ((Action)(() => new MotorcycleController(null!, user.Object, plans.Object, usage.Object, NullLogger<MotorcycleController>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new MotorcycleController(rag.Object, null!, plans.Object, usage.Object, NullLogger<MotorcycleController>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new MotorcycleController(rag.Object, user.Object, null!, usage.Object, NullLogger<MotorcycleController>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new MotorcycleController(rag.Object, user.Object, plans.Object, null!, NullLogger<MotorcycleController>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new MotorcycleController(rag.Object, user.Object, plans.Object, usage.Object, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleController(null!, user.Object, plans.Object, usage.Object, NullLogger<MotorcycleController>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleController(rag.Object, null!, plans.Object, usage.Object, NullLogger<MotorcycleController>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleController(rag.Object, user.Object, null!, usage.Object, NullLogger<MotorcycleController>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleController(rag.Object, user.Object, plans.Object, null!, NullLogger<MotorcycleController>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new MotorcycleController(rag.Object, user.Object, plans.Object, usage.Object, null!));
     }
 
     [Fact]

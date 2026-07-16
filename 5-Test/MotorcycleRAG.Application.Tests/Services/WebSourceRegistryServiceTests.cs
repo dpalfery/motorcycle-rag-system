@@ -209,12 +209,9 @@ public sealed class WebSourceRegistryServiceTests
         var repository = CreateRepository().Object;
         var user = CreateAuthorizedUser().Object;
 
-        ((Action)(() => new WebSourceRegistryService(null!, user, NullLogger<WebSourceRegistryService>.Instance)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new WebSourceRegistryService(repository, null!, NullLogger<WebSourceRegistryService>.Instance)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new WebSourceRegistryService(repository, user, null!)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new WebSourceRegistryService(null!, user, NullLogger<WebSourceRegistryService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new WebSourceRegistryService(repository, null!, NullLogger<WebSourceRegistryService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new WebSourceRegistryService(repository, user, null!));
     }
 
     private static Mock<IWebSourceRepository> CreateRepository() => new(MockBehavior.Strict);

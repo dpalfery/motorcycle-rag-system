@@ -94,14 +94,10 @@ public sealed class WebSearchRateLimiterTests
     [Fact]
     public void Constructors_WhenArgumentsAreInvalid_ThrowArgumentExceptions()
     {
-        ((Action)(() => new WebSearchRateLimiter(0, 0, NullLogger<WebSearchRateLimiter>.Instance)))
-            .Should().Throw<ArgumentOutOfRangeException>();
-        ((Action)(() => new WebSearchRateLimiter(1, -1, NullLogger<WebSearchRateLimiter>.Instance)))
-            .Should().Throw<ArgumentOutOfRangeException>();
-        ((Action)(() => new WebSearchRateLimiter(1, 0, null!)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new WebSearchRateLimiter(null!, NullLogger<WebSearchRateLimiter>.Instance)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WebSearchRateLimiter(0, 0, NullLogger<WebSearchRateLimiter>.Instance));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WebSearchRateLimiter(1, -1, NullLogger<WebSearchRateLimiter>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new WebSearchRateLimiter(1, 0, null!));
+        Assert.Throws<ArgumentNullException>(() => new WebSearchRateLimiter(null!, NullLogger<WebSearchRateLimiter>.Instance));
     }
 
     [Fact]

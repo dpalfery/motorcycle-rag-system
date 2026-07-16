@@ -1,5 +1,8 @@
 using System.Text;
+using global::Azure;
+using Azure.Core;
 using Azure.Search.Documents;
+using Azure.Search.Documents.Models;
 using SearchOptions = MotorcycleRAG.Core.Options.SearchOptions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -9,6 +12,7 @@ using MotorcycleRAG.Core.Exceptions;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Domain.ValueObjects;
 using MotorcycleRAG.Persistence.Azure.Search;
+using System.ClientModel.Primitives;
 
 namespace MotorcycleRAG.Persistence.Tests.Azure.Search;
 
@@ -531,7 +535,173 @@ public sealed class ChunkIndexingServiceTests
         result.Should().Be(MotorcycleCategory.Sport);
     }
 
+    // ---- IndexBatchForCategoryAsync success path (exercises Polly
+    //      closure <>c__DisplayClass10_1 normal branch) ----
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WhenUploadSucceeds_ShouldReturnSuccessfulOutcomes()
+    {
+        // Use a real resilience pipeline so the Polly closure executes.
+        var realPipeline = new SearchIndexResiliencePipelineProvider();
+
+        _clientFactoryMock.Setup(x => x.DefaultCategory).Returns(MotorcycleCategory.Sport);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns((MotorcycleCategory c) => $"motorcycle-{c.Value}");
+        _clientFactoryMock
+            .Setup(x => x.IndexExistsAsync(MotorcycleCategory.Sport, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // Build a success result for MergeOrUploadDocumentsAsync
+        var indexResult = CreateIndexDocumentsResult(("chunk-success", true, 201, null));
+        var mockRawResponse = new Mock<global::Azure.Response>();
+        var azureResponse = global::Azure.Response.FromValue(indexResult, mockRawResponse.Object);
+
+        var searchClientMock = new Mock<SearchClient>();
+        searchClientMock
+            .Setup(c => c.MergeOrUploadDocumentsAsync(
+                It.IsAny<IEnumerable<ChunkIndexingService.ChunkIndexRecord>>(),
+                It.IsAny<IndexDocumentsOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(azureResponse);
+        _clientFactoryMock.Setup(x => x.GetClient(MotorcycleCategory.Sport))
+            .Returns(searchClientMock.Object);
+
+        var sut = new ChunkIndexingService(
+            _clientFactoryMock.Object,
+            _categoryClassifierMock.Object,
+            realPipeline,
+            TestHelpers.OptionsFor(_searchOptions),
+            TestHelpers.CreateNullLogger<ChunkIndexingService>());
+
+        var jsonl = "{\"id\":\"chunk-success\",\"category\":\"sport\",\"make\":\"Honda\",\"model\":\"CBR600RR\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
+
+        var result = await sut.IndexFromJsonlAsync(stream, Guid.NewGuid().ToString(), CancellationToken.None);
+
+        result.TotalParsed.Should().Be(1);
+        result.Outcomes.Should().NotBeEmpty();
+        var outcome = result.Outcomes[0];
+        outcome.Succeeded.Should().BeTrue();
+        outcome.ChunkId.Should().Be("chunk-success");
+    }
+
+    private static IndexDocumentsResult CreateIndexDocumentsResult(
+        params (string Key, bool Succeeded, int Status, string? ErrorMessage)[] items)
+    {
+        var valueItems = items.Select(i =>
+        {
+            if (i.Succeeded)
+                return $$"""{"key":"{{i.Key}}","status":true,"statusCode":{{i.Status}}}""";
+            var errMsg = i.ErrorMessage ?? "Error";
+            return $$"""{"key":"{{i.Key}}","status":false,"statusCode":{{i.Status}},"errorMessage":"{{errMsg}}"}""";
+        });
+        var json = $$"""{"value":[{{string.Join(",", valueItems)}}]}""";
+        return ModelReaderWriter.Read<IndexDocumentsResult>(BinaryData.FromString(json))!;
+    }
+
     // ---- Helpers ----
+
+    // ─── DisplayClass10_1 cancellation branch ─────────────────────────
+    // Covers the <>c__DisplayClass10_1 closure where linkedToken.ThrowIfCancellationRequested()
+    // is called. When the external cancellation token is already cancelled, the
+    // throw-from-lambda path is exercised through the Polly retry pipeline.
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WhenExternalTokenAlreadyCancelled_ShouldThrowOperationCanceledException()
+    {
+        var realPipeline = new SearchIndexResiliencePipelineProvider();
+
+        _clientFactoryMock.Setup(x => x.DefaultCategory).Returns(MotorcycleCategory.Sport);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns((MotorcycleCategory c) => $"motorcycle-{c.Value}");
+        _clientFactoryMock
+            .Setup(x => x.IndexExistsAsync(MotorcycleCategory.Sport, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var searchClientMock = new Mock<SearchClient>();
+        searchClientMock
+            .Setup(c => c.MergeOrUploadDocumentsAsync(
+                It.IsAny<IEnumerable<ChunkIndexingService.ChunkIndexRecord>>(),
+                It.IsAny<IndexDocumentsOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Simulated batch failure"));
+        _clientFactoryMock.Setup(x => x.GetClient(MotorcycleCategory.Sport))
+            .Returns(searchClientMock.Object);
+
+        var sut = new ChunkIndexingService(
+            _clientFactoryMock.Object,
+            _categoryClassifierMock.Object,
+            realPipeline,
+            TestHelpers.OptionsFor(_searchOptions),
+            TestHelpers.CreateNullLogger<ChunkIndexingService>());
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var jsonl = "{\"id\":\"chunk-cancel\",\"category\":\"sport\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
+
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-cancel-test", cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    // ─── IndexBatchForCategoryAsync timeout path ──────────────────────
+    // Covers the per-batch timeout branch of IndexBatchForCategoryAsync (T7) where
+    // the batchIndexTimeout fires and OperationCanceledException is caught, then
+    // rethrown as TimeoutException.
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WhenBatchTimeoutFires_ShouldThrowTimeoutException()
+    {
+        var realPipeline = new SearchIndexResiliencePipelineProvider();
+        // Set a very short timeout (1ms) so the per-batch timeout fires before
+        // any real work completes
+        var shortTimeoutOptions = new SearchOptions
+        {
+            MaxSearchResults = 50,
+            BatchSize = 100,
+            BatchIndexTimeoutSeconds = 1,
+            IndexName = "motorcycle-sport"
+        };
+
+        _clientFactoryMock.Setup(x => x.DefaultCategory).Returns(MotorcycleCategory.Sport);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns((MotorcycleCategory c) => $"motorcycle-{c.Value}");
+        _clientFactoryMock
+            .Setup(x => x.IndexExistsAsync(MotorcycleCategory.Sport, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // Mock MergeOrUploadDocumentsAsync to delay beyond the 1s timeout
+        var searchClientMock = new Mock<SearchClient>();
+        searchClientMock
+            .Setup(c => c.MergeOrUploadDocumentsAsync(
+                It.IsAny<IEnumerable<ChunkIndexingService.ChunkIndexRecord>>(),
+                It.IsAny<IndexDocumentsOptions>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(async (IEnumerable<ChunkIndexingService.ChunkIndexRecord> docs, IndexDocumentsOptions opts, CancellationToken token) =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), token);
+                throw new OperationCanceledException();
+            });
+        _clientFactoryMock.Setup(x => x.GetClient(MotorcycleCategory.Sport))
+            .Returns(searchClientMock.Object);
+
+        var sut = new ChunkIndexingService(
+            _clientFactoryMock.Object,
+            _categoryClassifierMock.Object,
+            realPipeline,
+            TestHelpers.OptionsFor(shortTimeoutOptions),
+            TestHelpers.CreateNullLogger<ChunkIndexingService>());
+
+        var jsonl = "{\"id\":\"chunk-timeout\",\"category\":\"sport\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
+
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-timeout-test", CancellationToken.None);
+
+        await act.Should().ThrowAsync<TimeoutException>()
+            .WithMessage("*timed out*");
+    }
 
     private static MemoryStream CreateJsonlStream(params (string id, string category)[] chunks)
     {

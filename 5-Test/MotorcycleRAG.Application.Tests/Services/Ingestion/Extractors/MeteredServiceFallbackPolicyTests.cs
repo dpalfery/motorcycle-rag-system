@@ -137,6 +137,7 @@ public sealed class MeteredServiceFallbackPolicyTests
     private static MeteredServiceFallbackPolicy CreateSut() =>
         new(NullLogger<MeteredServiceFallbackPolicy>.Instance);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1032:Implement standard exception constructors", Justification = "Test helper — only used to expose StatusCode property.")]
     private sealed class StatusCodeException(int statusCode) : Exception("service unavailable")
     {
         public int StatusCode { get; } = statusCode;

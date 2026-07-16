@@ -16,7 +16,7 @@ namespace MotorcycleRAG.UnitTests.Presentation.API.Extensions;
 
 public class AuthenticationServiceExtensionsTests
 {
-    [Fact]
+    private static readonly string[] DefaultAudiences = ["audience"];    [Fact]
     public void AddDualIssuerJwtBearer_RejectsMissingRequiredSettings()
     {
         var services = new ServiceCollection();
@@ -92,7 +92,7 @@ public class AuthenticationServiceExtensionsTests
             "MotorcycleRAG.API.Extensions.AuthenticationServiceExtensions", throwOnError: true)!;
         var configure = extensionType.GetMethod("ConfigureJwtBearerOptions", BindingFlags.Static | BindingFlags.NonPublic)!;
         var options = new JwtBearerOptions();
-        configure.Invoke(null, [options, cache, issuer, null, new[] { "audience" }]);
+        configure.Invoke(null, [options, cache, issuer, null, DefaultAudiences]);
         var resolve = options.TokenValidationParameters.IssuerSigningKeyResolver!;
         var token = new JsonWebToken("eyJhbGciOiJub25lIn0.eyJpc3MiOiJodHRwczovL2lzc3Vlci5leGFtcGxlLnRlc3QifQ.");
 
@@ -111,7 +111,7 @@ public class AuthenticationServiceExtensionsTests
         using var client = new HttpClient(new StaticDiscoveryHandler("https://issuer.example.test"));
         var cache = new SigningKeyCache(client, NullLogger<SigningKeyCache>.Instance);
         var options = new JwtBearerOptions();
-        configure.Invoke(null, [options, cache, "https://issuer.example.test", null, new[] { "audience" }]);
+        configure.Invoke(null, [options, cache, "https://issuer.example.test", null, DefaultAudiences]);
         var scheme = new AuthenticationScheme("Bearer", null, typeof(JwtBearerHandler));
         var noLoggerContext = new DefaultHttpContext { RequestServices = new ServiceCollection().BuildServiceProvider() };
 

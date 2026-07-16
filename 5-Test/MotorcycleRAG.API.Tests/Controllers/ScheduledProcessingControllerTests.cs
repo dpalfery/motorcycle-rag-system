@@ -117,7 +117,7 @@ public class ScheduledProcessingControllerTests
     [Fact]
     public void Constructor_RejectsBothDependencies()
     {
-        ((Action)(() => new ScheduledProcessingController(null!, _mockLogger.Object))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new ScheduledProcessingController(_mockService.Object, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new ScheduledProcessingController(null!, _mockLogger.Object));
+        Assert.Throws<ArgumentNullException>(() => new ScheduledProcessingController(_mockService.Object, null!));
     }
 }

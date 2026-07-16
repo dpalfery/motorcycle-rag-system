@@ -44,7 +44,7 @@ public sealed class AuditServiceTests
 
         var act = async () => await sut.LogAuthenticationAsync(userId!);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("userId");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(userId));
     }
 
     [Theory]
@@ -91,7 +91,7 @@ public sealed class AuditServiceTests
 
         var act = async () => await sut.LogLogoutAsync(userId!);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("userId");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(userId));
     }
 
     [Theory]
@@ -104,7 +104,7 @@ public sealed class AuditServiceTests
 
         var act = async () => await sut.LogFailedAuthenticationAsync("rider@example.com", reason!);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("reason");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(reason));
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public sealed class AuditServiceTests
 
         var act = async () => await sut.LogRateLimitViolationAsync("user-1", endpoint!);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("endpoint");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(endpoint));
     }
 
     [Theory]
@@ -328,7 +328,7 @@ public sealed class AuditServiceTests
 
         var act = async () => await sut.GetRecentAuditLogsAsync(limit);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("limit");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(limit));
     }
 
     [Fact]

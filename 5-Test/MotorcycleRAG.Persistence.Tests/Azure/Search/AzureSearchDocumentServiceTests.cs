@@ -698,6 +698,39 @@ public sealed class AzureSearchDocumentServiceTests
         success.Should().BeFalse();
     }
 
+    // ---- CreateOrUpdateIndexAsync - resilience fallback path ----
+
+    [Fact]
+    public async Task CreateOrUpdateIndexAsync_WhenResilienceInvokesFallback_ShouldReturnFalse()
+    {
+        var sut = CreateSut();
+        var correlationId = "corr-fallback-create";
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns(correlationId);
+
+        // Resilience fallback returns false — the operation is NOT invoked (avoids NotSupportedException)
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync<bool>(
+                "AzureSearch.CreateIndex",
+                It.IsAny<Func<Task<bool>>>(),
+                It.IsAny<Func<Task<bool>>>(),
+                correlationId,
+                It.IsAny<CancellationToken>()))
+            .Returns(async (string key, Func<Task<bool>> op, Func<Task<bool>> fb, string cid, CancellationToken ct) =>
+                await fb());
+
+        var result = await sut.CreateOrUpdateIndexAsync("test-index-fallback");
+
+        result.Should().BeFalse();
+        _resilienceServiceMock.Verify(
+            x => x.ExecuteAsync<bool>(
+                "AzureSearch.CreateIndex",
+                It.IsAny<Func<Task<bool>>>(),
+                It.IsAny<Func<Task<bool>>>(),
+                correlationId,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static IndexDocumentsResult CreateIndexDocumentsResult(
         params (string Key, bool Succeeded, int Status, string? ErrorMessage)[] items)
     {

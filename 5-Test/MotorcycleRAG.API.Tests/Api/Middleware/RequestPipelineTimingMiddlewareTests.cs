@@ -13,8 +13,8 @@ public class RequestPipelineTimingMiddlewareTests
     [Fact]
     public void Constructor_NullArgs_Throw()
     {
-        ((Action)(() => new RequestPipelineTimingMiddleware(null!, NullLogger<RequestPipelineTimingMiddleware>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new RequestPipelineTimingMiddleware(TestHelpers.NoopNext, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new RequestPipelineTimingMiddleware(null!, NullLogger<RequestPipelineTimingMiddleware>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new RequestPipelineTimingMiddleware(TestHelpers.NoopNext, null!));
     }
 
     [Fact]

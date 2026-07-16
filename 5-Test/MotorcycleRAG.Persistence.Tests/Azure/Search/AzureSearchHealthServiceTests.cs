@@ -453,4 +453,39 @@ public sealed class AzureSearchHealthServiceTests
         results.Should().HaveCount(5);
         results[0].Metadata["query"].Should().Be("");
     }
+
+    // ---- IsHealthyAsync - resilience falls back (returns false) ----
+
+    [Fact]
+    public async Task IsHealthyAsync_WhenResilienceInvokesFallback_ShouldReturnFalse()
+    {
+        var sut = CreateSut();
+        var correlationId = "corr-fallback-health";
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns(correlationId);
+
+        // Resilience fallback returns false — the operation is never invoked
+        _resilienceServiceMock
+            .Setup(x => x.ExecuteAsync<bool>(
+                "AzureSearch.HealthCheck",
+                It.IsAny<Func<Task<bool>>>(),
+                It.IsAny<Func<Task<bool>>>(),
+                correlationId,
+                It.IsAny<CancellationToken>()))
+            .Returns(async (string key, Func<Task<bool>> op, Func<Task<bool>> fb, string cid, CancellationToken ct) =>
+                await fb());
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns("motorcycle-sport");
+
+        var result = await sut.IsHealthyAsync();
+
+        result.Should().BeFalse();
+        _resilienceServiceMock.Verify(
+            x => x.ExecuteAsync<bool>(
+                "AzureSearch.HealthCheck",
+                It.IsAny<Func<Task<bool>>>(),
+                It.IsAny<Func<Task<bool>>>(),
+                correlationId,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }

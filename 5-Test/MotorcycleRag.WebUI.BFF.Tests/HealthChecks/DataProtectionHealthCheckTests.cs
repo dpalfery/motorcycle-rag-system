@@ -28,8 +28,8 @@ public class DataProtectionHealthCheckTests {
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public async Task CheckHealthAsync_WhenBlobUriMissing_ReturnsDegraded(string? blobUri) {
-        var healthCheck = CreateHealthCheck(blobUri: blobUri);
+    public async Task CheckHealthAsync_WhenBlobUriMissing_ReturnsDegraded(string? location) {
+        var healthCheck = CreateHealthCheck(blobUri: location);
 
         var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
 

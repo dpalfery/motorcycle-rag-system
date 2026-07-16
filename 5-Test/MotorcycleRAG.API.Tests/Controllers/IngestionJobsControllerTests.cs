@@ -1120,13 +1120,13 @@ public sealed class IngestionJobsControllerTests
         var reprocess = Mock.Of<IChunkReprocessService>();
         var logger = NullLogger<IngestionJobsController>.Instance;
 
-        ((Action)(() => new IngestionJobsController(null!, validator, storage, blobOptions, ingestionOptions, reprocess, logger))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new IngestionJobsController(service, null!, storage, blobOptions, ingestionOptions, reprocess, logger))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new IngestionJobsController(service, validator, null!, blobOptions, ingestionOptions, reprocess, logger))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new IngestionJobsController(service, validator, storage, null!, ingestionOptions, reprocess, logger))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new IngestionJobsController(service, validator, storage, blobOptions, null!, reprocess, logger))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, null!, logger))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, reprocess, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(null!, validator, storage, blobOptions, ingestionOptions, reprocess, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, null!, storage, blobOptions, ingestionOptions, reprocess, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, null!, blobOptions, ingestionOptions, reprocess, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, null!, ingestionOptions, reprocess, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, null!, reprocess, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, null!, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, reprocess, null!));
     }
 
     [Fact]

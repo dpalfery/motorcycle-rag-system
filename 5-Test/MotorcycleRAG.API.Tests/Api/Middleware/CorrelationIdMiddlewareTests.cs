@@ -12,8 +12,8 @@ public class CorrelationIdMiddlewareTests
     [Fact]
     public void Constructor_NullArgs_Throw()
     {
-        ((Action)(() => new CorrelationIdMiddleware(null!, NullLogger<CorrelationIdMiddleware>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new CorrelationIdMiddleware(TestHelpers.NoopNext, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new CorrelationIdMiddleware(null!, NullLogger<CorrelationIdMiddleware>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new CorrelationIdMiddleware(TestHelpers.NoopNext, null!));
     }
 
     [Fact]

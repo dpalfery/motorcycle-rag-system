@@ -38,7 +38,7 @@ public sealed class ManualPageQueryServiceTests
         var act = () => sut.GetPageAsync(manualId, pageNumber, CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
-            .WithParameterName("pageNumber");
+            .WithParameterName(nameof(pageNumber));
         _assetStore.Verify(s => s.PageExistsAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

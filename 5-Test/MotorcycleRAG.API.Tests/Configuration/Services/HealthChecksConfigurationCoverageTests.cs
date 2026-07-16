@@ -78,6 +78,7 @@ public sealed class HealthChecksConfigurationCoverageTests
         (await RunCheckAsync(degradedProvider, "onboarding_notification")).Status.Should().Be(HealthStatus.Degraded);
     }
 
+#pragma warning disable CA1054 // string params are intentional for InlineData flexibility
     [Theory]
     [InlineData("https://admin.example.test/complete", "client-id", null, HealthStatus.Healthy)]
     [InlineData("https://admin.example.test/complete", null, "object-id", HealthStatus.Healthy)]

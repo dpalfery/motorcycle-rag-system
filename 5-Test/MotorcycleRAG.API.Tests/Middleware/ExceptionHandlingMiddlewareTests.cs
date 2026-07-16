@@ -27,10 +27,8 @@ public sealed class ExceptionHandlingMiddlewareTests
     {
         RequestDelegate next = _ => Task.CompletedTask;
 
-        ((Action)(() => new ExceptionHandlingMiddleware(null!, NullLogger<ExceptionHandlingMiddleware>.Instance)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new ExceptionHandlingMiddleware(next, null!)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new ExceptionHandlingMiddleware(null!, NullLogger<ExceptionHandlingMiddleware>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new ExceptionHandlingMiddleware(next, null!));
     }
 
     [Fact]

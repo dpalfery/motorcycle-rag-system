@@ -1,6 +1,7 @@
 using System;
 using System.ClientModel;
 using System.ClientModel.Primitives;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure;
@@ -208,5 +209,126 @@ public class FoundryAgentAdminClientAdapterTests
 
         // Assert
         Assert.Equal(cts.Token, capturedToken);
+    }
+
+    [Fact]
+    public async Task GetAgentNamesAsync_HappyPath_ReturnsAgentNames()
+    {
+        var agent1 = CreateAgentRecord("OrchestratorAgent");
+        var agent2 = CreateAgentRecord("VectorSearchAgent");
+        var pages = new List<IEnumerable<ProjectsAgentRecord>> { new List<ProjectsAgentRecord> { agent1, agent2 } };
+        var asyncResult = AsyncCollectionResult<ProjectsAgentRecord>.FromPages(pages);
+
+        var mockClient = new Mock<AgentAdministrationClient>();
+        mockClient
+            .Setup(c => c.GetAgentsAsync(
+                null, null, null, null, null, It.IsAny<CancellationToken>()))
+            .Returns(asyncResult);
+
+        var adapter = new FoundryAgentAdminClientAdapter(mockClient.Object);
+
+        var result = await adapter.GetAgentNamesAsync();
+
+        result.Should().NotBeNull();
+        result.Should().HaveCount(2);
+        result[0].Should().Be("OrchestratorAgent");
+        result[1].Should().Be("VectorSearchAgent");
+    }
+
+    [Fact]
+    public async Task GetAgentNamesAsync_EmptyCollection_ReturnsEmptyList()
+    {
+        var pages = new List<IEnumerable<ProjectsAgentRecord>> { Array.Empty<ProjectsAgentRecord>() };
+        var asyncResult = AsyncCollectionResult<ProjectsAgentRecord>.FromPages(pages);
+
+        var mockClient = new Mock<AgentAdministrationClient>();
+        mockClient
+            .Setup(c => c.GetAgentsAsync(
+                null, null, null, null, null, It.IsAny<CancellationToken>()))
+            .Returns(asyncResult);
+
+        var adapter = new FoundryAgentAdminClientAdapter(mockClient.Object);
+
+        var result = await adapter.GetAgentNamesAsync();
+
+        result.Should().NotBeNull();
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetAgentNamesAsync_WhenClientThrows_PropagatesException()
+    {
+        var mockClient = new Mock<AgentAdministrationClient>();
+        mockClient
+            .Setup(c => c.GetAgentsAsync(
+                null, null, null, null, null, It.IsAny<CancellationToken>()))
+            .Throws(new InvalidOperationException("Foundry service unavailable"));
+
+        var adapter = new FoundryAgentAdminClientAdapter(mockClient.Object);
+
+        var act = () => adapter.GetAgentNamesAsync();
+
+        (await act.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage("Foundry service unavailable");
+    }
+
+    [Fact]
+    public async Task GetAgentNamesAsync_PassesCancellationTokenThrough()
+    {
+        using var cts = new CancellationTokenSource();
+        CancellationToken capturedToken = default;
+
+        var mockClient = new Mock<AgentAdministrationClient>();
+        mockClient
+            .Setup(c => c.GetAgentsAsync(
+                null, null, null, null, null, It.IsAny<CancellationToken>()))
+            .Callback<ProjectsAgentKind?, int?, AgentListOrder?, string?, string?, CancellationToken>(
+                (_, _, _, _, _, ct) => capturedToken = ct)
+            .Returns(AsyncCollectionResult<ProjectsAgentRecord>.FromPages(
+                new List<IEnumerable<ProjectsAgentRecord>> { Array.Empty<ProjectsAgentRecord>() }));
+
+        var adapter = new FoundryAgentAdminClientAdapter(mockClient.Object);
+
+        await adapter.GetAgentNamesAsync(cts.Token);
+
+        capturedToken.Should().Be(cts.Token);
+    }
+
+    [Fact]
+    public async Task GetAgentNamesAsync_WithMultiplePages_CollectsAllNames()
+    {
+        var page1 = new List<ProjectsAgentRecord> { CreateAgentRecord("AgentA"), CreateAgentRecord("AgentB") };
+        var page2 = new List<ProjectsAgentRecord> { CreateAgentRecord("AgentC") };
+        var pages = new List<IEnumerable<ProjectsAgentRecord>> { page1, page2 };
+        var asyncResult = AsyncCollectionResult<ProjectsAgentRecord>.FromPages(pages);
+
+        var mockClient = new Mock<AgentAdministrationClient>();
+        mockClient
+            .Setup(c => c.GetAgentsAsync(
+                null, null, null, null, null, It.IsAny<CancellationToken>()))
+            .Returns(asyncResult);
+
+        var adapter = new FoundryAgentAdminClientAdapter(mockClient.Object);
+
+        var result = await adapter.GetAgentNamesAsync();
+
+        result.Should().NotBeNull();
+        result.Should().HaveCount(3);
+        result[0].Should().Be("AgentA");
+        result[1].Should().Be("AgentB");
+        result[2].Should().Be("AgentC");
+    }
+
+    [UnsafeAccessor(UnsafeAccessorKind.Constructor)]
+    private static extern ProjectsAgentRecord CreateProjectsAgentRecord();
+
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "<Name>k__BackingField")]
+    private static extern ref string GetNameField(ProjectsAgentRecord record);
+
+    private static ProjectsAgentRecord CreateAgentRecord(string name)
+    {
+        var record = CreateProjectsAgentRecord();
+        GetNameField(record) = name;
+        return record;
     }
 }

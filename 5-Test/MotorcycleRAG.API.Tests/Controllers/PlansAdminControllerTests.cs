@@ -15,8 +15,8 @@ public sealed class PlansAdminControllerTests
     public void Constructor_NullDependencies_Throw()
     {
         var service = new Mock<IPlanAdministrationService>();
-        ((Action)(() => new PlansAdminController(null!, NullLogger<PlansAdminController>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new PlansAdminController(service.Object, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new PlansAdminController(null!, NullLogger<PlansAdminController>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new PlansAdminController(service.Object, null!));
     }
 
     [Fact]

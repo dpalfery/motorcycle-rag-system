@@ -12,7 +12,7 @@ public sealed class MeControllerTests
 {
     [Fact]
     public void Constructor_NullDependency_Throws() =>
-        ((Action)(() => new MeController(null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new MeController(null!));
 
     [Fact]
     public async Task GetProfileAsync_MapsAccessOutcomes()

@@ -114,7 +114,9 @@ public class SpecsIngestionIntegrationTests {
         using var stream = new MemoryStream();
 
         // Act
+#pragma warning disable CA2025 // tasks are awaited before disposal scope ends
         var act = () => _sut.IngestCsvAsync("upload-empty", "user-000", stream);
+#pragma warning restore CA2025
 
         // Assert — should not throw and should make zero upsert calls
         await act.Should().NotThrowAsync();

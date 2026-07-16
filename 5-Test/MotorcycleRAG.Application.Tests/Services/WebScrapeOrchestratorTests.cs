@@ -66,7 +66,7 @@ public sealed class WebScrapeOrchestratorTests
 
         var act = async () => await sut.StartScrapeRunAsync(webSourceId);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("webSourceId");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(webSourceId));
     }
 
     [Fact]
@@ -270,7 +270,7 @@ public sealed class WebScrapeOrchestratorTests
 
         var act = async () => await sut.CancelScrapeRunAsync(runId);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("runId");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(runId));
     }
 
     [Fact]
@@ -394,7 +394,7 @@ public sealed class WebScrapeOrchestratorTests
 
         var act = async () => await sut.GetScrapeRunStatusAsync(runId);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("runId");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(runId));
     }
 
     [Fact]
@@ -432,7 +432,7 @@ public sealed class WebScrapeOrchestratorTests
 
         var act = async () => await sut.GetRecentScrapeRunsAsync(webSourceId);
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("webSourceId");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName(nameof(webSourceId));
     }
 
     [Fact]

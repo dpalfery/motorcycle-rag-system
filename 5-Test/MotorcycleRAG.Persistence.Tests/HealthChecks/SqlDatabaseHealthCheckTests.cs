@@ -153,7 +153,7 @@ public class SqlDatabaseHealthCheckTests
         // factory-returning-non-SqlConnection case.
         var mockFactory = new Mock<ISqlConnectionFactory>();
         mockFactory.Setup(f => f.CreateConnectionAsync())
-            .ReturnsAsync((IDbConnection?)null);
+            .ReturnsAsync((IDbConnection)null!);
 
         var sut = new SqlDatabaseHealthCheck(
             mockFactory.Object,

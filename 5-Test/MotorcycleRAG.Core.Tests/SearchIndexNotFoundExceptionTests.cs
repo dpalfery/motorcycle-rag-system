@@ -19,7 +19,7 @@ public class SearchIndexNotFoundExceptionTests
     [Fact]
     public void Constructor_WithNullIndexName_SetsEmptyIndexName()
     {
-        var exception = new SearchIndexNotFoundException(null);
+        var exception = new SearchIndexNotFoundException(null!);
 
         Assert.Equal(string.Empty, exception.IndexName);
         Assert.Contains("<null>", exception.Message);

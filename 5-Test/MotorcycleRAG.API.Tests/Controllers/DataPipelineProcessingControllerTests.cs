@@ -72,8 +72,8 @@ public sealed class DataPipelineProcessingControllerTests
     {
         var orchestrator = Mock.Of<IDataPipelineOrchestrator>();
 
-        ((Action)(() => new DataPipelineProcessingController(null!, NullLogger<DataPipelineProcessingController>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new DataPipelineProcessingController(orchestrator, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new DataPipelineProcessingController(null!, NullLogger<DataPipelineProcessingController>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new DataPipelineProcessingController(orchestrator, null!));
     }
 
     [Fact]

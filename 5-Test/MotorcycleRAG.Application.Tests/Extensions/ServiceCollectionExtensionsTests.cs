@@ -27,7 +27,7 @@ public sealed class ServiceCollectionExtensionsTests
         var returnedServices = services.AddMotorcycleCaching(configuration);
 
         returnedServices.Should().BeSameAs(services);
-        GetRegistration<IQueryCacheService>(services).ImplementationType.Should().Be(typeof(MemoryQueryCacheService));
+        GetRegistration<IQueryCacheService>(services).ImplementationType.Should().Be<MemoryQueryCacheService>();
 
         using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<IOptions<CacheConfiguration>>().Value.Should().Match<CacheConfiguration>(options =>
@@ -46,7 +46,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         services.AddMotorcycleCaching(configuration);
 
-        GetRegistration<IQueryCacheService>(services).ImplementationType.Should().Be(typeof(DistributedQueryCacheService));
+        GetRegistration<IQueryCacheService>(services).ImplementationType.Should().Be<DistributedQueryCacheService>();
         services.Should().Contain(descriptor => descriptor.ServiceType == typeof(IDistributedCache));
     }
 
@@ -73,8 +73,8 @@ public sealed class ServiceCollectionExtensionsTests
         var returnedServices = services.AddCachingAndOptimization(CreateConfiguration());
 
         returnedServices.Should().BeSameAs(services);
-        GetRegistration<IQueryCacheService>(services).ImplementationType.Should().Be(typeof(MemoryQueryCacheService));
-        GetRegistration<IVectorCompressionService>(services).ImplementationType.Should().Be(typeof(VectorCompressionService));
+        GetRegistration<IQueryCacheService>(services).ImplementationType.Should().Be<MemoryQueryCacheService>();
+        GetRegistration<IVectorCompressionService>(services).ImplementationType.Should().Be<VectorCompressionService>();
     }
 
     [Theory]

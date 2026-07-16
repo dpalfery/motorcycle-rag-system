@@ -413,8 +413,8 @@ public sealed class PipelineProcessingControllerTests
     {
         var orchestrator = Mock.Of<IDataPipelineOrchestrator>();
 
-        ((Action)(() => new PipelineProcessingController(null!, NullLogger<PipelineProcessingController>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new PipelineProcessingController(orchestrator, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new PipelineProcessingController(null!, NullLogger<PipelineProcessingController>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new PipelineProcessingController(orchestrator, null!));
     }
 
     private static string GetUploadsRoot()

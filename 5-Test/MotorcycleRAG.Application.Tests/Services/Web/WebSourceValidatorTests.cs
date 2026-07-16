@@ -151,14 +151,10 @@ public sealed class WebSourceValidatorTests
     {
         var policies = CreatePolicyStore().Object;
 
-        ((Action)(() => new WebSourceValidator(policies, null!, NullLogger<WebSourceValidator>.Instance)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new WebSourceValidator(policies, -0.1f, NullLogger<WebSourceValidator>.Instance)))
-            .Should().Throw<ArgumentOutOfRangeException>();
-        ((Action)(() => new WebSourceValidator(policies, 1.1f, NullLogger<WebSourceValidator>.Instance)))
-            .Should().Throw<ArgumentOutOfRangeException>();
-        ((Action)(() => new WebSourceValidator(policies, 0.5f, null!)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new WebSourceValidator(policies, null!, NullLogger<WebSourceValidator>.Instance));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WebSourceValidator(policies, -0.1f, NullLogger<WebSourceValidator>.Instance));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WebSourceValidator(policies, 1.1f, NullLogger<WebSourceValidator>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new WebSourceValidator(policies, 0.5f, null!));
     }
 
     [Fact]

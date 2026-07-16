@@ -1069,7 +1069,7 @@ public sealed class McpAdminControllerTests
                 request.Name = new string('n', 256);
                 break;
             case "serverUrlRequired":
-                request.ServerUrl = null;
+                request.ServerUrl = null!;
                 break;
             case "serverUrlTooLong":
                 request.ServerUrl = "https://x.com/" + new string('a', 500);

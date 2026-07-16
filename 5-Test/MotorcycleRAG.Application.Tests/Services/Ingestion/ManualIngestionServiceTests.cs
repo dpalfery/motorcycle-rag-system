@@ -30,6 +30,7 @@ public sealed class ManualIngestionServiceTests
         fixture.Repository.Setup(repository => repository.GetDocumentByIdAsync(document.DocumentId, It.IsAny<CancellationToken>())).ReturnsAsync(document);
         fixture.Repository.Setup(repository => repository.GetAllDocumentsAsync(It.IsAny<CancellationToken>())).ReturnsAsync([document]);
 
+#pragma warning disable CA2025 // MemoryStream awaited before disposal; analyzer is overly conservative here
         using var stream = new MemoryStream([1, 2, 3]);
         var registered = await fixture.Sut.RegisterManualAsync(new RegisterManualDocumentRequest("manual.pdf", "service", "Honda", "CB", 2024, "hash"), stream, default);
         var loaded = await fixture.Sut.GetDocumentAsync(document.DocumentId, default);
@@ -40,6 +41,7 @@ public sealed class ManualIngestionServiceTests
         loaded.Should().NotBeNull();
         all.Should().ContainSingle();
         fixture.BlobStorage.Verify(service => service.UploadAsync("moto-manuals", It.Is<string>(value => value.EndsWith("/manual.pdf")), stream, "application/pdf", default), Times.Once);
+#pragma warning restore CA2025
     }
 
     [Fact]

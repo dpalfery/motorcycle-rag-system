@@ -210,9 +210,11 @@ public sealed class DataPipelineOrchestratorTests
     public async Task ProcessFileAsync_WhenProcessorReturnsNull_ReturnsFailed()
     {
         var filePath = CreateFile("manual.pdf", "%PDF-1.4 test");
+#pragma warning disable CS8620 // Nullability mismatch in Moq setup is intentional for null-return test
         _pdfProcessorMock
             .Setup(x => x.ProcessAsync(It.IsAny<PDFDocument>()))
             .ReturnsAsync((ProcessedData?)null);
+#pragma warning restore CS8620
 
         var sut = CreateSut();
 

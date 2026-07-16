@@ -20,9 +20,9 @@ public class SecurityHeadersMiddlewareTests
     public void Constructor_NullArgs_Throw()
     {
         var env = ProdEnv();
-        ((Action)(() => new SecurityHeadersMiddleware(null!, NullLogger<SecurityHeadersMiddleware>.Instance, env))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new SecurityHeadersMiddleware(TestHelpers.NoopNext, null!, env))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new SecurityHeadersMiddleware(TestHelpers.NoopNext, NullLogger<SecurityHeadersMiddleware>.Instance, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new SecurityHeadersMiddleware(null!, NullLogger<SecurityHeadersMiddleware>.Instance, env));
+        Assert.Throws<ArgumentNullException>(() => new SecurityHeadersMiddleware(TestHelpers.NoopNext, null!, env));
+        Assert.Throws<ArgumentNullException>(() => new SecurityHeadersMiddleware(TestHelpers.NoopNext, NullLogger<SecurityHeadersMiddleware>.Instance, null!));
     }
 
     [Fact]

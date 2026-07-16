@@ -218,12 +218,9 @@ public sealed class DistributedQueryCacheServiceTests
         var options = Options.Create(new CacheConfiguration());
         var cache = CreateCache().Object;
 
-        ((Action)(() => new DistributedQueryCacheService(null!, NullLogger<DistributedQueryCacheService>.Instance, options)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new DistributedQueryCacheService(cache, null!, options)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new DistributedQueryCacheService(cache, NullLogger<DistributedQueryCacheService>.Instance, null!)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new DistributedQueryCacheService(null!, NullLogger<DistributedQueryCacheService>.Instance, options));
+        Assert.Throws<ArgumentNullException>(() => new DistributedQueryCacheService(cache, null!, options));
+        Assert.Throws<ArgumentNullException>(() => new DistributedQueryCacheService(cache, NullLogger<DistributedQueryCacheService>.Instance, null!));
     }
 
     private static Mock<IDistributedCache> CreateCache() => new(MockBehavior.Strict);

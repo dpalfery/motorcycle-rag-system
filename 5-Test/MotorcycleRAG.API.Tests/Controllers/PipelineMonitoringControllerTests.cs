@@ -61,7 +61,7 @@ public class PipelineMonitoringControllerTests
     [Fact]
     public void Constructor_RejectsBothDependencies()
     {
-        ((Action)(() => new PipelineMonitoringController(null!, _mockLogger.Object))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new PipelineMonitoringController(_mockService.Object, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new PipelineMonitoringController(null!, _mockLogger.Object));
+        Assert.Throws<ArgumentNullException>(() => new PipelineMonitoringController(_mockService.Object, null!));
     }
 }

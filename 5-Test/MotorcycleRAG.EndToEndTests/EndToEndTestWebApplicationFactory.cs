@@ -36,6 +36,7 @@ public class EndToEndTestWebApplicationFactory : TestWebApplicationFactory {
 /// No-op telemetry service for E2E tests. Absorbs all tracking calls silently
 /// so tests never hit Application Insights infrastructure.
 /// </summary>
+#pragma warning disable CA1812 // Instantiated by DI container
 internal sealed class NoOpTelemetryService : ITelemetryService {
     public void TrackEvent(string eventName, Dictionary<string, string>? properties = null, Dictionary<string, double>? metrics = null) { }
     public void TrackException(Exception exception, Dictionary<string, string>? properties = null) { }

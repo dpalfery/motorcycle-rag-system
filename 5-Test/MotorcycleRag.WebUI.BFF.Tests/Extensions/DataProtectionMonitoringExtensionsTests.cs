@@ -158,10 +158,10 @@ public class DataProtectionMonitoringExtensionsTests {
     [Theory]
     [InlineData("", "not-configured")]
     [InlineData("not a uri", "invalid-uri")]
-    public void TrackKeysInitialized_WithInvalidBlobUri_UsesSafeLogValue(string blobUri, string expected) {
+    public void TrackKeysInitialized_WithInvalidBlobUri_UsesSafeLogValue(string input, string expected) {
         var service = CreateService();
 
-        service.TrackKeysInitialized(blobUri, "correlation-id");
+        service.TrackKeysInitialized(input, "correlation-id");
 
         VerifyLog(LogLevel.Information, expected);
     }

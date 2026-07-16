@@ -16,8 +16,8 @@ public sealed class ProcessorArtifactsControllerTests
     public void Constructor_NullDependencies_Throw()
     {
         var service = new Mock<IProcessorArtifactService>();
-        ((Action)(() => new ProcessorArtifactsController(null!, NullLogger<ProcessorArtifactsController>.Instance))).Should().Throw<ArgumentNullException>();
-        ((Action)(() => new ProcessorArtifactsController(service.Object, null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new ProcessorArtifactsController(null!, NullLogger<ProcessorArtifactsController>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new ProcessorArtifactsController(service.Object, null!));
     }
 
     [Fact]
@@ -128,9 +128,9 @@ public sealed class ProcessorArtifactsControllerTests
             .ReturnsAsync(new ProcessorArtifactUploadResult(new ProcessorArtifactUploadResponse(), ProcessorArtifactOperationStatus.Success));
         var file = new Mock<IFormFile>();
         file.SetupGet(x => x.Length).Returns(7);
-        file.SetupGet(x => x.ContentType).Returns((string?)null);
+        file.SetupGet(x => x.ContentType).Returns((string?)null!);
         file.Setup(x => x.CopyToAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
-            .Returns((Stream target, CancellationToken _) => target.WriteAsync("content"u8.ToArray()).AsTask());
+            .Returns((Stream target, CancellationToken ct) => target.WriteAsync("content"u8.ToArray(), ct).AsTask());
 
         var result = await Create(service.Object).UploadArtifactAsync(file.Object, "upload", "search-chunks", CancellationToken.None);
 

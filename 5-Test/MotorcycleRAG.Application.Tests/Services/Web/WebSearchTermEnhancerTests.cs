@@ -13,6 +13,7 @@ namespace MotorcycleRAG.UnitTests.Services.Web;
 
 public class WebSearchTermEnhancerTests
 {
+    private static readonly string[] DefaultTerms = ["query"];
     private readonly WebSearchTermEnhancer _sut = new WebSearchTermEnhancer(NullLogger<WebSearchTermEnhancer>.Instance);
 
     [Fact]
@@ -27,7 +28,7 @@ public class WebSearchTermEnhancerTests
     public async Task GenerateSearchTermsAsync_ReturnsOriginalQuery()
     {
         var result = await _sut.GenerateSearchTermsAsync("query", CancellationToken.None);
-        result.Should().BeEquivalentTo(new[] { "query" });
+        result.Should().BeEquivalentTo(DefaultTerms);
     }
 
     [Fact]

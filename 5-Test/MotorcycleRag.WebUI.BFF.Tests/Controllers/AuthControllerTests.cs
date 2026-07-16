@@ -29,10 +29,10 @@ public class AuthControllerTests {
     [Theory]
     [InlineData(null, "/")]
     [InlineData("https://ui.example/dashboard", "https://ui.example/dashboard")]
-    public void Login_WithOptionalReturnUrl_ReturnsOidcChallenge(string? returnUrl, string expectedRedirect) {
+    public void Login_WithOptionalReturnUrl_ReturnsOidcChallenge(string? input, string expectedRedirect) {
         var controller = CreateController(authenticated: false);
 
-        var result = controller.Login(returnUrl is null ? null : new Uri(returnUrl));
+        var result = controller.Login(input is null ? null : new Uri(input));
 
         var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
         challenge.AuthenticationSchemes.Should().ContainSingle()

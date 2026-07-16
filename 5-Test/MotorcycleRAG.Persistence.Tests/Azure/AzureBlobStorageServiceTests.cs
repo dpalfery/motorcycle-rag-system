@@ -362,7 +362,8 @@ public class AzureBlobStorageServiceTests
         var blob = new Mock<BlobClient>("UseDevelopmentStorage=true", "test-container", "test-blob");
 
         service.Setup(s => s.GetBlobContainerClient("test-container")).Returns(container.Object);
-        container.Setup(c => c.GetBlobClient("test-blob")).Returns(blob.Object);
+        container.Setup(c => c.GetBlobClient(It.IsAny<string>())).Returns(blob.Object);
+        blob.SetupGet(b => b.Uri).Returns(new Uri("https://storage.example.com/test-container/test-blob"));
 
         return (service, container, blob);
     }
@@ -417,5 +418,300 @@ public class AzureBlobStorageServiceTests
             TestHelpers.CreateNullLogger<AzureBlobStorageService>());
 
         act.Should().NotThrow();
+    }
+
+    // ─── ListAsync ────────────────────────────────────────────────────
+
+    private static AzureBlobStorageService CreateServiceWithMockBlobChain(
+        Mock<BlobServiceClient> serviceMock,
+        IOptions<BlobStorageOptions>? options = null)
+    {
+        var factory = new Mock<IBlobServiceClientFactory>();
+        factory.Setup(f => f.Create(It.IsAny<string>())).Returns(serviceMock.Object);
+        factory.Setup(f => f.Create(It.IsAny<TokenCredential>(), It.IsAny<Uri>())).Returns(serviceMock.Object);
+
+        return new AzureBlobStorageService(
+            options ?? CreateValidDevelopmentOptions(),
+            CreateDevelopmentEnvironment(),
+            factory.Object,
+            CreateCredentialProvider(),
+            TestHelpers.CreateNullLogger<AzureBlobStorageService>());
+    }
+
+    /// <summary>
+    /// Minimal fake <see cref="AsyncPageable{T}"/> for unit-testing
+    /// <c>await foreach</c> over <see cref="BlobItem"/> collections.
+    /// Only <see cref="GetAsyncEnumerator"/> is used by <c>await foreach</c>;
+    /// the <see cref="AsPages"/> path is not exercised by the current tests.
+    /// </summary>
+    private sealed class FakeBlobItemPageable : AsyncPageable<BlobItem>
+    {
+        private readonly BlobItem[] _items;
+
+        public FakeBlobItemPageable(BlobItem[] items) => _items = items;
+
+        public override async IAsyncEnumerator<BlobItem> GetAsyncEnumerator(
+            CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            foreach (var item in _items)
+                yield return item;
+        }
+
+        public override AsyncPageable<Page<BlobItem>> AsPages(
+            string? continuationToken = null, int? pageSizeHint = null)
+            => throw new NotImplementedException("AsPages is not exercised by current tests");
+    }
+
+    private static BlobItem CreateBlobItemStub(string name, string contentType, long contentLength)
+    {
+        var props = BlobsModelFactory.BlobItemProperties(
+            accessTierInferred: false,
+            contentType: contentType,
+            contentLength: contentLength);
+        return BlobsModelFactory.BlobItem(name, deleted: false, properties: props, versionId: null, metadata: null);
+    }
+
+    [Fact]
+    public async Task ListAsync_WithBlobs_ShouldReturnDescriptors()
+    {
+        var (service, container, _) = CreateMockBlobChain();
+        var blobItems = new[]
+        {
+            CreateBlobItemStub("blob1.pdf", "application/pdf", 1024L),
+            CreateBlobItemStub("blob2.txt", "text/plain", 512L)
+        };
+        var pageable = new FakeBlobItemPageable(blobItems);
+        container.Setup(c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), It.IsAny<CancellationToken>()))
+            .Returns(pageable);
+
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.ListAsync("test-container");
+
+        result.Should().HaveCount(2);
+        result[0].Name.Should().Be("blob1.pdf");
+        result[0].ContentType.Should().Be("application/pdf");
+        result[0].SizeBytes.Should().Be(1024L);
+        result[1].Name.Should().Be("blob2.txt");
+        result[1].ContentType.Should().Be("text/plain");
+        result[1].SizeBytes.Should().Be(512L);
+    }
+
+    [Fact]
+    public async Task ListAsync_WithEmptyContainer_ShouldReturnEmptyList()
+    {
+        var (service, container, _) = CreateMockBlobChain();
+        var pageable = new FakeBlobItemPageable(Array.Empty<BlobItem>());
+        container.Setup(c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), It.IsAny<CancellationToken>()))
+            .Returns(pageable);
+
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.ListAsync("test-container");
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ListAsync_WhenContainerNotFound_ShouldReturnEmptyArray()
+    {
+        var (service, container, _) = CreateMockBlobChain();
+        container.Setup(c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), It.IsAny<CancellationToken>()))
+            .Throws(new RequestFailedException(404, "ContainerNotFound"));
+
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.ListAsync("test-container");
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ListAsync_WhenUnhandledError_ShouldPropagateException()
+    {
+        var (service, container, _) = CreateMockBlobChain();
+        container.Setup(c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), It.IsAny<CancellationToken>()))
+            .Throws(new RequestFailedException(500, "InternalError"));
+
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var act = async () => await sut.ListAsync("test-container");
+
+        await act.Should().ThrowAsync<RequestFailedException>()
+            .Where(ex => ex.Status == 500);
+    }
+
+    [Fact]
+    public async Task ListAsync_ShouldThrowArgumentException_WhenContainerNameIsNull()
+    {
+        var sut = CreateService();
+
+        var act = () => sut.ListAsync(null!);
+
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("containerName");
+    }
+
+    [Fact]
+    public async Task ListAsync_WithCancellationToken_ShouldPassToken()
+    {
+        var (service, container, _) = CreateMockBlobChain();
+        var pageable = new FakeBlobItemPageable(Array.Empty<BlobItem>());
+        container.Setup(c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), It.IsAny<CancellationToken>()))
+            .Returns(pageable);
+
+        var sut = CreateServiceWithMockBlobChain(service);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var result = await sut.ListAsync("test-container", cts.Token);
+
+        result.Should().BeEmpty();
+        container.Verify(
+            c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), cts.Token),
+            Times.Once);
+    }
+
+    // ─── UploadAsync ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task UploadAsync_ShouldReturnBlobUri()
+    {
+        var (service, container, blob) = CreateMockBlobChain();
+        container.Setup(c => c.CreateIfNotExistsAsync(
+                It.IsAny<PublicAccessType>(),
+                It.IsAny<Dictionary<string, string>>(),
+                It.IsAny<BlobContainerEncryptionScopeOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobContainerInfo>(), Mock.Of<Response>()));
+        container.Setup(c => c.CreateIfNotExistsAsync(
+                It.IsAny<PublicAccessType>(),
+                It.IsAny<Dictionary<string, string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobContainerInfo>(), Mock.Of<Response>()));
+        SetupBlobUpload(blob);
+
+        var sut = CreateServiceWithMockBlobChain(service);
+        using var content = new MemoryStream([1, 2, 3]);
+
+        var result = await sut.UploadAsync("test-container", "test-blob", content, "application/pdf");
+
+        result.Should().NotBeNull();
+        result.Should().Contain("test-container");
+        result.Should().Contain("test-blob");
+    }
+
+    [Fact]
+    public async Task UploadAsync_WhenContainerCreateFails_ShouldPropagateException()
+    {
+        var (service, container, _) = CreateMockBlobChain();
+        // Set up all possible overloads - the SDK may resolve to any of them
+        container.Setup(c => c.CreateIfNotExistsAsync(
+                It.IsAny<PublicAccessType>(),
+                It.IsAny<Dictionary<string, string>>(),
+                It.IsAny<BlobContainerEncryptionScopeOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(403, "Forbidden"));
+        container.Setup(c => c.CreateIfNotExistsAsync(
+                It.IsAny<PublicAccessType>(),
+                It.IsAny<Dictionary<string, string>>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(403, "Forbidden"));
+
+        var sut = CreateServiceWithMockBlobChain(service);
+        using var content = new MemoryStream([1, 2, 3]);
+
+        var act = async () => await sut.UploadAsync("test-container", "test-blob", content, "application/pdf");
+
+        await act.Should().ThrowAsync<RequestFailedException>()
+            .Where(ex => ex.Status == 403);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WhenUploadFails_ShouldPropagateException()
+    {
+        var (service, container, blob) = CreateMockBlobChain();
+        container.Setup(c => c.CreateIfNotExistsAsync(
+                It.IsAny<PublicAccessType>(),
+                It.IsAny<Dictionary<string, string>>(),
+                It.IsAny<BlobContainerEncryptionScopeOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobContainerInfo>(), Mock.Of<Response>()));
+        container.Setup(c => c.CreateIfNotExistsAsync(
+                It.IsAny<PublicAccessType>(),
+                It.IsAny<Dictionary<string, string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobContainerInfo>(), Mock.Of<Response>()));
+        blob.Setup(b => b.UploadAsync(
+                It.IsAny<Stream>(),
+                It.IsAny<BlobUploadOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(409, "Conflict"));
+
+        var sut = CreateServiceWithMockBlobChain(service);
+        using var content = new MemoryStream([1, 2, 3]);
+
+        var act = async () => await sut.UploadAsync("test-container", "test-blob", content, "application/pdf");
+
+        await act.Should().ThrowAsync<RequestFailedException>()
+            .Where(ex => ex.Status == 409);
+    }
+
+    [Fact]
+    public async Task UploadAsync_ShouldThrowArgumentException_WhenContainerNameIsNull()
+    {
+        var sut = CreateService();
+        using var content = new MemoryStream([1, 2, 3]);
+
+#pragma warning disable CA2025 // content lifetime exceeds awaiting task — test verifies argument validation only, no I/O
+        var act = () => sut.UploadAsync(null!, "blob", content, "application/pdf");
+#pragma warning restore CA2025
+
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("containerName");
+    }
+
+    [Fact]
+    public async Task UploadAsync_ShouldThrowArgumentException_WhenBlobNameIsNull()
+    {
+        var sut = CreateService();
+        using var content = new MemoryStream([1, 2, 3]);
+
+#pragma warning disable CA2025 // content lifetime exceeds awaiting task — test verifies argument validation only, no I/O
+        var act = () => sut.UploadAsync("container", null!, content, "application/pdf");
+#pragma warning restore CA2025
+
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("blobName");
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithCancellationToken_ShouldPassToken()
+    {
+        var (service, container, blob) = CreateMockBlobChain();
+        container.Setup(c => c.CreateIfNotExistsAsync(
+                It.IsAny<PublicAccessType>(),
+                It.IsAny<Dictionary<string, string>>(),
+                It.IsAny<BlobContainerEncryptionScopeOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobContainerInfo>(), Mock.Of<Response>()));
+        container.Setup(c => c.CreateIfNotExistsAsync(
+                It.IsAny<PublicAccessType>(),
+                It.IsAny<Dictionary<string, string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobContainerInfo>(), Mock.Of<Response>()));
+        SetupBlobUpload(blob);
+
+        var sut = CreateServiceWithMockBlobChain(service);
+        using var content = new MemoryStream([1, 2, 3]);
+        using var cts = new CancellationTokenSource();
+
+        await sut.UploadAsync("test-container", "test-blob", content, "application/pdf", cts.Token);
+
+        container.Verify(
+            c => c.CreateIfNotExistsAsync(
+                It.IsAny<PublicAccessType>(),
+                It.IsAny<Dictionary<string, string>>(),
+                It.IsAny<BlobContainerEncryptionScopeOptions>(),
+                cts.Token),
+            Times.AtLeastOnce);
     }
 }

@@ -326,4 +326,106 @@ public class ProcessorArtifactServiceTests
 
         await act.Should().NotThrowAsync();
     }
+
+    [Fact]
+    public async Task ReportJobStageByRunIdAsync_ValidRunIdAndRequest_DelegatesToTransitionStageAsync()
+    {
+        var runId = Guid.NewGuid().ToString();
+        var job = new IngestionJob { IngestionJobId = Guid.NewGuid(), InputRef = runId, InputType = IngestionJobType.PDFManual };
+        var request = new IngestionJobStageRequest { Stage = "embedding", ChunksProcessed = 5, TotalChunks = 10 };
+        var response = new IngestionJobStatusResponse { Status = "Processing", CurrentStage = "embedding" };
+
+        _jobRepoMock
+            .Setup(x => x.GetByDocIngestionRunIdAsync(runId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+        _ingestionJobServiceMock
+            .Setup(x => x.TransitionStageAsync(job.IngestionJobId, request, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(response);
+
+        var result = await _sut.ReportJobStageByRunIdAsync(runId, request);
+
+        result.Should().BeSameAs(response);
+        _ingestionJobServiceMock.Verify(
+            x => x.TransitionStageAsync(job.IngestionJobId, request, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ReportJobStageByRunIdAsync_RunIdNotFound_ReturnsNull()
+    {
+        var runId = Guid.NewGuid().ToString();
+        var request = new IngestionJobStageRequest { Stage = "embedding" };
+
+        _jobRepoMock
+            .Setup(x => x.GetByDocIngestionRunIdAsync(runId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IngestionJob?)null);
+
+        var result = await _sut.ReportJobStageByRunIdAsync(runId, request);
+
+        result.Should().BeNull();
+        _ingestionJobServiceMock.Verify(
+            x => x.TransitionStageAsync(It.IsAny<Guid>(), It.IsAny<IngestionJobStageRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ReportJobStageByRunIdAsync_NullRunId_ThrowsArgumentException()
+    {
+        var request = new IngestionJobStageRequest { Stage = "embedding" };
+
+        var act = async () => await _sut.ReportJobStageByRunIdAsync(null!, request);
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ReportJobStageByRunIdAsync_EmptyRunId_ThrowsArgumentException()
+    {
+        var request = new IngestionJobStageRequest { Stage = "embedding" };
+
+        var act = async () => await _sut.ReportJobStageByRunIdAsync("", request);
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ReportJobStageByRunIdAsync_WhitespaceRunId_ThrowsArgumentException()
+    {
+        var request = new IngestionJobStageRequest { Stage = "embedding" };
+
+        var act = async () => await _sut.ReportJobStageByRunIdAsync("   ", request);
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ReportJobStageByRunIdAsync_NullRequest_ThrowsArgumentNullException()
+    {
+        var runId = Guid.NewGuid().ToString();
+
+        var act = async () => await _sut.ReportJobStageByRunIdAsync(runId, null!);
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task ReportJobStageByRunIdAsync_JobFound_PassesCancellationToken()
+    {
+        var runId = Guid.NewGuid().ToString();
+        var job = new IngestionJob { IngestionJobId = Guid.NewGuid(), InputRef = runId, InputType = IngestionJobType.PDFManual };
+        var request = new IngestionJobStageRequest { Stage = "embedding" };
+        var response = new IngestionJobStatusResponse();
+        using var cts = new CancellationTokenSource();
+
+        _jobRepoMock
+            .Setup(x => x.GetByDocIngestionRunIdAsync(runId, cts.Token))
+            .ReturnsAsync(job);
+        _ingestionJobServiceMock
+            .Setup(x => x.TransitionStageAsync(job.IngestionJobId, request, cts.Token))
+            .ReturnsAsync(response);
+
+        var result = await _sut.ReportJobStageByRunIdAsync(runId, request, cts.Token);
+
+        result.Should().NotBeNull();
+    }
 }

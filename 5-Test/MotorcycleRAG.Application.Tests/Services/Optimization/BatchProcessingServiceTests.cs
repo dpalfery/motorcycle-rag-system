@@ -48,7 +48,7 @@ public sealed class BatchProcessingServiceTests
     {
         var sut = CreateSut();
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
 
         var act = () => sut.ProcessBatchAsync<int, int>([1], (batch, _) => Task.FromResult<IEnumerable<int>>(batch), cancellationToken: cancellation.Token);
 
@@ -130,7 +130,7 @@ public sealed class BatchProcessingServiceTests
 
     [Fact]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException() =>
-        ((Action)(() => new BatchProcessingService(null!))).Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new BatchProcessingService(null!));
 
     private static BatchProcessingService CreateSut() => new(NullLogger<BatchProcessingService>.Instance);
 }

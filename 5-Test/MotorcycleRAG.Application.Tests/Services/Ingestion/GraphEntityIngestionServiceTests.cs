@@ -19,12 +19,9 @@ public sealed class GraphEntityIngestionServiceTests
         var blobs = new Mock<IBlobStorageService>();
         var graphs = new Mock<IGraphRepository>();
 
-        ((Action)(() => new GraphEntityIngestionService(null!, graphs.Object, NullLogger<GraphEntityIngestionService>.Instance)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new GraphEntityIngestionService(blobs.Object, null!, NullLogger<GraphEntityIngestionService>.Instance)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new GraphEntityIngestionService(blobs.Object, graphs.Object, null!)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new GraphEntityIngestionService(null!, graphs.Object, NullLogger<GraphEntityIngestionService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new GraphEntityIngestionService(blobs.Object, null!, NullLogger<GraphEntityIngestionService>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new GraphEntityIngestionService(blobs.Object, graphs.Object, null!));
     }
 
     [Fact]

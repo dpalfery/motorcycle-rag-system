@@ -11,6 +11,7 @@ namespace MotorcycleRAG.UnitTests.Presentation.API.Controllers;
 
 public sealed class FileUploadControllerTests
 {
+    private static readonly string[] AllowedExtensions = [".CSV", ".PDF"];
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
@@ -84,7 +85,7 @@ public sealed class FileUploadControllerTests
         {
             MaxFileSizeBytes = 50 * 1024 * 1024,
             MaxFilesPerBatch = 7,
-            AllowedExtensions = new[] { ".CSV", ".PDF" }
+            AllowedExtensions = AllowedExtensions
         });
 
         var result = sut.GetUploadConstraints();

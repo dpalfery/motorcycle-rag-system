@@ -140,12 +140,9 @@ public sealed class MemoryQueryCacheServiceTests : IDisposable
     {
         var options = Options.Create(new CacheConfiguration());
 
-        ((Action)(() => new MemoryQueryCacheService(null!, NullLogger<MemoryQueryCacheService>.Instance, options)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new MemoryQueryCacheService(_cache, null!, options)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new MemoryQueryCacheService(_cache, NullLogger<MemoryQueryCacheService>.Instance, null!)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new MemoryQueryCacheService(null!, NullLogger<MemoryQueryCacheService>.Instance, options));
+        Assert.Throws<ArgumentNullException>(() => new MemoryQueryCacheService(_cache, null!, options));
+        Assert.Throws<ArgumentNullException>(() => new MemoryQueryCacheService(_cache, NullLogger<MemoryQueryCacheService>.Instance, null!));
     }
 
     public void Dispose() => _cache.Dispose();

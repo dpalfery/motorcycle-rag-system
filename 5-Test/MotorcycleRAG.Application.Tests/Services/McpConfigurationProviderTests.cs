@@ -116,6 +116,7 @@ public sealed class McpConfigurationProviderServiceCoverageTests
         sut.LastRefreshed.Should().BeOnOrAfter(before);
     }
 
+#pragma warning disable CA1054 // string params are intentional for InlineData flexibility
     [Theory]
     [InlineData(false, "https://tools.example", 30000, false)]
     [InlineData(true, null, 30000, false)]
@@ -152,10 +153,8 @@ public sealed class McpConfigurationProviderServiceCoverageTests
     {
         var repository = CreateRepository().Object;
 
-        ((Action)(() => new McpConfigurationProvider(null!, NullLogger<McpConfigurationProvider>.Instance)))
-            .Should().Throw<ArgumentNullException>();
-        ((Action)(() => new McpConfigurationProvider(repository, null!)))
-            .Should().Throw<ArgumentNullException>();
+        Assert.Throws<ArgumentNullException>(() => new McpConfigurationProvider(null!, NullLogger<McpConfigurationProvider>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new McpConfigurationProvider(repository, null!));
 
         var sut = CreateSut(repository);
         sut.Dispose();

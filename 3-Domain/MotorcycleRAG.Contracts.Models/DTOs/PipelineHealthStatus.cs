@@ -34,3 +34,31 @@ public enum HealthCheckStatus
     Unhealthy
 }
 
+/// <summary>
+/// Overall health status
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum OverallHealthStatus
+{
+    Healthy,
+    Degraded,
+    Unhealthy,
+    Unknown
+}
+
+/// <summary>
+/// Pipeline health status
+/// </summary>
+public class PipelineHealthStatus
+{
+    public OverallHealthStatus Status { get; set; }
+
+    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+
+    public List<HealthCheck> HealthChecks { get; set; } = new();
+
+    public Dictionary<string, object> Metrics { get; set; } = new();
+
+    public List<string> Alerts { get; set; } = new();
+}
+

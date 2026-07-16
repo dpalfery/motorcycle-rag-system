@@ -51,3 +51,29 @@ Before creating, moving, renaming, or placing source/test files, or changing nam
 1. This root file supplies repository-wide mandatory policy.
 2. The nearest scoped `AGENTS.md` supplies additional rules for its subtree; it may not weaken this file.
 3. Canonical system, component, deployment, and environment documentation provides detailed task-specific guidance. Scoped instructions link directly to the owning document; they are not a substitute for root policy.
+
+## Cursor Cloud specific instructions
+
+Durable notes for Cloud Agents running in the pre-provisioned Linux VM. Standard build/test/run commands live in the component `onboarding.md` docs and `README.md` files (see the task-routing table) and in `7-Deployment/DbSetup/README.md`; this section only records the non-obvious startup/run caveats. System toolchains (.NET 10 SDK, Poetry, Docker) are baked into the VM snapshot; the startup update script only refreshes project dependencies (`dotnet restore MotorcycleRAG.sln`, `npm install` for the Web UI, `poetry install --no-root` for the local processor).
+
+### Toolchain locations
+- `dotnet` (10.0.100, in `~/.dotnet`), `poetry`, `node`, and `npm` are symlinked into `/usr/local/bin`, so they resolve on the default (non-login) `PATH`. `~/.bashrc` also adds `~/.dotnet` and `~/.local/bin` and sets `DOTNET_ROOT` for interactive shells.
+- .NET MAUI Mobile App (`net10.0-*` maccatalyst/windows) cannot be built on this Linux VM; it is excluded from `dotnet build MotorcycleRAG.sln` and is out of scope here.
+
+### Local SQL Server (required for the API and DB-backed tests)
+- Start Docker if needed (`sudo dockerd &`), then `docker compose up -d` (container `motoRAG`, port 1433, SA password `MotoRAG_Password123!` from `docker-compose.yml`). Docker is configured for `fuse-overlayfs` + `iptables-legacy`.
+- Provision the schema with the DbSetup CLI (non-interactive): `dotnet run --project 7-Deployment/DbSetup/MotorcycleRAG.DbSetup -- --non-interactive --sa-password 'MotoRAG_Password123!' --db-name MotorcycleRAG --app-user motorcyclerag_app --seed-test-data`. Its "environment variables set at User level" step is a no-op on Linux — pass the connection string explicitly when running the API (see below).
+
+### Running the API (`https://localhost:7215`, `ASPNETCORE_ENVIRONMENT=Development`)
+- The SQL connection string is read from config key `Sql:ConnectionString` (env var `Sql__ConnectionString`), **not** `ConnectionStrings:DefaultConnection`. Example: `Sql__ConnectionString="Server=localhost,1433;Database=MotorcycleRAG;User Id=sa;Password=MotoRAG_Password123!;TrustServerCertificate=true;Encrypt=True"`. Embedded credentials only log a warning in Development.
+- In Development, Azure App Configuration and Key Vault are skipped; local `appsettings.Development.json` + user secrets + env vars are authoritative. Run `dotnet dev-certs https` once for the Kestrel HTTPS cert.
+- `/health` is anonymous; `sql_database` reports Healthy against the local DB. Azure Foundry/OpenAI report Degraded and most controller endpoints (RAG query, admin) require Entra JWT auth — full RAG query and browser login E2E need real Entra credentials + a test account + Azure AI Foundry, which are not available in this VM.
+
+### Known dev-only caveat: access-request endpoint returns 400 after a successful write
+- The anonymous `POST /api/access-requests` (login page "Request access") returns HTTP 400 in Development, but the row **is** persisted to `dbo.AccessRequests` first. The 400 comes from a downstream telemetry `TrackOnboardingTransition` `NullReferenceException` that fires because Application Insights is disabled by default (`ApplicationInsights:EnableTelemetry=false`). Do not treat the 400 as a failed write — verify against SQL.
+
+### Web UI dev server
+- `npm run dev` in `1-Presentation/MotorcycleRag.WebUI` serves on `http://localhost:5173` and proxies `/api` and `/auth` to the BFF at `https://localhost:7216`; start the BFF (`dotnet run --project 1-Presentation/MotorcycleRag.WebUI.BFF`) to exercise anything past the login page render.
+
+### Test caveat
+- The BFF test `AppConfigurationExtensionsTests.AddBffAzureAppConfiguration_InProductionWithEndpoint_RegistersAzureAppConfiguration` fails offline (it retries a Managed Identity token endpoint for ~4.5 min); this is an environment limitation, not a code defect. All other .NET, Web UI (Vitest), and local-processor (pytest) suites pass locally.

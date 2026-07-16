@@ -121,6 +121,32 @@ public class AccessRequestValidationTests {
         result.Response.Should().BeEquivalentTo(createdRequest);
     }
 
+    [Fact]
+    public async Task CreateOrGetExistingAsync_WhenEmailIsNull_ThrowsArgumentException() {
+        var service = CreateService();
+        var act = () => service.CreateOrGetExistingAsync(new CreateAccessRequestRequest {
+            Email = null!,
+            Provider = IdentityProvider.Microsoft
+        });
+
+        (await act.Should().ThrowAsync<ArgumentException>())
+            .WithParameterName("email")
+            .WithMessage("*Email cannot be null or empty*");
+    }
+
+    [Fact]
+    public async Task CreateOrGetExistingAsync_WhenEmailIsWhitespace_ThrowsArgumentException() {
+        var service = CreateService();
+        var act = () => service.CreateOrGetExistingAsync(new CreateAccessRequestRequest {
+            Email = "   ",
+            Provider = IdentityProvider.Microsoft
+        });
+
+        (await act.Should().ThrowAsync<ArgumentException>())
+            .WithParameterName("email")
+            .WithMessage("*Email cannot be null or empty*");
+    }
+
     private AccessRequestService CreateService(string approverAddress = "") {
         return new AccessRequestService(
             _accessRequestRepository.Object,

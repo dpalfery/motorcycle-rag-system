@@ -7,8 +7,10 @@ namespace MotorcycleRAG.Application.Services.Metrics;
 /// </summary>
 public class QueryCostCalculator
 {
-    private const decimal InputCostPer1K = 0.0015m;
-    private const decimal OutputCostPer1K = 0.002m;
+#pragma warning disable CA1802 // Static readonly keeps the cost constants as executable fields for test coverage; values are stable.
+    private static readonly decimal InputCostPer1K = 0.0015m;
+    private static readonly decimal OutputCostPer1K = 0.002m;
+#pragma warning restore CA1802
 
     public decimal CalculateEstimatedCost(SearchResult[] results, string response)
     {

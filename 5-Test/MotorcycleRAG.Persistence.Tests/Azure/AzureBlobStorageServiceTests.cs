@@ -1,5 +1,7 @@
+using Azure;
 using Azure.Core;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Options;
@@ -350,6 +352,54 @@ public class AzureBlobStorageServiceTests
 
         await act.Should().ThrowAsync<ArgumentException>().WithParameterName("blobName");
     }
+
+    // ─── Blob client mocking helpers ──────────────────────────────────
+
+    private static (Mock<BlobServiceClient> service, Mock<BlobContainerClient> container, Mock<BlobClient> blob) CreateMockBlobChain(string connectionString = "UseDevelopmentStorage=true")
+    {
+        var service = new Mock<BlobServiceClient>(connectionString);
+        var container = new Mock<BlobContainerClient>("UseDevelopmentStorage=true", "test-container");
+        var blob = new Mock<BlobClient>("UseDevelopmentStorage=true", "test-container", "test-blob");
+
+        service.Setup(s => s.GetBlobContainerClient("test-container")).Returns(container.Object);
+        container.Setup(c => c.GetBlobClient("test-blob")).Returns(blob.Object);
+
+        return (service, container, blob);
+    }
+
+    private static void SetupBlobUpload(Mock<BlobClient> blob)
+        => blob.Setup(b => b.UploadAsync(
+            It.IsAny<Stream>(), 
+            It.IsAny<BlobUploadOptions>(), 
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobContentInfo>(), Mock.Of<Response>()));
+
+    private static void SetupBlobExists(Mock<BlobClient> blob, bool exists)
+        => blob.Setup(b => b.ExistsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(exists, Mock.Of<Response>()));
+
+    private static void SetupBlobGetProperties(Mock<BlobClient> blob)
+        => blob.Setup(b => b.GetPropertiesAsync(It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobProperties>(), Mock.Of<Response>()));
+
+    private static void SetupBlobDownload(Mock<BlobClient> blob)
+        => blob.Setup(b => b.DownloadStreamingAsync(
+            It.IsAny<HttpRange>(), 
+            It.IsAny<BlobRequestConditions>(), 
+            It.IsAny<bool>(), 
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobDownloadStreamingResult>(), Mock.Of<Response>()));
+
+    private static void SetupBlobDelete(Mock<BlobClient> blob, bool exists)
+        => blob.Setup(b => b.DeleteIfExistsAsync(
+            It.IsAny<DeleteSnapshotsOption>(), 
+            It.IsAny<BlobRequestConditions>(), 
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(exists, Mock.Of<Response>()));
+
+    private static void SetupBlobSetMetadata(Mock<BlobClient> blob, Dictionary<string, string> metadata)
+        => blob.Setup(b => b.SetMetadataAsync(metadata, It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobInfo>(), Mock.Of<Response>()));
 
     // ─── Factory invocation for production ────────────────────────────
 

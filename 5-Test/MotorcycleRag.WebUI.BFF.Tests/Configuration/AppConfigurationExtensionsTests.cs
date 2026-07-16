@@ -201,7 +201,7 @@ public class AppConfigurationExtensionsTests {
         var method = GetPrivateMethod("EnsureTcpConnectivityAsync");
 
         var act = async () => {
-            var task = (Task)method.Invoke(null, ["https://192.0.2.1", 1, 10, 1, 443])!;
+            var task = (Task)method.Invoke(null, ["https://127.0.0.1", 1, 0, 1, 443])!;
             await task;
         };
 

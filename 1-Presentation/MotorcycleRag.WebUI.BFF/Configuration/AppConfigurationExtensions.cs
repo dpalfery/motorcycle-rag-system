@@ -26,7 +26,7 @@ internal static class AppConfigurationExtensions {
         if (!string.IsNullOrEmpty(appConfigConnectionString) || !string.IsNullOrEmpty(appConfigEndpoint)) {
             TokenCredential credential = new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
 
-            if (string.IsNullOrEmpty(appConfigConnectionString) && !string.IsNullOrEmpty(appConfigEndpoint)) {
+            if (!skipRemoteConfigurationLoad && string.IsNullOrEmpty(appConfigConnectionString) && !string.IsNullOrEmpty(appConfigEndpoint)) {
                 PreWarmManagedIdentityTokenAsync(credential).GetAwaiter().GetResult();
                 EnsureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
             }

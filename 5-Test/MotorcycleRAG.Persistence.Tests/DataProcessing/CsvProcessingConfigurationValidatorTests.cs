@@ -39,6 +39,58 @@ public sealed class CsvProcessingConfigurationValidatorTests
     }
 
     [Fact]
+    public void Validate_WhenDelimiterIsNullChar_ReturnsFailure()
+    {
+        var result = _validator.Validate(null, new CSVProcessingConfiguration
+        {
+            MaxRows = 1000,
+            ChunkSize = 50,
+            Delimiter = '\0', // Explicitly set to null char to trigger validation failure
+        });
+
+        result.Succeeded.Should().BeFalse();
+        result.Failures.Should().Contain(failure => failure.Contains("Delimiter"));
+    }
+
+    [Fact]
+    public void Validate_WhenAllFieldsAreInvalid_ReturnsAllFailures()
+    {
+        var result = _validator.Validate(null, new CSVProcessingConfiguration
+        {
+            MaxRows = 0,
+            ChunkSize = -1,
+            Delimiter = '\0', // Explicitly set to null char to trigger validation failure
+        });
+
+        result.Succeeded.Should().BeFalse();
+        result.Failures.Should().HaveCount(3);
+        result.Failures.Should().Contain(failure => failure.Contains("MaxRows"));
+        result.Failures.Should().Contain(failure => failure.Contains("ChunkSize"));
+        result.Failures.Should().Contain(failure => failure.Contains("Delimiter"));
+    }
+
+    [Fact]
+    public void Validate_WhenAllFieldsAreValid_ReturnsSuccess()
+    {
+        var result = _validator.Validate(null, new CSVProcessingConfiguration
+        {
+            MaxRows = 1000,
+            ChunkSize = 50,
+            Delimiter = ',',
+        });
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validate_WhenOptionsIsNull_ThrowsArgumentNullException()
+    {
+        var act = () => _validator.Validate(null, null!);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("options");
+    }
+
+    [Fact]
     public void AddAzureServices_WhenCsvProcessingIsConfigured_ResolvesValidatedOptions()
     {
         var services = new ServiceCollection();

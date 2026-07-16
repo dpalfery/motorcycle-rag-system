@@ -390,16 +390,6 @@ public class AzureSearchClientWrapperTests : IDisposable {
 
     // ---- Deprecated/legacy tests kept for historical reference ----
 
-    [Fact(Skip = "Integration test - requires actual Azure Search service")]
-    public async Task IndexDocumentsAsync_WithValidDocuments_ShouldReturnTrue() {
-        using var client = new AzureSearchClientWrapper(_azureOptions, _searchOptions, _mockLogger.Object, _mockQueryService.Object, _mockDocumentService.Object, _mockHealthService.Object);
-        var documents = new[] { new { id = "1", content = "test content" } };
-
-        var result = await client.IndexDocumentsAsync(documents);
-
-        result.Should().BeTrue();
-    }
-
     [Theory]
     [InlineData(429)]
     [InlineData(500)]
@@ -462,23 +452,5 @@ public class AzureSearchClientWrapperTests : IDisposable {
 
     protected virtual void Dispose(bool disposing) {
         if (disposing) { }
-    }
-}
-
-[Trait("Category", "Integration")]
-public class AzureSearchClientWrapperIntegrationTests {
-    [Fact(Skip = "Integration test - requires actual Azure Search service")]
-    public async Task SearchAsync_WithValidQuery_ShouldReturnResults() {
-        await Task.CompletedTask;
-    }
-
-    [Fact(Skip = "Integration test - requires actual Azure Search service")]
-    public async Task IndexDocumentsAsync_WithValidDocuments_ShouldIndexSuccessfully() {
-        await Task.CompletedTask;
-    }
-
-    [Fact(Skip = "Integration test - requires actual Azure Search service")]
-    public async Task IsHealthyAsync_WithValidService_ShouldReturnTrue() {
-        await Task.CompletedTask;
     }
 }

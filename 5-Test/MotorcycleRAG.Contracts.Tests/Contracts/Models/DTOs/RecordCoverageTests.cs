@@ -90,23 +90,4 @@ public class RecordCoverageTests
 
         Assert.Equal("Completed", result.Status);
     }
-
-    [Fact]
-    public void ExecutionMetrics_SuccessRate_ComputedCorrectly()
-    {
-        var exec = new ExecutionMetrics
-        {
-            TotalExecutions = 10,
-            SuccessfulExecutions = 8,
-            FailedExecutions = 1,
-            CancelledExecutions = 1
-        };
-
-        // 8 / 10 * 100 = 80.
-        Assert.Equal(80, exec.SuccessRate);
-
-        // Zero-denominator guard.
-        var emptyExec = new ExecutionMetrics();
-        Assert.Equal(0, emptyExec.SuccessRate);
-    }
 }

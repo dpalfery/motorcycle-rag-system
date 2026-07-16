@@ -22,14 +22,12 @@ internal static class DataPipelineConfiguration {
         // Configure pipeline settings
         services.Configure<PipelineConfiguration>(configuration.GetSection("Pipeline"));
         services.Configure<FileUploadConfiguration>(configuration.GetSection("FileUpload"));
-        services.Configure<PipelineMonitoringConfiguration>(configuration.GetSection("PipelineMonitoring"));
         services.Configure<ScheduledProcessingConfiguration>(configuration.GetSection("ScheduledProcessing"));
         services.Configure<IngestionOptions>(configuration.GetSection("Ingestion"));
 
         // Register pipeline services from Application layer
         services.AddScoped<IDataPipelineOrchestrator, MotorcycleRAG.Application.Services.Ingestion.DataPipelineOrchestrator>();
         services.AddScoped<IFileUploadService, MotorcycleRAG.Application.Services.Ingestion.FileUploadService>();
-        services.AddSingleton<IPipelineMonitoringService, MotorcycleRAG.Application.Services.Ingestion.PipelineMonitoringService>();
         services.AddSingleton<IScheduledPipelineService, MotorcycleRAG.Application.Services.Ingestion.ScheduledPipelineService>();
 
         // Register ingestion job service for Fabric pipeline integration

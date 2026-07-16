@@ -171,14 +171,6 @@ public class ControllerDIRegistrationTests : IClassFixture<ProductionServicesWeb
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<IDataPipelineOrchestrator>());
     }
 
-    // ── PipelineMonitoringController ──────────────────────────────────────────
-
-    [Fact]
-    public void IPipelineMonitoringService_ShouldBeRegistered()
-    {
-        Assert.NotNull(_factory.Services.GetRequiredService<IPipelineMonitoringService>());
-    }
-
     // ── ScheduledProcessingController ─────────────────────────────────────────
 
     [Fact]

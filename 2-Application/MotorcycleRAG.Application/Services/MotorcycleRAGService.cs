@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Application.Services.Citations;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -248,9 +249,10 @@ public sealed class MotorcycleRagService : IMotorcycleRagService
             try
             {
                 var cacheStats = await _dependencies.CacheService.GetStatisticsAsync();
-                result.Details["Cache.HitRatio"] = $"{cacheStats.HitRatio:P2}";
+                result.Details["Cache.HitRatio"] = cacheStats.HitRatio.ToString("0.00%", CultureInfo.InvariantCulture);
                 result.Details["Cache.TotalEntries"] = cacheStats.TotalEntries.ToString();
-                result.Details["Cache.MemoryUsage"] = $"{cacheStats.TotalMemoryUsage / 1024 / 1024:F1}MB";
+                result.Details["Cache.MemoryUsage"] =
+                    (cacheStats.TotalMemoryUsage / 1024d / 1024d).ToString("F1", CultureInfo.InvariantCulture) + "MB";
             }
             catch (Exception ex)
             {

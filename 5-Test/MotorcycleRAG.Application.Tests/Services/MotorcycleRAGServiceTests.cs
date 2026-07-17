@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -249,11 +250,21 @@ public sealed class MotorcycleRagServiceTests
         });
         var sut = CreateSut();
 
-        var result = await sut.GetHealthAsync();
+        var originalCulture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
 
-        result.Details["Cache.HitRatio"].Should().Be("75.00%");
-        result.Details["Cache.TotalEntries"].Should().Be("2");
-        result.Details["Cache.MemoryUsage"].Should().Be("3.0MB");
+        try
+        {
+            var result = await sut.GetHealthAsync();
+
+            result.Details["Cache.HitRatio"].Should().Be("75.00%");
+            result.Details["Cache.TotalEntries"].Should().Be("2");
+            result.Details["Cache.MemoryUsage"].Should().Be("3.0MB");
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
     }
 
     [Theory]

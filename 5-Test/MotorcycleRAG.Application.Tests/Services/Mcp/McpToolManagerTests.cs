@@ -63,23 +63,33 @@ public class McpToolManagerTests
     }
 
     [Fact]
-    public async Task InitializeAsync_Exception_LogsWarning()
+    public async Task InitializeAsync_WhenProviderFails_LeavesAnEmptyBestEffortCacheAndDoesNotLogSuccess()
     {
         var exception = new Exception("DB failed");
         _configServiceMock.Setup(x => x.GetEnabledToolsAsync()).ThrowsAsync(exception);
 
         var sut = new McpToolManager(_configServiceMock.Object, _loggerMock.Object);
         await sut.InitializeAsync();
+        var enabledTools = await sut.GetEnabledToolsAsync();
 
-        _configServiceMock.Verify(x => x.GetEnabledToolsAsync(), Times.Once);
+        _configServiceMock.Verify(x => x.GetEnabledToolsAsync(), Times.Exactly(2));
+        enabledTools.Should().BeEmpty();
         _loggerMock.Verify(
             x => x.Log(
                 LogLevel.Warning,
                 It.IsAny<EventId>(),
                 It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to refresh MCP tools")),
                 exception,
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Exactly(2));
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("MCP tools initialized successfully")),
+                null,
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
+            Times.Never);
     }
 
     [Fact]

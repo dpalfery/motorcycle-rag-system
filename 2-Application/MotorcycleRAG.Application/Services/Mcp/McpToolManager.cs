@@ -42,14 +42,9 @@ public class McpToolManager
 
     public async Task InitializeAsync()
     {
-        try
+        if (await RefreshToolsAsync())
         {
-            await RefreshToolsAsync();
             _logger.LogInformation("MCP tools initialized successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to initialize MCP tools");
         }
     }
 
@@ -66,7 +61,7 @@ public class McpToolManager
         return _cachedTools ?? Array.Empty<McpToolConfiguration>();
     }
 
-    private async Task RefreshToolsAsync()
+    private async Task<bool> RefreshToolsAsync()
     {
         await _refreshLock.WaitAsync();
         try
@@ -75,17 +70,19 @@ public class McpToolManager
             var now = DateTime.UtcNow;
             if (_lastRefresh != DateTime.MinValue && (now - _lastRefresh) < _refreshInterval)
             {
-                return;
+                return true;
             }
 
             _cachedTools = await _configProvider.GetEnabledToolsAsync();
             _lastRefresh = now;
             _logger.LogDebug("Refreshed {Count} MCP tools", _cachedTools.Length);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to refresh MCP tools");
             _cachedTools ??= Array.Empty<McpToolConfiguration>();
+            return false;
         }
         finally
         {

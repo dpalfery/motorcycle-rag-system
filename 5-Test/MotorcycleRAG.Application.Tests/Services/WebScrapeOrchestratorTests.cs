@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -187,6 +188,51 @@ public sealed class WebScrapeOrchestratorTests
         _runRepository.Verify(
             x => x.UpdateWebScrapeRunAsync(
                 202L,
+                ScrapeRunStatus.Failed,
+                0,
+                0,
+                It.Is<int>(errors => errors > 0),
+                It.Is<string?>(message => message != null && message.Contains("No pages were successfully crawled"))),
+            Times.Once);
+        _indexingService.Verify(
+            x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task StartScrapeRunAsync_WhenSearchResultHasAnInvalidSourceUrl_RejectsItAndMarksRunFailed()
+    {
+        var webSource = CreateWebSource(20);
+        var failed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _webSourceRepository.Setup(x => x.GetWebSourceByIdAsync(20)).ReturnsAsync(webSource);
+        _runRepository.Setup(x => x.CreateWebScrapeRunAsync(20)).ReturnsAsync(1001L);
+        _runRepository
+            .Setup(x => x.UpdateWebScrapeRunAsync(
+                1001L,
+                It.IsAny<ScrapeRunStatus>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(true)
+            .Callback<long, ScrapeRunStatus, int, int, int, string?>((_, status, _, _, _, _) =>
+            {
+                if (status == ScrapeRunStatus.Failed)
+                {
+                    failed.TrySetResult(true);
+                }
+            });
+        _searchClient
+            .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>()))
+            .ReturnsAsync([CreateMatchingSearchResult("not a valid absolute URI")]);
+        var sut = CreateSut();
+
+        await sut.StartScrapeRunAsync(20);
+        await failed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        _runRepository.Verify(
+            x => x.UpdateWebScrapeRunAsync(
+                1001L,
                 ScrapeRunStatus.Failed,
                 0,
                 0,
@@ -576,13 +622,125 @@ public sealed class WebScrapeOrchestratorTests
             Times.Once);
     }
 
-    private WebScrapeOrchestrator CreateSut() =>
+    [Fact]
+    public async Task StartScrapeRunAsync_WhenIndexingIsCancelled_MarksTheRunCancelled()
+    {
+        var webSource = CreateWebSource(18);
+        var cancelled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _webSourceRepository.Setup(x => x.GetWebSourceByIdAsync(18)).ReturnsAsync(webSource);
+        _runRepository.Setup(x => x.CreateWebScrapeRunAsync(18)).ReturnsAsync(808L);
+        _runRepository
+            .Setup(x => x.UpdateWebScrapeRunAsync(
+                808L,
+                It.IsAny<ScrapeRunStatus>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<string?>()))
+            .ReturnsAsync(true)
+            .Callback<long, ScrapeRunStatus, int, int, int, string?>((_, status, _, _, _, _) =>
+            {
+                if (status == ScrapeRunStatus.Cancelled)
+                {
+                    cancelled.TrySetResult(true);
+                }
+            });
+        _searchClient
+            .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>()))
+            .ReturnsAsync([CreateMatchingSearchResult(webSource.Url)]);
+        _indexingService
+            .Setup(x => x.IndexDocumentsAsync(It.IsAny<IEnumerable<MotorcycleDocumentDto>>()))
+            .ThrowsAsync(new OperationCanceledException("indexing cancelled"));
+        var sut = CreateSut();
+
+        await sut.StartScrapeRunAsync(18);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        _runRepository.Verify(
+            x => x.UpdateWebScrapeRunAsync(
+                808L,
+                ScrapeRunStatus.Cancelled,
+                It.Is<int>(pages => pages > 0),
+                0,
+                0,
+                "Scrape operation was cancelled by user"),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task StartScrapeRunAsync_WhenFailurePersistenceEscapes_LogsObserverFaultWithoutDuplicateStatusMutation()
+    {
+        var webSource = CreateWebSource(19);
+        var logger = new FaultObserverLogger();
+        _webSourceRepository.Setup(x => x.GetWebSourceByIdAsync(19)).ReturnsAsync(webSource);
+        _runRepository.Setup(x => x.CreateWebScrapeRunAsync(19)).ReturnsAsync(909L);
+        _runRepository
+            .Setup(x => x.UpdateWebScrapeRunAsync(
+                909L,
+                It.IsAny<ScrapeRunStatus>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<string?>()))
+            .Returns((long runId, ScrapeRunStatus status, int pagesCrawled, int pagesIndexed, int errors, string? errorMessage) =>
+                status == ScrapeRunStatus.Failed
+                    ? Task.FromException<bool>(new InvalidOperationException("failure persistence unavailable"))
+                    : Task.FromResult(true));
+        _searchClient
+            .Setup(x => x.SearchAsync(It.IsAny<string>(), It.IsAny<SearchOptions>()))
+            .ReturnsAsync([CreateMatchingSearchResult("https://other.example.com/page")]);
+        var sut = CreateSut(logger);
+
+        var runId = await sut.StartScrapeRunAsync(19);
+        var observedException = await logger.FaultObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        runId.Should().Be(909L);
+        observedException.Should().BeOfType<InvalidOperationException>()
+            .Which.Message.Should().Be("failure persistence unavailable");
+        _runRepository.Verify(
+            x => x.UpdateWebScrapeRunAsync(
+                909L,
+                ScrapeRunStatus.Failed,
+                0,
+                0,
+                It.IsAny<int>(),
+                It.IsAny<string?>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public void IsResultFromWebSource_WhenSearchResultDoesNotSupplyASourceUrl_ReturnsFalse()
+    {
+        var sut = CreateSut();
+        var result = new SearchResult { Source = new SearchSource { SourceUrl = null } };
+
+        var matches = InvokeIsResultFromWebSource(sut, result, CreateWebSource(1));
+
+        matches.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(null, 20, "")]
+    [InlineData("abcdefghijklmnopqrstuvwxyz", 10, "abcdefg...")]
+    public void TruncateErrorMessage_WhenMessageIsEmptyOrTooLong_ReturnsTheExpectedSafeText(
+        string? message,
+        int maxLength,
+        string expected)
+    {
+        var sut = CreateSut();
+
+        var truncated = InvokeTruncateErrorMessage(sut, message!, maxLength);
+
+        truncated.Should().Be(expected);
+    }
+
+    private WebScrapeOrchestrator CreateSut(ILogger<WebScrapeOrchestrator>? logger = null) =>
         new(
             _runRepository.Object,
             _searchClient.Object,
             _indexingService.Object,
             _webSourceRepository.Object,
-            NullLogger<WebScrapeOrchestrator>.Instance);
+            logger ?? NullLogger<WebScrapeOrchestrator>.Instance);
 
     private static WebSource CreateWebSource(int id, bool isEnabled = true) =>
         new()
@@ -626,4 +784,47 @@ public sealed class WebScrapeOrchestratorTests
             },
             Metadata = metadata ?? new Dictionary<string, object>()
         };
+
+    private static bool InvokeIsResultFromWebSource(WebScrapeOrchestrator sut, SearchResult result, WebSource source)
+    {
+        var method = typeof(WebScrapeOrchestrator).GetMethod(
+            "IsResultFromWebSource",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        method.Should().NotBeNull();
+        return (bool)method!.Invoke(sut, [result, source])!;
+    }
+
+    private static string InvokeTruncateErrorMessage(WebScrapeOrchestrator sut, string message, int maxLength)
+    {
+        var method = typeof(WebScrapeOrchestrator).GetMethod(
+            "TruncateErrorMessage",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        method.Should().NotBeNull();
+        return (string)method!.Invoke(sut, [message, maxLength])!;
+    }
+
+    private sealed class FaultObserverLogger : ILogger<WebScrapeOrchestrator>
+    {
+        public TaskCompletionSource<Exception> FaultObserved { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Error
+                && exception != null
+                && formatter(state, exception).Contains("fault escaped", StringComparison.Ordinal))
+            {
+                FaultObserved.TrySetResult(exception);
+            }
+        }
+    }
 }

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MotorcycleRAG.API.Middleware;
 
@@ -8,8 +9,10 @@ namespace MotorcycleRAG.API.Tests.Api.Middleware;
 
 public class AuthorizationMiddlewareTests
 {
-    private static AuthorizationMiddleware Create(RequestDelegate? next = null)
-        => new(next ?? TestHelpers.NoopNext, NullLogger<AuthorizationMiddleware>.Instance);
+    private static AuthorizationMiddleware Create(
+        RequestDelegate? next = null,
+        ILogger<AuthorizationMiddleware>? logger = null)
+        => new(next ?? TestHelpers.NoopNext, logger ?? NullLogger<AuthorizationMiddleware>.Instance);
 
     [Fact]
     public void Constructor_NullArgs_Throw()
@@ -121,5 +124,26 @@ public class AuthorizationMiddlewareTests
         await middleware.InvokeAsync(context);
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AuthenticatedUserWithAlternateScope_LogsAlternateScopeAndContinues()
+    {
+        // Arrange
+        var logger = new Mock<ILogger<AuthorizationMiddleware>>();
+        var middleware = Create(TestHelpers.ContinueNext, logger.Object);
+        var context = TestHelpers.CreateContext("/api/scoped");
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("http://schemas.microsoft.com/identity/claims/scope", "alternate.read")],
+            "TestAuth"));
+
+        // Act
+        await middleware.InvokeAsync(context);
+
+        // Assert
+        context.Response.StatusCode.Should().Be(299);
+        logger.Invocations.Any(invocation => invocation.Arguments.Any(argument =>
+            argument?.ToString()?.Contains("alternate.read", StringComparison.Ordinal) == true))
+            .Should().BeTrue();
     }
 }

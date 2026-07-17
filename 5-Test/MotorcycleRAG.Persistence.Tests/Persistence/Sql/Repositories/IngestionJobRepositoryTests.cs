@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Data;
 using System.Data.Common;
-using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
@@ -12,17 +11,14 @@ namespace MotorcycleRAG.UnitTests.Persistence.Sql.Repositories;
 
 public sealed class IngestionJobRepositoryTests : IDisposable
 {
-    private static readonly FieldInfo HasSqlIdColumnField = typeof(IngestionJobRepository)
-        .GetField("_hasSqlIdColumn", BindingFlags.Static | BindingFlags.NonPublic)!;
-
     public IngestionJobRepositoryTests()
     {
-        ResetSqlIdColumnCache();
+        IngestionJobRepository.InvalidateSchemaMetadataCache();
     }
 
     public void Dispose()
     {
-        ResetSqlIdColumnCache();
+        IngestionJobRepository.InvalidateSchemaMetadataCache();
     }
 
     [Fact]
@@ -148,6 +144,39 @@ public sealed class IngestionJobRepositoryTests : IDisposable
         result.InputRef.Should().Be("manuals/honda.pdf");
         result.CurrentStage.Should().Be("completed");
         result.MetadataJson.Should().Be("""{"make":"Honda"}""");
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ShouldReturnNull_WhenNoRowMatches()
+    {
+        // Arrange
+        var connection = new FakeDbConnection();
+        connection.EnqueueScalar(1);
+        connection.EnqueueReader(CreateReader());
+        var sut = CreateSut(connection);
+
+        // Act
+        var result = await sut.GetByIdAsync(Guid.NewGuid());
+
+        // Assert
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenConnectionFails_WrapsFailureWithJobIdentifier()
+    {
+        // Arrange
+        var jobId = Guid.NewGuid();
+        var expected = new InvalidOperationException("sql down");
+        var sut = CreateThrowingSut(expected);
+
+        // Act
+        var act = () => sut.GetByIdAsync(jobId);
+
+        // Assert
+        var exception = await act.Should().ThrowAsync<InvalidOperationException>();
+        exception.Which.Message.Should().Be($"Failed to get ingestion job {jobId}");
+        exception.Which.InnerException.Should().Be(expected);
     }
 
     [Fact]
@@ -1035,11 +1064,6 @@ public sealed class IngestionJobRepositoryTests : IDisposable
         }
 
         return table.CreateDataReader();
-    }
-
-    private static void ResetSqlIdColumnCache()
-    {
-        HasSqlIdColumnField.SetValue(null, -1);
     }
 
     private sealed class FakeDbConnection : DbConnection

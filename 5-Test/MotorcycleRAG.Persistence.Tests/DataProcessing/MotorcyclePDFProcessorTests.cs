@@ -1717,6 +1717,149 @@ public class MotorcyclePDFProcessorTests {
         result.Documents.Should().NotBeEmpty();
     }
 
+    [Fact]
+    public async Task ProcessAsync_WhenImageProcessingIsEnabled_AddsVisionChunkAndCategoryMetadata()
+    {
+        // Arrange
+        var config = new PDFProcessingConfiguration {
+            MaxChunkSize = 2000,
+            MinChunkSize = 200,
+            ChunkOverlap = 200,
+            SimilarityThreshold = 0.7f,
+            ProcessImages = true,
+            PreserveStructure = false,
+            MaxPages = 500,
+            ProcessTables = true
+        };
+        var processor = new MotorcyclePdfProcessor(
+            _mockDocumentClient.Object,
+            _mockOpenAIClient.Object,
+            _mockSearchClient.Object,
+            Options.Create(config),
+            _azureConfigOptions,
+            new NullLogger<MotorcyclePdfProcessor>());
+        var pdfDocument = CreateTestPdfDocument("CHAPTER 1 Wiring");
+        pdfDocument.ContainsImages = true;
+        pdfDocument.Category = MotorcycleRAG.Domain.ValueObjects.MotorcycleCategory.Sport;
+        pdfDocument.Source = "not a valid absolute URI";
+        var analysisResult = CreateTestAnalysisResult(new DocumentPage {
+            PageNumber = 1,
+            Content = "CHAPTER 1 Wiring",
+            Width = 800,
+            Height = 1000
+        });
+        _mockDocumentClient
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
+            .ReturnsAsync(analysisResult);
+        _mockOpenAIClient
+            .Setup(x => x.ProcessMultimodalContentAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<byte[]>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Wiring diagram with connector labels");
+        _mockOpenAIClient
+            .Setup(x => x.GetEmbeddingsAsync(It.IsAny<string>(), It.IsAny<string[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new float[1536], new float[1536] });
+
+        // Act
+        var result = await processor.ProcessAsync(pdfDocument);
+
+        // Assert
+        var imageDocument = result.Documents.Should().ContainSingle(document =>
+            document.Content == "Wiring diagram with connector labels").Subject;
+        imageDocument.Metadata.Tags.Should().Contain(MotorcycleRAG.Domain.ValueObjects.MotorcycleCategory.Sport.ToString());
+        imageDocument.Metadata.SourceUrl.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenDocumentAnalysisFails_WrapsTheOriginalFailure()
+    {
+        // Arrange
+        var pdfDocument = CreateTestPdfDocument("manual content");
+        _mockDocumentClient
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
+            .ThrowsAsync(new InvalidOperationException("Document Intelligence unavailable"));
+
+        // Act
+        var act = () => _processor.ProcessAsync(pdfDocument);
+
+        // Assert
+        var exception = await act.Should().ThrowAsync<InvalidOperationException>();
+        exception.Which.Message.Should().Contain("Failed to process PDF: Document Intelligence unavailable");
+        exception.Which.InnerException.Should().BeOfType<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void ParseLocatorMetadata_WhenValuesAreMalformed_UsesAllSpecifiedFallbacksAndLogsWarnings()
+    {
+        // Arrange
+        var logger = new Mock<ILogger<MotorcyclePdfProcessor>>();
+        var metadata = new Dictionary<string, object> {
+            ["PageNumber"] = "not-a-number",
+            ["SectionLevel"] = "not-a-number",
+            ["AllSectionHeadings"] = "not-an-array",
+            ["ChunkIndex"] = "not-a-number",
+            ["IsMultiPageTable"] = "not-a-boolean"
+        };
+
+        // Act
+        var result = MotorcyclePdfProcessor.ParseLocatorMetadata(
+            metadata,
+            fallbackPageNumber: 17,
+            fallbackSection: "Fallback section",
+            logger.Object,
+            chunkId: "chunk-malformed");
+
+        // Assert
+        result.PageNumber.Should().Be(17);
+        result.PageRange.Should().Be("17");
+        result.PrimarySection.Should().Be("Fallback section");
+        result.SectionLevel.Should().Be(0);
+        result.SectionHeadings.Should().BeEmpty();
+        result.ChunkIndex.Should().Be(0);
+        result.IsMultiPageTable.Should().BeFalse();
+        logger.Invocations
+            .Where(invocation => invocation.Method.Name == nameof(ILogger.Log) &&
+                                 invocation.Arguments[0] is LogLevel.Warning)
+            .Should().HaveCount(5);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenPageProvidesLocatorValues_MapsThemToThePublicDocumentContract()
+    {
+        // Arrange
+        var documentContent = "ELECTRICAL SYSTEM\n\nInspect the harness and connector routing.";
+        var pdfDocument = CreateTestPdfDocument(documentContent);
+        var analysisResult = CreateTestAnalysisResult(new DocumentPage {
+            PageNumber = 8,
+            Content = documentContent,
+            Width = 800,
+            Height = 1000,
+            PrimarySection = "Electrical System",
+            SectionLevel = 2,
+            SectionHeadings = ["Electrical System"]
+        });
+        _mockDocumentClient
+            .Setup(x => x.AnalyzeDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>()))
+            .ReturnsAsync(analysisResult);
+        _mockOpenAIClient
+            .Setup(x => x.GetEmbeddingsAsync(It.IsAny<string>(), It.IsAny<string[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new float[1536] });
+
+        // Act
+        var result = await _processor.ProcessAsync(pdfDocument);
+
+        // Assert
+        var document = result.Documents.Should().ContainSingle().Subject;
+        document.PageNumber.Should().Be(8);
+        document.PageRange.Should().Be("8-8");
+        document.PrimarySection.Should().Be("Electrical System");
+        document.SectionLevel.Should().Be(2);
+        document.SectionHeadings.Should().ContainSingle().Which.Should().Be("Electrical System");
+    }
+
     #region Test Helpers
 
     /// <summary>

@@ -1,7 +1,7 @@
 using System.Net;
-using System.Reflection;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Moq;
 using Moq.Contrib.HttpClient;
 using MotorcycleRAG.API.Extensions;
@@ -30,12 +30,32 @@ public sealed class SigningKeyCacheTests
         return $$"""{"keys":[{{keys}}]}""";
     }
 
-    private static (SigningKeyCache Cache, Mock<HttpMessageHandler> Handler) CreateCache()
+    private static (SigningKeyCache Cache, Mock<HttpMessageHandler> Handler) CreateCache(TimeProvider? timeProvider = null)
     {
         var handler = new Mock<HttpMessageHandler>();
         var httpClient = handler.CreateClient();
-        var cache = new SigningKeyCache(httpClient, NullLogger<SigningKeyCache>.Instance);
+        var cache = new SigningKeyCache(
+            httpClient,
+            NullLogger<SigningKeyCache>.Instance,
+            timeProvider ?? TimeProvider.System);
         return (cache, handler);
+    }
+
+    [Fact]
+    public void Constructor_WhenDependencyIsNull_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var httpClient = new HttpClient(new Mock<HttpMessageHandler>().Object);
+
+        // Act
+        var nullClient = () => new SigningKeyCache(null!, NullLogger<SigningKeyCache>.Instance);
+        var nullLogger = () => new SigningKeyCache(httpClient, null!);
+        var nullTimeProvider = () => new SigningKeyCache(httpClient, NullLogger<SigningKeyCache>.Instance, null!);
+
+        // Assert
+        nullClient.Should().Throw<ArgumentNullException>().WithParameterName("httpClient");
+        nullLogger.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+        nullTimeProvider.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
     }
 
     [Fact]
@@ -162,63 +182,27 @@ public sealed class SigningKeyCacheTests
     }
 
     [Fact]
-    public async Task RefreshKeysAsync_WhenCachedEntryHasExpired_FetchesFreshKeysAndReplacesCacheContents()
+    public async Task GetSigningKeys_WhenCacheExpires_ReturnsStaleKeysAndRefreshesReplacement()
     {
         // Arrange
-        var (cache, handler) = CreateCache();
+        var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 7, 17, 12, 0, 0, TimeSpan.Zero));
+        var (cache, handler) = CreateCache(timeProvider);
         handler.SetupRequest(HttpMethod.Get, MetadataUrl)
             .ReturnsResponse(HttpStatusCode.OK, BuildMetadataJson(), "application/json");
-
-        // First fetch returns "key-1"; force the cached entry to look expired, then verify a second
-        // refresh fetches and swaps in "key-2".
         handler.SetupRequest(HttpMethod.Get, JwksUrl)
             .ReturnsResponse(HttpStatusCode.OK, BuildJwksJson("key-1"), "application/json");
-
         await cache.PreWarmCacheAsync(Issuer);
-        cache.GetSigningKeys(Issuer).Select(k => k.KeyId).Should().ContainSingle().Which.Should().Be("key-1");
-
-        ForceCacheEntryExpired(cache, Issuer);
-
+        timeProvider.Advance(TimeSpan.FromHours(1).Add(TimeSpan.FromTicks(1)));
         handler.SetupRequest(HttpMethod.Get, JwksUrl)
             .ReturnsResponse(HttpStatusCode.OK, BuildJwksJson("key-2"), "application/json");
 
         // Act
+        var staleKeys = cache.GetSigningKeys(Issuer).ToList();
         await cache.PreWarmCacheAsync(Issuer);
+        var refreshedKeys = cache.GetSigningKeys(Issuer).ToList();
 
         // Assert
-        var refreshedKeys = cache.GetSigningKeys(Issuer).ToList();
-        refreshedKeys.Should().ContainSingle();
-        refreshedKeys[0].KeyId.Should().Be("key-2");
-        handler.VerifyRequest(HttpMethod.Get, JwksUrl, Times.Exactly(2));
-    }
-
-    /// <summary>
-    /// Uses reflection to directly manipulate the private key cache dictionary so that the cached
-    /// entry's expiry is in the past, without waiting on the real 1-hour TTL.
-    /// </summary>
-    private static void ForceCacheEntryExpired(SigningKeyCache cache, string issuer)
-    {
-        var field = typeof(SigningKeyCache).GetField("_keyCache", BindingFlags.NonPublic | BindingFlags.Instance)
-            ?? throw new InvalidOperationException("_keyCache field not found on SigningKeyCache.");
-
-        var dictionaryType = field.FieldType;
-        var dictionary = field.GetValue(cache)
-            ?? throw new InvalidOperationException("_keyCache value was null.");
-
-        var tryGetValue = dictionaryType.GetMethod("TryGetValue")!;
-        var args = new object?[] { issuer, null };
-        var found = (bool)tryGetValue.Invoke(dictionary, args)!;
-        found.Should().BeTrue("the cache must already contain an entry for the issuer before forcing expiry");
-
-        var tupleType = dictionaryType.GetGenericArguments()[1];
-        // Named tuple element names (Keys, Expiry) are compiler metadata only — the runtime
-        // ValueTuple<T1,T2> fields are Item1/Item2.
-        var keysField = tupleType.GetField("Item1")!;
-        var cachedKeys = keysField.GetValue(args[1]);
-
-        var expiredEntry = Activator.CreateInstance(tupleType, cachedKeys, DateTime.UtcNow.AddHours(-1));
-
-        var indexer = dictionaryType.GetProperty("Item")!;
-        indexer.SetValue(dictionary, expiredEntry, [issuer]);
+        staleKeys.Should().ContainSingle().Which.KeyId.Should().Be("key-1");
+        refreshedKeys.Should().ContainSingle().Which.KeyId.Should().Be("key-2");
     }
 }

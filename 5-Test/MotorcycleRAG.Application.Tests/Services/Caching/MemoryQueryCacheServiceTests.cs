@@ -24,7 +24,7 @@ public sealed class MemoryQueryCacheServiceTests : IDisposable
         var cached = await sut.GetAsync("key");
         await sut.RemoveAsync("key");
         var missing = await sut.GetAsync("key");
-        await Task.Delay(100); // Give the background thread time to run the eviction callback
+        await WaitForAsync(async () => (await sut.GetStatisticsAsync()).TotalEntries == 0);
         var statistics = await sut.GetStatisticsAsync();
 
         cached.Should().BeEquivalentTo(response);
@@ -108,18 +108,18 @@ public sealed class MemoryQueryCacheServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ClearAsync_WhenAnEvictionLogFails_SwallowsTheFailure()
+    public async Task ClearAsync_WhenCompletionLoggingFails_ResetsTheStatistics()
     {
         using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 10_000_000 });
         using var sut = new MemoryQueryCacheService(
             cache,
-            new ThrowOnDebugLogger(),
+            new ThrowOnInformationLogger(),
             Options.Create(new CacheConfiguration()));
         await sut.SetAsync("key", CreateResponse("response"), TimeSpan.FromMinutes(1));
 
-        var act = () => sut.ClearAsync();
+        await sut.ClearAsync();
 
-        await act.Should().NotThrowAsync();
+        (await sut.GetStatisticsAsync()).TotalEntries.Should().Be(0);
     }
 
     [Fact]
@@ -204,8 +204,19 @@ public sealed class MemoryQueryCacheServiceTests : IDisposable
         }
     }
 
-    private sealed class ThrowOnDebugLogger : ILogger<MemoryQueryCacheService>
+    private static async Task WaitForAsync(Func<Task<bool>> condition)
     {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (!await condition())
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(10), timeout.Token);
+        }
+    }
+
+    private sealed class ThrowOnInformationLogger : ILogger<MemoryQueryCacheService>
+    {
+        private int _informationEvents;
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(
@@ -215,7 +226,7 @@ public sealed class MemoryQueryCacheServiceTests : IDisposable
             Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
-            if (logLevel == LogLevel.Debug)
+            if (logLevel == LogLevel.Information && ++_informationEvents > 1)
             {
                 throw new InvalidOperationException("logger unavailable");
             }

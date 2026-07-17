@@ -420,6 +420,21 @@ public class WebSourcesAdminControllerTests
         result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
     }
 
+    [Fact]
+    public async Task DeleteWebSourceAsync_WhenLookupFailsUnexpectedly_ReturnsGenericInternalServerError()
+    {
+        // Arrange
+        _mockRepo.Setup(r => r.GetWebSourceByIdAsync(1)).ThrowsAsync(new ApplicationException("lookup failed"));
+
+        // Act
+        var result = await _controller.DeleteWebSourceAsync(1);
+
+        // Assert
+        var serverError = result.Should().BeOfType<ObjectResult>().Subject;
+        serverError.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        serverError.Value.Should().BeEquivalentTo(new { error = "An error occurred" });
+    }
+
     private static CreateWebSourceRequest ValidCreateRequest() => new()
     {
         Url = new Uri("https://example.com"),

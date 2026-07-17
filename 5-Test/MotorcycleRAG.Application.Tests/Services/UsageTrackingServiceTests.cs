@@ -178,6 +178,30 @@ namespace MotorcycleRAG.UnitTests.Services {
         }
 
         [Fact]
+        public async Task GetUsageByDateRangeAsync_WhenDatesAreInvalid_ThrowsArgumentException() {
+            var end = DateTime.UtcNow;
+
+            var act = () => _service.GetUsageByDateRangeAsync("user-1", end, end.AddMinutes(-1));
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
+
+        [Fact]
+        public async Task GetUsageByDateRangeAsync_WhenRepositoryFails_WrapsTheFailure() {
+            var start = DateTime.UtcNow.AddDays(-1);
+            var end = DateTime.UtcNow;
+            _mockUsageRepository
+                .Setup(repository => repository.GetUsageByUserAndDateRangeAsync("user-1", start, end))
+                .ThrowsAsync(new InvalidOperationException("database unavailable"));
+
+            var act = () => _service.GetUsageByDateRangeAsync("user-1", start, end);
+
+            var exception = await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*Failed to get usage*");
+            exception.Which.InnerException.Should().BeOfType<InvalidOperationException>();
+        }
+
+        [Fact]
         public async Task SeedOnboardingAccessAsync_ValidRequest_UsesSeedRepositoryPath() {
             // Arrange
             var recordedUsage = new Usage {

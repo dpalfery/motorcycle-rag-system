@@ -114,6 +114,68 @@ public class UserProvisioningServiceTests
     }
 
     [Fact]
+    public async Task ReconcileApprovedUserAsync_WhenActiveLegacyUserHasNoIdentityLink_PromotesAndReturnsUser()
+    {
+        var existingUser = new UserDTO
+        {
+            Id = "managedId",
+            Email = "email@example.com",
+            IsEnabled = true,
+            AccessState = ManagedUserAccessState.None,
+            AuthProvider = "Google"
+        };
+        _userIdentityRepoMock.Setup(x => x.GetManagedUserIdAsync("issuer", "subject", existingUser.Email, IdentityProvider.Google))
+            .ReturnsAsync((string?)null);
+        _userRepoMock.Setup(x => x.GetUserByEmailAsync(existingUser.Email)).ReturnsAsync(existingUser);
+        _userIdentityRepoMock.Setup(x => x.UpsertAsync(
+                existingUser.Id,
+                IdentityProvider.Google,
+                existingUser.Email,
+                "issuer",
+                "subject",
+                "provider-id",
+                "object-id"))
+            .ReturnsAsync(false);
+        _userRepoMock.Setup(x => x.UpdateUserAsync(existingUser)).ReturnsAsync(true);
+
+        var result = await _sut.ReconcileApprovedUserAsync(
+            "issuer", "subject", existingUser.Email, null, null, null,
+            IdentityProvider.Google, "provider-id", "object-id");
+
+        result.Should().BeSameAs(existingUser);
+        result!.AccessState.Should().Be(ManagedUserAccessState.Active);
+        _userIdentityRepoMock.Verify(x => x.UpsertAsync(
+            existingUser.Id, IdentityProvider.Google, existingUser.Email,
+            "issuer", "subject", "provider-id", "object-id"), Times.Once);
+        _userRepoMock.Verify(x => x.UpdateUserAsync(existingUser), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task ReconcileApprovedUserAsync_WhenFallbackUserIsCancelled_ReturnsNull()
+    {
+        var existingUser = new UserDTO
+        {
+            Id = "managedId",
+            Email = "email@example.com",
+            IsEnabled = true,
+            AccessState = ManagedUserAccessState.Cancelled,
+            AuthProvider = "google"
+        };
+        _userIdentityRepoMock.Setup(x => x.GetManagedUserIdAsync(It.IsAny<string>(), It.IsAny<string>(), existingUser.Email, IdentityProvider.Google))
+            .ReturnsAsync((string?)null);
+        _userRepoMock.Setup(x => x.GetUserByEmailAsync(existingUser.Email)).ReturnsAsync(existingUser);
+
+        var result = await _sut.ReconcileApprovedUserAsync(
+            "issuer", "subject", existingUser.Email, "Name", null, null,
+            IdentityProvider.Google, null, null);
+
+        result.Should().BeNull();
+        _userIdentityRepoMock.Verify(x => x.UpsertAsync(
+            It.IsAny<string>(), It.IsAny<IdentityProvider>(), It.IsAny<string>(),
+            It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ResolveManagedUserIdAsync_EmptyEmail_ThrowsArgumentException()
     {
         await Assert.ThrowsAsync<ArgumentException>(() => _sut.ResolveManagedUserIdAsync("issuer", "sub", "", IdentityProvider.Google));

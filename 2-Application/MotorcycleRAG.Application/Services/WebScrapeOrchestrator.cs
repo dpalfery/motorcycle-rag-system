@@ -84,23 +84,10 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
             var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _activeScrapes.TryAdd(runId, cts);
 
-            try {
-                // Execute the scrape pipeline (fire and forget with error handling)
-                _ = ExecuteScrapeAndIndexPipelineAsync(runId, webSource, cts.Token);
-            }
-            catch (Exception ex) {
-                _logger.LogError(ex, "Error initiating scrape pipeline for run {RunId}", runId);
-                // Mark run as failed immediately
-                await _webScrapeRunRepository.UpdateWebScrapeRunAsync(
-                    runId,
-                    status: ScrapeRunStatus.Failed,
-                    pagesCrawled: 0,
-                    pagesIndexed: 0,
-                    errors: 1,
-                    errorMessage: $"Failed to initiate scrape: {ex.Message}");
-    
-                throw new InvalidOperationException($"Error initiating scrape pipeline for run {runId}", ex);
-            }
+            // Execute the scrape pipeline without blocking the caller. The observer only logs
+            // faults that escape the pipeline; the pipeline itself owns status transitions.
+            var pipelineTask = ExecuteScrapeAndIndexPipelineAsync(runId, webSource, cts.Token);
+            _ = ObservePipelineFaultAsync(pipelineTask, runId);
 
             return runId;
         }
@@ -201,6 +188,15 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     }
 
     #region Private Methods
+
+    private async Task ObservePipelineFaultAsync(Task pipelineTask, long runId) {
+        try {
+            await pipelineTask;
+        }
+        catch (Exception ex) {
+            _logger.LogError(ex, "Scrape and index pipeline fault escaped for run {RunId}", runId);
+        }
+    }
 
     /// <summary>
     /// Executes the complete scrape and index pipeline for a web source
@@ -434,26 +430,16 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
 
         // Convert string URL to Uri for comparison
         string resultDomain = string.Empty;
-        try {
-            if (Uri.TryCreate(result.Source.SourceUrl, UriKind.Absolute, out var resultUri)) {
-                var hostnameUri = ExtractHostnameFromUri(resultUri);
-                resultDomain = hostnameUri.Host;
-            }
-        }
-        catch (Exception ex) {
-            _logger.LogWarning(ex, "Error extracting domain from result URL: {ResultUrl}", result.Source.SourceUrl);
+        if (Uri.TryCreate(result.Source.SourceUrl, UriKind.Absolute, out var resultUri)) {
+            var hostnameUri = ExtractHostnameFromUri(resultUri);
+            resultDomain = hostnameUri.Host;
         }
 
         // Extract domain from web source (convert string to Uri)
         string sourceDomain = string.Empty;
-        try {
-            if (Uri.TryCreate(webSource.Url, UriKind.Absolute, out var sourceUri)) {
-                var hostnameUri = ExtractHostnameFromUri(sourceUri);
-                sourceDomain = hostnameUri.Host;
-            }
-        }
-        catch (Exception ex) {
-            _logger.LogWarning(ex, "Error extracting domain from web source URL: {WebSourceUrl}", webSource.Url);
+        if (Uri.TryCreate(webSource.Url, UriKind.Absolute, out var sourceUri)) {
+            var hostnameUri = ExtractHostnameFromUri(sourceUri);
+            sourceDomain = hostnameUri.Host;
         }
 
         return !string.IsNullOrEmpty(resultDomain) &&
@@ -464,19 +450,8 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
     /// Extracts the hostname from a URI
     /// </summary>
     private Uri ExtractHostnameFromUri(Uri url) {
-        try {
-            ArgumentNullException.ThrowIfNull(url);
-            return new Uri($"{url.Scheme}://{url.Host}");
-        }
-        catch (Exception ex) {
-            _logger.LogError(ex, "Failed to extract hostname from URI: {Uri}. Unable to create fallback URI.", url);
-            // Fallback: return the original URI's host with its scheme, or throw with context if not possible
-            if (!string.IsNullOrEmpty(url?.Host) && !string.IsNullOrEmpty(url?.Scheme))
-            {
-                return new Uri($"{url.Scheme}://{url.Host}");
-            }
-            throw new InvalidOperationException($"Unable to extract hostname from URI: {url}", ex);
-        }
+        ArgumentNullException.ThrowIfNull(url);
+        return new Uri($"{url.Scheme}://{url.Host}");
     }
 
     /// <summary>
@@ -488,48 +463,42 @@ public class WebScrapeOrchestrator : IWebScrapeOrchestrator {
         var documents = new List<MotorcycleDocumentDto>();
 
         foreach (var searchResult in crawlResult.CrawledContent) {
-            try {
-                var document = new MotorcycleDocumentDto {
-                    Id = $"web_{searchResult.Id}_{DateTime.UtcNow.Ticks}",
-                    Title = searchResult.Source.SourceName ?? webSource.Name,
-                    Content = searchResult.Content,
-                    Type = Domain.Enums.DocumentType.WebContent,
-                    Metadata = new DocumentMetadataDto(),
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
+            var document = new MotorcycleDocumentDto {
+                Id = $"web_{searchResult.Id}_{DateTime.UtcNow.Ticks}",
+                Title = searchResult.Source.SourceName ?? webSource.Name,
+                Content = searchResult.Content,
+                Type = Domain.Enums.DocumentType.WebContent,
+                Metadata = new DocumentMetadataDto(),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
 
-                // Map SourceUrl safely
-                if (Uri.TryCreate(webSource.Url, UriKind.Absolute, out var parsed)) {
-                    document.Metadata.SourceUrl = parsed;
-                }
-
-                // Add additional metadata from search result and web source
-                var additionalMetadata = new Dictionary<string, object> {
-                    ["webSourceId"] = webSource.Id,
-                    ["webSourceName"] = webSource.Name,
-                    ["relevanceScore"] = searchResult.RelevanceScore,
-                    ["quality"] = (int)(searchResult.RelevanceScore * 100),
-                    ["indexedAt"] = DateTime.UtcNow
-                };
-
-                // Preserve metadata from search result
-                if (searchResult.Metadata != null && searchResult.Metadata.Count > 0) {
-                    foreach (var kvp in searchResult.Metadata) {
-                        additionalMetadata[kvp.Key] = kvp.Value;
-                    }
-                }
-
-                foreach (var kvp in additionalMetadata) {
-                    document.Metadata.AdditionalProperties[kvp.Key] = kvp.Value;
-                }
-
-                documents.Add(document);
+            // Map SourceUrl safely
+            if (Uri.TryCreate(webSource.Url, UriKind.Absolute, out var parsed)) {
+                document.Metadata.SourceUrl = parsed;
             }
-            catch (Exception ex) {
-                _logger.LogWarning(ex, "Failed to convert search result to document: {ResultId}",
-                    searchResult.Id);
+
+            // Add additional metadata from search result and web source
+            var additionalMetadata = new Dictionary<string, object> {
+                ["webSourceId"] = webSource.Id,
+                ["webSourceName"] = webSource.Name,
+                ["relevanceScore"] = searchResult.RelevanceScore,
+                ["quality"] = (int)(searchResult.RelevanceScore * 100),
+                ["indexedAt"] = DateTime.UtcNow
+            };
+
+            // Preserve metadata from search result
+            if (searchResult.Metadata != null && searchResult.Metadata.Count > 0) {
+                foreach (var kvp in searchResult.Metadata) {
+                    additionalMetadata[kvp.Key] = kvp.Value;
+                }
             }
+
+            foreach (var kvp in additionalMetadata) {
+                document.Metadata.AdditionalProperties[kvp.Key] = kvp.Value;
+            }
+
+            documents.Add(document);
         }
 
         _logger.LogDebug("Converted {DocumentCount} search results to motorcycle documents",

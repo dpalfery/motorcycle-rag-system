@@ -26,7 +26,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         public string ToolId { get; init; } = string.Empty;
         public string Name { get; init; } = string.Empty;
         public string? Description { get; init; }
-        public Uri? ServerUrl { get; init; }
+        public string? ServerUrl { get; init; }
         public string ToolType { get; init; } = string.Empty;
         public string? Version { get; init; }
         public bool IsSystemTool { get; init; }
@@ -51,7 +51,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
                 toolId: row.ToolId,
                 name: row.Name,
                 description: row.Description,
-                serverUrl: row.ServerUrl,
+                serverUrl: MapServerUrl(row.ServerUrl),
                 toolType: row.ToolType,
                 version: row.Version,
                 isSystemTool: row.IsSystemTool,
@@ -66,6 +66,21 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
                 lastTestedAt: row.LastTestedAt,
                 lastConnectionStatus: row.LastConnectionStatus,
                 updatedAt: row.UpdatedAt);
+
+    private static Uri? MapServerUrl(string? serverUrl)
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri))
+        {
+            throw new ArgumentException("Persisted server URL must be an absolute URI.", nameof(serverUrl));
+        }
+
+        return uri;
+    }
 
     public ToolConfigurationRepository(
         ISqlConnectionFactory connectionFactory,
@@ -134,7 +149,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
                 configuration.ToolId,
                 configuration.Name,
                 configuration.Description,
-                configuration.ServerUrl,
+                ServerUrl = configuration.ServerUrl?.AbsoluteUri,
                 configuration.ToolType,
                 configuration.Version,
                 configuration.IsEnabled,

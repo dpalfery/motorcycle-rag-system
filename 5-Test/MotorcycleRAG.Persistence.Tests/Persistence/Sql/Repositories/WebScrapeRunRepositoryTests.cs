@@ -138,6 +138,64 @@ public sealed class WebScrapeRunRepositoryTests
             .WithParameterName("errorMessage");
     }
 
+    [Theory]
+    [InlineData(-1, 0, 0)]
+    [InlineData(0, -1, 0)]
+    [InlineData(0, 0, -1)]
+    public async Task UpdateWebScrapeRunAsync_WhenCountersAreNegative_RejectsInvalidPersistenceState(
+        int pagesCrawled,
+        int pagesIndexed,
+        int errors)
+    {
+        // Arrange
+        var sut = CreateSut();
+
+        // Act
+        var act = () => sut.UpdateWebScrapeRunAsync(
+            42,
+            ScrapeRunStatus.Running,
+            pagesCrawled,
+            pagesIndexed,
+            errors);
+
+        // Assert
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public async Task UpdateWebScrapeRunAsync_WhenStatusIsUnknown_RejectsInvalidPersistenceState()
+    {
+        // Arrange
+        var sut = CreateSut();
+
+        // Act
+        var act = () => sut.UpdateWebScrapeRunAsync(42, (ScrapeRunStatus)999, 0, 0, 0);
+
+        // Assert
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
+            .WithParameterName("status");
+    }
+
+    [Fact]
+    public async Task UpdateWebScrapeRunAsync_WhenDiagnosticExceedsMaximumLength_RejectsInvalidPersistenceState()
+    {
+        // Arrange
+        var sut = CreateSut();
+
+        // Act
+        var act = () => sut.UpdateWebScrapeRunAsync(
+            42,
+            ScrapeRunStatus.Completed,
+            1,
+            1,
+            0,
+            new string('x', 1001));
+
+        // Assert
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
+            .WithParameterName("errorMessage");
+    }
+
     [Fact]
     public async Task UpdateWebScrapeRunAsync_ShouldWrapConnectionFailures()
     {

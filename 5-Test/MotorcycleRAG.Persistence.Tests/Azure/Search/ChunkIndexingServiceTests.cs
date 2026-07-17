@@ -585,6 +585,63 @@ public sealed class ChunkIndexingServiceTests
         outcome.ChunkId.Should().Be("chunk-success");
     }
 
+    [Fact]
+    public async Task IndexFromJsonlAsync_WhenOptionalRecordFieldsAreMissing_UsesSafeSchemaDefaults()
+    {
+        // Arrange
+        var realPipeline = new SearchIndexResiliencePipelineProvider();
+        ChunkIndexingService.ChunkIndexRecord? indexedRecord = null;
+        _clientFactoryMock.Setup(x => x.DefaultCategory).Returns(MotorcycleCategory.Sport);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns("motorcycle-sport");
+        _clientFactoryMock
+            .Setup(x => x.IndexExistsAsync(MotorcycleCategory.Sport, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var indexResult = CreateIndexDocumentsResult(("chunk-defaults", true, 201, null));
+        var response = global::Azure.Response.FromValue(indexResult, new Mock<global::Azure.Response>().Object);
+        var searchClientMock = new Mock<SearchClient>();
+        searchClientMock
+            .Setup(client => client.MergeOrUploadDocumentsAsync(
+                It.IsAny<IEnumerable<ChunkIndexingService.ChunkIndexRecord>>(),
+                It.IsAny<IndexDocumentsOptions>(),
+                It.IsAny<CancellationToken>()))
+            .Callback((IEnumerable<ChunkIndexingService.ChunkIndexRecord> documents, IndexDocumentsOptions _, CancellationToken _) =>
+                indexedRecord = documents.Should().ContainSingle().Subject)
+            .ReturnsAsync(response);
+        _clientFactoryMock.Setup(x => x.GetClient(MotorcycleCategory.Sport)).Returns(searchClientMock.Object);
+        var sut = new ChunkIndexingService(
+            _clientFactoryMock.Object,
+            _categoryClassifierMock.Object,
+            realPipeline,
+            TestHelpers.OptionsFor(_searchOptions),
+            TestHelpers.CreateNullLogger<ChunkIndexingService>());
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("{\"id\":\"chunk-defaults\",\"category\":\"sport\",\"content\":\"content\"}"));
+
+        // Act
+        await sut.IndexFromJsonlAsync(stream, "upload-defaults");
+
+        // Assert
+        indexedRecord.Should().NotBeNull();
+        indexedRecord!.Title.Should().BeEmpty();
+        indexedRecord.DocumentType.Should().BeEmpty();
+        indexedRecord.Make.Should().BeNull();
+        indexedRecord.Model.Should().BeNull();
+        indexedRecord.Year.Should().Be(0);
+        indexedRecord.SourceFile.Should().BeNull();
+        indexedRecord.Section.Should().BeNull();
+        indexedRecord.PageNumber.Should().Be(0);
+        indexedRecord.PageRange.Should().BeNull();
+        indexedRecord.PrimarySection.Should().BeNull();
+        indexedRecord.SectionLevel.Should().Be(0);
+        indexedRecord.SectionHeadings.Should().BeEmpty();
+        indexedRecord.TableCaption.Should().BeNull();
+        indexedRecord.ChunkIndex.Should().Be(0);
+        indexedRecord.Tags.Should().BeEmpty();
+        indexedRecord.ContentVector.Should().BeEmpty();
+        indexedRecord.CreatedAt.Should().Be(default);
+        indexedRecord.UpdatedAt.Should().Be(default);
+    }
+
     private static IndexDocumentsResult CreateIndexDocumentsResult(
         params (string Key, bool Succeeded, int Status, string? ErrorMessage)[] items)
     {

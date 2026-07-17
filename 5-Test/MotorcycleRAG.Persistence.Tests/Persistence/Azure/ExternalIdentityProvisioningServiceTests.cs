@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Azure.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -394,6 +395,93 @@ public sealed class ExternalIdentityProvisioningServiceTests
         handler.VerifyRequest(HttpMethod.Delete, DeleteAssignmentUrl("assignment-trial"), Times.Once());
     }
 
+    [Fact]
+    public async Task RevokeAccessAsync_WhenManagedAssignmentDeleteFails_ReportsTheGraphError()
+    {
+        // Arrange
+        var externalDirectoryObjectId = "efefefef-efef-efef-efef-efefefefefef";
+        var handler = CreateOrderedHandler(
+            Plan(HttpMethod.Get, ServicePrincipalUrl(), () => JsonResponse(HttpStatusCode.OK, ServicePrincipalResponseJson())),
+            Plan(HttpMethod.Get, UserAssignmentsUrl(externalDirectoryObjectId), () => JsonResponse(HttpStatusCode.OK, AssignmentsResponseJson(
+                AssignmentJson("assignment-trial", TrialAppRoleId, ApiServicePrincipalObjectId)))),
+            Plan(HttpMethod.Delete, DeleteAssignmentUrl("assignment-trial"), () => EmptyResponse(HttpStatusCode.InternalServerError)));
+        using var httpClient = handler.CreateClient();
+        var sut = CreateSut(httpClient);
+
+        // Act
+        var act = () => sut.RevokeAccessAsync(externalDirectoryObjectId);
+
+        // Assert
+        var exception = await act.Should().ThrowAsync<InvalidOperationException>();
+        exception.Which.Message.Should().Contain("Delete API app-role assignment failed with Microsoft Graph 500");
+        handler.VerifyRequest(HttpMethod.Delete, DeleteAssignmentUrl("assignment-trial"), Times.Once());
+    }
+
+    [Fact]
+    public async Task ReadJsonDocumentAsync_WhenContentIsNull_ReturnsAnEmptyJsonObject()
+    {
+        // Act
+        using var document = await ExternalIdentityProvisioningService.ReadJsonDocumentAsync(null, CancellationToken.None);
+
+        // Assert
+        document.RootElement.ValueKind.Should().Be(JsonValueKind.Object);
+        document.RootElement.EnumerateObject().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \t\r\n")]
+    public async Task ReadJsonDocumentAsync_WhenContentIsEmptyOrWhitespace_ReturnsAnEmptyJsonObject(string value)
+    {
+        // Arrange
+        using var content = new StringContent(value);
+
+        // Act
+        using var document = await ExternalIdentityProvisioningService.ReadJsonDocumentAsync(content, CancellationToken.None);
+
+        // Assert
+        document.RootElement.ValueKind.Should().Be(JsonValueKind.Object);
+        document.RootElement.EnumerateObject().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ReadJsonDocumentAsync_WhenContentIsValid_ReturnsTheParsedDocument()
+    {
+        // Arrange
+        using var content = new StringContent("{\"code\":\"ok\"}");
+
+        // Act
+        using var document = await ExternalIdentityProvisioningService.ReadJsonDocumentAsync(content, CancellationToken.None);
+
+        // Assert
+        document.RootElement.GetProperty("code").GetString().Should().Be("ok");
+    }
+
+    [Fact]
+    public async Task ReadJsonDocumentAsync_WhenContentIsMalformed_ThrowsJsonException()
+    {
+        // Arrange
+        var exception = await Assert.ThrowsAnyAsync<JsonException>(ReadMalformedJsonAsync);
+
+        // Assert
+        exception.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ReadJsonDocumentAsync_WhenCancellationIsRequested_PropagatesTheCancellation()
+    {
+        // Arrange
+        using var cancellationSource = new CancellationTokenSource();
+        await cancellationSource.CancelAsync();
+
+        // Act
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            ReadCancelledJsonAsync(cancellationSource.Token));
+
+        // Assert
+        exception.CancellationToken.IsCancellationRequested.Should().BeTrue();
+    }
+
     // ---- Additional edge-case tests ----
 
     [Fact]
@@ -579,6 +667,18 @@ public sealed class ExternalIdentityProvisioningServiceTests
             Options.Create(options),
             NullLogger<ExternalIdentityProvisioningService>.Instance,
             new FakeTokenCredential());
+    }
+
+    private static async Task ReadMalformedJsonAsync()
+    {
+        using var content = new StringContent("{");
+        await ExternalIdentityProvisioningService.ReadJsonDocumentAsync(content, CancellationToken.None);
+    }
+
+    private static async Task ReadCancelledJsonAsync(CancellationToken cancellationToken)
+    {
+        using var content = new CancellingHttpContent();
+        await ExternalIdentityProvisioningService.ReadJsonDocumentAsync(content, cancellationToken);
     }
 
     private static IOptions<ExternalIdentityProvisioningOptions> CreateOptions(Action<ExternalIdentityProvisioningOptions>? configure = null)
@@ -811,6 +911,26 @@ public sealed class ExternalIdentityProvisioningServiceTests
         string RequestUri,
         Func<HttpResponseMessage> ResponseFactory,
         Func<HttpRequestMessage, Task>? AssertRequest);
+
+    private sealed class CancellingHttpContent : HttpContent
+    {
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return true;
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            Task.FromCanceled(new CancellationToken(canceled: true));
+
+        protected override Task SerializeToStreamAsync(
+            Stream stream,
+            TransportContext? context,
+            CancellationToken cancellationToken) =>
+            Task.FromCanceled(cancellationToken.IsCancellationRequested
+                ? cancellationToken
+                : new CancellationToken(canceled: true));
+    }
 
     private sealed class FakeTokenCredential : TokenCredential
     {

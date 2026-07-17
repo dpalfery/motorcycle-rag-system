@@ -72,26 +72,43 @@ public sealed class ToolConfigurationRepositoryTests
     }
 
     [Fact]
-    public async Task AddOrUpdateAsync_ShouldWrapUnderlyingFailure_BecauseDapperHasNoUriTypeHandlerForServerUrl()
+    public async Task AddOrUpdateAsync_ShouldPersistAbsoluteServerUrlAndReturnConfiguration()
     {
-        // Known production defect: MotorcycleRAG.Persistence never registers a Dapper
-        // SqlMapper.ITypeHandler for System.Uri, so binding McpToolConfiguration.ServerUrl
-        // (a Uri) as an anonymous-object query parameter throws NotSupportedException
-        // inside Dapper's parameter-info generator, before the command ever reaches
-        // the connection. AddOrUpdateAsync's catch-all wraps this as InvalidOperationException.
+        // Arrange
         var configuration = CreateConfiguration();
         var connection = new FakeDbConnection();
-        connection.EnqueueNonQuery(1);
+        connection.EnqueueNonQuery(
+            1,
+            command =>
+            {
+                command.CommandText.Should().Contain("MERGE INTO [dbo].[ToolConfigurations]");
+                command.Parameters["ServerUrl"].Should().Be(configuration.ServerUrl!.AbsoluteUri);
+            });
         var sut = CreateSut(connection);
 
-        var act = async () => await sut.AddOrUpdateAsync(configuration);
+        // Act
+        var result = await sut.AddOrUpdateAsync(configuration);
 
+        // Assert
+        result.Should().BeSameAs(configuration);
+        connection.ExecutedCommands.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task AddOrUpdateAsync_WhenDatabaseWriteFails_WrapsFailure()
+    {
+        // Arrange
+        var expected = new DataException("write failed");
+        var connection = new FakeDbConnection();
+        connection.EnqueueNonQueryException(expected);
+        var sut = CreateSut(connection);
+
+        // Act
+        var act = () => sut.AddOrUpdateAsync(CreateConfiguration());
+
+        // Assert
         var exception = await act.Should().ThrowAsync<InvalidOperationException>();
-        exception.Which.Message.Should().Contain(configuration.ToolId);
-        exception.Which.InnerException.Should().BeOfType<NotSupportedException>();
-        exception.Which.InnerException!.Message.Should().Contain("ServerUrl");
-        connection.ExecutedCommands.Should().BeEmpty(
-            "Dapper throws while building the parameter binder, before any command reaches the connection");
+        exception.Which.InnerException.Should().Be(expected);
     }
 
     // ── GetByIdAsync ─────────────────────────────────────────────────────
@@ -147,6 +164,24 @@ public sealed class ToolConfigurationRepositoryTests
 
         var exception = await act.Should().ThrowAsync<InvalidOperationException>();
         exception.Which.InnerException.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenPersistedServerUrlIsMalformed_WrapsMappingFailure()
+    {
+        // Arrange
+        var connection = new FakeDbConnection();
+        connection.EnqueueReader(
+            RepositoryTestReader.CreateReader(CreateConfigurationRow(serverUrl: "not an absolute uri")));
+        var sut = CreateSut(connection);
+
+        // Act
+        var act = () => sut.GetByIdAsync(Guid.NewGuid());
+
+        // Assert
+        var exception = await act.Should().ThrowAsync<InvalidOperationException>();
+        exception.Which.InnerException.Should().BeOfType<ArgumentException>()
+            .Which.ParamName.Should().Be("serverUrl");
     }
 
     // ── GetByToolIdAsync ─────────────────────────────────────────────────
@@ -530,14 +565,15 @@ public sealed class ToolConfigurationRepositoryTests
         Guid? id = null,
         string toolId = "search-tool",
         string toolType = "search",
-        bool isEnabled = true) =>
+        bool isEnabled = true,
+        string? serverUrl = "https://tools.example.com/mcp") =>
         new()
         {
             ["Id"] = id ?? Guid.NewGuid(),
             ["ToolId"] = toolId,
             ["Name"] = "Search Tool",
             ["Description"] = "Performs vector search",
-            ["ServerUrl"] = new Uri("https://tools.example.com/mcp"),
+            ["ServerUrl"] = serverUrl,
             ["ToolType"] = toolType,
             ["Version"] = "1.0",
             ["IsEnabled"] = isEnabled,

@@ -77,6 +77,23 @@ public sealed class WebSourceRepositoryTests
     }
 
     [Fact]
+    public async Task CreateWebSourceAsync_WhenInsertFails_RollsBackTransactionAndWrapsFailure()
+    {
+        var expected = new DataException("insert failed");
+        var connection = new FakeDbConnection();
+        connection.EnqueueReaderException(expected);
+        var sut = CreateSut(connection);
+
+        var act = () => sut.CreateWebSourceAsync(CreateWebSource());
+
+        var exception = await act.Should().ThrowAsync<InvalidOperationException>();
+        exception.Which.InnerException.Should().Be(expected);
+        connection.LastTransaction.Should().NotBeNull();
+        connection.LastTransaction!.WasRolledBack.Should().BeTrue();
+        connection.LastTransaction.WasCommitted.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task GetWebSourceByIdAsync_ShouldReturnWebSource_WhenFound()
     {
         var connection = new FakeDbConnection();
@@ -402,6 +419,7 @@ public sealed class WebSourceRepositoryTests
         private readonly Queue<CommandPlan> _plans = new();
 
         public List<ExecutedCommand> ExecutedCommands { get; } = [];
+        public FakeDbTransaction? LastTransaction { get; private set; }
 
         public override string ConnectionString { get; set; } = string.Empty;
         public override string Database => "Fake";
@@ -424,12 +442,15 @@ public sealed class WebSourceRepositoryTests
             _plans.Enqueue(new CommandPlan(CommandKind.Reader, () => reader, assert));
         }
 
+        public void EnqueueReaderException(Exception exception) =>
+            _plans.Enqueue(new CommandPlan(CommandKind.Reader, () => throw exception, null));
+
         public override void ChangeDatabase(string databaseName) { }
         public override void Close() { }
         public override void Open() { }
 
         protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
-            => new FakeDbTransaction(this, isolationLevel);
+            => LastTransaction = new FakeDbTransaction(this, isolationLevel);
 
         protected override DbCommand CreateDbCommand() => new FakeDbCommand(this);
 
@@ -456,8 +477,10 @@ public sealed class WebSourceRepositoryTests
         }
         public override IsolationLevel IsolationLevel { get; }
         protected override DbConnection? DbConnection => _connection;
-        public override void Commit() { }
-        public override void Rollback() { }
+        public bool WasCommitted { get; private set; }
+        public bool WasRolledBack { get; private set; }
+        public override void Commit() => WasCommitted = true;
+        public override void Rollback() => WasRolledBack = true;
     }
 
     private sealed class FakeDbCommand : DbCommand

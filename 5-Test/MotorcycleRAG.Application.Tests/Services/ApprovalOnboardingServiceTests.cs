@@ -117,6 +117,36 @@ public class ApprovalOnboardingServiceTests {
         _accessRequestRepository.Verify(r => r.CompleteOnboardingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WhenFailureStateCannotBePersisted_RethrowsTheOriginalOnboardingFailure() {
+        var request = CreateRequest();
+        _planRepository.Setup(r => r.GetPlanByNameAsync("Free"))
+            .ReturnsAsync(new UserPlan { Id = "plan-free", Name = "Free" });
+        _userRepository.Setup(r => r.GetUserByEmailAsync(request.Email))
+            .ReturnsAsync((UserDTO?)null);
+        _userRepository.Setup(r => r.CreateUserAsync(It.IsAny<UserDTO>()))
+            .ReturnsAsync(new UserDTO { Id = "managed-1", Email = request.Email, DisplayName = request.Email });
+        _usageTrackingService.Setup(s => s.SeedOnboardingAccessAsync("managed-1", request.RequestId))
+            .ThrowsAsync(new InvalidOperationException("usage unavailable"));
+        _accessRequestRepository.Setup(r => r.FailOnboardingAsync(
+                request.RequestId,
+                "SeedUsage",
+                It.IsAny<string>(),
+                "managed-1",
+                null))
+            .ThrowsAsync(new InvalidOperationException("failure persistence unavailable"));
+
+        var act = () => _service.ExecuteAsync(request);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("usage unavailable");
+        _accessRequestRepository.Verify(r => r.FailOnboardingAsync(
+            request.RequestId,
+            "SeedUsage",
+            It.IsAny<string>(),
+            "managed-1",
+            null), Times.Once);
+    }
+
     private static AccessRequestAdminRecord CreateRequest() {
         return new AccessRequestAdminRecord {
             RequestId = Guid.NewGuid().ToString(),

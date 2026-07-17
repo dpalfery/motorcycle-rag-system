@@ -21,6 +21,11 @@ public class FileUploadServiceReliabilityTests {
     private readonly Mock<IOptions<FileUploadConfiguration>> _configMock;
     private readonly FileUploadService _service;
 
+    private sealed class ThrowingReadStream : MemoryStream {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<int>(new InvalidOperationException("content read failed"));
+    }
+
     public FileUploadServiceReliabilityTests() {
         _telemetryServiceMock = new Mock<ITelemetryService>();
         _localFileStoreMock = new Mock<ILocalFileStore>();
@@ -180,6 +185,20 @@ public class FileUploadServiceReliabilityTests {
     }
 
     [Fact]
+    public async Task UploadFilesAsync_WhenCancellationIsRequested_ReturnsBatchFailureWithoutWritingFiles() {
+        var (stream, metadata) = CreateMockFile("manual.pdf", "%PDF-1.4 content", "application/pdf");
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var result = await _service.UploadFilesAsync([(stream, metadata)], new FileUploadOptions(), cts.Token);
+
+        result.TotalFiles.Should().Be(1);
+        result.SuccessfulUploads.Should().Be(0);
+        result.Errors.Should().ContainSingle().Which.Should().StartWith("Batch upload failed:");
+        _localFileStoreMock.Verify(x => x.WriteAsync(It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ValidateFileAsync_WithCorruptedPDF_ShouldDetectIssue() {
         // Arrange
         var corruptedContent = "This is not a PDF file";
@@ -214,6 +233,27 @@ public class FileUploadServiceReliabilityTests {
     }
 
     [Fact]
+    public async Task ValidateFileAsync_WhenContentReadFails_ReturnsValidResultWithContentWarning() {
+        await using var stream = new ThrowingReadStream();
+        var metadata = new FileMetadata { FileName = "manual.pdf", ContentType = "application/pdf", ContentLength = 1 };
+
+        var result = await _service.ValidateFileAsync(stream, metadata, new FileUploadOptions { ValidateFileContent = true });
+
+        result.IsValid.Should().BeTrue();
+        result.Warnings.Should().ContainSingle().Which.Should().Be("Content validation failed: content read failed");
+    }
+
+    [Fact]
+    public async Task ValidateFileAsync_WhenFileHasNoExtension_ReturnsValidationErrorAndSkipsContentInspection() {
+        var (stream, metadata) = CreateMockFile("manual", "%PDF-1.4", "application/pdf");
+
+        var result = await _service.ValidateFileAsync(stream, metadata, new FileUploadOptions { ValidateFileContent = true });
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainSingle().Which.Should().Be("File has no extension");
+    }
+
+    [Fact]
     public async Task DeleteFileAsync_WithExistingFile_ShouldReturnTrue() {
         // Arrange
         const string filePath = "/uploads/manual.pdf";
@@ -244,6 +284,26 @@ public class FileUploadServiceReliabilityTests {
 
         // Assert
         Assert.False(result);
+    }
+
+    [Fact]
+    public async Task DeleteFileAsync_WhenPathIsBlank_ReturnsFalseWithoutCallingStore() {
+        var result = await _service.DeleteFileAsync("  ");
+
+        result.Should().BeFalse();
+        _localFileStoreMock.Verify(x => x.DeleteIfExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteFileAsync_WhenStoreThrows_ReturnsFalse() {
+        _localFileStoreMock
+            .Setup(x => x.DeleteIfExistsAsync("/uploads/manual.pdf", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("delete failed"));
+
+        var result = await _service.DeleteFileAsync("/uploads/manual.pdf");
+
+        result.Should().BeFalse();
+        _localFileStoreMock.Verify(x => x.DeleteIfExistsAsync("/uploads/manual.pdf", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

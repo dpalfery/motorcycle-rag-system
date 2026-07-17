@@ -108,6 +108,75 @@ public class ProcessorArtifactServiceTests
     }
 
     [Fact]
+    public async Task DownloadSourceAsync_WhenUploadIdIsInvalid_ReturnsInvalidUploadIdWithoutStorageAccess()
+    {
+        var result = await _sut.DownloadSourceAsync("not-a-guid", "manual-pdf", null);
+
+        result.Status.Should().Be(ProcessorArtifactOperationStatus.InvalidUploadId);
+        result.Content.Should().BeNull();
+        _blobStorageMock.Verify(x => x.ExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DownloadSourceAsync_WhenDocumentTypeIsInvalid_ReturnsInvalidDocumentTypeWithoutStorageAccess()
+    {
+        var result = await _sut.DownloadSourceAsync(Guid.NewGuid().ToString(), "unsupported", null);
+
+        result.Status.Should().Be(ProcessorArtifactOperationStatus.InvalidDocumentType);
+        result.ContentType.Should().BeNull();
+        _blobStorageMock.Verify(x => x.ExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DownloadSourceAsync_WhenAccessTokenIsInvalid_ReturnsUnauthorizedWithoutStorageAccess()
+    {
+        var uploadId = Guid.NewGuid().ToString();
+        _tokenServiceMock
+            .Setup(x => x.IsValid("bad-token", uploadId, "manual-pdf"))
+            .Returns(false);
+
+        var result = await _sut.DownloadSourceAsync(uploadId, "manual-pdf", "bad-token");
+
+        result.Status.Should().Be(ProcessorArtifactOperationStatus.Unauthorized);
+        _tokenServiceMock.Verify(x => x.IsValid("bad-token", uploadId, "manual-pdf"), Times.Once);
+        _blobStorageMock.Verify(x => x.ExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DownloadSourceAsync_WhenSourceDoesNotExist_ReturnsNotFound()
+    {
+        var uploadId = Guid.NewGuid().ToString();
+        _blobStorageMock
+            .Setup(x => x.ExistsAsync("raw-uploads", $"{uploadId}/source.pdf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var result = await _sut.DownloadSourceAsync(uploadId, "manual-pdf", null);
+
+        result.Status.Should().Be(ProcessorArtifactOperationStatus.NotFound);
+        _blobStorageMock.Verify(x => x.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DownloadSourceAsync_WhenSourceExists_ReturnsDownloadedStreamAndContentType()
+    {
+        var uploadId = Guid.NewGuid().ToString();
+        var source = new MemoryStream([1, 2, 3]);
+        using var cts = new CancellationTokenSource();
+        _blobStorageMock
+            .Setup(x => x.ExistsAsync("raw-uploads", $"{uploadId}/source.pdf", cts.Token))
+            .ReturnsAsync(true);
+        _blobStorageMock
+            .Setup(x => x.DownloadAsync("raw-uploads", $"{uploadId}/source.pdf", cts.Token))
+            .ReturnsAsync(source);
+
+        var result = await _sut.DownloadSourceAsync(uploadId, "manual-pdf", null, cts.Token);
+
+        result.Status.Should().Be(ProcessorArtifactOperationStatus.Success);
+        result.ContentType.Should().Be("application/pdf");
+        result.Content.Should().BeSameAs(source);
+    }
+
+    [Fact]
     public async Task UploadArtifactAsync_GraphEntitiesArtifact_UsesRawUploadsContainerAndSkipsChunkIndexing()
     {
         var uploadId = Guid.NewGuid().ToString();
@@ -213,6 +282,49 @@ public class ProcessorArtifactServiceTests
         _jobRepoMock.Verify(
             x => x.TryTransitionToTerminalAsync(job.IngestionJobId, It.IsAny<IngestionJobStatus>(), IngestionJobStatus.PartiallyCompleted, 2, 1, "Failed to index 1 chunk(s)", It.IsAny<CancellationToken>()),
             Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task UploadArtifactAsync_SearchChunksArtifact_WhenIndexingTransitionNeedsProcessingStatus_ContinuesUntilTransitioned()
+    {
+        var uploadId = Guid.NewGuid().ToString();
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
+        SetUpJobFound(uploadId, job);
+        _chunkIndexingMock
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChunkIndexingResult(1, 1, [new ChunkIndexOutcome("chunk-1", true, null, 1, 0, "file.pdf")]));
+        _jobRepoMock
+            .Setup(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, IngestionJobStatus.Indexing, IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        _jobRepoMock
+            .Setup(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, IngestionJobStatus.Processing, IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var result = await _sut.UploadArtifactAsync(new ProcessorArtifactUploadRequest(uploadId, "search-chunks", new MemoryStream([1]), "application/jsonl"));
+
+        result.Status.Should().Be(ProcessorArtifactOperationStatus.Success);
+        _jobRepoMock.Verify(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, IngestionJobStatus.Indexing, IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()), Times.Once);
+        _jobRepoMock.Verify(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, IngestionJobStatus.Processing, IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()), Times.Once);
+        _jobRepoMock.Verify(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, IngestionJobStatus.Queued, IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UploadArtifactAsync_SearchChunksArtifact_WhenNoActiveStateTransitions_ExhaustsAllTerminalTransitions()
+    {
+        var uploadId = Guid.NewGuid().ToString();
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
+        SetUpJobFound(uploadId, job);
+        _chunkIndexingMock
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChunkIndexingResult(1, 1, [new ChunkIndexOutcome("chunk-1", true, null, 1, 0, "file.pdf")]));
+        _jobRepoMock
+            .Setup(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, It.IsAny<IngestionJobStatus>(), IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var result = await _sut.UploadArtifactAsync(new ProcessorArtifactUploadRequest(uploadId, "search-chunks", new MemoryStream([1]), "application/jsonl"));
+
+        result.Status.Should().Be(ProcessorArtifactOperationStatus.Success);
+        _jobRepoMock.Verify(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, It.IsAny<IngestionJobStatus>(), IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()), Times.Exactly(3));
     }
 
     [Fact]

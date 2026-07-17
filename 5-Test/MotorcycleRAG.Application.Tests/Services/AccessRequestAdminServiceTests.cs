@@ -126,6 +126,25 @@ public class AccessRequestAdminServiceTests
     }
 
     [Fact]
+    public async Task ApproveAccessRequestAsync_WhenOnboardingFails_ReturnsUpdatedRow()
+    {
+        var pending = new AccessRequestAdminRecord { RequestId = "req-1", RequestDecisionState = RequestDecisionState.Pending };
+        var inProgress = new AccessRequestAdminRecord { RequestId = "req-1", RequestDecisionState = RequestDecisionState.Approved };
+        var request = new ApproveAccessRequestRequest { Tier = TierLabel.RoadRunner, ExpectedRowVersion = "v1" };
+        var row = new UserManagementRow();
+
+        _accessRepoMock.Setup(x => x.GetAdminRecordByRequestIdAsync("req-1")).ReturnsAsync(pending);
+        _accessRepoMock.Setup(x => x.BeginApprovalOnboardingAsync("req-1", TierLabel.RoadRunner, "v1", "admin")).ReturnsAsync(inProgress);
+        _onboardingServiceMock.Setup(x => x.ExecuteAsync(inProgress)).ThrowsAsync(new InvalidOperationException("directory unavailable"));
+        _queryRepoMock.Setup(x => x.GetRowByIdAsync("request:req-1")).ReturnsAsync(row);
+
+        var result = await _sut.ApproveAccessRequestAsync("req-1", request, "admin");
+
+        result.Row.Should().BeSameAs(row);
+        _telemetryMock.Verify(x => x.TrackAdminAction("ApproveAccessRequest", "req-1", "admin", true, It.IsAny<TimeSpan>()), Times.Once);
+    }
+
+    [Fact]
     public async Task RetryOnboardingAsync_FailedOnboarding_Retries()
     {
         var requestRecord = new AccessRequestAdminRecord { RequestId = "req-1", RequestDecisionState = RequestDecisionState.Approved, OnboardingExecutionState = OnboardingExecutionState.Failed };

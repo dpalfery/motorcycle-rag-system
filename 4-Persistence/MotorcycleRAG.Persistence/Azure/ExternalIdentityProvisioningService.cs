@@ -73,7 +73,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
 
         var invitationPayload = BuildInvitationPayload(normalizedEmail, displayName);
         using var invitationResponse = await SendGraphAsync(HttpMethod.Post, "invitations", invitationPayload, CancellationToken.None);
-        using var invitationDocument = await ReadJsonDocumentAsync(invitationResponse, CancellationToken.None);
+        using var invitationDocument = await ReadJsonDocumentAsync(invitationResponse.Content, CancellationToken.None);
         EnsureSuccessStatusCode(invitationResponse, invitationDocument, "Create invitation");
 
         var externalDirectoryObjectId = TryGetNestedString(invitationDocument.RootElement, "invitedUser", "id")
@@ -202,7 +202,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
                 : $"servicePrincipals(appId='{EscapeODataString(_options.ApiApplicationClientId.Trim())}')?$select=id,appRoles";
 
             using var response = await SendGraphAsync(HttpMethod.Get, requestPath, payload: null, cancellationToken);
-            using var document = await ReadJsonDocumentAsync(response, cancellationToken);
+            using var document = await ReadJsonDocumentAsync(response.Content, cancellationToken);
             EnsureSuccessStatusCode(response, document, "Resolve API enterprise application");
 
             var objectId = TryGetString(document.RootElement, "id")
@@ -277,7 +277,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
         CancellationToken cancellationToken) {
         var requestPath = $"users/{externalDirectoryObjectId}/appRoleAssignments?$select=id,appRoleId,resourceId&$top=100";
         using var response = await SendGraphAsync(HttpMethod.Get, requestPath, payload: null, cancellationToken);
-        using var document = await ReadJsonDocumentAsync(response, cancellationToken);
+        using var document = await ReadJsonDocumentAsync(response.Content, cancellationToken);
 
         if (response.StatusCode == HttpStatusCode.NotFound) {
             throw new InvalidOperationException(
@@ -330,7 +330,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
             $"servicePrincipals/{resourceServicePrincipalObjectId}/appRoleAssignedTo",
             payload,
             cancellationToken);
-        using var document = await ReadJsonDocumentAsync(response, cancellationToken);
+        using var document = await ReadJsonDocumentAsync(response.Content, cancellationToken);
 
         if (response.IsSuccessStatusCode) {
             return;
@@ -358,7 +358,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
             return;
         }
 
-        using var document = await ReadJsonDocumentAsync(response, cancellationToken);
+        using var document = await ReadJsonDocumentAsync(response.Content, cancellationToken);
         EnsureSuccessStatusCode(response, document, "Delete API app-role assignment");
     }
 
@@ -368,7 +368,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
         var requestPath = $"users?$filter={Uri.EscapeDataString(filter)}&$select={Uri.EscapeDataString("id,userType,mail,userPrincipalName,otherMails")}&$top=10";
 
         using var response = await SendGraphAsync(HttpMethod.Get, requestPath, payload: null, cancellationToken, consistencyLevel: "eventual");
-        using var document = await ReadJsonDocumentAsync(response, cancellationToken);
+        using var document = await ReadJsonDocumentAsync(response.Content, cancellationToken);
         EnsureSuccessStatusCode(response, document, "Look up invited user");
 
         if (!document.RootElement.TryGetProperty("value", out var valueElement) || valueElement.ValueKind != JsonValueKind.Array) {
@@ -430,13 +430,13 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
         return await _httpClient.SendAsync(request, cancellationToken);
     }
 
-    private async Task<JsonDocument> ReadJsonDocumentAsync(HttpResponseMessage response, CancellationToken cancellationToken) {
-        if (response.Content is null) {
+    internal static async Task<JsonDocument> ReadJsonDocumentAsync(HttpContent? content, CancellationToken cancellationToken) {
+        if (content is null) {
             return JsonDocument.Parse("{}");
         }
 
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        return string.IsNullOrWhiteSpace(content) ? JsonDocument.Parse("{}") : JsonDocument.Parse(content);
+        var contentText = await content.ReadAsStringAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(contentText) ? JsonDocument.Parse("{}") : JsonDocument.Parse(contentText);
     }
 
     private Uri BuildGraphRequestUri(string relativePath) {

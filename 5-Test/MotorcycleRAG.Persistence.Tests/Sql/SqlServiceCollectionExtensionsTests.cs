@@ -183,6 +183,28 @@ public class SqlServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void SqlOptionsValidator_WithInvalidConnectionAndPoolSettings_ReturnsAllRelevantFailures()
+    {
+        // Arrange
+        var validator = new SqlOptionsValidator();
+        var options = new SqlOptions
+        {
+            ConnectionString = "Server=localhost;",
+            CommandTimeout = 30,
+            ConnectionTimeout = 0,
+            MaxPoolSize = 0
+        };
+
+        // Act
+        var result = validator.Validate(null, options);
+
+        // Assert
+        result.Failed.Should().BeTrue();
+        result.Failures.Should().Contain(message => message.Contains("ConnectionTimeout", StringComparison.Ordinal));
+        result.Failures.Should().Contain(message => message.Contains("MaxPoolSize", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void SqlOptionsValidator_WithNullOptions_ThrowsArgumentNullException()
     {
         var validator = new SqlOptionsValidator();

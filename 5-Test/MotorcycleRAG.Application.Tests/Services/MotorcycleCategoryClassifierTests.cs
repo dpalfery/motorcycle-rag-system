@@ -162,6 +162,25 @@ public class MotorcycleCategoryClassifierTests
     }
 
     [Fact]
+    public async Task CacheReadFailure_UsesLlmResultAndWritesTheResolvedCategory()
+    {
+        _categoryRepo
+            .Setup(r => r.GetCategoryAsync("Honda", "CBR 1000RR", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("cache unavailable"));
+        _chatClient
+            .Setup(c => c.GetChatCompletionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Touring");
+        var sut = CreateSut();
+
+        var result = await sut.ResolveCategoryAsync("Honda", "CBR 1000RR");
+
+        result.Should().Be(MotorcycleCategory.Touring);
+        _categoryRepo.Verify(
+            r => r.UpsertAsync("Honda", "CBR 1000RR", "touring", "Classifier", It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task CacheMiss_SecondCallForSameKey_IsCacheHit_NoSecondLlmCall()
     {
         // First call: miss -> LLM -> write-back. Second call: the cache now holds the value -> hit.

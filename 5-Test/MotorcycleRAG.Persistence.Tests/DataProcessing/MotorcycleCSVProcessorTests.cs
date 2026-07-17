@@ -4,6 +4,7 @@ using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Domain.ValueObjects;
 using MotorcycleRAG.Persistence.DataProcessing;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using MotorcycleRAG.Contracts.Models.DTOs.Search;
@@ -363,6 +364,35 @@ public class MotorcycleCSVProcessorTests
 
         var result = await sut.IndexAsync(data);
         result.IndexingTime.Should().BeGreaterThan(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task IndexAsync_WhenStartingLogFails_ReturnsFatalIndexingFailure()
+    {
+        // Arrange
+        var logger = new Mock<ILogger<MotorcycleCsvProcessor>>();
+        logger
+            .Setup(log => log.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
+            .Throws(new InvalidOperationException("Logger unavailable"));
+        var sut = new MotorcycleCsvProcessor(
+            CreateFoundryMock().Object,
+            CreateSearchMock().Object,
+            logger.Object,
+            Options.Create(CreateTestConfig()));
+        var data = new ProcessedData { Id = "test-id" };
+
+        // Act
+        var result = await sut.IndexAsync(data);
+
+        // Assert
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Logger unavailable");
+        result.Errors.Should().ContainSingle().Which.Should().Be("Logger unavailable");
     }
 
     [Fact]

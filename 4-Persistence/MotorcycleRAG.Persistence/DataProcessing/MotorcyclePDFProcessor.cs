@@ -829,63 +829,8 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         var documents = new List<MotorcycleDocumentDto>();
 
         foreach (var chunk in chunks) {
-            // T053/T055: Extract locator metadata from chunk metadata for citation support with defensive type checking
-            int pageNumber;
-            try {
-                pageNumber = chunk.Metadata.TryGetValue("PageNumber", out var pageNumberObj)
-                    ? Convert.ToInt32(pageNumberObj)
-                    : chunk.PageNumber;
-            }
-            catch (Exception ex) {
-                _logger.LogWarning(ex, "Failed to parse PageNumber from metadata for chunk {ChunkId}, using fallback",
-                    LogSanitizer.Sanitize(chunk.Id));
-                pageNumber = chunk.PageNumber;
-            }
-
-            var pageRange = chunk.Metadata.TryGetValue("PageRange", out var pageRangeObj) ? pageRangeObj?.ToString() : $"{pageNumber}";
-            var primarySection = chunk.Metadata.TryGetValue("PrimarySection", out var primarySectionObj) ? primarySectionObj?.ToString() : chunk.Section;
-
-            int sectionLevel;
-            try {
-                sectionLevel = chunk.Metadata.TryGetValue("SectionLevel", out var sectionLevelObj) ? Convert.ToInt32(sectionLevelObj) : 0;
-            }
-            catch (Exception ex) {
-                _logger.LogWarning(ex, "Failed to parse SectionLevel from metadata for chunk {ChunkId}, using default 0",
-                    LogSanitizer.Sanitize(chunk.Id));
-                sectionLevel = 0;
-            }
-
-            string[] sectionHeadings;
-            try {
-                sectionHeadings = chunk.Metadata.TryGetValue("AllSectionHeadings", out var headingsObj) ? (string[])headingsObj : Array.Empty<string>();
-            }
-            catch (Exception ex) {
-                _logger.LogWarning(ex, "Failed to parse AllSectionHeadings from metadata for chunk {ChunkId}, using empty array",
-                    LogSanitizer.Sanitize(chunk.Id));
-                sectionHeadings = Array.Empty<string>();
-            }
-
-            var tableCaption = chunk.Metadata.TryGetValue("TableCaption", out var tableCaptionObj) ? tableCaptionObj?.ToString() : null;
-
-            int chunkIndex;
-            try {
-                chunkIndex = chunk.Metadata.TryGetValue("ChunkIndex", out var chunkIndexObj) ? Convert.ToInt32(chunkIndexObj) : 0;
-            }
-            catch (Exception ex) {
-                _logger.LogWarning(ex, "Failed to parse ChunkIndex from metadata for chunk {ChunkId}, using default 0",
-                    LogSanitizer.Sanitize(chunk.Id));
-                chunkIndex = 0;
-            }
-
-            bool isMultiPageTable;
-            try {
-                isMultiPageTable = chunk.Metadata.TryGetValue("IsMultiPageTable", out var isMultiPageObj) && (bool)isMultiPageObj;
-            }
-            catch (Exception ex) {
-                _logger.LogWarning(ex, "Failed to parse IsMultiPageTable from metadata for chunk {ChunkId}, using default false",
-                    LogSanitizer.Sanitize(chunk.Id));
-                isMultiPageTable = false;
-            }
+            var (pageNumber, pageRange, primarySection, sectionLevel, sectionHeadings, tableCaption, chunkIndex, isMultiPageTable) =
+                ParseLocatorMetadata(chunk.Metadata, chunk.PageNumber, chunk.Section, _logger, chunk.Id);
 
             // build DocumentMetadataDto by mutating getter-only collections
             var dm = new DocumentMetadataDto();
@@ -958,6 +903,74 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
         _logger.LogDebug("Created {DocumentCount} MotorcycleDocumentDto objects with locator metadata", documents.Count);
         return documents;
+    }
+
+    internal static (int PageNumber, string? PageRange, string? PrimarySection, int SectionLevel, string[] SectionHeadings, string? TableCaption, int ChunkIndex, bool IsMultiPageTable) ParseLocatorMetadata(
+        IReadOnlyDictionary<string, object> metadata,
+        int fallbackPageNumber,
+        string fallbackSection,
+        ILogger<MotorcyclePdfProcessor>? logger = null,
+        string? chunkId = null) {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        int pageNumber;
+        try {
+            pageNumber = metadata.TryGetValue("PageNumber", out var pageNumberObj)
+                ? Convert.ToInt32(pageNumberObj)
+                : fallbackPageNumber;
+        }
+        catch (Exception ex) {
+            logger?.LogWarning(ex, "Failed to parse PageNumber from metadata for chunk {ChunkId}, using fallback",
+                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+            pageNumber = fallbackPageNumber;
+        }
+
+        var pageRange = metadata.TryGetValue("PageRange", out var pageRangeObj) ? pageRangeObj?.ToString() : $"{pageNumber}";
+        var primarySection = metadata.TryGetValue("PrimarySection", out var primarySectionObj) ? primarySectionObj?.ToString() : fallbackSection;
+
+        int sectionLevel;
+        try {
+            sectionLevel = metadata.TryGetValue("SectionLevel", out var sectionLevelObj) ? Convert.ToInt32(sectionLevelObj) : 0;
+        }
+        catch (Exception ex) {
+            logger?.LogWarning(ex, "Failed to parse SectionLevel from metadata for chunk {ChunkId}, using default 0",
+                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+            sectionLevel = 0;
+        }
+
+        string[] sectionHeadings;
+        try {
+            sectionHeadings = metadata.TryGetValue("AllSectionHeadings", out var headingsObj) ? (string[])headingsObj : Array.Empty<string>();
+        }
+        catch (Exception ex) {
+            logger?.LogWarning(ex, "Failed to parse AllSectionHeadings from metadata for chunk {ChunkId}, using empty array",
+                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+            sectionHeadings = Array.Empty<string>();
+        }
+
+        var tableCaption = metadata.TryGetValue("TableCaption", out var tableCaptionObj) ? tableCaptionObj?.ToString() : null;
+
+        int chunkIndex;
+        try {
+            chunkIndex = metadata.TryGetValue("ChunkIndex", out var chunkIndexObj) ? Convert.ToInt32(chunkIndexObj) : 0;
+        }
+        catch (Exception ex) {
+            logger?.LogWarning(ex, "Failed to parse ChunkIndex from metadata for chunk {ChunkId}, using default 0",
+                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+            chunkIndex = 0;
+        }
+
+        bool isMultiPageTable;
+        try {
+            isMultiPageTable = metadata.TryGetValue("IsMultiPageTable", out var isMultiPageObj) && (bool)isMultiPageObj;
+        }
+        catch (Exception ex) {
+            logger?.LogWarning(ex, "Failed to parse IsMultiPageTable from metadata for chunk {ChunkId}, using default false",
+                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+            isMultiPageTable = false;
+        }
+
+        return (pageNumber, pageRange, primarySection, sectionLevel, sectionHeadings, tableCaption, chunkIndex, isMultiPageTable);
     }
 
     private Dictionary<string, object> CreateProcessingMetadata(

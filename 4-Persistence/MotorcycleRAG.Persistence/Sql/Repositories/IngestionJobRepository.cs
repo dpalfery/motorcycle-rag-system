@@ -33,6 +33,15 @@ public class IngestionJobRepository : IIngestionJobRepository
     /// </summary>
     private static volatile int _hasSqlIdColumn = -1;
 
+    /// <summary>
+    /// Clears the cached <c>dbo.IngestionJobs.Id</c> capability so the next operation probes
+    /// the schema again. Intended for controlled schema changes and deterministic tests.
+    /// </summary>
+    internal static void InvalidateSchemaMetadataCache()
+    {
+        Interlocked.Exchange(ref _hasSqlIdColumn, -1);
+    }
+
     private const string IngestionJobColumnsWithSqlId = @"
                 [Id], [IngestionJobId], [CreatedAtUtc], [StartedAtUtc], [CompletedAtUtc],
                 [CreatedBySubject], [Status], [FailureReason], [ErrorsJson], [ErrorMessage], [InputType], [InputRef], [SourceFileName],

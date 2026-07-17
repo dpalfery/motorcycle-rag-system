@@ -534,8 +534,8 @@ public sealed class IngestionJobService : IIngestionJobService {
             return;
         }
 
-        job.Fail(reason);
         job.UpdateStage("failed", null, null);
+        job.Fail(reason);
 
         await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
 

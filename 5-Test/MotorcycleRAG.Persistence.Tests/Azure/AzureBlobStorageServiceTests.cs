@@ -3,6 +3,7 @@ using Azure.Core;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Persistence.Azure;
@@ -424,7 +425,8 @@ public class AzureBlobStorageServiceTests
 
     private static AzureBlobStorageService CreateServiceWithMockBlobChain(
         Mock<BlobServiceClient> serviceMock,
-        IOptions<BlobStorageOptions>? options = null)
+        IOptions<BlobStorageOptions>? options = null,
+        ILogger<AzureBlobStorageService>? logger = null)
     {
         var factory = new Mock<IBlobServiceClientFactory>();
         factory.Setup(f => f.Create(It.IsAny<string>())).Returns(serviceMock.Object);
@@ -435,7 +437,7 @@ public class AzureBlobStorageServiceTests
             CreateDevelopmentEnvironment(),
             factory.Object,
             CreateCredentialProvider(),
-            TestHelpers.CreateNullLogger<AzureBlobStorageService>());
+            logger ?? TestHelpers.CreateNullLogger<AzureBlobStorageService>());
     }
 
     /// <summary>
@@ -713,5 +715,223 @@ public class AzureBlobStorageServiceTests
                 It.IsAny<BlobContainerEncryptionScopeOptions>(),
                 cts.Token),
             Times.AtLeastOnce);
+    }
+
+    // ─── ExistsAsync ──────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ExistsAsync_WhenSdkReturnsValue_ReturnsSameValue(bool exists)
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        SetupBlobExists(blob, exists);
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.ExistsAsync("test-container", "test-blob");
+
+        result.Should().Be(exists);
+    }
+
+    [Fact]
+    public async Task ExistsAsync_WhenSdkFails_PropagatesRequestFailedException()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        blob.Setup(b => b.ExistsAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(503, "ServiceUnavailable"));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var act = () => sut.ExistsAsync("test-container", "test-blob");
+
+        await act.Should().ThrowAsync<RequestFailedException>()
+            .Where(ex => ex.Status == 503);
+    }
+
+    [Fact]
+    public async Task ExistsAsync_WithCancellationToken_PassesTokenToSdk()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        using var cts = new CancellationTokenSource();
+        blob.Setup(b => b.ExistsAsync(cts.Token))
+            .ReturnsAsync(Response.FromValue(true, Mock.Of<Response>()));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.ExistsAsync("test-container", "test-blob", cts.Token);
+
+        result.Should().BeTrue();
+        blob.Verify(b => b.ExistsAsync(cts.Token), Times.Once);
+    }
+
+    // ─── DownloadAsync ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DownloadAsync_WhenSdkReturnsContent_ReturnsSameStream()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        var expectedStream = new MemoryStream([1, 2, 3]);
+        var download = BlobsModelFactory.BlobDownloadStreamingResult(expectedStream, new BlobDownloadDetails());
+        blob.Setup(b => b.DownloadStreamingAsync(
+                It.IsAny<BlobDownloadOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(download, Mock.Of<Response>()));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.DownloadAsync("test-container", "test-blob");
+
+        result.Should().BeSameAs(expectedStream);
+    }
+
+    [Fact]
+    public async Task DownloadAsync_WhenSdkFails_PropagatesRequestFailedException()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        blob.Setup(b => b.DownloadStreamingAsync(
+                It.IsAny<BlobDownloadOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(404, "BlobNotFound"));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var act = () => sut.DownloadAsync("test-container", "test-blob");
+
+        await act.Should().ThrowAsync<RequestFailedException>()
+            .Where(ex => ex.Status == 404);
+    }
+
+    [Fact]
+    public async Task DownloadAsync_WithCancellationToken_PassesTokenToSdk()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        using var cts = new CancellationTokenSource();
+        var download = BlobsModelFactory.BlobDownloadStreamingResult(new MemoryStream(), new BlobDownloadDetails());
+        blob.Setup(b => b.DownloadStreamingAsync(It.IsAny<BlobDownloadOptions>(), cts.Token))
+            .ReturnsAsync(Response.FromValue(download, Mock.Of<Response>()));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        await sut.DownloadAsync("test-container", "test-blob", cts.Token);
+
+        blob.Verify(
+            b => b.DownloadStreamingAsync(It.IsAny<BlobDownloadOptions>(), cts.Token),
+            Times.Once);
+    }
+
+    // ─── DeleteIfExistsAsync ──────────────────────────────────────────
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DeleteIfExistsAsync_WhenSdkReturnsValue_ReturnsSameValue(bool deleted)
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        SetupBlobDelete(blob, deleted);
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.DeleteIfExistsAsync("test-container", "test-blob");
+
+        result.Should().Be(deleted);
+        blob.Verify(
+            b => b.DeleteIfExistsAsync(
+                DeleteSnapshotsOption.IncludeSnapshots,
+                It.IsAny<BlobRequestConditions>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteIfExistsAsync_WhenSdkFails_PropagatesRequestFailedException()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        blob.Setup(b => b.DeleteIfExistsAsync(
+                It.IsAny<DeleteSnapshotsOption>(),
+                It.IsAny<BlobRequestConditions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(409, "Conflict"));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var act = () => sut.DeleteIfExistsAsync("test-container", "test-blob");
+
+        await act.Should().ThrowAsync<RequestFailedException>()
+            .Where(ex => ex.Status == 409);
+    }
+
+    [Fact]
+    public async Task DeleteIfExistsAsync_WithCancellationToken_PassesTokenAndIncludesSnapshots()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        using var cts = new CancellationTokenSource();
+        blob.Setup(b => b.DeleteIfExistsAsync(
+                DeleteSnapshotsOption.IncludeSnapshots,
+                It.IsAny<BlobRequestConditions>(),
+                cts.Token))
+            .ReturnsAsync(Response.FromValue(true, Mock.Of<Response>()));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.DeleteIfExistsAsync("test-container", "test-blob", cts.Token);
+
+        result.Should().BeTrue();
+        blob.Verify(
+            b => b.DeleteIfExistsAsync(
+                DeleteSnapshotsOption.IncludeSnapshots,
+                It.IsAny<BlobRequestConditions>(),
+                cts.Token),
+            Times.Once);
+    }
+
+    // ─── SetMetadataAsync ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task SetMetadataAsync_WhenSdkSucceeds_SetsProvidedMetadata()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        var metadata = new Dictionary<string, string> { ["source"] = "manual" };
+        SetupBlobSetMetadata(blob, metadata);
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        await sut.SetMetadataAsync("test-container", "test-blob", metadata);
+
+        blob.Verify(
+            b => b.SetMetadataAsync(metadata, It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SetMetadataAsync_WhenSdkFails_SwallowsFailureAndLogsWarning()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        var metadata = new Dictionary<string, string> { ["source"] = "manual" };
+        var logger = new Mock<ILogger<AzureBlobStorageService>>();
+        blob.Setup(b => b.SetMetadataAsync(
+                metadata,
+                It.IsAny<BlobRequestConditions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(500, "InternalError"));
+        var sut = CreateServiceWithMockBlobChain(service, logger: logger.Object);
+
+        await sut.SetMetadataAsync("test-container", "test-blob", metadata);
+
+        logger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((state, _) => state.ToString()!.Contains("Failed to set metadata")),
+                It.IsAny<RequestFailedException>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SetMetadataAsync_WithCancellationToken_PassesTokenToSdk()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        var metadata = new Dictionary<string, string> { ["source"] = "manual" };
+        using var cts = new CancellationTokenSource();
+        blob.Setup(b => b.SetMetadataAsync(metadata, It.IsAny<BlobRequestConditions>(), cts.Token))
+            .ReturnsAsync(Response.FromValue(Mock.Of<BlobInfo>(), Mock.Of<Response>()));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        await sut.SetMetadataAsync("test-container", "test-blob", metadata, cts.Token);
+
+        blob.Verify(
+            b => b.SetMetadataAsync(metadata, It.IsAny<BlobRequestConditions>(), cts.Token),
+            Times.Once);
     }
 }

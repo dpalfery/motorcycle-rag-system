@@ -19,14 +19,21 @@ internal class SigningKeyCache
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<SigningKeyCache> _logger;
+    private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<string, (List<SecurityKey> Keys, DateTime Expiry)> _keyCache;
     private readonly TimeSpan _cacheTtl = TimeSpan.FromHours(1);  // Cache keys for 1 hour
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);  // Prevent concurrent refreshes
 
     internal SigningKeyCache(HttpClient httpClient, ILogger<SigningKeyCache> logger)
+        : this(httpClient, logger, TimeProvider.System)
+    {
+    }
+
+    internal SigningKeyCache(HttpClient httpClient, ILogger<SigningKeyCache> logger, TimeProvider timeProvider)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _keyCache = new ConcurrentDictionary<string, (List<SecurityKey>, DateTime)>();
     }
 
@@ -63,7 +70,7 @@ internal class SigningKeyCache
             return [];
 
         // Check if we have cached keys and they're still valid
-        if (_keyCache.TryGetValue(issuer, out var cached) && cached.Expiry > DateTime.UtcNow)
+        if (_keyCache.TryGetValue(issuer, out var cached) && cached.Expiry > _timeProvider.GetUtcNow().UtcDateTime)
         {
             _logger.LogDebug("Returning cached signing keys for issuer {Issuer}", issuer);
             return cached.Keys;
@@ -118,13 +125,13 @@ internal class SigningKeyCache
         try
         {
             // Double-check cache after acquiring semaphore
-            if (_keyCache.TryGetValue(issuer, out var cached) && cached.Expiry > DateTime.UtcNow)
+            if (_keyCache.TryGetValue(issuer, out var cached) && cached.Expiry > _timeProvider.GetUtcNow().UtcDateTime)
                 return;
 
             var keys = await FetchSigningKeysAsync(issuer);
             if (keys.Any())
             {
-                var expiry = DateTime.UtcNow.Add(_cacheTtl);
+                var expiry = _timeProvider.GetUtcNow().UtcDateTime.Add(_cacheTtl);
                 _keyCache[issuer] = (keys, expiry);
                 _logger.LogInformation(
                     "Cached {KeyCount} signing keys for issuer {Issuer} (expires {Expiry})",

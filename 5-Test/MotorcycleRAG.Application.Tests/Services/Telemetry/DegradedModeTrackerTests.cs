@@ -162,6 +162,55 @@ public class DegradedModeTrackerTests
         availableList!.Cast<object>().Should().HaveCount(1);
     }
 
+    [Fact]
+    public void UpdateQueryContextMetrics_WhenStatusesHavePartialFailure_PreservesStatusDataInDegradedMetadata()
+    {
+        var successful = new SourceExecutionStatus
+        {
+            AgentType = SearchAgentType.VectorSearch,
+            Succeeded = true,
+            ResultsCount = 4,
+            Duration = TimeSpan.FromMilliseconds(125)
+        };
+        var failed = new SourceExecutionStatus
+        {
+            AgentType = SearchAgentType.WebSearch,
+            Succeeded = false,
+            ResultsCount = 0,
+            Duration = TimeSpan.FromMilliseconds(250),
+            ErrorMessage = "upstream timeout"
+        };
+        var context = new SearchContext { QueryContext = new QueryContext() };
+        var metrics = new Dictionary<SearchAgentType, (TimeSpan Duration, int ResultsFound)>
+        {
+            [successful.AgentType] = (successful.Duration, successful.ResultsCount),
+            [failed.AgentType] = (failed.Duration, failed.ResultsCount)
+        };
+
+        _sut.TrackSearchExecution([successful, failed], successful.Duration + failed.Duration, successful.ResultsCount);
+        _sut.UpdateQueryContextMetrics(context, metrics, true, [failed], [successful]);
+
+        context.QueryContext.AdditionalProperties["DegradedMode"].Should().Be(true);
+        var patternMetrics = context.QueryContext.AdditionalProperties["SearchPatternMetrics"]
+            .Should().BeOfType<SearchPatternMetrics>().Subject;
+        patternMetrics.VectorSearchTime.Should().Be(successful.Duration);
+        patternMetrics.VectorResultsFound.Should().Be(successful.ResultsCount);
+        patternMetrics.WebSearchTime.Should().Be(failed.Duration);
+        patternMetrics.WebResultsFound.Should().Be(failed.ResultsCount);
+
+        var failedSource = context.QueryContext.AdditionalProperties["FailedSources"]
+            .Should().BeAssignableTo<System.Collections.IEnumerable>().Subject
+            .Cast<object>().Should().ContainSingle().Subject;
+        ReadMetadataProperty<SearchAgentType>(failedSource, "AgentType").Should().Be(failed.AgentType);
+        ReadMetadataProperty<string?>(failedSource, "ErrorMessage").Should().Be(failed.ErrorMessage);
+
+        var availableSource = context.QueryContext.AdditionalProperties["AvailableSources"]
+            .Should().BeAssignableTo<System.Collections.IEnumerable>().Subject
+            .Cast<object>().Should().ContainSingle().Subject;
+        ReadMetadataProperty<SearchAgentType>(availableSource, "AgentType").Should().Be(successful.AgentType);
+        ReadMetadataProperty<int>(availableSource, "ResultsCount").Should().Be(successful.ResultsCount);
+    }
+
     [Theory]
     [InlineData("vector_search", SearchAgentType.VectorSearch, true)]
     [InlineData("web_search", SearchAgentType.WebSearch, true)]
@@ -205,5 +254,12 @@ public class DegradedModeTrackerTests
                     It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
                 Times.Once);
         }
+    }
+
+    private static T ReadMetadataProperty<T>(object source, string propertyName)
+    {
+        var property = source.GetType().GetProperty(propertyName);
+        property.Should().NotBeNull();
+        return (T)property!.GetValue(source)!;
     }
 }

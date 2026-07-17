@@ -236,6 +236,26 @@ public sealed class MotorcycleRagServiceTests
         result.Details["Cache.Status"].Should().Be("Error");
     }
 
+    [Fact]
+    public async Task GetHealthAsync_WhenCacheStatisticsAreAvailable_ReturnsCacheDetails()
+    {
+        _cache.Setup(cache => cache.GetStatisticsAsync()).ReturnsAsync(new CacheStatistics
+        {
+            TotalRequests = 4,
+            CacheHits = 3,
+            CacheMisses = 1,
+            TotalEntries = 2,
+            TotalMemoryUsage = 3 * 1024 * 1024,
+        });
+        var sut = CreateSut();
+
+        var result = await sut.GetHealthAsync();
+
+        result.Details["Cache.HitRatio"].Should().Be("75.00%");
+        result.Details["Cache.TotalEntries"].Should().Be("2");
+        result.Details["Cache.MemoryUsage"].Should().Be("3.0MB");
+    }
+
     [Theory]
     [InlineData(4, 4000, false)] // sources <= 3 or time >= 5000 => default
     [InlineData(5, 4000, true)]  // sources > 3 and time < 5000 => long term

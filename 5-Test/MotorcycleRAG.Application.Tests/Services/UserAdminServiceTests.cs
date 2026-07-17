@@ -138,4 +138,16 @@ public class UserAdminServiceTests
 
         result.Should().BeEquivalentTo(users);
     }
+
+    [Theory]
+    [InlineData(0, 50)]
+    [InlineData(1, 0)]
+    [InlineData(1, 101)]
+    public async Task GetAllUsersAsync_WhenPagingIsOutsideSupportedRange_ThrowsArgumentException(int page, int pageSize)
+    {
+        var act = () => _sut.GetAllUsersAsync(page, pageSize);
+
+        await act.Should().ThrowAsync<ArgumentException>();
+        _userRepoMock.Verify(repository => repository.GetUsersAsync(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+    }
 }

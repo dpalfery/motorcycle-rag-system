@@ -475,6 +475,39 @@ public sealed class DataPipelineOrchestratorTests
         metrics.RecentExecutions.Should().Contain(x => x.ExecutionId == failedResult.ExecutionId);
     }
 
+    [Fact]
+    public async Task CancelPipelineAsync_WhenExecutionIsInFlight_CancelsThePipelineAndReturnsTrue()
+    {
+        var filePath = CreateFile("manual.pdf", "%PDF-1.4 test");
+        var processingStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowProcessingToComplete = new TaskCompletionSource<ProcessedData>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pdfProcessorMock
+            .Setup(x => x.ProcessAsync(It.IsAny<PDFDocument>()))
+            .Returns(async () =>
+            {
+                processingStarted.SetResult();
+                return await allowProcessingToComplete.Task;
+            });
+        var sut = CreateSut();
+
+        var processing = sut.ProcessFileAsync(new DataPipelineRequest
+        {
+            FileName = "manual.pdf",
+            FilePath = filePath,
+            FileType = FileType.PDF
+        });
+        await processingStarted.Task;
+        var executionId = (await sut.GetPipelineMetricsAsync()).RecentExecutions.Should().ContainSingle().Subject.ExecutionId;
+
+        var cancelled = await sut.CancelPipelineAsync(executionId);
+        allowProcessingToComplete.SetResult(CreateProcessedData(1));
+        var result = await processing;
+
+        cancelled.Should().BeTrue();
+        result.Status.Should().Be(PipelineStatus.Cancelled);
+        result.Message.Should().Be("Pipeline execution was cancelled after processing.");
+    }
+
     private DataPipelineOrchestrator CreateSut(bool enableAutoIndexing = true, int maxConcurrentProcessing = 5)
     {
         return new DataPipelineOrchestrator(

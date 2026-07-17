@@ -35,105 +35,122 @@ using System.Text.Json;
 //   1 — configuration error or provisioning failure
 // -------------------------------------------------------------------------
 
-using var loggerFactory = LoggerFactory.Create(builder =>
+internal static class Program
 {
-    builder.AddConsole();
-    builder.SetMinimumLevel(LogLevel.Information);
-});
+    public static Task<int> Main(string[] args) => RunAsync();
 
-var logger = loggerFactory.CreateLogger("AgentProvisioning");
-
-try
-{
-    var foundryEndpoint = Environment.GetEnvironmentVariable("AZURE_FOUNDRY_ENDPOINT");
-    if (string.IsNullOrWhiteSpace(foundryEndpoint))
+    internal static async Task<int> RunAsync(
+        Func<string, string?>? getEnvironmentVariable = null,
+        Func<Uri, IAgentAdminOperations>? createAdminOperations = null,
+        Action<string>? writeOutput = null,
+        Func<TimeSpan, Task>? delayAsync = null)
     {
-        logger.LogError("AZURE_FOUNDRY_ENDPOINT environment variable is required");
-        Environment.Exit(1);
-    }
+        getEnvironmentVariable ??= Environment.GetEnvironmentVariable;
+        createAdminOperations ??= AgentProvisioningComposition.CreateAdminOperations;
+        writeOutput ??= Console.WriteLine;
+        delayAsync ??= Task.Delay;
 
-    var modelOptions = AgentProvisioningModelOptions.FromEnvironment(Environment.GetEnvironmentVariable);
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddConsole();
+            builder.SetMinimumLevel(LogLevel.Information);
+        });
 
-    var provisioningLogger = loggerFactory.CreateLogger<AgentProvisioningService>();
-    var adminOperations = AgentProvisioningComposition.CreateAdminOperations(new Uri(foundryEndpoint));
-    var service = new AgentProvisioningService(adminOperations, modelOptions, provisioningLogger);
+        var logger = loggerFactory.CreateLogger("AgentProvisioning");
 
-    logger.LogInformation(
-        "Starting agent provisioning against {Endpoint} with orchestrator model candidates {OrchestratorCandidates} and subagent model {SubAgentModel}",
-        foundryEndpoint,
-        string.Join(",", modelOptions.OrchestratorModelCandidates),
-        modelOptions.SubAgentModel);
-
-    var agentReferences = await ProvisionWithPermissionRetryAsync(service, logger);
-
-    logger.LogInformation("Provisioning complete");
-
-    // Write agent references as JSON to stdout — captured by the pipeline
-    var output = new
-    {
-        orchestratorAgentName = agentReferences.Orchestrator.Name,
-        orchestratorAgentVersion = agentReferences.Orchestrator.Version,
-        vectorSearchAgentName = agentReferences.VectorSearch.Name,
-        vectorSearchAgentVersion = agentReferences.VectorSearch.Version,
-        webSearchAgentName = agentReferences.WebSearch.Name,
-        webSearchAgentVersion = agentReferences.WebSearch.Version,
-        pdfSearchAgentName = agentReferences.PDFSearch.Name,
-        pdfSearchAgentVersion = agentReferences.PDFSearch.Version,
-        graphQueryAgentName = agentReferences.GraphQuery.Name,
-        graphQueryAgentVersion = agentReferences.GraphQuery.Version
-    };
-
-    Console.WriteLine(JsonSerializer.Serialize(output));
-
-    Environment.Exit(0);
-}
-catch (Exception ex)
-{
-    logger.LogError(ex, "Agent provisioning failed");
-    Environment.Exit(1);
-}
-
-static async Task<ProvisionedAgentReferences> ProvisionWithPermissionRetryAsync(
-    AgentProvisioningService service,
-    ILogger logger)
-{
-    const int maxAttempts = 6;
-    var delay = TimeSpan.FromSeconds(30);
-
-    for (var attempt = 1; attempt <= maxAttempts; attempt++)
-    {
         try
         {
-            return await service.ProvisionAllAgentsAsync();
+            var foundryEndpoint = getEnvironmentVariable("AZURE_FOUNDRY_ENDPOINT");
+            if (string.IsNullOrWhiteSpace(foundryEndpoint))
+            {
+                logger.LogError("AZURE_FOUNDRY_ENDPOINT environment variable is required");
+                return 1;
+            }
+
+            var modelOptions = AgentProvisioningModelOptions.FromEnvironment(getEnvironmentVariable);
+
+            var provisioningLogger = loggerFactory.CreateLogger<AgentProvisioningService>();
+            var adminOperations = createAdminOperations(new Uri(foundryEndpoint));
+            var service = new AgentProvisioningService(adminOperations, modelOptions, provisioningLogger);
+
+            logger.LogInformation(
+                "Starting agent provisioning against {Endpoint} with orchestrator model candidates {OrchestratorCandidates} and subagent model {SubAgentModel}",
+                foundryEndpoint,
+                string.Join(",", modelOptions.OrchestratorModelCandidates),
+                modelOptions.SubAgentModel);
+
+            var agentReferences = await ProvisionWithPermissionRetryAsync(service, logger, delayAsync);
+
+            logger.LogInformation("Provisioning complete");
+
+            // Write agent references as JSON to stdout — captured by the pipeline
+            var output = new
+            {
+                orchestratorAgentName = agentReferences.Orchestrator.Name,
+                orchestratorAgentVersion = agentReferences.Orchestrator.Version,
+                vectorSearchAgentName = agentReferences.VectorSearch.Name,
+                vectorSearchAgentVersion = agentReferences.VectorSearch.Version,
+                webSearchAgentName = agentReferences.WebSearch.Name,
+                webSearchAgentVersion = agentReferences.WebSearch.Version,
+                pdfSearchAgentName = agentReferences.PDFSearch.Name,
+                pdfSearchAgentVersion = agentReferences.PDFSearch.Version,
+                graphQueryAgentName = agentReferences.GraphQuery.Name,
+                graphQueryAgentVersion = agentReferences.GraphQuery.Version
+            };
+
+            writeOutput(JsonSerializer.Serialize(output));
+            return 0;
         }
-        catch (Exception ex) when (attempt < maxAttempts && IsPermissionPropagationFailure(ex))
+        catch (Exception ex)
         {
-            logger.LogWarning(
-                ex,
-                "Foundry data-plane RBAC is not available yet. Retrying agent provisioning in {DelaySeconds} seconds ({Attempt}/{MaxAttempts}).",
-                delay.TotalSeconds,
-                attempt,
-                maxAttempts);
-            await Task.Delay(delay);
+            logger.LogError(ex, "Agent provisioning failed");
+            return 1;
         }
     }
 
-    throw new InvalidOperationException("Agent provisioning retry loop exhausted unexpectedly.");
-}
-
-static bool IsPermissionPropagationFailure(Exception ex)
-{
-    if (ex is RequestFailedException requestFailed)
+    internal static async Task<ProvisionedAgentReferences> ProvisionWithPermissionRetryAsync(
+        AgentProvisioningService service,
+        ILogger logger,
+        Func<TimeSpan, Task> delayAsync)
     {
-        return requestFailed.Status == 401
-            && string.Equals(requestFailed.ErrorCode, "PermissionDenied", StringComparison.OrdinalIgnoreCase);
+        const int maxAttempts = 6;
+        var delay = TimeSpan.FromSeconds(30);
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                return await service.ProvisionAllAgentsAsync();
+            }
+            catch (Exception ex) when (attempt < maxAttempts && IsPermissionPropagationFailure(ex))
+            {
+                logger.LogWarning(
+                    ex,
+                    "Foundry data-plane RBAC is not available yet. Retrying agent provisioning in {DelaySeconds} seconds ({Attempt}/{MaxAttempts}).",
+                    delay.TotalSeconds,
+                    attempt,
+                    maxAttempts);
+                await delayAsync(delay);
+            }
+        }
+
+        throw new InvalidOperationException("Agent provisioning retry loop exhausted unexpectedly.");
     }
 
-    if (ex is ClientResultException clientResult)
+    internal static bool IsPermissionPropagationFailure(Exception ex)
     {
-        return clientResult.Status == 401
-            && clientResult.Message.Contains("PermissionDenied", StringComparison.OrdinalIgnoreCase);
-    }
+        if (ex is RequestFailedException requestFailed)
+        {
+            return requestFailed.Status == 401
+                && string.Equals(requestFailed.ErrorCode, "PermissionDenied", StringComparison.OrdinalIgnoreCase);
+        }
 
-    return false;
+        if (ex is ClientResultException clientResult)
+        {
+            return clientResult.Status == 401
+                && clientResult.Message.Contains("PermissionDenied", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
 }

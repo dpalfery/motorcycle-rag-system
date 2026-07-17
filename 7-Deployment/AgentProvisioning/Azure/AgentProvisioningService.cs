@@ -111,7 +111,7 @@ public sealed class AgentProvisioningService {
     // Helpers
     // -------------------------------------------------------------------------
 
-    private async Task<ProvisionedAgentReference> CreateAgentVersionWithFallbackAsync(
+    internal async Task<ProvisionedAgentReference> CreateAgentVersionWithFallbackAsync(
         string name,
         IReadOnlyList<string> modelCandidates,
         string instructions,
@@ -158,7 +158,7 @@ public sealed class AgentProvisioningService {
         return await _adminOps.CreateAgentVersionAsync(name, model, instructions, tools, ct);
     }
 
-    private static bool ShouldTryNextModel(Exception ex) {
+    internal static bool ShouldTryNextModel(Exception ex) {
         if (ex is RequestFailedException requestFailed)
             return IsModelRejection(requestFailed.Status, requestFailed.Message);
 
@@ -168,7 +168,7 @@ public sealed class AgentProvisioningService {
         return false;
     }
 
-    private static bool IsModelRejection(int status, string message) {
+    internal static bool IsModelRejection(int status, string message) {
         if (status is not (400 or 404))
             return false;
 

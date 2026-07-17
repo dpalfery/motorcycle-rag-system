@@ -11,7 +11,25 @@ internal static class AppConfigurationExtensions {
     public static WebApplicationBuilder AddBffAzureAppConfiguration(
         this WebApplicationBuilder builder,
         bool optional = false,
-        bool skipRemoteConfigurationLoad = false) {
+        bool skipRemoteConfigurationLoad = false) =>
+        AddBffAzureAppConfiguration(
+            builder,
+            optional,
+            skipRemoteConfigurationLoad,
+            static () => new ManagedIdentityCredential(new ManagedIdentityCredentialOptions()),
+            static credential => PreWarmManagedIdentityTokenAsync(credential),
+            static endpoint => EnsureTcpConnectivityAsync(endpoint),
+            RegisterAzureAppConfiguration);
+
+    internal static WebApplicationBuilder AddBffAzureAppConfiguration(
+        this WebApplicationBuilder builder,
+        bool optional,
+        bool skipRemoteConfigurationLoad,
+        Func<TokenCredential> createCredential,
+        Func<TokenCredential, Task> preWarmManagedIdentityTokenAsync,
+        Func<string, Task> ensureTcpConnectivityAsync,
+        Action<IConfigurationBuilder, string?, string?, TokenCredential, string, bool> registerAzureAppConfiguration,
+        Action<AzureAppConfigurationRegistrationIntent>? observeRegistrationIntent = null) {
         var appConfigConnectionString = builder.Configuration["AppConfig:ConnectionString"];
         var appConfigEndpoint = builder.Configuration["AppConfig:Endpoint"];
 
@@ -24,32 +42,31 @@ internal static class AppConfigurationExtensions {
         }
 
         if (!string.IsNullOrEmpty(appConfigConnectionString) || !string.IsNullOrEmpty(appConfigEndpoint)) {
-            TokenCredential credential = new ManagedIdentityCredential(new ManagedIdentityCredentialOptions());
+            var credential = createCredential();
 
             if (!skipRemoteConfigurationLoad && string.IsNullOrEmpty(appConfigConnectionString) && !string.IsNullOrEmpty(appConfigEndpoint)) {
-                PreWarmManagedIdentityTokenAsync(credential).GetAwaiter().GetResult();
-                EnsureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
+                preWarmManagedIdentityTokenAsync(credential).GetAwaiter().GetResult();
+                ensureTcpConnectivityAsync(appConfigEndpoint).GetAwaiter().GetResult();
             }
 
-            // Unit tests set skipRemoteConfigurationLoad to avoid Azure's multi-minute startup timeout.
             if (!skipRemoteConfigurationLoad) {
-                builder.Configuration.AddAzureAppConfiguration(options => {
-                    if (!string.IsNullOrEmpty(appConfigConnectionString)) {
-                        options.Connect(appConfigConnectionString);
-                    }
-                    else {
-                        options.Connect(new Uri(appConfigEndpoint!), credential);
-                    }
-
-                    options.Select(KeyFilter.Any)
-                           .Select(KeyFilter.Any, "bff")
-                           .Select(KeyFilter.Any, builder.Environment.EnvironmentName)
-                           .ConfigureKeyVault(kv => kv.SetCredential(credential))
-                           .ConfigureRefresh(refreshOptions => {
-                               refreshOptions.Register("Settings:Sentinel", refreshAll: true)
-                                             .SetRefreshInterval(TimeSpan.FromSeconds(30));
-                           });
-                }, optional);
+                observeRegistrationIntent?.Invoke(new AzureAppConfigurationRegistrationIntent(
+                    appConfigConnectionString,
+                    appConfigEndpoint,
+                    optional,
+                    "bff",
+                    builder.Environment.EnvironmentName,
+                    credential,
+                    "Settings:Sentinel",
+                    true,
+                    TimeSpan.FromSeconds(30)));
+                registerAzureAppConfiguration(
+                    builder.Configuration,
+                    appConfigConnectionString,
+                    appConfigEndpoint,
+                    credential,
+                    builder.Environment.EnvironmentName,
+                    optional);
             }
 
             builder.Services.AddAzureAppConfiguration();
@@ -58,7 +75,20 @@ internal static class AppConfigurationExtensions {
         return builder;
     }
 
-    private static async Task PreWarmManagedIdentityTokenAsync(
+    internal sealed record AzureAppConfigurationRegistrationIntent(
+        string? ConnectionString,
+        string? Endpoint,
+        bool Optional,
+        string ComponentLabel,
+        string EnvironmentLabel,
+        TokenCredential KeyVaultCredential,
+        string SentinelKey,
+        bool RefreshAll,
+        TimeSpan RefreshInterval) {
+        public bool UsesConnectionString => !string.IsNullOrEmpty(ConnectionString);
+    }
+
+    internal static async Task PreWarmManagedIdentityTokenAsync(
         TokenCredential credential,
         int maxAttempts = 10,
         int retryDelayMs = 3000) {
@@ -75,29 +105,90 @@ internal static class AppConfigurationExtensions {
         }
     }
 
-    private static async Task EnsureTcpConnectivityAsync(
+    internal static Task EnsureTcpConnectivityAsync(
         string appConfigEndpoint,
         int maxAttempts = 15,
         int connectTimeoutMs = 5000,
         int retryDelayMs = 2000,
+        int port = 443) =>
+        EnsureTcpConnectivityWithRetriesAsync(
+            appConfigEndpoint,
+            ConnectToAppConfigurationAsync,
+            TimeProvider.System,
+            maxAttempts,
+            TimeSpan.FromMilliseconds(connectTimeoutMs),
+            TimeSpan.FromMilliseconds(retryDelayMs),
+            port);
+
+    internal static async Task EnsureTcpConnectivityWithRetriesAsync(
+        string appConfigEndpoint,
+        Func<string, int, CancellationToken, Task> connectAsync,
+        TimeProvider timeProvider,
+        int maxAttempts,
+        TimeSpan connectTimeout,
+        TimeSpan retryDelay,
         int port = 443) {
         var appConfigUri = new Uri(appConfigEndpoint);
         var appConfigHost = appConfigUri.Host;
         for (var attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                using var tcp = new System.Net.Sockets.TcpClient();
-                using var connectCts = new CancellationTokenSource(connectTimeoutMs);
-                await tcp.ConnectAsync(appConfigHost, port, connectCts.Token);
+                using var connectCts = new CancellationTokenSource(connectTimeout);
+                await connectAsync(appConfigHost, port, connectCts.Token);
                 break;
             }
             catch (OperationCanceledException) {
                 if (attempt < maxAttempts) {
-                    await Task.Delay(TimeSpan.FromMilliseconds(retryDelayMs));
+                    await Task.Delay(retryDelay, timeProvider);
                 }
             }
             catch (Exception) when (attempt < maxAttempts) {
-                await Task.Delay(TimeSpan.FromMilliseconds(retryDelayMs));
+                await Task.Delay(retryDelay, timeProvider);
             }
         }
+    }
+
+    internal static async Task ConnectToAppConfigurationAsync(string host, int port, CancellationToken cancellationToken) {
+        using var tcp = new System.Net.Sockets.TcpClient();
+        await tcp.ConnectAsync(host, port, cancellationToken);
+    }
+
+    internal static void RegisterAzureAppConfiguration(
+        IConfigurationBuilder configuration,
+        string? appConfigConnectionString,
+        string? appConfigEndpoint,
+        TokenCredential credential,
+        string environmentName,
+        bool optional) {
+        configuration.AddAzureAppConfiguration(
+            options => ConfigureAzureAppConfigurationOptions(
+                options,
+                appConfigConnectionString,
+                appConfigEndpoint,
+                credential,
+                environmentName),
+            optional);
+    }
+
+    internal static void ConfigureAzureAppConfigurationOptions(
+        AzureAppConfigurationOptions options,
+        string? appConfigConnectionString,
+        string? appConfigEndpoint,
+        TokenCredential credential,
+        string environmentName) {
+        if (!string.IsNullOrEmpty(appConfigConnectionString)) {
+            options.Connect(appConfigConnectionString);
+        }
+        else {
+            options.Connect(new Uri(appConfigEndpoint!), credential);
+        }
+
+        options.Select(KeyFilter.Any)
+               .Select(KeyFilter.Any, "bff")
+               .Select(KeyFilter.Any, environmentName)
+               .ConfigureKeyVault(kv => kv.SetCredential(credential))
+               .ConfigureRefresh(refreshOptions => {
+                   refreshOptions.Register("Settings:Sentinel", refreshAll: true)
+                                 .SetRefreshInterval(TimeSpan.FromSeconds(30));
+               });
     }
 }

@@ -1,206 +1,276 @@
 using Azure;
-using Microsoft.Extensions.Logging;
+using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using MotorcycleRAG.AgentProvisioning.Azure;
 using OpenAI.Responses;
-using Xunit;
+using System.ClientModel;
+using System.ClientModel.Primitives;
 
 namespace MotorcycleRAG.UnitTests.Services.AgentProvisioning;
 
-/// <summary>
-/// Unit tests for <see cref="AgentProvisioningService"/>.
-/// Uses a mock <see cref="IAgentAdminOperations"/> to isolate from Azure SDK.
-/// </summary>
-public class AgentProvisioningServiceTests
+public sealed class AgentProvisioningServiceTests
 {
-    private static readonly string[] ExpectedOrchestratorModelCandidates = ["qwen-a", "qwen-b", "gpt-fallback"];
-
-    private readonly Mock<IAgentAdminOperations> _mockOps;
-    private readonly Mock<ILogger<AgentProvisioningService>> _mockLogger;
-    private readonly AgentProvisioningService _service;
-
-    public AgentProvisioningServiceTests()
+    [Fact]
+    public async Task ProvisionAllAgentsAsync_WhenAllOrchestratorCandidatesSucceed_UsesTheLastSuccessfulVersion()
     {
-        _mockOps = new Mock<IAgentAdminOperations>();
-        _mockLogger = new Mock<ILogger<AgentProvisioningService>>();
+        // Arrange
+        var operations = new RecordingAgentAdminOperations();
+        var sut = CreateService(operations, ["primary", "fallback"]);
 
-        _mockOps.Setup(o => o.GetAgentNamesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<string>());
+        // Act
+        var result = await sut.ProvisionAllAgentsAsync();
 
-        _service = new AgentProvisioningService(
-            _mockOps.Object,
-            AgentProvisioningModelOptions.Default,
-            _mockLogger.Object);
+        // Assert
+        result.Orchestrator.Should().Be(new ProvisionedAgentReference(AgentDefinitions.OrchestratorAgentName, "fallback-version"));
+        result.VectorSearch.Name.Should().Be(AgentDefinitions.VectorSearchAgentName);
+        result.WebSearch.Name.Should().Be(AgentDefinitions.WebSearchAgentName);
+        result.PDFSearch.Name.Should().Be(AgentDefinitions.PDFSearchAgentName);
+        result.GraphQuery.Name.Should().Be(AgentDefinitions.GraphQueryAgentName);
+        operations.CreatedModels.Take(2).Should().Equal("primary", "fallback");
     }
 
     [Fact]
-    public async Task ProvisionAllAgentsAsync_ShouldCreateVersionsForAllAgents()
+    public async Task ProvisionAllAgentsAsync_WhenCandidateThrows_LogsAndContinuesToRemainingCandidates()
     {
-        _mockOps.Setup(o => o.CreateAgentVersionAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<ResponseTool[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string name, string _, string __, ResponseTool[] ___, CancellationToken ____) =>
-                new ProvisionedAgentReference(name, $"{name}-v1"));
+        // Arrange
+        var operations = new RecordingAgentAdminOperations((name, model, _) =>
+            name == AgentDefinitions.OrchestratorAgentName && model == "primary"
+                ? new InvalidOperationException("candidate failed")
+                : null);
+        var sut = CreateService(operations, ["primary", "fallback"]);
 
-        var result = await _service.ProvisionAllAgentsAsync();
+        // Act
+        var result = await sut.ProvisionAllAgentsAsync();
 
-        Assert.Equal(AgentDefinitions.OrchestratorAgentName, result.Orchestrator.Name);
-        Assert.Equal(AgentDefinitions.VectorSearchAgentName, result.VectorSearch.Name);
-        Assert.Equal(AgentDefinitions.WebSearchAgentName, result.WebSearch.Name);
-        Assert.Equal(AgentDefinitions.PDFSearchAgentName, result.PDFSearch.Name);
+        // Assert
+        result.Orchestrator.Version.Should().Be("fallback-version");
+        operations.CreatedModels.Take(2).Should().Equal("primary", "fallback");
+    }
 
-        _mockOps.Verify(o => o.CreateAgentVersionAsync(
+    [Fact]
+    public async Task ProvisionAllAgentsAsync_WhenNoCandidateSucceeds_ThrowsTheOriginalNoVersionException()
+    {
+        // Arrange
+        var operations = new RecordingAgentAdminOperations((name, _, _) =>
+            name == AgentDefinitions.OrchestratorAgentName
+                ? new InvalidOperationException("candidate failed")
+                : null);
+        var sut = CreateService(operations, ["primary", "fallback"]);
+
+        // Act
+        var act = () => sut.ProvisionAllAgentsAsync();
+
+        // Assert
+        var exception = (await act.Should().ThrowAsync<InvalidOperationException>()).Which;
+        exception.Message.Should().Be("Failed to create any orchestrator agent versions.");
+        exception.InnerException.Should().BeNull();
+        operations.CreatedModels.Should().Equal("primary", "fallback");
+    }
+
+    [Fact]
+    public async Task ProvisionAllAgentsAsync_WhenNoCandidatesAreConfigured_ThrowsTheOriginalNoVersionException()
+    {
+        // Arrange
+        var operations = new RecordingAgentAdminOperations();
+        var sut = CreateService(operations, []);
+
+        // Act
+        var act = () => sut.ProvisionAllAgentsAsync();
+
+        // Assert
+        var exception = (await act.Should().ThrowAsync<InvalidOperationException>()).Which;
+        exception.Message.Should().Be("Failed to create any orchestrator agent versions.");
+        operations.GetAgentNamesCalls.Should().Be(0);
+        operations.CreatedModels.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CreateAgentVersionWithFallbackAsync_WhenFirstCandidateSucceeds_ReturnsWithoutTryingLaterCandidates()
+    {
+        // Arrange
+        var operations = new RecordingAgentAdminOperations();
+        var sut = CreateService(operations, ["unused"]);
+
+        // Act
+        var result = await sut.CreateAgentVersionWithFallbackAsync(
             AgentDefinitions.OrchestratorAgentName,
-            AgentDefinitions.Qwen36DeploymentName,
+            ["primary", "fallback"],
             AgentDefinitions.OrchestratorSystemPrompt,
-            It.IsAny<ResponseTool[]>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+            AgentDefinitions.OrchestratorTools,
+            CancellationToken.None);
 
-        _mockOps.Verify(o => o.CreateAgentVersionAsync(
-            AgentDefinitions.VectorSearchAgentName,
-            AgentDefinitions.SubAgentModel,
-            AgentDefinitions.VectorSearchSystemPrompt,
-            It.IsAny<ResponseTool[]>(),
-            It.IsAny<CancellationToken>()), Times.Once);
-
-        _mockOps.Verify(o => o.CreateAgentVersionAsync(
-            AgentDefinitions.WebSearchAgentName,
-            AgentDefinitions.SubAgentModel,
-            AgentDefinitions.WebSearchSystemPrompt,
-            It.IsAny<ResponseTool[]>(),
-            It.IsAny<CancellationToken>()), Times.Once);
-
-        _mockOps.Verify(o => o.CreateAgentVersionAsync(
-            AgentDefinitions.PDFSearchAgentName,
-            AgentDefinitions.SubAgentModel,
-            AgentDefinitions.PDFSearchSystemPrompt,
-            It.IsAny<ResponseTool[]>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+        // Assert
+        result.Version.Should().Be("primary-version");
+        operations.CreatedModels.Should().Equal("primary");
     }
 
     [Fact]
-    public async Task ProvisionAllAgentsAsync_ShouldCreateNewVersion_WhenAgentAlreadyExists()
+    public async Task CreateAgentVersionWithFallbackAsync_WhenModelIsRejected_TriesTheNextCandidate()
     {
-        _mockOps.Setup(o => o.GetAgentNamesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([AgentDefinitions.OrchestratorAgentName]);
+        // Arrange
+        var operations = new RecordingAgentAdminOperations((_, model, _) =>
+            model == "primary" ? new RequestFailedException(400, "model deployment is not supported") : null);
+        var sut = CreateService(operations, ["unused"]);
 
-        _mockOps.Setup(o => o.CreateAgentVersionAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<ResponseTool[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string name, string _, string __, ResponseTool[] ___, CancellationToken ____) =>
-                new ProvisionedAgentReference(name, "2"));
-
-        var result = await _service.ProvisionAllAgentsAsync();
-
-        Assert.Equal(AgentDefinitions.OrchestratorAgentName, result.Orchestrator.Name);
-        Assert.Equal("2", result.Orchestrator.Version);
-
-        _mockOps.Verify(o => o.CreateAgentVersionAsync(
+        // Act
+        var result = await sut.CreateAgentVersionWithFallbackAsync(
             AgentDefinitions.OrchestratorAgentName,
-            AgentDefinitions.Qwen36DeploymentName,
+            ["primary", "fallback"],
             AgentDefinitions.OrchestratorSystemPrompt,
-            It.IsAny<ResponseTool[]>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+            AgentDefinitions.OrchestratorTools,
+            CancellationToken.None);
+
+        // Assert
+        result.Version.Should().Be("fallback-version");
+        operations.CreatedModels.Should().Equal("primary", "fallback");
     }
 
     [Fact]
-    public async Task ProvisionAllAgentsAsync_ShouldFallback_WhenPreferredOrchestratorModelsAreRejected()
+    public async Task CreateAgentVersionWithFallbackAsync_WhenFailureIsNotRetryable_PropagatesWithoutTryingLaterCandidates()
     {
-        _mockOps.Setup(o => o.CreateAgentVersionAsync(
-                AgentDefinitions.OrchestratorAgentName,
-                AgentDefinitions.Qwen36DeploymentName,
-                AgentDefinitions.OrchestratorSystemPrompt,
-                It.IsAny<ResponseTool[]>(),
-                It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new RequestFailedException(400, "Model deployment is not supported by Foundry Agents"));
+        // Arrange
+        var failure = new RequestFailedException(500, "service unavailable");
+        var operations = new RecordingAgentAdminOperations((_, _, _) => failure);
+        var sut = CreateService(operations, ["unused"]);
 
-        _mockOps.Setup(o => o.CreateAgentVersionAsync(
-                AgentDefinitions.OrchestratorAgentName,
-                AgentDefinitions.Qwen35DeploymentName,
-                AgentDefinitions.OrchestratorSystemPrompt,
-                It.IsAny<ResponseTool[]>(),
-                It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new RequestFailedException(400, "Model deployment is not supported by Foundry Agents"));
-
-        _mockOps.Setup(o => o.CreateAgentVersionAsync(
-                AgentDefinitions.OrchestratorAgentName,
-                AgentDefinitions.OrchestratorFallbackModel,
-                AgentDefinitions.OrchestratorSystemPrompt,
-                It.IsAny<ResponseTool[]>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ProvisionedAgentReference(AgentDefinitions.OrchestratorAgentName, "fallback-v1"));
-
-        _mockOps.Setup(o => o.CreateAgentVersionAsync(
-                It.Is<string>(name => name != AgentDefinitions.OrchestratorAgentName
-                    && name != AgentDefinitions.GraphQueryAgentName),
-                AgentDefinitions.SubAgentModel,
-                It.IsAny<string>(),
-                It.IsAny<ResponseTool[]>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string name, string _, string __, ResponseTool[] ___, CancellationToken ____) =>
-                new ProvisionedAgentReference(name, "sub-v1"));
-
-        _mockOps.Setup(o => o.CreateAgentVersionAsync(
-                AgentDefinitions.GraphQueryAgentName,
-                AgentDefinitions.GraphQueryModel,
-                It.IsAny<string>(),
-                It.IsAny<ResponseTool[]>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ProvisionedAgentReference(AgentDefinitions.GraphQueryAgentName, "graph-v1"));
-
-        var result = await _service.ProvisionAllAgentsAsync();
-
-        Assert.Equal("fallback-v1", result.Orchestrator.Version);
-
-        _mockOps.Verify(o => o.CreateAgentVersionAsync(
+        // Act
+        var act = () => sut.CreateAgentVersionWithFallbackAsync(
             AgentDefinitions.OrchestratorAgentName,
-            AgentDefinitions.OrchestratorFallbackModel,
+            ["primary", "fallback"],
             AgentDefinitions.OrchestratorSystemPrompt,
-            It.IsAny<ResponseTool[]>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+            AgentDefinitions.OrchestratorTools,
+            CancellationToken.None);
+
+        // Assert
+        (await act.Should().ThrowAsync<RequestFailedException>()).Which.Should().BeSameAs(failure);
+        operations.CreatedModels.Should().Equal("primary");
     }
 
     [Fact]
-    public void FromEnvironment_ShouldUseConfiguredModelDeployments_WhenProvided()
+    public async Task CreateAgentVersionWithFallbackAsync_WhenEveryCandidateIsRejected_ThrowsWithTheLastRejection()
     {
-        var values = new Dictionary<string, string?>
-        {
-            ["ORCHESTRATOR_MODEL_DEPLOYMENTS"] = "qwen-a, qwen-b; gpt-fallback",
-            ["SUBAGENT_MODEL_DEPLOYMENT"] = "gpt-mini"
-        };
+        // Arrange
+        var operations = new RecordingAgentAdminOperations((_, _, _) =>
+            new RequestFailedException(404, "model deployment not found"));
+        var sut = CreateService(operations, ["unused"]);
 
-        var options = AgentProvisioningModelOptions.FromEnvironment(key => values.GetValueOrDefault(key));
+        // Act
+        var act = () => sut.CreateAgentVersionWithFallbackAsync(
+            AgentDefinitions.OrchestratorAgentName,
+            ["primary", "fallback"],
+            AgentDefinitions.OrchestratorSystemPrompt,
+            AgentDefinitions.OrchestratorTools,
+            CancellationToken.None);
 
-        Assert.Equal(ExpectedOrchestratorModelCandidates, options.OrchestratorModelCandidates);
-        Assert.Equal("gpt-mini", options.SubAgentModel);
+        // Assert
+        var exception = (await act.Should().ThrowAsync<InvalidOperationException>()).Which;
+        exception.Message.Should().Contain("all configured model deployment candidates");
+        exception.InnerException.Should().BeOfType<RequestFailedException>();
+        operations.CreatedModels.Should().Equal("primary", "fallback");
     }
 
     [Fact]
-    public async Task ProvisionAllAgentsAsync_ShouldThrow_WhenOrchestratorSystemPromptIsEmpty()
+    public async Task CreateAgentVersionWithFallbackAsync_WhenNoCandidatesAreConfigured_ThrowsBeforeCallingOperations()
     {
-        Assert.False(string.IsNullOrWhiteSpace(AgentDefinitions.OrchestratorSystemPrompt),
-            "OrchestratorSystemPrompt must not be empty — production guard depends on it");
-        Assert.False(string.IsNullOrWhiteSpace(AgentDefinitions.VectorSearchSystemPrompt),
-            "VectorSearchSystemPrompt must not be empty");
-        Assert.False(string.IsNullOrWhiteSpace(AgentDefinitions.WebSearchSystemPrompt),
-            "WebSearchSystemPrompt must not be empty");
-        Assert.False(string.IsNullOrWhiteSpace(AgentDefinitions.PDFSearchSystemPrompt),
-            "PDFSearchSystemPrompt must not be empty");
+        // Arrange
+        var operations = new RecordingAgentAdminOperations();
+        var sut = CreateService(operations, ["unused"]);
 
-        var stub = new EmptyPromptStubOps();
-        var svc = new AgentProvisioningService(
-            stub,
-            AgentProvisioningModelOptions.Default,
-            _mockLogger.Object,
-            orchestratorSystemPrompt: string.Empty);
+        // Act
+        var act = () => sut.CreateAgentVersionWithFallbackAsync(
+            AgentDefinitions.OrchestratorAgentName,
+            [],
+            AgentDefinitions.OrchestratorSystemPrompt,
+            AgentDefinitions.OrchestratorTools,
+            CancellationToken.None);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.ProvisionAllAgentsAsync());
+        // Assert
+        (await act.Should().ThrowAsync<InvalidOperationException>()).Which.Message
+            .Should().Contain("No model deployment candidates configured");
+        operations.GetAgentNamesCalls.Should().Be(0);
     }
 
-    private sealed class EmptyPromptStubOps : IAgentAdminOperations
+    [Theory]
+    [InlineData(400, "model deployment is not supported", true)]
+    [InlineData(404, "deployment not found", true)]
+    [InlineData(500, "model deployment is not supported", false)]
+    [InlineData(400, "request is malformed", false)]
+    public void ShouldTryNextModel_WhenRequestFailedExceptionMatchesModelRejection_ClassifiesCorrectly(
+        int status,
+        string message,
+        bool expected)
     {
+        // Arrange
+        var exception = new RequestFailedException(status, message);
+
+        // Act
+        var result = AgentProvisioningService.ShouldTryNextModel(exception);
+
+        // Assert
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(400, "invalid model", true)]
+    [InlineData(404, "deployment not found", true)]
+    [InlineData(500, "invalid model", false)]
+    [InlineData(400, "access denied", false)]
+    public void ShouldTryNextModel_WhenClientResultExceptionMatchesModelRejection_ClassifiesCorrectly(
+        int status,
+        string message,
+        bool expected)
+    {
+        // Arrange
+        var exception = CreateClientResultException(status, message);
+
+        // Act
+        var result = AgentProvisioningService.ShouldTryNextModel(exception);
+
+        // Assert
+        result.Should().Be(expected);
+    }
+
+    [Fact]
+    public void ShouldTryNextModel_WhenExceptionIsNotAnAzureClientFailure_ReturnsFalse()
+    {
+        // Arrange
+        var exception = new InvalidOperationException("model deployment is not supported");
+
+        // Act
+        var result = AgentProvisioningService.ShouldTryNextModel(exception);
+
+        // Assert
+        result.Should().BeFalse();
+    }
+
+    private static AgentProvisioningService CreateService(
+        RecordingAgentAdminOperations operations,
+        IReadOnlyList<string> candidates) => new(
+        operations,
+        new AgentProvisioningModelOptions(candidates, "subagent-model"),
+        NullLogger<AgentProvisioningService>.Instance);
+
+    private static ClientResultException CreateClientResultException(int status, string message)
+    {
+        var response = new Mock<PipelineResponse>();
+        response.SetupGet(value => value.Status).Returns(status);
+        return new ClientResultException(message, response.Object, innerException: null);
+    }
+
+    private sealed class RecordingAgentAdminOperations(
+        Func<string, string, int, Exception?>? createFailure = null) : IAgentAdminOperations
+    {
+        private int _createCalls;
+
+        public int GetAgentNamesCalls { get; private set; }
+        public List<string> CreatedModels { get; } = [];
+
         public Task<IReadOnlyList<string>> GetAgentNamesAsync(CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        {
+            GetAgentNamesCalls++;
+            return Task.FromResult<IReadOnlyList<string>>([]);
+        }
 
         public Task<ProvisionedAgentReference> CreateAgentVersionAsync(
             string name,
@@ -209,10 +279,13 @@ public class AgentProvisioningServiceTests
             ResponseTool[] tools,
             CancellationToken ct = default)
         {
-            if (string.IsNullOrWhiteSpace(instructions))
-                throw new InvalidOperationException($"System prompt for agent '{name}' is missing or empty");
+            _createCalls++;
+            CreatedModels.Add(model);
 
-            return Task.FromResult(new ProvisionedAgentReference(name, "stub-version"));
+            var failure = createFailure?.Invoke(name, model, _createCalls);
+            return failure is null
+                ? Task.FromResult(new ProvisionedAgentReference(name, $"{model}-version"))
+                : Task.FromException<ProvisionedAgentReference>(failure);
         }
     }
 }

@@ -7,6 +7,6 @@ useDefault = true
 description = "Allow known public and placeholder test fixture values"
 regexTarget = "line"
 regexes = [
-  '''AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCzYI6tq/K1SZFPTOtr/KBHBeksoGMGw==''',
+  '''AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCzYI6tq/K1SZFPTOtr/KBHBeksoGMG\x77==''',
   '''header\.eyJ[A-Za-z0-9_-]+\.signature''',
 ]

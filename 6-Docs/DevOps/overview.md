@@ -141,7 +141,7 @@ flowchart LR
 
 #### Phase 2 — Security gate (needs build-test)
 
-- `codeql`: Initializes CodeQL with `security-extended` queries for C#, restores + builds, and runs the CodeQL analysis. Runs only when `code` or `infra` changed.
+- `codeql`: Initializes CodeQL with `security-extended` queries for C#, Python, and JavaScript/TypeScript (including React), restores + builds the .NET solution, and runs the CodeQL analysis. Runs only when `code` or `infra` changed. Repository CodeQL default setup must remain disabled because this is an advanced CodeQL configuration.
 - `trivy`: Downloads the pinned, SHA-256-verified Trivy CLI and fails the gate for high or critical dependency, misconfiguration, secret, or license findings. Uploads SARIF to GitHub Security. Runs only when `code` or `infra` changed.
 - `semgrep`: Installs the pinned Semgrep Community Edition CLI and fails the gate for `ERROR` security-rule findings. Telemetry is disabled and SARIF is uploaded to GitHub Security. Runs only when `code` or `infra` changed.
 - `iac-scan`: Runs Checkov against Dockerfiles and GitHub Actions workflows. Results are uploaded as SARIF to GitHub Security. Runs only when `infra` changed. Soft-fail mode (advisory) — findings never fail the gate.

@@ -78,7 +78,7 @@ public sealed class McpAdminControllerTests
             tools[0].ToolId,
             tools[0].Name,
             tools[0].Description,
-            ServerUrl = tools[0].ServerUrl.ToString(),
+            ServerUrl = tools[0].ServerUrl!.ToString(),
             tools[0].IsEnabled,
             tools[0].ToolType,
             tools[0].Version,

@@ -24,6 +24,43 @@ public class ToolConfigurationServiceTests
         _sut = new ToolConfigurationService(_configRepoMock.Object, _auditRepoMock.Object, NullLogger<ToolConfigurationService>.Instance);
     }
 
+    /// <summary>
+    /// Constructs a fully-formed <see cref="McpToolConfiguration"/> for tests,
+    /// routing through <see cref="McpToolConfiguration.Rehydrate"/> so any
+    /// transition state (IsEnabled, TimeoutMs, ConfigurationJson, null ServerUrl)
+    /// can be expressed without illegal setter access on the entity.
+    /// </summary>
+    private static McpToolConfiguration BuildConfig(
+        string toolId,
+        string name = "Tool",
+        Uri? serverUrl = null,
+        bool isEnabled = true,
+        int? timeoutMs = 30000,
+        string? configurationJson = null,
+        Guid? id = null,
+        DateTime? createdAt = null,
+        string? disabledReason = null) =>
+        McpToolConfiguration.Rehydrate(
+            id: id ?? Guid.NewGuid(),
+            toolId: toolId,
+            name: name,
+            description: null,
+            serverUrl: serverUrl,
+            toolType: "search",
+            version: null,
+            isSystemTool: false,
+            priority: 0,
+            timeoutMs: timeoutMs,
+            retryOnFailure: true,
+            maxRetries: 3,
+            createdAt: createdAt ?? DateTime.UtcNow,
+            isEnabled: isEnabled,
+            configurationJson: configurationJson,
+            disabledReason: disabledReason,
+            lastTestedAt: null,
+            lastConnectionStatus: null,
+            updatedAt: null);
+
     [Fact]
     public void Constructor_NullDependencies_ThrowsArgumentNullException()
     {
@@ -36,8 +73,8 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task GetAllToolsAsync_ReturnsOrderedConfigs()
     {
-        var config1 = new McpToolConfiguration { ToolId = "1", CreatedAt = DateTime.UtcNow.AddMinutes(-5) };
-        var config2 = new McpToolConfiguration { ToolId = "2", CreatedAt = DateTime.UtcNow.AddMinutes(-10) };
+        var config1 = BuildConfig("1", createdAt: DateTime.UtcNow.AddMinutes(-5));
+        var config2 = BuildConfig("2", createdAt: DateTime.UtcNow.AddMinutes(-10));
         _configRepoMock.Setup(x => x.GetAllAsync()).ReturnsAsync(new[] { config1, config2 });
 
         var result = await _sut.GetAllToolsAsync();
@@ -50,7 +87,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task GetToolAsync_ReturnsConfig()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id" };
+        var config = BuildConfig("tool-id");
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(config);
 
         var result = await _sut.GetToolAsync("tool-id");
@@ -61,7 +98,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task GetEnabledToolsAsync_ReturnsEnabledConfigs()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true };
+        var config = BuildConfig("tool-id", isEnabled: true);
         _configRepoMock.Setup(x => x.GetEnabledAsync()).ReturnsAsync(new[] { config });
 
         var result = await _sut.GetEnabledToolsAsync();
@@ -72,7 +109,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task CreateToolAsync_WithValidConfig_CreatesToolAndAudit()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", Name = "Tool", ServerUrl = new Uri("http://localhost:8000") };
+        var config = BuildConfig("tool-id", name: "Tool", serverUrl: new Uri("http://localhost:8000"));
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync((McpToolConfiguration?)null);
         _configRepoMock.Setup(x => x.AddOrUpdateAsync(It.IsAny<McpToolConfiguration>())).ReturnsAsync(config);
 
@@ -86,9 +123,9 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task UpdateToolAsync_WithValidConfig_UpdatesToolAndAudit()
     {
-        var existingConfig = new McpToolConfiguration { ToolId = "tool-id", Name = "Old", ServerUrl = new Uri("http://localhost:8000") };
-        var updatedConfig = new McpToolConfiguration { ToolId = "tool-id", Name = "New", ServerUrl = new Uri("http://localhost:8000") };
-        
+        var existingConfig = BuildConfig("tool-id", name: "Old", serverUrl: new Uri("http://localhost:8000"));
+        var updatedConfig = BuildConfig("tool-id", name: "New", serverUrl: new Uri("http://localhost:8000"));
+
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(existingConfig);
         _configRepoMock.Setup(x => x.AddOrUpdateAsync(It.IsAny<McpToolConfiguration>())).ReturnsAsync(updatedConfig);
 
@@ -102,7 +139,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task EnableToolAsync_WithValidId_EnablesToolAndAudit()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = false };
+        var config = BuildConfig("tool-id", isEnabled: false, disabledReason: "Prior disable");
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(config);
         _configRepoMock.Setup(x => x.AddOrUpdateAsync(It.IsAny<McpToolConfiguration>())).ReturnsAsync(config);
 
@@ -116,7 +153,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task DisableToolAsync_WithValidId_DisablesToolAndAudit()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true };
+        var config = BuildConfig("tool-id", isEnabled: true);
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(config);
         _configRepoMock.Setup(x => x.AddOrUpdateAsync(It.IsAny<McpToolConfiguration>())).ReturnsAsync(config);
 
@@ -131,7 +168,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task DeleteToolAsync_WithValidId_DeletesToolAndAudit()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", Id = Guid.NewGuid() };
+        var config = BuildConfig("tool-id");
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(config);
         _configRepoMock.Setup(x => x.DeleteAsync(config.Id)).ReturnsAsync(true);
 
@@ -164,7 +201,7 @@ public class ToolConfigurationServiceTests
     [InlineData("http://example.com:8080", false)] // non-standard non-dev port
     public async Task ValidateToolAsync_VariousUrls_ReturnsExpectedResult(string url, bool expectedValid)
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", ServerUrl = new Uri(url), IsEnabled = true };
+        var config = BuildConfig("tool-id", serverUrl: new Uri(url), isEnabled: true);
 
         var result = await _sut.ValidateToolAsync(config);
 
@@ -181,7 +218,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task ValidateToolAsync_DisabledWithoutReason_ReturnsFalse()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = false, ServerUrl = new Uri("http://localhost") };
+        var config = BuildConfig("tool-id", isEnabled: false, serverUrl: new Uri("http://localhost"));
         var result = await _sut.ValidateToolAsync(config);
         result.Should().BeFalse();
     }
@@ -189,7 +226,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task ValidateToolAsync_NullServerUrl_ReturnsFalse()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true, ServerUrl = null! };
+        var config = BuildConfig("tool-id", isEnabled: true, serverUrl: null);
         var result = await _sut.ValidateToolAsync(config);
         result.Should().BeFalse();
     }
@@ -197,7 +234,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task ValidateToolAsync_InvalidTimeout_ReturnsFalse()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true, ServerUrl = new Uri("http://localhost"), TimeoutMs = -1 };
+        var config = BuildConfig("tool-id", isEnabled: true, serverUrl: new Uri("http://localhost"), timeoutMs: -1);
         var result = await _sut.ValidateToolAsync(config);
         result.Should().BeFalse();
     }
@@ -205,7 +242,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task ValidateToolAsync_ConfigurationJsonTooLong_ReturnsFalse()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true, ServerUrl = new Uri("http://localhost"), ConfigurationJson = new string('x', 10241) };
+        var config = BuildConfig("tool-id", isEnabled: true, serverUrl: new Uri("http://localhost"), configurationJson: new string('x', 10241));
         var result = await _sut.ValidateToolAsync(config);
         result.Should().BeFalse();
     }
@@ -213,7 +250,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task ValidateToolAsync_InvalidConfigurationJson_ReturnsFalse()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true, ServerUrl = new Uri("http://localhost"), ConfigurationJson = "{not json" };
+        var config = BuildConfig("tool-id", isEnabled: true, serverUrl: new Uri("http://localhost"), configurationJson: "{not json");
         var result = await _sut.ValidateToolAsync(config);
         result.Should().BeFalse();
     }
@@ -256,18 +293,16 @@ public class ToolConfigurationServiceTests
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("configuration");
     }
 
-    [Fact]
-    public async Task CreateToolAsync_EmptyToolId_ThrowsArgumentException()
-    {
-        var config = new McpToolConfiguration { ToolId = "  " };
-        var act = () => _sut.CreateToolAsync(config);
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("configuration");
-    }
+    // The empty-ToolId rejection that this test previously exercised at the service
+    // boundary is now structurally enforced by McpToolConfiguration.Rehydrate at
+    // construction. The defense-in-depth check in CreateToolAsync is preserved but
+    // is no longer reachable through public construction; entity-level rejection is
+    // covered by McpToolConfigurationTests.Rehydrate_WithMissingToolId_RejectsTheRow.
 
     [Fact]
     public async Task CreateToolAsync_WhenValidationFails_ThrowsInvalidOperationException()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = false, ServerUrl = null! };
+        var config = BuildConfig("tool-id", isEnabled: false, serverUrl: null);
         var act = () => _sut.CreateToolAsync(config);
         (await act.Should().ThrowAsync<InvalidOperationException>())
             .WithMessage("*Error creating MCP tool tool-id*")
@@ -277,8 +312,8 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task CreateToolAsync_WhenToolAlreadyExists_ThrowsInvalidOperationException()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true, ServerUrl = new Uri("http://localhost") };
-        _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(new McpToolConfiguration { ToolId = "tool-id" });
+        var config = BuildConfig("tool-id", isEnabled: true, serverUrl: new Uri("http://localhost"));
+        _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(BuildConfig("tool-id"));
         var act = () => _sut.CreateToolAsync(config);
         (await act.Should().ThrowAsync<InvalidOperationException>())
             .WithMessage("*Error creating MCP tool tool-id*")
@@ -288,7 +323,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task CreateToolAsync_GeneratesIdWhenEmpty()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true, ServerUrl = new Uri("http://localhost") };
+        var config = BuildConfig("tool-id", isEnabled: true, serverUrl: new Uri("http://localhost"));
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync((McpToolConfiguration?)null);
         McpToolConfiguration? saved = null;
         _configRepoMock.Setup(x => x.AddOrUpdateAsync(It.IsAny<McpToolConfiguration>())).ReturnsAsync((McpToolConfiguration c) => { saved = c; return c; });
@@ -302,7 +337,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task CreateToolAsync_WhenRepositoryThrows_WrapsAndThrowsInvalidOperationException()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true, ServerUrl = new Uri("http://localhost") };
+        var config = BuildConfig("tool-id", isEnabled: true, serverUrl: new Uri("http://localhost"));
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync((McpToolConfiguration?)null);
         _configRepoMock.Setup(x => x.AddOrUpdateAsync(It.IsAny<McpToolConfiguration>())).ThrowsAsync(new InvalidOperationException("db error"));
         var act = () => _sut.CreateToolAsync(config);
@@ -312,7 +347,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task UpdateToolAsync_EmptyToolId_ThrowsArgumentException()
     {
-        var act = () => _sut.UpdateToolAsync("  ", new McpToolConfiguration { ToolId = "tool-id" });
+        var act = () => _sut.UpdateToolAsync("  ", BuildConfig("tool-id"));
         await act.Should().ThrowAsync<ArgumentException>().WithParameterName("toolId");
     }
 
@@ -326,7 +361,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task UpdateToolAsync_WhenToolNotFound_ThrowsInvalidOperationException()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = true, ServerUrl = new Uri("http://localhost") };
+        var config = BuildConfig("tool-id", isEnabled: true, serverUrl: new Uri("http://localhost"));
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync((McpToolConfiguration?)null);
         var act = () => _sut.UpdateToolAsync("tool-id", config);
         (await act.Should().ThrowAsync<InvalidOperationException>())
@@ -337,8 +372,8 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task UpdateToolAsync_WhenValidationFails_ThrowsInvalidOperationException()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", IsEnabled = false, ServerUrl = null! };
-        _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(new McpToolConfiguration { ToolId = "tool-id" });
+        var config = BuildConfig("tool-id", isEnabled: false, serverUrl: null);
+        _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(BuildConfig("tool-id"));
         var act = () => _sut.UpdateToolAsync("tool-id", config);
         (await act.Should().ThrowAsync<InvalidOperationException>())
             .WithMessage("*Error updating MCP tool tool-id*")
@@ -350,8 +385,8 @@ public class ToolConfigurationServiceTests
     {
         var id = Guid.NewGuid();
         var createdAt = DateTime.UtcNow.AddDays(-1);
-        var existing = new McpToolConfiguration { Id = id, ToolId = "old-tool-id", CreatedAt = createdAt, IsEnabled = true, ServerUrl = new Uri("http://localhost") };
-        var updated = new McpToolConfiguration { ToolId = "new-tool-id", Name = "New", IsEnabled = true, ServerUrl = new Uri("http://localhost") };
+        var existing = BuildConfig(toolId: "old-tool-id", id: id, createdAt: createdAt, isEnabled: true, serverUrl: new Uri("http://localhost"));
+        var updated = BuildConfig(toolId: "new-tool-id", name: "New", isEnabled: true, serverUrl: new Uri("http://localhost"));
         _configRepoMock.Setup(x => x.GetByToolIdAsync("old-tool-id")).ReturnsAsync(existing);
         McpToolConfiguration? saved = null;
         _configRepoMock.Setup(x => x.AddOrUpdateAsync(It.IsAny<McpToolConfiguration>())).ReturnsAsync((McpToolConfiguration c) => { saved = c; return c; });
@@ -440,7 +475,7 @@ public class ToolConfigurationServiceTests
     [Fact]
     public async Task DeleteToolAsync_WhenDeleteFails_ReturnsFalse()
     {
-        var config = new McpToolConfiguration { ToolId = "tool-id", Id = Guid.NewGuid() };
+        var config = BuildConfig("tool-id");
         _configRepoMock.Setup(x => x.GetByToolIdAsync("tool-id")).ReturnsAsync(config);
         _configRepoMock.Setup(x => x.DeleteAsync(config.Id)).ReturnsAsync(false);
         var result = await _sut.DeleteToolAsync("tool-id");

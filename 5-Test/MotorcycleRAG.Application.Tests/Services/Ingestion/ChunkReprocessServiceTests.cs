@@ -69,8 +69,8 @@ public class ChunkReprocessServiceTests
         result.ArtifactsProcessed.Should().Be(0);
     }
 
-    private static IngestionJob CreateJob(Guid jobId, string inputRef = "uploads/abc") =>
-        new() { IngestionJobId = jobId, InputRef = inputRef };
+    private static IngestionJob CreateJob(string inputRef = "uploads/abc") =>
+        IngestionJob.Create(IngestionJobType.PDFManual, inputRef, createdBySubject: null);
 
     private static IndexedArtifactDto CreateArtifact(Guid jobId, string uploadId = "uploads/abc") =>
         new()
@@ -100,8 +100,8 @@ public class ChunkReprocessServiceTests
     [Fact]
     public async Task ReprocessByJobIdAsync_ArtifactNotFound_ReturnsEmptyResultAndDoesNotTouchBlobStorage()
     {
-        var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId);
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
         _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         _artifactRepoMock
             .Setup(x => x.GetByUploadAndTypeAsync(job.InputRef, "search-chunks", It.IsAny<CancellationToken>()))
@@ -116,8 +116,8 @@ public class ChunkReprocessServiceTests
     [Fact]
     public async Task ReprocessByJobIdAsync_BlobMissing_MarksArtifactAndJobFailed()
     {
-        var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId);
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
         var artifact = CreateArtifact(jobId, job.InputRef);
         _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         _artifactRepoMock
@@ -140,8 +140,8 @@ public class ChunkReprocessServiceTests
     [Fact]
     public async Task ReprocessByJobIdAsync_DownloadThrows_MarksArtifactAndJobFailed()
     {
-        var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId);
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
         var artifact = CreateArtifact(jobId, job.InputRef);
         _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         _artifactRepoMock
@@ -167,8 +167,8 @@ public class ChunkReprocessServiceTests
     [Fact]
     public async Task ReprocessByJobIdAsync_IndexingThrows_MarksArtifactAndJobFailed()
     {
-        var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId);
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
         var artifact = CreateArtifact(jobId, job.InputRef);
         _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         _artifactRepoMock
@@ -195,8 +195,8 @@ public class ChunkReprocessServiceTests
     [Fact]
     public async Task ReprocessByJobIdAsync_AllChunksIndexed_MarksCompletedAndUpsertsChunks()
     {
-        var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId);
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
         var artifact = CreateArtifact(jobId, job.InputRef);
         _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         _artifactRepoMock
@@ -239,8 +239,8 @@ public class ChunkReprocessServiceTests
     [Fact]
     public async Task ReprocessByJobIdAsync_SomeChunksFailed_MarksPartiallyIndexed()
     {
-        var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId);
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
         var artifact = CreateArtifact(jobId, job.InputRef);
         _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         _artifactRepoMock
@@ -281,8 +281,8 @@ public class ChunkReprocessServiceTests
     [Fact]
     public async Task ReprocessByJobIdAsync_NoChunksIndexed_MarksArtifactAndJobFailedAndSkipsUpsertMany()
     {
-        var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId);
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
         var artifact = CreateArtifact(jobId, job.InputRef);
         _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         _artifactRepoMock
@@ -317,8 +317,8 @@ public class ChunkReprocessServiceTests
     [Fact]
     public async Task ReprocessByJobIdAsync_ZeroExpectedChunks_MarksFailed()
     {
-        var jobId = Guid.NewGuid();
-        var job = CreateJob(jobId);
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
         var artifact = CreateArtifact(jobId, job.InputRef);
         _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         _artifactRepoMock

@@ -26,17 +26,17 @@ public sealed class IngestionJobStatusMapperTests
         var job = CreateJob(
             status: IngestionJobStatus.AwaitingMetadata,
             failureReason: "fallback reason",
-            metadataJson: """{"make":" Honda ","model":"CBR600RR","year":2023,"category":"sport","tags":[" abs ","fi",4]}""");
-        job.Id = 42;
-        job.IngestionJobId = jobId;
-        job.ManualDocumentId = manualId;
-        job.ErrorsJson = "processor failure detail";
-        job.TotalPages = 10;
-        job.PagesCapturedViewableCount = 9;
-        job.PagesWithSearchableTextCount = 8;
-        job.PagesWithOcrTextCount = 3;
-        job.PagesWithNativeTextCount = 5;
-        job.MissingPagesJson = "[2, 7]";
+            metadataJson: """{"make":" Honda ","model":"CBR600RR","year":2023,"category":"sport","tags":[" abs ","fi",4]}""",
+            id: 42,
+            ingestionJobId: jobId,
+            manualDocumentId: manualId,
+            errorsJson: "processor failure detail",
+            totalPages: 10,
+            pagesCapturedViewableCount: 9,
+            pagesWithSearchableTextCount: 8,
+            pagesWithOcrTextCount: 3,
+            pagesWithNativeTextCount: 5,
+            missingPagesJson: "[2, 7]");
 
         // Act
         var result = IngestionJobStatusMapper.Map(job);
@@ -92,8 +92,7 @@ public sealed class IngestionJobStatusMapperTests
     public void Map_WithMalformedStoredJson_ReturnsSafeEmptyCollectionsAndFallbackFailureReason()
     {
         // Arrange
-        var job = CreateJob(failureReason: "stored failure", metadataJson: "{not-json");
-        job.MissingPagesJson = "{not-json";
+        var job = CreateJob(failureReason: "stored failure", metadataJson: "{not-json", missingPagesJson: "{not-json");
 
         // Act
         var result = IngestionJobStatusMapper.Map(job);
@@ -137,21 +136,44 @@ public sealed class IngestionJobStatusMapperTests
         IngestionJobStatus status = IngestionJobStatus.Processing,
         string? failureReason = null,
         string? metadataJson = null,
-        string? currentStage = null) =>
-        new()
-        {
-            IngestionJobId = Guid.NewGuid(),
-            CreatedAtUtc = new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero),
-            StartedAtUtc = new DateTimeOffset(2026, 7, 12, 12, 1, 0, TimeSpan.Zero),
-            CompletedAtUtc = new DateTimeOffset(2026, 7, 12, 12, 2, 0, TimeSpan.Zero),
-            Status = status,
-            FailureReason = failureReason,
-            MetadataJson = metadataJson,
-            CurrentStage = currentStage,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "uploads/manual.pdf",
-            SourceFileName = "manual.pdf",
-            ComputeProvider = "LocalProcessingService",
-            DocIngestionRunId = "run-123",
-        };
+        string? currentStage = null,
+        long id = 1,
+        Guid? ingestionJobId = null,
+        Guid? manualDocumentId = null,
+        string? errorsJson = null,
+        int? totalPages = null,
+        int? pagesCapturedViewableCount = null,
+        int? pagesWithSearchableTextCount = null,
+        int? pagesWithOcrTextCount = null,
+        int? pagesWithNativeTextCount = null,
+        string? missingPagesJson = null) =>
+        IngestionJob.Rehydrate(
+            id: id,
+            ingestionJobId: ingestionJobId ?? Guid.NewGuid(),
+            createdAtUtc: new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero),
+            startedAtUtc: new DateTimeOffset(2026, 7, 12, 12, 1, 0, TimeSpan.Zero),
+            completedAtUtc: new DateTimeOffset(2026, 7, 12, 12, 2, 0, TimeSpan.Zero),
+            createdBySubject: null,
+            status: status,
+            failureReason: failureReason,
+            errorsJson: errorsJson,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "uploads/manual.pdf",
+            sourceFileName: "manual.pdf",
+            computeProvider: "LocalProcessingService",
+            docIngestionRunId: "run-123",
+            manualDocumentId: manualDocumentId,
+            totalPages: totalPages,
+            pagesCapturedViewableCount: pagesCapturedViewableCount,
+            pagesWithSearchableTextCount: pagesWithSearchableTextCount,
+            pagesWithOcrTextCount: pagesWithOcrTextCount,
+            pagesWithNativeTextCount: pagesWithNativeTextCount,
+            missingPagesJson: missingPagesJson,
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: currentStage,
+            stageSetAtUtc: null,
+            metadataJson: metadataJson);
 }

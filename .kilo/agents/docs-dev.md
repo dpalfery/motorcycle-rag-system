@@ -6,9 +6,9 @@ permission:
   external_directory: deny
   mcp: deny
   plan_exit: deny
-  question: deny
+  question: allow
   task: deny
-  todo: deny
+  todo: allow
   webfetch: deny
   websearch: deny
   bash: allow

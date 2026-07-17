@@ -136,27 +136,116 @@ public class BikeModelTests
     }
 
     [Fact]
-    public void Constructor_InitializesProperties()
+    public void Rehydrate_WithValidFields_PreservesAllValues()
     {
-        var model = new BikeModel
-        {
-            Make = "Honda",
-            Model = "CBR 1000RR",
-            Year = 2024,
-            Aliases = "Fireblade",
-            CreatedByUserId = "User1",
-            UploadRef = "Batch1"
-        };
+        var id = Guid.NewGuid();
+        var createdAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var updatedAt = new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero);
 
-        Assert.NotEqual(Guid.Empty, model.Id);
+        var model = BikeModel.Rehydrate(
+            id,
+            " Honda ",
+            " CBR 1000RR ",
+            2024,
+            aliases: "  Fireblade, CBR1000RR  ",
+            createdAtUtc: createdAt,
+            updatedAtUtc: updatedAt,
+            createdByUserId: "user-1",
+            uploadRef: "upload-1");
+
+        Assert.Equal(id, model.Id);
         Assert.Equal("Honda", model.Make);
         Assert.Equal("CBR 1000RR", model.Model);
-        Assert.Equal(2024, model.Year);
-        Assert.Equal("Fireblade", model.Aliases);
         Assert.Equal("Honda CBR 1000RR", model.NormalizedName);
-        Assert.Equal("User1", model.CreatedByUserId);
-        Assert.Equal("Batch1", model.UploadRef);
-        Assert.True(model.CreatedAtUtc <= DateTimeOffset.UtcNow);
-        Assert.True(model.UpdatedAtUtc <= DateTimeOffset.UtcNow);
+        Assert.Equal(2024, model.Year);
+        Assert.Equal("Fireblade, CBR1000RR", model.Aliases);
+        Assert.Equal("user-1", model.CreatedByUserId);
+        Assert.Equal("upload-1", model.UploadRef);
+        Assert.Equal(createdAt, model.CreatedAtUtc);
+        Assert.Equal(updatedAt, model.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void Rehydrate_WithEmptyId_RejectsTheModel()
+    {
+        var act = () => BikeModel.Rehydrate(
+            Guid.Empty,
+            "Honda",
+            "CBR 1000RR",
+            2024,
+            aliases: null,
+            createdAtUtc: DateTimeOffset.UtcNow,
+            updatedAtUtc: DateTimeOffset.UtcNow,
+            createdByUserId: null,
+            uploadRef: null);
+
+        var exception = Assert.Throws<ArgumentException>(act);
+        Assert.Equal("id", exception.ParamName);
+    }
+
+    [Fact]
+    public void Rehydrate_WithWhitespaceAliases_ClearsToNull()
+    {
+        var model = BikeModel.Rehydrate(
+            Guid.NewGuid(),
+            "Honda",
+            "CBR 1000RR",
+            2024,
+            aliases: "   ",
+            createdAtUtc: DateTimeOffset.UtcNow,
+            updatedAtUtc: DateTimeOffset.UtcNow,
+            createdByUserId: null,
+            uploadRef: null);
+
+        Assert.Null(model.Aliases);
+    }
+
+    [Fact]
+    public void UpdateAliases_WhenCalled_UpdatesAliasesAndStampsTimestamp()
+    {
+        var beforeUpdate = DateTimeOffset.UtcNow;
+        var model = BikeModel.Create("Honda", "CBR 1000RR", 2024);
+        var originalUpdatedAt = model.UpdatedAtUtc;
+
+        model.UpdateAliases("Fireblade,CBR1000RR");
+
+        Assert.Equal("Fireblade,CBR1000RR", model.Aliases);
+        Assert.True(model.UpdatedAtUtc >= beforeUpdate);
+        Assert.True(model.UpdatedAtUtc >= originalUpdatedAt);
+        // CreatedAtUtc is immutable
+        Assert.Equal(model.CreatedAtUtc, model.CreatedAtUtc);
+    }
+
+    [Fact]
+    public void UpdateAliases_WithWhitespace_ClearsAliases()
+    {
+        var model = BikeModel.Create("Honda", "CBR 1000RR", 2024, aliases: "Fireblade");
+
+        model.UpdateAliases("   ");
+
+        Assert.Null(model.Aliases);
+    }
+
+    [Theory]
+    [InlineData(null, "CBR 1000RR", "make")]
+    [InlineData("   ", "CBR 1000RR", "make")]
+    public void Rehydrate_WhenIdentityFieldIsMissing_RejectsTheModel(
+        string? make,
+        string? model,
+        string expectedParameterName)
+    {
+        var act = () => BikeModel.Rehydrate(
+            Guid.NewGuid(),
+            make!,
+            model!,
+            2024,
+            aliases: null,
+            createdAtUtc: DateTimeOffset.UtcNow,
+            updatedAtUtc: DateTimeOffset.UtcNow,
+            createdByUserId: null,
+            uploadRef: null);
+
+        var exception = Assert.ThrowsAny<ArgumentException>(act);
+        Assert.Equal(expectedParameterName, exception.ParamName);
     }
 }

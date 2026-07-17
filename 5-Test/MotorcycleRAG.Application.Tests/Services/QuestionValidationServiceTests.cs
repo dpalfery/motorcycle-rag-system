@@ -25,7 +25,7 @@ public class QuestionValidationServiceTests
         _bikeModels
             .Setup(r => r.ListAsync(0, 5000, It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                new BikeModel { Make = "Ducati", Model = "Panigale V4", Year = 2026 }
+                BikeModel.Create("Ducati", "Panigale V4", 2026)
             ]);
 
         _graph
@@ -48,7 +48,7 @@ public class QuestionValidationServiceTests
         _bikeModels
             .Setup(r => r.ListAsync(0, 5000, It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                new BikeModel { Make = "Honda", Model = "CBR 1000RR", Year = 2026, Aliases = "CBR1000RR,Fireblade" }
+                BikeModel.Create("Honda", "CBR 1000RR", 2026, aliases: "CBR1000RR,Fireblade")
             ]);
 
         _graph
@@ -70,8 +70,8 @@ public class QuestionValidationServiceTests
         _bikeModels
             .Setup(r => r.ListAsync(0, 5000, It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                new BikeModel { Make = "Ducati", Model = "Panigale V4", Year = 2026 },
-                new BikeModel { Make = "Aprilia", Model = "RSV4", Year = 2026 }
+                BikeModel.Create("Ducati", "Panigale V4", 2026),
+                BikeModel.Create("Aprilia", "RSV4", 2026)
             ]);
 
         _graph

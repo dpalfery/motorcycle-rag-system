@@ -1,6 +1,6 @@
 # API Persistence Test Coverage Expansion
 
-**Status:** Superseded — see [2026-07-12-persistence-test-coverage.md](2026-07-12-persistence-test-coverage.md)
+**Status:** Archived
 **Date:** 2026-07-12
 
 > This incomplete draft had unresolved questions Q1 (scope) and Q2 (test project location). The user resolved both: scope is all `MotorcycleRAG.Persistence` source files (Q1 option c), and a new dedicated project `MotorcycleRAG.Persistence.Tests` at `5-Test/tests/MotorcycleRAG.Persistence.Tests/` (Q2 option b). The finalized plan supersedes this file. Do not use this file as implementation authority.

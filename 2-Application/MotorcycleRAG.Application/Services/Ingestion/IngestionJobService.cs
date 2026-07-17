@@ -346,10 +346,9 @@ public sealed class IngestionJobService : IIngestionJobService {
             }
 
             // Reset the job to Queued and clear all error/stage information so the
-            // processor starts fresh from the existing blob.
+            // processor starts fresh from the existing blob. QueueForRetry already clears
+            // ErrorMessage/ErrorsJson/failure metadata internally.
             job.QueueForRetry();
-            job.ErrorMessage = null;
-            job.ErrorsJson = null;
 
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
 
@@ -381,16 +380,13 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         ArgumentException.ThrowIfNullOrWhiteSpace(request.ProcessorRunId);
 
-        var job = new IngestionJob {
-            InputType = MapDocumentType(request.DocumentType),
-            InputRef = request.UploadId,
-            CreatedBySubject = userId,
-            Status = IngestionJobStatus.Queued,
-            StartedAtUtc = null,
-            ComputeProvider = "AdminLocalProcessor",
-            DocIngestionRunId = request.ProcessorRunId,
-            SourceFileName = request.SourceFileName
-        };
+        var job = IngestionJob.Create(
+            MapDocumentType(request.DocumentType),
+            request.UploadId,
+            userId,
+            request.SourceFileName,
+            "AdminLocalProcessor",
+            request.ProcessorRunId);
 
         job = await _repository.CreateAsync(job, ct).ConfigureAwait(false);
 
@@ -430,14 +426,15 @@ public sealed class IngestionJobService : IIngestionJobService {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.UploadId);
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-        var job = new IngestionJob {
-            InputType = IngestionJobType.BikeGraph,
-            InputRef = request.UploadId,
-            CreatedBySubject = userId,
-            Status = IngestionJobStatus.Processing,
-            StartedAtUtc = DateTimeOffset.UtcNow,
-            ComputeProvider = "AdminLocalProcessor"
-        };
+        var job = IngestionJob.Create(
+            IngestionJobType.BikeGraph,
+            request.UploadId,
+            userId,
+            sourceFileName: null,
+            computeProvider: "AdminLocalProcessor",
+            docIngestionRunId: null,
+            initialStatus: IngestionJobStatus.Processing,
+            startedAtUtc: DateTimeOffset.UtcNow);
 
         job = await _repository.CreateAsync(job, ct).ConfigureAwait(false);
 
@@ -647,9 +644,13 @@ public sealed class IngestionJobService : IIngestionJobService {
         var stageSetAtUtc = DateTimeOffset.UtcNow;
         if (string.Equals(request.Stage, "cancelled", StringComparison.OrdinalIgnoreCase))
         {
+            // Record chunk progress through the domain method (UpdateStage applies the
+            // same ExpectedChunkCount ??= / IndexedChunkCount = semantics the service used
+            // to set directly), then perform the terminal Cancel transition. Reordering is
+            // required because UpdateStage rejects terminal statuses; Cancel overwrites
+            // CurrentStage to "cancelled", matching prior behavior.
+            job.UpdateStage(request.Stage, request.ChunksProcessed, request.TotalChunks, stageSetAtUtc);
             job.Cancel(string.IsNullOrWhiteSpace(request.FailureReason) ? "Cancelled by user." : request.FailureReason!, stageSetAtUtc);
-            job.ExpectedChunkCount ??= request.TotalChunks;
-            job.IndexedChunkCount = request.ChunksProcessed;
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
         }
         else if (string.Equals(request.Stage, "failed", StringComparison.OrdinalIgnoreCase)

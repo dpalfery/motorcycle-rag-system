@@ -45,11 +45,14 @@ public sealed class ToolConfigurationRepositoryTests
     public async Task AddOrUpdateAsync_ShouldThrowArgumentException_WhenToolIdIsBlank(string? toolId)
     {
         var sut = CreateSut();
-        var configuration = CreateConfiguration(toolId: toolId!);
 
-        var act = async () => await sut.AddOrUpdateAsync(configuration);
+        var act = async () =>
+        {
+            var configuration = CreateConfiguration(toolId: toolId!);
+            await sut.AddOrUpdateAsync(configuration);
+        };
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("configuration");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("toolId");
     }
 
     [Fact]
@@ -57,12 +60,15 @@ public sealed class ToolConfigurationRepositoryTests
     {
         // Id is assigned once, upstream, when the entity is created (it is init-only
         // per the domain invariant design) — the repository no longer generates one.
-        var configuration = CreateConfiguration(id: Guid.Empty);
         var sut = CreateSut();
 
-        var act = async () => await sut.AddOrUpdateAsync(configuration);
+        var act = async () =>
+        {
+            var configuration = CreateConfiguration(id: Guid.Empty);
+            await sut.AddOrUpdateAsync(configuration);
+        };
 
-        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("configuration");
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("id");
     }
 
     [Fact]
@@ -499,28 +505,26 @@ public sealed class ToolConfigurationRepositoryTests
         Guid? id = null,
         string toolId = "search-tool",
         string toolType = "search") =>
-        new()
-        {
-            Id = id ?? Guid.NewGuid(),
-            ToolId = toolId,
-            Name = "Search Tool",
-            Description = "Performs vector search",
-            ServerUrl = new Uri("https://tools.example.com/mcp"),
-            ToolType = toolType,
-            Version = "1.0",
-            IsEnabled = true,
-            IsSystemTool = false,
-            Priority = 10,
-            TimeoutMs = 30000,
-            RetryOnFailure = true,
-            MaxRetries = 3,
-            DisabledReason = null,
-            LastConnectionStatus = "Ok",
-            LastTestedAt = new DateTime(2026, 7, 10, 12, 0, 0, DateTimeKind.Utc),
-            ConfigurationJson = "{}",
-            CreatedAt = new DateTime(2026, 7, 1, 8, 0, 0, DateTimeKind.Utc),
-            UpdatedAt = new DateTime(2026, 7, 5, 9, 0, 0, DateTimeKind.Utc)
-        };
+        McpToolConfiguration.Rehydrate(
+            id: id ?? Guid.NewGuid(),
+            toolId: toolId,
+            name: "Search Tool",
+            description: "Performs vector search",
+            serverUrl: new Uri("https://tools.example.com/mcp"),
+            toolType: toolType,
+            version: "1.0",
+            isSystemTool: false,
+            priority: 10,
+            timeoutMs: 30000,
+            retryOnFailure: true,
+            maxRetries: 3,
+            createdAt: new DateTime(2026, 7, 1, 8, 0, 0, DateTimeKind.Utc),
+            isEnabled: true,
+            configurationJson: "{}",
+            disabledReason: null,
+            lastTestedAt: new DateTime(2026, 7, 10, 12, 0, 0, DateTimeKind.Utc),
+            lastConnectionStatus: "Ok",
+            updatedAt: new DateTime(2026, 7, 5, 9, 0, 0, DateTimeKind.Utc));
 
     private static Dictionary<string, object?> CreateConfigurationRow(
         Guid? id = null,

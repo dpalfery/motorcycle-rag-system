@@ -212,14 +212,8 @@ public class ManualIngestionApiIntegrationTests : IClassFixture<TestWebApplicati
         mockJobRepo.Setup(r => r.GetRecentAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<IngestionJob>
             {
-                new IngestionJob
-                {
-                    IngestionJobId = Guid.NewGuid(),
-                    InputType = IngestionJobType.BikeGraph,
-                    Status = IngestionJobStatus.Completed,
-                    CreatedAtUtc = DateTimeOffset.UtcNow,
-                    SourceFileName = "graph.json"
-                }
+                IngestionJob.Create(IngestionJobType.BikeGraph, "graph-operations", createdBySubject: null,
+                    sourceFileName: "graph.json", initialStatus: IngestionJobStatus.Completed)
             });
 
         var client = _factory.WithWebHostBuilder(builder =>

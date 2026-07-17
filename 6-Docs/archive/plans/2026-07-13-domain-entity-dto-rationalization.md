@@ -1,6 +1,6 @@
 # Domain Entity and DTO Rationalization
 
-**Status:** Review required  
+**Status:** Archived
 **Date:** 2026-07-13  
 **Goal:** Apply the approved rule that property bags are DTOs and entities own identity plus domain invariants or legal state transitions, while preserving Clean Architecture boundaries and an atomic compile-safe migration.
 

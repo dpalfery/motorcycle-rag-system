@@ -73,7 +73,7 @@ public sealed class IngestionJobRepositoryTests : IDisposable
 
         var result = await sut.CreateAsync(job);
 
-        result.Should().BeSameAs(job);
+        result.IngestionJobId.Should().Be(job.IngestionJobId);
         result.Id.Should().Be(42);
         connection.ExecutedCommands.Should().HaveCount(2);
     }
@@ -177,8 +177,8 @@ public sealed class IngestionJobRepositoryTests : IDisposable
     {
         var job = CreateJob(
             status: IngestionJobStatus.Processing,
-            stageSetAtUtc: new DateTimeOffset(2026, 7, 10, 14, 0, 0, TimeSpan.Zero));
-        job.PagesCapturedViewableCount = 3;
+            stageSetAtUtc: new DateTimeOffset(2026, 7, 10, 14, 0, 0, TimeSpan.Zero),
+            pagesCapturedViewableCount: 3);
         var connection = new FakeDbConnection();
         connection.EnqueueNonQuery(
             1,
@@ -955,19 +955,37 @@ public sealed class IngestionJobRepositoryTests : IDisposable
 
     private static IngestionJob CreateJob(
         IngestionJobStatus status = IngestionJobStatus.Queued,
-        DateTimeOffset? stageSetAtUtc = null) =>
-        new()
-        {
-            IngestionJobId = Guid.NewGuid(),
-            CreatedAtUtc = new DateTimeOffset(2026, 7, 10, 13, 0, 0, TimeSpan.Zero),
-            Status = status,
-            StageSetAtUtc = stageSetAtUtc,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "manuals/honda-vfr.pdf",
-            SourceFileName = "honda-vfr.pdf",
-            ComputeProvider = "AdminLocalProcessor",
-            CurrentStage = "queued"
-        };
+        DateTimeOffset? stageSetAtUtc = null,
+        int? pagesCapturedViewableCount = null) =>
+        IngestionJob.Rehydrate(
+            id: 0,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: new DateTimeOffset(2026, 7, 10, 13, 0, 0, TimeSpan.Zero),
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: status,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "manuals/honda-vfr.pdf",
+            sourceFileName: "honda-vfr.pdf",
+            computeProvider: "AdminLocalProcessor",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: null,
+            pagesCapturedViewableCount: pagesCapturedViewableCount,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: "queued",
+            stageSetAtUtc: stageSetAtUtc,
+            metadataJson: null);
 
     private static Dictionary<string, object?> CreateJobRow(
         long id = 7L,

@@ -5,3 +5,4 @@ DevOps documentation covers the CI/CD pipelines, deployment configuration, and h
 - [CI/CD flow, secrets, and deployment configuration](overview.md)
 - [Azure Environment](../AzureEnvironment/)
 - [Database Setup CLI](database-setup.md)
+- [Database schema deployment and updates](database-schema.md)

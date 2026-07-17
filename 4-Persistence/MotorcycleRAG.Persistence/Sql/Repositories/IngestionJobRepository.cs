@@ -169,20 +169,53 @@ public class IngestionJobRepository : IIngestionJobRepository
                 StageSetAtUtc = job.StageSetAtUtc?.UtcDateTime
             };
 
+            long assignedId;
             if (await HasSqlIdColumnAsync(connection, cancellationToken))
             {
-                job.Id = await connection.QuerySingleAsync<long>(
+                assignedId = await connection.QuerySingleAsync<long>(
                     new CommandDefinition(insertSqlWithSqlId, parameters, cancellationToken: cancellationToken));
             }
             else
             {
                 await connection.ExecuteAsync(
                     new CommandDefinition(insertSqlWithoutSqlId, parameters, cancellationToken: cancellationToken));
-                job.Id = 0;
+                assignedId = 0;
             }
 
-            _logger.LogInformation("Created ingestion job {IngestionJobId}", job.IngestionJobId);
-            return job;
+            // The entity's identity is immutable, so we cannot mutate job.Id. Return a fresh
+            // rehydrated instance carrying the assigned database identity for callers to use.
+            var persisted = IngestionJob.Rehydrate(
+                assignedId,
+                job.IngestionJobId,
+                job.CreatedAtUtc,
+                job.StartedAtUtc,
+                job.CompletedAtUtc,
+                job.CreatedBySubject,
+                job.Status,
+                job.FailureReason,
+                job.ErrorsJson,
+                job.ErrorMessage,
+                job.InputType,
+                job.InputRef,
+                job.SourceFileName,
+                job.ComputeProvider,
+                job.DocIngestionRunId,
+                job.ManualDocumentId,
+                job.TotalPages,
+                job.PagesCapturedViewableCount,
+                job.PagesWithSearchableTextCount,
+                job.PagesWithOcrTextCount,
+                job.PagesWithNativeTextCount,
+                job.MissingPagesJson,
+                job.MetricsJson,
+                job.ExpectedChunkCount,
+                job.IndexedChunkCount,
+                job.CurrentStage,
+                job.StageSetAtUtc,
+                job.MetadataJson);
+
+            _logger.LogInformation("Created ingestion job {IngestionJobId}", persisted.IngestionJobId);
+            return persisted;
         }
         catch (Exception ex)
         {
@@ -202,8 +235,9 @@ public class IngestionJobRepository : IIngestionJobRepository
             FROM [dbo].[IngestionJobs]
             WHERE [IngestionJobId] = @IngestionJobId;
         ";
-            return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
+            var row = await connection.QueryFirstOrDefaultAsync<IngestionJobRow>(
                 new CommandDefinition(sql, new { IngestionJobId = ingestionJobId }, cancellationToken: cancellationToken));
+            return row is null ? null : Map(row);
         }
         catch (Exception ex)
         {
@@ -333,10 +367,11 @@ public class IngestionJobRepository : IIngestionJobRepository
             SELECT TOP 1 {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
-            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
+            ORDER BY [CreatedAtUtc] DESC;
         ";
-            return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
+            var row = await connection.QueryFirstOrDefaultAsync<IngestionJobRow>(
                 new CommandDefinition(sql, new { InputRef = inputRef }, cancellationToken: cancellationToken));
+            return row is null ? null : Map(row);
         }
         catch (Exception ex)
         {
@@ -361,10 +396,11 @@ public class IngestionJobRepository : IIngestionJobRepository
             FROM [dbo].[IngestionJobs]
             WHERE [InputRef] = @InputRef
               AND [InputType] = @InputType
-            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
+            ORDER BY [CreatedAtUtc] DESC;
         ";
-            return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
+            var row = await connection.QueryFirstOrDefaultAsync<IngestionJobRow>(
                 new CommandDefinition(sql, new { InputRef = inputRef, InputType = inputType.ToString() }, cancellationToken: cancellationToken));
+            return row is null ? null : Map(row);
         }
         catch (Exception ex)
         {
@@ -401,7 +437,7 @@ public class IngestionJobRepository : IIngestionJobRepository
                 SELECT {columns},
                     ROW_NUMBER() OVER (
                         PARTITION BY [InputRef], [InputType]
-                        ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC
+                        ORDER BY [CreatedAtUtc] DESC
                     ) AS rn
                 FROM [dbo].[IngestionJobs]
                 WHERE [InputRef] IN @InputRefs
@@ -411,9 +447,9 @@ public class IngestionJobRepository : IIngestionJobRepository
             FROM RankedJobs
             WHERE rn = 1;";
 
-            var results = await connection.QueryAsync<IngestionJob>(
+            var results = await connection.QueryAsync<IngestionJobRow>(
                 new CommandDefinition(sql, new { InputRefs = inputRefs, InputTypes = inputTypes }, commandTimeout: 10, cancellationToken: cancellationToken));
-            return results.ToList();
+            return results.Select(Map).ToList();
         }
         catch (Exception ex)
         {
@@ -442,11 +478,11 @@ public class IngestionJobRepository : IIngestionJobRepository
             var sql = $@"
             SELECT TOP (@MaxCount) {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
             FROM [dbo].[IngestionJobs]
-            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
+            ORDER BY [CreatedAtUtc] DESC;
         ";
-            var results = await connection.QueryAsync<IngestionJob>(
+            var results = await connection.QueryAsync<IngestionJobRow>(
                 new CommandDefinition(sql, new { MaxCount = maxCount }, commandTimeout: 10, cancellationToken: cancellationToken));
-            return results.ToList();
+            return results.Select(Map).ToList();
         }
         catch (Exception ex)
         {
@@ -468,15 +504,17 @@ public class IngestionJobRepository : IIngestionJobRepository
             SELECT {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
             FROM [dbo].[IngestionJobs]
             WHERE [ManualDocumentId] = @ManualDocumentId
-            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
+            ORDER BY [CreatedAtUtc] DESC;
         ";
-            var results = await connection.QueryAsync<IngestionJob>(
+            var results = await connection.QueryAsync<IngestionJobRow>(
                 new CommandDefinition(sql, new { ManualDocumentId = manualDocumentId }, cancellationToken: cancellationToken));
 
-            _logger.LogInformation("Retrieved {Count} ingestion jobs for manual document {ManualDocumentId}",
-                results.AsList().Count, manualDocumentId);
+            var mapped = results.Select(Map).ToList().AsReadOnly();
 
-            return results.ToList().AsReadOnly();
+            _logger.LogInformation("Retrieved {Count} ingestion jobs for manual document {ManualDocumentId}",
+                mapped.Count, manualDocumentId);
+
+            return mapped;
         }
         catch (Exception ex)
         {
@@ -503,15 +541,15 @@ public class IngestionJobRepository : IIngestionJobRepository
             SELECT {GetIngestionJobColumns(await HasSqlIdColumnAsync(connection, cancellationToken))}
             FROM [dbo].[IngestionJobs]
             WHERE [Status] IN @Statuses
-            ORDER BY COALESCE([CreatedAtUtc], [CreatedAt], [StartTime]) DESC;
+            ORDER BY [CreatedAtUtc] DESC;
         ";
-            var results = await connection.QueryAsync<IngestionJob>(
+            var results = await connection.QueryAsync<IngestionJobRow>(
                 new CommandDefinition(
                     sql,
                     new { Statuses = statuses.Select(static status => status.ToString()).ToArray() },
                     cancellationToken: cancellationToken));
 
-            return results.ToList().AsReadOnly();
+            return results.Select(Map).ToList().AsReadOnly();
         }
         catch (Exception ex)
         {
@@ -818,8 +856,9 @@ public class IngestionJobRepository : IIngestionJobRepository
             FROM [dbo].[IngestionJobs]
             WHERE [DocIngestionRunId] = @DocIngestionRunId;
         ";
-            return await connection.QueryFirstOrDefaultAsync<IngestionJob>(
+            var row = await connection.QueryFirstOrDefaultAsync<IngestionJobRow>(
                 new CommandDefinition(sql, new { DocIngestionRunId = docIngestionRunId }, cancellationToken: cancellationToken));
+            return row is null ? null : Map(row);
         }
         catch (Exception ex)
         {
@@ -917,5 +956,77 @@ public class IngestionJobRepository : IIngestionJobRepository
             _logger.LogError(ex, "Failed to transition ingestion job {IngestionJobId} from AwaitingMetadata", ingestionJobId);
             throw new InvalidOperationException($"Failed to transition ingestion job {ingestionJobId} from AwaitingMetadata", ex);
         }
+    }
+
+    /// <summary>
+    /// Maps a Dapper-materialized <see cref="IngestionJobRow"/> into a fully-validated
+    /// <see cref="IngestionJob"/> via the <see cref="IngestionJob.Rehydrate"/> boundary factory.
+    /// Invalid database rows are rejected here rather than becoming a partially-valid entity.
+    /// </summary>
+    private static IngestionJob Map(IngestionJobRow row) => IngestionJob.Rehydrate(
+        row.Id,
+        row.IngestionJobId,
+        row.CreatedAtUtc,
+        row.StartedAtUtc,
+        row.CompletedAtUtc,
+        row.CreatedBySubject,
+        row.Status,
+        row.FailureReason,
+        row.ErrorsJson,
+        row.ErrorMessage,
+        row.InputType,
+        row.InputRef,
+        row.SourceFileName,
+        row.ComputeProvider ?? "MicrosoftFabric",
+        row.DocIngestionRunId,
+        row.ManualDocumentId,
+        row.TotalPages,
+        row.PagesCapturedViewableCount,
+        row.PagesWithSearchableTextCount,
+        row.PagesWithOcrTextCount,
+        row.PagesWithNativeTextCount,
+        row.MissingPagesJson,
+        row.MetricsJson,
+        row.ExpectedChunkCount,
+        row.IndexedChunkCount,
+        row.CurrentStage,
+        row.StageSetAtUtc,
+        row.MetadataJson);
+
+    /// <summary>
+    /// Private Dapper-friendly projection of the <c>dbo.IngestionJobs</c> row. Init-only so it
+    /// stays a passive storage shape; it is never leaked past the Persistence boundary. The
+    /// <see cref="Map"/> adapter is the only legal exit point.
+    /// </summary>
+    private sealed class IngestionJobRow
+    {
+        public long Id { get; init; }
+        public Guid IngestionJobId { get; init; }
+        public DateTimeOffset CreatedAtUtc { get; init; }
+        public DateTimeOffset? StartedAtUtc { get; init; }
+        public DateTimeOffset? CompletedAtUtc { get; init; }
+        public string? CreatedBySubject { get; init; }
+        public IngestionJobStatus Status { get; init; }
+        public string? FailureReason { get; init; }
+        public string? ErrorsJson { get; init; }
+        public string? ErrorMessage { get; init; }
+        public IngestionJobType InputType { get; init; }
+        public string InputRef { get; init; } = string.Empty;
+        public string? SourceFileName { get; init; }
+        public string? ComputeProvider { get; init; }
+        public string? DocIngestionRunId { get; init; }
+        public Guid? ManualDocumentId { get; init; }
+        public int? TotalPages { get; init; }
+        public int? PagesCapturedViewableCount { get; init; }
+        public int? PagesWithSearchableTextCount { get; init; }
+        public int? PagesWithOcrTextCount { get; init; }
+        public int? PagesWithNativeTextCount { get; init; }
+        public string? MissingPagesJson { get; init; }
+        public string? MetricsJson { get; init; }
+        public int? ExpectedChunkCount { get; init; }
+        public int? IndexedChunkCount { get; init; }
+        public string? CurrentStage { get; init; }
+        public DateTimeOffset? StageSetAtUtc { get; init; }
+        public string? MetadataJson { get; init; }
     }
 }

@@ -25,16 +25,15 @@ public sealed class SpecsIngestionServiceTests
         await sut.IngestCsvAsync("upload-1", "user-1", csv);
 
         upserted.Should().HaveCount(2);
-        upserted[0].Should().BeEquivalentTo(new BikeModel
-        {
-            Make = "honda",
-            Model = "cbr 600rr",
-            Year = 2024,
-            CreatedByUserId = "user-1",
-            UploadRef = "upload-1",
-        }, options => options.Excluding(model => model.Id)
-            .Excluding(model => model.CreatedAtUtc)
-            .Excluding(model => model.UpdatedAtUtc));
+        upserted[0].Should().BeEquivalentTo(BikeModel.Create(
+            "honda",
+            "cbr 600rr",
+            2024,
+            createdByUserId: "user-1",
+            uploadRef: "upload-1"),
+            options => options.Excluding(model => model.Id)
+                .Excluding(model => model.CreatedAtUtc)
+                .Excluding(model => model.UpdatedAtUtc));
         upserted[1].NormalizedName.Should().Be("Yamaha MT-07");
     }
 

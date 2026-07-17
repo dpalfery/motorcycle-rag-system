@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs.ManualIngestion;
 using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories;
 
@@ -46,21 +47,24 @@ public class ManualDocumentRepository : IManualDocumentRepository
             SELECT {DocumentColumns} FROM [dbo].[ManualDocuments] WHERE [DocumentId] = @DocumentId;";
 
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        return await connection.QuerySingleAsync<ManualDocument>(new CommandDefinition(sql, document, cancellationToken: cancellationToken));
+        var row = await connection.QuerySingleAsync<ManualDocumentRow>(new CommandDefinition(sql, document, cancellationToken: cancellationToken));
+        return Map(row);
     }
 
     public async Task<ManualDocument?> GetDocumentByIdAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
         const string sql = $"SELECT {DocumentColumns} FROM [dbo].[ManualDocuments] WHERE [DocumentId] = @DocumentId;";
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        return await connection.QueryFirstOrDefaultAsync<ManualDocument>(new CommandDefinition(sql, new { DocumentId = documentId }, cancellationToken: cancellationToken));
+        var row = await connection.QueryFirstOrDefaultAsync<ManualDocumentRow>(new CommandDefinition(sql, new { DocumentId = documentId }, cancellationToken: cancellationToken));
+        return row is null ? null : Map(row);
     }
 
     public async Task<IEnumerable<ManualDocument>> GetAllDocumentsAsync(CancellationToken cancellationToken = default)
     {
         const string sql = $"SELECT {DocumentColumns} FROM [dbo].[ManualDocuments] ORDER BY [UploadedAtUtc] DESC;";
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        return await connection.QueryAsync<ManualDocument>(new CommandDefinition(sql, cancellationToken: cancellationToken));
+        var rows = await connection.QueryAsync<ManualDocumentRow>(new CommandDefinition(sql, cancellationToken: cancellationToken));
+        return rows.Select(Map).ToList();
     }
 
     public async Task UpdateDocumentAsync(ManualDocument document, CancellationToken cancellationToken = default)
@@ -190,11 +194,52 @@ public class ManualDocumentRepository : IManualDocumentRepository
             ORDER BY r.[StartedAtUtc] DESC;";
 
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-        var results = await connection.QueryAsync<ManualDocument, ManualRunDto, (ManualDocument, ManualRunDto)>(
+        var results = await connection.QueryAsync<ManualDocumentRow, ManualRunDto, (ManualDocumentRow Document, ManualRunDto Run)>(
             new CommandDefinition(sql, new { Top = top }, cancellationToken: cancellationToken),
             (doc, run) => (doc, run),
             splitOn: "RunId");
 
-        return results;
+        return results.Select(x => (Document: Map(x.Document), x.Run));
+    }
+
+    private static ManualDocument Map(ManualDocumentRow row) =>
+        ManualDocument.Rehydrate(
+            row.DocumentId,
+            row.SourceFileName,
+            row.CanonicalBlobContainer,
+            row.CanonicalBlobPath,
+            row.CanonicalBlobUri,
+            row.SourceContentHash,
+            row.DocumentType,
+            row.Make,
+            row.Model,
+            row.Year,
+            row.UploadedAtUtc,
+            row.CanonicalizedAtUtc,
+            row.LastProcessedAtUtc,
+            row.CurrentStatus,
+            row.CurrentStage,
+            row.LastSuccessfulRunId,
+            row.LastFailure);
+
+    private sealed class ManualDocumentRow
+    {
+        public Guid DocumentId { get; init; }
+        public string SourceFileName { get; init; } = string.Empty;
+        public string CanonicalBlobContainer { get; init; } = string.Empty;
+        public string CanonicalBlobPath { get; init; } = string.Empty;
+        public string? CanonicalBlobUri { get; init; }
+        public string? SourceContentHash { get; init; }
+        public string DocumentType { get; init; } = string.Empty;
+        public string? Make { get; init; }
+        public string? Model { get; init; }
+        public int? Year { get; init; }
+        public DateTimeOffset UploadedAtUtc { get; init; }
+        public DateTimeOffset? CanonicalizedAtUtc { get; init; }
+        public DateTimeOffset? LastProcessedAtUtc { get; init; }
+        public MotorcycleRAG.Domain.Enums.ManualDocumentStatus CurrentStatus { get; init; }
+        public string? CurrentStage { get; init; }
+        public Guid? LastSuccessfulRunId { get; init; }
+        public string? LastFailure { get; init; }
     }
 }

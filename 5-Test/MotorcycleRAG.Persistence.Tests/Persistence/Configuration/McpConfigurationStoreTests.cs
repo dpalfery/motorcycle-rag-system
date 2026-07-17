@@ -80,7 +80,10 @@ public sealed class McpConfigurationStoreTests
         var sut = CreateSut();
 
         sut.Invoking(store => store.AddOrUpdateConfiguration(null!)).Should().Throw<ArgumentNullException>();
-        sut.Invoking(store => store.AddOrUpdateConfiguration(new McpToolConfiguration())).Should().Throw<ArgumentException>();
+        // The entity's Rehydrate factory now rejects empty identity fields at
+        // construction, so the store's defense-in-depth check for empty Id/ToolId
+        // is no longer reachable through public construction. A validly-constructed
+        // instance is the minimum the store can receive.
     }
 
     private static McpConfigurationStore CreateSut() => new(NullLogger<McpConfigurationStore>.Instance);
@@ -92,14 +95,25 @@ public sealed class McpConfigurationStoreTests
         bool enabled = true,
         DateTime? createdAt = null,
         Guid? id = null,
-        string? name = null) => new()
-    {
-        Id = id ?? Guid.NewGuid(),
-        ToolId = toolId,
-        Name = name ?? toolId,
-        ToolType = toolType,
-        IsEnabled = enabled,
-        Priority = priority,
-        CreatedAt = createdAt ?? DateTime.UtcNow,
-    };
+        string? name = null) =>
+        McpToolConfiguration.Rehydrate(
+            id: id ?? Guid.NewGuid(),
+            toolId: toolId,
+            name: name ?? toolId,
+            description: null,
+            serverUrl: new Uri("https://mcp.example.test"),
+            toolType: toolType,
+            version: null,
+            isSystemTool: false,
+            priority: priority,
+            timeoutMs: 30000,
+            retryOnFailure: true,
+            maxRetries: 3,
+            createdAt: createdAt ?? DateTime.UtcNow,
+            isEnabled: enabled,
+            configurationJson: null,
+            disabledReason: enabled ? null : "Disabled",
+            lastTestedAt: null,
+            lastConnectionStatus: null,
+            updatedAt: null);
 }

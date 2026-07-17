@@ -11,17 +11,35 @@ public class CoverageCalculatorTests {
     [Fact]
     public void Calculate_WhenAllPagesViewable_Returns100Percent() {
         // Arrange
-        var job = new IngestionJob {
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "manuals/guid/upload/perfect-manual.pdf",
-            Status = IngestionJobStatus.Completed,
-            TotalPages = 100,
-            PagesCapturedViewableCount = 100,
-            PagesWithSearchableTextCount = 100,
-            PagesWithOcrTextCount = 20,
-            PagesWithNativeTextCount = 80,
-            MissingPagesJson = "[]"
-        };
+        var job = IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: IngestionJobStatus.Completed,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "manuals/guid/upload/perfect-manual.pdf",
+            sourceFileName: null,
+            computeProvider: "MicrosoftFabric",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: 100,
+            pagesCapturedViewableCount: 100,
+            pagesWithSearchableTextCount: 100,
+            pagesWithOcrTextCount: 20,
+            pagesWithNativeTextCount: 80,
+            missingPagesJson: "[]",
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
 
         // Act
         var metrics = CoverageCalculator.Calculate(job);
@@ -38,17 +56,35 @@ public class CoverageCalculatorTests {
     [Fact]
     public void Calculate_WithMissingPages_ReturnsCorrectPercent() {
         // Arrange
-        var job = new IngestionJob {
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "manuals/guid/upload/honda-cbr600rr.pdf",
-            Status = IngestionJobStatus.Completed,
-            TotalPages = 1200,
-            PagesCapturedViewableCount = 1188,
-            PagesWithSearchableTextCount = 1100,
-            PagesWithOcrTextCount = 300,
-            PagesWithNativeTextCount = 800,
-            MissingPagesJson = "[45, 67, 89, 120, 455, 678, 901, 1023, 1100, 1150, 1175, 1199]"
-        };
+        var job = IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: IngestionJobStatus.Completed,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "manuals/guid/upload/honda-cbr600rr.pdf",
+            sourceFileName: null,
+            computeProvider: "MicrosoftFabric",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: 1200,
+            pagesCapturedViewableCount: 1188,
+            pagesWithSearchableTextCount: 1100,
+            pagesWithOcrTextCount: 300,
+            pagesWithNativeTextCount: 800,
+            missingPagesJson: "[45, 67, 89, 120, 455, 678, 901, 1023, 1100, 1150, 1175, 1199]",
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
 
         // Act
         var metrics = CoverageCalculator.Calculate(job);
@@ -67,17 +103,35 @@ public class CoverageCalculatorTests {
     [Fact]
     public void Calculate_WhenNoPagesCapured_Returns0Percent() {
         // Arrange
-        var job = new IngestionJob {
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "manuals/guid/upload/failed-scan.pdf",
-            Status = IngestionJobStatus.Failed,
-            TotalPages = 100,
-            PagesCapturedViewableCount = 0,
-            PagesWithSearchableTextCount = 0,
-            PagesWithOcrTextCount = 0,
-            PagesWithNativeTextCount = 0,
-            MissingPagesJson = null
-        };
+        var job = IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: IngestionJobStatus.Failed,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "manuals/guid/upload/failed-scan.pdf",
+            sourceFileName: null,
+            computeProvider: "MicrosoftFabric",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: 100,
+            pagesCapturedViewableCount: 0,
+            pagesWithSearchableTextCount: 0,
+            pagesWithOcrTextCount: 0,
+            pagesWithNativeTextCount: 0,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
 
         // Act
         var metrics = CoverageCalculator.Calculate(job);
@@ -94,14 +148,35 @@ public class CoverageCalculatorTests {
     [Fact]
     public void Calculate_WhenTotalPagesIsNull_ReturnsNullCoverage() {
         // Arrange — non-PDF job or job where pipeline hasn't reported page counts
-        var job = new IngestionJob {
-            InputType = IngestionJobType.StructuredSpecification,
-            InputRef = "uploads/guid/specs.csv",
-            Status = IngestionJobStatus.Completed,
-            TotalPages = null,
-            PagesCapturedViewableCount = null,
-            PagesWithSearchableTextCount = null
-        };
+        var job = IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: IngestionJobStatus.Completed,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.StructuredSpecification,
+            inputRef: "uploads/guid/specs.csv",
+            sourceFileName: null,
+            computeProvider: "MicrosoftFabric",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
 
         // Act
         var metrics = CoverageCalculator.Calculate(job);

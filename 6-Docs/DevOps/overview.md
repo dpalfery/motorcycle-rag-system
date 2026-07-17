@@ -200,7 +200,7 @@ Unchanged. Runs on push to `main` or `develop`:
 3. CrossGuard policy scan: Builds the TypeScript policy pack (`7-Deployment/scanning/policy-packs/azure/`) and runs `pulumi preview --policy-pack` as an advisory scan. Scan results are informational and never block deployment (`continue-on-error: true`).
 4. `pulumi up` against the `dev` stack: creates/updates the Azure Resource Group, Container Registry, Container App Environment, and all supporting resources.
 5. Reads Pulumi outputs (ACR server, resource group, app names, Key Vault URI, Foundry endpoint, model deployments).
-6. Runs database schema migrations via `sqlcmd` against Azure SQL.
+6. Runs database schema migrations via `sqlcmd` against Azure SQL (see [Database Schema Deployment](database-schema.md) for the detailed strategy and idempotency patterns).
 7. ACR login, Docker build & push for API and UI images (tagged with `latest` and commit SHA).
 8. Updates Container App revisions to pull fresh images.
 9. Provisions custom domain managed certificates for `motorag.api.palfery.com` and `motorag.palfery.com` (CNAME validation, polling up to 20 minutes).

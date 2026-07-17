@@ -162,11 +162,10 @@ public sealed class ModelClassificationPolicyTests
     }
 
     /// <summary>
-    /// Post-migration gate. It is opt-in while packages 2-5 are migrating the existing property
-    /// bags. Remove the skip after migration; the inventory then fails on every new property-bag
-    /// or publicly mutable type under Domain.Entities and has no per-type exemptions.
+    /// Post-migration gate. The inventory fails on every new property-bag or publicly mutable
+    /// type under Domain.Entities and has no per-type exemptions.
     /// </summary>
-    [Fact(Skip = "Enable after domain entity/DTO migration packages 2-5 complete by removing this skip.")]
+    [Fact]
     public void DomainEntities_PostMigrationInventory_ContainsOnlyBehaviorBearingTypes()
     {
         var domainAssembly = typeof(MotorcycleRAG.Domain.Entities.BikeModel).Assembly;

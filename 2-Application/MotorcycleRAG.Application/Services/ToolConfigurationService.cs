@@ -206,28 +206,26 @@ public class ToolConfigurationService : IToolConfigurationService {
         DateTime createdAt,
         DateTime? updatedAt = null,
         string? toolId = null)
-        => new()
-        {
-            Id = id,
-            ToolId = toolId ?? source.ToolId,
-            Name = source.Name,
-            Description = source.Description,
-            ServerUrl = source.ServerUrl,
-            IsEnabled = source.IsEnabled,
-            ConfigurationJson = source.ConfigurationJson,
-            ToolType = source.ToolType,
-            Version = source.Version,
-            IsSystemTool = source.IsSystemTool,
-            Priority = source.Priority,
-            TimeoutMs = source.TimeoutMs,
-            RetryOnFailure = source.RetryOnFailure,
-            MaxRetries = source.MaxRetries,
-            DisabledReason = source.DisabledReason,
-            LastTestedAt = source.LastTestedAt,
-            LastConnectionStatus = source.LastConnectionStatus,
-            CreatedAt = createdAt,
-            UpdatedAt = updatedAt
-        };
+        => McpToolConfiguration.Rehydrate(
+            id: id,
+            toolId: toolId ?? source.ToolId,
+            name: source.Name,
+            description: source.Description,
+            serverUrl: source.ServerUrl,
+            toolType: source.ToolType,
+            version: source.Version,
+            isSystemTool: source.IsSystemTool,
+            priority: source.Priority,
+            timeoutMs: source.TimeoutMs,
+            retryOnFailure: source.RetryOnFailure,
+            maxRetries: source.MaxRetries,
+            createdAt: createdAt,
+            isEnabled: source.IsEnabled,
+            configurationJson: source.ConfigurationJson,
+            disabledReason: source.DisabledReason,
+            lastTestedAt: source.LastTestedAt,
+            lastConnectionStatus: source.LastConnectionStatus,
+            updatedAt: updatedAt);
 
     /// <summary>
     /// Enable a tool configuration.

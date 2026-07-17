@@ -32,16 +32,12 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task GetEnabledToolsAsync_WithEnabledTools_ReturnsOnlyEnabledTools()
         {
             // Arrange
-            var enabledTool = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "search-tool",
-                Name = "Search Tool",
-                ServerUrl = new Uri("http://localhost:8000"),
-                ToolType = "search",
-                IsEnabled = true,
-                CreatedAt = DateTime.UtcNow
-            };
+            var enabledTool = BuildConfig(
+                toolId: "search-tool",
+                name: "Search Tool",
+                serverUrl: new Uri("http://localhost:8000"),
+                toolType: "search",
+                isEnabled: true);
 
             _mockRepository.Setup(r => r.GetEnabledAsync())
                 .ReturnsAsync(new[] { enabledTool });
@@ -77,16 +73,12 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task GetToolConfigurationAsync_ToolExists_ReturnsConfiguration()
         {
             // Arrange
-            var toolConfig = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "test-tool",
-                Name = "Test Tool",
-                ServerUrl = new Uri("http://localhost:8000"),
-                ToolType = "search",
-                IsEnabled = true,
-                CreatedAt = DateTime.UtcNow
-            };
+            var toolConfig = BuildConfig(
+                toolId: "test-tool",
+                name: "Test Tool",
+                serverUrl: new Uri("http://localhost:8000"),
+                toolType: "search",
+                isEnabled: true);
 
             _mockRepository.Setup(r => r.GetByToolIdAsync("test-tool"))
                 .ReturnsAsync(toolConfig);
@@ -104,16 +96,13 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task GetToolConfigurationAsync_DisabledTool_ReturnsNull()
         {
             // Arrange
-            var toolConfig = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "disabled-tool",
-                Name = "Disabled Tool",
-                ServerUrl = new Uri("http://localhost:8000"),
-                ToolType = "search",
-                IsEnabled = false,
-                CreatedAt = DateTime.UtcNow
-            };
+            var toolConfig = BuildConfig(
+                toolId: "disabled-tool",
+                name: "Disabled Tool",
+                serverUrl: new Uri("http://localhost:8000"),
+                toolType: "search",
+                isEnabled: false,
+                disabledReason: "Disabled for test");
 
             _mockRepository.Setup(r => r.GetByToolIdAsync("disabled-tool"))
                 .ReturnsAsync(toolConfig);
@@ -147,29 +136,21 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task GetToolsByTypeAsync_WithMatchingTools_ReturnsFilteredTools()
         {
             // Arrange
-            var searchTool = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "search-tool-1",
-                Name = "Search Tool 1",
-                ServerUrl = new Uri("http://localhost:8000"),
-                ToolType = "search",
-                IsEnabled = true,
-                Priority = 1,
-                CreatedAt = DateTime.UtcNow
-            };
+            var searchTool = BuildConfig(
+                toolId: "search-tool-1",
+                name: "Search Tool 1",
+                serverUrl: new Uri("http://localhost:8000"),
+                toolType: "search",
+                isEnabled: true,
+                priority: 1);
 
-            var searchTool2 = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "search-tool-2",
-                Name = "Search Tool 2",
-                ServerUrl = new Uri("http://localhost:8001"),
-                ToolType = "search",
-                IsEnabled = true,
-                Priority = 2,
-                CreatedAt = DateTime.UtcNow
-            };
+            var searchTool2 = BuildConfig(
+                toolId: "search-tool-2",
+                name: "Search Tool 2",
+                serverUrl: new Uri("http://localhost:8001"),
+                toolType: "search",
+                isEnabled: true,
+                priority: 2);
 
             _mockRepository.Setup(r => r.GetByTypeAsync("search"))
                 .ReturnsAsync(new[] { searchTool, searchTool2 });
@@ -246,17 +227,13 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task ValidateToolAsync_ValidConfiguration_ReturnsTrue()
         {
             // Arrange
-            var toolConfig = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "test-tool",
-                Name = "Test Tool",
-                ServerUrl = new Uri("http://localhost:9003"),
-                ToolType = "search",
-                IsEnabled = true,
-                TimeoutMs = 30000,
-                CreatedAt = DateTime.UtcNow
-            };
+            var toolConfig = BuildConfig(
+                toolId: "test-tool",
+                name: "Test Tool",
+                serverUrl: new Uri("http://localhost:9003"),
+                toolType: "search",
+                isEnabled: true,
+                timeoutMs: 30000);
 
             // Act
             var result = await _provider.ValidateToolAsync(toolConfig);
@@ -269,16 +246,13 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task ValidateToolAsync_DisabledTool_ReturnsFalse()
         {
             // Arrange
-            var toolConfig = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "disabled-tool",
-                Name = "Disabled Tool",
-                ServerUrl = new Uri("http://localhost:8000"),
-                ToolType = "search",
-                IsEnabled = false,
-                CreatedAt = DateTime.UtcNow
-            };
+            var toolConfig = BuildConfig(
+                toolId: "disabled-tool",
+                name: "Disabled Tool",
+                serverUrl: new Uri("http://localhost:8000"),
+                toolType: "search",
+                isEnabled: false,
+                disabledReason: "Disabled");
 
             // Act
             var result = await _provider.ValidateToolAsync(toolConfig);
@@ -291,16 +265,12 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task ValidateToolAsync_NoServerUrl_ReturnsFalse()
         {
             // Arrange
-            var toolConfig = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "test-tool",
-                Name = "Test Tool",
-                ServerUrl = null!,
-                ToolType = "search",
-                IsEnabled = true,
-                CreatedAt = DateTime.UtcNow
-            };
+            var toolConfig = BuildConfig(
+                toolId: "test-tool",
+                name: "Test Tool",
+                serverUrl: null,
+                toolType: "search",
+                isEnabled: true);
 
             // Act
             var result = await _provider.ValidateToolAsync(toolConfig);
@@ -313,16 +283,12 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task ValidateToolAsync_InvalidServerUrl_ReturnsFalse()
         {
             // Arrange
-            var toolConfig = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "test-tool",
-                Name = "Test Tool",
-                ServerUrl = new Uri("not-a-valid-url", UriKind.RelativeOrAbsolute),
-                ToolType = "search",
-                IsEnabled = true,
-                CreatedAt = DateTime.UtcNow
-            };
+            var toolConfig = BuildConfig(
+                toolId: "test-tool",
+                name: "Test Tool",
+                serverUrl: new Uri("not-a-valid-url", UriKind.RelativeOrAbsolute),
+                toolType: "search",
+                isEnabled: true);
 
             // Act
             var result = await _provider.ValidateToolAsync(toolConfig);
@@ -345,17 +311,13 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task ValidateToolAsync_InvalidTimeout_ReturnsFalse()
         {
             // Arrange
-            var toolConfig = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "test-tool",
-                Name = "Test Tool",
-                ServerUrl = new Uri("http://localhost:8000"),
-                ToolType = "search",
-                IsEnabled = true,
-                TimeoutMs = 0,
-                CreatedAt = DateTime.UtcNow
-            };
+            var toolConfig = BuildConfig(
+                toolId: "test-tool",
+                name: "Test Tool",
+                serverUrl: new Uri("http://localhost:8000"),
+                toolType: "search",
+                isEnabled: true,
+                timeoutMs: 0);
 
             // Act
             var result = await _provider.ValidateToolAsync(toolConfig);
@@ -372,16 +334,12 @@ namespace MotorcycleRAG.UnitTests.Configuration
         public async Task GetEnabledToolsAsync_AfterConfigurationChange_ReflectsUpdate()
         {
             // Arrange
-            var tool = new McpToolConfiguration
-            {
-                Id = Guid.NewGuid(),
-                ToolId = "test-tool",
-                Name = "Test Tool",
-                ServerUrl = new Uri("http://localhost:8000"),
-                ToolType = "search",
-                IsEnabled = true,
-                CreatedAt = DateTime.UtcNow
-            };
+            var tool = BuildConfig(
+                toolId: "test-tool",
+                name: "Test Tool",
+                serverUrl: new Uri("http://localhost:8000"),
+                toolType: "search",
+                isEnabled: true);
 
             // Act - Get enabled tools before disabling
             _mockRepository.Setup(r => r.GetEnabledAsync())
@@ -402,6 +360,42 @@ namespace MotorcycleRAG.UnitTests.Configuration
         }
 
         #endregion
+
+        /// <summary>
+        /// Constructs a fully-formed <see cref="McpToolConfiguration"/> for tests,
+        /// routing through <see cref="McpToolConfiguration.Rehydrate"/> so transition
+        /// state (e.g. IsEnabled=false, TimeoutMs=0, null ServerUrl) can be expressed
+        /// without relying on illegal setter access on the entity.
+        /// </summary>
+        private static McpToolConfiguration BuildConfig(
+            string toolId,
+            string name,
+            Uri? serverUrl,
+            string toolType,
+            bool isEnabled = true,
+            int priority = 0,
+            int? timeoutMs = 30000,
+            string? disabledReason = null) =>
+            McpToolConfiguration.Rehydrate(
+                id: Guid.NewGuid(),
+                toolId: toolId,
+                name: name,
+                description: null,
+                serverUrl: serverUrl,
+                toolType: toolType,
+                version: null,
+                isSystemTool: false,
+                priority: priority,
+                timeoutMs: timeoutMs,
+                retryOnFailure: true,
+                maxRetries: 3,
+                createdAt: DateTime.UtcNow,
+                isEnabled: isEnabled,
+                configurationJson: null,
+                disabledReason: disabledReason,
+                lastTestedAt: null,
+                lastConnectionStatus: null,
+                updatedAt: null);
 
         public void Dispose()
         {

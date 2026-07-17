@@ -32,7 +32,7 @@
     },
     "github": {
       "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/"
+      "serverUrl": "https://api.githubcopilot.com/mcp/"
     },
     "microsoft-learn": {
       "type": "remote",

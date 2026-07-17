@@ -1159,28 +1159,27 @@ public sealed class McpAdminControllerTests
         string? disabledReason = null,
         string? configurationJson = """{"mode":"fast"}""")
     {
-        return new McpToolConfiguration
-        {
-            Id = Guid.NewGuid(),
-            ToolId = toolId,
-            Name = name,
-            Description = description,
-            ServerUrl = new Uri("https://mcp.example.com"),
-            IsEnabled = isEnabled,
-            ToolType = toolType ?? "search",
-            Version = version,
-            IsSystemTool = false,
-            Priority = priority,
-            TimeoutMs = timeoutMs,
-            RetryOnFailure = retryOnFailure,
-            MaxRetries = maxRetries,
-            DisabledReason = disabledReason ?? (isEnabled ? null : "Disabled by admin"),
-            LastConnectionStatus = "Healthy",
-            LastTestedAt = new DateTime(2026, 7, 10, 9, 0, 0, DateTimeKind.Utc),
-            ConfigurationJson = configurationJson,
-            CreatedAt = new DateTime(2026, 7, 1, 9, 0, 0, DateTimeKind.Utc),
-            UpdatedAt = new DateTime(2026, 7, 9, 9, 0, 0, DateTimeKind.Utc)
-        };
+        var effectiveDisabledReason = disabledReason ?? (isEnabled ? null : "Disabled by admin");
+        return McpToolConfiguration.Rehydrate(
+            id: Guid.NewGuid(),
+            toolId: toolId,
+            name: name,
+            description: description,
+            serverUrl: new Uri("https://mcp.example.com"),
+            toolType: toolType ?? "search",
+            version: version,
+            isSystemTool: false,
+            priority: priority,
+            timeoutMs: timeoutMs,
+            retryOnFailure: retryOnFailure,
+            maxRetries: maxRetries,
+            createdAt: new DateTime(2026, 7, 1, 9, 0, 0, DateTimeKind.Utc),
+            isEnabled: isEnabled,
+            configurationJson: configurationJson,
+            disabledReason: effectiveDisabledReason,
+            lastTestedAt: new DateTime(2026, 7, 10, 9, 0, 0, DateTimeKind.Utc),
+            lastConnectionStatus: "Healthy",
+            updatedAt: new DateTime(2026, 7, 9, 9, 0, 0, DateTimeKind.Utc));
     }
 
     private static string CreateOversizedJson()

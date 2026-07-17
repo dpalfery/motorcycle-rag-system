@@ -40,18 +40,17 @@ public class ManualIngestionService : IManualIngestionService {
             "application/pdf",
             ct);
 
-        var document = new ManualDocument {
-            DocumentId = documentId,
-            SourceFileName = request.SourceFileName,
-            CanonicalBlobContainer = ContainerName,
-            CanonicalBlobPath = blobPath,
-            CanonicalBlobUri = blobUri,
-            SourceContentHash = request.ContentHash,
-            DocumentType = request.DocumentType,
-            Make = request.Make,
-            Model = request.Model,
-            Year = request.Year,
-        };
+        var document = ManualDocument.Create(
+            documentId,
+            request.SourceFileName,
+            ContainerName,
+            blobPath,
+            request.DocumentType,
+            canonicalBlobUri: blobUri,
+            sourceContentHash: request.ContentHash,
+            make: request.Make,
+            model: request.Model,
+            year: request.Year);
 
         var created = await _repository.CreateDocumentAsync(document, ct);
         return Map(created);

@@ -141,7 +141,7 @@ public class ProcessorArtifactServiceTests
     public async Task UploadArtifactAsync_SearchChunksArtifact_AllChunksIndexed_UpsertsCompletedArtifactAndTransitionsJobCompleted()
     {
         var uploadId = Guid.NewGuid().ToString();
-        var job = new IngestionJob { IngestionJobId = Guid.NewGuid(), InputRef = uploadId, InputType = IngestionJobType.PDFManual };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
         SetUpJobFound(uploadId, job);
 
         var outcomes = new List<ChunkIndexOutcome>
@@ -182,7 +182,7 @@ public class ProcessorArtifactServiceTests
     public async Task UploadArtifactAsync_SearchChunksArtifact_PartialIndexing_MarksPartiallyIndexedAndTransitionsJob()
     {
         var uploadId = Guid.NewGuid().ToString();
-        var job = new IngestionJob { IngestionJobId = Guid.NewGuid(), InputRef = uploadId, InputType = IngestionJobType.PDFManual };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
         SetUpJobFound(uploadId, job);
 
         var outcomes = new List<ChunkIndexOutcome>
@@ -265,7 +265,7 @@ public class ProcessorArtifactServiceTests
     public async Task UploadArtifactAsync_SearchChunksArtifact_IndexingThrows_TransitionsJobToFailed()
     {
         var uploadId = Guid.NewGuid().ToString();
-        var job = new IngestionJob { IngestionJobId = Guid.NewGuid(), InputRef = uploadId, InputType = IngestionJobType.PDFManual };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
         SetUpJobFound(uploadId, job);
 
         _chunkIndexingMock
@@ -310,7 +310,7 @@ public class ProcessorArtifactServiceTests
     public async Task UploadArtifactAsync_SearchChunksArtifact_IndexingThrowsAndTransitionAlsoThrows_SwallowsBothExceptions()
     {
         var uploadId = Guid.NewGuid().ToString();
-        var job = new IngestionJob { IngestionJobId = Guid.NewGuid(), InputRef = uploadId, InputType = IngestionJobType.PDFManual };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
         SetUpJobFound(uploadId, job);
 
         _chunkIndexingMock
@@ -331,7 +331,7 @@ public class ProcessorArtifactServiceTests
     public async Task ReportJobStageByRunIdAsync_ValidRunIdAndRequest_DelegatesToTransitionStageAsync()
     {
         var runId = Guid.NewGuid().ToString();
-        var job = new IngestionJob { IngestionJobId = Guid.NewGuid(), InputRef = runId, InputType = IngestionJobType.PDFManual };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, runId, createdBySubject: null);
         var request = new IngestionJobStageRequest { Stage = "embedding", ChunksProcessed = 5, TotalChunks = 10 };
         var response = new IngestionJobStatusResponse { Status = "Processing", CurrentStage = "embedding" };
 
@@ -412,7 +412,7 @@ public class ProcessorArtifactServiceTests
     public async Task ReportJobStageByRunIdAsync_JobFound_PassesCancellationToken()
     {
         var runId = Guid.NewGuid().ToString();
-        var job = new IngestionJob { IngestionJobId = Guid.NewGuid(), InputRef = runId, InputType = IngestionJobType.PDFManual };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, runId, createdBySubject: null);
         var request = new IngestionJobStageRequest { Stage = "embedding" };
         var response = new IngestionJobStatusResponse();
         using var cts = new CancellationTokenSource();

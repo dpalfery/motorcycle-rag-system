@@ -15,6 +15,58 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
     private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<ToolConfigurationRepository> _logger;
 
+    /// <summary>
+    /// Dapper-friendly projection of the ToolConfigurations table. Materialized via
+    /// <see cref="Map"/>, which routes through <see cref="McpToolConfiguration.Rehydrate"/>
+    /// so the domain entity's invariants are enforced at the Persistence boundary.
+    /// </summary>
+    private sealed class McpToolConfigurationRow
+    {
+        public Guid Id { get; init; }
+        public string ToolId { get; init; } = string.Empty;
+        public string Name { get; init; } = string.Empty;
+        public string? Description { get; init; }
+        public Uri? ServerUrl { get; init; }
+        public string ToolType { get; init; } = string.Empty;
+        public string? Version { get; init; }
+        public bool IsSystemTool { get; init; }
+        public int Priority { get; init; }
+        public int? TimeoutMs { get; init; }
+        public bool RetryOnFailure { get; init; }
+        public int MaxRetries { get; init; }
+        public DateTime CreatedAt { get; init; }
+        public bool IsEnabled { get; init; }
+        public string? ConfigurationJson { get; init; }
+        public string? DisabledReason { get; init; }
+        public DateTime? LastTestedAt { get; init; }
+        public string? LastConnectionStatus { get; init; }
+        public DateTime? UpdatedAt { get; init; }
+    }
+
+    private static McpToolConfiguration? Map(McpToolConfigurationRow? row) =>
+        row is null
+            ? null
+            : McpToolConfiguration.Rehydrate(
+                id: row.Id,
+                toolId: row.ToolId,
+                name: row.Name,
+                description: row.Description,
+                serverUrl: row.ServerUrl,
+                toolType: row.ToolType,
+                version: row.Version,
+                isSystemTool: row.IsSystemTool,
+                priority: row.Priority,
+                timeoutMs: row.TimeoutMs,
+                retryOnFailure: row.RetryOnFailure,
+                maxRetries: row.MaxRetries,
+                createdAt: row.CreatedAt,
+                isEnabled: row.IsEnabled,
+                configurationJson: row.ConfigurationJson,
+                disabledReason: row.DisabledReason,
+                lastTestedAt: row.LastTestedAt,
+                lastConnectionStatus: row.LastConnectionStatus,
+                updatedAt: row.UpdatedAt);
+
     public ToolConfigurationRepository(
         ISqlConnectionFactory connectionFactory,
         ILogger<ToolConfigurationRepository> logger)
@@ -131,11 +183,11 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
-            var config = await connection.QueryFirstOrDefaultAsync<McpToolConfiguration>(
+            var row = await connection.QueryFirstOrDefaultAsync<McpToolConfigurationRow>(
                 sql,
                 new { Id = id });
 
-            return config;
+            return Map(row);
         }
         catch (Exception ex)
         {
@@ -165,11 +217,11 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
-            var config = await connection.QueryFirstOrDefaultAsync<McpToolConfiguration>(
+            var row = await connection.QueryFirstOrDefaultAsync<McpToolConfigurationRow>(
                 sql,
                 new { ToolId = toolId });
 
-            return config;
+            return Map(row);
         }
         catch (Exception ex)
         {
@@ -197,9 +249,9 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
-            var configs = await connection.QueryAsync<McpToolConfiguration>(sql);
+            var rows = await connection.QueryAsync<McpToolConfigurationRow>(sql);
 
-            return configs.ToArray();
+            return rows.Select(Map).ToArray()!;
         }
         catch (Exception ex)
         {
@@ -227,9 +279,9 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
-            var configs = await connection.QueryAsync<McpToolConfiguration>(sql);
+            var rows = await connection.QueryAsync<McpToolConfigurationRow>(sql);
 
-            return configs.ToArray();
+            return rows.Select(Map).ToArray()!;
         }
         catch (Exception ex)
         {
@@ -260,11 +312,11 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 
-            var configs = await connection.QueryAsync<McpToolConfiguration>(
+            var rows = await connection.QueryAsync<McpToolConfigurationRow>(
                 sql,
                 new { ToolType = toolType });
 
-            return configs.ToArray();
+            return rows.Select(Map).ToArray()!;
         }
         catch (Exception ex)
         {

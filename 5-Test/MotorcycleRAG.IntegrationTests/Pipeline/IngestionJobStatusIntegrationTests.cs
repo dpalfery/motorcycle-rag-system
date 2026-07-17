@@ -27,10 +27,7 @@ public class IngestionJobStatusIntegrationTests {
     [Fact]
     public void Job_DefaultStatus_IsQueued() {
         // Arrange & Act
-        var job = new IngestionJob {
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "manuals/test-guid/upload/sample.pdf"
-        };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, "manuals/test-guid/upload/sample.pdf", createdBySubject: null);
 
         // Assert
         job.Status.Should().Be(IngestionJobStatus.Queued);
@@ -52,23 +49,35 @@ public class IngestionJobStatusIntegrationTests {
     public async Task CoverageResponse_MapsCorrectly_WhenJobIsComplete() {
         // Arrange — build a completed ingestion job with coverage data
         var jobId = Guid.NewGuid();
-        var completedJob = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Completed,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "manuals/abc123/upload/honda-cbr600rr.pdf",
-            ComputeProvider = "MicrosoftFabric",
-            DocIngestionRunId = "fabric-run-001",
-            ManualDocumentId = Guid.NewGuid(),
-            TotalPages = 1200,
-            PagesCapturedViewableCount = 1188,
-            PagesWithSearchableTextCount = 1100,
-            PagesWithOcrTextCount = 300,
-            PagesWithNativeTextCount = 800,
-            MissingPagesJson = "[45, 67, 89, 120, 455, 678, 901, 1023, 1100, 1150, 1175, 1199]",
-            StartedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-30),
-            CompletedAtUtc = DateTimeOffset.UtcNow
-        };
+        var completedJob = IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: jobId,
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: DateTimeOffset.UtcNow.AddMinutes(-30),
+            completedAtUtc: DateTimeOffset.UtcNow,
+            createdBySubject: null,
+            status: IngestionJobStatus.Completed,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "manuals/abc123/upload/honda-cbr600rr.pdf",
+            sourceFileName: null,
+            computeProvider: "MicrosoftFabric",
+            docIngestionRunId: "fabric-run-001",
+            manualDocumentId: Guid.NewGuid(),
+            totalPages: 1200,
+            pagesCapturedViewableCount: 1188,
+            pagesWithSearchableTextCount: 1100,
+            pagesWithOcrTextCount: 300,
+            pagesWithNativeTextCount: 800,
+            missingPagesJson: "[45, 67, 89, 120, 455, 678, 901, 1023, 1100, 1150, 1175, 1199]",
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
 
         _repositoryMock
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))

@@ -2,6 +2,8 @@
 
 The Database Setup CLI provisions a local development SQL database and schema. Its source-root [README](../../7-Deployment/DbSetup/README.md) is the canonical command reference.
 
+The overall schema deployment strategy — including the canonical `schema.sql` file, idempotency patterns, the CI/CD `sqlcmd` path, and known limitations — is documented in the [Database Schema Deployment](database-schema.md) document.
+
 Use it only with a local or explicitly approved development database. Supply passwords through secure prompts or environment/secret mechanisms; never add real values to documentation, scripts, or issue reports.
 
 ## Internal architecture

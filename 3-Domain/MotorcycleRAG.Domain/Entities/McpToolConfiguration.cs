@@ -3,124 +3,125 @@
 // </copyright>
 
 using System;
-using System.ComponentModel.DataAnnotations;
 
 namespace MotorcycleRAG.Domain.Entities;
 
 /// <summary>
-/// MCP (Model Context Protocol) Tool Configuration
-/// Defines which MCP tools are enabled/disabled and their settings
+/// MCP (Model Context Protocol) Tool Configuration.
+/// Defines which MCP tools are enabled/disabled and their settings.
 /// </summary>
-public class McpToolConfiguration {
-    private bool _isEnabled = true;
-    private string? _disabledReason;
-    private string? _configurationJson;
-    private DateTime? _lastTestedAt;
-    private string? _lastConnectionStatus;
-    private DateTime? _updatedAt;
+/// <remarks>
+/// Construction is restricted to the <see cref="Create"/> and <see cref="Rehydrate"/>
+/// factories. Identity fields are immutable after construction; lifecycle fields are
+/// mutated only through the named domain transitions (<see cref="Enable"/>,
+/// <see cref="Disable"/>, <see cref="UpdateConfiguration"/>, <see cref="UpdateConnectionStatus"/>).
+/// </remarks>
+public class McpToolConfiguration
+{
+    /// <summary>Stable persistence identity assigned once at creation.</summary>
+    public Guid Id { get; }
 
-    [Required]
-    public Guid Id { get; init; }
+    /// <summary>Unique identifier for the MCP tool.</summary>
+    public string ToolId { get; }
+
+    /// <summary>Human-readable name of the tool.</summary>
+    public string Name { get; }
+
+    /// <summary>Description of what the tool does.</summary>
+    public string? Description { get; }
+
+    /// <summary>The MCP server URL or connection string.</summary>
+    public Uri? ServerUrl { get; }
+
+    /// <summary>The type of tool (e.g., "search", "processor", "validator").</summary>
+    public string ToolType { get; }
+
+    /// <summary>Version of the tool configuration.</summary>
+    public string? Version { get; }
+
+    /// <summary>Whether the tool is a built-in system tool.</summary>
+    public bool IsSystemTool { get; }
+
+    /// <summary>Priority for orchestration (higher = more preferred).</summary>
+    public int Priority { get; }
+
+    /// <summary>Connection timeout in milliseconds.</summary>
+    public int? TimeoutMs { get; }
+
+    /// <summary>Whether to retry on failure.</summary>
+    public bool RetryOnFailure { get; }
+
+    /// <summary>Maximum number of retries.</summary>
+    public int MaxRetries { get; }
+
+    /// <summary>Timestamp the configuration was first persisted.</summary>
+    public DateTime CreatedAt { get; }
+
+    /// <summary>Whether this tool is enabled for use in orchestration.</summary>
+    public bool IsEnabled { get; private set; }
 
     /// <summary>
-    /// Unique identifier for the MCP tool
+    /// Tool configuration in JSON format. Contains tool-specific settings and parameters.
     /// </summary>
-    [Required]
-    [StringLength(255)]
-    public string ToolId { get; init; } = string.Empty;
+    public string? ConfigurationJson { get; private set; }
+
+    /// <summary>Reason for disabling if <see cref="IsEnabled"/> is false.</summary>
+    public string? DisabledReason { get; private set; }
+
+    /// <summary>Last tested timestamp.</summary>
+    public DateTime? LastTestedAt { get; private set; }
+
+    /// <summary>Last connection status.</summary>
+    public string? LastConnectionStatus { get; private set; }
+
+    /// <summary>Timestamp of the most recent mutation.</summary>
+    public DateTime? UpdatedAt { get; private set; }
+
+    private McpToolConfiguration(
+        Guid id,
+        string toolId,
+        string name,
+        string? description,
+        Uri? serverUrl,
+        string toolType,
+        string? version,
+        bool isSystemTool,
+        int priority,
+        int? timeoutMs,
+        bool retryOnFailure,
+        int maxRetries,
+        DateTime createdAt,
+        bool isEnabled,
+        string? configurationJson,
+        string? disabledReason,
+        DateTime? lastTestedAt,
+        string? lastConnectionStatus,
+        DateTime? updatedAt)
+    {
+        Id = id;
+        ToolId = toolId;
+        Name = name;
+        Description = description;
+        ServerUrl = serverUrl;
+        ToolType = toolType;
+        Version = version;
+        IsSystemTool = isSystemTool;
+        Priority = priority;
+        TimeoutMs = timeoutMs;
+        RetryOnFailure = retryOnFailure;
+        MaxRetries = maxRetries;
+        CreatedAt = createdAt;
+        IsEnabled = isEnabled;
+        ConfigurationJson = configurationJson;
+        DisabledReason = disabledReason;
+        LastTestedAt = lastTestedAt;
+        LastConnectionStatus = lastConnectionStatus;
+        UpdatedAt = updatedAt;
+    }
 
     /// <summary>
-    /// Human-readable name of the tool
-    /// </summary>
-    [Required]
-    [StringLength(255)]
-    public string Name { get; init; } = string.Empty;
-
-    /// <summary>
-    /// Description of what the tool does
-    /// </summary>
-    [StringLength(1000)]
-    public string? Description { get; init; }
-
-    /// <summary>
-    /// The MCP server URL or connection string
-    /// </summary>
-    [Required]
-    public Uri ServerUrl { get; init; } = new Uri("about:blank");
-
-    /// <summary>
-    /// Whether this tool is enabled for use in orchestration
-    /// </summary>
-    public bool IsEnabled { get => _isEnabled; init => _isEnabled = value; }
-
-    /// <summary>
-    /// Tool configuration in JSON format
-    /// Contains tool-specific settings and parameters
-    /// </summary>
-    public string? ConfigurationJson { get => _configurationJson; init => _configurationJson = value; }
-
-    /// <summary>
-    /// The type of tool (e.g., "search", "processor", "validator")
-    /// </summary>
-    [Required]
-    [StringLength(100)]
-    public string ToolType { get; init; } = string.Empty;
-
-    /// <summary>
-    /// Version of the tool configuration
-    /// </summary>
-    [StringLength(50)]
-    public string? Version { get; init; }
-
-    /// <summary>
-    /// Whether the tool is a built-in system tool
-    /// </summary>
-    public bool IsSystemTool { get; init; }
-
-    /// <summary>
-    /// Priority for orchestration (higher = more preferred)
-    /// </summary>
-    public int Priority { get; init; }
-
-    /// <summary>
-    /// Connection timeout in milliseconds
-    /// </summary>
-    public int? TimeoutMs { get; init; } = 30000;
-
-    /// <summary>
-    /// Whether to retry on failure
-    /// </summary>
-    public bool RetryOnFailure { get; init; } = true;
-
-    /// <summary>
-    /// Maximum number of retries
-    /// </summary>
-    public int MaxRetries { get; init; } = 3;
-
-    /// <summary>
-    /// Reason for disabling if IsEnabled is false
-    /// </summary>
-    [StringLength(500)]
-    public string? DisabledReason { get => _disabledReason; init => _disabledReason = value; }
-
-    /// <summary>
-    /// Last tested timestamp
-    /// </summary>
-    public DateTime? LastTestedAt { get => _lastTestedAt; init => _lastTestedAt = value; }
-
-    /// <summary>
-    /// Last connection status
-    /// </summary>
-    [StringLength(50)]
-    public string? LastConnectionStatus { get => _lastConnectionStatus; init => _lastConnectionStatus = value; }
-
-    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
-
-    public DateTime? UpdatedAt { get => _updatedAt; init => _updatedAt = value; }
-
-    /// <summary>
-    /// Creates a validated tool configuration for application code. The parameterless
-    /// initializer remains available for persistence hydration.
+    /// Creates a validated tool configuration for application code with sensible defaults.
+    /// New configurations start enabled with no audit/transition state populated.
     /// </summary>
     public static McpToolConfiguration Create(
         string toolId,
@@ -128,62 +129,130 @@ public class McpToolConfiguration {
         Uri serverUrl,
         string toolType,
         int? timeoutMs = 30000,
-        int maxRetries = 3)
+        int maxRetries = 3) =>
+        Rehydrate(
+            id: Guid.NewGuid(),
+            toolId: toolId,
+            name: name,
+            description: null,
+            serverUrl: serverUrl,
+            toolType: toolType,
+            version: null,
+            isSystemTool: false,
+            priority: 0,
+            timeoutMs: timeoutMs,
+            retryOnFailure: true,
+            maxRetries: maxRetries,
+            createdAt: DateTime.UtcNow,
+            isEnabled: true,
+            configurationJson: null,
+            disabledReason: null,
+            lastTestedAt: null,
+            lastConnectionStatus: null,
+            updatedAt: null);
+
+    /// <summary>
+    /// Rehydrates a persisted tool configuration after validating identity at the
+    /// Persistence boundary. Invalid database rows are rejected rather than becoming
+    /// a partially-valid domain entity. Transition state is taken verbatim so callers
+    /// such as <see cref="Application.Services.ToolConfigurationService"/> can rebuild
+    /// an immutable snapshot for write-back via the named domain transitions.
+    /// </summary>
+    public static McpToolConfiguration Rehydrate(
+        Guid id,
+        string toolId,
+        string name,
+        string? description,
+        Uri? serverUrl,
+        string toolType,
+        string? version,
+        bool isSystemTool,
+        int priority,
+        int? timeoutMs,
+        bool retryOnFailure,
+        int maxRetries,
+        DateTime createdAt,
+        bool isEnabled,
+        string? configurationJson,
+        string? disabledReason,
+        DateTime? lastTestedAt,
+        string? lastConnectionStatus,
+        DateTime? updatedAt)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(toolId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ArgumentNullException.ThrowIfNull(serverUrl);
-        ArgumentException.ThrowIfNullOrWhiteSpace(toolType);
-        if (!serverUrl.IsAbsoluteUri)
+        if (id == Guid.Empty)
         {
-            throw new ArgumentException("Server URL must be absolute.", nameof(serverUrl));
+            throw new ArgumentException("Configuration id is required.", nameof(id));
         }
 
-        if (timeoutMs is <= 0)
+        if (string.IsNullOrWhiteSpace(toolId))
         {
-            throw new ArgumentOutOfRangeException(nameof(timeoutMs), timeoutMs, "Timeout must be positive.");
+            throw new ArgumentException("Tool id is required.", nameof(toolId));
         }
 
-        if (maxRetries < 0)
+        if (string.IsNullOrWhiteSpace(name))
         {
-            throw new ArgumentOutOfRangeException(nameof(maxRetries), maxRetries, "Max retries cannot be negative.");
+            throw new ArgumentException("Tool name is required.", nameof(name));
         }
 
-        return new McpToolConfiguration
+        if (string.IsNullOrWhiteSpace(toolType))
         {
-            Id = Guid.NewGuid(),
-            ToolId = toolId.Trim(),
-            Name = name.Trim(),
-            ServerUrl = serverUrl,
-            ToolType = toolType.Trim(),
-            TimeoutMs = timeoutMs,
-            MaxRetries = maxRetries
-        };
+            throw new ArgumentException("Tool type is required.", nameof(toolType));
+        }
+
+        return new McpToolConfiguration(
+            id,
+            toolId.Trim(),
+            name.Trim(),
+            description,
+            serverUrl,
+            toolType.Trim(),
+            version,
+            isSystemTool,
+            priority,
+            timeoutMs,
+            retryOnFailure,
+            maxRetries,
+            createdAt,
+            isEnabled,
+            configurationJson,
+            disabledReason,
+            lastTestedAt,
+            lastConnectionStatus,
+            updatedAt);
     }
 
     // Domain behavior
-    public void Enable() {
-        _isEnabled = true;
-        _disabledReason = null;
-        _updatedAt = DateTime.UtcNow;
+
+    /// <summary>Enables the tool and clears any prior disabled reason.</summary>
+    public void Enable()
+    {
+        IsEnabled = true;
+        DisabledReason = null;
+        UpdatedAt = DateTime.UtcNow;
     }
 
-    public void Disable(string reason) {
+    /// <summary>Disables the tool with a non-empty reason.</summary>
+    public void Disable(string reason)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        _isEnabled = false;
-        _disabledReason = reason.Trim();
-        _updatedAt = DateTime.UtcNow;
+        IsEnabled = false;
+        DisabledReason = reason.Trim();
+        UpdatedAt = DateTime.UtcNow;
     }
 
-    public void UpdateConfiguration(string? configurationJson) {
-        _configurationJson = configurationJson;
-        _updatedAt = DateTime.UtcNow;
+    /// <summary>Replaces the tool-specific JSON configuration.</summary>
+    public void UpdateConfiguration(string? configurationJson)
+    {
+        ConfigurationJson = configurationJson;
+        UpdatedAt = DateTime.UtcNow;
     }
 
-    public void UpdateConnectionStatus(string status) {
+    /// <summary>Records the latest connection probe result.</summary>
+    public void UpdateConnectionStatus(string status)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(status);
-        _lastConnectionStatus = status.Trim();
-        _lastTestedAt = DateTime.UtcNow;
-        _updatedAt = DateTime.UtcNow;
+        LastConnectionStatus = status.Trim();
+        LastTestedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
     }
 }

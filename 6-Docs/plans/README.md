@@ -13,12 +13,7 @@ Read this file before opening a plan. Open a plan only when it is both relevant 
 
 ## Active inventory
 
-| Plan | Status | Goal |
-| --- | --- | --- |
-| [2026-07-13 Domain Entity and DTO Rationalization](2026-07-13-domain-entity-dto-rationalization.md) | Review required | DTO relocation and focused coverage are verified, but retained-entity setter bypasses and the skipped post-migration inventory gate prevent closeout. |
-| [2026-07-16 Domain entity setter encapsulation and inventory gate](2026-07-16-domain-entity-setter-encapsulation-and-inventory-gate.md) | Ready | Encapsulate the four violating entities (IngestionJob, BikeModel, ManualDocument, McpToolConfiguration) behind private ctors + Create/Rehydrate factories + named behavior, convert their Dapper repositories to Row+Map, drop IngestionJob's dead fields + legacy columns (idempotent T-SQL script — no FluentMigrator in this codebase), and enable the skipped post-migration inventory gate. Completes criteria 3 and 6 of the 2026-07-13 plan. |
-
-Note: [2026-07-12-api-persistence-test-coverage-plan.md](2026-07-12-api-persistence-test-coverage-plan.md) was an earlier, narrower-scope draft of the same initiative. It is marked `Superseded` in its own header and is not implementation authority; the canonical plan was [2026-07-12-persistence-test-coverage.md](../archive/plans/2026-07-12-persistence-test-coverage.md) (now archived).
+*None — all plans are currently completed or archived.*
 
 ## Operational status lists
 
@@ -30,6 +25,9 @@ Completed and superseded plans live in [`../archive/plans/`](../archive/plans/).
 
 | Plan | Archived | Outcome / canonical guidance |
 | --- | --- | --- |
+| [2026-07-16 Domain entity setter encapsulation and inventory gate](../archive/plans/2026-07-16-domain-entity-setter-encapsulation-and-inventory-gate.md) | 2026-07-17 | Verified complete. All four entities (IngestionJob, BikeModel, ManualDocument, McpToolConfiguration) refactored to private-ctor + Create/Rehydrate factories + get-only/private-set properties + named behavior methods. Repositories converted to Row+Map. IngestionJob legacy columns dropped via idempotent T-SQL script. Post-migration inventory gate enabled and passing. Completes criteria 3 and 6 of ADR-2026-07-13. Canonical guidance: `6-Docs/adr/ADR-2026-07-13-domain-entity-dto-exceptions.md` (gate policy), `6-Docs/rules/architecture-general.md` (architecture placement), `6-Docs/adr/ADR-2026-07-16-schema-deployment-idempotent-sql.md` (DDL pattern). |
+| [2026-07-12 API persistence test coverage draft](../archive/plans/2026-07-12-api-persistence-test-coverage-plan.md) | 2026-07-17 | Superseded by [2026-07-12 persistence test coverage](../archive/plans/2026-07-12-persistence-test-coverage.md) (already implemented and archived). |
+| [2026-07-13 Domain Entity and DTO Rationalization](../archive/plans/2026-07-13-domain-entity-dto-rationalization.md) | 2026-07-17 | Relocation of DTOs completed; remaining gaps (setter encapsulation and inventory gate) satisfied by [2026-07-16 Domain entity setter encapsulation and inventory gate](../archive/plans/2026-07-16-domain-entity-setter-encapsulation-and-inventory-gate.md) (now completed and archived). |
 | [2026-07-13 IoC/DI and Clean Architecture remediation](../archive/plans/2026-07-13-ioc-di-clean-architecture-remediation.md) | 2026-07-13 | Verified complete; DI composition and ownership rules are in `6-Docs/rules/architecture-general.md` and `6-Docs/system/architecture.md`; component specifics are in the API, Web UI/BFF, Mobile, and DbSetup documentation. Mobile verification remains host-blocked by the installed Xcode/MacCatalyst SDK mismatch. |
 | [2026-07-04 Local-first ingestion](../archive/plans/2026-07-04-local-first-ingestion.md) | Existing archive; review date unknown | Historical only; use current API, Admin Desktop, and local-processing-service documentation. |
 | [2026-07-07 Chunk upload fix and serverless search](../archive/plans/2026-07-07-chunk-upload-fix-and-serverless-search.md) | 2026-07-11 | Approved proposal (Ready); historical only. |

@@ -236,16 +236,16 @@ public sealed class BikeModelRepositoryTests
     }
 
     private static BikeModel CreateBikeModel(string make = "Honda", string model = "CBR 1000RR", int year = 2024) =>
-        new()
-        {
-            Id = Guid.NewGuid(),
-            Make = make,
-            Model = model,
-            Year = year,
-            Aliases = "Fireblade",
-            CreatedAtUtc = new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero),
-            UpdatedAtUtc = new DateTimeOffset(2026, 7, 10, 0, 0, 0, TimeSpan.Zero)
-        };
+        BikeModel.Rehydrate(
+            id: Guid.NewGuid(),
+            make,
+            model,
+            year,
+            aliases: "Fireblade",
+            createdAtUtc: new DateTimeOffset(2026, 7, 1, 0, 0, 0, TimeSpan.Zero),
+            updatedAtUtc: new DateTimeOffset(2026, 7, 10, 0, 0, 0, TimeSpan.Zero),
+            createdByUserId: null,
+            uploadRef: null);
 
     private static Dictionary<string, object?> CreateBikeModelRow(BikeModel bikeModel) =>
         new()

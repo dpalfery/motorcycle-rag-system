@@ -12,11 +12,15 @@
     "ses_0a5c9a4adffeEOUHoVmTEcLWsw": {
       "worktreeId": null,
       "createdAt": "2026-07-13T06:42:19.604Z"
+    },
+    "ses_09018e3a2ffeAqVVrq014lKhqP": {
+      "worktreeId": null,
+      "createdAt": "2026-07-17T11:47:24.896Z"
     }
   },
   "tabOrder": {
     "local": [
-      "pending:1"
+      "pending:2b3f798b-eb86-4875-9e0b-65742e9c0eb0"
     ]
   },
   "sessionsCollapsed": false

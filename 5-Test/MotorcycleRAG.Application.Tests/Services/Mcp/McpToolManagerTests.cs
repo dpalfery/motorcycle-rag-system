@@ -45,7 +45,7 @@ public class McpToolManagerTests
     [Fact]
     public async Task InitializeAsync_Success_LogsInformation()
     {
-        var configs = new[] { new McpToolConfiguration { ToolId = "1", IsEnabled = true } };
+        var configs = new[] { CreateConfig("1") };
         _configServiceMock.Setup(x => x.GetEnabledToolsAsync()).ReturnsAsync(configs);
 
         var sut = new McpToolManager(_configServiceMock.Object, _loggerMock.Object);
@@ -85,8 +85,8 @@ public class McpToolManagerTests
     [Fact]
     public async Task GetEnabledToolsAsync_ReturnsCachedValue_WhenWithinRefreshInterval()
     {
-        var configs1 = new[] { new McpToolConfiguration { ToolId = "1", IsEnabled = true } };
-        var configs2 = new[] { new McpToolConfiguration { ToolId = "2", IsEnabled = true } };
+        var configs1 = new[] { CreateConfig("1") };
+        var configs2 = new[] { CreateConfig("2") };
         
         _configServiceMock.SetupSequence(x => x.GetEnabledToolsAsync())
             .ReturnsAsync(configs1)
@@ -108,8 +108,8 @@ public class McpToolManagerTests
     [Fact]
     public async Task GetEnabledToolsAsync_Refreshes_WhenIntervalElapsed()
     {
-        var configs1 = new[] { new McpToolConfiguration { ToolId = "1", IsEnabled = true } };
-        var configs2 = new[] { new McpToolConfiguration { ToolId = "2", IsEnabled = true } };
+        var configs1 = new[] { CreateConfig("1") };
+        var configs2 = new[] { CreateConfig("2") };
         
         _configServiceMock.SetupSequence(x => x.GetEnabledToolsAsync())
             .ReturnsAsync(configs1)
@@ -153,4 +153,26 @@ public class McpToolManagerTests
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
     }
+
+    private static McpToolConfiguration CreateConfig(string toolId) =>
+        McpToolConfiguration.Rehydrate(
+            id: Guid.NewGuid(),
+            toolId: toolId,
+            name: toolId,
+            description: null,
+            serverUrl: new Uri("http://localhost:8000"),
+            toolType: "search",
+            version: null,
+            isSystemTool: false,
+            priority: 0,
+            timeoutMs: 30000,
+            retryOnFailure: true,
+            maxRetries: 3,
+            createdAt: DateTime.UtcNow,
+            isEnabled: true,
+            configurationJson: null,
+            disabledReason: null,
+            lastTestedAt: null,
+            lastConnectionStatus: null,
+            updatedAt: null);
 }

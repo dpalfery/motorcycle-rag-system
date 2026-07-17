@@ -82,6 +82,47 @@ public sealed class IngestionJobServiceCoverageTests {
         Options.Create(new IngestionOptions { MaxInputBytes = 2_000_000_000L }),
         _logger.Object);
 
+    private static IngestionJob MakeJob(
+        Guid ingestionJobId,
+        IngestionJobStatus status,
+        IngestionJobType inputType = IngestionJobType.PDFManual,
+        string inputRef = "upload-test",
+        string? missingPagesJson = null,
+        int? expectedChunkCount = null,
+        string? currentStage = null,
+        string? computeProvider = null,
+        string? metadataJson = null,
+        string? sourceFileName = null) =>
+        IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: ingestionJobId,
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: status,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: inputType,
+            inputRef: inputRef,
+            sourceFileName: sourceFileName,
+            computeProvider: computeProvider ?? "MicrosoftFabric",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: missingPagesJson,
+            metricsJson: null,
+            expectedChunkCount: expectedChunkCount,
+            indexedChunkCount: null,
+            currentStage: currentStage,
+            stageSetAtUtc: null,
+            metadataJson: metadataJson);
+
     [Fact]
     public async Task GetRecentIngestionJobsAsync_MaxCountLessThanOrEqualZero_ThrowsArgumentOutOfRangeException() {
         var sut = CreateSut();
@@ -91,11 +132,35 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task GetRecentIngestionJobsAsync_MapsMissingPagesJson() {
-        var job = new IngestionJob {
-            IngestionJobId = Guid.NewGuid(),
-            Status = IngestionJobStatus.Completed,
-            MissingPagesJson = "[1,2,3]"
-        };
+        var job = IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: IngestionJobStatus.Completed,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "upload-missing-pages",
+            sourceFileName: null,
+            computeProvider: "MicrosoftFabric",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: "[1,2,3]",
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
         _repository.Setup(r => r.GetRecentAsync(50, It.IsAny<CancellationToken>())).ReturnsAsync([job]);
         var sut = CreateSut();
 
@@ -107,11 +172,7 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task GetRecentIngestionJobsAsync_MalformedMissingPagesJson_ReturnsEmpty() {
-        var job = new IngestionJob {
-            IngestionJobId = Guid.NewGuid(),
-            Status = IngestionJobStatus.Completed,
-            MissingPagesJson = "not valid json"
-        };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Completed, missingPagesJson: "not valid json");
         _repository.Setup(r => r.GetRecentAsync(50, It.IsAny<CancellationToken>())).ReturnsAsync([job]);
         var sut = CreateSut();
 
@@ -158,12 +219,9 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task CancelJobAsync_NonTerminalJob_CancelsAndUpdates() {
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Processing,
-            InputType = IngestionJobType.PDFManual
-        };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, "upload-cancel", createdBySubject: null,
+            initialStatus: IngestionJobStatus.Processing);
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -186,12 +244,9 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task FailJobAsync_NonTerminalJob_FailsAndThrowsBecauseStageCannotBeUpdatedAfterTerminalTransition() {
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Processing,
-            InputType = IngestionJobType.PDFManual
-        };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, "upload-fail", createdBySubject: null,
+            initialStatus: IngestionJobStatus.Processing);
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -226,11 +281,8 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task ProcessGraphIngestionJobAsync_CompletesJobWhenSuccessful() {
-        var job = new IngestionJob {
-            IngestionJobId = Guid.NewGuid(),
-            InputRef = "upload-graph-002",
-            Status = IngestionJobStatus.Processing
-        };
+        var job = IngestionJob.Create(IngestionJobType.BikeGraph, "upload-graph-002", createdBySubject: null,
+            initialStatus: IngestionJobStatus.Processing);
         var sut = CreateSut();
 
         await sut.ProcessGraphIngestionJobAsync(job);
@@ -242,11 +294,8 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task ProcessGraphIngestionJobAsync_WhenIngestionFails_FailsJobAndRecordsFailure() {
-        var job = new IngestionJob {
-            IngestionJobId = Guid.NewGuid(),
-            InputRef = "upload-graph-003",
-            Status = IngestionJobStatus.Processing
-        };
+        var job = IngestionJob.Create(IngestionJobType.BikeGraph, "upload-graph-003", createdBySubject: null,
+            initialStatus: IngestionJobStatus.Processing);
         _graphEntityIngestionService.Setup(g => g.IngestAsync("upload-graph-003", CancellationToken.None)).ThrowsAsync(new InvalidOperationException("graph failed"));
         var sut = CreateSut();
 
@@ -265,15 +314,9 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task ExecuteJobCleanupAsync_RunBestEffortFailure_LogsWarningAndContinues() {
-        var jobId = Guid.NewGuid();
         var uploadId = Guid.NewGuid().ToString();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Deleting,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = uploadId,
-            ExpectedChunkCount = 1
-        };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Deleting, inputRef: uploadId, expectedChunkCount: 1);
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         _searchDocumentService.Setup(s => s.DeleteDocumentsAsync(It.IsAny<IEnumerable<string>>())).ThrowsAsync(new InvalidOperationException("search down"));
         var sut = CreateSut();
@@ -286,15 +329,9 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task DeleteAssociatedAssetsAsync_WithFallbackChunkIds_DeletesSearchDocuments() {
-        var jobId = Guid.NewGuid();
         var uploadId = Guid.NewGuid().ToString();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Deleting,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = uploadId,
-            ExpectedChunkCount = 2
-        };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Deleting, inputRef: uploadId, expectedChunkCount: 2);
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -305,15 +342,9 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task DeleteAssociatedAssetsAsync_WithCsvFallbackChunkIds_DeletesSearchDocuments() {
-        var jobId = Guid.NewGuid();
         var uploadId = Guid.NewGuid().ToString();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Deleting,
-            InputType = IngestionJobType.StructuredSpecification,
-            InputRef = uploadId,
-            ExpectedChunkCount = 1
-        };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Deleting, inputType: IngestionJobType.StructuredSpecification, inputRef: uploadId, expectedChunkCount: 1);
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -323,20 +354,17 @@ public sealed class IngestionJobServiceCoverageTests {
     }
 
     [Fact]
-    public async Task DeleteAssociatedAssetsAsync_WithoutUploadId_SkipsBlobAndGraphCleanup() {
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Deleting,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = null!
-        };
+    public async Task DeleteAssociatedAssetsAsync_WithNonGuidUploadRef_SkipsGraphCleanup() {
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Deleting, inputRef: "no-upload-id");
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
         await sut.ExecuteJobCleanupAsync(jobId, CancellationToken.None);
 
-        _blobStorage.Verify(b => b.DeleteIfExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        // Blob cleanup is always attempted when InputRef is non-empty (enforced by entity factory).
+        _blobStorage.Verify(b => b.DeleteIfExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        // Graph cleanup is skipped when InputRef does not parse as a GUID.
         _graphRepository.Verify(g => g.DeleteByDocumentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         _repository.Verify(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -356,13 +384,8 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task TransitionStageAsync_CancelledStage_CancelsJobAndSetsCounts() {
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Processing,
-            InputType = IngestionJobType.PDFManual,
-            CurrentStage = "chunking"
-        };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Processing, currentStage: "chunking");
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -376,13 +399,8 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task TransitionStageAsync_RegularStage_UpdatesStageWithoutChangingStatus() {
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Processing,
-            InputType = IngestionJobType.PDFManual,
-            CurrentStage = "chunking"
-        };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Processing, currentStage: "chunking");
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -395,14 +413,8 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task TransitionStageAsync_NonTerminalStageWithFailureReasonAndLocalProvider_FailsJob() {
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Processing,
-            InputType = IngestionJobType.PDFManual,
-            CurrentStage = "chunking",
-            ComputeProvider = "LocalProcessor"
-        };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Processing, currentStage: "chunking", computeProvider: "LocalProcessor");
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -519,8 +531,8 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task GetJobMetadataAsync_NonObjectMetadata_ReturnsRawJsonWithIncompleteFlag() {
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob { IngestionJobId = jobId, MetadataJson = "[]" };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Queued, metadataJson: "[]");
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -533,8 +545,8 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task GetJobMetadataAsync_YearAsString_ParsesNumericYear() {
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob { IngestionJobId = jobId, MetadataJson = "{\"make\":\"Honda\",\"model\":\"CBR\",\"year\":\"2023\",\"category\":\"sport\"}" };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Queued, metadataJson: "{\"make\":\"Honda\",\"model\":\"CBR\",\"year\":\"2023\",\"category\":\"sport\"}");
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -547,8 +559,8 @@ public sealed class IngestionJobServiceCoverageTests {
 
     [Fact]
     public async Task GetJobMetadataAsync_YearAsInvalidString_ParsesAsNull() {
-        var jobId = Guid.NewGuid();
-        var job = new IngestionJob { IngestionJobId = jobId, MetadataJson = "{\"make\":\"Honda\",\"model\":\"CBR\",\"year\":\"n/a\",\"category\":\"sport\"}" };
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Queued, metadataJson: "{\"make\":\"Honda\",\"model\":\"CBR\",\"year\":\"n/a\",\"category\":\"sport\"}");
+        var jobId = job.IngestionJobId;
         _repository.Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
         var sut = CreateSut();
 
@@ -573,7 +585,7 @@ public sealed class IngestionJobServiceCoverageTests {
         unsupportedAct.Should().Throw<TargetInvocationException>().WithInnerException<ArgumentException>();
 
         var applyJobFailure = sutType.GetMethod("ApplyJobFailure", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-        var job = new IngestionJob { IngestionJobId = Guid.NewGuid() };
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, "dead-code", createdBySubject: null);
         applyJobFailure.Invoke(null, [job, "  "]);
         job.FailureReason.Should().BeNullOrEmpty();
 

@@ -9,7 +9,7 @@ public sealed class IngestionAndManualModelTests
     [Fact]
     public void IngestionJob_StartPauseResumeAndComplete_EnforcesLifecycle()
     {
-        var job = new IngestionJob { InputRef = "uploads/manual.pdf", InputType = IngestionJobType.PDFManual };
+        var job = CreateTestableJob(inputType: IngestionJobType.PDFManual, inputRef: "uploads/manual.pdf");
 
         job.StartProcessing();
         job.Status.Should().Be(IngestionJobStatus.Processing);
@@ -29,14 +29,12 @@ public sealed class IngestionAndManualModelTests
     [Fact]
     public void IngestionJob_QueueForRetry_ClearsTransientState()
     {
-        var job = new IngestionJob
-        {
-            Status = IngestionJobStatus.Failed,
-            FailureReason = "processor failed",
-            CurrentStage = "failed",
-            MetadataJson = "{\"make\":\"Honda\"}",
-            IndexedChunkCount = 10
-        };
+        var job = CreateTestableJob(
+            status: IngestionJobStatus.Failed,
+            failureReason: "processor failed",
+            currentStage: "failed",
+            metadataJson: "{\"make\":\"Honda\"}",
+            indexedChunkCount: 10);
 
         job.QueueForRetry();
 
@@ -50,11 +48,11 @@ public sealed class IngestionAndManualModelTests
     [Fact]
     public void IngestionJob_DeletingOnlyAllowsTerminalOrQueuedStates()
     {
-        var processing = new IngestionJob { Status = IngestionJobStatus.Processing };
+        var processing = CreateTestableJob(status: IngestionJobStatus.Processing);
         var act = () => processing.MarkDeleting();
         act.Should().Throw<InvalidOperationException>();
 
-        var completed = new IngestionJob { Status = IngestionJobStatus.Completed };
+        var completed = CreateTestableJob(status: IngestionJobStatus.Completed);
         completed.MarkDeleting();
         completed.Status.Should().Be(IngestionJobStatus.Deleting);
     }
@@ -63,7 +61,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_ResumeFromMetadata_WhenNotAwaitingMetadata_RejectsResume()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
 
         // Act
         var act = () => job.ResumeFromMetadata("chunking");
@@ -77,7 +75,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_UpdateStage_WhenQueued_StartsProcessingAndKeepsFirstExpectedChunkCount()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
         var startedAt = DateTimeOffset.Parse("2026-07-15T12:00:00+00:00");
         var updatedAt = startedAt.AddMinutes(1);
 
@@ -103,7 +101,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_UpdateStage_WhenTerminal_RejectsStageUpdate(IngestionJobStatus status)
     {
         // Arrange
-        var job = new IngestionJob { Status = status };
+        var job = CreateTestableJob(status: status);
 
         // Act
         var act = () => job.UpdateStage("indexing", chunksProcessed: 1, totalChunks: 2);
@@ -117,7 +115,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_Cancel_WhenProcessing_SetsTerminalCancellationState()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
         job.StartProcessing(DateTimeOffset.Parse("2026-07-15T12:00:00+00:00"));
         var cancelledAt = DateTimeOffset.Parse("2026-07-15T12:15:00+00:00");
 
@@ -141,7 +139,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_QueueForRetry_WhenStatusIsNotRetryable_RejectsRetry(IngestionJobStatus status)
     {
         // Arrange
-        var job = new IngestionJob { Status = status };
+        var job = CreateTestableJob(status: status);
 
         // Act
         var act = () => job.QueueForRetry();
@@ -155,7 +153,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_QueueForRetry_WhenCancelled_ResetsLifecycleAndProcessorState()
     {
         // Arrange
-        var job = new IngestionJob { MetadataJson = "{\"make\":\"Honda\"}", ExpectedChunkCount = 20, IndexedChunkCount = 11 };
+        var job = CreateTestableJob(metadataJson: "{\"make\":\"Honda\"}", expectedChunkCount: 20, indexedChunkCount: 11);
         job.StartProcessing(DateTimeOffset.Parse("2026-07-15T12:00:00+00:00"));
         job.Cancel("Retry after processor restart.", DateTimeOffset.Parse("2026-07-15T12:30:00+00:00"));
         job.RecordFailure("worker disconnected\nretry is safe");
@@ -184,41 +182,37 @@ public sealed class IngestionAndManualModelTests
         var createdAt = DateTimeOffset.Parse("2026-07-15T08:00:00+00:00");
         var startedAt = createdAt.AddMinutes(2);
         var completedAt = startedAt.AddMinutes(15);
-        var updatedAt = completedAt.AddMinutes(1);
-        var job = new IngestionJob
-        {
-            Id = 42,
-            IngestionJobId = Guid.NewGuid(),
-            CreatedAtUtc = createdAt,
-            CreatedBySubject = "user-oid",
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "uploads/manual.pdf",
-            ComputeProvider = "AdminLocalProcessor",
-            DocIngestionRunId = "processor-run-7",
-            ManualDocumentId = Guid.NewGuid(),
-            JobId = "legacy-job-7",
-            JobType = "manual-pdf",
-            SourceFilePath = "uploads/manual.pdf",
-            SourceFileName = "manual.pdf",
-            StartTime = startedAt,
-            EndTime = completedAt,
-            UserId = "legacy-user",
-            UserEmail = "admin@example.test",
-            TotalRecordsProcessed = 20,
-            RecordsIndexed = 18,
-            RecordsFailed = 1,
-            RecordsWithWarnings = 1,
-            CreatedAt = createdAt,
-            UpdatedAt = updatedAt,
-            TotalPages = 12,
-            PagesCapturedViewableCount = 11,
-            PagesWithSearchableTextCount = 10,
-            PagesWithOcrTextCount = 8,
-            PagesWithNativeTextCount = 2,
-            MissingPagesJson = "[12]",
-            MetricsJson = "{\"elapsedSeconds\":900}",
-            Status = IngestionJobStatus.Failed,
-        };
+        var ingestionJobId = Guid.NewGuid();
+        var manualDocumentId = Guid.NewGuid();
+        var job = IngestionJob.Rehydrate(
+            id: 42,
+            ingestionJobId: ingestionJobId,
+            createdAtUtc: createdAt,
+            startedAtUtc: startedAt,
+            completedAtUtc: completedAt,
+            createdBySubject: "user-oid",
+            status: IngestionJobStatus.Failed,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "uploads/manual.pdf",
+            sourceFileName: "manual.pdf",
+            computeProvider: "AdminLocalProcessor",
+            docIngestionRunId: "processor-run-7",
+            manualDocumentId: manualDocumentId,
+            totalPages: 12,
+            pagesCapturedViewableCount: 11,
+            pagesWithSearchableTextCount: 10,
+            pagesWithOcrTextCount: 8,
+            pagesWithNativeTextCount: 2,
+            missingPagesJson: "[12]",
+            metricsJson: "{\"elapsedSeconds\":900}",
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
         var persistedAuditSnapshot = new
         {
             job.Id,
@@ -227,23 +221,10 @@ public sealed class IngestionAndManualModelTests
             job.CreatedBySubject,
             job.InputType,
             job.InputRef,
+            job.SourceFileName,
             job.ComputeProvider,
             job.DocIngestionRunId,
             job.ManualDocumentId,
-            job.JobId,
-            job.JobType,
-            job.SourceFilePath,
-            job.SourceFileName,
-            job.StartTime,
-            job.EndTime,
-            job.UserId,
-            job.UserEmail,
-            job.TotalRecordsProcessed,
-            job.RecordsIndexed,
-            job.RecordsFailed,
-            job.RecordsWithWarnings,
-            job.CreatedAt,
-            job.UpdatedAt,
             job.TotalPages,
             job.PagesCapturedViewableCount,
             job.PagesWithSearchableTextCount,
@@ -271,7 +252,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_MarkDeleting_WhenStatusAllowsDeletion_MarksDeleting(IngestionJobStatus status)
     {
         // Arrange
-        var job = new IngestionJob { Status = status };
+        var job = CreateTestableJob(status: status);
 
         // Act
         job.MarkDeleting();
@@ -284,7 +265,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_RollbackDeletion_WhenDeleting_RestoresFailedStateWithBoundedReason()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
         job.MarkDeleting();
         var reason = new string('x', 2001);
 
@@ -300,7 +281,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_RollbackDeletion_WhenNotDeleting_RejectsRollback()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
 
         // Act
         var act = () => job.RollbackDeletion("delete did not start");
@@ -314,7 +295,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_PauseForMetadata_WhenReasonIsMissing_UsesFallbackReasonAndCanResume()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
         var pausedAt = DateTimeOffset.Parse("2026-07-15T12:00:00+00:00");
 
         // Act
@@ -332,7 +313,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_Complete_WhenPartial_RecordsPartialCompletionAtSuppliedTime()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
         var completedAt = DateTimeOffset.Parse("2026-07-15T12:00:00+00:00");
 
         // Act
@@ -348,7 +329,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_Fail_WhenReasonExceedsLimit_TruncatesAndPreventsFurtherTransitions()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
         var failedAt = DateTimeOffset.Parse("2026-07-15T12:00:00+00:00");
         var reason = new string('x', 2001);
 
@@ -367,7 +348,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_RecordFailure_WhenDetailContainsWhitespaceAndMultipleLines_SanitizesOperationalFailure()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
 
         // Act
         job.RecordFailure("  processor disconnected  \n retry is safe ");
@@ -382,7 +363,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_SetMetadata_WhenAdminProvidesMetadata_StoresTheReplacementPayload()
     {
         // Arrange
-        var job = new IngestionJob { MetadataJson = "{\"make\":\"Honda\"}" };
+        var job = CreateTestableJob(metadataJson: "{\"make\":\"Honda\"}");
 
         // Act
         job.SetMetadata("{\"make\":\"Honda\",\"model\":\"CBR600RR\",\"year\":2024}");
@@ -395,7 +376,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_UpdateStage_WhenCountAndTimestampAreNotReported_PreservesUnknownValues()
     {
         // Arrange
-        var job = new IngestionJob { Status = IngestionJobStatus.Processing };
+        var job = CreateTestableJob(status: IngestionJobStatus.Processing);
 
         // Act
         job.UpdateStage("embedding", chunksProcessed: null, totalChunks: null);
@@ -411,7 +392,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_Fail_WhenReasonIsWithinLimit_UsesCurrentTimeAndFullReason()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
 
         // Act
         job.Fail("processor returned an invalid artifact");
@@ -426,7 +407,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_Cancel_WhenNoReasonIsSupplied_UsesDefaultCancellationReason()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
 
         // Act
         job.Cancel();
@@ -441,7 +422,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_RecordFailure_WhenDetailExceedsLimit_PreservesFullOperationalDetailAndBoundsFailureReason()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
         var detail = new string('x', 2001);
 
         // Act
@@ -457,7 +438,7 @@ public sealed class IngestionAndManualModelTests
     public void IngestionJob_RollbackDeletion_WhenReasonIsWithinLimit_PreservesTheReason()
     {
         // Arrange
-        var job = new IngestionJob();
+        var job = CreateTestableJob();
         job.MarkDeleting();
 
         // Act
@@ -471,7 +452,7 @@ public sealed class IngestionAndManualModelTests
     [Fact]
     public void ManualDocument_TransitionsToProcessedAndRejectsMutationAfterFailure()
     {
-        var document = new ManualDocument { SourceFileName = "manual.pdf" };
+        var document = ManualDocument.Create(Guid.NewGuid(), "manual.pdf", "container", "path", "type");
         document.BeginProcessing("extracting");
         document.SetStage("indexing");
         var runId = Guid.NewGuid();
@@ -489,7 +470,7 @@ public sealed class IngestionAndManualModelTests
     [Fact]
     public void ManualDocument_MarkFailedRequiresReason()
     {
-        var document = new ManualDocument();
+        var document = ManualDocument.Create(Guid.NewGuid(), "test.pdf", "container", "path", "type");
         var act = () => document.MarkFailed(" ");
         act.Should().Throw<ArgumentException>();
     }
@@ -498,7 +479,7 @@ public sealed class IngestionAndManualModelTests
     public void ManualDocument_CanonicalizeProcessAndComplete_RecordsLifecycleEvidence()
     {
         // Arrange
-        var document = new ManualDocument();
+        var document = ManualDocument.Create(Guid.NewGuid(), "test.pdf", "container", "path", "type");
         var canonicalizedAt = DateTimeOffset.Parse("2026-07-15T08:00:00+00:00");
         var completedAt = canonicalizedAt.AddMinutes(20);
         var runId = Guid.NewGuid();
@@ -525,7 +506,7 @@ public sealed class IngestionAndManualModelTests
     public void ManualDocument_BeginProcessing_WhenStageIsMissing_RejectsTheTransition(string? stage)
     {
         // Arrange
-        var document = new ManualDocument();
+        var document = ManualDocument.Create(Guid.NewGuid(), "test.pdf", "container", "path", "type");
 
         // Act
         var act = () => document.BeginProcessing(stage!);
@@ -541,7 +522,7 @@ public sealed class IngestionAndManualModelTests
     public void ManualDocument_BeginProcessing_WhenDocumentIsTerminal_RejectsTheTransition(bool failed)
     {
         // Arrange
-        var document = new ManualDocument();
+        var document = ManualDocument.Create(Guid.NewGuid(), "test.pdf", "container", "path", "type");
         if (failed)
         {
             document.MarkFailed("source validation failed");
@@ -563,7 +544,7 @@ public sealed class IngestionAndManualModelTests
     public void ManualDocument_SetStage_WhenNotProcessing_RejectsTheChange()
     {
         // Arrange
-        var document = new ManualDocument();
+        var document = ManualDocument.Create(Guid.NewGuid(), "test.pdf", "container", "path", "type");
 
         // Act
         var act = () => document.SetStage("indexing-content");
@@ -578,7 +559,7 @@ public sealed class IngestionAndManualModelTests
     public void ManualDocument_SetStage_WhenStageIsMissing_RejectsTheChangeAndPreservesCurrentStage()
     {
         // Arrange
-        var document = new ManualDocument();
+        var document = ManualDocument.Create(Guid.NewGuid(), "test.pdf", "container", "path", "type");
         document.BeginProcessing("extracting-pages");
 
         // Act
@@ -593,7 +574,7 @@ public sealed class IngestionAndManualModelTests
     public void ManualDocument_MarkProcessed_WhenRunIdIsEmpty_RejectsTheCompletion()
     {
         // Arrange
-        var document = new ManualDocument();
+        var document = ManualDocument.Create(Guid.NewGuid(), "test.pdf", "container", "path", "type");
 
         // Act
         var act = () => document.MarkProcessed(Guid.Empty);
@@ -608,7 +589,7 @@ public sealed class IngestionAndManualModelTests
     public void ManualDocument_MarkCanonicalized_WhenNoTimestampIsSupplied_RecordsTheTransitionTime()
     {
         // Arrange
-        var document = new ManualDocument();
+        var document = ManualDocument.Create(Guid.NewGuid(), "test.pdf", "container", "path", "type");
         var before = DateTimeOffset.UtcNow;
 
         // Act
@@ -623,7 +604,7 @@ public sealed class IngestionAndManualModelTests
     public void ManualDocument_MarkCanonicalized_WhenFailed_RejectsFurtherLifecycleChanges()
     {
         // Arrange
-        var document = new ManualDocument();
+        var document = ManualDocument.Create(Guid.NewGuid(), "test.pdf", "container", "path", "type");
         document.MarkFailed("source validation failed");
 
         // Act
@@ -634,4 +615,43 @@ public sealed class IngestionAndManualModelTests
             .WithMessage("*Failed*");
         document.LastFailure.Should().Be("source validation failed");
     }
+
+    private static IngestionJob CreateTestableJob(
+        IngestionJobStatus status = IngestionJobStatus.Queued,
+        string? failureReason = null,
+        string? currentStage = null,
+        string? metadataJson = null,
+        int? expectedChunkCount = null,
+        int? indexedChunkCount = null,
+        IngestionJobType inputType = IngestionJobType.PDFManual,
+        string inputRef = "test-input") =>
+        IngestionJob.Rehydrate(
+            id: 0,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: status,
+            failureReason: failureReason,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: inputType,
+            inputRef: inputRef,
+            sourceFileName: null,
+            computeProvider: "AdminLocalProcessor",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: expectedChunkCount,
+            indexedChunkCount: indexedChunkCount,
+            currentStage: currentStage,
+            stageSetAtUtc: null,
+            metadataJson: metadataJson);
 }

@@ -171,14 +171,25 @@ public sealed class McpConfigurationProviderServiceCoverageTests
         string toolId,
         bool enabled = true,
         string? serverUrl = "https://tools.example",
-        int? timeoutMs = 30000) => new()
-    {
-        Id = Guid.NewGuid(),
-        ToolId = toolId,
-        Name = toolId,
-        ToolType = "search",
-        IsEnabled = enabled,
-        ServerUrl = serverUrl is null ? null! : new Uri(serverUrl, UriKind.RelativeOrAbsolute),
-        TimeoutMs = timeoutMs,
-    };
+        int? timeoutMs = 30000) =>
+        McpToolConfiguration.Rehydrate(
+            id: Guid.NewGuid(),
+            toolId: toolId,
+            name: toolId,
+            description: null,
+            serverUrl: serverUrl is null ? null : new Uri(serverUrl, UriKind.RelativeOrAbsolute),
+            toolType: "search",
+            version: null,
+            isSystemTool: false,
+            priority: 0,
+            timeoutMs: timeoutMs,
+            retryOnFailure: true,
+            maxRetries: 3,
+            createdAt: DateTime.UtcNow,
+            isEnabled: enabled,
+            configurationJson: null,
+            disabledReason: enabled ? null : "Disabled",
+            lastTestedAt: null,
+            lastConnectionStatus: null,
+            updatedAt: null);
 }

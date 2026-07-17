@@ -69,7 +69,16 @@ public sealed class ManualBikeLinkerTests
         using var cancellation = new CancellationTokenSource();
         var manualId = Guid.NewGuid();
         var bikeModelId = Guid.NewGuid();
-        var bikeModel = new BikeModel { Id = bikeModelId };
+        var bikeModel = BikeModel.Rehydrate(
+            id: bikeModelId,
+            make: "Honda",
+            model: "CBR600RR",
+            year: 2024,
+            aliases: null,
+            createdAtUtc: DateTimeOffset.UtcNow,
+            updatedAtUtc: DateTimeOffset.UtcNow,
+            createdByUserId: null,
+            uploadRef: null);
         bikeModelRepository
             .Setup(repository => repository.FindCanonicalAsync("Honda", "CBR600RR", 2024, cancellation.Token))
             .ReturnsAsync(bikeModel);

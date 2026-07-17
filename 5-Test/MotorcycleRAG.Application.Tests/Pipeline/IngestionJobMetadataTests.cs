@@ -378,16 +378,34 @@ public sealed class IngestionJobMetadataTests
         string? metadataJson = null,
         string? currentStage = null)
     {
-        return new IngestionJob
-        {
-            IngestionJobId = jobId,
-            Status = status,
-            MetadataJson = metadataJson,
-            CurrentStage = currentStage,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "upload-test-123",
-            ComputeProvider = "AdminLocalProcessor",
-            CreatedAtUtc = DateTimeOffset.UtcNow
-        };
+        return IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: jobId,
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: status,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "upload-test-123",
+            sourceFileName: null,
+            computeProvider: "AdminLocalProcessor",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: currentStage,
+            stageSetAtUtc: null,
+            metadataJson: metadataJson);
     }
 }

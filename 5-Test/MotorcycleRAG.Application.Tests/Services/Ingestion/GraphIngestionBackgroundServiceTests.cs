@@ -9,6 +9,7 @@ using Moq;
 using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;
 using Xunit;
 
 namespace MotorcycleRAG.UnitTests.Services.Ingestion;
@@ -48,7 +49,7 @@ public class GraphIngestionBackgroundServiceTests
     }
 
     private static IngestionJob CreateJob(string inputRef = "upload-1") =>
-        new() { IngestionJobId = Guid.NewGuid(), InputRef = inputRef };
+        IngestionJob.Create(IngestionJobType.BikeGraph, inputRef, createdBySubject: null);
 
     [Fact]
     public async Task ExecuteAsync_WhenJobEnqueued_ProcessesJobAndCompletesWhenChannelClosed()

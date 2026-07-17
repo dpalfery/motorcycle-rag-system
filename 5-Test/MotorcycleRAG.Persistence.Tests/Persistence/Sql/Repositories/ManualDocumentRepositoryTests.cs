@@ -535,20 +535,18 @@ public sealed class ManualDocumentRepositoryTests
     {
         // CanonicalizedAtUtc/CurrentStatus/CurrentStage/LastProcessedAtUtc/LastSuccessfulRunId
         // are private-set and only reachable through the entity's named transitions.
-        var document = new ManualDocument
-        {
-            DocumentId = Guid.NewGuid(),
-            SourceFileName = "honda-cbr.pdf",
-            CanonicalBlobContainer = "manuals",
-            CanonicalBlobPath = "canonical/honda-cbr.pdf",
-            CanonicalBlobUri = "https://blob.example.com/manuals/honda-cbr.pdf",
-            SourceContentHash = "hash-1",
-            DocumentType = "ServiceManual",
-            Make = "Honda",
-            Model = "CBR600RR",
-            Year = 2024,
-            UploadedAtUtc = new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero),
-        };
+        var document = ManualDocument.Create(
+            Guid.NewGuid(),
+            "honda-cbr.pdf",
+            "manuals",
+            "canonical/honda-cbr.pdf",
+            "ServiceManual",
+            canonicalBlobUri: "https://blob.example.com/manuals/honda-cbr.pdf",
+            sourceContentHash: "hash-1",
+            make: "Honda",
+            model: "CBR600RR",
+            year: 2024,
+            uploadedAtUtc: new DateTimeOffset(2026, 7, 1, 9, 0, 0, TimeSpan.Zero));
         document.MarkCanonicalized(new DateTimeOffset(2026, 7, 1, 9, 5, 0, TimeSpan.Zero));
         document.BeginProcessing("indexed");
         document.MarkProcessed(Guid.NewGuid(), new DateTimeOffset(2026, 7, 1, 9, 10, 0, TimeSpan.Zero));

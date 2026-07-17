@@ -171,7 +171,7 @@ public sealed class ManualIngestionServiceTests
         var fixture = CreateFixture();
         var manual = CreateDocument();
         var manualRun = new ManualProcessingRun { RunId = Guid.NewGuid(), DocumentId = manual.DocumentId, StartedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-2) };
-        var job = new IngestionJob { IngestionJobId = Guid.NewGuid(), InputType = IngestionJobType.BikeGraph, Status = IngestionJobStatus.Completed, InputRef = "graph.csv", CreatedAtUtc = DateTimeOffset.UtcNow };
+        var job = IngestionJob.Create(IngestionJobType.BikeGraph, "graph.csv", createdBySubject: null, initialStatus: IngestionJobStatus.Completed);
         fixture.Repository.Setup(repository => repository.GetRecentManualOperationsAsync(50, It.IsAny<CancellationToken>())).ReturnsAsync([(manual, manualRun)]);
         fixture.JobRepository.Setup(repository => repository.GetRecentAsync(50, It.IsAny<CancellationToken>())).ReturnsAsync([job]);
         fixture.IngestionJobs.Setup(service => service.StartJobAsync(It.IsAny<IngestionJobStartRequest>(), "user", It.IsAny<CancellationToken>()))
@@ -195,13 +195,12 @@ public sealed class ManualIngestionServiceTests
             repository, blobStorage, ingestionJobs, jobRepository);
     }
 
-    private static ManualDocument CreateDocument() => new()
-    {
-        DocumentId = Guid.NewGuid(),
-        SourceFileName = "manual.pdf",
-        CanonicalBlobPath = "path",
-        DocumentType = "service",
-    };
+    private static ManualDocument CreateDocument() => ManualDocument.Create(
+        Guid.NewGuid(),
+        "manual.pdf",
+        "moto-manuals",
+        "path",
+        "service");
 
     private sealed record Fixture(
         ManualIngestionService Sut,

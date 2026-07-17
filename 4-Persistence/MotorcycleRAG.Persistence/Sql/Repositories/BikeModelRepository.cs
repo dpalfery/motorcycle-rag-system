@@ -38,8 +38,9 @@ public class BikeModelRepository : IBikeModelRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            return await connection.QueryFirstOrDefaultAsync<BikeModel>(
+            var row = await connection.QueryFirstOrDefaultAsync<BikeModelRow>(
                 new CommandDefinition(sql, new { Id = id }, cancellationToken: ct));
+            return row is null ? null : Map(row);
         }
         catch (Exception ex)
         {
@@ -60,8 +61,9 @@ public class BikeModelRepository : IBikeModelRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            return await connection.QueryFirstOrDefaultAsync<BikeModel>(
+            var row = await connection.QueryFirstOrDefaultAsync<BikeModelRow>(
                 new CommandDefinition(sql, new { Make = make, Model = model, Year = year }, cancellationToken: ct));
+            return row is null ? null : Map(row);
         }
         catch (Exception ex)
         {
@@ -131,15 +133,46 @@ public class BikeModelRepository : IBikeModelRepository
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            var results = await connection.QueryAsync<BikeModel>(
+            var rows = await connection.QueryAsync<BikeModelRow>(
                 new CommandDefinition(sql, new { Skip = skip, Take = take }, cancellationToken: ct));
 
-            return results.ToList().AsReadOnly();
+            return rows.Select(Map).ToList().AsReadOnly();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to list bike models (skip={Skip}, take={Take})", skip, take);
             throw new InvalidOperationException($"Failed to list bike models (skip={skip}, take={take})", ex);
         }
+    }
+
+    /// <summary>
+    /// Maps a persisted <see cref="BikeModelRow"/> into a validated <see cref="BikeModel"/>.
+    /// </summary>
+    private static BikeModel Map(BikeModelRow row) =>
+        BikeModel.Rehydrate(
+            id: row.Id,
+            make: row.Make,
+            model: row.Model,
+            year: row.Year,
+            aliases: row.Aliases,
+            createdAtUtc: row.CreatedAtUtc,
+            updatedAtUtc: row.UpdatedAtUtc,
+            createdByUserId: null,
+            uploadRef: null);
+
+    /// <summary>
+    /// Dapper-friendly row DTO matching the <c>dbo.BikeModels</c> persisted shape.
+    /// Identity and timestamp columns only — transient audit fields (<c>CreatedByUserId</c>,
+    /// <c>UploadRef</c>) are not persisted and are not read here.
+    /// </summary>
+    private sealed class BikeModelRow
+    {
+        public Guid Id { get; init; }
+        public string Make { get; init; } = string.Empty;
+        public string Model { get; init; } = string.Empty;
+        public int Year { get; init; }
+        public string? Aliases { get; init; }
+        public DateTimeOffset CreatedAtUtc { get; init; }
+        public DateTimeOffset UpdatedAtUtc { get; init; }
     }
 }

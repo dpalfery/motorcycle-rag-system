@@ -153,22 +153,26 @@ public sealed class McpAdminController : ControllerBase {
                 }
             }
 
-            var config = new McpToolConfiguration {
-                Id = Guid.NewGuid(),
-                ToolId = request.ToolId,
-                Name = request.Name,
-                Description = request.Description,
-                ServerUrl = request.ServerUrl != null ? new Uri(request.ServerUrl) : throw new ArgumentNullException(nameof(request)),
-                ToolType = request.ToolType,
-                Version = request.Version,
-                IsEnabled = request.IsEnabled ?? true,
-                Priority = request.Priority ?? 0,
-                TimeoutMs = request.TimeoutMs,
-                RetryOnFailure = request.RetryOnFailure ?? true,
-                MaxRetries = request.MaxRetries ?? 3,
-                ConfigurationJson = request.ConfigurationJson,
-                CreatedAt = DateTime.UtcNow
-            };
+            var config = McpToolConfiguration.Rehydrate(
+                id: Guid.NewGuid(),
+                toolId: request.ToolId,
+                name: request.Name,
+                description: request.Description,
+                serverUrl: request.ServerUrl != null ? new Uri(request.ServerUrl) : throw new ArgumentNullException(nameof(request)),
+                toolType: request.ToolType,
+                version: request.Version,
+                isSystemTool: false,
+                priority: request.Priority ?? 0,
+                timeoutMs: request.TimeoutMs,
+                retryOnFailure: request.RetryOnFailure ?? true,
+                maxRetries: request.MaxRetries ?? 3,
+                createdAt: DateTime.UtcNow,
+                isEnabled: request.IsEnabled ?? true,
+                configurationJson: request.ConfigurationJson,
+                disabledReason: null,
+                lastTestedAt: null,
+                lastConnectionStatus: null,
+                updatedAt: null);
 
             // Use application service for creation (includes validation and audit)
             var sanitizedUserId = SanitizeUserId(_currentUserService.UserId);
@@ -251,27 +255,26 @@ public sealed class McpAdminController : ControllerBase {
             if (!string.IsNullOrWhiteSpace(request.ServerUrl) && request.ServerUrl.Length > 500)
                 return BadRequest(new { error = "Server URL exceeds maximum length of 500 characters" });
 
-            var mergedConfig = new McpToolConfiguration {
-                Id = existingConfig.Id,
-                ToolId = existingConfig.ToolId,
-                Name = !string.IsNullOrWhiteSpace(request.Name) ? request.Name : existingConfig.Name,
-                Description = !string.IsNullOrWhiteSpace(request.Description) ? request.Description : existingConfig.Description,
-                ServerUrl = !string.IsNullOrWhiteSpace(request.ServerUrl) ? new Uri(request.ServerUrl) : existingConfig.ServerUrl,
-                ToolType = !string.IsNullOrWhiteSpace(request.ToolType) ? request.ToolType : existingConfig.ToolType,
-                Version = existingConfig.Version,
-                IsEnabled = request.IsEnabled ?? existingConfig.IsEnabled,
-                IsSystemTool = existingConfig.IsSystemTool,
-                Priority = request.Priority ?? existingConfig.Priority,
-                TimeoutMs = request.TimeoutMs ?? existingConfig.TimeoutMs,
-                RetryOnFailure = request.RetryOnFailure ?? existingConfig.RetryOnFailure,
-                MaxRetries = request.MaxRetries ?? existingConfig.MaxRetries,
-                DisabledReason = existingConfig.DisabledReason,
-                LastTestedAt = existingConfig.LastTestedAt,
-                LastConnectionStatus = existingConfig.LastConnectionStatus,
-                ConfigurationJson = request.ConfigurationJson ?? existingConfig.ConfigurationJson,
-                CreatedAt = existingConfig.CreatedAt,
-                UpdatedAt = existingConfig.UpdatedAt,
-            };
+            var mergedConfig = McpToolConfiguration.Rehydrate(
+                id: existingConfig.Id,
+                toolId: existingConfig.ToolId,
+                name: !string.IsNullOrWhiteSpace(request.Name) ? request.Name : existingConfig.Name,
+                description: !string.IsNullOrWhiteSpace(request.Description) ? request.Description : existingConfig.Description,
+                serverUrl: !string.IsNullOrWhiteSpace(request.ServerUrl) ? new Uri(request.ServerUrl) : existingConfig.ServerUrl,
+                toolType: !string.IsNullOrWhiteSpace(request.ToolType) ? request.ToolType : existingConfig.ToolType,
+                version: existingConfig.Version,
+                isSystemTool: existingConfig.IsSystemTool,
+                priority: request.Priority ?? existingConfig.Priority,
+                timeoutMs: request.TimeoutMs ?? existingConfig.TimeoutMs,
+                retryOnFailure: request.RetryOnFailure ?? existingConfig.RetryOnFailure,
+                maxRetries: request.MaxRetries ?? existingConfig.MaxRetries,
+                createdAt: existingConfig.CreatedAt,
+                isEnabled: request.IsEnabled ?? existingConfig.IsEnabled,
+                configurationJson: request.ConfigurationJson ?? existingConfig.ConfigurationJson,
+                disabledReason: existingConfig.DisabledReason,
+                lastTestedAt: existingConfig.LastTestedAt,
+                lastConnectionStatus: existingConfig.LastConnectionStatus,
+                updatedAt: existingConfig.UpdatedAt);
 
             // Use application service for update (includes validation and audit)
             var sanitizedUserId = SanitizeUserId(_currentUserService.UserId);
@@ -495,7 +498,7 @@ public sealed class McpAdminController : ControllerBase {
             ToolId = config.ToolId,
             Name = config.Name,
             Description = config.Description,
-            ServerUrl = config.ServerUrl.ToString(), // FIX: Convert Uri to string
+            ServerUrl = config.ServerUrl?.ToString() ?? string.Empty, // FIX: Convert Uri to string
             IsEnabled = config.IsEnabled,
             ToolType = config.ToolType,
             Version = config.Version,

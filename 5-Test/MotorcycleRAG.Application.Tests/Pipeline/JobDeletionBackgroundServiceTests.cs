@@ -109,16 +109,14 @@ public class JobDeletionBackgroundServiceTests
     public async Task ExecuteAsync_WhenDeletingJobExists_CallsExecuteJobCleanupAsync()
     {
         // Arrange: one job in the Deleting state; cleanup completes successfully.
-        var jobId = Guid.NewGuid();
+        var deletingJob = IngestionJob.Create(IngestionJobType.PDFManual, "upload-deleting-cleanup", createdBySubject: null, initialStatus: IngestionJobStatus.Deleting);
+        var jobId = deletingJob.IngestionJobId;
         var (scopeFactoryMock, repoMock, jobServiceMock) = CreateMockScopeChain();
         repoMock
             .Setup(r => r.GetByStatusesAsync(
                 It.IsAny<IReadOnlyCollection<IngestionJobStatus>>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<IngestionJob>
-            {
-                new() { IngestionJobId = jobId, Status = IngestionJobStatus.Deleting }
-            });
+            .ReturnsAsync(new List<IngestionJob> { deletingJob });
         jobServiceMock
             .Setup(s => s.ExecuteJobCleanupAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -146,16 +144,14 @@ public class JobDeletionBackgroundServiceTests
     {
         // Arrange: cleanup throws; the per-job exception must be caught inside CleanupJobAsync
         // and never propagate out of ExecuteAsync.
-        var jobId = Guid.NewGuid();
+        var deletingJob = IngestionJob.Create(IngestionJobType.PDFManual, "upload-deleting-throw", createdBySubject: null, initialStatus: IngestionJobStatus.Deleting);
+        var jobId = deletingJob.IngestionJobId;
         var (scopeFactoryMock, repoMock, jobServiceMock) = CreateMockScopeChain();
         repoMock
             .Setup(r => r.GetByStatusesAsync(
                 It.IsAny<IReadOnlyCollection<IngestionJobStatus>>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<IngestionJob>
-            {
-                new() { IngestionJobId = jobId, Status = IngestionJobStatus.Deleting }
-            });
+            .ReturnsAsync(new List<IngestionJob> { deletingJob });
         jobServiceMock
             .Setup(s => s.ExecuteJobCleanupAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("cleanup failed"));
@@ -309,8 +305,8 @@ public class JobDeletionBackgroundServiceTests
     [Fact]
     public async Task ExecuteAsync_WhenShutdownRequestedDuringLoop_SkipsRemainingJobs()
     {
-        var job1 = new IngestionJob { IngestionJobId = Guid.NewGuid(), Status = IngestionJobStatus.Deleting };
-        var job2 = new IngestionJob { IngestionJobId = Guid.NewGuid(), Status = IngestionJobStatus.Deleting };
+        var job1 = IngestionJob.Create(IngestionJobType.PDFManual, "upload-deleting-1", createdBySubject: null, initialStatus: IngestionJobStatus.Deleting);
+        var job2 = IngestionJob.Create(IngestionJobType.PDFManual, "upload-deleting-2", createdBySubject: null, initialStatus: IngestionJobStatus.Deleting);
 
         var (scopeFactory, repoMock, jobServiceMock) = CreateMockScopeChain();
         var loggerMock = new Mock<ILogger<JobDeletionBackgroundService>>();

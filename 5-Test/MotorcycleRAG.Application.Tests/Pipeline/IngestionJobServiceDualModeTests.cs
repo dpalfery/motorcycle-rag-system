@@ -228,13 +228,7 @@ public sealed class IngestionJobServiceDualModeTests {
     [Fact]
     public async Task GetJobStatusAsync_ShouldReturnPersistedStatusWithoutPollingProcessor() {
         var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Queued,
-            InputType = IngestionJobType.StructuredSpecification,
-            InputRef = "upload-abc",
-            DocIngestionRunId = TestRunId
-        };
+        var job = IngestionJob.Create(IngestionJobType.StructuredSpecification, "upload-abc", createdBySubject: null, docIngestionRunId: TestRunId);
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -253,13 +247,7 @@ public sealed class IngestionJobServiceDualModeTests {
     [Fact]
     public async Task GetJobStatusAsync_BikeGraphJob_ShouldNotImportGraphEntitiesFromStatusRead() {
         var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Processing,
-            InputType = IngestionJobType.BikeGraph,
-            InputRef = "upload-graph-001",
-            DocIngestionRunId = TestRunId
-        };
+        var job = IngestionJob.Create(IngestionJobType.BikeGraph, "upload-graph-001", createdBySubject: null, initialStatus: IngestionJobStatus.Processing, docIngestionRunId: TestRunId);
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -354,12 +342,7 @@ public sealed class IngestionJobServiceDualModeTests {
                 }
             ]);
 
-        var graphJob = new IngestionJob {
-            IngestionJobId = Guid.NewGuid(),
-            InputRef = "upload-graph-complete-001",
-            InputType = IngestionJobType.BikeGraph,
-            Status = IngestionJobStatus.Completed
-        };
+        var graphJob = IngestionJob.Create(IngestionJobType.BikeGraph, "upload-graph-complete-001", createdBySubject: null, initialStatus: IngestionJobStatus.Completed);
 
         // GetPendingStorageFilesAsync batches (InputRef, InputType) lookups into a single
         // GetLatestByInputRefsAsync call. Returning only the completed graph job (with no
@@ -385,12 +368,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Processing,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-active-001"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Processing, inputRef: "upload-active-001"));
         var sut = CreateSut();
 
         var act = async () => await sut.DeleteJobAsync(jobId, TestUserId, CancellationToken.None);
@@ -422,12 +400,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = status,
-                InputType = IngestionJobType.StructuredSpecification,
-                InputRef = $"upload-{status}"
-            });
+            .ReturnsAsync(MakeJob(jobId, status, inputType: IngestionJobType.StructuredSpecification, inputRef: $"upload-{status}"));
 
         // Per-status explicit stub: the constructor default already returns true, but making it
         // explicit per-job keeps the assertion "TrySetDeletingAsync returned true" legible. If
@@ -454,12 +427,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Completed,
-                InputType = IngestionJobType.StructuredSpecification,
-                InputRef = "upload-finished-001"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Completed, inputType: IngestionJobType.StructuredSpecification, inputRef: "upload-finished-001"));
 
         var sut = CreateSut();
 
@@ -482,13 +450,7 @@ public sealed class IngestionJobServiceDualModeTests {
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Completed,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = uploadId,
-                ExpectedChunkCount = 2
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Completed, inputRef: uploadId, expectedChunkCount: 2));
 
         var sut = CreateSut();
 
@@ -516,12 +478,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Deleting,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-deleting-001"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Deleting, inputRef: "upload-deleting-001"));
 
         var sut = CreateSut();
 
@@ -544,12 +501,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Completed,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-concurrent-001"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Completed, inputRef: "upload-concurrent-001"));
         _repository
             .Setup(r => r.TrySetDeletingAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -590,12 +542,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Deleting,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-cleanup-success"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Deleting, inputRef: "upload-cleanup-success"));
         _repository
             .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
@@ -614,12 +561,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Deleting,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-cleanup-throw"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Deleting, inputRef: "upload-cleanup-throw"));
         _repository
             .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("DB connection lost"));
@@ -645,12 +587,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Deleting,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-cleanup-asset-throw"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Deleting, inputRef: "upload-cleanup-asset-throw"));
 
         // GetDeleteArtifactsAsync is the first read inside DeleteAssociatedAssetsAsync and is
         // NOT wrapped in RunBestEffortAsync, so a throw here propagates to the outer catch.
@@ -680,12 +617,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Deleting,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-cleanup-already-gone"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Deleting, inputRef: "upload-cleanup-already-gone"));
         _repository
             .Setup(r => r.DeleteAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -714,16 +646,8 @@ public sealed class IngestionJobServiceDualModeTests {
                     && statuses.Count == 2),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                new IngestionJob {
-                    IngestionJobId = firstJobId,
-                    Status = IngestionJobStatus.Completed,
-                    InputRef = "upload-finished-002"
-                },
-                new IngestionJob {
-                    IngestionJobId = secondJobId,
-                    Status = IngestionJobStatus.PartiallyCompleted,
-                    InputRef = "upload-finished-002"
-                }
+                MakeJob(firstJobId, IngestionJobStatus.Completed, inputRef: "upload-finished-002"),
+                MakeJob(secondJobId, IngestionJobStatus.PartiallyCompleted, inputRef: "upload-finished-002")
             ]);
 
         _repository
@@ -750,12 +674,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Failed,
-                InputType = IngestionJobType.BikeGraph,
-                InputRef = "upload-graph-retry-001"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Failed, inputType: IngestionJobType.BikeGraph, inputRef: "upload-graph-retry-001"));
 
         var sut = CreateSut();
 
@@ -773,12 +692,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Cancelled,
-                InputType = IngestionJobType.StructuredSpecification,
-                InputRef = "upload-retry-002"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Cancelled, inputType: IngestionJobType.StructuredSpecification, inputRef: "upload-retry-002"));
 
         var sut = CreateSut();
 
@@ -796,17 +710,12 @@ public sealed class IngestionJobServiceDualModeTests {
         const string uploadId = "upload-retry-pdf-001";
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Failed,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = uploadId,
-                FailureReason = "Pipeline failed during chunking",
-                ErrorMessage = "Something went wrong",
-                ErrorsJson = "{\"error\":\"detail\"}",
-                CurrentStage = "chunking",
-                MetadataJson = "{\"make\":\"Honda\"}"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Failed, inputRef: uploadId,
+                failureReason: "Pipeline failed during chunking",
+                errorMessage: "Something went wrong",
+                errorsJson: "{\"error\":\"detail\"}",
+                currentStage: "chunking",
+                metadataJson: "{\"make\":\"Honda\"}"));
         _blobStorage
             .Setup(b => b.ExistsAsync("raw-uploads", It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
@@ -843,12 +752,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Failed,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-retry-missing"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Failed, inputRef: "upload-retry-missing"));
         _blobStorage
             .Setup(b => b.ExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
@@ -868,13 +772,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.AwaitingMetadata,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-retry-awaits",
-                CurrentStage = "needs-manual-metadata"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.AwaitingMetadata, inputRef: "upload-retry-awaits", currentStage: "needs-manual-metadata"));
         _blobStorage
             .Setup(b => b.ExistsAsync("raw-uploads", It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
@@ -921,19 +819,12 @@ public sealed class IngestionJobServiceDualModeTests {
         _repository
             .Setup(r => r.CreateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IngestionJob job, CancellationToken _) => {
-                job.IngestionJobId = jobId;
                 return job;
             });
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Processing,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = uploadId,
-                DocIngestionRunId = runId
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Processing, inputRef: uploadId, docIngestionRunId: runId));
 
         var sut = CreateSut();
 
@@ -956,14 +847,8 @@ public sealed class IngestionJobServiceDualModeTests {
     public async Task GetJobStatusAsync_WhenFailedWithGenericReason_ShouldReturnPersistedFailure() {
         var jobId = Guid.NewGuid();
         const string runId = "processor-run-001";
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Failed,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "upload-xyz",
-            DocIngestionRunId = runId,
-            FailureReason = "Pipeline reported status 'failed'.",
-        };
+        var job = MakeJob(jobId, IngestionJobStatus.Failed, inputRef: "upload-xyz", docIngestionRunId: runId,
+            failureReason: "Pipeline reported status 'failed'.");
 
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
@@ -987,12 +872,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Deleting,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-deleting-cancel"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Deleting, inputRef: "upload-deleting-cancel"));
 
         var sut = CreateSut();
 
@@ -1006,12 +886,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Deleting,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-deleting-fail"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Deleting, inputRef: "upload-deleting-fail"));
 
         var sut = CreateSut();
 
@@ -1025,13 +900,7 @@ public sealed class IngestionJobServiceDualModeTests {
         var jobId = Guid.NewGuid();
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IngestionJob {
-                IngestionJobId = jobId,
-                Status = IngestionJobStatus.Deleting,
-                InputType = IngestionJobType.PDFManual,
-                InputRef = "upload-deleting-transition",
-                CurrentStage = "deleting"
-            });
+            .ReturnsAsync(MakeJob(jobId, IngestionJobStatus.Deleting, inputRef: "upload-deleting-transition", currentStage: "deleting"));
 
         var sut = CreateSut();
 
@@ -1058,12 +927,7 @@ public sealed class IngestionJobServiceDualModeTests {
                 }
             ]);
 
-        var deletingJob = new IngestionJob {
-            IngestionJobId = Guid.NewGuid(),
-            InputRef = "upload-deleting-only",
-            InputType = IngestionJobType.PDFManual,
-            Status = IngestionJobStatus.Deleting
-        };
+        var deletingJob = MakeJob(Guid.NewGuid(), IngestionJobStatus.Deleting, inputRef: "upload-deleting-only");
 
         // GetPendingStorageFilesAsync batches the (InputRef, InputType) lookup; returning
         // the Deleting job means HasPendingWorkflow rejects it and the file is excluded.
@@ -1082,12 +946,7 @@ public sealed class IngestionJobServiceDualModeTests {
 
     [Fact]
     public async Task GetRecentIngestionJobsAsync_ShouldReturnDeletingJobsForUiVisibility() {
-        var deletingJob = new IngestionJob {
-            IngestionJobId = Guid.NewGuid(),
-            Status = IngestionJobStatus.Deleting,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "upload-deleting-recent"
-        };
+        var deletingJob = MakeJob(Guid.NewGuid(), IngestionJobStatus.Deleting, inputRef: "upload-deleting-recent");
         _repository
             .Setup(r => r.GetRecentAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([deletingJob]);
@@ -1114,15 +973,8 @@ public sealed class IngestionJobServiceDualModeTests {
     [Fact]
     public async Task TransitionStageAsync_CompletedWithoutFailure_OnNonTerminalIndexingJob_TransitionsToCompleted() {
         var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Indexing,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "upload-completed-no-failure",
-            CurrentStage = "indexing",
-            ExpectedChunkCount = 12,
-            IndexedChunkCount = 0
-        };
+        var job = MakeJob(jobId, IngestionJobStatus.Indexing, inputRef: "upload-completed-no-failure",
+            currentStage: "indexing", expectedChunkCount: 12, indexedChunkCount: 0);
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
@@ -1156,15 +1008,8 @@ public sealed class IngestionJobServiceDualModeTests {
     public async Task TransitionStageAsync_CompletedWithFailure_OnNonTerminalIndexingJob_TransitionsToFailed() {
         var jobId = Guid.NewGuid();
         const string failureReason = "Python pipeline reported completion with errors";
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Indexing,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "upload-completed-with-failure",
-            CurrentStage = "indexing",
-            ExpectedChunkCount = 12,
-            IndexedChunkCount = 0
-        };
+        var job = MakeJob(jobId, IngestionJobStatus.Indexing, inputRef: "upload-completed-with-failure",
+            currentStage: "indexing", expectedChunkCount: 12, indexedChunkCount: 0);
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
@@ -1192,15 +1037,8 @@ public sealed class IngestionJobServiceDualModeTests {
     public async Task TransitionStageAsync_FailedStage_OnNonTerminalJob_TransitionsToFailed() {
         var jobId = Guid.NewGuid();
         const string failureReason = "Processor reported failure during chunking";
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Processing,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "upload-failed-stage",
-            CurrentStage = "chunking",
-            ExpectedChunkCount = 12,
-            IndexedChunkCount = 1
-        };
+        var job = MakeJob(jobId, IngestionJobStatus.Processing, inputRef: "upload-failed-stage",
+            currentStage: "chunking", expectedChunkCount: 12, indexedChunkCount: 1);
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
@@ -1228,14 +1066,8 @@ public sealed class IngestionJobServiceDualModeTests {
     public async Task TransitionStageAsync_NonTerminalStageWithFailureReason_OnNonTerminalJob_TransitionsToFailed() {
         var jobId = Guid.NewGuid();
         const string failureReason = "Expected 1536 dims, got 2560";
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Processing,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "upload-failure-reason-compat",
-            CurrentStage = "chunking",
-            ComputeProvider = "LocalProcessor"
-        };
+        var job = MakeJob(jobId, IngestionJobStatus.Processing, inputRef: "upload-failure-reason-compat",
+            currentStage: "chunking", computeProvider: "LocalProcessor");
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
@@ -1269,14 +1101,8 @@ public sealed class IngestionJobServiceDualModeTests {
     [Fact]
     public async Task TransitionStageAsync_Completed_OnAlreadyTerminalCompletedJob_DoesNotFlipStatus() {
         var jobId = Guid.NewGuid();
-        var job = new IngestionJob {
-            IngestionJobId = jobId,
-            Status = IngestionJobStatus.Completed,
-            InputType = IngestionJobType.PDFManual,
-            InputRef = "upload-already-completed",
-            CurrentStage = "completed",
-            CompletedAtUtc = DateTimeOffset.UtcNow
-        };
+        var job = MakeJob(jobId, IngestionJobStatus.Completed, inputRef: "upload-already-completed",
+            currentStage: "completed");
         _repository
             .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
@@ -1316,6 +1142,50 @@ public sealed class IngestionJobServiceDualModeTests {
             CreateIngestionOptions(),
             _logger.Object);
     }
+
+    private static IngestionJob MakeJob(
+        Guid ingestionJobId,
+        IngestionJobStatus status,
+        IngestionJobType inputType = IngestionJobType.PDFManual,
+        string inputRef = "upload-test",
+        string? currentStage = null,
+        int? expectedChunkCount = null,
+        int? indexedChunkCount = null,
+        string? failureReason = null,
+        string? errorMessage = null,
+        string? errorsJson = null,
+        string? metadataJson = null,
+        string? docIngestionRunId = null,
+        string? computeProvider = null) =>
+        IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: ingestionJobId,
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: status,
+            failureReason: failureReason,
+            errorsJson: errorsJson,
+            errorMessage: errorMessage,
+            inputType: inputType,
+            inputRef: inputRef,
+            sourceFileName: null,
+            computeProvider: computeProvider ?? "MicrosoftFabric",
+            docIngestionRunId: docIngestionRunId,
+            manualDocumentId: null,
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: expectedChunkCount,
+            indexedChunkCount: indexedChunkCount,
+            currentStage: currentStage,
+            stageSetAtUtc: null,
+            metadataJson: metadataJson);
 
     private static IOptions<BlobStorageOptions> CreateBlobOptions() =>
         Options.Create(new BlobStorageOptions {

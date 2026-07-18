@@ -13,15 +13,17 @@ from typing import Any
 
 import openai
 
+from security.log_sanitizer import sanitize_log_value
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Batching & retry constants
 # ---------------------------------------------------------------------------
-BATCH_TOKEN_BUDGET = 4000       # approximate token budget per batch
-BATCH_MAX_RETRIES = 2           # retries per batch before skipping
-BATCH_RETRY_BASE_DELAY = 1.0    # seconds, multiplied by (attempt + 1)
-_LOG_TRUNCATE = 2000            # chars for prompt/response body logging
+BATCH_TOKEN_BUDGET = 4000  # approximate token budget per batch
+BATCH_MAX_RETRIES = 2  # retries per batch before skipping
+BATCH_RETRY_BASE_DELAY = 1.0  # seconds, multiplied by (attempt + 1)
+_LOG_TRUNCATE = 2000  # chars for prompt/response body logging
 
 SYSTEM_PROMPT = """You are a knowledge graph extractor for motorcycle technical documentation.
 Extract entities and relationships from the provided text.
@@ -63,8 +65,7 @@ def _split_into_batches(text: str) -> list[str]:
     num_batches = max(1, math.ceil(total_chars / budget_chars))
     batch_size_chars = math.ceil(total_chars / num_batches)
     return [
-        text[i : i + batch_size_chars]
-        for i in range(0, total_chars, batch_size_chars)
+        text[i : i + batch_size_chars] for i in range(0, total_chars, batch_size_chars)
     ]
 
 
@@ -115,9 +116,7 @@ def _merge_results(batch_results: list[dict[str, Any] | None]) -> dict[str, Any]
         from_id = id_to_canonical.get(
             edge.get("fromNodeId", ""), edge.get("fromNodeId", "")
         )
-        to_id = id_to_canonical.get(
-            edge.get("toNodeId", ""), edge.get("toNodeId", "")
-        )
+        to_id = id_to_canonical.get(edge.get("toNodeId", ""), edge.get("toNodeId", ""))
         rel_type = edge.get("relationshipType", "")
 
         # Drop edges referencing unknown node ids
@@ -125,8 +124,8 @@ def _merge_results(batch_results: list[dict[str, Any] | None]) -> dict[str, Any]
             dropped += 1
             logger.debug(
                 "graph_merge dropping edge: unresolved endpoint from=%s to=%s",
-                edge.get("fromNodeId"),
-                edge.get("toNodeId"),
+                sanitize_log_value(str(edge.get("fromNodeId", ""))),
+                sanitize_log_value(str(edge.get("toNodeId", ""))),
             )
             continue
 
@@ -182,9 +181,9 @@ async def _query_llm_with_retry(
                 "component=graph_extraction job_id=%s model=%s endpoint=%s "
                 "batch_index=%d/%d input_chars=%d tokens_approx=%d "
                 "elapsed_ms=%d result=%s node_count=%d edge_count=%d",
-                source_document_id,
-                model,
-                str(client.base_url),
+                sanitize_log_value(source_document_id),
+                sanitize_log_value(model),
+                sanitize_log_value(str(client.base_url)),
                 batch_index + 1,
                 total_batches,
                 len(batch_text),
@@ -199,11 +198,11 @@ async def _query_llm_with_retry(
             logger.debug(
                 "component=graph_extraction job_id=%s batch_index=%d/%d "
                 "prompt=%s response=%s",
-                source_document_id,
+                sanitize_log_value(source_document_id),
                 batch_index + 1,
                 total_batches,
-                _truncate(batch_text),
-                _truncate(content or ""),
+                sanitize_log_value(_truncate(batch_text)),
+                sanitize_log_value(_truncate(content or "")),
             )
 
             return parsed
@@ -220,12 +219,12 @@ async def _query_llm_with_retry(
                 logger.warning(
                     "component=graph_extraction job_id=%s batch_index=%d/%d "
                     "attempt=%d/%d error=%s retrying_in=%.1fs",
-                    source_document_id,
+                    sanitize_log_value(source_document_id),
                     batch_index + 1,
                     total_batches,
                     attempt + 1,
                     BATCH_MAX_RETRIES + 1,
-                    str(e)[:200],
+                    sanitize_log_value(str(e)[:200]),
                     delay,
                 )
                 await asyncio.sleep(delay)
@@ -234,13 +233,13 @@ async def _query_llm_with_retry(
             logger.error(
                 "component=graph_extraction job_id=%s batch_index=%d/%d "
                 "attempt=%d/%d elapsed_ms=%d error=%s result=%s",
-                source_document_id,
+                sanitize_log_value(source_document_id),
                 batch_index + 1,
                 total_batches,
                 attempt + 1,
                 BATCH_MAX_RETRIES + 1,
                 elapsed_ms,
-                _truncate(str(e)),
+                sanitize_log_value(_truncate(str(e))),
                 "error",
             )
             return None
@@ -266,9 +265,7 @@ class GraphExtractor:
 
         model = os.getenv("GRAPH_EXTRACTION_MODEL")
         if not model:
-            raise ValueError(
-                "GRAPH_EXTRACTION_MODEL environment variable must be set"
-            )
+            raise ValueError("GRAPH_EXTRACTION_MODEL environment variable must be set")
         self._model = model
 
         # Cache a single client for the lifetime of the extractor instead of
@@ -283,7 +280,7 @@ class GraphExtractor:
         if not text or not text.strip():
             logger.info(
                 "component=graph_extraction job_id=%s result=empty_text returning_empty",
-                source_document_id,
+                sanitize_log_value(source_document_id),
             )
             return []
 
@@ -291,7 +288,7 @@ class GraphExtractor:
         logger.info(
             "component=graph_extraction job_id=%s total_chars=%d tokens_approx=%d "
             "num_batches=%d",
-            source_document_id,
+            sanitize_log_value(source_document_id),
             len(text),
             _approx_tokens(text),
             len(batches),
@@ -320,7 +317,7 @@ class GraphExtractor:
         logger.info(
             "component=graph_extraction job_id=%s result=merged "
             "batches_processed=%d/%d total_nodes=%d total_edges=%d",
-            source_document_id,
+            sanitize_log_value(source_document_id),
             sum(1 for r in batch_results if r is not None),
             len(batches),
             len(nodes),

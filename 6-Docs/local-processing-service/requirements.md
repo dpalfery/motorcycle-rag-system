@@ -16,6 +16,8 @@ The Local Processing Service converts locally available motorcycle sources into 
 1.2. WHEN a client requests `/health` THEN the service SHALL report processor health, active-job state, embedding readiness, tokenizer status, storage status, and API-client configuration without exposing secrets.
 1.3. IF the processor is shutting down or a required dependency is unavailable THEN the service SHALL report that it is not accepting work.
 1.4. WHEN shutdown is requested THEN the service SHALL stop accepting new work and SHALL allow active jobs a bounded grace period to finish.
+1.5. WHEN the service is started through the direct Python entry point THEN the system SHALL bind only to `127.0.0.1`.
+1.6. WHEN any local control endpoint is invoked THEN the system SHALL require a constant-time-validated bearer token from `MCR_LOCAL_PROCESSOR_CONTROL_TOKEN`, and SHALL fail closed with 503 if that token is unset.
 
 ### Requirement 2: Local-first watch-folder processing
 
@@ -49,3 +51,14 @@ The Local Processing Service converts locally available motorcycle sources into 
 4.2. WHEN a processor produces artifacts or advances a correlated ingestion stage THEN the service SHALL use its configured authenticated API client to report the appropriate result.
 4.3. WHEN a client cleans up jobs THEN the service SHALL delete terminal job records and SHALL preserve active work.
 4.4. IF an unexpected processing error occurs THEN the service SHALL log diagnostic details locally and SHALL return a sanitized HTTP error response.
+4.5. WHEN untrusted strings are written to logs THEN the service SHALL encode control characters with the shared reversible log sanitizer so raw CR/LF/tab/NUL/C0/C1 characters cannot forge log lines, while preserving printable diagnostic content.
+
+### Requirement 5: Outbound endpoint and local path safety
+
+**User Story:** As an operator, I want the processor to refuse unsafe local paths and unsafe outbound endpoints, so that local processing cannot be steered into SSRF or path-escape attacks.
+
+#### Acceptance Criteria
+
+5.1. WHEN a request supplies a local file path THEN the service SHALL resolve it under `LOCAL_PROCESSOR_INPUT_DIR` with strict canonical containment and SHALL reject traversal, symlink escape, prefix collisions, missing/non-file paths, and wrong suffixes.
+5.2. WHEN the service calls a remote API or public HTTPS endpoint THEN the system SHALL require HTTPS with certificate and hostname validation enabled.
+5.3. WHEN the service calls a local model endpoint over plain HTTP THEN the system SHALL allow HTTP only for literal loopback hosts and SHALL reject credentials, fragments, malformed authorities, unsafe redirects, and non-loopback private or link-local targets.

@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+
 namespace MotorcycleRAG.Core.Utilities;
 
 /// <summary>
@@ -7,9 +10,9 @@ namespace MotorcycleRAG.Core.Utilities;
 /// Log injection (OWASP ASVS V7.1 / CWE-117) is the insertion of control characters—primarily
 /// newline (\n / \r) and tab (\t)—into logged strings to forge fake log entries or corrupt
 /// log parsers. This helper:
-///   1. Replaces \n, \r, \t, and null bytes with a space.
-///   2. Truncates the value to <paramref name="maxLength"/> characters to prevent log bloat
-///      and limit incidental data exposure.
+///   1. Escapes backslashes before escaping controls, keeping values reversible.
+///   2. Emits visible escapes for CR, LF, tab, null, and every remaining C0/C1 control
+///      character so raw controls cannot forge log entries or corrupt log parsers.
 ///
 /// Usage: wrap every user-supplied string argument passed to ILogger methods.
 /// </summary>
@@ -21,35 +24,65 @@ public static class LogSanitizer
     /// </summary>
     /// <param name="value">The raw value to sanitize.</param>
     /// <param name="maxLength">
-    /// Maximum number of characters to retain. Defaults to 200, which is sufficient for
-    /// identifiers and short descriptors without truncating useful context.
-    /// Use a smaller value (e.g. 48) when logging URLs or free-form text to limit log size.
+    /// Optional maximum number of characters to retain. When omitted, the complete encoded value
+    /// is preserved.
     /// </param>
-    /// <returns>A sanitized, truncated copy of the input, or <see cref="string.Empty"/> if null.</returns>
-    public static string Sanitize(string? value, int maxLength = 200)
+    /// <returns>A sanitized copy of the input, or <see cref="string.Empty"/> if null.</returns>
+    public static string Sanitize(string? value, int? maxLength = null)
     {
         if (value is null)
+        {
             return string.Empty;
+        }
 
-        // Replace control characters that enable log injection
-        var sanitized = value
-            .Replace('\n', ' ')
-            .Replace('\r', ' ')
-            .Replace('\t', ' ')
-            .Replace('\0', ' ');
+        var sanitized = new StringBuilder(value.Length);
 
-        return sanitized.Length > maxLength
-            ? sanitized[..maxLength]
-            : sanitized;
+        foreach (var character in value)
+        {
+            switch (character)
+            {
+                case '\\':
+                    sanitized.Append("\\\\");
+                    break;
+                case '\r':
+                    sanitized.Append("\\r");
+                    break;
+                case '\n':
+                    sanitized.Append("\\n");
+                    break;
+                case '\t':
+                    sanitized.Append("\\t");
+                    break;
+                case '\0':
+                    sanitized.Append("\\0");
+                    break;
+                default:
+                    if (character <= '\u001F' || (character >= '\u007F' && character <= '\u009F'))
+                    {
+                        sanitized.Append("\\u");
+                        sanitized.Append(((int)character).ToString("X4", CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        sanitized.Append(character);
+                    }
+
+                    break;
+            }
+        }
+
+        return maxLength is { } length && sanitized.Length > length
+            ? sanitized.ToString(0, length)
+            : sanitized.ToString();
     }
 
     /// <summary>
     /// Sanitizes any value by converting it to a string before applying standard log sanitization.
     /// </summary>
     /// <param name="value">The raw value to sanitize.</param>
-    /// <param name="maxLength">Maximum number of characters to retain.</param>
-    /// <returns>A sanitized, truncated copy of the input, or <see cref="string.Empty"/> if null.</returns>
-    public static string Sanitize(object? value, int maxLength = 200)
+    /// <param name="maxLength">Optional maximum number of characters to retain.</param>
+    /// <returns>A sanitized copy of the input, or <see cref="string.Empty"/> if null.</returns>
+    public static string Sanitize(object? value, int? maxLength = null)
     {
         return Sanitize(value?.ToString(), maxLength);
     }

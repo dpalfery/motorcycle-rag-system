@@ -10,6 +10,26 @@ Use it only with a local or explicitly approved development database. Supply pas
 
 `Program` is the CLI composition root and wires the CLI-local `SqlDbSetupConnectionFactory` into the provisioner. That factory is the sole production owner of `SqlConnection` construction; preflight, provisioning, and schema operations receive connections through the injected factory. The boundary keeps command behavior unchanged while permitting unit tests to substitute fake connections without a SQL Server.
 
+### Secure SQL transport
+
+`SqlDbSetupConnectionFactory` normalizes every connection string through `SqlConnectionStringBuilder` and forces:
+
+- `Encrypt = Mandatory`
+- `TrustServerCertificate = false`
+
+Certificate-trust bypass is not part of the production factory. The only approved exception is an explicit local negative test that proves insecure transport is rejected.
+
+### Trusted script catalog
+
+`SqlScriptExecutor` executes only the approved catalog scripts:
+
+| Script enum | Canonical relative path |
+| --- | --- |
+| `DbSetupScript.Schema` | `4-Persistence/MotorcycleRAG.Persistence/Sql/schema.sql` |
+| `DbSetupScript.TestData` | `7-Deployment/DbSetup/sql/test-data.sql` |
+
+Candidates are resolved under the configured catalog root with containment checks. Paths that escape the root or contain symbolic links are rejected before a connection is opened. Arbitrary caller-supplied script paths are not accepted. System-wide SQL and logging rules are in [security directives](../system/security.md).
+
 ## Verification
 
 Run the isolated CLI boundary tests with:

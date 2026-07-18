@@ -221,6 +221,52 @@ public class CorrelationServiceTests
     }
 
     [Fact]
+    public void CreateLoggingScope_CyclicDictionaryAndListWithControlKeys_SanitizesKeysAndPreservesGraphIdentity()
+    {
+        const string rootKey = "Client\r\n\u0085";
+        const string nestedKey = "File\0\u001FName";
+        const string rawValue = "client\\name\r\nforged\tentry\0unit\u001Fseparator\u0085next";
+        const string expectedRootKey = "Client\\r\\n\\u0085";
+        const string expectedNestedKey = "File\\0\\u001FName";
+        const string expectedEscapedValue = "client\\\\name\\r\\nforged\\tentry\\0unit\\u001Fseparator\\u0085next";
+        Dictionary<string, object>? capturedScope = null;
+        _mockLogger
+            .Setup(x => x.BeginScope(It.IsAny<Dictionary<string, object>>()))
+            .Callback<Dictionary<string, object>>(scope => capturedScope = scope)
+            .Returns(Mock.Of<IDisposable>());
+
+        var cyclicDictionary = new Dictionary<string, object>
+        {
+            [nestedKey] = rawValue
+        };
+        var cyclicList = new List<object>();
+        cyclicDictionary["Children"] = cyclicList;
+        cyclicList.Add(cyclicDictionary);
+        var additionalProperties = new Dictionary<string, object>
+        {
+            [rootKey] = cyclicDictionary
+        };
+
+        // Act
+        using var scope = _correlationService.CreateLoggingScope(additionalProperties);
+
+        // Assert
+        capturedScope.Should().NotBeNull();
+        capturedScope!.Keys.Should().OnlyContain(key => !key.Any(char.IsControl));
+        var sanitizedDictionary = capturedScope[expectedRootKey]
+            .Should().BeOfType<Dictionary<string, object>>().Subject;
+        sanitizedDictionary.Keys.Should().OnlyContain(key => !key.Any(char.IsControl));
+        sanitizedDictionary[expectedNestedKey].Should().Be(expectedEscapedValue);
+        var sanitizedList = sanitizedDictionary["Children"]
+            .Should().BeOfType<List<object>>().Subject;
+        sanitizedList.Should().ContainSingle().Which.Should().BeSameAs(sanitizedDictionary);
+
+        additionalProperties.Should().ContainKey(rootKey).WhoseValue.Should().BeSameAs(cyclicDictionary);
+        cyclicDictionary.Should().ContainKey(nestedKey).WhoseValue.Should().Be(rawValue);
+        cyclicList.Should().ContainSingle().Which.Should().BeSameAs(cyclicDictionary);
+    }
+
+    [Fact]
     public void GeneratedCorrelationIds_AreUnique()
     {
         // Arrange
@@ -425,6 +471,7 @@ public class CorrelationServiceTests
         Assert.StartsWith("corr-", id);
         Assert.Matches(@"^corr-\d{17}-[a-f0-9]{12}$", id);
     }
+
 }
 
 /// <summary>
@@ -443,14 +490,27 @@ public class LoggerExtensionsTests
     }
 
     [Fact]
-    public void LogErrorWithCorrelation_ShouldNotThrow()
+    public void LogErrorWithCorrelation_LogsSanitizedArgumentsAndCorrelationScope()
     {
+        // Arrange
+        var logger = new CapturingLogger<CorrelationService>();
         var ex = new InvalidOperationException("test error");
+        const string correlationId = "corr\\error\r\n42";
+        const string detail = "Something\\broke\tbadly";
 
-        var act = () => _mockLogger.Object.LogErrorWithCorrelation(
-            ex, "Error occurred: {Detail}", "corr-err-001", "Something broke");
+        // Act
+        logger.LogErrorWithCorrelation(ex, "Error occurred: {Detail} {Attempt}", correlationId, detail, 3);
 
-        act.Should().NotThrow();
+        // Assert
+        var entry = logger.Entries.Should().ContainSingle().Subject;
+        entry.Level.Should().Be(LogLevel.Error);
+        entry.Exception.Should().BeSameAs(ex);
+        entry.Properties["Detail"].Should().Be("Something\\\\broke\\tbadly");
+        entry.Properties["Attempt"].Should().Be(3);
+        entry.Properties["{OriginalFormat}"].Should().Be("Error occurred: {Detail} {Attempt}");
+        AssertContainsNoRawControlCharacters(entry.Message);
+        logger.Scopes.Should().ContainSingle().Which["CorrelationId"]
+            .Should().Be("corr\\\\error\\r\\n42");
     }
 
     [Fact]
@@ -465,12 +525,26 @@ public class LoggerExtensionsTests
     }
 
     [Fact]
-    public void LogWarningWithCorrelation_ShouldNotThrow()
+    public void LogWarningWithCorrelation_LogsSanitizedArgumentsAndCorrelationScope()
     {
-        var act = () => _mockLogger.Object.LogWarningWithCorrelation(
-            "Warning: {Detail}", "corr-warn-001", "Low disk space");
+        // Arrange
+        var logger = new CapturingLogger<CorrelationService>();
+        const string correlationId = "corr\\warning\r\n42";
+        const string detail = "Low\\disk\tspace";
 
-        act.Should().NotThrow();
+        // Act
+        logger.LogWarningWithCorrelation("Warning: {Detail} {RetryCount}", correlationId, detail, 2);
+
+        // Assert
+        var entry = logger.Entries.Should().ContainSingle().Subject;
+        entry.Level.Should().Be(LogLevel.Warning);
+        entry.Exception.Should().BeNull();
+        entry.Properties["Detail"].Should().Be("Low\\\\disk\\tspace");
+        entry.Properties["RetryCount"].Should().Be(2);
+        entry.Properties["{OriginalFormat}"].Should().Be("Warning: {Detail} {RetryCount}");
+        AssertContainsNoRawControlCharacters(entry.Message);
+        logger.Scopes.Should().ContainSingle().Which["CorrelationId"]
+            .Should().Be("corr\\\\warning\\r\\n42");
     }
 
     [Fact]
@@ -485,12 +559,44 @@ public class LoggerExtensionsTests
     }
 
     [Fact]
-    public void LogInformationWithCorrelation_ShouldNotThrow()
+    public void LogInformationWithCorrelation_ControlCharactersInTemplate_AreEscapedInOriginalFormatAndRenderedMessage()
     {
-        var act = () => _mockLogger.Object.LogInformationWithCorrelation(
-            "Info: {Detail}", "corr-info-001", "Process completed");
+        // Arrange
+        var logger = new CapturingLogger<CorrelationService>();
+        const string correlationId = "corr\\information\r\n\u008542";
+        const string messageTemplate = "Info: {Detail}\r\n\u0085";
+        const string detail = "Process completed";
 
-        act.Should().NotThrow();
+        // Act
+        logger.LogInformationWithCorrelation(messageTemplate, correlationId, detail);
+
+        // Assert
+        var entry = logger.Entries.Should().ContainSingle().Subject;
+        entry.Level.Should().Be(LogLevel.Information);
+        entry.Exception.Should().BeNull();
+        entry.Properties["Detail"].Should().Be(detail);
+        var originalFormat = entry.Properties["{OriginalFormat}"].Should().BeOfType<string>().Subject;
+        originalFormat.Should().Be("Info: {Detail}\\r\\n\\u0085");
+        AssertContainsNoRawControlCharacters(originalFormat);
+        AssertContainsNoRawControlCharacters(entry.Message);
+        logger.Scopes.Should().ContainSingle().Which["CorrelationId"]
+            .Should().Be("corr\\\\information\\r\\n\\u008542");
+    }
+
+    [Fact]
+    public void LogInformationWithCorrelation_ControlBearingStruct_IsEscapedInStructuredAndRenderedOutput()
+    {
+        // Arrange
+        var logger = new CapturingLogger<CorrelationService>();
+        var detail = new ControlBearingValue("Process\\completed\tcleanly\0\u001F\u0085");
+
+        // Act
+        logger.LogInformationWithCorrelation("Info: {Detail}", "corr-information", detail);
+
+        // Assert
+        var entry = logger.Entries.Should().ContainSingle().Subject;
+        entry.Properties["Detail"].Should().Be("Process\\\\completed\\tcleanly\\0\\u001F\\u0085");
+        AssertContainsNoRawControlCharacters(entry.Message);
     }
 
     [Fact]
@@ -503,4 +609,53 @@ public class LoggerExtensionsTests
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("logger");
     }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<Dictionary<string, object?>> Scopes { get; } = [];
+        public List<CapturedLogEntry> Entries { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull
+        {
+            var scope = state.Should().BeOfType<Dictionary<string, object>>().Which;
+            Scopes.Add(scope.ToDictionary(pair => pair.Key, pair => (object?)pair.Value));
+            return Mock.Of<IDisposable>();
+        }
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var properties = state.Should().BeAssignableTo<IEnumerable<KeyValuePair<string, object?>>>()
+                .Which
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            Entries.Add(new CapturedLogEntry(
+                logLevel,
+                exception,
+                formatter(state, exception),
+                properties));
+        }
+    }
+
+    private static void AssertContainsNoRawControlCharacters(string value)
+    {
+        value.Any(char.IsControl).Should().BeFalse();
+    }
+
+    private readonly record struct ControlBearingValue(string Value)
+    {
+        public override string ToString() => Value;
+    }
+
+    private sealed record CapturedLogEntry(
+        LogLevel Level,
+        Exception? Exception,
+        string Message,
+        IReadOnlyDictionary<string, object?> Properties);
 }

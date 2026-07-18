@@ -27,6 +27,9 @@ MotorcycleRAG Admin Desktop enables authorized operators to run the local knowle
 2.2. WHEN the processor working directory is unset and automatic resolution is enabled THEN the system SHALL search for a valid repository or packaged processor layout.
 2.3. WHEN the processor is unavailable, misconfigured, or not accepting work THEN the system SHALL display its readiness state and prevent local ingestion submission.
 2.4. WHEN an operator changes settings passed at processor startup THEN the system SHALL require the processor to be restarted before relying on the changed values.
+2.5. WHEN the host starts the local processor THEN the system SHALL generate a per-launch ephemeral CA and leaf certificate for `localhost`/`127.0.0.1`, SHALL launch Uvicorn with TLS on `127.0.0.1`, and SHALL NOT install the CA in the operating-system trust store.
+2.6. WHEN the host checks readiness, proxies a processor request, or requests shutdown THEN the system SHALL use HTTPS with hostname validation against the generated CA and SHALL attach the per-launch bearer token.
+2.7. WHEN the processor stops or a start/stop path fails THEN the system SHALL remove private certificate and key material from the temporary directory, including poisoned-lock recovery paths that still clean TLS material.
 
 ### Requirement 3: Local-first PDF and CSV ingestion
 

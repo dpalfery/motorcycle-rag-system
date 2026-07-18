@@ -96,6 +96,106 @@ def test_resolve_local_csv_path_rejects_non_csv_file(
     assert "Only .csv files" in exc_info.value.detail
 
 
+def test_resolve_local_csv_path_rejects_supported_file_with_wrong_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    pdf_path = input_dir / "source.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n")
+    monkeypatch.setenv(LOCAL_PROCESSOR_INPUT_DIR_ENV, str(input_dir))
+
+    with pytest.raises(HTTPException) as exc_info:
+        resolve_local_csv_path(str(pdf_path))
+
+    assert exc_info.value.status_code == 400
+    assert "Only .csv files" in exc_info.value.detail
+
+
+def test_resolve_local_csv_path_rejects_directory_under_configured_input_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    directory_path = input_dir / "source.csv"
+    directory_path.mkdir()
+    monkeypatch.setenv(LOCAL_PROCESSOR_INPUT_DIR_ENV, str(input_dir))
+
+    with pytest.raises(HTTPException) as exc_info:
+        resolve_local_csv_path(str(directory_path))
+
+    assert exc_info.value.status_code == 400
+    assert "existing file" in exc_info.value.detail
+
+
+def test_resolve_local_csv_path_rejects_broken_symlink_during_strict_canonical_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    broken_link = input_dir / "source.csv"
+    broken_link.symlink_to(input_dir / "missing.csv")
+    monkeypatch.setenv(LOCAL_PROCESSOR_INPUT_DIR_ENV, str(input_dir))
+
+    with pytest.raises(HTTPException) as exc_info:
+        resolve_local_csv_path(str(broken_link))
+
+    assert exc_info.value.status_code == 400
+    assert "invalid path components" in exc_info.value.detail
+
+
+def test_resolve_local_csv_path_rejects_traversal_outside_configured_input_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    outside_path = tmp_path / "outside.csv"
+    outside_path.write_text("make,model\nHonda,CB500\n", encoding="utf-8")
+    monkeypatch.setenv(LOCAL_PROCESSOR_INPUT_DIR_ENV, str(input_dir))
+
+    with pytest.raises(HTTPException) as exc_info:
+        resolve_local_csv_path(str(input_dir / ".." / outside_path.name))
+
+    assert exc_info.value.status_code == 400
+    assert "inside the configured input directory" in exc_info.value.detail
+
+
+def test_resolve_local_csv_path_rejects_symlink_to_file_outside_configured_input_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    outside_path = tmp_path / "outside.csv"
+    outside_path.write_text("make,model\nHonda,CB500\n", encoding="utf-8")
+    symlink_path = input_dir / "linked.csv"
+    symlink_path.symlink_to(outside_path)
+    monkeypatch.setenv(LOCAL_PROCESSOR_INPUT_DIR_ENV, str(input_dir))
+
+    with pytest.raises(HTTPException) as exc_info:
+        resolve_local_csv_path(str(symlink_path))
+
+    assert exc_info.value.status_code == 400
+    assert "inside the configured input directory" in exc_info.value.detail
+
+
+def test_resolve_local_csv_path_rejects_sibling_with_configured_input_dir_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    prefix_collision_dir = tmp_path / "inputs-escape"
+    prefix_collision_dir.mkdir()
+    outside_path = prefix_collision_dir / "outside.csv"
+    outside_path.write_text("make,model\nHonda,CB500\n", encoding="utf-8")
+    monkeypatch.setenv(LOCAL_PROCESSOR_INPUT_DIR_ENV, str(input_dir))
+
+    with pytest.raises(HTTPException) as exc_info:
+        resolve_local_csv_path(str(outside_path))
+
+    assert exc_info.value.status_code == 400
+    assert "inside the configured input directory" in exc_info.value.detail
+
+
 def test_resolve_local_pdf_path_allows_file_under_configured_input_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

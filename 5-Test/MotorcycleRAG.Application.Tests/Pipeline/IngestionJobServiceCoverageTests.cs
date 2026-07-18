@@ -69,7 +69,7 @@ public sealed class IngestionJobServiceCoverageTests {
         _graphEntityIngestionService.Setup(g => g.IngestAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
     }
 
-    private IngestionJobService CreateSut() => new(
+    private IngestionJobService CreateSut(ILogger<IngestionJobService>? logger = null) => new(
         _repository.Object,
         _blobStorage.Object,
         _artifactRepository.Object,
@@ -80,7 +80,7 @@ public sealed class IngestionJobServiceCoverageTests {
         _graphIngestionChannel,
         Options.Create(new BlobStorageOptions { RawUploadsContainer = "raw-uploads" }),
         Options.Create(new IngestionOptions { MaxInputBytes = 2_000_000_000L }),
-        _logger.Object);
+        logger ?? _logger.Object);
 
     private static IngestionJob MakeJob(
         Guid ingestionJobId,
@@ -256,6 +256,68 @@ public sealed class IngestionJobServiceCoverageTests {
         job.CurrentStage.Should().Be("failed");
         _repository.Verify(r => r.UpdateAsync(job, CancellationToken.None), Times.Once);
     }
+
+    [Fact]
+    public async Task FailJobAsync_ReasonContainsControlCharacters_LogsReversibleStructuredField() {
+        const string attackerReason = "processor\\name\r\nforged\tentry";
+        const string expectedEscapedReason = "processor\\\\name\\r\\nforged\\tentry";
+        var job = IngestionJob.Create(
+            IngestionJobType.PDFManual,
+            "upload-fail-log-encoding",
+            createdBySubject: null,
+            initialStatus: IngestionJobStatus.Processing);
+        var logger = new CapturingLogger<IngestionJobService>();
+        _repository.Setup(r => r.GetByIdAsync(job.IngestionJobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+        var sut = CreateSut(logger);
+
+        await sut.FailJobAsync(job.IngestionJobId, attackerReason, TestUserId, CancellationToken.None);
+
+        var entry = logger.Entries.Should().ContainSingle().Which;
+        entry.LogLevel.Should().Be(LogLevel.Information);
+        entry.Properties.Should().ContainKeys("JobId", "Reason", "{OriginalFormat}");
+        entry.Properties["{OriginalFormat}"].Should().Be("Ingestion job {JobId} marked as failed: {Reason}");
+        entry.Properties["Reason"].Should().Be(expectedEscapedReason);
+        entry.Message.Should().NotContain("\r")
+            .And.NotContain("\n")
+            .And.NotContain("\t");
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T> {
+        public List<CapturedLogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NoopScope.Instance;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) {
+            var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+            if (state is IReadOnlyList<KeyValuePair<string, object?>> stateList) {
+                foreach (var pair in stateList) {
+                    properties[pair.Key] = pair.Value;
+                }
+            }
+
+            Entries.Add(new CapturedLogEntry(logLevel, formatter(state, exception), properties));
+        }
+
+        private sealed class NoopScope : IDisposable {
+            public static readonly NoopScope Instance = new();
+
+            public void Dispose() {
+            }
+        }
+    }
+
+    private sealed record CapturedLogEntry(
+        LogLevel LogLevel,
+        string Message,
+        IReadOnlyDictionary<string, object?> Properties);
 
     [Fact]
     public async Task FailJobAsync_JobNotFound_ThrowsInvalidOperationException() {
@@ -558,6 +620,34 @@ public sealed class IngestionJobServiceCoverageTests {
         result.Status.Should().Be(IngestionJobStatus.Processing.ToString());
         result.CurrentStage.Should().Be("indexing");
         job.CurrentStage.Should().Be("indexing");
+    }
+
+    [Fact]
+    public async Task TransitionStageAsync_ControlCharactersInStageAndFailureReason_LogsReversibleStructuredFields() {
+        const string attackerStage = "chunk\\name\r\nforged\tentry";
+        const string expectedEscapedStage = "chunk\\\\name\\r\\nforged\\tentry";
+        const string attackerFailureReason = "embedding\\failure\r\nforged\tentry";
+        const string expectedEscapedFailureReason = "embedding\\\\failure\\r\\nforged\\tentry";
+        var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Processing, currentStage: "queued");
+        var logger = new CapturingLogger<IngestionJobService>();
+        _repository.Setup(r => r.GetByIdAsync(job.IngestionJobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+        var sut = CreateSut(logger);
+
+        await sut.TransitionStageAsync(
+            job.IngestionJobId,
+            new IngestionJobStageRequest { Stage = attackerStage, FailureReason = attackerFailureReason },
+            CancellationToken.None);
+
+        var entry = logger.Entries.Should().ContainSingle().Which;
+        entry.LogLevel.Should().Be(LogLevel.Information);
+        entry.Properties.Should().ContainKeys("JobId", "Stage", "ChunksProcessed", "TotalChunks", "FailureReason", "{OriginalFormat}");
+        entry.Properties["{OriginalFormat}"].Should().Be(
+            "Ingestion job {JobId} stage transitioned to {Stage} (chunks={ChunksProcessed}/{TotalChunks}, failureReason={FailureReason}).");
+        entry.Properties["Stage"].Should().Be(expectedEscapedStage);
+        entry.Properties["FailureReason"].Should().Be(expectedEscapedFailureReason);
+        entry.Message.Should().NotContain("\r")
+            .And.NotContain("\n")
+            .And.NotContain("\t");
     }
 
     [Fact]

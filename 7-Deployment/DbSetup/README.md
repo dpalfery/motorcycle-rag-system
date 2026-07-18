@@ -6,7 +6,7 @@ The Motorcycle RAG Database Setup CLI is a .NET 10 console application that auto
 
 ## Internal Boundary
 
-`Program` is the CLI composition root. It creates the CLI-local `SqlDbSetupConnectionFactory`, the only production component that constructs `SqlConnection`; the provisioner, preflight checks, and schema runner receive `DbConnection` instances through that factory. This keeps SQL connection ownership explicit and allows the test suite to use fake connections without contacting a server. See the [database setup reference](../../6-Docs/DevOps/database-setup.md) for operational scope.
+`Program` is the CLI composition root. It creates the CLI-local `SqlDbSetupConnectionFactory`, the only production component that constructs `SqlConnection`; the provisioner, preflight checks, and schema runner receive `DbConnection` instances through that factory. This keeps SQL connection ownership explicit and allows the test suite to use fake connections without contacting a server. The factory enforces encrypted SQL transport (`Encrypt=Mandatory`, `TrustServerCertificate=false`). `SqlScriptExecutor` runs only the approved catalog scripts (`schema.sql`, `test-data.sql`) after canonical containment and symlink checks. See the [database setup reference](../../6-Docs/DevOps/database-setup.md) for operational scope and [security directives](../../6-Docs/system/security.md) for the system rules.
 
 ## Features
 

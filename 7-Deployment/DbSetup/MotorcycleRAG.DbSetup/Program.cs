@@ -33,7 +33,11 @@ try
     var connectionFactory = new SqlDbSetupConnectionFactory();
     var provisioner = new SqlServerProvisioner(loggerFactory.CreateSecureLogger<SqlServerProvisioner>(), connectionFactory);
     var preflightChecker = new PreflightChecker(loggerFactory.CreateSecureLogger<PreflightChecker>(), connectionFactory);
-    var scriptExecutor = new SqlScriptExecutor(loggerFactory.CreateSecureLogger<SqlScriptExecutor>(), connectionFactory);
+    var catalogRoot = FindCatalogRootFromBaseDirectory();
+    var scriptExecutor = new SqlScriptExecutor(
+        loggerFactory.CreateSecureLogger<SqlScriptExecutor>(),
+        connectionFactory,
+        catalogRoot);
 
     // Prompt for missing values in interactive mode
     if (!parser.NonInteractive)
@@ -128,15 +132,10 @@ try
 
     // Execute schema.sql
     logger.LogInformation("Deploying database schema...");
-    // Find solution root by looking for .git or .sln file
-    var currentDir = Directory.GetCurrentDirectory();
-    var solutionRoot = FindSolutionRoot(currentDir);
-    var schemaPath = Path.Combine(solutionRoot, "4-Persistence", "MotorcycleRAG.Persistence", "Sql", "schema.sql");
-
     var dbConnectionString = $"Server={parser.Server},{parser.Port};Database={parser.DatabaseName};User Id=sa;Password={parser.SaPassword};TrustServerCertificate=true;";
     SensitiveLogRedactor.RegisterSecret(dbConnectionString);
     
-    var schemaSuccess = await scriptExecutor.ExecuteScriptFileAsync(dbConnectionString, schemaPath, CancellationToken.None);
+    var schemaSuccess = await scriptExecutor.ExecuteScriptAsync(dbConnectionString, DbSetupScript.Schema, CancellationToken.None);
     if (!schemaSuccess)
     {
         logger.LogError("Failed to deploy database schema");
@@ -147,9 +146,7 @@ try
     if (parser.SeedTestData)
     {
         logger.LogInformation("Seeding test data...");
-        var testDataPath = Path.Combine(solutionRoot, "7-Deployment", "DbSetup", "sql", "test-data.sql");
-
-        var testDataSuccess = await scriptExecutor.ExecuteScriptFileAsync(dbConnectionString, testDataPath, CancellationToken.None);
+        var testDataSuccess = await scriptExecutor.ExecuteScriptAsync(dbConnectionString, DbSetupScript.TestData, CancellationToken.None);
         if (!testDataSuccess)
         {
             logger.LogWarning("Failed to seed test data (continuing anyway)");
@@ -272,18 +269,30 @@ catch (Exception ex)
     Environment.Exit(1);
 }
 
-static string FindSolutionRoot(string startPath)
+static string FindCatalogRootFromBaseDirectory()
 {
-    var currentDir = new DirectoryInfo(startPath);
-    while (currentDir != null)
+    for (var currentDirectory = new DirectoryInfo(AppContext.BaseDirectory);
+         currentDirectory is not null;
+         currentDirectory = currentDirectory.Parent)
     {
-        // Look for .git directory or .sln file
-        if (Directory.Exists(Path.Combine(currentDir.FullName, ".git")) ||
-            currentDir.GetFiles("*.sln").Length > 0)
+        var schemaPath = Path.Combine(
+            currentDirectory.FullName,
+            "4-Persistence",
+            "MotorcycleRAG.Persistence",
+            "Sql",
+            "schema.sql");
+        var testDataPath = Path.Combine(
+            currentDirectory.FullName,
+            "7-Deployment",
+            "DbSetup",
+            "sql",
+            "test-data.sql");
+
+        if (File.Exists(schemaPath) && File.Exists(testDataPath))
         {
-            return currentDir.FullName;
+            return currentDirectory.FullName;
         }
-        currentDir = currentDir.Parent;
     }
-    throw new InvalidOperationException("Could not find solution root (no .git or .sln found)");
+
+    throw new InvalidOperationException("Could not locate the SQL setup script catalog from AppContext.BaseDirectory.");
 }

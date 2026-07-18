@@ -113,7 +113,9 @@ class TestExtract:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         extractor = GraphExtractor()
-        result = await extractor.extract("Replace brake pads", source_document_id="doc-123")
+        result = await extractor.extract(
+            "Replace brake pads", source_document_id="doc-123"
+        )
 
         assert len(result) == 1
         assert result[0]["nodes"][0]["sourceDocumentId"] == "doc-123"
@@ -483,7 +485,9 @@ class TestQueryLlmWithRetry:
             if call_count <= 2:
                 import openai
 
-                raise openai.APITimeoutError("timed out")  # pyright: ignore[reportArgumentType]
+                raise openai.APITimeoutError(
+                    "timed out"
+                )  # pyright: ignore[reportArgumentType]
             return mock_response
 
         mock_client.chat.completions.create = AsyncMock(side_effect=side_effect)
@@ -514,7 +518,9 @@ class TestQueryLlmWithRetry:
             if call_count <= 2:
                 import openai
 
-                raise openai.APITimeoutError("timed out")  # pyright: ignore[reportArgumentType]
+                raise openai.APITimeoutError(
+                    "timed out"
+                )  # pyright: ignore[reportArgumentType]
             return mock_response
 
         mock_client.chat.completions.create = AsyncMock(side_effect=side_effect)
@@ -538,7 +544,9 @@ class TestQueryLlmWithRetry:
         async def always_timeout(*args, **kwargs):
             import openai
 
-            raise openai.APITimeoutError("always times out")  # pyright: ignore[reportArgumentType]
+            raise openai.APITimeoutError(
+                "always times out"
+            )  # pyright: ignore[reportArgumentType]
 
         mock_client.chat.completions.create = AsyncMock(side_effect=always_timeout)
 
@@ -628,7 +636,9 @@ class TestExtractBatching:
     """Tests verifying extract() orchestrates batching, merging, and retry."""
 
     @pytest.mark.asyncio
-    async def test_extract_with_short_text_returns_single_merged_result(self, monkeypatch):
+    async def test_extract_with_short_text_returns_single_merged_result(
+        self, monkeypatch
+    ):
         from extraction.graph_extractor import GraphExtractor
 
         # Monkeypatch _query_llm_with_retry to return a known result
@@ -702,7 +712,9 @@ class TestExtractBatching:
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_extract_partial_batch_failure_returns_remaining_results(self, monkeypatch):
+    async def test_extract_partial_batch_failure_returns_remaining_results(
+        self, monkeypatch
+    ):
         from extraction.graph_extractor import GraphExtractor
 
         call_count = 0
@@ -851,7 +863,9 @@ class TestCaplogTelemetry:
         async def always_fails(*args, **kwargs):
             import openai
 
-            raise openai.APITimeoutError("always fails")  # pyright: ignore[reportArgumentType]
+            raise openai.APITimeoutError(
+                "always fails"
+            )  # pyright: ignore[reportArgumentType]
 
         mock_client.chat.completions.create = AsyncMock(side_effect=always_fails)
 
@@ -868,3 +882,41 @@ class TestCaplogTelemetry:
         # openai.APITimeoutError.__str__ returns "Request timed out." regardless
         # of the constructor argument
         assert "Request timed out" in error_msg
+
+    @pytest.mark.asyncio
+    async def test_info_log_when_job_id_contains_controls_preserves_reversible_value(
+        self, monkeypatch, caplog
+    ):
+        from extraction.graph_extractor import _query_llm_with_retry
+
+        monkeypatch.setattr("asyncio.sleep", AsyncMock())
+        mock_client = MagicMock()
+        mock_choice = SimpleNamespace(
+            message=SimpleNamespace(content='{"nodes":[],"edges":[]}')
+        )
+        mock_client.chat.completions.create = AsyncMock(
+            return_value=SimpleNamespace(choices=[mock_choice])
+        )
+        unsafe_job_id = "external\\path\r\n\t\0\x01\x1f\x7f\x85\x9fvalue"
+        escaped_job_id = (
+            "external\\\\path\\r\\n\\t\\0\\u0001\\u001F\\u007F\\u0085\\u009Fvalue"
+        )
+        caplog.set_level(logging.INFO, logger="extraction.graph_extractor")
+
+        await _query_llm_with_retry(
+            mock_client, "test-model", "safe prompt", 0, 1, unsafe_job_id
+        )
+
+        target_records = [
+            item for item in caplog.records if item.name == "extraction.graph_extractor"
+        ]
+        target_messages = [item.getMessage() for item in target_records]
+
+        assert target_messages
+        assert any(escaped_job_id in message for message in target_messages)
+        assert all(
+            not any(
+                character in message for character in "\r\n\t\0\x01\x1f\x7f\x85\x9f"
+            )
+            for message in target_messages
+        )

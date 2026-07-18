@@ -18,7 +18,6 @@ namespace MotorcycleRAG.API.Middleware;
 public sealed class RequestPipelineTimingMiddleware
 {
     private const int SlowRequestThresholdMs = 1000;
-    private const int PathMaxLength = 200;
 
     private readonly RequestDelegate _next;
     private readonly ILogger<RequestPipelineTimingMiddleware> _logger;
@@ -56,14 +55,15 @@ public sealed class RequestPipelineTimingMiddleware
             stopwatch.Stop();
             var elapsedMs = stopwatch.ElapsedMilliseconds;
             var statusCode = context.Response.StatusCode;
-            var sanitizedPath = LogSanitizer.Sanitize(path, PathMaxLength);
+            var sanitizedMethod = LogSanitizer.Sanitize(context.Request.Method);
+            var sanitizedPath = LogSanitizer.Sanitize(path);
 
             // Log slow requests (> 1 second) at Warning level
             if (elapsedMs > SlowRequestThresholdMs)
             {
                 _logger.LogWarning(
                     "Slow request: {Method} {Path} completed in {ElapsedMs}ms (Status={StatusCode})",
-                    context.Request.Method,
+                    sanitizedMethod,
                     sanitizedPath,
                     elapsedMs,
                     statusCode);
@@ -72,7 +72,7 @@ public sealed class RequestPipelineTimingMiddleware
             {
                 _logger.LogDebug(
                     "Request: {Method} {Path} completed in {ElapsedMs}ms (Status={StatusCode})",
-                    context.Request.Method,
+                    sanitizedMethod,
                     sanitizedPath,
                     elapsedMs,
                     statusCode);

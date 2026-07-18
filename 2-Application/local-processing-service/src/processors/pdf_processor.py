@@ -24,12 +24,19 @@ from api.api_client import ApiClient
 from embeddings.tokenizer_provider import get_pdf_chunker_tokenizer
 from extraction.graph_extractor import GraphExtractor
 from extraction.metadata_extractor import MetadataExtractor
+from security.log_sanitizer import sanitize_log_value
 from storage.blob_writer import BlobWriter
 
 logger = logging.getLogger(__name__)
 # "awaiting-metadata" is a non-terminal pause state (job paused for manual
 # metadata entry) and must be preserved by clear_terminal_jobs().
-_ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress", "awaiting-metadata"}
+_ACTIVE_JOB_STATUSES = {
+    "queued",
+    "processing",
+    "running",
+    "inprogress",
+    "awaiting-metadata",
+}
 
 PDF_CHUNKER_MAX_TOKENS = int(os.getenv("PDF_CHUNKER_MAX_TOKENS", "512"))
 
@@ -97,7 +104,11 @@ def _format_safe_failure(exc: Exception) -> dict[str, str]:
         )
     else:
         detail = str(exc).strip()
-        message = f"PDF processing failed: {detail[:300]}" if detail else f"PDF processing failed: {type(exc).__name__}"
+        message = (
+            f"PDF processing failed: {detail[:300]}"
+            if detail
+            else f"PDF processing failed: {type(exc).__name__}"
+        )
 
     return {"status": "failed", "message": message, "error": message}
 
@@ -216,7 +227,7 @@ class PDFProcessor:
             job.pop("extracted_metadata", None)
             logger.info(
                 "component=pdf_processor job_id=%s message=resuming after manual metadata",
-                job_id,
+                sanitize_log_value(job_id),
             )
         else:
             _jobs[job_id] = _make_job(job_id, upload_id, document_type)
@@ -224,10 +235,10 @@ class PDFProcessor:
         logger.info(
             "component=pdf_processor job_id=%s upload_id=%s document_type=%s blob_container=%s "
             "has_source_access_token=%s has_local_file=%s resume=%s message=job queued",
-            job_id,
-            upload_id,
-            document_type,
-            blob_container,
+            sanitize_log_value(job_id),
+            sanitize_log_value(upload_id),
+            sanitize_log_value(document_type),
+            sanitize_log_value(blob_container),
             bool(source_access_token),
             bool(local_file_path),
             is_resume,
@@ -289,7 +300,10 @@ class PDFProcessor:
             task.cancel()
 
         await self._report_cancelled(job_id)
-        logger.info("component=pdf_processor job_id=%s message=job cancelled", job_id)
+        logger.info(
+            "component=pdf_processor job_id=%s message=job cancelled",
+            sanitize_log_value(job_id),
+        )
         return _jobs.get(job_id)
 
     def _mark_cancelled(self, job_id: str) -> None:
@@ -297,13 +311,15 @@ class PDFProcessor:
         if not job:
             return
         now = datetime.now(timezone.utc).isoformat()
-        job.update({
-            "status": "cancelled",
-            "stage": "cancelled",
-            "message": "Cancelled by user",
-            "progress": job.get("progress", 0.0),
-            "updated_at": now,
-        })
+        job.update(
+            {
+                "status": "cancelled",
+                "stage": "cancelled",
+                "message": "Cancelled by user",
+                "progress": job.get("progress", 0.0),
+                "updated_at": now,
+            }
+        )
         self._append_stage_history(job, "cancelled", "Cancelled by user", now)
 
     def _raise_if_cancelled(self, job_id: str) -> None:
@@ -340,11 +356,12 @@ class PDFProcessor:
             )
         except TypeError:
             pass
-        except Exception:
+        except Exception as exc:
             logger.warning(
-                "component=pdf_processor job_id=%s message=failed to report terminal processor failure",
-                job_id,
-                exc_info=True,
+                "component=pdf_processor job_id=%s "
+                "message=failed to report terminal processor failure error=%s",
+                sanitize_log_value(job_id),
+                sanitize_log_value(str(exc)),
             )
 
     async def _report_paused(self, job_id: str, failure_reason: str) -> None:
@@ -362,11 +379,12 @@ class PDFProcessor:
             )
         except TypeError:
             pass
-        except Exception:
+        except Exception as exc:
             logger.warning(
-                "component=pdf_processor job_id=%s message=failed to report needs-manual-metadata",
-                job_id,
-                exc_info=True,
+                "component=pdf_processor job_id=%s "
+                "message=failed to report needs-manual-metadata error=%s",
+                sanitize_log_value(job_id),
+                sanitize_log_value(str(exc)),
             )
 
     def _mark_paused_for_metadata(
@@ -375,15 +393,17 @@ class PDFProcessor:
         """Mark a job paused awaiting manual metadata (no API report)."""
         job = _jobs[job_id]
         now = datetime.now(timezone.utc).isoformat()
-        job.update({
-            "status": "awaiting-metadata",
-            "stage": "needs-manual-metadata",
-            "message": message,
-            "progress": 0.10,
-            "paused_for_metadata": True,
-            "extracted_metadata": extracted,
-            "updated_at": now,
-        })
+        job.update(
+            {
+                "status": "awaiting-metadata",
+                "stage": "needs-manual-metadata",
+                "message": message,
+                "progress": 0.10,
+                "paused_for_metadata": True,
+                "extracted_metadata": extracted,
+                "updated_at": now,
+            }
+        )
         self._append_stage_history(job, "needs-manual-metadata", message, now)
 
     def _extract_page_texts(self, document: Any) -> list[str]:
@@ -416,23 +436,32 @@ class PDFProcessor:
         job = _jobs[job_id]
         now = datetime.now(timezone.utc).isoformat()
         failure = error or message
-        job.update({
-            "status": "failed",
-            "stage": "failed",
-            "message": message,
-            "error": failure,
-            "progress": job.get("progress", 0.0),
-            "updated_at": now,
-        })
+        job.update(
+            {
+                "status": "failed",
+                "stage": "failed",
+                "message": message,
+                "error": failure,
+                "progress": job.get("progress", 0.0),
+                "updated_at": now,
+            }
+        )
         self._append_stage_history(job, "failed", message, now)
 
-    def _set_stage(self, job_id: str, stage: str, message: str, progress: float, **extra) -> None:
+    def _set_stage(
+        self, job_id: str, stage: str, message: str, progress: float, **extra
+    ) -> None:
         # Log previous stage duration on stage transition
         if self._current_stage is not None and self._current_stage != stage:
-            elapsed_ms = int((time.perf_counter() - self._stage_timers.get(self._current_stage, 0)) * 1000)
+            elapsed_ms = int(
+                (time.perf_counter() - self._stage_timers.get(self._current_stage, 0))
+                * 1000
+            )
             logger.info(
                 "component=pdf_processor job_id=%s stage=%s elapsed_ms=%d",
-                job_id, self._current_stage, elapsed_ms,
+                sanitize_log_value(job_id),
+                sanitize_log_value(self._current_stage),
+                elapsed_ms,
             )
 
         # Record new stage start time
@@ -446,14 +475,16 @@ class PDFProcessor:
         except ValueError:
             stage_index = job.get("stage_index", 0)
         now = datetime.now(timezone.utc).isoformat()
-        job.update({
-            "stage": stage,
-            "stage_index": stage_index,
-            "message": message,
-            "progress": progress,
-            "updated_at": now,
-            **extra,
-        })
+        job.update(
+            {
+                "stage": stage,
+                "stage_index": stage_index,
+                "message": message,
+                "progress": progress,
+                "updated_at": now,
+                **extra,
+            }
+        )
         self._append_stage_history(job, stage, message, now)
         if self._api_client.is_configured():
             try:
@@ -469,26 +500,32 @@ class PDFProcessor:
                 pass  # mock client in tests
 
     @staticmethod
-    def _append_stage_history(job: dict[str, Any], stage: str, message: str, set_at: str) -> None:
+    def _append_stage_history(
+        job: dict[str, Any], stage: str, message: str, set_at: str
+    ) -> None:
         history = job.setdefault("stage_history", [])
         if history and history[-1].get("stage") == stage:
-            history[-1].update({
+            history[-1].update(
+                {
+                    "message": message,
+                    "progress": job.get("progress", 0.0),
+                    "chunks_processed": job.get("chunks_processed", 0),
+                    "total_chunks": job.get("total_chunks", 0),
+                    "set_at": set_at,
+                }
+            )
+            return
+
+        history.append(
+            {
+                "stage": stage,
                 "message": message,
                 "progress": job.get("progress", 0.0),
                 "chunks_processed": job.get("chunks_processed", 0),
                 "total_chunks": job.get("total_chunks", 0),
                 "set_at": set_at,
-            })
-            return
-
-        history.append({
-            "stage": stage,
-            "message": message,
-            "progress": job.get("progress", 0.0),
-            "chunks_processed": job.get("chunks_processed", 0),
-            "total_chunks": job.get("total_chunks", 0),
-            "set_at": set_at,
-        })
+            }
+        )
 
     async def _process_pdf(
         self,
@@ -512,7 +549,9 @@ class PDFProcessor:
         try:
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s document_type=%s message=job started",
-                job_id, upload_id, document_type,
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                sanitize_log_value(document_type),
             )
 
             # ── Stage 0: Copying ──────────────────────────────
@@ -535,23 +574,28 @@ class PDFProcessor:
             self._raise_if_cancelled(job_id)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s message=Docling conversion completed",
-                job_id, upload_id,
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
             )
 
             # ── Stage 2: Extracting metadata ─────────────────
             if is_resume:
                 self._set_stage(
-                    job_id, "extracting-metadata",
-                    "Resuming with manual metadata", 0.08,
+                    job_id,
+                    "extracting-metadata",
+                    "Resuming with manual metadata",
+                    0.08,
                 )
                 logger.info(
                     "component=pdf_processor job_id=%s message=resuming after manual metadata, skipping LLM extraction",
-                    job_id,
+                    sanitize_log_value(job_id),
                 )
             else:
                 self._set_stage(
-                    job_id, "extracting-metadata",
-                    "Extracting metadata from PDF pages", 0.08,
+                    job_id,
+                    "extracting-metadata",
+                    "Extracting metadata from PDF pages",
+                    0.08,
                 )
                 page_texts = self._extract_page_texts(result.document)
                 metadata_result = await self._metadata_extractor.extract(
@@ -563,7 +607,7 @@ class PDFProcessor:
                     metadata = _merge_metadata(metadata, metadata_result)
                     logger.info(
                         "component=pdf_processor job_id=%s fill_rate=%.2f pages_sampled=%d message=metadata extracted",
-                        job_id,
+                        sanitize_log_value(job_id),
                         metadata_result["fill_rate"],
                         metadata_result["pages_sampled"],
                     )
@@ -575,11 +619,13 @@ class PDFProcessor:
                         f"(fill rate {metadata_result['fill_rate']:.0%}). "
                         f"Manual entry required."
                     )
-                    self._mark_paused_for_metadata(job_id, metadata_result, failure_reason)
+                    self._mark_paused_for_metadata(
+                        job_id, metadata_result, failure_reason
+                    )
                     await self._report_paused(job_id, failure_reason)
                     logger.info(
                         "component=pdf_processor job_id=%s fill_rate=%.2f pages_sampled=%d message=paused for manual metadata",
-                        job_id,
+                        sanitize_log_value(job_id),
                         metadata_result["fill_rate"],
                         metadata_result["pages_sampled"],
                     )
@@ -589,12 +635,16 @@ class PDFProcessor:
             self._set_stage(job_id, "chunking", "Loading chunker tokenizer", 0.1)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s max_tokens=%d message=loading chunker tokenizer",
-                job_id, upload_id, PDF_CHUNKER_MAX_TOKENS,
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                PDF_CHUNKER_MAX_TOKENS,
             )
             tokenizer = get_pdf_chunker_tokenizer(PDF_CHUNKER_MAX_TOKENS)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s tokenizer_class=%s message=tokenizer loaded",
-                job_id, upload_id, type(tokenizer).__name__,
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                sanitize_log_value(type(tokenizer).__name__),
             )
 
             self._set_stage(job_id, "chunking", "Chunking document", 0.12)
@@ -604,13 +654,16 @@ class PDFProcessor:
             total_chunks = len(chunks)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s chunk_count=%d message=chunking completed",
-                job_id, upload_id, total_chunks,
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                total_chunks,
             )
 
             if not chunks:
                 logger.warning(
                     "component=pdf_processor job_id=%s upload_id=%s message=no chunks extracted",
-                    job_id, upload_id,
+                    sanitize_log_value(job_id),
+                    sanitize_log_value(upload_id),
                 )
                 _jobs[job_id]["progress"] = 1.0
                 self._mark_failed(job_id, "No chunks extracted from PDF")
@@ -640,7 +693,10 @@ class PDFProcessor:
                 if i == 0 or (i + 1) == total_chunks or (i + 1) % 10 == 0:
                     logger.info(
                         "component=pdf_processor job_id=%s upload_id=%s chunk_index=%d total_chunks=%d message=embedding progress",
-                        job_id, upload_id, i + 1, total_chunks,
+                        sanitize_log_value(job_id),
+                        sanitize_log_value(upload_id),
+                        i + 1,
+                        total_chunks,
                     )
 
                 make = str(getattr(metadata, "make", "") or "")
@@ -655,32 +711,35 @@ class PDFProcessor:
                 tags = list(getattr(metadata, "tags", None) or base_tags)
 
                 now_ts = datetime.now(timezone.utc).isoformat()
-                records.append({
-                    "id": f"{upload_id}-pdf-{i}",
-                    "title": headings[0] if headings else f"Chunk {i}",
-                    "content": chunk.text,
-                    "documentType": document_type,
-                    "category": category,
-                    "make": make,
-                    "model": model,
-                    "year": year,
-                    "sourceFile": resolved_source_file,
-                    "section": headings[0] if headings else "",
-                    "pageNumber": page_no,
-                    "pageRange": str(page_no) if page_no else "0",
-                    "primarySection": headings[0] if headings else "",
-                    "sectionLevel": len(headings),
-                    "sectionHeadings": headings,
-                    "tableCaption": None,
-                    "chunkIndex": i,
-                    "tags": tags,
-                    "contentVector": embedding,
-                    "createdAt": now_ts,
-                    "updatedAt": now_ts,
-                })
+                records.append(
+                    {
+                        "id": f"{upload_id}-pdf-{i}",
+                        "title": headings[0] if headings else f"Chunk {i}",
+                        "content": chunk.text,
+                        "documentType": document_type,
+                        "category": category,
+                        "make": make,
+                        "model": model,
+                        "year": year,
+                        "sourceFile": resolved_source_file,
+                        "section": headings[0] if headings else "",
+                        "pageNumber": page_no,
+                        "pageRange": str(page_no) if page_no else "0",
+                        "primarySection": headings[0] if headings else "",
+                        "sectionLevel": len(headings),
+                        "sectionHeadings": headings,
+                        "tableCaption": None,
+                        "chunkIndex": i,
+                        "tags": tags,
+                        "contentVector": embedding,
+                        "createdAt": now_ts,
+                        "updatedAt": now_ts,
+                    }
+                )
 
                 self._set_stage(
-                    job_id, "embedding",
+                    job_id,
+                    "embedding",
                     f"Embedding chunk {i + 1} of {total_chunks}",
                     round(0.2 + len(records) / total_chunks * 0.3, 2),
                     chunks_processed=len(records),
@@ -688,13 +747,19 @@ class PDFProcessor:
                 )
 
             # ── Stage 5: Uploading chunks ─────────────────────
-            self._set_stage(job_id, "uploading-chunks",
-                f"Uploading {len(records)} search chunks", 0.55,
-                chunks_processed=len(records), total_chunks=total_chunks,
+            self._set_stage(
+                job_id,
+                "uploading-chunks",
+                f"Uploading {len(records)} search chunks",
+                0.55,
+                chunks_processed=len(records),
+                total_chunks=total_chunks,
             )
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s record_count=%d message=uploading search chunks",
-                job_id, upload_id, len(records),
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                len(records),
             )
 
             self._raise_if_cancelled(job_id)
@@ -705,33 +770,51 @@ class PDFProcessor:
             self._raise_if_cancelled(job_id)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s byte_count=%d message=search chunks uploaded",
-                job_id, upload_id, len(chunks_bytes),
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                len(chunks_bytes),
             )
 
             # ── Stage 6: Extracting graph entities ────────────
-            self._set_stage(job_id, "extracting-graph",
-                f"Extracting graph entities from {total_chunks} chunks", 0.8,
+            self._set_stage(
+                job_id,
+                "extracting-graph",
+                f"Extracting graph entities from {total_chunks} chunks",
+                0.8,
             )
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s chunk_count=%d message=extracting graph entities",
-                job_id, upload_id, total_chunks,
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                total_chunks,
             )
 
             combined_text = "\n\n".join(chunk.text for chunk in chunks)
             combined_chars = len(combined_text)
             combined_tokens_approx = combined_chars // 4
-            expected_batches = max(1, math.ceil(combined_chars / (BATCH_TOKEN_BUDGET * 4)))
+            expected_batches = max(
+                1, math.ceil(combined_chars / (BATCH_TOKEN_BUDGET * 4))
+            )
             logger.info(
                 "component=pdf_processor job_id=%s stage=extracting_graph "
                 "combined_chars=%d combined_tokens_approx=%d expected_batches=%d",
-                job_id, combined_chars, combined_tokens_approx, expected_batches,
+                sanitize_log_value(job_id),
+                combined_chars,
+                combined_tokens_approx,
+                expected_batches,
             )
             logger.debug(
                 "component=pdf_processor job_id=%s combined_text_preview=%s",
-                job_id, combined_text[:2000] + ("...[truncated]" if len(combined_text) > 2000 else ""),
+                sanitize_log_value(job_id),
+                sanitize_log_value(
+                    combined_text[:2000]
+                    + ("...[truncated]" if len(combined_text) > 2000 else "")
+                ),
             )
 
-            entities = await self._graph_extractor.extract(combined_text, source_document_id=upload_id)
+            entities = await self._graph_extractor.extract(
+                combined_text, source_document_id=upload_id
+            )
             self._raise_if_cancelled(job_id)
 
             if entities and isinstance(entities, list) and len(entities) > 0:
@@ -740,7 +823,9 @@ class PDFProcessor:
                 logger.info(
                     "component=pdf_processor job_id=%s stage=extracting_graph "
                     "result=ok nodes=%d edges=%d",
-                    job_id, node_count, edge_count,
+                    sanitize_log_value(job_id),
+                    node_count,
+                    edge_count,
                 )
 
             # ── Stage 7: Uploading graph ──────────────────────
@@ -753,7 +838,9 @@ class PDFProcessor:
             self._raise_if_cancelled(job_id)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s byte_count=%d message=graph entities uploaded",
-                job_id, upload_id, len(entities_bytes),
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                len(entities_bytes),
             )
 
             # ── Stage 8: Completed ────────────────────────────
@@ -765,19 +852,23 @@ class PDFProcessor:
                 chunks_processed=len(records),
                 total_chunks=total_chunks,
             )
-            _jobs[job_id].update({
-                "status": "completed",
-                "stage": "completed",
-                "stage_index": len(PIPELINE_STAGES) - 1,
-                "progress": 1.0,
-                "message": f"Processed {len(records)} chunks from PDF",
-                "chunks_processed": len(records),
-                "total_chunks": total_chunks,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
+            _jobs[job_id].update(
+                {
+                    "status": "completed",
+                    "stage": "completed",
+                    "stage_index": len(PIPELINE_STAGES) - 1,
+                    "progress": 1.0,
+                    "message": f"Processed {len(records)} chunks from PDF",
+                    "chunks_processed": len(records),
+                    "total_chunks": total_chunks,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s chunk_count=%d message=job completed",
-                job_id, upload_id, len(records),
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                len(records),
             )
 
         except asyncio.CancelledError:
@@ -785,14 +876,18 @@ class PDFProcessor:
             await self._report_cancelled(job_id)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s message=processing cancelled",
-                job_id, upload_id,
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
             )
         except Exception as exc:
-            logger.exception(
-                "component=pdf_processor job_id=%s upload_id=%s message=processing failed",
-                job_id, upload_id,
-            )
             failure = _format_safe_failure(exc)
+            logger.error(
+                "component=pdf_processor job_id=%s upload_id=%s "
+                "message=processing failed error=%s",
+                sanitize_log_value(job_id),
+                sanitize_log_value(upload_id),
+                sanitize_log_value(failure["error"]),
+            )
             self._mark_failed(job_id, failure["message"], failure["error"])
             await self._report_failed(job_id, failure["error"])
 
@@ -810,14 +905,14 @@ class PDFProcessor:
                 raise RuntimeError("Local PDF source path is not a file.")
             logger.info(
                 "component=pdf_processor upload_id=%s message=using local PDF source",
-                upload_id,
+                sanitize_log_value(upload_id),
             )
             return source_path
 
         if source_access_token:
             logger.info(
                 "component=pdf_processor upload_id=%s message=downloading source via API access token",
-                upload_id,
+                sanitize_log_value(upload_id),
             )
             pdf_bytes = await self._api_client.download_source(
                 upload_id, document_type, source_access_token
@@ -827,7 +922,7 @@ class PDFProcessor:
         if self._api_client.is_configured():
             logger.info(
                 "component=pdf_processor upload_id=%s message=downloading source via API machine credentials",
-                upload_id,
+                sanitize_log_value(upload_id),
             )
             pdf_bytes = await self._api_client.download_source(upload_id, document_type)
             return await self._write_temp_pdf(upload_id, pdf_bytes)
@@ -848,7 +943,7 @@ class PDFProcessor:
         path = await asyncio.to_thread(write_file)
         logger.info(
             "component=pdf_processor upload_id=%s byte_count=%d message=temporary file created",
-            upload_id,
+            sanitize_log_value(upload_id),
             len(pdf_bytes),
         )
         return path

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using MotorcycleRAG.DbSetup;
 
@@ -10,17 +11,21 @@ namespace MotorcycleRAG.DbSetup.Tests;
 public class DbSetupConnectionFactoryTests
 {
     [Fact]
-    public void Create_WithConnectionString_ReturnsConfiguredConnection()
+    public void Create_WhenConnectionStringDisablesEncryption_EnforcesSecureTransport()
     {
         // Arrange
         var factory = new SqlDbSetupConnectionFactory();
-        const string connectionString = "Server=localhost;Database=MotorcycleRAG;Integrated Security=true";
+        const string connectionString =
+            "Server=localhost;Database=MotorcycleRAG;Integrated Security=true;" +
+            "Encrypt=False;TrustServerCertificate=True";
 
         // Act
         using var connection = factory.Create(connectionString);
+        var configuredConnection = new SqlConnectionStringBuilder(connection.ConnectionString);
 
         // Assert
-        connection.ConnectionString.Should().Be(connectionString);
+        configuredConnection.Encrypt.Should().Be(SqlConnectionEncryptOption.Mandatory);
+        configuredConnection.TrustServerCertificate.Should().BeFalse();
     }
 
     [Fact]
@@ -60,28 +65,35 @@ public class DbSetupConnectionFactoryTests
     }
 
     [Fact]
-    public async Task ExecuteScriptFileAsync_WithFakeConnection_UsesInjectedFactoryWithoutNetworkAccess()
+    public async Task ExecuteScriptAsync_WithFakeConnection_UsesInjectedFactoryWithoutNetworkAccess()
     {
         // Arrange
         var factory = new RecordingDbSetupConnectionFactory();
-        var sut = new SqlScriptExecutor(NullLogger<SqlScriptExecutor>.Instance, factory);
-        var scriptPath = Path.GetTempFileName();
-        await File.WriteAllTextAsync(scriptPath, "SELECT 1;\nGO\nSELECT 2;");
+        var catalogRoot = FindRepositoryRoot();
+        var sut = new SqlScriptExecutor(NullLogger<SqlScriptExecutor>.Instance, factory, catalogRoot);
+        var scriptPath = Path.Combine(catalogRoot, "7-Deployment", "DbSetup", "sql", "test-data.sql");
+        File.Exists(scriptPath).Should().BeTrue("the executor accepts only packaged scripts from approved roots");
 
-        try
-        {
-            // Act
-            var succeeded = await sut.ExecuteScriptFileAsync("fake-connection", scriptPath);
+        // Act
+        var succeeded = await sut.ExecuteScriptAsync("fake-connection", DbSetupScript.TestData);
 
-            // Assert
-            succeeded.Should().BeTrue();
-            factory.ConnectionStrings.Should().ContainSingle().Which.Should().Be("fake-connection");
-            factory.Connections.Single().ExecutedCommands.Should().HaveCount(2);
-        }
-        finally
+        // Assert
+        succeeded.Should().BeTrue();
+        factory.ConnectionStrings.Should().ContainSingle().Which.Should().Be("fake-connection");
+        factory.Connections.Single().ExecutedCommands.Should().NotBeEmpty();
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        for (var current = new DirectoryInfo(AppContext.BaseDirectory); current is not null; current = current.Parent)
         {
-            File.Delete(scriptPath);
+            if (File.Exists(Path.Combine(current.FullName, "MotorcycleRAG.sln")))
+            {
+                return current.FullName;
+            }
         }
+
+        throw new DirectoryNotFoundException("Could not locate the MotorcycleRAG repository root.");
     }
 
     private sealed class RecordingDbSetupConnectionFactory : IDbSetupConnectionFactory

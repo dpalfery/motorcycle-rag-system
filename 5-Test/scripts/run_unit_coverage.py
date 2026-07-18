@@ -9,9 +9,11 @@ import shlex
 import shutil
 import subprocess
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
+
+from defusedxml import ElementTree as ET
+from defusedxml.common import DefusedXmlException
 
 from coverage_common import (
     CONFIG_PATH,
@@ -64,7 +66,7 @@ def parse_trx_failures(results_dir: Path) -> list[dict[str, str]]:
     for trx_path in sorted(results_dir.rglob("*.trx")):
         try:
             root = ET.parse(trx_path).getroot()
-        except ET.ParseError:
+        except (DefusedXmlException, ET.ParseError):
             continue
 
         for result in root.iter():
@@ -171,6 +173,8 @@ def run_python_suite(
     python_command = resolve_python_executable(workdir)
     args = [
         *python_command,
+        "-W",
+        "error",
         "-m",
         "pytest",
         "--ignore=../../5-Test/local-processing-service.Tests/integration",

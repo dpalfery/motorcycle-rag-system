@@ -2,6 +2,7 @@
 
 import asyncio
 import io
+import logging
 import tempfile
 import uuid
 from pathlib import Path
@@ -27,15 +28,15 @@ from processors.bike_graph_processor import (
 
 MINIMAL_CSV = (
     "Model,Year,Category,Engine type,Displacement ccm,Power HP\n"
-    "Aprilia RS 660,2021,Sport,\"Twin, four-stroke\",659,100\n"
-    "Aprilia RSV4,2021,Sport,\"V4, four-stroke\",1099,217\n"
-    "Honda CB500F,2022,Naked bike,\"Twin, four-stroke\",471,47\n"
+    'Aprilia RS 660,2021,Sport,"Twin, four-stroke",659,100\n'
+    'Aprilia RSV4,2021,Sport,"V4, four-stroke",1099,217\n'
+    'Honda CB500F,2022,Naked bike,"Twin, four-stroke",471,47\n'
 )
 
 DUPLICATE_ROW_CSV = (
     "Model,Year,Category,Engine type\n"
-    "Aprilia RS 660,2021,Sport,\"Twin, four-stroke\"\n"
-    "Aprilia RS 660,2021,Sport,\"Twin, four-stroke\"\n"  # exact duplicate
+    'Aprilia RS 660,2021,Sport,"Twin, four-stroke"\n'
+    'Aprilia RS 660,2021,Sport,"Twin, four-stroke"\n'  # exact duplicate
 )
 
 NO_YEAR_CSV = "Model,Category\nAprilia RS 660,Sport\n"
@@ -100,7 +101,13 @@ class TestInstantiation:
         assert _split_make("Honda") == ("Honda", "Honda")
         assert _node_id("same") == _node_id("same")
         row = pd.Series({"Category": "Sport", "Power HP": 100, "Gearbox": ""})
-        assert _build_description(row, {"category": "Category", "power hp": "Power HP", "gearbox": "Gearbox"}) == "Category: Sport; Power HP: 100"
+        assert (
+            _build_description(
+                row,
+                {"category": "Category", "power hp": "Power HP", "gearbox": "Gearbox"},
+            )
+            == "Category: Sport; Power HP: 100"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +158,9 @@ class TestGetJobStatus:
 
 
 class TestJobControls:
-    async def test_lists_clears_and_stops_jobs_with_configured_reporting(self, processor, api_client):
+    async def test_lists_clears_and_stops_jobs_with_configured_reporting(
+        self, processor, api_client
+    ):
         _jobs.update(
             {
                 "active": {"status": "processing", "progress": 0.5},
@@ -167,9 +176,13 @@ class TestJobControls:
         assert stopped["status"] == "cancelled"
         assert {job["status"] for job in jobs} == {"cancelled", "completed"}
         assert cleared == 2
-        api_client.report_stage.assert_awaited_once_with("active", "cancelled", failure_reason="Cancelled by user")
+        api_client.report_stage.assert_awaited_once_with(
+            "active", "cancelled", failure_reason="Cancelled by user"
+        )
 
-    async def test_stop_job_returns_none_for_missing_and_preserves_terminal_jobs(self, processor):
+    async def test_stop_job_returns_none_for_missing_and_preserves_terminal_jobs(
+        self, processor
+    ):
         _jobs["finished"] = {"status": "failed"}
 
         assert await processor.stop_job("missing") is None
@@ -218,7 +231,9 @@ class TestBackgroundProcessing:
         await _wait_for_job(processor, job_id)
         await asyncio.sleep(0)
 
-        reported_stages = [call.args[1] for call in api_client.report_stage.await_args_list]
+        reported_stages = [
+            call.args[1] for call in api_client.report_stage.await_args_list
+        ]
         assert reported_stages == [
             "copying",
             "parsing",
@@ -226,7 +241,9 @@ class TestBackgroundProcessing:
             "uploading-graph",
             "completed",
         ]
-        assert api_client.report_stage.await_args_list[-1].kwargs["chunks_processed"] > 0
+        assert (
+            api_client.report_stage.await_args_list[-1].kwargs["chunks_processed"] > 0
+        )
         assert api_client.report_stage.await_args_list[-1].kwargs["total_chunks"] > 0
 
     async def test_blob_path_uses_upload_id(self, processor, api_client):
@@ -356,3 +373,34 @@ class TestBuildGraph:
         csv_path = _write_csv(EMPTY_CSV)
         with pytest.raises(ValueError, match="empty"):
             processor._build_graph("upload-1", str(csv_path))
+
+
+async def test_process_async_when_upload_id_contains_controls_logs_reversible_value(
+    processor, caplog
+):
+    unsafe_upload_id = "external\\path\r\n\t\0\x01\x1f\x7f\x85\x9fvalue"
+    escaped_upload_id = (
+        "external\\\\path\\r\\n\\t\\0\\u0001\\u001F\\u007F\\u0085\\u009Fvalue"
+    )
+    csv_path = _write_csv(MINIMAL_CSV)
+    caplog.set_level(logging.INFO, logger="processors.bike_graph_processor")
+
+    job_id = await processor.process_async(
+        upload_id=unsafe_upload_id,
+        local_file_path=str(csv_path),
+    )
+    await _wait_for_job(processor, job_id)
+
+    target_records = [
+        item
+        for item in caplog.records
+        if item.name == "processors.bike_graph_processor"
+    ]
+    target_messages = [item.getMessage() for item in target_records]
+
+    assert target_messages
+    assert any(escaped_upload_id in message for message in target_messages)
+    assert all(
+        not any(character in message for character in "\r\n\t\0\x01\x1f\x7f\x85\x9f")
+        for message in target_messages
+    )

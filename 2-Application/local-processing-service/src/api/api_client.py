@@ -10,12 +10,18 @@ import time
 import httpx
 import msal
 
+from security.log_sanitizer import sanitize_log_value
+from security.safe_http import (
+    create_api_https_async_client,
+    require_non_redirect_success,
+    validate_api_base_url,
+)
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TENANT_ID = "0f8f8a52-f135-43af-af88-e0b54ca9ff91"
 _DEFAULT_CLIENT_ID = "d09d356d-62ac-4f38-b636-64169119ea25"
 _DEFAULT_SCOPE = "api://motorcyclerag-api/.default"
-_DEFAULT_BASE_URL = "https://localhost:7215"
 
 # T7: total HTTP timeout for a single artifact-upload attempt, in seconds.
 # Previously 120s; reduced to 90s so a stalled upload fails fast instead of
@@ -27,11 +33,19 @@ _UPLOAD_TIMEOUT_SECONDS = 90.0
 _UPLOAD_MAX_ATTEMPTS = 2
 
 
+def _safe_log_value(value: object) -> str:
+    """Convert a potentially untrusted value into a log-safe representation."""
+    return sanitize_log_value(str(value))
+
+
 class ApiClient:
     """Uploads processed artifacts to the MotorcycleRAG API via MSAL client credentials."""
 
     def __init__(self) -> None:
-        self._base_url = os.environ.get("MCR_API_BASE_URL", _DEFAULT_BASE_URL).rstrip("/")
+        base_url = os.environ.get("MCR_API_BASE_URL")
+        if not base_url:
+            raise ValueError("MCR_API_BASE_URL is required")
+        self._base_url = str(validate_api_base_url(base_url))
         secret = os.environ.get("PYTHON_UPLOAD_JOB_SECRET", "").strip()
         if not secret:
             self._configured = False
@@ -59,9 +73,9 @@ class ApiClient:
         self._token_lock = asyncio.Lock()
         logger.info(
             "ApiClient initialised (tenant=%s, client=%s, base_url=%s).",
-            tenant_id,
-            client_id,
-            self._base_url,
+            _safe_log_value(tenant_id),
+            _safe_log_value(client_id),
+            _safe_log_value(self._base_url),
         )
 
     def is_configured(self) -> bool:
@@ -75,13 +89,16 @@ class ApiClient:
     ) -> bytes:
         """Download an ingestion source file from the MotorcycleRAG API."""
         if access_token:
-            url = (
-                f"{self._base_url}/api/ingestion/artifacts/source/access"
-                f"?uploadId={upload_id}&documentType={document_type}"
-                f"&accessToken={access_token}"
-            )
-            async with httpx.AsyncClient(timeout=300.0, verify=False) as client:
-                response = await client.get(url)
+            url = f"{self._base_url}/api/ingestion/artifacts/source/access"
+            params = {
+                "uploadId": upload_id,
+                "documentType": document_type,
+                "accessToken": access_token,
+            }
+            async with create_api_https_async_client(timeout=300.0) as client:
+                response = await client.get(url, params=params)
+            if response.is_redirect:
+                require_non_redirect_success(response)
             if not response.is_success:
                 raise RuntimeError(
                     f"Source download failed: HTTP {response.status_code} - {response.text[:500]}"
@@ -94,13 +111,13 @@ class ApiClient:
             )
 
         token = await self._acquire_token_async()
-        url = (
-            f"{self._base_url}/api/ingestion/artifacts/source"
-            f"?uploadId={upload_id}&documentType={document_type}"
-        )
+        url = f"{self._base_url}/api/ingestion/artifacts/source"
+        params = {"uploadId": upload_id, "documentType": document_type}
         headers = {"Authorization": f"Bearer {token}"}
-        async with httpx.AsyncClient(timeout=300.0, verify=False) as client:
-            response = await client.get(url, headers=headers)
+        async with create_api_https_async_client(timeout=300.0) as client:
+            response = await client.get(url, headers=headers, params=params)
+        if response.is_redirect:
+            require_non_redirect_success(response)
         if not response.is_success:
             raise RuntimeError(
                 f"Source download failed: HTTP {response.status_code} - {response.text[:500]}"
@@ -108,6 +125,9 @@ class ApiClient:
         return response.content
 
     def _get_token(self) -> str:
+        if self._msal_app is None:
+            raise RuntimeError("ApiClient is not configured for token acquisition")
+
         result = self._msal_app.acquire_token_for_client(scopes=self._scope)
         if "access_token" not in result:
             raise RuntimeError(
@@ -129,6 +149,9 @@ class ApiClient:
         async with self._token_lock:
             if self._token_cache and time.monotonic() < self._token_expires_at - 60:
                 return self._token_cache
+
+            if self._msal_app is None:
+                raise RuntimeError("ApiClient is not configured for token acquisition")
 
             result = await asyncio.to_thread(
                 self._msal_app.acquire_token_for_client, scopes=self._scope
@@ -187,20 +210,20 @@ class ApiClient:
             )
 
         token = await self._acquire_token_async()
-        filename = "chunks.jsonl" if artifact_type == "search-chunks" else "entities.json"
-        url = (
-            f"{self._base_url}/api/ingestion/artifacts/upload"
-            f"?uploadId={upload_id}&artifactType={artifact_type}"
+        filename = (
+            "chunks.jsonl" if artifact_type == "search-chunks" else "entities.json"
         )
+        url = f"{self._base_url}/api/ingestion/artifacts/upload"
+        params = {"uploadId": upload_id, "artifactType": artifact_type}
         headers = {"Authorization": f"Bearer {token}"}
         last_exc: Exception | None = None
 
         logger.info(
             "Starting artifact upload for upload %s (artifact_type=%s, bytes=%d, url=%s)",
-            upload_id,
-            artifact_type,
+            _safe_log_value(upload_id),
+            _safe_log_value(artifact_type),
             len(data),
-            url,
+            _safe_log_value(url),
         )
 
         for attempt in range(_UPLOAD_MAX_ATTEMPTS):
@@ -208,27 +231,32 @@ class ApiClient:
                 logger.info(
                     "Artifact upload attempt %d for upload %s (artifact_type=%s)",
                     attempt + 1,
-                    upload_id,
-                    artifact_type,
+                    _safe_log_value(upload_id),
+                    _safe_log_value(artifact_type),
                 )
-                async with httpx.AsyncClient(
-                    timeout=_UPLOAD_TIMEOUT_SECONDS, verify=False
+                async with create_api_https_async_client(
+                    timeout=_UPLOAD_TIMEOUT_SECONDS,
                 ) as client:
                     response = await client.post(
                         url,
                         headers=headers,
                         files={"file": (filename, data, content_type)},
+                        params=params,
                     )
                 logger.info(
                     "Artifact upload attempt %d for upload %s returned HTTP %d",
                     attempt + 1,
-                    upload_id,
+                    _safe_log_value(upload_id),
                     response.status_code,
                 )
+                if response.is_redirect:
+                    require_non_redirect_success(response)
                 if response.status_code < 500:
                     if response.is_success or response.status_code == 202:
                         logger.info(
-                            "Uploaded %s artifact for upload %s.", artifact_type, upload_id
+                            "Uploaded %s artifact for upload %s.",
+                            _safe_log_value(artifact_type),
+                            _safe_log_value(upload_id),
                         )
                         return
                     response_text = response.text.strip()
@@ -238,8 +266,8 @@ class ApiClient:
                     if response.status_code in (401, 403):
                         logger.error(
                             "Artifact upload authorization failed for %s. Token diagnostics: %s",
-                            url,
-                            self._get_token_diagnostics(token),
+                            _safe_log_value(url),
+                            _safe_log_value(repr(self._get_token_diagnostics(token))),
                         )
                     raise RuntimeError(f"Artifact upload failed: {detail}")
                 response_text = response.text.strip()
@@ -260,10 +288,10 @@ class ApiClient:
                         "API did not establish a connection within %.1fs "
                         "(network/DNS/server-down). Exception %s: %r",
                         attempt + 1,
-                        url,
+                        _safe_log_value(url),
                         _UPLOAD_TIMEOUT_SECONDS,
                         type(exc).__name__,
-                        exc,
+                        _safe_log_value(repr(exc)),
                     )
                 elif isinstance(exc, httpx.ReadTimeout):
                     logger.error(
@@ -272,32 +300,32 @@ class ApiClient:
                         "(likely a stalled indexing call on the server). "
                         "Exception %s: %r",
                         attempt + 1,
-                        url,
+                        _safe_log_value(url),
                         _UPLOAD_TIMEOUT_SECONDS,
                         type(exc).__name__,
-                        exc,
+                        _safe_log_value(repr(exc)),
                     )
                 elif isinstance(exc, httpx.TimeoutException):
                     logger.error(
                         "Overall timeout on artifact upload attempt %d for %s: "
                         "request exceeded the %.1fs budget. Exception %s: %r",
                         attempt + 1,
-                        url,
+                        _safe_log_value(url),
                         _UPLOAD_TIMEOUT_SECONDS,
                         type(exc).__name__,
-                        exc,
+                        _safe_log_value(repr(exc)),
                     )
                 # Non-timeout transport errors (ConnectError, ReadError, ...) are
                 # summarized by the retry warning below to preserve the retry trail.
 
-            wait = 2 ** attempt
+            wait = 2**attempt
             logger.warning(
                 "Artifact upload attempt %d failed for %s, retrying in %ds: %s: %r",
                 attempt + 1,
-                url,
+                _safe_log_value(url),
                 wait,
                 type(last_exc).__name__,
-                last_exc,
+                _safe_log_value(repr(last_exc)),
             )
             await asyncio.sleep(wait)
 
@@ -334,15 +362,25 @@ class ApiClient:
         try:
             token = await self._acquire_token_async()
             headers = {"Authorization": f"Bearer {token}"}
-            async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
+            async with create_api_https_async_client(timeout=30.0) as client:
                 response = await client.patch(url, json=payload, headers=headers)
-                if response.status_code < 400:
-                    logger.debug("Reported stage %s for processor job %s", stage, processor_job_id)
+                if response.is_redirect:
+                    require_non_redirect_success(response)
+                if response.is_success:
+                    logger.debug(
+                        "Reported stage %s for processor job %s",
+                        _safe_log_value(stage),
+                        _safe_log_value(processor_job_id),
+                    )
                 else:
                     logger.warning(
                         "Stage report failed for processor job %s: HTTP %s",
-                        processor_job_id,
+                        _safe_log_value(processor_job_id),
                         response.status_code,
                     )
         except Exception as exc:
-            logger.warning("Stage report failed for processor job %s: %s", processor_job_id, exc)
+            logger.warning(
+                "Stage report failed for processor job %s: %s",
+                _safe_log_value(processor_job_id),
+                _safe_log_value(repr(exc)),
+            )

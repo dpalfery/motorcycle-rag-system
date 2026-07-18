@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Utilities;
+using System.Collections;
 using System.Diagnostics;
 
 
@@ -56,7 +58,7 @@ public class CorrelationService : ICorrelationService
         var newId = GenerateCorrelationId();
         _correlationId.Value = newId;
 
-        _logger.LogDebug("Generated new correlation ID: {CorrelationId}", newId);
+        _logger.LogDebug("Generated new correlation ID: {CorrelationId}", LogSanitizer.Sanitize(newId));
         return newId;
     }
 
@@ -81,8 +83,7 @@ public class CorrelationService : ICorrelationService
             throw new ArgumentException("Correlation ID cannot be null or empty", nameof(correlationId));
         }
 
-        // Sanitize correlation ID to prevent log injection
-        var sanitizedId = correlationId.Replace("\n", "").Replace("\r", "").Replace("\t", "");
+        var sanitizedId = LogSanitizer.Sanitize(correlationId);
         _correlationId.Value = sanitizedId;
         _logger.LogDebug("Set correlation ID: {CorrelationId}", sanitizedId);
     }
@@ -97,7 +98,7 @@ public class CorrelationService : ICorrelationService
 
         if (!string.IsNullOrEmpty(currentId))
         {
-            _logger.LogDebug("Cleared correlation ID: {CorrelationId}", currentId);
+            _logger.LogDebug("Cleared correlation ID: {CorrelationId}", LogSanitizer.Sanitize(currentId));
         }
     }
 
@@ -145,7 +146,7 @@ public class CorrelationService : ICorrelationService
         var correlationId = GetOrCreateCorrelationId();
         return _logger.BeginScope(new Dictionary<string, object>
         {
-            ["CorrelationId"] = correlationId
+            ["CorrelationId"] = LogSanitizer.Sanitize(correlationId)
         })!;
     }
 
@@ -155,12 +156,224 @@ public class CorrelationService : ICorrelationService
     public IDisposable CreateLoggingScope(Dictionary<string, object> additionalProperties)
     {
         var correlationId = GetOrCreateCorrelationId();
-        var scopeProperties = new Dictionary<string, object>(additionalProperties)
-        {
-            ["CorrelationId"] = correlationId
-        };
+        ArgumentNullException.ThrowIfNull(additionalProperties);
+
+        var scopeProperties = SanitizeScopeProperties(additionalProperties);
+        scopeProperties["CorrelationId"] = LogSanitizer.Sanitize(correlationId);
 
         return _logger.BeginScope(scopeProperties)!;
+    }
+
+    private static Dictionary<string, object> SanitizeScopeProperties(
+        IEnumerable<KeyValuePair<string, object>> properties)
+    {
+        var sanitizedProperties = new Dictionary<string, object>();
+        var sanitizedValues = new Dictionary<object, object>(ReferenceEqualityComparer.Instance);
+
+        foreach (var (key, value) in properties)
+        {
+            sanitizedProperties[LogSanitizer.Sanitize(key)] = SanitizeScopeValue(value, sanitizedValues)!;
+        }
+
+        return sanitizedProperties;
+    }
+
+    internal static object? SanitizeScopeValue(
+        object? value,
+        IDictionary<object, object> sanitizedValues)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (value is string stringValue)
+        {
+            return LogSanitizer.Sanitize(stringValue);
+        }
+
+        var valueType = value.GetType();
+        if (valueType.IsValueType)
+        {
+            return SanitizeControlBearingRenderedValue(value);
+        }
+
+        if (sanitizedValues.TryGetValue(value, out var sanitizedValue))
+        {
+            return sanitizedValue;
+        }
+
+        var dictionaryInterface = FindGenericInterface(valueType, typeof(IDictionary<,>))
+            ?? FindGenericInterface(valueType, typeof(IReadOnlyDictionary<,>));
+        if (dictionaryInterface is not null && value is IEnumerable dictionaryEntries)
+        {
+            return SanitizeDictionary(
+                dictionaryEntries,
+                valueType,
+                dictionaryInterface,
+                sanitizedValues);
+        }
+
+        if (value is Array array)
+        {
+            return SanitizeArray(array, sanitizedValues);
+        }
+
+        var enumerableInterface = FindGenericInterface(valueType, typeof(IEnumerable<>));
+        if (enumerableInterface is not null && value is IEnumerable values)
+        {
+            return SanitizeEnumerable(
+                values,
+                valueType,
+                enumerableInterface,
+                sanitizedValues);
+        }
+
+        return SanitizeControlBearingRenderedValue(value);
+    }
+
+    private static object SanitizeDictionary(
+        IEnumerable entries,
+        Type sourceType,
+        Type dictionaryInterface,
+        IDictionary<object, object> sanitizedValues)
+    {
+        var typeArguments = dictionaryInterface.GetGenericArguments();
+        var sanitizedDictionary = CreateDictionary(sourceType, typeArguments);
+        sanitizedValues.Add(entries, sanitizedDictionary);
+
+        var add = FindGenericInterface(sanitizedDictionary.GetType(), typeof(IDictionary<,>))
+            ?.GetMethod(nameof(IDictionary<object, object>.Add), typeArguments);
+        if (add is null)
+        {
+            throw new InvalidOperationException($"Unable to create a writable copy of {sourceType.FullName}.");
+        }
+
+        foreach (var entry in entries)
+        {
+            var entryType = entry.GetType();
+            var key = entryType.GetProperty("Key")!.GetValue(entry);
+            var entryValue = entryType.GetProperty("Value")!.GetValue(entry);
+            var sanitizedEntryValue = SanitizeScopeValue(entryValue, sanitizedValues);
+
+            add.Invoke(sanitizedDictionary, [SanitizeScopeKey(key), sanitizedEntryValue]);
+        }
+
+        return sanitizedDictionary;
+    }
+
+    private static object? SanitizeScopeKey(object? key)
+    {
+        return key is string stringKey
+            ? LogSanitizer.Sanitize(stringKey)
+            : key;
+    }
+
+    private static object SanitizeControlBearingRenderedValue(object value)
+    {
+        var renderedValue = value.ToString();
+        return renderedValue is not null && renderedValue.Any(char.IsControl)
+            ? LogSanitizer.Sanitize(renderedValue)
+            : value;
+    }
+
+    private static object SanitizeArray(
+        Array values,
+        IDictionary<object, object> sanitizedValues)
+    {
+        var elementType = values.GetType().GetElementType()!;
+        var lengths = Enumerable.Range(0, values.Rank).Select(values.GetLength).ToArray();
+        var lowerBounds = Enumerable.Range(0, values.Rank).Select(values.GetLowerBound).ToArray();
+        var sanitizedArray = Array.CreateInstance(elementType, lengths, lowerBounds);
+        sanitizedValues.Add(values, sanitizedArray);
+
+        var indices = new int[values.Rank];
+        CopySanitizedArrayValues(values, sanitizedArray, indices, 0, sanitizedValues);
+        return sanitizedArray;
+    }
+
+    private static void CopySanitizedArrayValues(
+        Array source,
+        Array destination,
+        int[] indices,
+        int dimension,
+        IDictionary<object, object> sanitizedValues)
+    {
+        var lowerBound = source.GetLowerBound(dimension);
+        var upperBound = source.GetUpperBound(dimension);
+
+        for (var index = lowerBound; index <= upperBound; index++)
+        {
+            indices[dimension] = index;
+            if (dimension == source.Rank - 1)
+            {
+                destination.SetValue(SanitizeScopeValue(source.GetValue(indices), sanitizedValues), indices);
+            }
+            else
+            {
+                CopySanitizedArrayValues(source, destination, indices, dimension + 1, sanitizedValues);
+            }
+        }
+    }
+
+    private static object SanitizeEnumerable(
+        IEnumerable values,
+        Type sourceType,
+        Type enumerableInterface,
+        IDictionary<object, object> sanitizedValues)
+    {
+        var elementType = enumerableInterface.GetGenericArguments()[0];
+        var sanitizedCollection = CreateCollection(sourceType, elementType);
+        sanitizedValues.Add(values, sanitizedCollection);
+
+        var collectionInterface = FindGenericInterface(sanitizedCollection.GetType(), typeof(ICollection<>));
+        var add = collectionInterface?.GetMethod(nameof(ICollection<object>.Add), [elementType]);
+        if (add is null)
+        {
+            throw new InvalidOperationException($"Unable to create a writable copy of {sourceType.FullName}.");
+        }
+
+        foreach (var item in values)
+        {
+            add.Invoke(sanitizedCollection, [SanitizeScopeValue(item, sanitizedValues)]);
+        }
+
+        return sanitizedCollection;
+    }
+
+    private static Type? FindGenericInterface(Type type, Type genericInterface)
+    {
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == genericInterface)
+        {
+            return type;
+        }
+
+        return type.GetInterfaces().FirstOrDefault(candidate =>
+            candidate.IsGenericType && candidate.GetGenericTypeDefinition() == genericInterface);
+    }
+
+    private static object CreateDictionary(Type sourceType, Type[] typeArguments)
+    {
+        if (!sourceType.IsAbstract &&
+            sourceType.GetConstructor(Type.EmptyTypes) is not null &&
+            FindGenericInterface(sourceType, typeof(ICollection<>)) is not null)
+        {
+            return Activator.CreateInstance(sourceType)!;
+        }
+
+        return Activator.CreateInstance(typeof(Dictionary<,>).MakeGenericType(typeArguments))!;
+    }
+
+    private static object CreateCollection(Type sourceType, Type elementType)
+    {
+        if (!sourceType.IsAbstract &&
+            sourceType.GetConstructor(Type.EmptyTypes) is not null &&
+            FindGenericInterface(sourceType, typeof(ICollection<>)) is not null)
+        {
+            return Activator.CreateInstance(sourceType)!;
+        }
+
+        return Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType))!;
     }
 
 }
@@ -186,12 +399,13 @@ public static class LoggerExtensions
 
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
-            ["CorrelationId"] = correlationId
+            ["CorrelationId"] = LogSanitizer.Sanitize(correlationId)
         });
 
         var formattedArgs = new object[args.Length];
         args.CopyTo(formattedArgs, 0);
-        logger.LogError(exception, message, formattedArgs);
+        SanitizeStringArguments(formattedArgs);
+        logger.LogError(exception, LogSanitizer.Sanitize(message), formattedArgs);
     }
 
     /// <summary>
@@ -208,12 +422,13 @@ public static class LoggerExtensions
 
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
-            ["CorrelationId"] = correlationId
+            ["CorrelationId"] = LogSanitizer.Sanitize(correlationId)
         });
 
         var formattedArgs = new object[args.Length];
         args.CopyTo(formattedArgs, 0);
-        logger.LogWarning(message, formattedArgs);
+        SanitizeStringArguments(formattedArgs);
+        logger.LogWarning(LogSanitizer.Sanitize(message), formattedArgs);
     }
 
     /// <summary>
@@ -230,11 +445,22 @@ public static class LoggerExtensions
 
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
-            ["CorrelationId"] = correlationId
+            ["CorrelationId"] = LogSanitizer.Sanitize(correlationId)
         });
 
         var formattedArgs = new object[args.Length];
         args.CopyTo(formattedArgs, 0);
-        logger.LogInformation(message, formattedArgs);
+        SanitizeStringArguments(formattedArgs);
+        logger.LogInformation(LogSanitizer.Sanitize(message), formattedArgs);
+    }
+
+    private static void SanitizeStringArguments(object[] arguments)
+    {
+        var sanitizedValues = new Dictionary<object, object>(ReferenceEqualityComparer.Instance);
+
+        for (var index = 0; index < arguments.Length; index++)
+        {
+            arguments[index] = CorrelationService.SanitizeScopeValue(arguments[index], sanitizedValues)!;
+        }
     }
 }

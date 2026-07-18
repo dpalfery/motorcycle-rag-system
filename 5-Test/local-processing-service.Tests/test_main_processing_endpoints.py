@@ -1,6 +1,8 @@
 """FastAPI route tests for the admin-launched local processor contract."""
 
 import importlib
+import logging
+import secrets
 import sys
 import uuid
 from pathlib import Path
@@ -23,9 +25,11 @@ def _load_main_with_admin_environment(
     monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "http://127.0.0.1:1234")
     monkeypatch.setenv("EMBEDDING_MODEL", "text-embedding-qwen3-embedding-4b")
     monkeypatch.setenv("TOKENIZER_MODEL_PATH", str(tmp_path / "tokenizer"))
-    monkeypatch.setenv("MCR_API_BASE_URL", "https://localhost:7215")
+    monkeypatch.setenv("MCR_API_BASE_URL", "https://api.example.test")
     monkeypatch.setenv("AZURE_STORAGE_ACCOUNT_URL", "https://storage.example")
     monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "")
+    control_token = secrets.token_urlsafe(32)
+    monkeypatch.setenv("MCR_LOCAL_PROCESSOR_CONTROL_TOKEN", control_token)
     monkeypatch.setenv("GRAPH_EXTRACTION_ENDPOINT", "http://127.0.0.1:1234")
     monkeypatch.setenv("GRAPH_EXTRACTION_MODEL", "microsoft/phi-4-reasoning-plus")
     from embeddings import embedder_factory
@@ -42,7 +46,9 @@ def _load_main_with_admin_environment(
         ),
     )
     sys.modules.pop("main", None)
-    return importlib.import_module("main")
+    main = importlib.import_module("main")
+    main.app.state.test_control_token = control_token
+    return main
 
 
 class _FakePdfProcessor:
@@ -65,7 +71,11 @@ async def _post_json(app, path: str, payload: dict) -> httpx.Response:
     async with httpx.AsyncClient(
         transport=transport, base_url="http://testserver"
     ) as client:
-        return await client.post(path, json=payload)
+        return await client.post(
+            path,
+            json=payload,
+            headers={"Authorization": f"Bearer {app.state.test_control_token}"},
+        )
 
 
 @pytest.mark.asyncio
@@ -175,7 +185,9 @@ async def test_bike_graph_endpoint_passes_local_file_path_from_admin_route(
     fake_processor = _FakeBikeGraphProcessor()
     monkeypatch.setattr(main, "bike_graph_processor", fake_processor)
     csv_path = tmp_path / "bike-graph.csv"
-    csv_path.write_text("Model,Year,Category\nHonda CB500F,2022,Naked\n", encoding="utf-8")
+    csv_path.write_text(
+        "Model,Year,Category\nHonda CB500F,2022,Naked\n", encoding="utf-8"
+    )
 
     response = await _post_json(
         main.app,
@@ -377,7 +389,9 @@ async def test_processing_routes_hide_unexpected_errors(
 ):
     main = _load_main_with_admin_environment(monkeypatch, tmp_path)
     processor = MagicMock()
-    setattr(processor, method_name, AsyncMock(side_effect=RuntimeError("secret detail")))
+    setattr(
+        processor, method_name, AsyncMock(side_effect=RuntimeError("secret detail"))
+    )
     monkeypatch.setattr(main, processor_name, processor)
 
     response = await _post_json(main.app, route, payload)
@@ -520,7 +534,10 @@ async def test_embedding_model_discovery_returns_discovered_models(
     response = await main.list_embedding_models("http://provider/v1")
 
     assert response.status_code == 200
-    assert response.body == b'{"provider":"openai-compatible","endpoint":"http://provider/v1","models":["motorcycle-embed"]}'
+    assert (
+        response.body
+        == b'{"provider":"openai-compatible","endpoint":"http://provider/v1","models":["motorcycle-embed"]}'
+    )
 
 
 @pytest.mark.asyncio
@@ -530,7 +547,9 @@ async def test_health_check_hides_unexpected_dependency_error(
 ):
     main = _load_main_with_admin_environment(monkeypatch, tmp_path)
     failed_embedder = MagicMock()
-    failed_embedder.check_status = AsyncMock(side_effect=RuntimeError("provider secret"))
+    failed_embedder.check_status = AsyncMock(
+        side_effect=RuntimeError("provider secret")
+    )
     monkeypatch.setattr(main, "embedder", failed_embedder)
     monkeypatch.setenv("GRAPH_EXTRACTION_ENDPOINT", "http://graph")
     monkeypatch.setenv("GRAPH_EXTRACTION_MODEL", "graph-model")
@@ -538,7 +557,10 @@ async def test_health_check_hides_unexpected_dependency_error(
     response = await main.health_check()
 
     assert response.status_code == 503
-    assert response.body == b'{"status":"unhealthy","accepting_work":true,"shutdown_requested":false,"active_jobs":0,"message":"Processor health check failed","services":{"embedding_provider":"unknown","graph_extraction":{"endpoint":"http://graph","model":"graph-model","status":"healthy"},"blob_storage":"unknown","service_uptime":"running"}}'
+    assert (
+        response.body
+        == b'{"status":"unhealthy","accepting_work":true,"shutdown_requested":false,"active_jobs":0,"message":"Processor health check failed","services":{"embedding_provider":"unknown","graph_extraction":{"endpoint":"http://graph","model":"graph-model","status":"healthy"},"blob_storage":"unknown","service_uptime":"running"}}'
+    )
 
 
 @pytest.mark.asyncio
@@ -548,8 +570,14 @@ async def test_job_routes_search_bike_graph_and_hide_unexpected_errors(
 ):
     main = _load_main_with_admin_environment(monkeypatch, tmp_path)
 
-    pdf = MagicMock(get_job_status=AsyncMock(return_value=None), stop_job=AsyncMock(return_value=None))
-    csv = MagicMock(get_job_status=AsyncMock(return_value=None), stop_job=AsyncMock(return_value=None))
+    pdf = MagicMock(
+        get_job_status=AsyncMock(return_value=None),
+        stop_job=AsyncMock(return_value=None),
+    )
+    csv = MagicMock(
+        get_job_status=AsyncMock(return_value=None),
+        stop_job=AsyncMock(return_value=None),
+    )
     bike = MagicMock(
         get_job_status=AsyncMock(return_value={"job_id": "bike-job"}),
         stop_job=AsyncMock(return_value=None),
@@ -626,3 +654,41 @@ async def test_graceful_shutdown_signals_process_when_server_is_not_available(
     await main._wait_for_graceful_shutdown()
 
     kill.assert_called_once_with(4242, main.signal.SIGTERM)
+
+
+@pytest.mark.asyncio
+async def test_pdf_endpoint_when_upload_id_contains_controls_logs_reversible_value(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+):
+    main = _load_main_with_admin_environment(monkeypatch, tmp_path)
+    fake_processor = _FakePdfProcessor()
+    monkeypatch.setattr(main, "pdf_processor", fake_processor)
+    unsafe_upload_id = "external\\path\r\n\t\0\x01\x1f\x7f\x85\x9fvalue"
+    escaped_upload_id = (
+        "external\\\\path\\r\\n\\t\\0\\u0001\\u001F\\u007F\\u0085\\u009Fvalue"
+    )
+    caplog.set_level(logging.INFO, logger="main")
+
+    response = await _post_json(
+        main.app,
+        "/process/pdf",
+        {
+            "upload_id": unsafe_upload_id,
+            "document_type": "manual",
+            "blob_container": "raw-uploads",
+            "sourceAccessToken": "source-token",
+        },
+    )
+
+    assert response.status_code == 200
+    target_records = [item for item in caplog.records if item.name == "main"]
+    target_messages = [item.getMessage() for item in target_records]
+
+    assert target_messages
+    assert any(escaped_upload_id in message for message in target_messages)
+    assert all(
+        not any(character in message for character in "\r\n\t\0\x01\x1f\x7f\x85\x9f")
+        for message in target_messages
+    )

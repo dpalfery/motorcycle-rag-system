@@ -1,12 +1,16 @@
-import pandas as pd
 import asyncio
-import json
-import uuid
-import os
 import io
+import json
 import logging
-from api.api_client import ApiClient
+import os
+import uuid
 from datetime import datetime, timezone
+from typing import Any
+
+import pandas as pd
+
+from api.api_client import ApiClient
+from security.log_sanitizer import sanitize_log_value
 
 logger = logging.getLogger(__name__)
 _ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress"}
@@ -19,8 +23,11 @@ PIPELINE_STAGES = [
     "completed",
 ]
 
-_jobs: dict[str, dict] = {}
-_tasks: dict[str, asyncio.Task] = {}
+JobRecord = dict[str, Any]
+ArtifactRecord = dict[str, Any]
+
+_jobs: dict[str, JobRecord] = {}
+_tasks: dict[str, asyncio.Task[None]] = {}
 
 MAX_CHUNK_SIZE_TOKENS = int(os.getenv("MAX_CHUNK_SIZE_TOKENS", "512"))
 
@@ -85,16 +92,22 @@ class CSVProcessor:
             "updated_at": now,
         }
         task = asyncio.create_task(
-            self._process_background(job_id, upload_id, blob_container, metadata, local_file_path)
+            self._process_background(
+                job_id, upload_id, blob_container, metadata, local_file_path
+            )
         )
         _tasks[job_id] = task
-        task.add_done_callback(lambda _task, jid=job_id: _tasks.pop(jid, None))
+
+        def remove_completed_task(_: asyncio.Task[None]) -> None:
+            _tasks.pop(job_id, None)
+
+        task.add_done_callback(remove_completed_task)
         return job_id
 
-    async def get_job_status(self, job_id: str) -> dict | None:
+    async def get_job_status(self, job_id: str) -> JobRecord | None:
         return _jobs.get(job_id)
 
-    async def list_jobs(self) -> list[dict]:
+    async def list_jobs(self) -> list[JobRecord]:
         return list(_jobs.values())
 
     async def clear_terminal_jobs(self) -> int:
@@ -110,7 +123,7 @@ class CSVProcessor:
 
         return len(terminal_job_ids)
 
-    async def stop_job(self, job_id: str) -> dict | None:
+    async def stop_job(self, job_id: str) -> JobRecord | None:
         job = _jobs.get(job_id)
         if not job:
             return None
@@ -123,7 +136,7 @@ class CSVProcessor:
             task.cancel()
 
         await self._report_cancelled(job_id)
-        logger.info("CSV job cancelled job_id=%s", job_id)
+        logger.info("CSV job cancelled job_id=%s", sanitize_log_value(job_id))
         return _jobs.get(job_id)
 
     def _mark_cancelled(self, job_id: str) -> None:
@@ -174,8 +187,12 @@ class CSVProcessor:
             )
         except TypeError:
             pass
-        except Exception:
-            logger.warning("Failed to report terminal processor failure for job %s", job_id, exc_info=True)
+        except Exception as exc:
+            logger.warning(
+                "Failed to report terminal processor failure for job %s error=%s",
+                sanitize_log_value(job_id),
+                sanitize_log_value(str(exc)),
+            )
 
     def _set_stage(
         self,
@@ -216,7 +233,12 @@ class CSVProcessor:
                 pass
 
     async def _process_background(
-        self, job_id: str, upload_id: str, blob_container: str | None, metadata, local_file_path: str | None = None
+        self,
+        job_id: str,
+        upload_id: str,
+        blob_container: str | None,
+        metadata,
+        local_file_path: str | None = None,
     ) -> None:
         try:
             self._set_stage(job_id, "copying", "Preparing CSV source", 0.0)
@@ -250,7 +272,7 @@ class CSVProcessor:
             else:
                 grouped = [("all", df)]
 
-            chunks: list[dict] = []
+            chunks: list[ArtifactRecord] = []
             chunk_index = 0
 
             meta_make = getattr(metadata, "make", None) if metadata else None
@@ -305,7 +327,9 @@ class CSVProcessor:
                         f"Embedding chunk {chunk_index + 1}",
                         round(0.2 + (i + 1) / max(total_groups, 1) * 0.5, 2),
                         chunks_processed=chunk_index,
-                        total_chunks=max(len(chunks) + len(sub_chunks), chunk_index + 1),
+                        total_chunks=max(
+                            len(chunks) + len(sub_chunks), chunk_index + 1
+                        ),
                     )
                     embedding = await self.embedder.generate_embedding(text)
                     self._raise_if_cancelled(job_id)
@@ -384,17 +408,26 @@ class CSVProcessor:
             )
             logger.info(
                 "CSV processing completed for upload %s: %d chunks",
-                upload_id,
+                sanitize_log_value(upload_id),
                 len(chunks),
             )
 
         except asyncio.CancelledError:
             self._mark_cancelled(job_id)
             await self._report_cancelled(job_id)
-            logger.info("CSV processing cancelled for upload %s", upload_id)
+            logger.info(
+                "CSV processing cancelled for upload %s",
+                sanitize_log_value(upload_id),
+            )
         except Exception as exc:
-            logger.exception("CSV processing failed for upload %s", upload_id)
-            failure_reason = f"CSV processing failed — {type(exc).__name__}: {str(exc)[:300]}"
+            logger.error(
+                "CSV processing failed for upload %s error=%s",
+                sanitize_log_value(upload_id),
+                sanitize_log_value(str(exc)),
+            )
+            failure_reason = (
+                f"CSV processing failed — {type(exc).__name__}: {str(exc)[:300]}"
+            )
             _jobs[job_id].update(
                 {
                     "status": "failed",

@@ -9,17 +9,20 @@ use tauri::{Manager, State};
 
 mod auth;
 pub mod local_ingestion_queue;
+mod processor_transport;
 use auth::AuthConfig;
 use local_ingestion_queue::{
     queue_local_ingestion_work_item_to_watch_folder, LocalIngestionWorkItemRequest,
     LocalIngestionWorkItemResult,
 };
+use processor_transport::ProcessorTransport;
 
 /// Supervises the local Python processor child process and remembers its port.
 #[derive(Default)]
 struct ProcessorState {
     child: Mutex<Option<Child>>,
     port: Mutex<u16>,
+    transport: Mutex<Option<ProcessorTransport>>,
 }
 
 #[derive(Deserialize)]
@@ -238,7 +241,11 @@ fn processor_venv_python(processor_root: &Path) -> Option<PathBuf> {
     venv_python.is_file().then_some(venv_python)
 }
 
-fn resolve_python_launch(processor_root: &Path, port: u16) -> PythonLaunch {
+fn resolve_python_launch(
+    processor_root: &Path,
+    port: u16,
+    transport: &ProcessorTransport,
+) -> PythonLaunch {
     let src_dir = processor_root.join("src");
     let host = "127.0.0.1";
     let port_value = port.to_string();
@@ -249,6 +256,7 @@ fn resolve_python_launch(processor_root: &Path, port: u16) -> PythonLaunch {
         "--port".to_string(),
         port_value,
     ];
+    uvicorn_args.extend(transport.uvicorn_tls_args());
 
     if let Some(venv_python) = processor_venv_python(processor_root) {
         let mut args = vec!["-m".to_string(), "uvicorn".to_string()];
@@ -279,22 +287,18 @@ fn resolve_python_launch(processor_root: &Path, port: u16) -> PythonLaunch {
     }
 }
 
-async fn processor_is_listening_on_port(port: u16) -> bool {
+async fn processor_port_is_in_use(port: u16) -> bool {
     if port == 0 {
         return false;
     }
 
-    let url = format!("http://127.0.0.1:{port}/health");
-    match reqwest::Client::new().get(url).send().await {
-        Ok(response) => {
-            response.status().is_success()
-                || response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE
-        }
-        Err(_) => false,
-    }
+    tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .is_ok()
 }
 
 async fn wait_for_processor_listening(
+    transport: &ProcessorTransport,
     port: u16,
     child: &mut Child,
     timeout_secs: u64,
@@ -302,7 +306,7 @@ async fn wait_for_processor_listening(
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.max(1));
 
     while std::time::Instant::now() < deadline {
-        if processor_is_listening_on_port(port).await {
+        if transport.is_ready(port).await {
             return Ok(());
         }
         if let Some(reason) = child_exit_description(child) {
@@ -507,7 +511,7 @@ async fn processor_start(
         config.port
     };
 
-    if processor_is_listening_on_port(port_value).await {
+    if processor_port_is_in_use(port_value).await {
         *state
             .port
             .lock()
@@ -530,6 +534,14 @@ async fn processor_start(
             .lock()
             .map_err(|_| "processor state lock poisoned".to_string())?;
         clear_child_process(&mut child_guard);
+    }
+    if let Some(previous_transport) = state
+        .transport
+        .lock()
+        .map_err(|_| "processor state lock poisoned".to_string())?
+        .take()
+    {
+        previous_transport.cleanup()?;
     }
 
     let resolved = resolve_processor_working_dir(&app, &config.working_dir)?;
@@ -587,7 +599,11 @@ async fn processor_start(
         config.graph_extraction_model,
     );
 
-    let launch = resolve_python_launch(&resolved.path, port_value);
+    let transport = ProcessorTransport::create()?;
+    let (control_token_name, control_token) = transport.control_token_env();
+    envs.insert(control_token_name.into(), control_token.to_string());
+
+    let launch = resolve_python_launch(&resolved.path, port_value, &transport);
     let mut command = Command::new(&launch.program);
     command
         .args(&launch.args)
@@ -597,19 +613,29 @@ async fn processor_start(
         .stdout(Stdio::null())
         .stderr(Stdio::null());
 
-    let mut child = command.spawn().map_err(|e| {
-        format!(
-            "failed to start processor using {} (mode={}, source={}): {e}",
-            launch.program,
-            resolved.mode.as_str(),
-            resolved.source
-        )
-    })?;
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            let start_error = format!(
+                "failed to start processor using {} (mode={}, source={}): {error}",
+                launch.program,
+                resolved.mode.as_str(),
+                resolved.source
+            );
+            return match transport.cleanup() {
+                Ok(()) => Err(start_error),
+                Err(cleanup_error) => Err(format!("{start_error}; {cleanup_error}")),
+            };
+        }
+    };
 
-    if let Err(err) = wait_for_processor_listening(port_value, &mut child, 45).await {
+    if let Err(err) = wait_for_processor_listening(&transport, port_value, &mut child, 45).await {
         let _ = child.kill();
         let _ = child.wait();
-        return Err(err);
+        return match transport.cleanup() {
+            Ok(()) => Err(err),
+            Err(cleanup_error) => Err(format!("{err}; {cleanup_error}")),
+        };
     }
 
     *state
@@ -620,6 +646,10 @@ async fn processor_start(
         .port
         .lock()
         .map_err(|_| "processor state lock poisoned".to_string())? = port_value;
+    *state
+        .transport
+        .lock()
+        .map_err(|_| "processor state lock poisoned".to_string())? = Some(transport);
 
     Ok(())
 }
@@ -665,59 +695,108 @@ async fn wait_for_processor_stopped(port: u16, timeout_secs: u64) -> bool {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.max(1));
 
     while std::time::Instant::now() < deadline {
-        if !processor_is_listening_on_port(port).await {
+        if !processor_port_is_in_use(port).await {
             return true;
         }
         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     }
 
-    !processor_is_listening_on_port(port).await
+    !processor_port_is_in_use(port).await
 }
 
 /// Gracefully drain the processor (POST /control/shutdown) then kill the child.
 #[tauri::command]
 async fn processor_stop(state: State<'_, ProcessorState>, port: Option<u16>) -> Result<(), String> {
-    let stored_port = *state
-        .port
-        .lock()
-        .map_err(|_| "processor state lock poisoned".to_string())?;
-    let port_to_stop = port
-        .filter(|value| *value != 0)
-        .or_else(|| (stored_port != 0).then_some(stored_port))
-        .unwrap_or(DEFAULT_PROCESSOR_PORT);
+    let mut errors = Vec::new();
 
-    let shutdown_url = format!("http://127.0.0.1:{port_to_stop}/control/shutdown");
-    let _ = reqwest::Client::new()
-        .post(shutdown_url)
-        .timeout(std::time::Duration::from_secs(5))
-        .send()
-        .await;
+    // Recover a poisoned port lock so stop can continue into TLS cleanup / child termination.
+    // into_inner() yields the guarded value; the poison error is retained and returned below.
+    let stored_port = match state.port.lock() {
+        Ok(guard) => *guard,
+        Err(poisoned) => {
+            errors.push("processor state lock poisoned".to_string());
+            *poisoned.into_inner()
+        }
+    };
+    if stored_port == 0 {
+        return Err("local processor is not running".to_string());
+    }
+    if port.is_some_and(|requested| requested != stored_port) {
+        return Err(
+            "requested processor port does not match the active local processor".to_string(),
+        );
+    }
+    let port_to_stop = stored_port;
 
-    let child = state
-        .child
-        .lock()
-        .map_err(|_| "processor state lock poisoned".to_string())?
-        .take();
-    if let Some(mut child) = child {
-        let _ = child.kill();
-        let _ = child.wait();
+    // Recover a poisoned transport lock so ephemeral TLS material can still be cleaned up.
+    // Missing transport is collected as an error — never early-return before child termination.
+    let transport = match state.transport.lock() {
+        Ok(mut guard) => guard.take(),
+        Err(poisoned) => {
+            errors.push("processor state lock poisoned".to_string());
+            poisoned.into_inner().take()
+        }
+    };
+
+    if let Some(ref transport) = transport {
+        if let Err(error) = transport.session().shutdown(port_to_stop).await {
+            errors.push(error);
+        }
+    } else {
+        errors.push("local processor transport is not configured".to_string());
+    }
+
+    // Recover a poisoned child lock so the hosted process is still taken and terminated.
+    match state.child.lock() {
+        Ok(mut child_guard) => {
+            if let Some(mut child) = child_guard.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+        Err(poisoned) => {
+            errors.push("processor state lock poisoned".to_string());
+            let mut child_guard = poisoned.into_inner();
+            if let Some(mut child) = child_guard.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
     }
 
     if !wait_for_processor_stopped(port_to_stop, 8).await {
-        force_kill_listeners_on_port(port_to_stop)?;
+        if let Err(error) = force_kill_listeners_on_port(port_to_stop) {
+            errors.push(error);
+        }
         if !wait_for_processor_stopped(port_to_stop, 3).await {
-            return Err(format!(
+            errors.push(format!(
                 "local processor is still listening on port {port_to_stop} after stop was requested"
             ));
         }
     }
 
-    *state
-        .port
-        .lock()
-        .map_err(|_| "processor state lock poisoned".to_string())? = 0;
+    match state.port.lock() {
+        Ok(mut stored_port) => *stored_port = 0,
+        Err(poisoned) => {
+            *poisoned.into_inner() = 0;
+            errors.push("processor state lock poisoned".to_string());
+        }
+    }
 
-    Ok(())
+    // The transport owns the per-launch control token and private TLS material. It must be
+    // consumed even when termination fails so no credentials or certificate files survive a
+    // failed stop attempt.
+    if let Some(transport) = transport {
+        if let Err(error) = transport.cleanup() {
+            errors.push(error);
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
 }
 
 #[tauri::command]
@@ -734,17 +813,29 @@ async fn processor_is_listening(
     port: Option<u16>,
     state: State<'_, ProcessorState>,
 ) -> Result<bool, String> {
-    let configured_port = port.unwrap_or_else(|| {
-        state
-            .port
-            .lock()
-            .map(|guard| *guard)
-            .unwrap_or(DEFAULT_PROCESSOR_PORT)
-    });
-    Ok(processor_is_listening_on_port(configured_port).await)
+    let configured_port = *state
+        .port
+        .lock()
+        .map_err(|_| "processor state lock poisoned".to_string())?;
+    if configured_port == 0 {
+        return Ok(false);
+    }
+    if port.is_some_and(|requested| requested != configured_port) {
+        return Err(
+            "requested processor port does not match the active local processor".to_string(),
+        );
+    }
+    let session = state
+        .transport
+        .lock()
+        .map_err(|_| "processor state lock poisoned".to_string())?
+        .as_ref()
+        .ok_or_else(|| "local processor transport is not configured".to_string())?
+        .session();
+    Ok(session.is_ready(configured_port).await)
 }
 
-/// Proxy an HTTP request to the local processor on 127.0.0.1. Routing requests through
+/// Proxy an authenticated HTTPS request to the active local processor. Routing requests through
 /// Rust avoids browser CORS / mixed-content restrictions in the webview.
 #[tauri::command]
 async fn processor_request(
@@ -754,21 +845,29 @@ async fn processor_request(
     body: Option<serde_json::Value>,
     port: Option<u16>,
 ) -> Result<serde_json::Value, String> {
-    let default_port = *state
+    let configured_port = *state
         .port
         .lock()
         .map_err(|_| "processor state lock poisoned".to_string())?;
-    let port = port.unwrap_or(default_port);
-    if port == 0 {
+    if configured_port == 0 {
         return Err("local processor port is not configured".into());
     }
-    let url = format!("http://127.0.0.1:{port}{path}");
-    let client = reqwest::Client::new();
+    if port.is_some_and(|requested| requested != configured_port) {
+        return Err(
+            "requested processor port does not match the active local processor".to_string(),
+        );
+    }
+    let session = state
+        .transport
+        .lock()
+        .map_err(|_| "processor state lock poisoned".to_string())?
+        .as_ref()
+        .ok_or_else(|| "local processor transport is not configured".to_string())?
+        .session();
     let req = match method.to_uppercase().as_str() {
-        "GET" => client.get(url),
-        "DELETE" => client.delete(url),
+        "GET" | "DELETE" => session.request(&method, configured_port, &path)?,
         "POST" => {
-            let r = client.post(url);
+            let r = session.request(&method, configured_port, &path)?;
             if let Some(b) = body {
                 r.json(&b)
             } else {
@@ -776,14 +875,14 @@ async fn processor_request(
             }
         }
         "PUT" => {
-            let r = client.put(url);
+            let r = session.request(&method, configured_port, &path)?;
             if let Some(b) = body {
                 r.json(&b)
             } else {
                 r
             }
         }
-        other => return Err(format!("unsupported method {other}")),
+        _ => return Err("unsupported processor request method".to_string()),
     };
 
     let resp = req.send().await.map_err(|e| e.to_string())?;
@@ -957,12 +1056,16 @@ mod tests {
         let venv_python = venv_bin.join("python");
         fs::write(&venv_python, "#!/bin/sh\n").expect("create venv python stub");
 
-        let launch = resolve_python_launch(&base, 8100);
+        let transport = ProcessorTransport::create().expect("create transport");
+        let launch = resolve_python_launch(&base, 8100, &transport);
         assert_eq!(launch.program, venv_python.to_string_lossy());
         assert_eq!(launch.args[0..3], ["-m", "uvicorn", "main:app"]);
+        assert!(launch.args.contains(&"--ssl-keyfile".to_string()));
+        assert!(launch.args.contains(&"--ssl-certfile".to_string()));
         assert_eq!(launch.working_dir, base.join("src"));
 
         let _ = fs::remove_dir_all(&base);
+        transport.cleanup().expect("cleanup transport");
     }
 
     #[test]
@@ -970,12 +1073,16 @@ mod tests {
         let base = temp_path("python-launch-system");
         create_processor_layout(&base);
 
-        let launch = resolve_python_launch(&base, 8100);
+        let transport = ProcessorTransport::create().expect("create transport");
+        let launch = resolve_python_launch(&base, 8100, &transport);
         assert_eq!(launch.program, "python3");
         assert_eq!(launch.args[0..3], ["-m", "uvicorn", "main:app"]);
+        assert!(launch.args.contains(&"--ssl-keyfile".to_string()));
+        assert!(launch.args.contains(&"--ssl-certfile".to_string()));
         assert_eq!(launch.working_dir, base.join("src"));
 
         let _ = fs::remove_dir_all(&base);
+        transport.cleanup().expect("cleanup transport");
     }
 
     #[test]

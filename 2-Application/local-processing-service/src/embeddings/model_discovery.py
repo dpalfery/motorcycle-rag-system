@@ -7,6 +7,15 @@ from typing import Any
 
 import httpx
 
+from security.safe_http import (
+    EndpointPolicy,
+    RedirectBlockedError,
+    create_model_discovery_async_client,
+    create_model_discovery_client,
+    require_non_redirect_success,
+    validate_model_discovery_endpoint,
+)
+
 # Public, non-secret placeholder for local OpenAI-compatible servers
 # (LM Studio, Ollama /v1, Foundry Local) that do not require authentication.
 # These servers ignore the bearer value; the OpenAI client only requires a
@@ -28,14 +37,13 @@ class ModelDiscoveryResult:
 
 def _normalize_endpoint(endpoint: str) -> str:
     normalized = endpoint.strip().rstrip("/")
-    if not normalized:
-        raise ValueError("Embedding provider endpoint is required")
 
     for suffix in ("/models", "/embeddings", "/chat/completions", "/api/tags"):
         if normalized.lower().endswith(suffix):
             normalized = normalized[: -len(suffix)]
             break
 
+    validate_model_discovery_endpoint(normalized)
     return normalized
 
 
@@ -93,14 +101,17 @@ def _parse_ollama_payload(payload: Any) -> list[str]:
     models = [
         str(item.get("model") or item.get("name") or "").strip()
         for item in data
-        if isinstance(item, dict) and str(item.get("model") or item.get("name") or "").strip()
+        if isinstance(item, dict)
+        and str(item.get("model") or item.get("name") or "").strip()
     ]
     return _unique(models)
 
 
-def _sync_get_json(client: httpx.Client, url: str, headers: dict[str, str] | None = None) -> Any:
+def _sync_get_json(
+    client: httpx.Client, url: str, headers: dict[str, str] | None = None
+) -> Any:
     response = client.get(url, headers=headers)
-    response.raise_for_status()
+    require_non_redirect_success(response)
     return response.json()
 
 
@@ -108,23 +119,32 @@ async def _async_get_json(
     client: httpx.AsyncClient, url: str, headers: dict[str, str] | None = None
 ) -> Any:
     response = await client.get(url, headers=headers)
-    response.raise_for_status()
+    require_non_redirect_success(response)
     return response.json()
 
 
-def _discover_with_sync_client(client: httpx.Client, endpoint: str) -> ModelDiscoveryResult:
+def _discover_with_sync_client(
+    client: httpx.Client, endpoint: str
+) -> ModelDiscoveryResult:
     last_error: Exception | None = None
 
     for url in _openai_candidate_urls(endpoint):
         # _LOCAL_PLACEHOLDER_API_KEY is a non-secret placeholder for
         # unauthenticated local OpenAI-compatible servers (LM Studio, Ollama /v1,
         # Foundry Local) that ignore the bearer value.
-        for headers in (None, {"Authorization": f"Bearer {_LOCAL_PLACEHOLDER_API_KEY}"}):
+        for headers in (
+            None,
+            {"Authorization": f"Bearer {_LOCAL_PLACEHOLDER_API_KEY}"},
+        ):
             try:
                 payload = _sync_get_json(client, url, headers=headers)
                 models = _parse_openai_payload(payload)
                 if models:
-                    return ModelDiscoveryResult("openai-compatible", _candidate_base_url(url, "/models"), models)
+                    return ModelDiscoveryResult(
+                        "openai-compatible", _candidate_base_url(url, "/models"), models
+                    )
+            except RedirectBlockedError:
+                raise
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
 
@@ -133,7 +153,11 @@ def _discover_with_sync_client(client: httpx.Client, endpoint: str) -> ModelDisc
             payload = _sync_get_json(client, url)
             models = _parse_ollama_payload(payload)
             if models:
-                return ModelDiscoveryResult("ollama", _candidate_base_url(url, "/api/tags"), models)
+                return ModelDiscoveryResult(
+                    "ollama", _candidate_base_url(url, "/api/tags"), models
+                )
+        except RedirectBlockedError:
+            raise
         except Exception as exc:  # noqa: BLE001
             last_error = exc
 
@@ -142,19 +166,28 @@ def _discover_with_sync_client(client: httpx.Client, endpoint: str) -> ModelDisc
     ) from last_error
 
 
-async def _discover_with_async_client(client: httpx.AsyncClient, endpoint: str) -> ModelDiscoveryResult:
+async def _discover_with_async_client(
+    client: httpx.AsyncClient, endpoint: str
+) -> ModelDiscoveryResult:
     last_error: Exception | None = None
 
     for url in _openai_candidate_urls(endpoint):
         # _LOCAL_PLACEHOLDER_API_KEY is a non-secret placeholder for
         # unauthenticated local OpenAI-compatible servers (LM Studio, Ollama /v1,
         # Foundry Local) that ignore the bearer value.
-        for headers in (None, {"Authorization": f"Bearer {_LOCAL_PLACEHOLDER_API_KEY}"}):
+        for headers in (
+            None,
+            {"Authorization": f"Bearer {_LOCAL_PLACEHOLDER_API_KEY}"},
+        ):
             try:
                 payload = await _async_get_json(client, url, headers=headers)
                 models = _parse_openai_payload(payload)
                 if models:
-                    return ModelDiscoveryResult("openai-compatible", _candidate_base_url(url, "/models"), models)
+                    return ModelDiscoveryResult(
+                        "openai-compatible", _candidate_base_url(url, "/models"), models
+                    )
+            except RedirectBlockedError:
+                raise
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
 
@@ -163,7 +196,11 @@ async def _discover_with_async_client(client: httpx.AsyncClient, endpoint: str) 
             payload = await _async_get_json(client, url)
             models = _parse_ollama_payload(payload)
             if models:
-                return ModelDiscoveryResult("ollama", _candidate_base_url(url, "/api/tags"), models)
+                return ModelDiscoveryResult(
+                    "ollama", _candidate_base_url(url, "/api/tags"), models
+                )
+        except RedirectBlockedError:
+            raise
         except Exception as exc:  # noqa: BLE001
             last_error = exc
 
@@ -173,10 +210,12 @@ async def _discover_with_async_client(client: httpx.AsyncClient, endpoint: str) 
 
 
 def discover_embedding_models_sync(endpoint: str) -> ModelDiscoveryResult:
-    with httpx.Client(timeout=httpx.Timeout(10.0)) as client:
+    _, policy = validate_model_discovery_endpoint(endpoint)
+    with create_model_discovery_client(policy) as client:
         return _discover_with_sync_client(client, endpoint)
 
 
 async def discover_embedding_models(endpoint: str) -> ModelDiscoveryResult:
-    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+    _, policy = validate_model_discovery_endpoint(endpoint)
+    async with create_model_discovery_async_client(policy) as client:
         return await _discover_with_async_client(client, endpoint)

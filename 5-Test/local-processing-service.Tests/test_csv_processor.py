@@ -1,6 +1,7 @@
 """Unit tests for CSVProcessor — all external calls mocked."""
 
 import asyncio
+import logging
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -67,7 +68,9 @@ def embedder():
 
 @pytest.fixture()
 def processor(blob_writer, embedder, api_client):
-    return CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
+    return CSVProcessor(
+        blob_writer=blob_writer, embedder=embedder, api_client=api_client
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -76,8 +79,12 @@ def processor(blob_writer, embedder, api_client):
 
 
 class TestCSVProcessorInstantiation:
-    def test_instantiates_with_mock_dependencies(self, blob_writer, embedder, api_client):
-        proc = CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
+    def test_instantiates_with_mock_dependencies(
+        self, blob_writer, embedder, api_client
+    ):
+        proc = CSVProcessor(
+            blob_writer=blob_writer, embedder=embedder, api_client=api_client
+        )
         assert proc.blob_writer is blob_writer
         assert proc.embedder is embedder
 
@@ -86,7 +93,10 @@ class TestCSVHelpers:
     def test_format_row_omits_missing_values_and_estimates_tokens(self):
         import pandas as pd
 
-        assert _format_row(pd.Series({"make": "Honda", "year": float("nan")})) == "make: Honda"
+        assert (
+            _format_row(pd.Series({"make": "Honda", "year": float("nan")}))
+            == "make: Honda"
+        )
         assert _estimate_tokens("12345678") == 2
 
     def test_split_text_returns_single_or_multiple_chunks(self):
@@ -176,7 +186,9 @@ class TestGetJobStatus:
         await processor._report_cancelled("job")
 
         assert api_client.report_stage.await_count == 2
-        assert api_client.report_stage.await_args_list[0].kwargs["failure_reason"] == "bad"
+        assert (
+            api_client.report_stage.await_args_list[0].kwargs["failure_reason"] == "bad"
+        )
         api_client.report_stage = AsyncMock(side_effect=TypeError("old signature"))
         await processor._report_failed("job", "bad")
         await processor._report_cancelled("job")
@@ -229,7 +241,9 @@ class TestCSVBackgroundProcessing:
         await _wait_for_terminal_status(processor, job_id)
         await asyncio.sleep(0)
 
-        reported_stages = [call.args[1] for call in api_client.report_stage.await_args_list]
+        reported_stages = [
+            call.args[1] for call in api_client.report_stage.await_args_list
+        ]
         assert reported_stages[0] == "copying"
         for stage in [
             "copying",
@@ -245,7 +259,9 @@ class TestCSVBackgroundProcessing:
     async def test_empty_csv_results_in_failed(self, blob_writer, embedder, api_client):
         """An empty CSV (headers only, no data rows) should result in 'failed'."""
         blob_writer.download_blob = AsyncMock(return_value=b"make,model,year\n")
-        proc = CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
+        proc = CSVProcessor(
+            blob_writer=blob_writer, embedder=embedder, api_client=api_client
+        )
         job_id = await proc.process_csv_async(
             upload_id="upload-empty",
             blob_container="raw-uploads",
@@ -281,7 +297,9 @@ class TestCSVBackgroundProcessing:
         assert (await processor.get_job_status(second_job_id))["status"] != "cancelled"
         await processor.stop_job(second_job_id)
 
-    async def test_cancelled_job_does_not_upload_chunks(self, processor, embedder, api_client):
+    async def test_cancelled_job_does_not_upload_chunks(
+        self, processor, embedder, api_client
+    ):
         async def slow_embedding(_text: str):
             await asyncio.sleep(10)
             return [0.1] * 1536
@@ -340,6 +358,33 @@ class TestCSVBackgroundProcessing:
         assert status["stage"] == "failed"
         assert "RuntimeError: model offline" in status["message"]
         assert any(
-            call.args[1] == "failed"
-            for call in api_client.report_stage.await_args_list
+            call.args[1] == "failed" for call in api_client.report_stage.await_args_list
         )
+
+
+async def test_process_csv_when_upload_id_contains_controls_logs_reversible_value(
+    processor, caplog
+):
+    unsafe_upload_id = "external\\path\r\n\t\0\x01\x1f\x7f\x85\x9fvalue"
+    escaped_upload_id = (
+        "external\\\\path\\r\\n\\t\\0\\u0001\\u001F\\u007F\\u0085\\u009Fvalue"
+    )
+    caplog.set_level(logging.INFO, logger="processors.csv_processor")
+
+    job_id = await processor.process_csv_async(
+        upload_id=unsafe_upload_id,
+        blob_container="raw-uploads",
+    )
+    await _wait_for_terminal_status(processor, job_id)
+
+    target_records = [
+        item for item in caplog.records if item.name == "processors.csv_processor"
+    ]
+    target_messages = [item.getMessage() for item in target_records]
+
+    assert target_messages
+    assert any(escaped_upload_id in message for message in target_messages)
+    assert all(
+        not any(character in message for character in "\r\n\t\0\x01\x1f\x7f\x85\x9f")
+        for message in target_messages
+    )

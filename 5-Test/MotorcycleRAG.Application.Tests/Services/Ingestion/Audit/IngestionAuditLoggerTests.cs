@@ -6,7 +6,7 @@ namespace MotorcycleRAG.UnitTests.Services.Ingestion.Audit;
 public sealed class IngestionAuditLoggerTests
 {
     [Fact]
-    public async Task LogAsync_NewlineAndOverlongValues_LogsSanitizedAndTruncatedStructuredFields()
+    public async Task LogAsync_NewlineAndOverlongValues_LogsReversibleFullStructuredFields()
     {
         // Arrange
         var logger = new CapturingLogger<IngestionAuditLogger>();
@@ -21,6 +21,9 @@ public sealed class IngestionAuditLoggerTests
         // Assert
         var entry = logger.Entries.Should().ContainSingle().Subject;
         entry.LogLevel.Should().Be(LogLevel.Information);
+        entry.Properties.Should().ContainKeys("Event", "UploadId", "UserId", "Success", "{OriginalFormat}");
+        entry.Properties["{OriginalFormat}"].Should().Be(
+            "Ingestion audit: event={Event} uploadId={UploadId} userId={UserId} success={Success}");
         entry.Properties["Success"].Should().Be(true);
         AssertSanitized(entry, eventName, "Event");
         AssertSanitized(entry, uploadId, "UploadId");
@@ -29,7 +32,7 @@ public sealed class IngestionAuditLoggerTests
     }
 
     [Fact]
-    public async Task LogErrorAsync_NewlineAndOverlongValues_LogsSanitizedAndTruncatedStructuredFields()
+    public async Task LogErrorAsync_NewlineAndOverlongValues_LogsReversibleFullStructuredFields()
     {
         // Arrange
         var logger = new CapturingLogger<IngestionAuditLogger>();
@@ -45,6 +48,9 @@ public sealed class IngestionAuditLoggerTests
         // Assert
         var entry = logger.Entries.Should().ContainSingle().Subject;
         entry.LogLevel.Should().Be(LogLevel.Warning);
+        entry.Properties.Should().ContainKeys("Event", "UploadId", "UserId", "ErrorCode", "{OriginalFormat}");
+        entry.Properties["{OriginalFormat}"].Should().Be(
+            "Ingestion audit error: event={Event} uploadId={UploadId} userId={UserId} errorCode={ErrorCode}");
         AssertSanitized(entry, eventName, "Event");
         AssertSanitized(entry, uploadId, "UploadId");
         AssertSanitized(entry, userId, "UserId");
@@ -53,14 +59,16 @@ public sealed class IngestionAuditLoggerTests
     }
 
     private static string CreateUnsafeValue(string prefix) =>
-        $"{prefix}\n{new string('x', 205)}";
+        $"{prefix}\\source\r\n{new string('x', 205)}\ttail";
 
     private static void AssertSanitized(CapturedLogEntry entry, string rawValue, string propertyName)
     {
         var sanitizedValue = entry.Properties[propertyName].Should().BeOfType<string>().Subject;
 
-        sanitizedValue.Should().HaveLength(200);
+        sanitizedValue.Length.Should().BeGreaterThan(200);
         sanitizedValue.Should().NotBe(rawValue);
+        sanitizedValue.Should().Contain("\\\\source\\r\\n");
+        sanitizedValue.Should().EndWith($"{new string('x', 205)}\\ttail");
         sanitizedValue.Should().NotContain("\n");
         sanitizedValue.Should().NotContain("\r");
         sanitizedValue.Should().NotContain("\t");
@@ -105,10 +113,7 @@ public sealed class IngestionAuditLoggerTests
             {
                 foreach (var pair in stateList)
                 {
-                    if (!string.Equals(pair.Key, "{OriginalFormat}", StringComparison.Ordinal))
-                    {
-                        properties[pair.Key] = pair.Value;
-                    }
+                    properties[pair.Key] = pair.Value;
                 }
             }
 

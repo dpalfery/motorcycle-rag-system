@@ -1,55 +1,79 @@
+using FluentAssertions;
 using MotorcycleRAG.Core.Utilities;
-using Xunit;
 
 namespace MotorcycleRAG.Core.Tests;
 
 public class LogSanitizerTests
 {
     [Fact]
-    public void Sanitize_String_WithNull_ReturnsEmptyString()
+    public void Sanitize_WhenStringValueIsNull_ReturnsEmptyString()
     {
+        // Act
         var result = LogSanitizer.Sanitize((string?)null);
-        Assert.Equal(string.Empty, result);
+
+        // Assert
+        result.Should().BeEmpty();
     }
 
     [Fact]
-    public void Sanitize_Object_WithNull_ReturnsEmptyString()
+    public void Sanitize_WhenObjectValueIsNull_ReturnsEmptyString()
     {
+        // Act
         var result = LogSanitizer.Sanitize((object?)null);
-        Assert.Equal(string.Empty, result);
+
+        // Assert
+        result.Should().BeEmpty();
     }
 
     [Fact]
-    public void Sanitize_String_WithoutControlCharacters_ReturnsSameString()
+    public void Sanitize_WhenValueContainsPrintableUnicode_PreservesTheFullValueWithoutDefaultTruncation()
     {
-        var input = "valid log message";
+        // Arrange
+        var input = $"Motorcycle 東京 é⚡😀 {new string('x', 250)}";
+
+        // Act
         var result = LogSanitizer.Sanitize(input);
-        Assert.Equal(input, result);
+
+        // Assert
+        result.Should().Be(input);
     }
 
     [Fact]
-    public void Sanitize_String_WithControlCharacters_ReplacesThemWithSpaces()
+    public void Sanitize_WhenValueContainsBackslashBeforeLineFeed_EscapesTheBackslashFirst()
     {
-        var input = "line1\nline2\rline3\ttab\0null";
+        // Arrange
+        const string input = "path\\manual\nnext";
+
+        // Act
         var result = LogSanitizer.Sanitize(input);
-        Assert.Equal("line1 line2 line3 tab null", result);
+
+        // Assert
+        result.Should().Be("path\\\\manual\\nnext");
     }
 
     [Fact]
-    public void Sanitize_String_LongerThanMaxLength_TruncatesString()
+    public void Sanitize_WhenValueContainsCrLfTabNulC0AndC1Controls_UsesVisibleReversibleEscapes()
     {
-        var input = new string('A', 250);
-        var result = LogSanitizer.Sanitize(input, 100);
-        Assert.Equal(100, result.Length);
-        Assert.Equal(new string('A', 100), result);
-    }
+        // Arrange
+        const string input = "before\\after\r\n\t\0\u0001\u001F\u007F\u0085\u009Fafter";
 
-    [Fact]
-    public void Sanitize_Object_CallsToStringAndSanitizes()
-    {
-        var input = new Exception("test\nexception");
+        // Act
         var result = LogSanitizer.Sanitize(input);
-        Assert.Contains("test exception", result);
-        Assert.DoesNotContain("\n", result);
+
+        // Assert
+        result.Should().Be("before\\\\after\\r\\n\\t\\0\\u0001\\u001F\\u007F\\u0085\\u009Fafter");
+    }
+
+    [Fact]
+    public void Sanitize_WhenValueContainsControlCharacters_ReturnsNoRawControlCharacters()
+    {
+        // Arrange
+        const string input = "\r\n\t\0\u0001\u001F\u007F\u0085\u009F";
+
+        // Act
+        var result = LogSanitizer.Sanitize(input);
+
+        // Assert
+        result.Any(char.IsControl).Should().BeFalse();
     }
 }

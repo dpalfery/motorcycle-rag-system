@@ -12,6 +12,12 @@ public sealed class SqlDbSetupConnectionFactory : IDbSetupConnectionFactory
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        return new SqlConnection(connectionString);
+        var builder = new SqlConnectionStringBuilder(connectionString)
+        {
+            Encrypt = SqlConnectionEncryptOption.Mandatory,
+            TrustServerCertificate = false
+        };
+
+        return new SqlConnection(builder.ConnectionString);
     }
 }

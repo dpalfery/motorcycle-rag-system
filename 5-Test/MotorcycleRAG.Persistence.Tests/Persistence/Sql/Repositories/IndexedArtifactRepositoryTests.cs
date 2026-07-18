@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Persistence.Sql;
 using MotorcycleRAG.Persistence.Sql.Repositories;
@@ -602,6 +603,28 @@ public sealed class IndexedArtifactRepositoryTests
         var exception = await act.Should().ThrowAsync<InvalidOperationException>();
         exception.Which.Message.Should().Be("Failed to delete indexed artifacts by identifiers");
         exception.Which.InnerException.Should().Be(expected);
+    }
+
+    [Trait("Category", "GetByUploadIdAsync")]
+    [Fact]
+    public async Task GetByUploadIdAsync_UploadIdContainsControlCharacters_LogsOneEscapedPhysicalLine()
+    {
+        const string attackerUploadId = "upload\\name\r\nforged\tentry";
+        const string expectedEscapedUploadId = "upload\\\\name\\r\\nforged\\tentry";
+        var factory = new Mock<ISqlConnectionFactory>();
+        factory.Setup(x => x.CreateOpenConnectionAsync()).ThrowsAsync(new InvalidOperationException("sql down"));
+        var logger = new Mock<ILogger<IndexedArtifactRepository>>();
+        var sut = new IndexedArtifactRepository(factory.Object, logger.Object);
+
+        var act = () => sut.GetByUploadIdAsync(attackerUploadId);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        var message = logger.Invocations.Single(invocation => invocation.Method.Name == nameof(ILogger.Log))
+            .Arguments[2].ToString();
+        message.Should().Contain(expectedEscapedUploadId)
+            .And.NotContain("\r")
+            .And.NotContain("\n")
+            .And.NotContain("\t");
     }
 
     // ─────────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 using MotorcycleRAG.Persistence.Sql;
@@ -70,7 +71,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upsert indexed artifact {UploadId}", artifact.UploadId);
+            _logger.LogError(ex, "Failed to upsert indexed artifact {UploadId}", LogSanitizer.Sanitize(artifact.UploadId));
             throw new InvalidOperationException($"Failed to upsert indexed artifact", ex);
         }
     }
@@ -122,7 +123,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get indexed artifact by upload {UploadId}", uploadId);
+            _logger.LogError(ex, "Failed to get indexed artifact by upload {UploadId}", LogSanitizer.Sanitize(uploadId));
             throw new InvalidOperationException($"Failed to get indexed artifact", ex);
         }
     }
@@ -232,7 +233,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get indexed artifacts by upload {UploadId}", uploadId);
+            _logger.LogError(ex, "Failed to get indexed artifacts by upload {UploadId}", LogSanitizer.Sanitize(uploadId));
             throw new InvalidOperationException("Failed to get indexed artifacts", ex);
         }
     }

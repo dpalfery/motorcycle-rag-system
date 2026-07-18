@@ -8,9 +8,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 using MotorcycleRAG.API;
 using MotorcycleRAG.API.Extensions;
 using System.Security.Claims;
+using System.Security.Cryptography;
 
 namespace MotorcycleRAG.UnitTests.Presentation.API.Extensions;
 
@@ -94,7 +96,7 @@ public class AuthenticationServiceExtensionsTests
         var options = new JwtBearerOptions();
         configure.Invoke(null, [options, cache, issuer, null, DefaultAudiences]);
         var resolve = options.TokenValidationParameters.IssuerSigningKeyResolver!;
-        var token = new JsonWebToken("eyJhbGciOiJub25lIn0.eyJpc3MiOiJodHRwczovL2lzc3Vlci5leGFtcGxlLnRlc3QifQ.");
+        var token = new JsonWebToken(CreateEphemeralJwt(issuer));
 
         resolve(null!, null!, null!, null!).Should().BeEmpty();
         resolve(null!, token, null!, null!).Should().ContainSingle().Which.KeyId.Should().Be("key-1");
@@ -182,6 +184,19 @@ public class AuthenticationServiceExtensionsTests
         result.Should().BeOfType<AuthenticationBuilder>();
 
         return (AuthenticationBuilder)result!;
+    }
+
+    private static string CreateEphemeralJwt(string issuer)
+    {
+        var signingKey = new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32));
+        var handler = new JsonWebTokenHandler();
+
+        return handler.CreateToken(new SecurityTokenDescriptor
+        {
+            Issuer = issuer,
+            Expires = DateTime.UtcNow.AddMinutes(5),
+            SigningCredentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256)
+        });
     }
 
     private sealed class StaticDiscoveryHandler(string issuer) : HttpMessageHandler

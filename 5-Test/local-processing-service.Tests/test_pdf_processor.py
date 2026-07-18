@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import uuid
 from types import SimpleNamespace
 from typing import Any
@@ -102,15 +103,17 @@ def metadata_extractor():
     """
     me = MagicMock()
     me.PAGE_SAMPLE_SIZES = [1, 2, 3]
-    me.extract = AsyncMock(return_value={
-        "make": "Honda",
-        "model": "CB500",
-        "year": 2020,
-        "category": "naked",
-        "tags": ["naked", "500cc"],
-        "fill_rate": 1.0,
-        "pages_sampled": 3,
-    })
+    me.extract = AsyncMock(
+        return_value={
+            "make": "Honda",
+            "model": "CB500",
+            "year": 2020,
+            "category": "naked",
+            "tags": ["naked", "500cc"],
+            "fill_rate": 1.0,
+            "pages_sampled": 3,
+        }
+    )
     return me
 
 
@@ -240,7 +243,13 @@ class TestPDFBackgroundProcessing:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_reports_all_pdf_pipeline_stages_to_configured_api_client(
-        self, MockConverter, MockChunker, MockGetTokenizer, processor, api_client, metadata
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        api_client,
+        metadata,
     ):
         api_client.is_configured.return_value = True
         MockGetTokenizer.return_value = MagicMock()
@@ -262,7 +271,9 @@ class TestPDFBackgroundProcessing:
         await _wait_for_terminal_status(processor, job_id)
         await asyncio.sleep(0)
 
-        reported_stages = [call.args[1] for call in api_client.report_stage.await_args_list]
+        reported_stages = [
+            call.args[1] for call in api_client.report_stage.await_args_list
+        ]
         assert reported_stages[0] == "copying"
         for stage in [
             "copying",
@@ -298,7 +309,13 @@ class TestPDFBackgroundProcessing:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_failed_when_second_embedding_times_out(
-        self, MockConverter, MockChunker, MockGetTokenizer, processor, embedder, metadata
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        embedder,
+        metadata,
     ):
         MockGetTokenizer.return_value = MagicMock()
         fake_chunks = [_make_chunk("Chunk 1"), _make_chunk("Chunk 2", page_no=2)]
@@ -307,9 +324,7 @@ class TestPDFBackgroundProcessing:
         mock_result.document = MagicMock()
         MockConverter.return_value.convert.return_value = mock_result
         MockChunker.return_value.chunk.return_value = fake_chunks
-        timeout_error = RuntimeError(
-            "Foundry Local embedding failed after 3 retries"
-        )
+        timeout_error = RuntimeError("Foundry Local embedding failed after 3 retries")
         timeout_error.__cause__ = asyncio.TimeoutError()
         embedder.generate_embedding = AsyncMock(
             side_effect=[[0.1] * 1536, timeout_error]
@@ -345,7 +360,14 @@ class TestPDFBackgroundProcessing:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_reports_terminal_failed_stage_to_configured_api_client(
-        self, MockConverter, MockChunker, MockGetTokenizer, processor, api_client, embedder, metadata
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        api_client,
+        embedder,
+        metadata,
     ):
         api_client.is_configured.return_value = True
         MockGetTokenizer.return_value = MagicMock()
@@ -353,7 +375,9 @@ class TestPDFBackgroundProcessing:
         mock_result.document = MagicMock()
         MockConverter.return_value.convert.return_value = mock_result
         MockChunker.return_value.chunk.return_value = [_make_chunk("Chunk 1")]
-        embedder.generate_embedding = AsyncMock(side_effect=ValueError("Expected 1536 dims, got 2560"))
+        embedder.generate_embedding = AsyncMock(
+            side_effect=ValueError("Expected 1536 dims, got 2560")
+        )
 
         job_id = await processor.process_pdf_async(
             upload_id="upload-pdf-failed-stage",
@@ -369,7 +393,8 @@ class TestPDFBackgroundProcessing:
         # (best-effort), so the terminal "failed" report (directly awaited) is
         # not guaranteed to be the last entry in await_args_list.
         pending = [
-            t for t in asyncio.all_tasks()
+            t
+            for t in asyncio.all_tasks()
             if t is not asyncio.current_task() and not t.done()
         ]
         if pending:
@@ -379,11 +404,13 @@ class TestPDFBackgroundProcessing:
         # failure reason. Assert by filtering rather than by position because
         # fire-and-forget reports can interleave.
         failed_calls = [
-            c for c in api_client.report_stage.await_args_list
-            if c.args[1] == "failed"
+            c for c in api_client.report_stage.await_args_list if c.args[1] == "failed"
         ]
         assert failed_calls
-        assert failed_calls[-1].kwargs["failure_reason"] == "PDF processing failed: Expected 1536 dims, got 2560"
+        assert (
+            failed_calls[-1].kwargs["failure_reason"]
+            == "PDF processing failed: Expected 1536 dims, got 2560"
+        )
 
         status = await processor.get_job_status(job_id)
         assert status["status"] == "failed"
@@ -434,8 +461,13 @@ class TestMetadataExtraction:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_successful_metadata_extraction_completes_pipeline(
-        self, MockConverter, MockChunker, MockGetTokenizer,
-        processor, metadata_extractor, metadata,
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        metadata_extractor,
+        metadata,
     ):
         """100% fill rate merges metadata and proceeds to chunking/completion."""
         MockGetTokenizer.return_value = MagicMock()
@@ -469,8 +501,13 @@ class TestMetadataExtraction:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_source_path_forwarded_to_metadata_extractor(
-        self, MockConverter, MockChunker, MockGetTokenizer,
-        processor, metadata_extractor, metadata,
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        metadata_extractor,
+        metadata,
     ):
         """source_path is threaded through to MetadataExtractor.extract()."""
         MockGetTokenizer.return_value = MagicMock()
@@ -493,14 +530,21 @@ class TestMetadataExtraction:
         await _wait_for_terminal_status(processor, job_id)
 
         metadata_extractor.extract.assert_awaited_once()
-        assert metadata_extractor.extract.await_args.kwargs["source_path"] == source_path
+        assert (
+            metadata_extractor.extract.await_args.kwargs["source_path"] == source_path
+        )
 
     @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_source_path_defaults_to_none_when_omitted(
-        self, MockConverter, MockChunker, MockGetTokenizer,
-        processor, metadata_extractor, metadata,
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        metadata_extractor,
+        metadata,
     ):
         """Omitting source_path forwards None to the extractor (no KeyError)."""
         MockGetTokenizer.return_value = MagicMock()
@@ -527,14 +571,25 @@ class TestMetadataExtraction:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_pauses_at_needs_manual_metadata_when_fill_rate_low(
-        self, MockConverter, MockChunker, MockGetTokenizer,
-        processor, metadata_extractor, api_client, metadata,
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        metadata_extractor,
+        api_client,
+        metadata,
     ):
         """Fill rate < 1.0 pauses the job without error and reports to the API."""
         api_client.is_configured.return_value = True
         metadata_extractor.extract.return_value = {
-            "make": "Honda", "model": None, "year": 0, "category": None,
-            "tags": [], "fill_rate": 0.25, "pages_sampled": 3,
+            "make": "Honda",
+            "model": None,
+            "year": 0,
+            "category": None,
+            "tags": [],
+            "fill_rate": 0.25,
+            "pages_sampled": 3,
         }
         MockGetTokenizer.return_value = MagicMock()
         mock_result = MagicMock()
@@ -560,7 +615,8 @@ class TestMetadataExtraction:
 
         # The API was told about the pause with a human-readable failure reason.
         pause_calls = [
-            c for c in api_client.report_stage.await_args_list
+            c
+            for c in api_client.report_stage.await_args_list
             if c.args[1] == "needs-manual-metadata"
         ]
         assert pause_calls
@@ -573,8 +629,13 @@ class TestMetadataExtraction:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_resumes_with_manual_metadata_after_pause(
-        self, MockConverter, MockChunker, MockGetTokenizer,
-        processor, metadata_extractor, metadata,
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        metadata_extractor,
+        metadata,
     ):
         """A second call with the same job_id resumes from chunking."""
         MockGetTokenizer.return_value = MagicMock()
@@ -586,8 +647,13 @@ class TestMetadataExtraction:
 
         # First pass: incomplete extraction -> pause.
         metadata_extractor.extract.return_value = {
-            "make": None, "model": None, "year": 0, "category": None,
-            "tags": [], "fill_rate": 0.0, "pages_sampled": 3,
+            "make": None,
+            "model": None,
+            "year": 0,
+            "category": None,
+            "tags": [],
+            "fill_rate": 0.0,
+            "pages_sampled": 3,
         }
         manual_metadata = SimpleNamespace(make="Kawasaki", model="Ninja 400", year=2022)
 
@@ -742,7 +808,8 @@ def _uploaded_search_chunks(api_client) -> list[dict[str, Any]]:
     ``upload_artifact`` call, raising if that call never happened.
     """
     calls = [
-        c for c in api_client.upload_artifact.await_args_list
+        c
+        for c in api_client.upload_artifact.await_args_list
         if len(c.args) >= 3 and c.args[2] == "search-chunks"
     ]
     assert calls, "Expected a search-chunks upload_artifact call"
@@ -760,25 +827,37 @@ class TestResolveSourceFileName:
     """
 
     def test_uses_explicit_source_file_name(self):
-        assert _resolve_source_file_name(
-            "2023 Honda CBR600RR Service Manual.pdf", None, "upload-1"
-        ) == "2023 Honda CBR600RR Service Manual.pdf"
+        assert (
+            _resolve_source_file_name(
+                "2023 Honda CBR600RR Service Manual.pdf", None, "upload-1"
+            )
+            == "2023 Honda CBR600RR Service Manual.pdf"
+        )
 
     def test_strips_directory_from_source_file_name(self):
         """A full path in source_file_name is reduced to its basename."""
-        assert _resolve_source_file_name(
-            "/data/manuals/service-manual.pdf", None, "upload-1"
-        ) == "service-manual.pdf"
+        assert (
+            _resolve_source_file_name(
+                "/data/manuals/service-manual.pdf", None, "upload-1"
+            )
+            == "service-manual.pdf"
+        )
 
     def test_blank_source_file_name_falls_back_to_source_path_basename(self):
-        assert _resolve_source_file_name(
-            "   ", "/data/manuals/2023/Honda/CBR600RR/manual.pdf", "upload-1"
-        ) == "manual.pdf"
+        assert (
+            _resolve_source_file_name(
+                "   ", "/data/manuals/2023/Honda/CBR600RR/manual.pdf", "upload-1"
+            )
+            == "manual.pdf"
+        )
 
     def test_falls_back_to_source_path_basename(self):
-        assert _resolve_source_file_name(
-            None, "/data/manuals/2023/Honda/CBR600RR/manual.pdf", "upload-1"
-        ) == "manual.pdf"
+        assert (
+            _resolve_source_file_name(
+                None, "/data/manuals/2023/Honda/CBR600RR/manual.pdf", "upload-1"
+            )
+            == "manual.pdf"
+        )
 
     def test_uses_only_basename_of_source_path(self):
         """The directory portion of source_path is never included."""
@@ -793,9 +872,10 @@ class TestResolveSourceFileName:
         assert _resolve_source_file_name("   ", "   ", "upload-1") == "upload-1"
 
     def test_source_file_name_takes_precedence_over_source_path(self):
-        assert _resolve_source_file_name(
-            "explicit.pdf", "/other/path.pdf", "upload-1"
-        ) == "explicit.pdf"
+        assert (
+            _resolve_source_file_name("explicit.pdf", "/other/path.pdf", "upload-1")
+            == "explicit.pdf"
+        )
 
 
 class TestChunkSourceFileField:
@@ -805,8 +885,14 @@ class TestChunkSourceFileField:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_source_file_name_written_to_chunks(
-        self, MockConverter, MockChunker, MockGetTokenizer,
-        processor, metadata_extractor, api_client, metadata,
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        metadata_extractor,
+        api_client,
+        metadata,
     ):
         """The manifest basename appears in every chunk's sourceFile."""
         MockGetTokenizer.return_value = MagicMock()
@@ -835,8 +921,14 @@ class TestChunkSourceFileField:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_source_path_basename_used_when_no_explicit_name(
-        self, MockConverter, MockChunker, MockGetTokenizer,
-        processor, metadata_extractor, api_client, metadata,
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        metadata_extractor,
+        api_client,
+        metadata,
     ):
         """Falls back to basename(source_path) when source_file_name is absent."""
         MockGetTokenizer.return_value = MagicMock()
@@ -863,8 +955,14 @@ class TestChunkSourceFileField:
     @patch("processors.pdf_processor.HybridChunker")
     @patch("processors.pdf_processor.DocumentConverter")
     async def test_upload_id_used_when_neither_given(
-        self, MockConverter, MockChunker, MockGetTokenizer,
-        processor, metadata_extractor, api_client, metadata,
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        metadata_extractor,
+        api_client,
+        metadata,
     ):
         """API-direct ingest (no filename) falls back to upload_id."""
         MockGetTokenizer.return_value = MagicMock()
@@ -959,3 +1057,42 @@ class TestJobLifecycle:
             total_chunks=5,
             failure_reason="Cancelled by user",
         )
+
+
+@patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+@patch("processors.pdf_processor.HybridChunker")
+@patch("processors.pdf_processor.DocumentConverter")
+async def test_process_pdf_async_when_upload_id_contains_controls_logs_reversible_value(
+    MockConverter, MockChunker, MockGetTokenizer, processor, metadata, caplog, tmp_path
+):
+    unsafe_upload_id = "external\\path\r\n\t\0\x01\x1f\x7f\x85\x9fvalue"
+    escaped_upload_id = (
+        "external\\\\path\\r\\n\\t\\0\\u0001\\u001F\\u007F\\u0085\\u009Fvalue"
+    )
+    caplog.set_level(logging.INFO, logger="processors.pdf_processor")
+    MockGetTokenizer.return_value = MagicMock()
+    MockConverter.return_value.convert.return_value = MagicMock(document=MagicMock())
+    MockChunker.return_value.chunk.return_value = [_make_chunk("Chunk 1")]
+    pdf_path = tmp_path / "manual.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake content")
+
+    job_id = await processor.process_pdf_async(
+        upload_id=unsafe_upload_id,
+        document_type="manual",
+        blob_container="raw-uploads",
+        metadata=metadata,
+        local_file_path=str(pdf_path),
+    )
+    await _wait_for_terminal_status(processor, job_id)
+
+    target_records = [
+        item for item in caplog.records if item.name == "processors.pdf_processor"
+    ]
+    target_messages = [item.getMessage() for item in target_records]
+
+    assert target_messages
+    assert any(escaped_upload_id in message for message in target_messages)
+    assert all(
+        not any(character in message for character in "\r\n\t\0\x01\x1f\x7f\x85\x9f")
+        for message in target_messages
+    )

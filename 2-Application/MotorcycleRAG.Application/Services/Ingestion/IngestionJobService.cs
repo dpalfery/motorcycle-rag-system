@@ -542,7 +542,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         _logger.LogInformation(
             "Ingestion job {JobId} marked as failed: {Reason}",
             jobId,
-            reason);
+            LogSanitizer.Sanitize(reason));
     }
 
     /// <summary>Maps a domain <see cref="IngestionJob"/> to its response DTO.</summary>
@@ -718,8 +718,12 @@ public sealed class IngestionJobService : IIngestionJobService {
         }
 
         _logger.LogInformation(
-            "Ingestion job {JobId} stage transitioned to {Stage} (chunks={ChunksProcessed}/{TotalChunks}).",
-            jobId, request.Stage, request.ChunksProcessed, request.TotalChunks);
+            "Ingestion job {JobId} stage transitioned to {Stage} (chunks={ChunksProcessed}/{TotalChunks}, failureReason={FailureReason}).",
+            jobId,
+            LogSanitizer.Sanitize(request.Stage),
+            request.ChunksProcessed,
+            request.TotalChunks,
+            LogSanitizer.Sanitize(request.FailureReason));
 
         return MapToResponse(job);
     }

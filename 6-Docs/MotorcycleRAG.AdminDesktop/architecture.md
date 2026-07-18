@@ -11,7 +11,7 @@ flowchart LR
     Operator["Operator"] --> UI["React/Vite UI"]
     UI -->|"Tauri IPC"| Host["Tauri Rust host"]
     UI -->|"HTTPS + bearer token"| Api["MotorcycleRAG API"]
-    Host -->|"starts, stops, proxies health/jobs"| Processor["Python Local Processing Service"]
+    Host -->|"HTTPS + bearer\n(ephemeral CA)"| Processor["Python Local Processing Service"]
     Host -->|"copies file, atomically publishes manifest"| Watch["local-ingestion-watch\nfiles/ + manifests/"]
     Processor -->|"polls"| Watch
     Processor -->|"status and artifact calls"| Api
@@ -19,15 +19,15 @@ flowchart LR
     Processor --> Models["Embedding, tokenizer, graph services"]
 ```
 
-The browser-like React runtime never directly starts a local executable or writes the watch folder. Those privileged operations cross the Tauri command boundary. The processor is a FastAPI service bound locally, normally on `127.0.0.1:8100`; the host proxies selected processor requests to avoid exposing a broad browser-facing local API.
+The browser-like React runtime never directly starts a local executable or writes the watch folder. Those privileged operations cross the Tauri command boundary. The processor is a FastAPI service bound to loopback (`127.0.0.1`), normally on port `8100`, with TLS enabled. The Tauri host owns `ProcessorTransport`: it generates a per-launch ephemeral CA and leaf certificate (valid for `localhost` and `127.0.0.1`), a high-entropy bearer token, and a reqwest client that trusts only that CA. The CA is never installed in the OS trust store. Readiness, proxied requests, and shutdown use authenticated HTTPS so the webview never calls the processor directly.
 
 ## Components and Interfaces
 
 | Component | Responsibility | Primary interfaces |
 | --- | --- | --- |
 | React/Vite UI (`src/`) | Sign-in state, operator screens, validation, job presentation, and configuration | Tauri `invoke`, Axios API client, React Query |
-| Tauri host (`src-tauri/`) | File picker, keychain-backed authentication support, processor path resolution and lifecycle, local HTTP proxy, queue publication | Tauri commands including `processor_start`, `processor_request`, `pick_local_ingestion_file`, and `queue_local_ingestion_work_item` |
-| Local Processing Service | PDF, CSV, and bike-graph processing; watch-folder consumption; local job status | HTTP endpoints including `/health`, `/jobs`, `/process/pdf`, `/process/csv`, and `/control/shutdown` |
+| Tauri host (`src-tauri/`) | File picker, keychain-backed authentication support, processor path resolution and lifecycle, authenticated HTTPS proxy (`processor_transport`), queue publication | Tauri commands including `processor_start`, `processor_request`, `pick_local_ingestion_file`, and `queue_local_ingestion_work_item` |
+| Local Processing Service | PDF, CSV, and bike-graph processing; watch-folder consumption; local job status | Authenticated HTTPS endpoints including `/health`, `/jobs`, `/process/pdf`, `/process/csv`, and `/control/shutdown` |
 | MotorcycleRAG API | Cloud ingestion-job creation, constraints, metadata, retries, and durable progress | `/api/ingestion/jobs` family, authenticated with the admin access token or processor credentials as appropriate |
 
 ### Local-first ingestion contract
@@ -62,6 +62,9 @@ Authentication tokens are intentionally excluded from the local configuration mo
 ## Testing Strategy
 
 - **Frontend unit/component tests:** Vitest and Testing Library cover routes, configuration, API adapters, queue interactions, and screen behavior (`npm test`).
-- **Rust unit tests:** `cargo test` in `src-tauri` covers native validation and queue publication behavior.
-- **Processor tests:** run the Python service's unit and integration suite in `2-Application/local-processing-service`; test PDF, CSV, health, and watch-folder behavior there.
+- **Rust unit tests:** `cargo test` in `src-tauri` covers native validation, queue publication, TLS/auth transport contracts, and processor stop lifecycle including poisoned-lock cleanup of certificate material.
+- **Processor tests:** run the Python service's unit and integration suite in `2-Application/local-processing-service`; test PDF, CSV, health, auth, path validation, and watch-folder behavior there.
+- **Real bridge:** exercise React/Tauri IPC through Rust to authenticated HTTPS FastAPI (start, health, request, stop). Negative checks prove HTTP, missing/wrong token, unknown CA, and external-interface access fail.
 - **End-to-end:** run the Tauri app with a real local PDF or CSV, a ready processor, valid API credentials, and the real watch-folder path. Verify the item appears in both local and cloud job views and reaches a terminal API state.
+
+Integration detail for the host-to-processor command surface is in [local processor guidance](../local-processing-service/local-processor.md). System-wide directives are in [security directives](../system/security.md).

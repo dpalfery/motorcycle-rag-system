@@ -23,6 +23,8 @@ from typing import Any
 import httpx
 import openai
 
+from security.log_sanitizer import sanitize_log_value
+
 logger = logging.getLogger(__name__)
 
 _LOG_TRUNCATE = 2000
@@ -89,9 +91,7 @@ class MetadataExtractor:
 
         model = os.getenv("GRAPH_EXTRACTION_MODEL")
         if not model:
-            raise ValueError(
-                "GRAPH_EXTRACTION_MODEL environment variable must be set"
-            )
+            raise ValueError("GRAPH_EXTRACTION_MODEL environment variable must be set")
         self._model = model
 
         # Cache a single client for the lifetime of the extractor instead of
@@ -137,22 +137,22 @@ class MetadataExtractor:
                 if self._model in available:
                     logger.info(
                         "component=metadata_extraction model='%s' confirmed endpoint=%s",
-                        self._model,
-                        self._endpoint,
+                        sanitize_log_value(self._model),
+                        sanitize_log_value(self._endpoint),
                     )
                 else:
                     logger.warning(
                         "component=metadata_extraction model='%s' NOT FOUND endpoint=%s "
                         "available=%s",
-                        self._model,
-                        self._endpoint,
-                        available,
+                        sanitize_log_value(self._model),
+                        sanitize_log_value(self._endpoint),
+                        sanitize_log_value(str(available)),
                     )
-        except Exception:
+        except Exception as exc:
             logger.warning(
-                "component=metadata_extraction endpoint=%s probe_failed",
-                self._endpoint,
-                exc_info=True,
+                "component=metadata_extraction endpoint=%s probe_failed error=%s",
+                sanitize_log_value(self._endpoint),
+                sanitize_log_value(str(exc)),
             )
 
     async def extract(
@@ -190,10 +190,11 @@ class MetadataExtractor:
         if source_path:
             logger.debug(
                 "Metadata extraction using file path context basename=%s",
-                os.path.basename(source_path),
+                sanitize_log_value(os.path.basename(source_path)),
             )
         # Prefix log messages with the job_id when provided for correlation.
-        jid_tag = f" job_id={job_id}" if job_id else ""
+        safe_job_id = sanitize_log_value(job_id)
+        jid_tag = f" job_id={safe_job_id}" if job_id else ""
         best_result: dict[str, Any] = {
             "make": None,
             "model": None,
@@ -231,8 +232,10 @@ class MetadataExtractor:
             logger.info(
                 "component=metadata_extraction job_id=%s "
                 "sample_size=%d actual_pages=%d fill_rate=%.2f",
-                job_id or "?",
-                sample_size, actual_size, best_result["fill_rate"],
+                safe_job_id or "?",
+                sample_size,
+                actual_size,
+                best_result["fill_rate"],
             )
 
             if best_result["fill_rate"] >= 1.0:
@@ -271,7 +274,7 @@ class MetadataExtractor:
         if text.startswith("```"):
             first_newline = text.find("\n")
             if first_newline != -1:
-                text = text[first_newline + 1:]
+                text = text[first_newline + 1 :]
             if text.endswith("```"):
                 text = text[:-3].rstrip()
             text = text.strip()
@@ -284,7 +287,9 @@ class MetadataExtractor:
 
         # Try to extract JSON object from mixed content
         json_match = re.search(
-            r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL,
+            r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}",
+            text,
+            re.DOTALL,
         )
         if json_match:
             try:
@@ -293,7 +298,7 @@ class MetadataExtractor:
                 pass
 
         # Try to fix common issues (trailing commas before ] or })
-        fixed = re.sub(r',\s*([}\]])', r'\1', text)
+        fixed = re.sub(r",\s*([}\]])", r"\1", text)
         try:
             return json.loads(fixed)
         except json.JSONDecodeError:
@@ -302,7 +307,10 @@ class MetadataExtractor:
         return {}
 
     async def _query_llm(
-        self, client: Any, text: str, job_id: str | None = None,
+        self,
+        client: Any,
+        text: str,
+        job_id: str | None = None,
         source_path: str | None = None,
     ) -> dict[str, Any]:
         """Call the LLM and parse the JSON response.
@@ -334,18 +342,23 @@ class MetadataExtractor:
         # Defensive check: LM Studio may return HTTP 200 with null choices
         # when the model is not loaded or the request is malformed.
         if response is None or not response.choices:
-            jid_suffix = f" job_id={job_id}" if job_id else ""
+            safe_job_id = sanitize_log_value(job_id)
+            jid_suffix = f" job_id={safe_job_id}" if job_id else ""
             logger.warning(
                 "LLM response has no choices (model=%s, id=%s)%s",
-                response.model if response else "N/A",
-                response.id if response else "N/A",
+                sanitize_log_value(str(response.model)) if response else "N/A",
+                sanitize_log_value(str(response.id)) if response else "N/A",
                 jid_suffix,
             )
             logger.info(
                 "component=metadata_extraction job_id=%s model=%s endpoint=%s "
                 "input_chars=%d tokens_approx=%d elapsed_ms=%d result=%s",
-                job_id or "?", self._model, self._endpoint,
-                input_chars, _approx_tokens(user_content), elapsed_ms,
+                sanitize_log_value(job_id) or "?",
+                sanitize_log_value(self._model),
+                sanitize_log_value(self._endpoint),
+                input_chars,
+                _approx_tokens(user_content),
+                elapsed_ms,
                 "no_choices",
             )
             return {}
@@ -354,16 +367,20 @@ class MetadataExtractor:
         logger.info(
             "component=metadata_extraction job_id=%s model=%s endpoint=%s "
             "input_chars=%d tokens_approx=%d elapsed_ms=%d result=%s",
-            job_id or "?", self._model, self._endpoint,
-            input_chars, _approx_tokens(user_content), elapsed_ms,
+            sanitize_log_value(job_id) or "?",
+            sanitize_log_value(self._model),
+            sanitize_log_value(self._endpoint),
+            input_chars,
+            _approx_tokens(user_content),
+            elapsed_ms,
             "ok" if content else "empty",
         )
 
         logger.debug(
             "component=metadata_extraction job_id=%s prompt=%s response=%s",
-            job_id or "?",
-            _truncate(user_content),
-            _truncate(content),
+            sanitize_log_value(job_id) or "?",
+            sanitize_log_value(_truncate(user_content)),
+            sanitize_log_value(_truncate(content)),
         )
 
         sha_prefix = (
@@ -373,13 +390,17 @@ class MetadataExtractor:
             "LLM response received: length=%d sha256_prefix=%s%s",
             len(content),
             sha_prefix,
-            f" job_id={job_id}" if job_id else "",
+            f" job_id={sanitize_log_value(job_id)}" if job_id else "",
         )
         return self._parse_llm_json(content)
 
     async def _query_llm_with_retry(
-        self, client: Any, text: str, job_id: str | None = None,
-        source_path: str | None = None, max_retries: int = 2,
+        self,
+        client: Any,
+        text: str,
+        job_id: str | None = None,
+        source_path: str | None = None,
+        max_retries: int = 2,
     ) -> dict[str, Any]:
         """Call the LLM with retry for transient failures.
 
@@ -391,7 +412,10 @@ class MetadataExtractor:
         for attempt in range(max_retries + 1):
             try:
                 return await self._query_llm(
-                    client, text, job_id, source_path,
+                    client,
+                    text,
+                    job_id,
+                    source_path,
                 )
             except Exception as exc:
                 exc_lower = str(exc).lower()
@@ -404,18 +428,21 @@ class MetadataExtractor:
                     logger.warning(
                         "component=metadata_extraction job_id=%s "
                         "attempt=%d/%d error=%s retrying_in=%.1fs",
-                        job_id or "?",
-                        attempt + 1, max_retries + 1,
-                        str(exc)[:200], delay,
+                        sanitize_log_value(job_id) or "?",
+                        attempt + 1,
+                        max_retries + 1,
+                        sanitize_log_value(str(exc)[:200]),
+                        delay,
                     )
                     await asyncio.sleep(delay)
                 else:
                     logger.warning(
                         "component=metadata_extraction job_id=%s "
                         "attempt=%d/%d error=%s retries_exhausted",
-                        job_id or "?",
-                        attempt + 1, max_retries + 1,
-                        str(exc)[:200],
+                        sanitize_log_value(job_id) or "?",
+                        attempt + 1,
+                        max_retries + 1,
+                        sanitize_log_value(str(exc)[:200]),
                     )
                     raise
 

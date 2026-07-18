@@ -1,6 +1,7 @@
 """Unit tests for MetadataExtractor - LLM calls fully mocked via openai.AsyncOpenAI."""
 
 import json
+import logging
 from types import SimpleNamespace
 from typing import Optional
 from unittest.mock import AsyncMock, patch
@@ -116,9 +117,7 @@ class TestExtract:
 
         partial = {"make": "Honda", "model": "CBR", "year": 0, "category": ""}
         complete = _FULL_RESULT
-        _configure_mock_client(
-            MockOpenAI, [json.dumps(partial), json.dumps(complete)]
-        )
+        _configure_mock_client(MockOpenAI, [json.dumps(partial), json.dumps(complete)])
 
         extractor = MetadataExtractor()
         result = await extractor.extract(_TEN_PAGES)
@@ -140,9 +139,7 @@ class TestExtract:
 
         first = {"make": "Yamaha", "model": "", "year": 0, "category": ""}
         second = {"make": "", "model": "MT-07", "year": 2021, "category": "naked"}
-        _configure_mock_client(
-            MockOpenAI, [json.dumps(first), json.dumps(second)]
-        )
+        _configure_mock_client(MockOpenAI, [json.dumps(first), json.dumps(second)])
 
         extractor = MetadataExtractor()
         result = await extractor.extract(_TEN_PAGES)
@@ -344,7 +341,9 @@ class TestSourcePathContext:
             "PAGE TEXT", "/data/manuals/2023/Honda/CBR600RR/service-manual.pdf"
         )
         # Path context appears first, page text appears last.
-        assert content.startswith("The original file path is: /data/manuals/2023/Honda/CBR600RR/service-manual.pdf")
+        assert content.startswith(
+            "The original file path is: /data/manuals/2023/Honda/CBR600RR/service-manual.pdf"
+        )
         assert "This path may contain hints about year, make, and model." in content
         assert content.endswith("PAGE TEXT")
         # Ordering: path hint must come before the page text so the LLM sees it
@@ -372,7 +371,9 @@ class TestSourcePathContext:
         messages = create.await_args.kwargs["messages"]
         user_content = messages[1]["content"]
         assert user_content.startswith(f"The original file path is: {path}")
-        assert "This path may contain hints about year, make, and model." in user_content
+        assert (
+            "This path may contain hints about year, make, and model." in user_content
+        )
 
     @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
     async def test_extract_without_source_path_sends_plain_text(self, MockOpenAI):
@@ -468,17 +469,13 @@ class TestParseLlmJson:
     def test_markdown_fences(self):
         from extraction.metadata_extractor import MetadataExtractor
 
-        result = MetadataExtractor._parse_llm_json(
-            '```json\n{"make":"Honda"}\n```'
-        )
+        result = MetadataExtractor._parse_llm_json('```json\n{"make":"Honda"}\n```')
         assert result == {"make": "Honda"}
 
     def test_fences_without_language_tag(self):
         from extraction.metadata_extractor import MetadataExtractor
 
-        result = MetadataExtractor._parse_llm_json(
-            '```\n{"make":"Honda"}\n```'
-        )
+        result = MetadataExtractor._parse_llm_json('```\n{"make":"Honda"}\n```')
         assert result == {"make": "Honda"}
 
     def test_mixed_content(self):
@@ -523,3 +520,49 @@ class TestParseLlmJson:
 
         result = MetadataExtractor._parse_llm_json('{"make":"Honda","model":')
         assert result == {}
+
+
+@pytest.mark.asyncio
+@patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+async def test_extract_when_job_id_contains_controls_logs_reversible_value(
+    MockOpenAI, caplog
+):
+    from extraction.metadata_extractor import MetadataExtractor
+
+    unsafe_job_id = "external\\path\r\n\t\0\x01\x1f\x7f\x85\x9fvalue"
+    escaped_job_id = (
+        "external\\\\path\\r\\n\\t\\0\\u0001\\u001F\\u007F\\u0085\\u009Fvalue"
+    )
+    unsafe_response_model = "metadata-model\r\n\t\0\x01\x1f\x7f\x85\x9fvalue"
+    escaped_response_model = (
+        "metadata-model\\r\\n\\t\\0\\u0001\\u001F\\u007F\\u0085\\u009Fvalue"
+    )
+    unsafe_response_id = "metadata-id\r\n\t\0\x01\x1f\x7f\x85\x9fvalue"
+    escaped_response_id = (
+        "metadata-id\\r\\n\\t\\0\\u0001\\u001F\\u007F\\u0085\\u009Fvalue"
+    )
+    mock_client = MockOpenAI.return_value
+    mock_client.chat.completions.create = AsyncMock(
+        return_value=SimpleNamespace(
+            choices=[],
+            model=unsafe_response_model,
+            id=unsafe_response_id,
+        )
+    )
+    caplog.set_level(logging.INFO, logger="extraction.metadata_extractor")
+
+    await MetadataExtractor().extract(["motorcycle manual"], job_id=unsafe_job_id)
+
+    target_records = [
+        item for item in caplog.records if item.name == "extraction.metadata_extractor"
+    ]
+    target_messages = [item.getMessage() for item in target_records]
+
+    assert target_messages
+    assert any(escaped_job_id in message for message in target_messages)
+    assert any(escaped_response_model in message for message in target_messages)
+    assert any(escaped_response_id in message for message in target_messages)
+    assert all(
+        not any(character in message for character in "\r\n\t\0\x01\x1f\x7f\x85\x9f")
+        for message in target_messages
+    )

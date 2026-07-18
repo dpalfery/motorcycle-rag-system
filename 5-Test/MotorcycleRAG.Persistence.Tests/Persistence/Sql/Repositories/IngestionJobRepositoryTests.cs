@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Data;
 using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
@@ -964,6 +965,27 @@ public sealed class IngestionJobRepositoryTests : IDisposable
 
         var exception = await act.Should().ThrowAsync<InvalidOperationException>();
         exception.Which.Message.Should().Be("Failed to get ingestion jobs by status");
+    }
+
+    [Fact]
+    public async Task GetLatestByInputAsync_InputRefContainsControlCharacters_LogsOneEscapedPhysicalLine()
+    {
+        const string attackerInputRef = "upload\\name\r\nforged\tentry";
+        const string expectedEscapedInputRef = "upload\\\\name\\r\\nforged\\tentry";
+        var factory = new Mock<ISqlConnectionFactory>();
+        factory.Setup(x => x.CreateOpenConnectionAsync()).ThrowsAsync(new InvalidOperationException("sql down"));
+        var logger = new Mock<ILogger<IngestionJobRepository>>();
+        var sut = new IngestionJobRepository(factory.Object, logger.Object);
+
+        var act = () => sut.GetLatestByInputAsync(attackerInputRef, IngestionJobType.PDFManual);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        var message = logger.Invocations.Single(invocation => invocation.Method.Name == nameof(ILogger.Log))
+            .Arguments[2].ToString();
+        message.Should().Contain(expectedEscapedInputRef)
+            .And.NotContain("\r")
+            .And.NotContain("\n")
+            .And.NotContain("\t");
     }
 
     private static IngestionJobRepository CreateSut(FakeDbConnection? connection = null)

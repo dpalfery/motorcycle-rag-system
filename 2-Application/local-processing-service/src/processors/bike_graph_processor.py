@@ -24,11 +24,12 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 
 from api.api_client import ApiClient
+from security.log_sanitizer import sanitize_log_value
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,11 @@ PIPELINE_STAGES = [
     "completed",
 ]
 
-_jobs: dict[str, dict] = {}
-_tasks: dict[str, asyncio.Task] = {}
+JobRecord = dict[str, Any]
+GraphRecord = dict[str, Any]
+
+_jobs: dict[str, JobRecord] = {}
+_tasks: dict[str, asyncio.Task[None]] = {}
 
 # Spec columns included in bike-node descriptions (lowercased for lookup).
 _DESCRIPTION_COLS = [
@@ -132,20 +136,24 @@ class BikeGraphProcessor:
         }
         logger.info(
             "Bike graph job queued for upload %s (source=%s)",
-            upload_id,
-            local_file_path or f"blob:{blob_container}",
+            sanitize_log_value(upload_id),
+            sanitize_log_value(local_file_path or f"blob:{blob_container}"),
         )
         task = asyncio.create_task(
             self._process_background(job_id, upload_id, blob_container, local_file_path)
         )
         _tasks[job_id] = task
-        task.add_done_callback(lambda _task, jid=job_id: _tasks.pop(jid, None))
+
+        def remove_completed_task(_: asyncio.Task[None]) -> None:
+            _tasks.pop(job_id, None)
+
+        task.add_done_callback(remove_completed_task)
         return job_id
 
-    async def get_job_status(self, job_id: str) -> dict | None:
+    async def get_job_status(self, job_id: str) -> JobRecord | None:
         return _jobs.get(job_id)
 
-    async def list_jobs(self) -> list[dict]:
+    async def list_jobs(self) -> list[JobRecord]:
         return list(_jobs.values())
 
     async def clear_terminal_jobs(self) -> int:
@@ -161,7 +169,7 @@ class BikeGraphProcessor:
 
         return len(terminal_job_ids)
 
-    async def stop_job(self, job_id: str) -> dict | None:
+    async def stop_job(self, job_id: str) -> JobRecord | None:
         job = _jobs.get(job_id)
         if not job:
             return None
@@ -174,7 +182,7 @@ class BikeGraphProcessor:
             task.cancel()
 
         await self._report_cancelled(job_id)
-        logger.info("Bike graph job cancelled job_id=%s", job_id)
+        logger.info("Bike graph job cancelled job_id=%s", sanitize_log_value(job_id))
         return _jobs.get(job_id)
 
     def _mark_cancelled(self, job_id: str) -> None:
@@ -222,8 +230,12 @@ class BikeGraphProcessor:
             )
         except TypeError:
             pass
-        except Exception:
-            logger.warning("Failed to report terminal processor failure for job %s", job_id, exc_info=True)
+        except Exception as exc:
+            logger.warning(
+                "Failed to report terminal processor failure for job %s error=%s",
+                sanitize_log_value(job_id),
+                sanitize_log_value(str(exc)),
+            )
 
     def _set_stage(
         self,
@@ -279,15 +291,15 @@ class BikeGraphProcessor:
         try:
             logger.info(
                 "Bike graph processing started for upload %s (source=%s)",
-                upload_id,
-                local_file_path or f"blob:{blob_container}",
+                sanitize_log_value(upload_id),
+                sanitize_log_value(local_file_path or f"blob:{blob_container}"),
             )
             self._set_stage(job_id, "copying", "Preparing bike graph source", 0.0)
             if local_file_path:
                 logger.info(
                     "Bike graph upload %s reading local CSV %s",
-                    upload_id,
-                    local_file_path,
+                    sanitize_log_value(upload_id),
+                    sanitize_log_value(local_file_path),
                 )
                 self._raise_if_cancelled(job_id)
                 self._set_stage(job_id, "parsing", "Parsing bike graph CSV", 0.25)
@@ -297,8 +309,8 @@ class BikeGraphProcessor:
             else:
                 logger.info(
                     "Bike graph upload %s downloading source CSV from blob container %s",
-                    upload_id,
-                    blob_container,
+                    sanitize_log_value(upload_id),
+                    sanitize_log_value(blob_container),
                 )
                 csv_bytes = await self.blob_writer.download_blob(
                     blob_container, f"{upload_id}.csv"
@@ -320,7 +332,7 @@ class BikeGraphProcessor:
 
             logger.info(
                 "Bike graph upload %s built local artifact with %d nodes and %d edges; embeddings are not used for this job type",
-                upload_id,
+                sanitize_log_value(upload_id),
                 len(nodes),
                 len(edges),
             )
@@ -337,7 +349,7 @@ class BikeGraphProcessor:
             )
             logger.info(
                 "Bike graph upload %s sending graph-entities artifact to backend API (%d bytes)",
-                upload_id,
+                sanitize_log_value(upload_id),
                 len(entities_bytes),
             )
             self._raise_if_cancelled(job_id)
@@ -357,7 +369,7 @@ class BikeGraphProcessor:
             _jobs[job_id]["status"] = "completed"
             logger.info(
                 "Bike graph processing completed for upload %s: %d nodes, %d edges",
-                upload_id,
+                sanitize_log_value(upload_id),
                 len(nodes),
                 len(edges),
             )
@@ -365,10 +377,19 @@ class BikeGraphProcessor:
         except asyncio.CancelledError:
             self._mark_cancelled(job_id)
             await self._report_cancelled(job_id)
-            logger.info("Bike graph processing cancelled for upload %s", upload_id)
+            logger.info(
+                "Bike graph processing cancelled for upload %s",
+                sanitize_log_value(upload_id),
+            )
         except Exception as exc:
-            logger.exception("Bike graph processing failed for upload %s", upload_id)
-            failure_reason = f"Bike graph processing failed — {type(exc).__name__}: {str(exc)[:300]}"
+            logger.error(
+                "Bike graph processing failed for upload %s error=%s",
+                sanitize_log_value(upload_id),
+                sanitize_log_value(str(exc)),
+            )
+            failure_reason = (
+                f"Bike graph processing failed — {type(exc).__name__}: {str(exc)[:300]}"
+            )
             _jobs[job_id].update(
                 {
                     "status": "failed",
@@ -386,21 +407,21 @@ class BikeGraphProcessor:
 
     def _build_graph(
         self, upload_id: str, local_file_path: str
-    ) -> tuple[list[dict], list[dict]]:
+    ) -> tuple[list[GraphRecord], list[GraphRecord]]:
         logger.info(
             "Bike graph upload %s loading dataframe from local file %s",
-            upload_id,
-            local_file_path,
+            sanitize_log_value(upload_id),
+            sanitize_log_value(local_file_path),
         )
         df = pd.read_csv(local_file_path, low_memory=False)
         return self._build_graph_from_dataframe(upload_id, df)
 
     def _build_graph_from_bytes(
         self, upload_id: str, csv_bytes: bytes
-    ) -> tuple[list[dict], list[dict]]:
+    ) -> tuple[list[GraphRecord], list[GraphRecord]]:
         logger.info(
             "Bike graph upload %s loading dataframe from blob payload (%d bytes)",
-            upload_id,
+            sanitize_log_value(upload_id),
             len(csv_bytes),
         )
         df = pd.read_csv(io.BytesIO(csv_bytes), low_memory=False)
@@ -408,10 +429,10 @@ class BikeGraphProcessor:
 
     def _build_graph_from_dataframe(
         self, upload_id: str, df: pd.DataFrame
-    ) -> tuple[list[dict], list[dict]]:
+    ) -> tuple[list[GraphRecord], list[GraphRecord]]:
         logger.info(
             "Bike graph upload %s normalising dataframe with %d rows and %d columns",
-            upload_id,
+            sanitize_log_value(upload_id),
             len(df.index),
             len(df.columns),
         )
@@ -432,8 +453,8 @@ class BikeGraphProcessor:
         if not year_col:
             raise ValueError("CSV must contain a 'Year' column")
 
-        nodes: list[dict] = []
-        edges: list[dict] = []
+        nodes: list[GraphRecord] = []
+        edges: list[GraphRecord] = []
 
         # Track IDs already added to avoid duplicates across rows.
         seen_bike_ids: set[str] = set()
@@ -524,7 +545,7 @@ class BikeGraphProcessor:
 
             logger.info(
                 "Bike graph upload %s finished graph construction with %d nodes and %d edges",
-                upload_id,
+                sanitize_log_value(upload_id),
                 len(nodes),
                 len(edges),
             )

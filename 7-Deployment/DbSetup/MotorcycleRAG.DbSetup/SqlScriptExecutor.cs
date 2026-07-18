@@ -1,94 +1,162 @@
 using Microsoft.Extensions.Logging;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace MotorcycleRAG.DbSetup;
 
-public class SqlScriptExecutor
+public enum DbSetupScript
 {
+    Schema,
+    TestData
+}
+
+public sealed class SqlScriptExecutor
+{
+    private static readonly IReadOnlyDictionary<DbSetupScript, string> ApprovedScriptRelativePaths =
+        new Dictionary<DbSetupScript, string>
+        {
+            [DbSetupScript.Schema] = Path.Combine("4-Persistence", "MotorcycleRAG.Persistence", "Sql", "schema.sql"),
+            [DbSetupScript.TestData] = Path.Combine("7-Deployment", "DbSetup", "sql", "test-data.sql")
+        };
+
     private readonly ILogger<SqlScriptExecutor> _logger;
     private readonly IDbSetupConnectionFactory _connectionFactory;
+    private readonly string _catalogRoot;
 
-    public SqlScriptExecutor(ILogger<SqlScriptExecutor> logger, IDbSetupConnectionFactory connectionFactory)
+    public SqlScriptExecutor(
+        ILogger<SqlScriptExecutor> logger,
+        IDbSetupConnectionFactory connectionFactory,
+        string catalogRoot)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+        ArgumentNullException.ThrowIfNull(catalogRoot);
+
+        _catalogRoot = Path.GetFullPath(catalogRoot);
     }
 
-    public async Task<bool> ExecuteScriptFileAsync(string connectionString, string scriptFilePath, CancellationToken cancellationToken = default)
+    public async Task<bool> ExecuteScriptAsync(
+        string connectionString,
+        DbSetupScript script,
+        CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(scriptFilePath))
+        if (!TryGetApprovedScriptPath(script, out var scriptPath))
         {
-            _logger.LogError("Script file not found: {ScriptFilePath}", scriptFilePath);
+            _logger.LogError("Rejected SQL setup script {Script}", script);
             return false;
         }
 
-        _logger.LogInformation("Executing SQL script: {ScriptFilePath}", scriptFilePath);
+        if (!File.Exists(scriptPath))
+        {
+            _logger.LogError("SQL setup script {Script} was not found in the catalog", script);
+            return false;
+        }
+
+        if (ContainsSymbolicLink(scriptPath))
+        {
+            _logger.LogError("Rejected SQL setup script {Script} because its catalog path contains a symbolic link", script);
+            return false;
+        }
 
         try
         {
-            var scriptContent = await File.ReadAllTextAsync(scriptFilePath, cancellationToken);
+            var scriptContent = await File.ReadAllTextAsync(scriptPath, cancellationToken);
             var batches = SplitScriptIntoBatches(scriptContent);
 
-            _logger.LogInformation("Script contains {BatchCount} batches", batches.Count);
+            _logger.LogInformation("Executing approved SQL setup script {Script} with {BatchCount} batches", script, batches.Count);
 
             await using var connection = _connectionFactory.Create(connectionString);
             await connection.OpenAsync(cancellationToken);
 
-            int batchNumber = 0;
-            foreach (var batch in batches)
+            for (var batchIndex = 0; batchIndex < batches.Count; batchIndex++)
             {
-                batchNumber++;
-
-                if (string.IsNullOrWhiteSpace(batch))
-                {
-                    continue;
-                }
-
                 try
                 {
-                    _logger.LogDebug("Executing batch {BatchNumber}/{TotalBatches}", batchNumber, batches.Count);
-
                     await using var command = connection.CreateCommand();
-#pragma warning disable CA2100 // Batch is read from a trusted script file, not user input
-                    command.CommandText = batch;
+#pragma warning disable CA2100 // Batch comes only from an approved, non-symlinked catalog file.
+                    command.CommandText = batches[batchIndex];
 #pragma warning restore CA2100
-                    command.CommandTimeout = 300; // 5 minutes
+                    command.CommandTimeout = 300;
 
                     await command.ExecuteNonQueryAsync(cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to execute batch {BatchNumber}", batchNumber);
-                    _logger.LogError("Batch content: {BatchContent}", batch.Length > 200 ? string.Concat(batch.AsSpan(0, 200), "...") : batch);
+                    _logger.LogError(ex, "Failed to execute batch {BatchNumber} for SQL setup script {Script}", batchIndex + 1, script);
                     return false;
                 }
             }
 
-            _logger.LogInformation("Successfully executed script: {ScriptFilePath}", scriptFilePath);
+            _logger.LogInformation("Successfully executed approved SQL setup script {Script}", script);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError("Failed to execute script: {ScriptFilePath}. ExceptionType={ExceptionType}", scriptFilePath, ex.GetType().Name);
+            _logger.LogError(ex, "Failed to execute SQL setup script {Script}", script);
             return false;
         }
     }
 
-    private List<string> SplitScriptIntoBatches(string scriptContent)
+    private bool TryGetApprovedScriptPath(DbSetupScript script, out string scriptPath)
     {
-        // Split by GO statements (case-insensitive, must be on its own line)
-        // This regex matches GO that is on its own line, possibly with whitespace
-        var goRegex = new Regex(@"^\s*GO\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+        scriptPath = string.Empty;
 
-        var batches = goRegex.Split(scriptContent);
+        if (!ApprovedScriptRelativePaths.TryGetValue(script, out var relativePath))
+        {
+            return false;
+        }
 
-        // Filter out empty batches and trim whitespace
-        var result = batches
-            .Select(b => b.Trim())
-            .Where(b => !string.IsNullOrWhiteSpace(b))
-            .ToList();
+        var candidatePath = Path.GetFullPath(Path.Combine(_catalogRoot, relativePath));
+        if (!IsContainedInRoot(candidatePath, _catalogRoot))
+        {
+            return false;
+        }
 
-        return result;
+        scriptPath = candidatePath;
+        return true;
     }
+
+    private bool ContainsSymbolicLink(string scriptPath)
+    {
+        if (IsSymbolicLink(new DirectoryInfo(_catalogRoot)))
+        {
+            return true;
+        }
+
+        var relativePath = Path.GetRelativePath(_catalogRoot, scriptPath);
+        var pathSegments = relativePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var currentPath = _catalogRoot;
+
+        for (var index = 0; index < pathSegments.Length; index++)
+        {
+            currentPath = Path.Combine(currentPath, pathSegments[index]);
+            FileSystemInfo pathEntry = index == pathSegments.Length - 1
+                ? new FileInfo(currentPath)
+                : new DirectoryInfo(currentPath);
+
+            if (IsSymbolicLink(pathEntry))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsContainedInRoot(string path, string root)
+    {
+        var relativePath = Path.GetRelativePath(root, path);
+        return !string.IsNullOrEmpty(relativePath)
+            && !Path.IsPathRooted(relativePath)
+            && !relativePath.Equals("..", StringComparison.Ordinal)
+            && !relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+            && !relativePath.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal);
+    }
+
+    private static bool IsSymbolicLink(FileSystemInfo pathEntry) => pathEntry.LinkTarget is not null;
+
+    private static List<string> SplitScriptIntoBatches(string scriptContent) =>
+        Regex.Split(scriptContent, @"^\s*GO\s*$", RegexOptions.IgnoreCase | RegexOptions.Multiline)
+            .Select(batch => batch.Trim())
+            .Where(batch => !string.IsNullOrWhiteSpace(batch))
+            .ToList();
 }

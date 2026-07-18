@@ -1,20 +1,21 @@
 # FastAPI Application for Motorcycle RAG Local Processing Service
 # ruff: noqa: E402 — app entry point manipulates sys.path before local imports
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+import asyncio
+import logging
+import logging.handlers
 import os
 import signal
 import sys
-import logging
-import logging.handlers
-import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+
+import uvicorn
 from dotenv import load_dotenv
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 load_dotenv()  # Load .env file if present — no-op when env vars already set (production)
 
@@ -63,6 +64,7 @@ logger = logging.getLogger(__name__)
 # Add the src directory to Python path
 sys.path.append(str(Path(__file__).parent / "src"))
 
+# isort: off
 from processors.pdf_processor import PDFProcessor
 from processors.csv_processor import CSVProcessor
 from processors.bike_graph_processor import BikeGraphProcessor
@@ -80,7 +82,12 @@ from models.schemas import (
     ProcessingStatusResponse,
 )
 from security.path_validation import resolve_local_csv_path, resolve_local_pdf_path
+from security.log_sanitizer import sanitize_log_value
+from security.local_control_auth import require_local_control_token
 from watch_folder import WatchFolderWorker, get_watch_folder_from_env
+
+# isort: on
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -97,6 +104,7 @@ app = FastAPI(
     description="Local processing service using Docling and Ollama for motorcycle information retrieval",
     version="0.1.0",
     lifespan=lifespan,
+    dependencies=[Depends(require_local_control_token)],
 )
 
 # CORS middleware
@@ -124,13 +132,23 @@ pdf_processor = PDFProcessor(
     api_client=api_client,
 )
 
-csv_processor = CSVProcessor(blob_writer=blob_writer, embedder=embedder, api_client=api_client)
-bike_graph_processor = BikeGraphProcessor(blob_writer=blob_writer, api_client=api_client)
+csv_processor = CSVProcessor(
+    blob_writer=blob_writer, embedder=embedder, api_client=api_client
+)
+bike_graph_processor = BikeGraphProcessor(
+    blob_writer=blob_writer, api_client=api_client
+)
 
 shutdown_requested = False
 uvicorn_server: uvicorn.Server | None = None
 watch_folder_worker: WatchFolderWorker | None = None
-_ACTIVE_JOB_STATUSES = {"queued", "processing", "running", "inprogress", "awaiting-metadata"}
+_ACTIVE_JOB_STATUSES = {
+    "queued",
+    "processing",
+    "running",
+    "inprogress",
+    "awaiting-metadata",
+}
 _last_health_log_signature: tuple[Any, ...] | None = None
 
 
@@ -205,11 +223,17 @@ def _build_health_response(
         or getattr(inner, "_base_url", None)
     )
     embedding_model = getattr(inner, "_model", None)
+    safe_embedding_endpoint = sanitize_log_value(
+        str(embedding_endpoint) if embedding_endpoint is not None else None
+    )
+    safe_embedding_model = sanitize_log_value(
+        str(embedding_model) if embedding_model is not None else None
+    )
     logger.debug(
         "Health: embedder endpoint=%s model=%s (type=%s)",
-        embedding_endpoint,
-        embedding_model,
-        type(embedder).__name__,
+        safe_embedding_endpoint,
+        safe_embedding_model,
+        sanitize_log_value(type(embedder).__name__),
     )
     tokenizer_config = describe_chunker_tokenizer()
     embedding_config = {
@@ -220,13 +244,11 @@ def _build_health_response(
 
     # Graph extraction status — values from module-level metadata_extractor, falling
     # back to environment variables if attributes are None.
-    graph_endpoint = (
-        getattr(metadata_extractor, "_endpoint", None)
-        or os.getenv("GRAPH_EXTRACTION_ENDPOINT")
+    graph_endpoint = getattr(metadata_extractor, "_endpoint", None) or os.getenv(
+        "GRAPH_EXTRACTION_ENDPOINT"
     )
-    graph_model = (
-        getattr(metadata_extractor, "_model", None)
-        or os.getenv("GRAPH_EXTRACTION_MODEL")
+    graph_model = getattr(metadata_extractor, "_model", None) or os.getenv(
+        "GRAPH_EXTRACTION_MODEL"
     )
     if graph_endpoint and graph_model:
         graph_status = "healthy"
@@ -262,9 +284,9 @@ def _build_health_response(
                 "embedding_model=%s tokenizer_status=%s blob_storage=%s api_client_configured=%s active_jobs=%d",
                 status,
                 False,
-                embedding_provider_status,
-                embedding_model,
-                tokenizer_config.get("tokenizer_status"),
+                sanitize_log_value(embedding_provider_status),
+                safe_embedding_model,
+                sanitize_log_value(str(tokenizer_config.get("tokenizer_status"))),
                 blob_storage_connected,
                 api_client_configured,
                 active_jobs,
@@ -311,9 +333,9 @@ def _build_health_response(
                 "embedding_model=%s tokenizer_status=%s blob_storage=%s api_client_configured=%s active_jobs=%d",
                 status,
                 accepting_work,
-                embedding_provider_status,
-                embedding_model,
-                tokenizer_config.get("tokenizer_status"),
+                sanitize_log_value(embedding_provider_status),
+                safe_embedding_model,
+                sanitize_log_value(str(tokenizer_config.get("tokenizer_status"))),
                 blob_storage_connected,
                 api_client_configured,
                 active_jobs,
@@ -364,9 +386,9 @@ def _build_health_response(
                 "embedding_model=%s tokenizer_status=%s blob_storage=%s api_client_configured=%s active_jobs=%d",
                 status,
                 accepting_work,
-                embedding_provider_status,
-                embedding_model,
-                tokenizer_config.get("tokenizer_status"),
+                sanitize_log_value(embedding_provider_status),
+                safe_embedding_model,
+                sanitize_log_value(str(tokenizer_config.get("tokenizer_status"))),
                 blob_storage_connected,
                 api_client_configured,
                 active_jobs,
@@ -414,9 +436,9 @@ def _build_health_response(
             "embedding_model=%s tokenizer_status=%s blob_storage=%s api_client_configured=%s active_jobs=%d",
             status,
             accepting_work,
-            embedding_provider_status,
-            embedding_model,
-            tokenizer_config.get("tokenizer_status"),
+            sanitize_log_value(embedding_provider_status),
+            safe_embedding_model,
+            sanitize_log_value(str(tokenizer_config.get("tokenizer_status"))),
             blob_storage_connected,
             api_client_configured,
             active_jobs,
@@ -461,8 +483,11 @@ async def health_check():
             embedding_provider_status=embedding_provider_status,
             active_jobs=active_jobs,
         )
-    except Exception:
-        logger.exception("Health check failed")
+    except Exception as exc:
+        logger.exception(
+            "Health check failed error=%s",
+            sanitize_log_value(str(exc)),
+        )
         return JSONResponse(
             content={
                 "status": "unhealthy",
@@ -477,7 +502,8 @@ async def health_check():
                         "model": os.getenv("GRAPH_EXTRACTION_MODEL"),
                         "status": (
                             "healthy"
-                            if os.getenv("GRAPH_EXTRACTION_ENDPOINT") and os.getenv("GRAPH_EXTRACTION_MODEL")
+                            if os.getenv("GRAPH_EXTRACTION_ENDPOINT")
+                            and os.getenv("GRAPH_EXTRACTION_MODEL")
                             else "unhealthy"
                         ),
                     },
@@ -495,12 +521,15 @@ async def list_embedding_models(
 ):
     """Probe an embedding provider endpoint and return its available models."""
     try:
-        logger.info("Embedding model discovery requested endpoint=%s", endpoint)
+        logger.info(
+            "Embedding model discovery requested endpoint=%s",
+            sanitize_log_value(endpoint),
+        )
         discovery = await discover_embedding_models(endpoint)
         logger.info(
             "Embedding model discovery completed provider=%s endpoint=%s model_count=%d",
-            discovery.provider,
-            discovery.endpoint,
+            sanitize_log_value(discovery.provider),
+            sanitize_log_value(discovery.endpoint),
             len(discovery.models),
         )
         return JSONResponse(
@@ -514,7 +543,11 @@ async def list_embedding_models(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ModelDiscoveryError as exc:
-        logger.warning("Embedding model discovery failed for %s: %s", endpoint, exc)
+        logger.warning(
+            "Embedding model discovery failed for %s: %s",
+            sanitize_log_value(endpoint),
+            sanitize_log_value(str(exc)),
+        )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -525,9 +558,9 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
     try:
         logger.info(
             "PDF processing request received upload_id=%s document_type=%s blob_container=%s has_source_access_token=%s has_local_file=%s",
-            request.upload_id,
-            request.document_type,
-            request.blob_container,
+            sanitize_log_value(request.upload_id),
+            sanitize_log_value(request.document_type),
+            sanitize_log_value(request.blob_container),
             bool(request.source_access_token),
             bool(request.local_file_path),
         )
@@ -568,9 +601,9 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
         )
         logger.info(
             "PDF processing job accepted job_id=%s upload_id=%s document_type=%s",
-            job_id,
-            request.upload_id,
-            request.document_type,
+            sanitize_log_value(job_id),
+            sanitize_log_value(request.upload_id),
+            sanitize_log_value(request.document_type),
         )
 
         return ProcessingStatusResponse(
@@ -582,11 +615,12 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Unexpected error in /process/pdf")
-        raise HTTPException(
-            status_code=500, detail="An unexpected error occurred"
+    except Exception as exc:
+        logger.exception(
+            "Unexpected error in /process/pdf error=%s",
+            sanitize_log_value(str(exc)),
         )
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
 # CSV processing endpoint
@@ -607,7 +641,10 @@ async def process_csv(request: ProcessCSVRequest, background_tasks: BackgroundTa
         if request.local_file_path:
             local_file_path = str(resolve_local_csv_path(request.local_file_path))
         elif not request.blob_container:
-            raise HTTPException(status_code=400, detail="Either blob_container or local_file_path is required")
+            raise HTTPException(
+                status_code=400,
+                detail="Either blob_container or local_file_path is required",
+            )
 
         # Start background processing
         job_id = await csv_processor.process_csv_async(
@@ -626,16 +663,19 @@ async def process_csv(request: ProcessCSVRequest, background_tasks: BackgroundTa
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Unexpected error in /process/csv")
-        raise HTTPException(
-            status_code=500, detail="An unexpected error occurred"
+    except Exception as exc:
+        logger.exception(
+            "Unexpected error in /process/csv error=%s",
+            sanitize_log_value(str(exc)),
         )
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
 # Bike graph CSV processing endpoint
 @app.post("/process/bike-graph", response_model=ProcessingStatusResponse)
-async def process_bike_graph(request: ProcessBikeGraphRequest, background_tasks: BackgroundTasks):
+async def process_bike_graph(
+    request: ProcessBikeGraphRequest, background_tasks: BackgroundTasks
+):
     """Process a motorcycle spec CSV into graph nodes and edges.
 
     No LLM or embeddings are used — processing is entirely local and deterministic.
@@ -675,8 +715,11 @@ async def process_bike_graph(request: ProcessBikeGraphRequest, background_tasks:
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Unexpected error in /process/bike-graph")
+    except Exception as exc:
+        logger.exception(
+            "Unexpected error in /process/bike-graph error=%s",
+            sanitize_log_value(str(exc)),
+        )
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
@@ -711,11 +754,13 @@ async def get_job_status(job_id: str):
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Unexpected error in /jobs/{job_id}")
-        raise HTTPException(
-            status_code=500, detail="An unexpected error occurred"
+    except Exception as exc:
+        logger.exception(
+            "Unexpected error in /jobs/%s error=%s",
+            sanitize_log_value(job_id),
+            sanitize_log_value(str(exc)),
         )
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
 @app.post("/jobs/{job_id}/stop")
@@ -731,11 +776,13 @@ async def stop_job(job_id: str):
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Unexpected error in /jobs/{job_id}/stop")
-        raise HTTPException(
-            status_code=500, detail="An unexpected error occurred"
+    except Exception as exc:
+        logger.exception(
+            "Unexpected error in /jobs/%s/stop error=%s",
+            sanitize_log_value(job_id),
+            sanitize_log_value(str(exc)),
         )
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
 
 
 @app.delete("/jobs")
@@ -775,11 +822,12 @@ async def shutdown():
 
 # Main entry point
 if __name__ == "__main__":
-
     # Get port from environment or use default
     port = int(os.getenv("PORT", 8100))
 
     # Run the FastAPI app
-    config = uvicorn.Config(app, host="0.0.0.0", port=port, reload=False, log_level="info")
+    config = uvicorn.Config(
+        app, host="127.0.0.1", port=port, reload=False, log_level="info"
+    )
     uvicorn_server = uvicorn.Server(config)
     uvicorn_server.run()

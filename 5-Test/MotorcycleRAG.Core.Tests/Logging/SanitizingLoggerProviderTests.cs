@@ -19,12 +19,14 @@ public class SanitizingLoggerProviderTests
         public IReadOnlyList<KeyValuePair<string, object?>>? LastState { get; private set; }
         public string? LastFormattedMessage { get; private set; }
         public SpyDisposable? LastScope { get; private set; }
+        public object? LastScopeStateObject { get; private set; }
         public bool IsEnabledReturnValue { get; set; } = true;
         public int LogCallCount { get; private set; }
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         {
             LastScope = new SpyDisposable();
+            LastScopeStateObject = state;
             return LastScope;
         }
 
@@ -345,6 +347,40 @@ public class SanitizingLoggerProviderTests
         // Assert
         spyLogger.LastScope.Should().NotBeNull();
         scope.Should().BeSameAs(spyLogger.LastScope);
+    }
+
+    [Fact]
+    public void BeginScope_WhenStateIsReadOnlyList_SanitizesValuesAndForwardsStructuredState()
+    {
+        // Arrange
+        var spyLogger = new SpyLogger();
+        var sut = new SanitizingLogger(spyLogger);
+        var scopeState = new List<KeyValuePair<string, object?>>
+        {
+            new("{OriginalFormat}", "scope: {user}"),
+            new("user", "name\ninjection"),
+        };
+
+        // Act
+        var scope = sut.BeginScope(scopeState);
+
+        // Assert
+        scope.Should().BeSameAs(spyLogger.LastScope);
+        var capturedState = spyLogger.LastScopeStateObject as IReadOnlyList<KeyValuePair<string, object?>>;
+        capturedState.Should().NotBeNull();
+        capturedState!.Count.Should().Be(2);
+
+        var userEntry = capturedState.FirstOrDefault(p => p.Key == "user");
+        (userEntry.Value as string).Should().Be("name\\ninjection");
+
+        // Exercise the non-generic IEnumerable.GetEnumerator() path on SanitizedLogState
+        var nonGenericItems = new List<object?>();
+        foreach (var item in (System.Collections.IEnumerable)capturedState)
+        {
+            nonGenericItems.Add(item);
+        }
+
+        nonGenericItems.Should().HaveCount(2);
     }
 
     #endregion

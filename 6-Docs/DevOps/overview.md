@@ -1,29 +1,28 @@
 # Deployment Configuration
 
 This project uses **Pulumi** for Infrastructure-as-Code and **GitHub Actions** for the CI/CD pipeline.
-All sensitive values are supplied at runtime through **repository secrets / variables** – **no secrets are stored in source control**.
+Deploy-workflow credentials live in GitHub Actions secrets; application settings and secrets for .NET hosts are written by Pulumi into Azure App Configuration and Key Vault. **No secrets are stored in source control.**
 
-## Environment Variables Naming Convention
+## Application configuration model
 
-**IMPORTANT**: All environment variables in this project follow a strict naming convention. See [`environment-variables.md`](environment-variables.md) for the **canonical reference** on all environment variable names across all applications (API, BFF, desktop admin client / admin desktop project, Mobile).
+.NET applications do **not** use `MCR_API_*`, `MCR_BFF_*`, `MCR_ADMIN_*`, or `MCR_MOBILE_*` environment variables for application settings or secrets. Those prefixes are not an approved configuration path for C# code.
 
-### Quick Reference
+| Surface | Who uses it | How values are supplied |
+| --- | --- | --- |
+| Azure App Configuration + Key Vault references | API, BFF, and other .NET hosts in deployed environments | Pulumi writes hierarchical `IConfiguration` keys (for example `AzureAd:TenantId`, `AzureAI:SearchServiceEndpoint`, `Sql:ConnectionString`) into App Configuration; secrets are Key Vault references resolved at load time |
+| Bootstrap Container App env vars | API and BFF hosts only | Pulumi sets `AppConfig__Endpoint` (so the host can reach App Configuration) and `ConnectionStrings__ApplicationInsights` (so early startup telemetry can report App Configuration load failures). These are not a general settings channel |
+| Local .NET development | Developers | Hierarchical keys via `appsettings*.json` and .NET user secrets (for example `AzureAd:TenantId`). In Development, App Configuration load is skipped |
+| Process environment variables | Python local processor only | Admin Desktop sets approved values at launch. Canonical list: [environment variables reference](../reference/environment-variables.md) |
 
-- **Pattern**: `MCR_<APP>_<VARIABLE>` (e.g., `MCR_API_AZURE_AD_TENANT_ID`)
-- **Apps**: `API`, `BFF`, `ADMIN`, `MOBILE`
-- **Usage**: Set these via GitHub Secrets, User Secrets (development), or Azure Key Vault (production)
-
-Refer to [`environment-variables.md`](environment-variables.md) for complete variable listings, validation requirements, and setup instructions.
+Do not add new `MCR_<APP>_*` environment-variable paths for .NET. If a .NET setting is needed, add an `IConfiguration` option and populate it from App Configuration / Key Vault (or local user secrets in Development). See also [security directives](../system/security.md).
 
 ---
 
 ## 1. GitHub Secrets
 
-Create the following secrets in the repository or organisation **Settings → Secrets and variables → Actions**:
+Create the following secrets in the repository or organisation **Settings → Secrets and variables → Actions**.
 
-### Infrastructure & Deployment Secrets
-
-These are used by the GitHub Actions deploy workflow for Azure authentication, Pulumi state management via a self-hosted Azure Blob backend, and database schema migrations:
+These secrets authenticate the deploy workflow and operate Pulumi / SQL migrations. They are **not** injected into the API or BFF as application configuration. Application settings and secrets are written by Pulumi into Azure App Configuration and Key Vault during `pulumi up`.
 
 | Secret | Purpose |
 | --- | --- |
@@ -37,23 +36,6 @@ These are used by the GitHub Actions deploy workflow for Azure authentication, P
 | `AZURE_STORAGE_KEY_PULUMI` | Access key for the storage account hosting the Pulumi backend; injected as the `AZURE_STORAGE_KEY` env var in the workflow. |
 | `SQL_ADMIN_LOGIN` | SQL Server administrator login used by the workflow's schema-migration step (`sqlcmd`). |
 | `SQL_ADMIN_PASSWORD` | SQL Server administrator password used by the workflow's schema-migration step. |
-
-### Application Runtime Secrets
-
-These are injected into the deployed applications at runtime. See [`environment-variables.md`](environment-variables.md) for complete details.
-
-| Secret | MCR Variable | Purpose |
-| --- | --- | --- |
-| `MCR_API_AZURE_OPENAI_API_KEY` | `MCR_API_AZURE_OPENAI_API_KEY` | Primary/secondary key for the Azure OpenAI resource. |
-| `MCR_API_AZURE_SEARCH_API_KEY` | `MCR_API_AZURE_SEARCH_API_KEY` | Admin/query key for the Azure AI Search service. |
-| `MCR_API_AZURE_DOCUMENT_INTELLIGENCE_API_KEY` | `MCR_API_AZURE_DOCUMENT_INTELLIGENCE_API_KEY` | Key for the Azure Document Intelligence resource. |
-| `MCR_API_AZURE_AD_TENANT_ID` | `MCR_API_AZURE_AD_TENANT_ID` | Azure AD tenant ID for API authentication. |
-| `MCR_API_AZURE_AD_CLIENT_ID` | `MCR_API_AZURE_AD_CLIENT_ID` | API app registration client ID. |
-| `MCR_API_SQL_CONNECTION_STRING` | `MCR_API_SQL_CONNECTION_STRING` | SQL Server connection string (Azure AD auth required). |
-| `MCR_API_APPINSIGHTS_CONNECTION_STRING` | `MCR_API_APPINSIGHTS_CONNECTION_STRING` | Application Insights connection string. |
-| `MCR_BFF_CLIENT_SECRET` | `MCR_BFF_CLIENT_SECRET` | BFF app registration client secret. |
-
-> 📝 Additional services (Cosmos DB, Storage, etc.) can be added. See [`environment-variables.md`](environment-variables.md) to define new variables following the `MCR_<APP>_*` pattern.
 
 ---
 
@@ -225,38 +207,40 @@ The following individual workflows were replaced by the unified `pr-gate.yml` an
 
 ---
 
-## 5. Application Environment Variables
+## 5. Application configuration (deployed and local)
 
-**ALL environment variables must follow the `MCR_<APP>_<VARIABLE>` naming convention.**
+### Deployed .NET hosts (API, BFF)
 
-See [`environment-variables.md`](environment-variables.md) for the **complete, authoritative reference** including:
+Pulumi is the source of truth for deployed application configuration:
 
-- All variable names by application (API, BFF, Admin, Mobile)
-- Detailed descriptions and examples
-- Type classification (Secret vs. Non-Secret)
-- Validation requirements
-- Setup instructions for development and production
+1. Writes non-secret hierarchical keys into Azure App Configuration (for example `AzureAI:SearchServiceEndpoint`, labelled `AzureAd:*` entries for `api` / `bff`).
+2. Stores secrets in Key Vault and registers App Configuration Key Vault references (for example `Sql:ConnectionString`, `AzureAd:ClientSecret` for the BFF).
+3. Injects only bootstrap Container App environment variables: `AppConfig__Endpoint` and `ConnectionStrings__ApplicationInsights`.
 
-### Security & Setup Instructions
+At runtime the API and BFF call `AddAzureAppConfigurationWithKeyVault` / `AddBffAzureAppConfiguration`, load keys (including Key Vault references) with managed identity, and bind them to `IConfiguration` / options. Do not add parallel `MCR_*` environment-variable mappings for the same settings.
 
-All secrets must be stored securely:
+### Local .NET development
 
-**Development**: Use User Secrets
+Use hierarchical `IConfiguration` keys via user secrets (and `appsettings*.json` for non-secrets). Example:
 
 ```powershell
-dotnet user-secrets set "MCR_API_AZURE_AD_TENANT_ID" "your-tenant-id" --project 1-Presentation/MotorcycleRAG.API
-dotnet user-secrets set "MCR_ADMIN_CLIENT_ID" "your-id" --project 1-Presentation/MotorcycleRAG.AdminDesktop
-# ... etc
+dotnet user-secrets set "AzureAd:TenantId" "your-tenant-id" --project 1-Presentation/MotorcycleRAG.API
+dotnet user-secrets set "AzureAd:ClientId" "your-api-client-id" --project 1-Presentation/MotorcycleRAG.API
 ```
 
-The current `MotorcycleRAG.sln` solution focuses on core backend, shared library, test, and infrastructure projects. The desktop admin project is a separate presentation application in this repo and is not currently listed in that solution file.
+In Development, Azure App Configuration load is skipped; local sources supply configuration. See [API onboarding](../MotorcycleRAG.API/onboarding.md). Admin Desktop persists its own settings locally (Tauri store), not via .NET user secrets.
 
-**Production**: Use Azure Key Vault or Azure App Configuration
+### Python local processor
 
-- Set environment variables via Azure App Service "Application Settings"
-- Or use Azure Key Vault with Azure App Configuration integration
-- Never commit secrets to source control or store in configuration files
+The only approved application environment-variable surface. Admin Desktop sets values at process launch. Canonical names and purposes: [environment variables reference](../reference/environment-variables.md).
+
+### Secrets hygiene
+
+- Never commit secrets to source control or store them in checked-in configuration files.
+- Do not use Container App / App Service application settings as a general .NET configuration channel.
+- Prefer Key Vault + App Configuration Key Vault references for production secrets.
 
 ## 6. Rotating Secrets
 
-Secrets can be rotated at any time by updating them in GitHub → **Settings → Secrets** and re-running the workflow. No code changes are required.
+- **Deploy workflow credentials** (Azure SP, Pulumi backend, SQL admin): update the corresponding GitHub Actions secrets and re-run the deploy workflow.
+- **Application secrets** (SQL connection strings, BFF client secret, agent references, and similar): update Key Vault (and any Pulumi-managed secret resources) so App Configuration Key Vault references resolve to the new values. Restart or refresh application hosts as required so they pick up the rotated material. No `MCR_*` environment-variable updates are involved for .NET apps.

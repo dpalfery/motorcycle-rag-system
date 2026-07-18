@@ -1,6 +1,7 @@
 using Azure;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.AgentProvisioning.Azure;
+using MotorcycleRAG.Core.Logging;
 using System.ClientModel;
 using System.Text.Json;
 
@@ -54,6 +55,12 @@ internal static class Program
         {
             builder.AddConsole();
             builder.SetMinimumLevel(LogLevel.Information);
+
+            // Wrap every ILoggerProvider registered above (Console) in the central
+            // SanitizingLoggerProvider so no structured log state reaches a sink
+            // without LogSanitizer escaping. MUST be the last logging-provider call
+            // per SanitizingLoggerExtensions remarks.
+            builder.AddSanitizingLogger();
         });
 
         var logger = loggerFactory.CreateLogger("AgentProvisioning");

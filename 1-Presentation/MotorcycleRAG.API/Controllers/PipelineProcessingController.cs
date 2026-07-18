@@ -121,7 +121,9 @@ public class PipelineProcessingController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing file {FileName}", LogSanitizer.Sanitize(Path.GetFileName(request.FilePath), 80));
+            // File-name truncation at 80 chars was previously applied by LogSanitizer.Sanitize;
+            // the SanitizingLoggerProvider now truncates structured values automatically.
+            _logger.LogError(ex, "Error processing file {FileName}", Path.GetFileName(request.FilePath));
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",
@@ -205,7 +207,7 @@ public class PipelineProcessingController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting pipeline status for {ExecutionId}", LogSanitizer.Sanitize(executionId));
+            _logger.LogError(ex, "Error getting pipeline status for {ExecutionId}", executionId);
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",
@@ -287,7 +289,7 @@ public class PipelineProcessingController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error cancelling pipeline {ExecutionId}", LogSanitizer.Sanitize(executionId));
+            _logger.LogError(ex, "Error cancelling pipeline {ExecutionId}", executionId);
             return StatusCode(500, new ProblemDetails
             {
                 Title = "Internal server error",

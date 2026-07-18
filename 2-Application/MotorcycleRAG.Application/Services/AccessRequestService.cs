@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -51,8 +50,8 @@ public class AccessRequestService {
         if (existingRequest != null) {
             _logger.LogInformation(
                 "Returning existing access request state for {Provider}/{Email}",
-                LogSanitizer.Sanitize(request.Provider),
-                LogSanitizer.Sanitize(normalizedEmail));
+                request.Provider,
+                normalizedEmail);
 
             _telemetryService.TrackOnboardingTransition(
                 existingRequest.RequestId,
@@ -73,8 +72,8 @@ public class AccessRequestService {
             _logger.LogWarning(
                 ex,
                 "Access-request creation raced with an existing request for {Provider}/{Email}",
-                LogSanitizer.Sanitize(request.Provider),
-                LogSanitizer.Sanitize(normalizedEmail));
+                request.Provider,
+                normalizedEmail);
 
             existingRequest = await _accessRequestRepository.GetByProviderAndEmailAsync(normalizedEmail, request.Provider);
             if (existingRequest != null) {
@@ -115,7 +114,7 @@ public class AccessRequestService {
         if (string.IsNullOrWhiteSpace(approverAddress)) {
             _logger.LogWarning(
                 "Approver notification skipped for access request {RequestId} because Onboarding:ApproverAddress is not configured",
-                LogSanitizer.Sanitize(accessRequest.RequestId));
+                accessRequest.RequestId);
             _telemetryService.TrackDependencyDegradation(
                 "ApproverNotification",
                 accessRequest.CorrelationId,
@@ -130,8 +129,8 @@ public class AccessRequestService {
             _logger.LogError(
                 ex,
                 "Approver notification failed for access request {RequestId} and correlation {CorrelationId}",
-                LogSanitizer.Sanitize(accessRequest.RequestId),
-                LogSanitizer.Sanitize(accessRequest.CorrelationId, 80));
+                accessRequest.RequestId,
+                accessRequest.CorrelationId);
             _telemetryService.TrackDependencyDegradation(
                 "ApproverNotification",
                 accessRequest.CorrelationId,

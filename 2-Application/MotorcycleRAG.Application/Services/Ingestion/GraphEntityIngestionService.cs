@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services.Ingestion;
 
@@ -48,12 +47,12 @@ public sealed class GraphEntityIngestionService : IGraphEntityIngestionService {
             exists = await _blobStorage.ExistsAsync(BlobContainer, blobPath, cancellationToken)
                 .ConfigureAwait(false);
         } catch (Exception ex) {
-            _logger.LogWarning(ex, "Failed to check existence of graph entities blob for upload {UploadId}", LogSanitizer.Sanitize(uploadId));
+            _logger.LogWarning(ex, "Failed to check existence of graph entities blob for upload {UploadId}", uploadId);
             return;
         }
 
         if (!exists) {
-            _logger.LogWarning("No graph entities found for upload {UploadId}", LogSanitizer.Sanitize(uploadId));
+            _logger.LogWarning("No graph entities found for upload {UploadId}", uploadId);
             return;
         }
 
@@ -66,12 +65,12 @@ public sealed class GraphEntityIngestionService : IGraphEntityIngestionService {
             await stream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
             jsonBytes = memoryStream.ToArray();
         } catch (Exception ex) {
-            _logger.LogWarning(ex, "Failed to download graph entities blob for upload {UploadId}", LogSanitizer.Sanitize(uploadId));
+            _logger.LogWarning(ex, "Failed to download graph entities blob for upload {UploadId}", uploadId);
             return;
         }
 
         if (jsonBytes.Length == 0) {
-            _logger.LogWarning("Graph entities blob is empty for upload {UploadId}", LogSanitizer.Sanitize(uploadId));
+            _logger.LogWarning("Graph entities blob is empty for upload {UploadId}", uploadId);
             return;
         }
 
@@ -80,12 +79,12 @@ public sealed class GraphEntityIngestionService : IGraphEntityIngestionService {
         try {
             documents = JsonSerializer.Deserialize<List<GraphEntityDocument>>(jsonBytes, JsonOptions);
         } catch (JsonException ex) {
-            _logger.LogWarning(ex, "Failed to deserialize graph entities JSON for upload {UploadId}", LogSanitizer.Sanitize(uploadId));
+            _logger.LogWarning(ex, "Failed to deserialize graph entities JSON for upload {UploadId}", uploadId);
             return;
         }
 
         if (documents is null || documents.Count == 0) {
-            _logger.LogWarning("Graph entities JSON contained no documents for upload {UploadId}", LogSanitizer.Sanitize(uploadId));
+            _logger.LogWarning("Graph entities JSON contained no documents for upload {UploadId}", uploadId);
             return;
         }
 
@@ -106,7 +105,7 @@ public sealed class GraphEntityIngestionService : IGraphEntityIngestionService {
             "Ingested {NodeCount} nodes and {EdgeCount} edges for upload {UploadId}",
             nodes.Count,
             edges.Count,
-            LogSanitizer.Sanitize(uploadId));
+            uploadId);
     }
 
     private static List<GraphNodeDto> MapNodes(List<GraphNodeJson>? nodeJsons) {
@@ -146,16 +145,16 @@ public sealed class GraphEntityIngestionService : IGraphEntityIngestionService {
             if (!Guid.TryParse(ej.FromNodeId, out var fromId)) {
                 _logger.LogWarning(
                     "Skipping edge with invalid FromNodeId {FromNodeId} for upload {UploadId}",
-                    LogSanitizer.Sanitize(ej.FromNodeId),
-                    LogSanitizer.Sanitize(uploadId));
+                    ej.FromNodeId,
+                    uploadId);
                 continue;
             }
 
             if (!Guid.TryParse(ej.ToNodeId, out var toId)) {
                 _logger.LogWarning(
                     "Skipping edge with invalid ToNodeId {ToNodeId} for upload {UploadId}",
-                    LogSanitizer.Sanitize(ej.ToNodeId),
-                    LogSanitizer.Sanitize(uploadId));
+                    ej.ToNodeId,
+                    uploadId);
                 continue;
             }
 

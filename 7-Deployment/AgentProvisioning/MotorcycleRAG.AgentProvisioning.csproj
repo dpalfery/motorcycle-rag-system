@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\0-Base\MotorcycleRAG.Core\MotorcycleRAG.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="MotorcycleRAG.UnitTests" />
     <InternalsVisibleTo Include="MotorcycleRAG.AgentProvisioning.Tests" />
   </ItemGroup>

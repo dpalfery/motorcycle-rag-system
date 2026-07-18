@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using MotorcycleRAG.Application.Services;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 using System.Net.Mime;
 using System.ComponentModel.DataAnnotations;
 
@@ -117,16 +116,18 @@ public sealed class WebSourcesAdminController : ControllerBase {
             };
 
             var createdSource = await _webSourceRegistryService.AddWebSourceAsync(webSource);
-            _logger.LogInformation("Admin created web source {WebSourceId} with URL {Url}", createdSource.Id, LogSanitizer.Sanitize(createdSource.Url, 48));
+            // URL truncation at 48 chars was previously applied by LogSanitizer.Sanitize;
+            // the SanitizingLoggerProvider now truncates structured values automatically.
+            _logger.LogInformation("Admin created web source {WebSourceId} with URL {Url}", createdSource.Id, createdSource.Url);
 
             return Created(new Uri($"/api/admin/web-sources/{createdSource.Id}", UriKind.Relative), createdSource);
         }
         catch (InvalidOperationException ex) {
-            _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", LogSanitizer.Sanitize(request.Url?.ToString() ?? string.Empty, 48));
+            _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", request.Url?.ToString() ?? string.Empty);
             return Conflict(new { error = "A resource with this URL already exists" });
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error creating web source with URL {Url}", LogSanitizer.Sanitize(request.Url?.ToString() ?? string.Empty, 48));
+            _logger.LogError(ex, "Error creating web source with URL {Url}", request.Url?.ToString() ?? string.Empty);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }

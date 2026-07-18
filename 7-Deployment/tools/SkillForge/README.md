@@ -32,19 +32,6 @@ dotnet tool install --global --add-source ./nupkg SkillForge.Tool
 
 # or run from source
 dotnet run --project src/SkillForge.Cli -- <command> [args]
-```
-
-Requires the .NET 8 SDK.
-
----
-
-## Quick start
-
-```bash
-# Spec conformance
-skillforge validate ./samples/skills
-
-# Routing readiness, with the per-skill rubric
 skillforge lint ./samples/skills --explain
 
 # Trust-surface scan (emit SARIF for GitHub code scanning)

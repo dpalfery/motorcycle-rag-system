@@ -5,6 +5,7 @@ using MotorcycleRAG.API.Configuration.Services;
 using MotorcycleRAG.API.Extensions;
 using MotorcycleRAG.API.Services;
 using MotorcycleRAG.Application.Extensions;
+using MotorcycleRAG.Core.Logging;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using TelemetryOptions = MotorcycleRAG.Core.Options.TelemetryOptions;
@@ -116,5 +117,11 @@ public class Program {
 
         builder.Services.AddMotorcycleRagAuthorization(configuration, builder.Environment);
         builder.Services.AddMotorcycleRagRateLimiting();
+
+        // Wrap every ILoggerProvider registered above (Console, Debug, JsonConsole,
+        // Application Insights, OpenTelemetry) in the central SanitizingLoggerProvider
+        // so no structured log state reaches a sink without LogSanitizer escaping.
+        // MUST be the last logging-provider call per SanitizingLoggerExtensions remarks.
+        builder.Logging.AddSanitizingLogger();
     }
 }

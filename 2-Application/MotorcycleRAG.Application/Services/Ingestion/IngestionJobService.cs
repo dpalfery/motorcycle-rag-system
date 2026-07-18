@@ -6,7 +6,6 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
@@ -78,7 +77,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             _logger.LogWarning(
                 ex,
                 "Listing pending storage files was denied for container {Container}. Returning an empty result set.",
-                LogSanitizer.Sanitize(_blobStorageOptions.RawUploadsContainer, 80));
+                _blobStorageOptions.RawUploadsContainer);
             return Array.Empty<PendingStorageFileDto>();
         }
 
@@ -148,8 +147,8 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         _logger.LogInformation(
             "Deleted pending ingestion upload {UploadId} for document type {DocumentType}.",
-            LogSanitizer.Sanitize(uploadId),
-            LogSanitizer.Sanitize(documentType));
+            uploadId,
+            documentType);
     }
 
     /// <inheritdoc />
@@ -341,7 +340,7 @@ public sealed class IngestionJobService : IIngestionJobService {
                 .ConfigureAwait(false);
             if (!blobExists) {
                 throw new InvalidOperationException(
-                    $"The source file for this ingestion job ('{LogSanitizer.Sanitize(blobPath, 200)}') " +
+                    $"The source file for this ingestion job ('{blobPath}') " +
                     "was not found in blob storage. Re-upload the PDF and start a new ingestion job.");
             }
 
@@ -357,7 +356,7 @@ public sealed class IngestionJobService : IIngestionJobService {
                 "Source blob: {BlobPath}.",
                 jobId,
                 userId,
-                LogSanitizer.Sanitize(blobPath, 200));
+                blobPath);
 
             return MapToResponse(job);
         }
@@ -398,7 +397,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         _logger.LogInformation(
             "Queued ingestion job {JobId} for processor run {ProcessorRunId}.",
             job.IngestionJobId,
-            LogSanitizer.Sanitize(request.ProcessorRunId));
+            request.ProcessorRunId);
 
         return MapToResponse(job);
     }
@@ -470,7 +469,7 @@ public sealed class IngestionJobService : IIngestionJobService {
             job.Complete();
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Graph import failed for upload {UploadId}.", LogSanitizer.Sanitize(uploadId));
+            _logger.LogError(ex, "Graph import failed for upload {UploadId}.", uploadId);
             job.Fail(ex.ToString());
             ApplyJobFailure(job, ex.ToString());
         }
@@ -542,7 +541,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         _logger.LogInformation(
             "Ingestion job {JobId} marked as failed: {Reason}",
             jobId,
-            LogSanitizer.Sanitize(reason));
+            reason);
     }
 
     /// <summary>Maps a domain <see cref="IngestionJob"/> to its response DTO.</summary>
@@ -720,10 +719,10 @@ public sealed class IngestionJobService : IIngestionJobService {
         _logger.LogInformation(
             "Ingestion job {JobId} stage transitioned to {Stage} (chunks={ChunksProcessed}/{TotalChunks}, failureReason={FailureReason}).",
             jobId,
-            LogSanitizer.Sanitize(request.Stage),
+            request.Stage,
             request.ChunksProcessed,
             request.TotalChunks,
-            LogSanitizer.Sanitize(request.FailureReason));
+            request.FailureReason);
 
         return MapToResponse(job);
     }
@@ -1025,7 +1024,7 @@ public sealed class IngestionJobService : IIngestionJobService {
                 ex,
                 "Best-effort cleanup failed while attempting to {Operation} ({Identifier}).",
                 operation,
-                LogSanitizer.Sanitize(Convert.ToString(identifier) ?? string.Empty));
+                Convert.ToString(identifier) ?? string.Empty);
         }
     }
 

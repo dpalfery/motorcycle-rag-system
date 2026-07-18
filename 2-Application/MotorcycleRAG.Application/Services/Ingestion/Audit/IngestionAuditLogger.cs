@@ -1,12 +1,13 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Core.Utilities;
+
 namespace MotorcycleRAG.Application.Services.Ingestion.Audit;
 
 /// <summary>
 /// Structured-logging implementation of <see cref="IIngestionAuditLogger"/>.
-/// All parameters are sanitized (newlines replaced with spaces, truncated to 200 chars)
-/// before being written to the log. No raw file content, query text, or PII
+/// Log value sanitization (newline/control-char stripping, truncation) is applied
+/// centrally by the registered <c>SanitizingLoggerProvider</c>, so values are
+/// forwarded to the logger as-is. No raw file content, query text, or PII
 /// beyond uploadId/userId is ever logged.
 /// </summary>
 public sealed class IngestionAuditLogger : IIngestionAuditLogger
@@ -25,15 +26,11 @@ public sealed class IngestionAuditLogger : IIngestionAuditLogger
         bool success,
         CancellationToken ct = default)
     {
-        var safeEvent    = LogSanitizer.Sanitize(eventName);
-        var safeUploadId = LogSanitizer.Sanitize(uploadId);
-        var safeUserId   = LogSanitizer.Sanitize(userId);
-
         _logger.LogInformation(
             "Ingestion audit: event={Event} uploadId={UploadId} userId={UserId} success={Success}",
-            safeEvent,
-            safeUploadId,
-            safeUserId,
+            eventName,
+            uploadId,
+            userId,
             success);
 
         return Task.CompletedTask;
@@ -47,16 +44,12 @@ public sealed class IngestionAuditLogger : IIngestionAuditLogger
         string errorCode,
         CancellationToken ct = default)
     {
-        var safeEvent     = LogSanitizer.Sanitize(eventName);
-        var safeUploadId  = LogSanitizer.Sanitize(uploadId);
-        var safeUserId    = LogSanitizer.Sanitize(userId);
-        var safeErrorCode = LogSanitizer.Sanitize(errorCode);
         _logger.LogWarning(
             "Ingestion audit error: event={Event} uploadId={UploadId} userId={UserId} errorCode={ErrorCode}",
-            safeEvent,
-            safeUploadId,
-            safeUserId,
-            safeErrorCode);
+            eventName,
+            uploadId,
+            userId,
+            errorCode);
 
         return Task.CompletedTask;
     }

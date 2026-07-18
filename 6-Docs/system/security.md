@@ -20,16 +20,29 @@ These are **non-optional** and apply to all code, tests, config, scripts, and do
 
 Request, job, file, endpoint, exception, and other untrusted strings that reach log sinks SHALL be encoded before they are written so raw control characters cannot forge log lines.
 
-- **C#:** `MotorcycleRAG.Core.Utilities.LogSanitizer.Sanitize`.
-- **Python (local processor):** `security.log_sanitizer.sanitize_log_value`.
+### C# (.NET hosts)
 
-Both helpers:
+All six .NET hosts (API, WebUI BFF, DbSetup, AgentProvisioning, AdminDesktop, MobileApp) register `SanitizingLoggerProvider` as a central `ILoggerProvider` decorator via `builder.Logging.AddSanitizingLogger()` (in `MotorcycleRAG.Core.Logging`). This provider automatically sanitizes every structured log-state value and the `{OriginalFormat}` template string before any log call reaches the inner logger sink. The underlying sanitizer is `MotorcycleRAG.Core.Utilities.LogSanitizer.Sanitize`.
+
+No per-call `LogSanitizer.Sanitize(...)` argument wrappers are needed. New `ILogger.LogXxx` callers are safe by default; the provider boundary is the single, verifiable sanitization point.
+
+Hosts MUST call `AddSanitizingLogger()` after all other logging-provider registrations so the decorator wraps every provider. Per-host registration-gate tests fail the build if `SanitizingLoggerProvider` is missing — see `5-Test/*.Tests/Logging/SanitizingLoggerRegistrationGateTests.cs`.
+
+The `LogSanitizer.Sanitize` class remains available in `MotorcycleRAG.Core.Utilities` for non-logging use cases (e.g., sanitizing strings before embedding them in diagnostic responses).
+
+### Python (local processor)
+
+Use `security.log_sanitizer.sanitize_log_value`.
+
+### Encoding rules (all languages)
+
+The canonical sanitizer:
 
 1. Escape backslashes first, then emit visible escapes for CR, LF, tab, NUL, and remaining C0/C1 controls (`\r`, `\n`, `\t`, `\0`, `\u00XX`).
 2. Preserve printable non-control content in full (reversible escaping; no default truncation).
 3. Leave repository-required PII and query-text redaction unchanged; encoding does not replace redaction.
 
-Do not bulk-dismiss static-analysis logging alerts. If a scanner does not recognize an approved encoder, add the narrowest supported sanitizer model; do not suppress the rule.
+Do not bulk-dismiss static-analysis logging alerts. If a scanner does not recognize the central provider as a sanitization boundary inside `SanitizingLoggerProvider.Log<TState>`, annotate only that single inner-logger call with the narrowest supported suppression model (e.g. `// snyk-discard`). Per-site or per-method suppression is not acceptable.
 
 ## Auth & Access
 

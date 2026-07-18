@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -113,10 +112,10 @@ public class ModelValidationService {
         if (string.IsNullOrEmpty(documentId))
             return "[empty]";
 
-        var sanitized = LogSanitizer.Sanitize(documentId, 48);
-        return sanitized.Length < documentId.Length
-            ? sanitized + "..."
-            : sanitized;
+        const int maxDocumentIdLength = 48;
+        return documentId.Length > maxDocumentIdLength
+            ? documentId[..maxDocumentIdLength] + "..."
+            : documentId;
     }
 
     private void ValidateHeadings(ManualPdfCitationLocator locator, string prefix, List<string> errors) {

@@ -12,6 +12,7 @@ using MotorcycleRAG.MobileApp.Services;
 using MotorcycleRAG.MobileApp.Views;
 using MotorcycleRAG.MobileApp.ViewModels;
 using CommunityToolkit.Maui;
+using MotorcycleRAG.Core.Logging;
 using MotorcycleRAG.MobileApp.Configuration;
 
 namespace MotorcycleRAG.MobileApp;
@@ -44,6 +45,13 @@ public static class MauiProgram
 #if DEBUG
         builder.Logging.AddDebug();
 #endif
+
+        // Wrap every ILoggerProvider registered above (Debug in DEBUG builds) in the
+        // central SanitizingLoggerProvider so no structured log state reaches a sink
+        // without LogSanitizer escaping. MUST be the last logging-provider call per
+        // SanitizingLoggerExtensions remarks. Always registered so release builds are
+        // also covered when other providers (e.g. App Center) are added later.
+        builder.Logging.AddSanitizingLogger();
 
         // Persistence
         string dbPath = Path.Combine(FileSystem.AppDataDirectory, "motorcyclerag.db3");

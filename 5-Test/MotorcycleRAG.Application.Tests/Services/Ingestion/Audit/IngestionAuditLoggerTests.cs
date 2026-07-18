@@ -6,14 +6,14 @@ namespace MotorcycleRAG.UnitTests.Services.Ingestion.Audit;
 public sealed class IngestionAuditLoggerTests
 {
     [Fact]
-    public async Task LogAsync_NewlineAndOverlongValues_LogsReversibleFullStructuredFields()
+    public async Task LogAsync_LogsStructuredFieldsAtInformationLevel()
     {
         // Arrange
         var logger = new CapturingLogger<IngestionAuditLogger>();
         var sut = new IngestionAuditLogger(logger);
-        var eventName = CreateUnsafeValue("event");
-        var uploadId = CreateUnsafeValue("upload");
-        var userId = CreateUnsafeValue("user");
+        const string eventName = "UploadReceived";
+        const string uploadId = "upload-123";
+        const string userId = "user-456";
 
         // Act
         await sut.LogAsync(eventName, uploadId, userId, success: true);
@@ -24,23 +24,22 @@ public sealed class IngestionAuditLoggerTests
         entry.Properties.Should().ContainKeys("Event", "UploadId", "UserId", "Success", "{OriginalFormat}");
         entry.Properties["{OriginalFormat}"].Should().Be(
             "Ingestion audit: event={Event} uploadId={UploadId} userId={UserId} success={Success}");
+        entry.Properties["Event"].Should().Be(eventName);
+        entry.Properties["UploadId"].Should().Be(uploadId);
+        entry.Properties["UserId"].Should().Be(userId);
         entry.Properties["Success"].Should().Be(true);
-        AssertSanitized(entry, eventName, "Event");
-        AssertSanitized(entry, uploadId, "UploadId");
-        AssertSanitized(entry, userId, "UserId");
-        AssertNoRawNewlineData(entry);
     }
 
     [Fact]
-    public async Task LogErrorAsync_NewlineAndOverlongValues_LogsReversibleFullStructuredFields()
+    public async Task LogErrorAsync_LogsStructuredFieldsAtWarningLevel()
     {
         // Arrange
         var logger = new CapturingLogger<IngestionAuditLogger>();
         var sut = new IngestionAuditLogger(logger);
-        var eventName = CreateUnsafeValue("event");
-        var uploadId = CreateUnsafeValue("upload");
-        var userId = CreateUnsafeValue("user");
-        var errorCode = CreateUnsafeValue("error");
+        const string eventName = "UploadValidationFailed";
+        const string uploadId = "upload-789";
+        const string userId = "user-012";
+        const string errorCode = "FILE_TOO_LARGE";
 
         // Act
         await sut.LogErrorAsync(eventName, uploadId, userId, errorCode);
@@ -51,36 +50,10 @@ public sealed class IngestionAuditLoggerTests
         entry.Properties.Should().ContainKeys("Event", "UploadId", "UserId", "ErrorCode", "{OriginalFormat}");
         entry.Properties["{OriginalFormat}"].Should().Be(
             "Ingestion audit error: event={Event} uploadId={UploadId} userId={UserId} errorCode={ErrorCode}");
-        AssertSanitized(entry, eventName, "Event");
-        AssertSanitized(entry, uploadId, "UploadId");
-        AssertSanitized(entry, userId, "UserId");
-        AssertSanitized(entry, errorCode, "ErrorCode");
-        AssertNoRawNewlineData(entry);
-    }
-
-    private static string CreateUnsafeValue(string prefix) =>
-        $"{prefix}\\source\r\n{new string('x', 205)}\ttail";
-
-    private static void AssertSanitized(CapturedLogEntry entry, string rawValue, string propertyName)
-    {
-        var sanitizedValue = entry.Properties[propertyName].Should().BeOfType<string>().Subject;
-
-        sanitizedValue.Length.Should().BeGreaterThan(200);
-        sanitizedValue.Should().NotBe(rawValue);
-        sanitizedValue.Should().Contain("\\\\source\\r\\n");
-        sanitizedValue.Should().EndWith($"{new string('x', 205)}\\ttail");
-        sanitizedValue.Should().NotContain("\n");
-        sanitizedValue.Should().NotContain("\r");
-        sanitizedValue.Should().NotContain("\t");
-        sanitizedValue.Should().NotContain("\0");
-    }
-
-    private static void AssertNoRawNewlineData(CapturedLogEntry entry)
-    {
-        entry.Message.Should().NotContain("\n");
-        entry.Message.Should().NotContain("\r");
-        entry.Message.Should().NotContain("\t");
-        entry.Message.Should().NotContain("\0");
+        entry.Properties["Event"].Should().Be(eventName);
+        entry.Properties["UploadId"].Should().Be(uploadId);
+        entry.Properties["UserId"].Should().Be(userId);
+        entry.Properties["ErrorCode"].Should().Be(errorCode);
     }
 
     private sealed record CapturedLogEntry(

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Logging;
 using MotorcycleRAG.DbSetup;
 
 // Create logger factory
@@ -6,9 +7,14 @@ using var loggerFactory = LoggerFactory.Create(builder =>
 {
     builder.AddConsole();
     builder.SetMinimumLevel(LogLevel.Information);
+
+    // Wrap every ILoggerProvider registered above (Console) in the central
+    // SanitizingLoggerProvider so no structured log state reaches a sink without
+    // LogSanitizer escaping. MUST be the last logging-provider call.
+    builder.AddSanitizingLogger();
 });
 
-var logger = loggerFactory.CreateSecureLogger<Program>();
+var logger = loggerFactory.CreateLogger<Program>();
 
 try
 {
@@ -27,15 +33,15 @@ try
     logger.LogInformation("Project Slug: {ProjectSlug}", parser.ProjectSlug);
 
     // Create component instances
-    var environmentManager = new EnvironmentManager(loggerFactory.CreateSecureLogger<EnvironmentManager>());
-    var passwordManager = new PasswordManager(loggerFactory.CreateSecureLogger<PasswordManager>());
-    var prompter = new InteractivePrompter(loggerFactory.CreateSecureLogger<InteractivePrompter>());
+    var environmentManager = new EnvironmentManager(loggerFactory.CreateLogger<EnvironmentManager>());
+    var passwordManager = new PasswordManager(loggerFactory.CreateLogger<PasswordManager>());
+    var prompter = new InteractivePrompter(loggerFactory.CreateLogger<InteractivePrompter>());
     var connectionFactory = new SqlDbSetupConnectionFactory();
-    var provisioner = new SqlServerProvisioner(loggerFactory.CreateSecureLogger<SqlServerProvisioner>(), connectionFactory);
-    var preflightChecker = new PreflightChecker(loggerFactory.CreateSecureLogger<PreflightChecker>(), connectionFactory);
+    var provisioner = new SqlServerProvisioner(loggerFactory.CreateLogger<SqlServerProvisioner>(), connectionFactory);
+    var preflightChecker = new PreflightChecker(loggerFactory.CreateLogger<PreflightChecker>(), connectionFactory);
     var catalogRoot = FindCatalogRootFromBaseDirectory();
     var scriptExecutor = new SqlScriptExecutor(
-        loggerFactory.CreateSecureLogger<SqlScriptExecutor>(),
+        loggerFactory.CreateLogger<SqlScriptExecutor>(),
         connectionFactory,
         catalogRoot);
 

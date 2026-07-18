@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.API.Middleware;
 
@@ -55,16 +54,14 @@ public sealed class RequestPipelineTimingMiddleware
             stopwatch.Stop();
             var elapsedMs = stopwatch.ElapsedMilliseconds;
             var statusCode = context.Response.StatusCode;
-            var sanitizedMethod = LogSanitizer.Sanitize(context.Request.Method);
-            var sanitizedPath = LogSanitizer.Sanitize(path);
 
             // Log slow requests (> 1 second) at Warning level
             if (elapsedMs > SlowRequestThresholdMs)
             {
                 _logger.LogWarning(
                     "Slow request: {Method} {Path} completed in {ElapsedMs}ms (Status={StatusCode})",
-                    sanitizedMethod,
-                    sanitizedPath,
+                    context.Request.Method,
+                    path,
                     elapsedMs,
                     statusCode);
             }
@@ -72,8 +69,8 @@ public sealed class RequestPipelineTimingMiddleware
             {
                 _logger.LogDebug(
                     "Request: {Method} {Path} completed in {ElapsedMs}ms (Status={StatusCode})",
-                    sanitizedMethod,
-                    sanitizedPath,
+                    context.Request.Method,
+                    path,
                     elapsedMs,
                     statusCode);
             }

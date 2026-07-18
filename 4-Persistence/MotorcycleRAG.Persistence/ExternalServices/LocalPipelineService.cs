@@ -5,7 +5,6 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Persistence.ExternalServices;
 
@@ -57,7 +56,7 @@ public sealed class LocalPipelineService : ILocalPipelineService {
 
         _logger.LogInformation(
             "Triggering local pipeline for document type {DocumentType}. SourceTokenPresent={HasToken}",
-            LogSanitizer.Sanitize(documentType),
+            documentType,
             !string.IsNullOrWhiteSpace(sourceAccessToken));
 
         var endpoint = documentType switch {
@@ -96,7 +95,7 @@ public sealed class LocalPipelineService : ILocalPipelineService {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogError(
                 "Local pipeline trigger failed for document type {DocumentType}. Status: {StatusCode} Body: {Body}",
-                LogSanitizer.Sanitize(documentType), (int)response.StatusCode, LogSanitizer.Sanitize(errorBody, 500));
+                documentType, (int)response.StatusCode, errorBody);
             throw new InvalidOperationException(
                 $"Local pipeline trigger returned HTTP {(int)response.StatusCode} for document type '{documentType}': {errorBody}");
         }
@@ -110,14 +109,14 @@ public sealed class LocalPipelineService : ILocalPipelineService {
             if (!string.IsNullOrWhiteSpace(jobId)) {
                 _logger.LogInformation(
                     "Local pipeline triggered for document type {DocumentType}. Job ID: {JobId}",
-                    LogSanitizer.Sanitize(documentType), LogSanitizer.Sanitize(jobId));
+                    documentType, jobId);
                 return jobId;
             }
         }
 
         _logger.LogError(
             "Local pipeline trigger response missing 'job_id' field for document type {DocumentType}",
-            LogSanitizer.Sanitize(documentType));
+            documentType);
         throw new InvalidOperationException(
             $"Local pipeline trigger for document type '{documentType}' returned no job_id.");
     }
@@ -140,7 +139,7 @@ public sealed class LocalPipelineService : ILocalPipelineService {
             var errorBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             _logger.LogWarning(
                 "Local pipeline status check failed for job {RunId}. Status: {StatusCode} Body: {Body}",
-                LogSanitizer.Sanitize(runId), (int)response.StatusCode, LogSanitizer.Sanitize(errorBody, 500));
+                runId, (int)response.StatusCode, errorBody);
             throw new InvalidOperationException(
                 $"Local pipeline status check returned HTTP {(int)response.StatusCode} for job '{runId}': {errorBody}");
         }

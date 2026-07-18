@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Application.Services.Citations;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.Application.Services;
@@ -48,7 +47,7 @@ public sealed class MotorcycleRagService : IMotorcycleRagService
 
         var queryId = Guid.NewGuid().ToString("N");
         _logger.LogInformation("[{QueryId}] Processing motorcycle RAG query with length {QueryLength}",
-            LogSanitizer.Sanitize(queryId, 80), request.Query.Length);
+            queryId, request.Query.Length);
 
         var stopwatch = Stopwatch.StartNew();
 

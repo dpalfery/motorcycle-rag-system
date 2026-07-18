@@ -54,7 +54,7 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
 
         try {
             _logger.LogInformation("Starting PDF processing for document: {FileName}",
-                LogSanitizer.Sanitize(input.FileName));
+                input.FileName);
 
             // Step 1: Extract text and structure using Document Intelligence
             var analysisResult = await ExtractDocumentContentAsync(input);
@@ -86,7 +86,7 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error processing PDF document: {FileName}",
-                LogSanitizer.Sanitize(input.FileName));
+                input.FileName);
             throw new InvalidOperationException($"Failed to process PDF: {ex.Message}", ex);
         }
         finally {
@@ -776,7 +776,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
                 if (embeddings.Length < 2) {
                     _logger.LogWarning("Failed to generate embeddings for similarity comparison between chunks {CurrentId} and {NextId}",
-                        LogSanitizer.Sanitize(currentChunk.Id), LogSanitizer.Sanitize(nextChunk.Id));
+                        currentChunk.Id, nextChunk.Id);
                     refinedChunks.Add(currentChunk);
                     i++;
                     continue;
@@ -921,7 +921,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse PageNumber from metadata for chunk {ChunkId}, using fallback",
-                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+                chunkId ?? string.Empty);
             pageNumber = fallbackPageNumber;
         }
 
@@ -934,7 +934,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse SectionLevel from metadata for chunk {ChunkId}, using default 0",
-                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+                chunkId ?? string.Empty);
             sectionLevel = 0;
         }
 
@@ -944,7 +944,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse AllSectionHeadings from metadata for chunk {ChunkId}, using empty array",
-                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+                chunkId ?? string.Empty);
             sectionHeadings = Array.Empty<string>();
         }
 
@@ -956,7 +956,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse ChunkIndex from metadata for chunk {ChunkId}, using default 0",
-                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+                chunkId ?? string.Empty);
             chunkIndex = 0;
         }
 
@@ -966,7 +966,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse IsMultiPageTable from metadata for chunk {ChunkId}, using default false",
-                LogSanitizer.Sanitize(chunkId ?? string.Empty));
+                chunkId ?? string.Empty);
             isMultiPageTable = false;
         }
 

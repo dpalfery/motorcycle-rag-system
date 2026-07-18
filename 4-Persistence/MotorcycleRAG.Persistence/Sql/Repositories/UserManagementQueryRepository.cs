@@ -6,7 +6,6 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories {
@@ -116,7 +115,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return row is null ? null : MapRow(row);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to query management row {RowId}", LogSanitizer.Sanitize(rowId));
+                _logger.LogError(ex, "Failed to query management row {RowId}", rowId);
                 throw new InvalidOperationException($"Failed to query management row {rowId}", ex);
             }
         }

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -73,7 +72,7 @@ public class UserAccessLifecycleService {
             var row = await _userManagementQueryRepository.GetRowByIdAsync($"user:{userId}")
                 ?? throw new InvalidOperationException($"Updated management row for user {userId} was not found");
 
-            _logger.LogInformation("Changed managed user {UserId} to tier {Tier}", LogSanitizer.Sanitize(userId), request.Tier);
+            _logger.LogInformation("Changed managed user {UserId} to tier {Tier}", userId, request.Tier);
             success = true;
             return new AdminActionResponse { Row = row };
         }
@@ -124,7 +123,7 @@ public class UserAccessLifecycleService {
             var row = await _userManagementQueryRepository.GetRowByIdAsync($"user:{userId}")
                 ?? throw new InvalidOperationException($"Updated management row for user {userId} was not found");
 
-            _logger.LogInformation("Cancelled managed user {UserId}", LogSanitizer.Sanitize(userId));
+            _logger.LogInformation("Cancelled managed user {UserId}", userId);
             success = true;
             return new AdminActionResponse { Row = row };
         }

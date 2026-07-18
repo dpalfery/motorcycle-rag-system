@@ -3,7 +3,6 @@ using System.Diagnostics;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
-using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Persistence.Sql;
@@ -415,7 +414,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get latest ingestion job by input ref {InputRef} and type {InputType}",
-                LogSanitizer.Sanitize(inputRef), inputType);
+                inputRef, inputType);
             throw new InvalidOperationException("Failed to get latest ingestion job by input ref and type", ex);
         }
     }
@@ -618,7 +617,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete ingestion jobs for input ref {InputRef}", LogSanitizer.Sanitize(inputRef));
+            _logger.LogError(ex, "Failed to delete ingestion jobs for input ref {InputRef}", inputRef);
             throw new InvalidOperationException("Failed to delete ingestion jobs by input ref", ex);
         }
     }
@@ -843,7 +842,7 @@ public class IngestionJobRepository : IIngestionJobRepository
 
             _logger.LogInformation(
                 "Updated stage for ingestion job {IngestionJobId} to {Stage} (chunks={ChunksProcessed}/{TotalChunks})",
-                ingestionJobId, LogSanitizer.Sanitize(stage), chunksProcessed, totalChunks);
+                ingestionJobId, stage, chunksProcessed, totalChunks);
         }
         catch (Exception ex)
         {
@@ -874,7 +873,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get ingestion job by doc ingestion run id {DocIngestionRunId}",
-                LogSanitizer.Sanitize(docIngestionRunId));
+                docIngestionRunId);
             throw new InvalidOperationException($"Failed to get ingestion job by doc ingestion run id {docIngestionRunId}", ex);
         }
     }
@@ -952,7 +951,7 @@ public class IngestionJobRepository : IIngestionJobRepository
             {
                 _logger.LogInformation(
                     "Atomically transitioned ingestion job {IngestionJobId} from AwaitingMetadata to Processing (resume stage: {Stage}).",
-                    ingestionJobId, LogSanitizer.Sanitize(stage));
+                    ingestionJobId, stage);
             }
             else
             {

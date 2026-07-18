@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
@@ -62,7 +61,7 @@ public sealed class ChunkReprocessService : IChunkReprocessService {
             ct).ConfigureAwait(false);
 
         if (artifact is null) {
-            _logger.LogWarning("Artifact of type {ArtifactType} not found for upload {UploadId}.", SearchChunksArtifactType, LogSanitizer.Sanitize(job.InputRef));
+            _logger.LogWarning("Artifact of type {ArtifactType} not found for upload {UploadId}.", SearchChunksArtifactType, job.InputRef);
             return new ReprocessResultDto(0, 0, 0, 0);
         }
 
@@ -74,8 +73,8 @@ public sealed class ChunkReprocessService : IChunkReprocessService {
         if (!blobExists) {
             _logger.LogError(
                 "Blob {BlobPath} in container {Container} does not exist. Marking artifact and job as failed.",
-                LogSanitizer.Sanitize(artifact.BlobPath),
-                LogSanitizer.Sanitize(artifact.BlobContainer));
+                artifact.BlobPath,
+                artifact.BlobContainer);
 
             artifact.State = IndexedArtifactState.Failed;
             artifact.FailureReason = "Chunk artifact blob not found.";

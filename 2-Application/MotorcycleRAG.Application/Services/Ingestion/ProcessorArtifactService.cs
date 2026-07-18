@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
@@ -81,8 +80,8 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         var stream = await _blobStorageService.DownloadAsync(container, blobName, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation(
             "Serving ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
-            LogSanitizer.Sanitize(uploadId),
-            LogSanitizer.Sanitize(documentType));
+            uploadId,
+            documentType);
         return new(stream, contentType, ProcessorArtifactOperationStatus.Success);
     }
 
@@ -122,8 +121,8 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
 
         _logger.LogInformation(
             "Processor artifact accepted. UploadId={UploadId}, ArtifactType={ArtifactType}.",
-            LogSanitizer.Sanitize(request.UploadId),
-            LogSanitizer.Sanitize(request.ArtifactType));
+            request.UploadId,
+            request.ArtifactType);
 
         if (string.Equals(request.ArtifactType, "search-chunks", StringComparison.OrdinalIgnoreCase))
         {
@@ -187,7 +186,7 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
 
             if (job is null)
             {
-                _logger.LogWarning("No ingestion job found for uploadId {UploadId}. Skipping catalog write. Artifact is stored in blob.", LogSanitizer.Sanitize(uploadId));
+                _logger.LogWarning("No ingestion job found for uploadId {UploadId}. Skipping catalog write. Artifact is stored in blob.", uploadId);
             }
             else
             {
@@ -222,7 +221,7 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
                 _logger.LogInformation(
                     "Search chunk indexing terminal outcome: JobId={JobId}, Outcome={Outcome}, Transitioned={Transitioned}, Expected={ExpectedCount}, Indexed={IndexedCount}, Failed={FailedCount}, Batches={BatchCount}, DurationMs={DurationMs}, FailureReason={FailureReason}.",
                     job.IngestionJobId, terminalStatus, transitioned, expected, indexed, failed, result.BatchCount, stopwatch.ElapsedMilliseconds,
-                    failureReason is null ? string.Empty : LogSanitizer.Sanitize(failureReason));
+                    failureReason is null ? string.Empty : failureReason);
             }
 
             try
@@ -239,13 +238,13 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
             }
             catch (Exception metadataException)
             {
-                _logger.LogError(metadataException, "Best-effort blob metadata update failed for {UploadId}. Continuing.", LogSanitizer.Sanitize(uploadId));
+                _logger.LogError(metadataException, "Best-effort blob metadata update failed for {UploadId}. Continuing.", uploadId);
             }
         }
         catch (Exception indexingException)
         {
             stopwatch.Stop();
-            _logger.LogError(indexingException, "Chunk indexing into Azure AI Search failed for upload {UploadId} after {DurationMs}ms. Artifact is stored in blob.", LogSanitizer.Sanitize(uploadId), stopwatch.ElapsedMilliseconds);
+            _logger.LogError(indexingException, "Chunk indexing into Azure AI Search failed for upload {UploadId} after {DurationMs}ms. Artifact is stored in blob.", uploadId, stopwatch.ElapsedMilliseconds);
             await TryFailSearchChunkJobAsync(uploadId, indexingException, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -270,7 +269,7 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         }
         catch (Exception transitionException)
         {
-            _logger.LogError(transitionException, "Failed to transition ingestion job to Failed for upload {UploadId}. The artifact is stored in blob.", LogSanitizer.Sanitize(uploadId));
+            _logger.LogError(transitionException, "Failed to transition ingestion job to Failed for upload {UploadId}. The artifact is stored in blob.", uploadId);
         }
     }
 

@@ -72,8 +72,12 @@ public class DisabledPdfProcessorTests
     [Fact]
     public async Task ProcessAsync_FileNameContainsControlCharacters_LogsOneEscapedPhysicalLine()
     {
+        // Per Snyk CWE-117 remediation, sanitization moved to the SanitizingLoggerProvider boundary
+        // (see MotorcycleRAG.Core.Logging.SanitizingLoggerProvider, covered by Core.Tests).
+        // Processor call sites pass the raw value as a structured argument; production loggers
+        // wrap it before it reaches any sink. This test confirms the raw value reaches the logger
+        // pipeline (the provider boundary is responsible for escaping it before emission).
         const string attackerFileName = "manual\\name\r\nforged\tentry.pdf";
-        const string expectedEscapedFileName = "manual\\\\name\\r\\nforged\\tentry.pdf";
         var logger = new CapturingLogger<DisabledPdfProcessor>();
         var input = CreateValidPdfDocument();
         input.FileName = attackerFileName;
@@ -82,18 +86,27 @@ public class DisabledPdfProcessorTests
         var act = () => sut.ProcessAsync(input);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
-        var message = logger.Messages.Should().ContainSingle().Which;
-        message.Should().Contain(expectedEscapedFileName)
-            .And.NotContain("\r")
-            .And.NotContain("\n")
-            .And.NotContain("\t");
+        var entry = logger.Entries.Should().ContainSingle().Subject;
+        var fileNameArg = entry.Properties.Should().ContainSingle(pair => pair.Key == "FileName")
+            .Which.Value;
+        fileNameArg.Should().Be(attackerFileName);
     }
 
     private sealed class CapturingLogger<T> : ILogger<T>
     {
-        public List<string> Messages { get; } = [];
+        public List<Dictionary<string, object?>> Scopes { get; } = [];
 
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NoopScope.Instance;
+        public List<CapturedLogEntry> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            if (state is System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, object?>> pairs)
+            {
+                Scopes.Add(pairs.ToDictionary(pair => pair.Key, pair => pair.Value));
+            }
+
+            return NoopScope.Instance;
+        }
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
@@ -103,7 +116,15 @@ public class DisabledPdfProcessorTests
             TState state,
             Exception? exception,
             Func<TState, Exception?, string> formatter)
-            => Messages.Add(formatter(state, exception));
+        {
+            var properties = state as System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, object?>>
+                ?? [];
+            Entries.Add(new CapturedLogEntry(
+                logLevel,
+                exception,
+                formatter(state, exception),
+                properties.ToDictionary(pair => pair.Key, pair => pair.Value)));
+        }
 
         private sealed class NoopScope : IDisposable
         {
@@ -114,4 +135,10 @@ public class DisabledPdfProcessorTests
             }
         }
     }
+
+    private sealed record CapturedLogEntry(
+        LogLevel Level,
+        Exception? Exception,
+        string Message,
+        System.Collections.Generic.IReadOnlyDictionary<string, object?> Properties);
 }

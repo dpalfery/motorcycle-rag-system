@@ -9,7 +9,6 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Features.Ingestion.Validators;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -152,15 +151,15 @@ public sealed class IngestionJobsController : ControllerBase {
             };
             _logger.LogInformation(
                 "Upload accepted. UploadId={UploadId}, DocumentType={DocumentType}.",
-                LogSanitizer.Sanitize(uploadId),
+                uploadId,
                 safeDocType);
         }
         catch (Exception ex) {
             _logger.LogError(
                 ex,
                 "Failed to upload ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
-                LogSanitizer.Sanitize(uploadId),
-                LogSanitizer.Sanitize(normalizedDocumentType));
+                uploadId,
+                normalizedDocumentType);
 
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Upload failed",
@@ -214,8 +213,8 @@ public sealed class IngestionJobsController : ControllerBase {
 
         _logger.LogInformation(
             "Starting ingestion job for UploadId={UploadId}, DocumentType={DocumentType}.",
-            LogSanitizer.Sanitize(request.UploadId),
-            LogSanitizer.Sanitize(request.DocumentType));
+            request.UploadId,
+            request.DocumentType);
 
         try {
             var result = await _ingestionJobService.StartJobAsync(request, userId, ct).ConfigureAwait(false);
@@ -225,8 +224,8 @@ public sealed class IngestionJobsController : ControllerBase {
             _logger.LogError(
                 ex,
                 "Failed to start ingestion job for UploadId={UploadId}, DocumentType={DocumentType}.",
-                LogSanitizer.Sanitize(request.UploadId),
-                LogSanitizer.Sanitize(request.DocumentType));
+                request.UploadId,
+                request.DocumentType);
 
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Failed to start ingestion job",

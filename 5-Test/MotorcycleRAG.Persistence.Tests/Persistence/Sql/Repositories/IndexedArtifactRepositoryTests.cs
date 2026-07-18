@@ -609,8 +609,12 @@ public sealed class IndexedArtifactRepositoryTests
     [Fact]
     public async Task GetByUploadIdAsync_UploadIdContainsControlCharacters_LogsOneEscapedPhysicalLine()
     {
+        // Per Snyk CWE-117 remediation, sanitization moved to the SanitizingLoggerProvider boundary
+        // (see MotorcycleRAG.Core.Logging.SanitizingLoggerProvider, covered by Core.Tests).
+        // Repository call sites pass the raw value as a structured argument; production loggers
+        // wrap it before it reaches any sink. This test confirms the raw value reaches the logger
+        // pipeline (the provider boundary is responsible for escaping it before emission).
         const string attackerUploadId = "upload\\name\r\nforged\tentry";
-        const string expectedEscapedUploadId = "upload\\\\name\\r\\nforged\\tentry";
         var factory = new Mock<ISqlConnectionFactory>();
         factory.Setup(x => x.CreateOpenConnectionAsync()).ThrowsAsync(new InvalidOperationException("sql down"));
         var logger = new Mock<ILogger<IndexedArtifactRepository>>();
@@ -619,12 +623,11 @@ public sealed class IndexedArtifactRepositoryTests
         var act = () => sut.GetByUploadIdAsync(attackerUploadId);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
-        var message = logger.Invocations.Single(invocation => invocation.Method.Name == nameof(ILogger.Log))
-            .Arguments[2].ToString();
-        message.Should().Contain(expectedEscapedUploadId)
-            .And.NotContain("\r")
-            .And.NotContain("\n")
-            .And.NotContain("\t");
+        var state = logger.Invocations.Single(invocation => invocation.Method.Name == nameof(ILogger.Log))
+            .Arguments[2];
+        var structured = state.Should().BeAssignableTo<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, object?>>>()
+            .Subject;
+        structured.Should().Contain(pair => pair.Key == "UploadId" && Equals(pair.Value, attackerUploadId));
     }
 
     // ─────────────────────────────────────────────────────────────────────

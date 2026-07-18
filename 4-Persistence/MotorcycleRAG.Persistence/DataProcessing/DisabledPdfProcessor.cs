@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Persistence.DataProcessing;
 
@@ -26,7 +25,7 @@ public sealed class DisabledPdfProcessor : IDataProcessor<PDFDocument>
         ArgumentNullException.ThrowIfNull(input);
         _logger.LogWarning(
             "Legacy PDF processing was requested while disabled for file {FileName}",
-            LogSanitizer.Sanitize(input.FileName));
+            input.FileName);
         throw new InvalidOperationException(ErrorMessage);
     }
 }

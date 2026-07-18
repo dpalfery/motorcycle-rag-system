@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Enums;
 
 
@@ -190,7 +189,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<WebSource>(sql, new { Url = url.ToString() });
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get web source by URL {Url}", LogSanitizer.Sanitize(url));
+                _logger.LogError(ex, "Failed to get web source by URL {Url}", url);
                 throw new InvalidOperationException($"Failed to get web source by URL {url}", ex);
             }
         }

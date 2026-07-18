@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using System.Net;
 using System.Text.Json;
@@ -68,7 +67,7 @@ public class ToolConfigurationService : IToolConfigurationService {
             return await _configRepository.GetByToolIdAsync(toolId);
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error retrieving tool configuration for {ToolId}", LogSanitizer.Sanitize(toolId));
+            _logger.LogError(ex, "Error retrieving tool configuration for {ToolId}", toolId);
             throw new InvalidOperationException($"Error retrieving tool configuration for {toolId}", ex);
         }
     }
@@ -129,12 +128,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Created MCP tool {ToolId} ({ToolName})",
-                LogSanitizer.Sanitize(savedConfig.ToolId), LogSanitizer.Sanitize(savedConfig.Name, 120));
+                savedConfig.ToolId, savedConfig.Name);
 
             return savedConfig;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error creating MCP tool {ToolId}", LogSanitizer.Sanitize(configuration.ToolId));
+            _logger.LogError(ex, "Error creating MCP tool {ToolId}", configuration.ToolId);
             throw new InvalidOperationException($"Error creating MCP tool {configuration.ToolId}", ex);
         }
     }
@@ -190,12 +189,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Updated MCP tool {ToolId}",
-                LogSanitizer.Sanitize(toolId));
+                toolId);
 
             return updatedConfig;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error updating MCP tool {ToolId}", LogSanitizer.Sanitize(toolId));
+            _logger.LogError(ex, "Error updating MCP tool {ToolId}", toolId);
             throw new InvalidOperationException($"Error updating MCP tool {toolId}", ex);
         }
     }
@@ -261,12 +260,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Enabled MCP tool {ToolId}",
-                LogSanitizer.Sanitize(toolId));
+                toolId);
 
             return updatedConfig;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error enabling MCP tool {ToolId}", LogSanitizer.Sanitize(toolId));
+            _logger.LogError(ex, "Error enabling MCP tool {ToolId}", toolId);
             throw new InvalidOperationException($"Error enabling MCP tool {toolId}", ex);
         }
     }
@@ -311,12 +310,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Disabled MCP tool {ToolId} - Reason: {Reason}",
-                LogSanitizer.Sanitize(toolId), LogSanitizer.Sanitize(reason, 200));
+                toolId, reason);
 
             return updatedConfig;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error disabling MCP tool {ToolId}", LogSanitizer.Sanitize(toolId));
+            _logger.LogError(ex, "Error disabling MCP tool {ToolId}", toolId);
             throw new InvalidOperationException($"Error disabling MCP tool {toolId}", ex);
         }
     }
@@ -331,26 +330,26 @@ public class ToolConfigurationService : IToolConfigurationService {
 
         // CQ-002: Standardized null check using IsNullOrWhiteSpace
         if (!tool.IsEnabled && string.IsNullOrWhiteSpace(tool.DisabledReason)) {
-            _logger.LogWarning("Tool {ToolId} is disabled without reason", LogSanitizer.Sanitize(tool.ToolId));
+            _logger.LogWarning("Tool {ToolId} is disabled without reason", tool.ToolId);
             return false;
         }
 
         if (tool.ServerUrl == null) {
-            _logger.LogWarning("Tool {ToolId} has no server URL configured", LogSanitizer.Sanitize(tool.ToolId));
+            _logger.LogWarning("Tool {ToolId} has no server URL configured", tool.ToolId);
             return false;
         }
 
         // Validate URL with SSRF protection
         if (!IsValidMcpServerUrl(tool.ServerUrl)) {
             _logger.LogWarning("Tool {ToolId} has invalid or disallowed server URL: {ServerUrl}",
-                LogSanitizer.Sanitize(tool.ToolId), LogSanitizer.Sanitize(tool.ServerUrl, 200));
+                tool.ToolId, tool.ServerUrl);
             return false;
         }
 
         // Check timeout configuration
         if (tool.TimeoutMs.HasValue && tool.TimeoutMs <= 0) {
             _logger.LogWarning("Tool {ToolId} has invalid timeout configuration: {Timeout}ms",
-                LogSanitizer.Sanitize(tool.ToolId), tool.TimeoutMs);
+                tool.ToolId, tool.TimeoutMs);
             return false;
         }
 
@@ -358,7 +357,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         if (!string.IsNullOrWhiteSpace(tool.ConfigurationJson)) {
             if (tool.ConfigurationJson.Length > 10240) // 10KB limit
             {
-                _logger.LogWarning("Tool {ToolId} configuration JSON exceeds 10KB limit", LogSanitizer.Sanitize(tool.ToolId));
+                _logger.LogWarning("Tool {ToolId} configuration JSON exceeds 10KB limit", tool.ToolId);
                 return false;
             }
 
@@ -366,12 +365,12 @@ public class ToolConfigurationService : IToolConfigurationService {
                 JsonDocument.Parse(tool.ConfigurationJson);
             }
             catch (JsonException ex) {
-                _logger.LogWarning(ex, "Tool {ToolId} has invalid configuration JSON", LogSanitizer.Sanitize(tool.ToolId));
+                _logger.LogWarning(ex, "Tool {ToolId} has invalid configuration JSON", tool.ToolId);
                 return false;
             }
         }
 
-        _logger.LogDebug("Tool {ToolId} validation passed", LogSanitizer.Sanitize(tool.ToolId));
+        _logger.LogDebug("Tool {ToolId} validation passed", tool.ToolId);
         return await Task.FromResult(true);
     }
 
@@ -385,7 +384,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         try {
             var config = await _configRepository.GetByToolIdAsync(toolId);
             if (config == null) {
-                _logger.LogWarning("Tool {ToolId} not found for deletion", LogSanitizer.Sanitize(toolId));
+                _logger.LogWarning("Tool {ToolId} not found for deletion", toolId);
                 return false;
             }
 
@@ -408,13 +407,13 @@ public class ToolConfigurationService : IToolConfigurationService {
 
                 _logger.LogInformation(
                     "Deleted MCP tool {ToolId}",
-                    LogSanitizer.Sanitize(toolId));
+                    toolId);
             }
 
             return deleted;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error deleting MCP tool {ToolId}", LogSanitizer.Sanitize(toolId));
+            _logger.LogError(ex, "Error deleting MCP tool {ToolId}", toolId);
             throw new InvalidOperationException($"Error deleting MCP tool {toolId}", ex);
         }
     }
@@ -449,7 +448,7 @@ public class ToolConfigurationService : IToolConfigurationService {
             if (!isLocalhost) {
                 _logger.LogWarning(
                     "Development port {Port} attempted on non-localhost address: {Host}",
-                    serverUrl.Port, LogSanitizer.Sanitize(serverUrl.Host, 200));
+                    serverUrl.Port, serverUrl.Host);
                 return false;
             }
         }
@@ -547,7 +546,7 @@ public class ToolConfigurationService : IToolConfigurationService {
             return await _auditRepository.GetAuditHistoryAsync(configId, limit);
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error retrieving audit history for configuration {ConfigId}", LogSanitizer.Sanitize(configId));
+            _logger.LogError(ex, "Error retrieving audit history for configuration {ConfigId}", configId);
             throw new InvalidOperationException($"Error retrieving audit history for configuration {configId}", ex);
         }
     }
@@ -576,7 +575,7 @@ public class ToolConfigurationService : IToolConfigurationService {
             return await _auditRepository.GetAuditEntriesByActionAsync(action);
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error retrieving audit entries for action {Action}", LogSanitizer.Sanitize(action, 80));
+            _logger.LogError(ex, "Error retrieving audit entries for action {Action}", action);
             throw new InvalidOperationException($"Error retrieving audit entries for {nameof(action)}: {action}", ex);
         }
     }

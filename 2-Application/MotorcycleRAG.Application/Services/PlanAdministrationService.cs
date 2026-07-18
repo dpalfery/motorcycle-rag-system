@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -34,11 +33,11 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         var plan = await _planRepository.GetPlanByIdAsync(planId).ConfigureAwait(false);
         if (plan is null)
         {
-            _logger.LogWarning("Plan {PlanId} not found", LogSanitizer.Sanitize(planId));
+            _logger.LogWarning("Plan {PlanId} not found", planId);
         }
         else
         {
-            _logger.LogInformation("Admin retrieved plan {PlanId}", LogSanitizer.Sanitize(planId));
+            _logger.LogInformation("Admin retrieved plan {PlanId}", planId);
         }
 
         return plan;
@@ -57,7 +56,7 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
             IsPaid = command.IsPaid,
             CreatedDate = DateTime.UtcNow
         }).ConfigureAwait(false);
-        _logger.LogInformation("Admin created plan {PlanId} with name {PlanName}", LogSanitizer.Sanitize(createdPlan.Id), LogSanitizer.Sanitize(createdPlan.Name));
+        _logger.LogInformation("Admin created plan {PlanId} with name {PlanName}", createdPlan.Id, createdPlan.Name);
         return createdPlan;
     }
 
@@ -69,7 +68,7 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         var plan = await _planRepository.GetPlanByIdAsync(planId).ConfigureAwait(false);
         if (plan is null)
         {
-            _logger.LogWarning("Plan {PlanId} not found for update", LogSanitizer.Sanitize(planId));
+            _logger.LogWarning("Plan {PlanId} not found for update", planId);
             return null;
         }
 
@@ -98,7 +97,7 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
             throw new InvalidOperationException("Failed to update plan.");
         }
 
-        _logger.LogInformation("Admin updated plan {PlanId}", LogSanitizer.Sanitize(planId));
+        _logger.LogInformation("Admin updated plan {PlanId}", planId);
         return plan;
     }
 
@@ -108,18 +107,18 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         ArgumentException.ThrowIfNullOrWhiteSpace(planId);
         if (await _planRepository.GetPlanByIdAsync(planId).ConfigureAwait(false) is null)
         {
-            _logger.LogWarning("Plan {PlanId} not found for deletion", LogSanitizer.Sanitize(planId));
+            _logger.LogWarning("Plan {PlanId} not found for deletion", planId);
             return new(false, false);
         }
 
         var deleted = await _planRepository.DeletePlanAsync(planId).ConfigureAwait(false);
         if (deleted)
         {
-            _logger.LogInformation("Admin deleted plan {PlanId}", LogSanitizer.Sanitize(planId));
+            _logger.LogInformation("Admin deleted plan {PlanId}", planId);
         }
         else
         {
-            _logger.LogError("Failed to delete plan {PlanId}", LogSanitizer.Sanitize(planId));
+            _logger.LogError("Failed to delete plan {PlanId}", planId);
         }
 
         return new(true, deleted);

@@ -6,7 +6,6 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Core.Options;
-using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.ValueObjects;
 
 
@@ -99,7 +98,7 @@ public class AzureSearchQueryService : IAzureSearchQueryService
             });
 
             _logger.LogDebug("Executing {Operation} against category index {IndexName}",
-                LogSanitizer.Sanitize(operation), _clientFactory.GetIndexName(category));
+                operation, _clientFactory.GetIndexName(category));
 
             var single = await ExecuteSearchAsync(query, options, _clientFactory.GetClient(category), operation)
                 .ConfigureAwait(false);
@@ -115,7 +114,7 @@ public class AzureSearchQueryService : IAzureSearchQueryService
         });
 
         _logger.LogDebug("Fanning out {Operation} across {IndexCount} category indexes",
-            LogSanitizer.Sanitize(operation), _clientFactory.AllCategories.Count);
+            operation, _clientFactory.AllCategories.Count);
 
         var perIndexTasks = _clientFactory.AllCategories
             .Select(c => ExecuteSearchResilientAsync(query, options, _clientFactory.GetClient(c), operation))
@@ -126,7 +125,7 @@ public class AzureSearchQueryService : IAzureSearchQueryService
         var merged = MergeByScore(perIndex, options.MaxSearchResults);
 
         _logger.LogDebug("{Operation} fan-out merged to {ResultCount} results",
-            LogSanitizer.Sanitize(operation), merged.Count);
+            operation, merged.Count);
 
         return merged.ToArray();
     }
@@ -154,7 +153,7 @@ public class AzureSearchQueryService : IAzureSearchQueryService
         {
             _logger.LogWarning(ex,
                 "{Operation} against one category index failed during fan-out; index contribution dropped",
-                LogSanitizer.Sanitize(operation));
+                operation);
             return Array.Empty<SearchResult>();
         }
     }
@@ -166,7 +165,7 @@ public class AzureSearchQueryService : IAzureSearchQueryService
         string operation)
     {
         _logger.LogDebug("Executing {Operation} query with length {QueryLength}",
-            LogSanitizer.Sanitize(operation), query.Length);
+            operation, query.Length);
 
         var azureOptions = ConvertToAzureSearchOptions(options);
         var response = await searchClient.SearchAsync<SearchResult>(query, azureOptions)
@@ -194,7 +193,7 @@ public class AzureSearchQueryService : IAzureSearchQueryService
         }
 
         _logger.LogDebug("{Operation} completed with {ResultCount} results",
-            LogSanitizer.Sanitize(operation), results.Count);
+            operation, results.Count);
         return results.ToArray();
     }
 
@@ -233,7 +232,7 @@ public class AzureSearchQueryService : IAzureSearchQueryService
     private SearchResult[] CreateFallbackResult(string query, string operation)
     {
         _logger.LogWarning("Using fallback {Operation} results for query length {QueryLength}",
-            LogSanitizer.Sanitize(operation), query.Length);
+            operation, query.Length);
         var result = new SearchResult
         {
             Id = $"fallback_{operation.ToLower()}result",

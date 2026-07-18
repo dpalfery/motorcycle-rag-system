@@ -58,7 +58,7 @@ public class CorrelationService : ICorrelationService
         var newId = GenerateCorrelationId();
         _correlationId.Value = newId;
 
-        _logger.LogDebug("Generated new correlation ID: {CorrelationId}", LogSanitizer.Sanitize(newId));
+        _logger.LogDebug("Generated new correlation ID: {CorrelationId}", newId);
         return newId;
     }
 
@@ -98,7 +98,7 @@ public class CorrelationService : ICorrelationService
 
         if (!string.IsNullOrEmpty(currentId))
         {
-            _logger.LogDebug("Cleared correlation ID: {CorrelationId}", LogSanitizer.Sanitize(currentId));
+            _logger.LogDebug("Cleared correlation ID: {CorrelationId}", currentId);
         }
     }
 
@@ -146,7 +146,7 @@ public class CorrelationService : ICorrelationService
         var correlationId = GetOrCreateCorrelationId();
         return _logger.BeginScope(new Dictionary<string, object>
         {
-            ["CorrelationId"] = LogSanitizer.Sanitize(correlationId)
+            ["CorrelationId"] = correlationId
         })!;
     }
 
@@ -159,7 +159,7 @@ public class CorrelationService : ICorrelationService
         ArgumentNullException.ThrowIfNull(additionalProperties);
 
         var scopeProperties = SanitizeScopeProperties(additionalProperties);
-        scopeProperties["CorrelationId"] = LogSanitizer.Sanitize(correlationId);
+        scopeProperties["CorrelationId"] = correlationId;
 
         return _logger.BeginScope(scopeProperties)!;
     }
@@ -172,7 +172,8 @@ public class CorrelationService : ICorrelationService
 
         foreach (var (key, value) in properties)
         {
-            sanitizedProperties[LogSanitizer.Sanitize(key)] = SanitizeScopeValue(value, sanitizedValues)!;
+            var sanitizedKey = LogSanitizer.Sanitize(key);
+            sanitizedProperties[sanitizedKey] = SanitizeScopeValue(value, sanitizedValues)!;
         }
 
         return sanitizedProperties;
@@ -397,9 +398,10 @@ public static class LoggerExtensions
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(args);
 
+        var sanitizedCorrelationId = LogSanitizer.Sanitize(correlationId);
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
-            ["CorrelationId"] = LogSanitizer.Sanitize(correlationId)
+            ["CorrelationId"] = sanitizedCorrelationId
         });
 
         var formattedArgs = new object[args.Length];
@@ -420,9 +422,10 @@ public static class LoggerExtensions
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(args);
 
+        var sanitizedCorrelationId = LogSanitizer.Sanitize(correlationId);
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
-            ["CorrelationId"] = LogSanitizer.Sanitize(correlationId)
+            ["CorrelationId"] = sanitizedCorrelationId
         });
 
         var formattedArgs = new object[args.Length];
@@ -443,9 +446,10 @@ public static class LoggerExtensions
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(args);
 
+        var sanitizedCorrelationId = LogSanitizer.Sanitize(correlationId);
         using var scope = logger.BeginScope(new Dictionary<string, object>
         {
-            ["CorrelationId"] = LogSanitizer.Sanitize(correlationId)
+            ["CorrelationId"] = sanitizedCorrelationId
         });
 
         var formattedArgs = new object[args.Length];

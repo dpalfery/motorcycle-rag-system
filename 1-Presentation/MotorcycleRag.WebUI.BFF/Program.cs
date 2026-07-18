@@ -8,6 +8,7 @@ using MotorcycleRag.WebUI.BFF.Configuration.Services;
 using MotorcycleRag.WebUI.BFF.Extensions;
 using MotorcycleRag.WebUI.BFF.HealthChecks;
 using MotorcycleRag.WebUI.BFF.Middleware;
+using MotorcycleRAG.Core.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +42,12 @@ builder.Services.PostConfigure<Microsoft.AspNetCore.HostFiltering.HostFilteringO
 // 3. Service Configuration Extensions
 builder.Services.AddBffCors(builder.Configuration, builder.Environment);
 builder.Services.AddBffTelemetry(builder.Configuration);
+
+// Wrap every ILoggerProvider registered above (Console, Application Insights) in the
+// central SanitizingLoggerProvider so no structured log state reaches a sink without
+// LogSanitizer escaping. MUST be the last logging-provider call per
+// SanitizingLoggerExtensions remarks.
+builder.Logging.AddSanitizingLogger();
 
 var dpBlobUri = builder.Configuration["DataProtection:BlobUri"];
 var hasBlobDataProtectionUri = Uri.TryCreate(dpBlobUri, UriKind.Absolute, out var dpBlobStorageUri);

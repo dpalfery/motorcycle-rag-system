@@ -2,7 +2,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
-using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -13,7 +12,7 @@ namespace MotorcycleRAG.Application.Services;
 ///
 /// Security Notes:
 /// - User IDs (Entra OIDs) and email addresses are logged in plain text for debuggability; log injection is
-///   prevented via <see cref="LogSanitizer.Sanitize"/> (strips control characters and truncates)
+///   prevented centrally by the registered <c>SanitizingLoggerProvider</c> (strips control characters and truncates).
 /// - All audit events include correlation IDs for request traceability
 /// - Timestamps use UTC to prevent timezone confusion
 /// - IP addresses are logged (optional) for forensic analysis
@@ -50,7 +49,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be empty", nameof(userId));
 
-        var sanitizedUserId = LogSanitizer.Sanitize(userId);
+        var sanitizedUserId = userId;
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var auditLog = new AuditLog {
@@ -88,7 +87,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(userId))
             throw new ArgumentException("User ID cannot be empty", nameof(userId));
 
-        var sanitizedUserId = LogSanitizer.Sanitize(userId);
+        var sanitizedUserId = userId;
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var auditLog = new AuditLog {
@@ -125,7 +124,7 @@ public class AuditService : IAuditService {
         var domain = email[(atIndex + 1)..];
         var masked = $"{localFirstChar}***@{domain}";
 
-        return LogSanitizer.Sanitize(masked);
+        return masked;
     }
 
     /// <summary>
@@ -141,7 +140,7 @@ public class AuditService : IAuditService {
             throw new ArgumentException("Reason cannot be empty", nameof(reason));
 
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
-        var sanitizedEmail = LogSanitizer.Sanitize(email); // Sanitize email for injection safety
+        var sanitizedEmail = email;
 
         var auditLog = new AuditLog {
             UserEmail = email, // Store original for audit trail
@@ -193,7 +192,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(action))
             throw new ArgumentException("Action cannot be empty", nameof(action));
 
-        var sanitizedUserId = LogSanitizer.Sanitize(userId);
+        var sanitizedUserId = userId;
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var metadata = new {
@@ -251,7 +250,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(action))
             throw new ArgumentException("Action cannot be empty", nameof(action));
 
-        var sanitizedUserId = LogSanitizer.Sanitize(userId);
+        var sanitizedUserId = userId;
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var fullMetadata = new {
@@ -305,8 +304,8 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(action))
             throw new ArgumentException("Action cannot be empty", nameof(action));
 
-        var sanitizedAdminUserId = LogSanitizer.Sanitize(adminUserId);
-        var sanitizedTargetUserId = LogSanitizer.Sanitize(targetUserId);
+        var sanitizedAdminUserId = adminUserId;
+        var sanitizedTargetUserId = targetUserId;
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var metadata = new {
@@ -352,7 +351,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(endpoint))
             throw new ArgumentException("Endpoint cannot be empty", nameof(endpoint));
 
-        var sanitizedUserId = userId != null ? LogSanitizer.Sanitize(userId) : "anonymous";
+        var sanitizedUserId = userId != null ? userId : "anonymous";
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var metadata = new {
@@ -405,7 +404,7 @@ public class AuditService : IAuditService {
         if (string.IsNullOrWhiteSpace(description))
             throw new ArgumentException("Description cannot be empty", nameof(description));
 
-        var sanitizedUserId = userId != null ? LogSanitizer.Sanitize(userId) : "system";
+        var sanitizedUserId = userId != null ? userId : "system";
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
 
         var metadata = new {

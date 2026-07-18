@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using MotorcycleRAG.Core.Logging;
 
 namespace MotorcycleRAG.Core.Tests.Logging;
@@ -133,6 +134,45 @@ public class SanitizingLoggerExtensionsTests
         (entry.Properties["Year"] as string).Should().Be("2025");
     }
 
+    [Fact]
+    public void AddSanitizingLogger_WithImplementationTypeDescriptor_WrapsProviderInSanitizingProvider()
+    {
+        // Arrange — register by concrete type so ActivatorUtilities creates the instance
+        var services = new ServiceCollection();
+        services.AddLogging(builder =>
+        {
+            builder.Services.Add(ServiceDescriptor.Singleton<ILoggerProvider, NoOpLoggerProvider>());
+            builder.AddSanitizingLogger();
+        });
+
+        // Act
+        var sp = services.BuildServiceProvider();
+        var providers = sp.GetServices<ILoggerProvider>().ToList();
+
+        // Assert — the type-registered provider must be wrapped
+        providers.Should().Contain(p => p is SanitizingLoggerProvider);
+    }
+
+    [Fact]
+    public void AddSanitizingLogger_WithFactoryDescriptor_WrapsProviderInSanitizingProvider()
+    {
+        // Arrange — register via factory lambda so the factory branch is exercised
+        var services = new ServiceCollection();
+        services.AddLogging(builder =>
+        {
+            builder.Services.Add(
+                ServiceDescriptor.Singleton<ILoggerProvider>(_ => new NoOpLoggerProvider()));
+            builder.AddSanitizingLogger();
+        });
+
+        // Act
+        var sp = services.BuildServiceProvider();
+        var providers = sp.GetServices<ILoggerProvider>().ToList();
+
+        // Assert — the factory-registered provider must be wrapped
+        providers.Should().Contain(p => p is SanitizingLoggerProvider);
+    }
+
     /// <summary>
     /// Accumulates captured log entries across all loggers created by a
     /// <see cref="SpyLoggerProvider"/>.
@@ -215,4 +255,15 @@ public class SanitizingLoggerExtensionsTests
         LogLevel LogLevel,
         string FormattedMessage,
         IReadOnlyDictionary<string, object?> Properties);
+
+    /// <summary>
+    /// A minimal <see cref="ILoggerProvider"/> with no constructor dependencies, used so
+    /// <see cref="SanitizingLoggerExtensions.AddSanitizingLogger"/> can exercise the
+    /// <c>ImplementationType</c> and <c>ImplementationFactory</c> registration branches.
+    /// </summary>
+    private sealed class NoOpLoggerProvider : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => NullLogger.Instance;
+        public void Dispose() { }
+    }
 }

@@ -24,6 +24,7 @@ def _load_main(
     monkeypatch.setenv("LOCAL_PROCESSOR_INPUT_DIR", str(tmp_path))
     monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "")
     monkeypatch.setenv("EMBEDDING_BACKEND", "ollama")
+    monkeypatch.setenv("MCR_API_BASE_URL", "https://api.example.test")
     monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "")
     monkeypatch.setenv(
         "AZURE_STORAGE_CONNECTION_STRING",

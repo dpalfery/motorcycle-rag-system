@@ -19,4 +19,10 @@
 
 ## Verify
 
-The test suite now lives under [`5-Test/local-processing-service.Tests/`](../../5-Test/local-processing-service.Tests/AGENTS.md). The run command is unchanged: `.venv/bin/python -m pytest` from this directory, which still works because `testpaths` in `pyproject.toml` points at the relocated tests.
+The test suite lives under [`5-Test/local-processing-service.Tests/`](../../5-Test/local-processing-service.Tests/AGENTS.md). From this directory run:
+
+```bash
+.venv/bin/python -m pytest -c pyproject.toml --rootdir=. ../../5-Test/local-processing-service.Tests --ignore=../../5-Test/local-processing-service.Tests/integration
+```
+
+Pass `-c` / `--rootdir` so pytest keeps this package's `pyproject.toml` settings (`pythonpath`, asyncio defaults). Do not rely on `testpaths` pointing outside this directory — pytest would re-root to the repository and drop the config.

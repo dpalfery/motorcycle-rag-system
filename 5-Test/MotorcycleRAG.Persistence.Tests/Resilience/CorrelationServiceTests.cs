@@ -472,6 +472,92 @@ public class CorrelationServiceTests
         Assert.Matches(@"^corr-\d{17}-[a-f0-9]{12}$", id);
     }
 
+    [Fact]
+    public void CreateLoggingScope_WithNullAdditionalProperties_ShouldThrowArgumentNullException()
+    {
+        var act = () => _correlationService.CreateLoggingScope(null!);
+
+        act.Should().Throw<ArgumentNullException>()
+            .WithParameterName("additionalProperties");
+    }
+
+    [Fact]
+    public void CreateLoggingScope_WithNullAndControlBearingValues_SanitizesScopeGraph()
+    {
+        Dictionary<string, object>? capturedScope = null;
+        _mockLogger
+            .Setup(x => x.BeginScope(It.IsAny<Dictionary<string, object>>()))
+            .Callback<Dictionary<string, object>>(scope => capturedScope = scope)
+            .Returns(Mock.Of<IDisposable>());
+
+        var nested = new Dictionary<object, object>
+        {
+            [42] = "plain",
+            ["Label\r\n"] = new ControlBearingScopeValue("unit\tvalue\0"),
+        };
+        var values = new[] { "safe", "line\r\nbreak", null };
+        var matrix = Array.CreateInstance(typeof(string), [2, 2]);
+        matrix.SetValue("a\tb", 0, 0);
+        matrix.SetValue("c", 0, 1);
+        matrix.SetValue("d", 1, 0);
+        matrix.SetValue("e\0f", 1, 1);
+        var additionalProperties = new Dictionary<string, object>
+        {
+            ["Missing"] = null!,
+            ["Count"] = 7,
+            ["Nested"] = nested,
+            ["Values"] = values,
+            ["Matrix"] = matrix,
+            ["Tags"] = new HashSet<string> { "alpha", "beta\n" },
+        };
+
+        using var scope = _correlationService.CreateLoggingScope(additionalProperties);
+
+        capturedScope.Should().NotBeNull();
+        capturedScope!["Missing"].Should().BeNull();
+        capturedScope["Count"].Should().Be(7);
+        var sanitizedNested = capturedScope["Nested"]
+            .Should().BeAssignableTo<System.Collections.IDictionary>().Subject;
+        sanitizedNested[42].Should().Be("plain");
+        sanitizedNested["Label\\r\\n"].Should().Be("unit\\tvalue\\0");
+        var sanitizedValues = capturedScope["Values"].Should().BeOfType<string?[]>().Subject;
+        sanitizedValues.Should().Equal("safe", "line\\r\\nbreak", null);
+        var sanitizedMatrix = capturedScope["Matrix"].Should().BeAssignableTo<Array>().Subject;
+        sanitizedMatrix.GetValue(0, 0).Should().Be("a\\tb");
+        sanitizedMatrix.GetValue(1, 1).Should().Be("e\\0f");
+        var sanitizedTags = capturedScope["Tags"].Should().BeAssignableTo<IEnumerable<string>>().Subject;
+        sanitizedTags.Should().Contain("beta\\n");
+    }
+
+    [Fact]
+    public void CreateLoggingScope_WithReadOnlyDictionary_SanitizesEntriesIntoWritableCopy()
+    {
+        Dictionary<string, object>? capturedScope = null;
+        _mockLogger
+            .Setup(x => x.BeginScope(It.IsAny<Dictionary<string, object>>()))
+            .Callback<Dictionary<string, object>>(scope => capturedScope = scope)
+            .Returns(Mock.Of<IDisposable>());
+
+        IReadOnlyDictionary<string, object> nested =
+            new Dictionary<string, object> { ["Inner\tKey"] = "value\r" };
+        var additionalProperties = new Dictionary<string, object>
+        {
+            ["Readonly"] = nested,
+        };
+
+        using var scope = _correlationService.CreateLoggingScope(additionalProperties);
+
+        capturedScope.Should().NotBeNull();
+        var sanitized = capturedScope!["Readonly"]
+            .Should().BeOfType<Dictionary<string, object>>().Subject;
+        sanitized["Inner\\tKey"].Should().Be("value\\r");
+    }
+
+    private readonly record struct ControlBearingScopeValue(string Value)
+    {
+        public override string ToString() => Value;
+    }
+
 }
 
 /// <summary>

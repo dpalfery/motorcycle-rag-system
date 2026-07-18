@@ -64,8 +64,12 @@ line_length = 88
 [tool.pytest.ini_options]
 minversion = "8.4.2"
 addopts = "-ra -q --strict-markers --strict-config"
-filterwarnings = ["error"]
-testpaths = ["../../5-Test/local-processing-service.Tests"]
+filterwarnings = [
+    "error",
+]
+# Do not set testpaths to a location outside this package directory. Pytest would
+# re-root to the repository and drop this config (asyncio settings, pythonpath).
+# Invoke tests by path (see AGENTS.md / run_unit_coverage.py).
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -75,6 +79,14 @@ asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
 pythonpath = ["src"]
 
+[tool.coverage.run]
+source = ["src"]
+relative_files = true
+omit = ["*/tests/*", "*/.venv/*"]
+
+[tool.coverage.report]
+skip_empty = true
+omit = ["*/tests/*", "*/.venv/*"]
 # mypy is the authoritative type checker for Pydantic-aware validation.
 # It loads the pydantic.mypy plugin so patterns like
 # Field(default_factory=Metadata) and AliasChoices are type-checked correctly,

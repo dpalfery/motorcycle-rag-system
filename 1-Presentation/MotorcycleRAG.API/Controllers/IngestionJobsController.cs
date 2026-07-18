@@ -60,10 +60,8 @@ public sealed class IngestionJobsController : ControllerBase {
     [HttpGet("jobs/upload-constraints")]
     [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(FileUploadConstraints), StatusCodes.Status200OK)]
-    public ActionResult<FileUploadConstraints> GetUploadConstraints()
-    {
-        var constraints = new FileUploadConstraints
-        {
+    public ActionResult<FileUploadConstraints> GetUploadConstraints() {
+        var constraints = new FileUploadConstraints {
             MaxFileSizeBytes = _ingestionOptions.MaxInputBytes,
             MaxFileSizeDisplay = FormatFileSize(_ingestionOptions.MaxInputBytes),
             MaxFilesPerBatch = 1
@@ -146,11 +144,16 @@ public sealed class IngestionJobsController : ControllerBase {
                 GetContentType(file.ContentType, normalizedDocumentType),
                 ct).ConfigureAwait(false);
 
+            string safeDocType = normalizedDocumentType switch {
+                "manual-pdf" => "manual-pdf",
+                "spec-dataset" => "spec-dataset",
+                "bike-graph" => "bike-graph",
+                _ => "unknown"
+            };
             _logger.LogInformation(
-                "Upload accepted. UploadId={UploadId}, DocumentType={DocumentType}, SizeBytes={SizeBytes}.",
+                "Upload accepted. UploadId={UploadId}, DocumentType={DocumentType}.",
                 LogSanitizer.Sanitize(uploadId),
-                LogSanitizer.Sanitize(normalizedDocumentType),
-                file.Length);
+                safeDocType);
         }
         catch (Exception ex) {
             _logger.LogError(
@@ -706,12 +709,10 @@ public sealed class IngestionJobsController : ControllerBase {
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ReprocessJobAsync(
         Guid jobId,
-        CancellationToken ct)
-    {
+        CancellationToken ct) {
         _logger.LogInformation("Reprocessing ingestion job {JobId}.", jobId);
 
-        try
-        {
+        try {
             var result = await _reprocessService.ReprocessByJobIdAsync(jobId, ct).ConfigureAwait(false);
 
             _logger.LogInformation(
@@ -724,11 +725,9 @@ public sealed class IngestionJobsController : ControllerBase {
 
             return Accepted(result);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Reprocess operation failed for job {JobId}.", jobId);
-            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
-            {
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Reprocess operation failed",
                 Detail = "The reprocess operation could not be completed.",
                 Status = StatusCodes.Status500InternalServerError
@@ -744,12 +743,10 @@ public sealed class IngestionJobsController : ControllerBase {
     [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(ReprocessResultDto), StatusCodes.Status202Accepted)]
     public async Task<IActionResult> ReprocessNotSucceededAsync(
-        CancellationToken ct)
-    {
+        CancellationToken ct) {
         _logger.LogInformation("Reprocessing all not-succeeded ingestion jobs.");
 
-        try
-        {
+        try {
             var result = await _reprocessService.ReprocessAllNotSucceededAsync(ct).ConfigureAwait(false);
 
             _logger.LogInformation(
@@ -761,11 +758,9 @@ public sealed class IngestionJobsController : ControllerBase {
 
             return Accepted(result);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Reprocess not-succeeded operation failed.");
-            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
-            {
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Reprocess operation failed",
                 Detail = "The reprocess operation could not be completed.",
                 Status = StatusCodes.Status500InternalServerError
@@ -781,12 +776,10 @@ public sealed class IngestionJobsController : ControllerBase {
     [IgnoreAntiforgeryToken]
     [ProducesResponseType(typeof(ReprocessResultDto), StatusCodes.Status202Accepted)]
     public async Task<IActionResult> ReprocessAllAsync(
-        CancellationToken ct)
-    {
+        CancellationToken ct) {
         _logger.LogInformation("Reprocessing all ingestion jobs.");
 
-        try
-        {
+        try {
             var result = await _reprocessService.ReprocessAllAsync(ct).ConfigureAwait(false);
 
             _logger.LogInformation(
@@ -798,11 +791,9 @@ public sealed class IngestionJobsController : ControllerBase {
 
             return Accepted(result);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             _logger.LogError(ex, "Reprocess all operation failed.");
-            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
-            {
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Reprocess operation failed",
                 Detail = "The reprocess operation could not be completed.",
                 Status = StatusCodes.Status500InternalServerError
@@ -848,14 +839,12 @@ public sealed class IngestionJobsController : ControllerBase {
             : "text/csv";
     }
 
-    private static string FormatFileSize(long bytes)
-    {
+    private static string FormatFileSize(long bytes) {
         string[] sizes = ["B", "KB", "MB", "GB"];
         var len = (double)bytes;
         var order = 0;
 
-        while (len >= 1024 && order < sizes.Length - 1)
-        {
+        while (len >= 1024 && order < sizes.Length - 1) {
             order++;
             len /= 1024;
         }

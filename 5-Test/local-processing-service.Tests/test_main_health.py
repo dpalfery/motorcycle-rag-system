@@ -9,6 +9,7 @@ import pytest
 def _load_main(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "")
     monkeypatch.setenv("EMBEDDING_BACKEND", "ollama")
+    monkeypatch.setenv("MCR_API_BASE_URL", "https://api.example.test")
     monkeypatch.delenv("AZURE_STORAGE_ACCOUNT_URL", raising=False)
     monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "")
     monkeypatch.setenv(

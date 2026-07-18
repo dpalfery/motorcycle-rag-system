@@ -18,4 +18,10 @@
 
 ## Verify
 
-Run `.venv/bin/python -m pytest` from `2-Application/local-processing-service/`. The suite now lives here, but `testpaths` in the service's `pyproject.toml` points at this directory, so pytest still discovers and runs it with the service's rootdir, `pythonpath`, and async settings applied.
+From `2-Application/local-processing-service/` run:
+
+```bash
+.venv/bin/python -m pytest -c pyproject.toml --rootdir=. ../../5-Test/local-processing-service.Tests --ignore=../../5-Test/local-processing-service.Tests/integration
+```
+
+The `-c` / `--rootdir` flags keep the service `pyproject.toml` as the pytest config so `pythonpath = ["src"]` and asyncio settings apply.

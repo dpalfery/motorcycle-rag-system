@@ -169,18 +169,31 @@ def run_python_suite(
     suite_dir = suite_results_dir(results_dir, suite)
     ensure_clean_dir(suite_dir)
     workdir = REPO_ROOT / suite["workingDirectory"]
+    test_root = REPO_ROOT / "5-Test" / "local-processing-service.Tests"
+    config_path = workdir / "pyproject.toml"
     coverage_path = suite_dir / "coverage.cobertura.xml"
     python_command = resolve_python_executable(workdir)
+    # Anchor pytest to the service package so pyproject.ini_options (pythonpath,
+    # asyncio_*, filterwarnings) apply. testpaths that escape this directory
+    # otherwise re-root pytest at the repository and drop that config.
     args = [
         *python_command,
         "-W",
         "error",
         "-m",
         "pytest",
-        "--ignore=../../5-Test/local-processing-service.Tests/integration",
+        "-c",
+        str(config_path),
+        "--rootdir",
+        str(workdir),
+        str(test_root),
+        f"--ignore={test_root / 'integration'}",
         "-m",
         "not slow",
-        "--cov=src",
+        # Bare --cov uses [tool.coverage.run] source = ["src"] in pyproject.toml.
+        # --cov=src is treated as an importable package name and collects no data
+        # for this src-layout service.
+        "--cov",
         f"--cov-report=xml:{coverage_path}",
         "--cov-report=term-missing:skip-covered",
     ]

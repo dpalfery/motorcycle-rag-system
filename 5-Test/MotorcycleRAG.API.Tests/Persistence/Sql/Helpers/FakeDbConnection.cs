@@ -357,7 +357,7 @@ internal sealed class TestableSqlConnectionFactory : ISqlConnectionFactory
     public IDbCommand CreateCommand(IDbConnection connection, string commandText)
     {
         var command = connection.CreateCommand();
-        command.CommandText = commandText;
+        command.CommandText = commandText; // nosemgrep: csharp.lang.security.sqli.csharp-sqli — test-only FakeDbConnection; commandText is test-controlled literal SQL
         return command;
     }
 
@@ -370,7 +370,7 @@ internal sealed class TestableSqlConnectionFactory : ISqlConnectionFactory
     {
         var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = commandText;
+        command.CommandText = commandText; // nosemgrep: csharp.lang.security.sqli.csharp-sqli — test-only FakeDbConnection; commandText is test-controlled literal SQL
         command.CommandType = commandType;
         if (commandTimeout.HasValue)
         {

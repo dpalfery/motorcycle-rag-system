@@ -4,7 +4,7 @@ on:
   schedule:
     # Run comprehensive tests daily at 2 AM UTC
     - cron: '0 2 * * *'
-    # Run Snyk security scans daily at 3 AM UTC
+    # Run security scans daily at 3 AM UTC
     - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
@@ -20,7 +20,7 @@ on:
         type: boolean
 
 # Nightly runs should complete — do not cancel in-progress runs.
-# Group by schedule trigger so test and Snyk runs are independent.
+# Group by schedule trigger so test and scan runs are independent.
 concurrency:
   group: nightly-${{ github.event.schedule || 'manual' }}
   cancel-in-progress: false
@@ -36,7 +36,7 @@ env:
   DOTNET_VERSION: '10.0.x'
 
 # ---------------------------------------------------------------------------
-# Condition helpers — tests run on 2 AM schedule + manual; Snyk on 3 AM + manual
+# Condition helpers — tests run on 2 AM schedule + manual; scans on 3 AM + manual
 # ---------------------------------------------------------------------------
 # github.event.schedule contains the cron expression that triggered the run.
 
@@ -530,11 +530,11 @@ jobs:
         category: "nightly-checkov-github-actions"
 
   # ===========================================================================
-  # SNYK JOBS (triggered by 3 AM schedule or workflow_dispatch)
+  # CONTAINER SECURITY SCAN (triggered by 3 AM schedule or workflow_dispatch)
   # ===========================================================================
 
-  snyk-sca-sast:
-    name: Snyk SCA + SAST
+  trivy-container-scan:
+    name: Trivy Container Scan
     runs-on: ubuntu-latest
     if: github.event.schedule == '0 3 * * *' || github.event_name == 'workflow_dispatch'
 
@@ -544,147 +544,60 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v5
-      with:
-        dotnet-version: "10.0.x"
-
-    - name: Setup Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.12'
-
-    - name: Install Poetry
-      run: pip install poetry
-
-    - name: Generate poetry.lock for Snyk
-      working-directory: 2-Application/local-processing-service
-      run: poetry lock
-
-    # Pin Snyk CLI for reproducible scans — update manually or via Dependabot
-    - name: Install Snyk CLI
-      run: npm install -g snyk@1.1293.0
-
-    - name: Snyk SCA test (all projects)
-      run: snyk test --severity-threshold=high --all-projects --exclude=".kilo,.opencode,.pnpm-store" --sarif-file-output=snyk-sca.sarif
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-    - name: Upload SCA SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v4
-      if: always() && hashFiles('snyk-sca.sarif') != ''
-      with:
-        sarif_file: snyk-sca.sarif
-        category: snyk-sca
-
-    - name: Snyk code test (SAST)
-      run: snyk code test --severity-threshold=high --sarif-file-output=snyk-sast.sarif
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-    - name: Upload SAST SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v4
-      if: always() && hashFiles('snyk-sast.sarif') != ''
-      with:
-        sarif_file: snyk-sast.sarif
-        category: snyk-sast
-
-  snyk-container-api:
-    name: Snyk Container — API
-    runs-on: ubuntu-latest
-    if: github.event.schedule == '0 3 * * *' || github.event_name == 'workflow_dispatch'
-
-    permissions:
-      contents: read
-      security-events: write
-
-    env:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-    steps:
-    - uses: actions/checkout@v7
-
-    # Pin Snyk CLI for reproducible scans — update manually or via Dependabot
-    - name: Install Snyk CLI
-      run: npm install -g snyk@1.1293.0
 
     - name: Build API image
       run: docker build -f 7-Deployment/Dockerfile.api -t motorcycle-rag-api .
 
-    - name: Snyk container test — API
-      run: snyk container test motorcycle-rag-api --file=7-Deployment/Dockerfile.api --severity-threshold=high --sarif-file-output=snyk-container-api.sarif
-
-    - name: Upload API container SARIF
-      uses: github/codeql-action/upload-sarif@v4
-      if: always()
-      with:
-        sarif_file: snyk-container-api.sarif
-        category: nightly-snyk-container-api
-
-  snyk-container-ui:
-    name: Snyk Container — UI
-    runs-on: ubuntu-latest
-    if: github.event.schedule == '0 3 * * *' || github.event_name == 'workflow_dispatch'
-
-    permissions:
-      contents: read
-      security-events: write
-
-    env:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-    steps:
-    - uses: actions/checkout@v7
-
-    # Pin Snyk CLI for reproducible scans — update manually or via Dependabot
-    - name: Install Snyk CLI
-      run: npm install -g snyk@1.1293.0
-
     - name: Build UI image
       run: docker build -f 7-Deployment/Dockerfile.ui -t motorcycle-rag-ui .
-
-    - name: Snyk container test — UI
-      run: snyk container test motorcycle-rag-ui --file=7-Deployment/Dockerfile.ui --severity-threshold=high --sarif-file-output=snyk-container-ui.sarif
-
-    - name: Upload UI container SARIF
-      uses: github/codeql-action/upload-sarif@v4
-      if: always()
-      with:
-        sarif_file: snyk-container-ui.sarif
-        category: nightly-snyk-container-ui
-
-  snyk-container-processor:
-    name: Snyk Container — Local Processor
-    runs-on: ubuntu-latest
-    if: github.event.schedule == '0 3 * * *' || github.event_name == 'workflow_dispatch'
-
-    permissions:
-      contents: read
-      security-events: write
-
-    env:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-    steps:
-    - uses: actions/checkout@v7
-
-    # Pin Snyk CLI for reproducible scans — update manually or via Dependabot
-    - name: Install Snyk CLI
-      run: npm install -g snyk@1.1293.0
 
     - name: Build Local Processor image
       run: docker build -f 2-Application/local-processing-service/Dockerfile -t local-processor 2-Application/local-processing-service/
 
-    - name: Snyk container test — Local Processor
-      run: snyk container test local-processor --file=2-Application/local-processing-service/Dockerfile --severity-threshold=high --sarif-file-output=snyk-container-processor.sarif
-
-    - name: Upload Processor container SARIF
-      uses: github/codeql-action/upload-sarif@v4
-      if: always()
+    - name: Run Trivy on API image
+      uses: aquasecurity/trivy-action@master
       with:
-        sarif_file: snyk-container-processor.sarif
-        category: nightly-snyk-container-processor
+        image-ref: motorcycle-rag-api
+        format: sarif
+        output: trivy-api.sarif
+        severity: HIGH,CRITICAL
+
+    - name: Run Trivy on UI image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: motorcycle-rag-ui
+        format: sarif
+        output: trivy-ui.sarif
+        severity: HIGH,CRITICAL
+
+    - name: Run Trivy on Local Processor image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: local-processor
+        format: sarif
+        output: trivy-processor.sarif
+        severity: HIGH,CRITICAL
+
+    - name: Upload API SARIF to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && hashFiles('trivy-api.sarif') != ''
+      with:
+        sarif_file: trivy-api.sarif
+        category: nightly-trivy-container-api
+
+    - name: Upload UI SARIF to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && hashFiles('trivy-ui.sarif') != ''
+      with:
+        sarif_file: trivy-ui.sarif
+        category: nightly-trivy-container-ui
+
+    - name: Upload Processor SARIF to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && hashFiles('trivy-processor.sarif') != ''
+      with:
+        sarif_file: trivy-processor.sarif
+        category: nightly-trivy-container-processor
 
   # ===========================================================================
   # SUMMARY
@@ -693,7 +606,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-tests, end-to-end-tests, azure-integration-tests, load-tests, performance-analysis, skill-gate, iac-scan, snyk-sca-sast, snyk-container-api, snyk-container-ui, snyk-container-processor]
+    needs: [unit-tests, integration-tests, end-to-end-tests, azure-integration-tests, load-tests, performance-analysis, skill-gate, iac-scan, trivy-container-scan]
     if: always()
 
     steps:
@@ -718,10 +631,7 @@ jobs:
         echo "| Performance Analysis | ${{ needs.performance-analysis.result }} | Performance metrics analysis |" >> test-summary.md
         echo "| Skill Gate | ${{ needs.skill-gate.result }} | SkillForge validation |" >> test-summary.md
         echo "| IaC Security Scan | ${{ needs.iac-scan.result }} | Checkov IaC scan |" >> test-summary.md
-        echo "| Snyk SCA + SAST | ${{ needs.snyk-sca-sast.result }} | Dependency & code security scan |" >> test-summary.md
-        echo "| Snyk Container (API) | ${{ needs.snyk-container-api.result }} | API container security scan |" >> test-summary.md
-        echo "| Snyk Container (UI) | ${{ needs.snyk-container-ui.result }} | UI container security scan |" >> test-summary.md
-        echo "| Snyk Container (Processor) | ${{ needs.snyk-container-processor.result }} | Processor container security scan |" >> test-summary.md
+        echo "| Trivy Container Scan | ${{ needs.trivy-container-scan.result }} | Container vulnerability scan |" >> test-summary.md
         echo "" >> test-summary.md
         echo "## Key Metrics" >> test-summary.md
         echo "- Test Coverage: Target >90%" >> test-summary.md

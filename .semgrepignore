@@ -1,0 +1,11 @@
+# Keeps local/IDE semgrep runs in sync with the --exclude flags used in
+# .github/workflows/pr-gate.yml's semgrep job. Semgrep reads this file
+# automatically (no flags needed) in addition to its own built-in defaults
+# (.git/, node_modules/, etc.).
+.kilo/**
+.opencode/**
+.pnpm-store/**
+
+# Generated frontend build output (hashed filenames, regenerated on every
+# `npm run build`) - not source, editing findings here doesn't persist.
+**/wwwroot/assets/**

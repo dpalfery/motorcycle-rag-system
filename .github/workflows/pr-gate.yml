@@ -270,11 +270,19 @@ jobs:
           dotnet restore MotorcycleRAG.sln
           dotnet build MotorcycleRAG.sln --configuration Release --no-restore
 
-      # Python has no compiled build step for codeql-action's tracer to observe, so
-      # extraction never happens on its own — it must be triggered explicitly.
-      - name: Autobuild (Python extraction)
+      # Python has no compiled build step, so nothing ever triggers extraction on its
+      # own. github/codeql-action/autobuild only handles compiled languages (build-mode
+      # autobuild) and is a no-op for Python ("None of the languages in this project
+      # require extra build steps") — the extractor's own autobuild.sh must be traced
+      # directly instead.
+      - name: Extract Python source
         if: matrix.language == 'python'
-        uses: github/codeql-action/autobuild@7188fc363630916deb702c7fdcf4e481b751f97a # v4
+        run: |
+          set -euo pipefail
+          codeql_dir="$(dirname "${{ steps.init.outputs.codeql-path }}")"
+          "${{ steps.init.outputs.codeql-path }}" database trace-command \
+            "${{ runner.temp }}/codeql_databases/python" \
+            -- "$codeql_dir/python/tools/autobuild.sh"
 
       - name: Perform CodeQL Analysis
         if: matrix.language == 'javascript-typescript'

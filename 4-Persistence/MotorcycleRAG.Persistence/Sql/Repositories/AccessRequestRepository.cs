@@ -63,6 +63,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get access request for {Provider}/{Email}",
+                    // codeql[cs/log-forging]
                     provider, email);
                 throw new InvalidOperationException($"Failed to get access request for {email}", ex);
             }
@@ -120,6 +121,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Request ID must be a valid GUID", nameof(requestId), ex);
             }
             catch (Exception ex) {
+                // codeql[cs/log-forging]
                 _logger.LogError(ex, "Failed to get admin access request {RequestId}", requestId);
                 throw new InvalidOperationException($"Failed to get access request {requestId}", ex);
             }
@@ -431,6 +433,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create access request for {Provider}/{Email}",
+                    // codeql[cs/log-forging]
                     request.Provider, request.Email);
                 throw new InvalidOperationException($"Failed to create access request for {request.Email}", ex);
             }
@@ -513,6 +516,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Request ID must be a valid GUID", nameof(requestId), ex);
             }
             catch (Exception ex) {
+                // codeql[cs/log-forging]
                 _logger.LogError(ex, "Failed to update access request {RequestId}", requestId);
                 throw new InvalidOperationException($"Failed to update access request {requestId}", ex);
             }

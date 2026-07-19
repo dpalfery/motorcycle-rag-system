@@ -1,6 +1,6 @@
 ---
 name: dal-dev
-description: Use when designing SQL schemas, creating FluentMigrator migrations, implementing IRepository<T>, or working exclusively in the 4-Persistence layer.
+description: Use when designing SQL schemas, creating FluentMigrator migrations, implementing generic repositories (IRepository of T), or working exclusively in the 4-Persistence layer.
 license: MIT
 metadata:
   author: David R Palfery

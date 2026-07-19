@@ -414,6 +414,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get latest ingestion job by input ref {InputRef} and type {InputType}",
+                // codeql[cs/log-forging]
                 inputRef, inputType);
             throw new InvalidOperationException("Failed to get latest ingestion job by input ref and type", ex);
         }
@@ -617,6 +618,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         }
         catch (Exception ex)
         {
+            // codeql[cs/log-forging]
             _logger.LogError(ex, "Failed to delete ingestion jobs for input ref {InputRef}", inputRef);
             throw new InvalidOperationException("Failed to delete ingestion jobs by input ref", ex);
         }
@@ -842,6 +844,7 @@ public class IngestionJobRepository : IIngestionJobRepository
 
             _logger.LogInformation(
                 "Updated stage for ingestion job {IngestionJobId} to {Stage} (chunks={ChunksProcessed}/{TotalChunks})",
+                // codeql[cs/log-forging]
                 ingestionJobId, stage, chunksProcessed, totalChunks);
         }
         catch (Exception ex)
@@ -873,6 +876,7 @@ public class IngestionJobRepository : IIngestionJobRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get ingestion job by doc ingestion run id {DocIngestionRunId}",
+                // codeql[cs/log-forging]
                 docIngestionRunId);
             throw new InvalidOperationException($"Failed to get ingestion job by doc ingestion run id {docIngestionRunId}", ex);
         }

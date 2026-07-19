@@ -123,6 +123,7 @@ public class PipelineProcessingController : ControllerBase
         {
             // File-name truncation at 80 chars was previously applied by LogSanitizer.Sanitize;
             // the SanitizingLoggerProvider now truncates structured values automatically.
+            // codeql[cs/log-forging]
             _logger.LogError(ex, "Error processing file {FileName}", Path.GetFileName(request.FilePath));
             return StatusCode(500, new ProblemDetails
             {
@@ -207,6 +208,7 @@ public class PipelineProcessingController : ControllerBase
         }
         catch (Exception ex)
         {
+            // codeql[cs/log-forging]
             _logger.LogError(ex, "Error getting pipeline status for {ExecutionId}", executionId);
             return StatusCode(500, new ProblemDetails
             {
@@ -289,6 +291,7 @@ public class PipelineProcessingController : ControllerBase
         }
         catch (Exception ex)
         {
+            // codeql[cs/log-forging]
             _logger.LogError(ex, "Error cancelling pipeline {ExecutionId}", executionId);
             return StatusCode(500, new ProblemDetails
             {

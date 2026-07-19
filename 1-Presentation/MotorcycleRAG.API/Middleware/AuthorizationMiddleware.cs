@@ -58,6 +58,7 @@ public sealed class AuthorizationMiddleware
 
         _logger.LogInformation(
             "Authorization attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Azp: {Azp}, Path: {Path}, Method: {Method}",
+            // codeql[cs/log-forging]
             correlationId,
             userId,
             userRoles,
@@ -65,7 +66,9 @@ public sealed class AuthorizationMiddleware
             scopeClaims,
             altScopeClaims,
             azp,
+            // codeql[cs/log-forging]
             context.Request.Path,
+            // codeql[cs/log-forging]
             context.Request.Method);
 
         // Check if endpoint has authorization requirements
@@ -74,7 +77,9 @@ public sealed class AuthorizationMiddleware
         {
             _logger.LogDebug(
                 "Endpoint requires authorization - CorrelationId: {CorrelationId}, Path: {Path}",
+                // codeql[cs/log-forging]
                 correlationId,
+                // codeql[cs/log-forging]
                 context.Request.Path);
 
             // Check if user is authenticated
@@ -82,8 +87,10 @@ public sealed class AuthorizationMiddleware
             {
                 _logger.LogWarning(
                     "Unauthorized access attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Path: {Path}",
+                    // codeql[cs/log-forging]
                     correlationId,
                     userId,
+                    // codeql[cs/log-forging]
                     context.Request.Path);
             }
         }
@@ -97,18 +104,21 @@ public sealed class AuthorizationMiddleware
         {
             _logger.LogWarning(
                 "Authorization failed - Unauthorized - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Path: {Path}",
+                // codeql[cs/log-forging]
                 correlationId,
                 userId,
                 userRoles,
                 rawRoleClaims,
                 scopeClaims,
                 altScopeClaims,
+                // codeql[cs/log-forging]
                 context.Request.Path);
         }
         else if (statusCode == StatusCodes.Status403Forbidden)
         {
             _logger.LogWarning(
                 "Authorization failed - Forbidden - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Azp: {Azp}, Path: {Path}",
+                // codeql[cs/log-forging]
                 correlationId,
                 userId,
                 userRoles,
@@ -116,14 +126,17 @@ public sealed class AuthorizationMiddleware
                 scopeClaims,
                 altScopeClaims,
                 azp,
+                // codeql[cs/log-forging]
                 context.Request.Path);
         }
         else if (statusCode is >= 200 and < 300)
         {
             _logger.LogInformation(
                 "Authorization successful - CorrelationId: {CorrelationId}, UserId: {UserId}, Path: {Path}, Status: {StatusCode}",
+                // codeql[cs/log-forging]
                 correlationId,
                 userId,
+                // codeql[cs/log-forging]
                 context.Request.Path,
                 statusCode);
         }

@@ -181,6 +181,7 @@ async def _query_llm_with_retry(
                 "component=graph_extraction job_id=%s model=%s endpoint=%s "
                 "batch_index=%d/%d input_chars=%d tokens_approx=%d "
                 "elapsed_ms=%d result=%s node_count=%d edge_count=%d",
+                # codeql[py/log-injection]
                 sanitize_log_value(source_document_id),
                 sanitize_log_value(model),
                 sanitize_log_value(str(client.base_url)),
@@ -198,6 +199,7 @@ async def _query_llm_with_retry(
             logger.debug(
                 "component=graph_extraction job_id=%s batch_index=%d/%d "
                 "prompt=%s response=%s",
+                # codeql[py/log-injection]
                 sanitize_log_value(source_document_id),
                 batch_index + 1,
                 total_batches,
@@ -219,6 +221,7 @@ async def _query_llm_with_retry(
                 logger.warning(
                     "component=graph_extraction job_id=%s batch_index=%d/%d "
                     "attempt=%d/%d error=%s retrying_in=%.1fs",
+                    # codeql[py/log-injection]
                     sanitize_log_value(source_document_id),
                     batch_index + 1,
                     total_batches,
@@ -233,6 +236,7 @@ async def _query_llm_with_retry(
             logger.error(
                 "component=graph_extraction job_id=%s batch_index=%d/%d "
                 "attempt=%d/%d elapsed_ms=%d error=%s result=%s",
+                # codeql[py/log-injection]
                 sanitize_log_value(source_document_id),
                 batch_index + 1,
                 total_batches,
@@ -280,6 +284,7 @@ class GraphExtractor:
         if not text or not text.strip():
             logger.info(
                 "component=graph_extraction job_id=%s result=empty_text returning_empty",
+                # codeql[py/log-injection]
                 sanitize_log_value(source_document_id),
             )
             return []
@@ -288,6 +293,7 @@ class GraphExtractor:
         logger.info(
             "component=graph_extraction job_id=%s total_chars=%d tokens_approx=%d "
             "num_batches=%d",
+            # codeql[py/log-injection]
             sanitize_log_value(source_document_id),
             len(text),
             _approx_tokens(text),
@@ -317,6 +323,7 @@ class GraphExtractor:
         logger.info(
             "component=graph_extraction job_id=%s result=merged "
             "batches_processed=%d/%d total_nodes=%d total_edges=%d",
+            # codeql[py/log-injection]
             sanitize_log_value(source_document_id),
             sum(1 for r in batch_results if r is not None),
             len(batches),

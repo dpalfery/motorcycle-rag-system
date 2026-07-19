@@ -1,5 +1,7 @@
 # MCP and Extensions
 
+Part of the [Developer Machine Setup Standard](developer-setup-standard.md).
+
 Configure editor extensions and MCP servers after core tooling exists.
 
 ## VS Code Extensions

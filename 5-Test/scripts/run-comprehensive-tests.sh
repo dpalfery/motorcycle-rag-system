@@ -217,7 +217,7 @@ fi
 # Unit Tests
 if [ "$UNIT_TESTS" = true ]; then
     print_header "Running Unit Tests"
-    UNIT_TEST_PATH="5-Test/tests/MotorcycleRAG.UnitTests/MotorcycleRAG.UnitTests.csproj"
+    UNIT_TEST_PATH="MotorcycleRAG.UnitTests.slnf"
     
     UNIT_TEST_ARGS=(
         "test" "$UNIT_TEST_PATH"

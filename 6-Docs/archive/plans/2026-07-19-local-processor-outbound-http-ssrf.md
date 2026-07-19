@@ -1,8 +1,13 @@
 # Local processor outbound HTTP / SSRF hardening
 
-**Status:** Draft
-**Date:** 2026-07-19
+**Status:** Archived  
+**Date:** 2026-07-19  
+**Archived:** 2026-07-19  
 **Goal:** One consistent, policy-bound outbound HTTP story for local-processor model-provider calls — fix localhost multi-address dial, close SSRF theater gaps, and lock the contract with tests.
+
+**Finalized:** 2026-07-19. Decisions D1–D7 are immutable implementation authority. D5 = O1; D7 = Option A (transport-first unify).
+
+> **Closeout note:** All tasks (T1–T8) verified complete. Multi-address connect fallback in `_SafeTransport` / `_SafeAsyncTransport`; unified OpenAI-compatible model-provider traffic on `create_model_provider_*_client`; Ollama O1 construct-time validation with documented SDK residual. Unit contract tests in `test_safe_http.py`, `test_openai_embedder_http_policy.py`, `test_ollama_embedder_http_policy.py`, and `test_extraction_http_policy.py`. Code review APPROVED; security review APPROVED. Canonical guidance updated in T7 and verified at closeout: `6-Docs/system/security.md` §Communication (Local processor outbound HTTP), `6-Docs/local-processing-service/architecture.md` §Outbound HTTP policy, `onboarding.md` §Local model endpoint URLs.
 
 ---
 

@@ -40,7 +40,7 @@ class TestOpenAIEmbedderInstantiation:
         assert embedder._request_timeout_seconds == 120.0
 
     def test_instantiates_with_custom_endpoint(self, monkeypatch):
-        monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "http://myserver:9999")
+        monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "http://127.0.0.1:9999")
 
         with patch("embeddings.openai_embedder.openai.AsyncOpenAI"):
             from importlib import reload
@@ -50,7 +50,7 @@ class TestOpenAIEmbedderInstantiation:
 
             embedder = mod.OpenAIEmbedder()
 
-        assert embedder._endpoint == "http://myserver:9999"
+        assert embedder._endpoint == "http://127.0.0.1:9999"
 
     def test_preserves_explicit_v1_suffix(self, monkeypatch):
         monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "http://127.0.0.1:1234/v1")
@@ -66,7 +66,9 @@ class TestOpenAIEmbedderInstantiation:
         assert embedder._endpoint == "http://127.0.0.1:1234/v1"
 
     def test_normalizes_model_list_url_to_base_v1_endpoint(self, monkeypatch):
-        monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "http://127.0.0.1:1234/v1/models")
+        monkeypatch.setenv(
+            "EMBEDDING_PROVIDER_ENDPOINT", "http://127.0.0.1:1234/v1/models"
+        )
 
         with patch("embeddings.openai_embedder.openai.AsyncOpenAI"):
             from importlib import reload
@@ -79,7 +81,9 @@ class TestOpenAIEmbedderInstantiation:
         assert embedder._endpoint == "http://127.0.0.1:1234/v1"
 
     def test_preserves_non_root_v1_path(self, monkeypatch):
-        monkeypatch.setenv("EMBEDDING_PROVIDER_ENDPOINT", "https://api.example.com/v1/openai")
+        monkeypatch.setenv(
+            "EMBEDDING_PROVIDER_ENDPOINT", "https://api.example.com/v1/openai"
+        )
 
         with patch("embeddings.openai_embedder.openai.AsyncOpenAI"):
             from importlib import reload
@@ -96,7 +100,7 @@ class TestOpenAIEmbedderInstantiation:
             from embeddings.openai_embedder import OpenAIEmbedder
 
             embedder = OpenAIEmbedder(
-                endpoint="http://custom:8080/v1",
+                endpoint="http://127.0.0.1:8080/v1",
                 model="custom-model",
                 api_key="sk-test",
                 dims=768,
@@ -104,7 +108,7 @@ class TestOpenAIEmbedderInstantiation:
                 health_timeout_seconds=5.0,
             )
 
-        assert embedder._endpoint == "http://custom:8080/v1"
+        assert embedder._endpoint == "http://127.0.0.1:8080/v1"
         assert embedder._model == "custom-model"
         assert embedder._api_key == "sk-test"
         assert embedder._dims == 768
@@ -168,9 +172,7 @@ class TestOpenAIEmbedderGenerateEmbedding:
             with pytest.raises(ValueError, match="at least 1536 dims, got 512"):
                 await embedder.generate_embedding("test text")
 
-    async def test_accepts_oversized_vector_with_warning(
-        self, monkeypatch, caplog
-    ):
+    async def test_accepts_oversized_vector_with_warning(self, monkeypatch, caplog):
         # Oversized vectors must NOT raise: LM Studio ignores the requested
         # dimensionality and returns full-length vectors (e.g. 2560 dims).
         # OpenAIEmbedder returns them so TruncatingEmbedder can slice them.
@@ -192,9 +194,7 @@ class TestOpenAIEmbedderGenerateEmbedding:
             reload(mod)
 
             embedder = mod.OpenAIEmbedder()
-            with caplog.at_level(
-                logging.WARNING, logger="embeddings.openai_embedder"
-            ):
+            with caplog.at_level(logging.WARNING, logger="embeddings.openai_embedder"):
                 result = await embedder.generate_embedding("test text")
 
         # The oversized vector is returned unchanged for downstream slicing.
@@ -273,26 +273,23 @@ class TestOpenAIEmbedderGenerateEmbedding:
     async def test_check_status_returns_disconnected_on_timeout(self, monkeypatch):
         monkeypatch.delenv("EMBEDDING_PROVIDER_ENDPOINT", raising=False)
 
-        with patch(
-            "embeddings.openai_embedder.openai.AsyncOpenAI",
-        ):
+        mock_client_instance = MagicMock()
+        mock_client_instance.get = AsyncMock(side_effect=asyncio.TimeoutError)
+
+        with patch("embeddings.openai_embedder.openai.AsyncOpenAI"):
             with patch(
-                "embeddings.openai_embedder.httpx.AsyncClient",
-            ) as mock_httpx_client:
-                mock_client_instance = MagicMock()
-                mock_client_instance.get = AsyncMock(
-                    side_effect=asyncio.TimeoutError
+                "embeddings.openai_embedder.create_model_provider_async_client",
+            ) as mock_policy_client:
+                mock_policy_client.return_value.__aenter__ = AsyncMock(
+                    return_value=mock_client_instance
                 )
-                mock_httpx_client.return_value.__aenter__.return_value = (
-                    mock_client_instance
+                mock_policy_client.return_value.__aexit__ = AsyncMock(
+                    return_value=False
                 )
 
-                from importlib import reload
-                import embeddings.openai_embedder as mod
+                from embeddings.openai_embedder import OpenAIEmbedder
 
-                reload(mod)
-
-                embedder = mod.OpenAIEmbedder()
+                embedder = OpenAIEmbedder()
                 status = await embedder.check_status()
 
         assert status == "disconnected"
@@ -333,12 +330,16 @@ class TestOpenAIEmbedderBatch:
 
 class TestOpenAIEmbedderHealth:
     async def test_check_status_returns_connected_and_caches_the_success(self):
-        with patch("embeddings.openai_embedder.httpx.AsyncClient") as mock_httpx_client:
+        with patch(
+            "embeddings.openai_embedder.create_model_provider_async_client",
+        ) as mock_policy_client:
             response = MagicMock()
+            response.status_code = 200
             response.raise_for_status = MagicMock()
             client = MagicMock()
             client.get = AsyncMock(return_value=response)
-            mock_httpx_client.return_value.__aenter__.return_value = client
+            mock_policy_client.return_value.__aenter__.return_value = client
+            mock_policy_client.return_value.__aexit__ = AsyncMock(return_value=False)
 
             from embeddings.openai_embedder import OpenAIEmbedder
 
@@ -357,7 +358,9 @@ class TestOpenAIEmbedderCleanup:
         client.embeddings.create = AsyncMock(return_value=response)
         client.close = MagicMock(return_value=None)
 
-        with patch("embeddings.openai_embedder.openai.AsyncOpenAI", return_value=client):
+        with patch(
+            "embeddings.openai_embedder.openai.AsyncOpenAI", return_value=client
+        ):
             from embeddings.openai_embedder import OpenAIEmbedder
 
             result = await OpenAIEmbedder(dims=2).generate_embedding("test")

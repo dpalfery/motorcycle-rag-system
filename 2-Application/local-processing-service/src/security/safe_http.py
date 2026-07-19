@@ -147,10 +147,13 @@ def validate_api_base_url(raw_url: str) -> httpx.URL:
     return url.copy_with(path=url.path.rstrip("/"))
 
 
-def validate_model_discovery_endpoint(
+def validate_model_provider_endpoint(
     raw_url: str,
 ) -> tuple[httpx.URL, EndpointPolicy]:
-    """Validate a model endpoint and select its allowed request policy."""
+    """Validate a model-provider endpoint and select its allowed request policy.
+
+    Accepts public HTTPS or literal-loopback HTTP.
+    """
     url = _parse_endpoint_url(raw_url)
     if url.scheme == "https":
         _reject_non_public_ip_literal(url)
@@ -160,6 +163,10 @@ def validate_model_discovery_endpoint(
     raise EndpointPolicyError(
         "HTTP model-discovery endpoint URLs must target a literal loopback host"
     )
+
+
+# Backward-compatible alias for discovery call sites and existing tests.
+validate_model_discovery_endpoint = validate_model_provider_endpoint
 
 
 def _parse_endpoint_url(raw_url: str) -> httpx.URL:
@@ -262,7 +269,11 @@ class _SafeAsyncTransport(httpx.AsyncBaseTransport):
         port = request.url.port or (443 if request.url.scheme == "https" else 80)
         addresses = await self._resolver.resolve(original_host, port)
         dial_targets = _validated_targets(self._policy, original_host, addresses)
-        return await _send_async_request(request, dial_targets[0], original_host)
+        return await _send_async_request_across_targets(
+            request,
+            dial_targets,
+            original_host,
+        )
 
 
 class _SafeTransport(httpx.BaseTransport):
@@ -277,7 +288,7 @@ class _SafeTransport(httpx.BaseTransport):
         port = request.url.port or (443 if request.url.scheme == "https" else 80)
         addresses = self._resolver.resolve(original_host, port)
         dial_targets = _validated_targets(self._policy, original_host, addresses)
-        return _send_request(request, dial_targets[0], original_host)
+        return _send_request_across_targets(request, dial_targets, original_host)
 
 
 def _validate_request_policy(url: httpx.URL, policy: EndpointPolicy) -> None:
@@ -329,6 +340,78 @@ def _core_headers(request: httpx.Request) -> list[tuple[bytes, bytes]]:
     ]
     headers.append((b"host", _host_header(request).encode("ascii")))
     return headers
+
+
+def _is_connect_establishment_error(exc: Exception) -> bool:
+    """Return True when ``exc`` is a connection-establishment failure.
+
+    HTTP status errors (4xx/5xx) and redirect responses are not connect
+    failures — those require a successful dial and must not trigger fallback.
+    ``ConnectTimeout`` is excluded by design (plan D3: ConnectError only).
+    """
+    return isinstance(exc, (httpcore.ConnectError, httpx.ConnectError))
+
+
+async def _send_async_request_across_targets(
+    request: httpx.Request,
+    dial_targets: tuple[str, ...],
+    original_host: str,
+) -> httpx.Response:
+    """Dial validated targets in order; fall back only on connect failures.
+
+    Args:
+        request: Outbound HTTPX request (Host/SNI stay on ``original_host``).
+        dial_targets: Policy-validated numeric addresses in DNS order.
+        original_host: Hostname preserved for Host header and TLS SNI.
+
+    Returns:
+        The first response whose connection was established successfully.
+
+    Raises:
+        httpcore.ConnectError: When every target refuses the connection; the
+            last connect error is propagated.
+    """
+    last_connect_error: Exception | None = None
+    for target in dial_targets:
+        try:
+            return await _send_async_request(request, target, original_host)
+        except Exception as exc:
+            if not _is_connect_establishment_error(exc):
+                raise
+            last_connect_error = exc
+    assert last_connect_error is not None
+    raise last_connect_error
+
+
+def _send_request_across_targets(
+    request: httpx.Request,
+    dial_targets: tuple[str, ...],
+    original_host: str,
+) -> httpx.Response:
+    """Synchronously dial validated targets with connect-only fallback.
+
+    Args:
+        request: Outbound HTTPX request (Host/SNI stay on ``original_host``).
+        dial_targets: Policy-validated numeric addresses in DNS order.
+        original_host: Hostname preserved for Host header and TLS SNI.
+
+    Returns:
+        The first response whose connection was established successfully.
+
+    Raises:
+        httpcore.ConnectError: When every target refuses the connection; the
+            last connect error is propagated.
+    """
+    last_connect_error: Exception | None = None
+    for target in dial_targets:
+        try:
+            return _send_request(request, target, original_host)
+        except Exception as exc:
+            if not _is_connect_establishment_error(exc):
+                raise
+            last_connect_error = exc
+    assert last_connect_error is not None
+    raise last_connect_error
 
 
 async def _send_async_request(
@@ -439,13 +522,13 @@ def create_api_https_async_client(
     )
 
 
-def create_model_discovery_async_client(
+def create_model_provider_async_client(
     policy: EndpointPolicy,
     *,
     timeout: httpx.Timeout | float = httpx.Timeout(10.0),
     resolver: AsyncAddressResolver | None = None,
 ) -> httpx.AsyncClient:
-    """Create a no-redirect model-discovery client for a selected policy."""
+    """Create a no-redirect model-provider AsyncClient for a selected policy."""
     return httpx.AsyncClient(
         timeout=timeout,
         verify=True,
@@ -457,16 +540,24 @@ def create_model_discovery_async_client(
     )
 
 
-def create_model_discovery_client(
+# Alias keeps discovery call sites and CodeQL residual comments explicit.
+create_model_discovery_async_client = create_model_provider_async_client
+
+
+def create_model_provider_client(
     policy: EndpointPolicy,
     *,
     timeout: httpx.Timeout | float = httpx.Timeout(10.0),
     resolver: AddressResolver | None = None,
 ) -> httpx.Client:
-    """Create a synchronous safe model-discovery client."""
+    """Create a synchronous safe model-provider client for a selected policy."""
     return httpx.Client(
         timeout=timeout,
         verify=True,
         follow_redirects=False,
         transport=_SafeTransport(policy, resolver or _SystemAddressResolver()),
     )
+
+
+# Alias keeps discovery call sites and CodeQL residual comments explicit.
+create_model_discovery_client = create_model_provider_client

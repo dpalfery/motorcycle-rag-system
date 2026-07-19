@@ -24,10 +24,28 @@ import httpx
 import openai
 
 from security.log_sanitizer import sanitize_log_value
+from security.safe_http import (
+    create_model_provider_async_client,
+    require_non_redirect_success,
+    validate_model_provider_endpoint,
+)
 
 logger = logging.getLogger(__name__)
 
 _LOG_TRUNCATE = 2000
+
+# Preserve prior AsyncOpenAI/httpx defaults for local LLM chat (long read).
+# Factory default is 10s, which would regress multi-minute completions.
+_CHAT_HTTP_TIMEOUT = httpx.Timeout(
+    connect=5.0,
+    read=600.0,
+    write=600.0,
+    pool=600.0,
+)
+
+# Connectivity probe is a quick GET /models; keep it short so a hung endpoint
+# cannot leave the background task blocked for the full chat read timeout.
+_PROBE_HTTP_TIMEOUT = 5.0
 
 
 def _truncate(text: str, limit: int = _LOG_TRUNCATE) -> str:
@@ -66,9 +84,13 @@ class MetadataExtractor:
         GRAPH_EXTRACTION_ENDPOINT - OpenAI-compatible base URL (required)
         GRAPH_EXTRACTION_MODEL     - model name (required)
 
-    The extractor never raises: LLM connection errors and malformed JSON are
-    logged as warnings and treated as a failed attempt so the pipeline can fall
-    back to manual metadata entry.
+    ``GRAPH_EXTRACTION_ENDPOINT`` must be public HTTPS or literal-loopback HTTP;
+    invalid endpoints raise ``EndpointPolicyError`` at construction. Probe and
+    chat traffic use a policy-bound ``safe_http`` transport.
+
+    After construction, ``extract()`` never raises: LLM connection errors and
+    malformed JSON are logged as warnings and treated as a failed attempt so
+    the pipeline can fall back to manual metadata entry.
 
     Security: when ``source_path`` is provided to ``extract()``, the full path
     is transmitted to the inference endpoint inside the LLM user message. This
@@ -87,6 +109,7 @@ class MetadataExtractor:
             raise ValueError(
                 "GRAPH_EXTRACTION_ENDPOINT environment variable must be set"
             )
+        _, self._policy = validate_model_provider_endpoint(endpoint)
         self._endpoint = endpoint
 
         model = os.getenv("GRAPH_EXTRACTION_MODEL")
@@ -94,10 +117,17 @@ class MetadataExtractor:
             raise ValueError("GRAPH_EXTRACTION_MODEL environment variable must be set")
         self._model = model
 
-        # Cache a single client for the lifetime of the extractor instead of
-        # creating one per extract() call. AsyncOpenAI reuses the underlying
-        # httpx connection pool, which keeps the client lightweight to reuse.
-        self._client = openai.AsyncOpenAI(base_url=self._endpoint, api_key="local")
+        # Cache a single policy-bound httpx client (and OpenAI wrapper) for the
+        # lifetime of the extractor. AsyncOpenAI reuses the underlying pool.
+        self._http_client = create_model_provider_async_client(
+            self._policy,
+            timeout=_CHAT_HTTP_TIMEOUT,
+        )
+        self._client = openai.AsyncOpenAI(
+            base_url=self._endpoint,
+            api_key="local",
+            http_client=self._http_client,
+        )
 
         # Best-effort connectivity probe: fires a background task so it never
         # blocks or fails startup.  Only schedules when there is a running
@@ -113,41 +143,46 @@ class MetadataExtractor:
         """Probe the LLM endpoint to confirm the configured model is available.
 
         Makes a ``GET`` request to ``{base_url}/models`` and logs whether the
-        configured model is found.  Never raises — all errors are swallowed
+        configured model is found. Uses a short-lived policy client with
+        ``_PROBE_HTTP_TIMEOUT`` so a hung endpoint cannot block for the chat
+        client's long read timeout. Never raises — all errors are swallowed
         and logged as warnings for operator visibility.
         """
         models_url = f"{self._endpoint.rstrip('/')}/models"
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
-                response = await client.get(models_url)
-                response.raise_for_status()
+            async with create_model_provider_async_client(
+                self._policy,
+                timeout=_PROBE_HTTP_TIMEOUT,
+            ) as probe_client:
+                response = await probe_client.get(models_url)
+                require_non_redirect_success(response)
                 data = response.json()
 
-                # OpenAI-compatible endpoints return {"data": [{"id": "...", ...}]}
-                available: list[str] = []
-                if isinstance(data, dict):
-                    raw_data = data.get("data")
-                    if isinstance(raw_data, list):
-                        available = [
-                            str(item["id"])
-                            for item in raw_data
-                            if isinstance(item, dict) and "id" in item
-                        ]
+            # OpenAI-compatible endpoints return {"data": [{"id": "...", ...}]}
+            available: list[str] = []
+            if isinstance(data, dict):
+                raw_data = data.get("data")
+                if isinstance(raw_data, list):
+                    available = [
+                        str(item["id"])
+                        for item in raw_data
+                        if isinstance(item, dict) and "id" in item
+                    ]
 
-                if self._model in available:
-                    logger.info(
-                        "component=metadata_extraction model='%s' confirmed endpoint=%s",
-                        sanitize_log_value(self._model),
-                        sanitize_log_value(self._endpoint),
-                    )
-                else:
-                    logger.warning(
-                        "component=metadata_extraction model='%s' NOT FOUND endpoint=%s "
-                        "available=%s",
-                        sanitize_log_value(self._model),
-                        sanitize_log_value(self._endpoint),
-                        sanitize_log_value(str(available)),
-                    )
+            if self._model in available:
+                logger.info(
+                    "component=metadata_extraction model='%s' confirmed endpoint=%s",
+                    sanitize_log_value(self._model),
+                    sanitize_log_value(self._endpoint),
+                )
+            else:
+                logger.warning(
+                    "component=metadata_extraction model='%s' NOT FOUND endpoint=%s "
+                    "available=%s",
+                    sanitize_log_value(self._model),
+                    sanitize_log_value(self._endpoint),
+                    sanitize_log_value(str(available)),
+                )
         except Exception as exc:
             logger.warning(
                 "component=metadata_extraction endpoint=%s probe_failed error=%s",
@@ -390,7 +425,9 @@ class MetadataExtractor:
             "LLM response received: length=%d sha256_prefix=%s%s",
             len(content),
             sha_prefix,
-            f" job_id={sanitize_log_value(job_id)}" if job_id else "",  # codeql[py/log-injection]
+            (
+                f" job_id={sanitize_log_value(job_id)}" if job_id else ""
+            ),  # codeql[py/log-injection]
         )
         return self._parse_llm_json(content)
 

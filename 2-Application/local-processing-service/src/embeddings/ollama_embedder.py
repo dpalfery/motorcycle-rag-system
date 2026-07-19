@@ -7,6 +7,8 @@ import time
 
 import ollama
 
+from security.safe_http import validate_model_provider_endpoint
+
 from .embedder import Embedder
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,11 @@ class OllamaEmbedder(Embedder):
         OLLAMA_HOST
         OLLAMA_MODEL_EMBEDDING
 
+    The host (constructor argument, ``OLLAMA_BASE_URL``, or ``OLLAMA_HOST``)
+    is validated at construct time with the model-provider endpoint policy
+    (public HTTPS or literal-loopback HTTP). Embed/list/health traffic still
+    uses ``ollama.AsyncClient`` directly (no mid-flight DNS pin).
+
     The embedder enforces 1536-dimensional output to match the Azure AI Search
     index (VectorSearchDimensions = 1536) via server-side Matryoshka truncation.
     Qwen3-Embedding-4B is natively 2560 dims; the ``dimensions=1536`` parameter
@@ -53,12 +60,15 @@ class OllamaEmbedder(Embedder):
     """
 
     def __init__(self, host: str | None = None, model: str | None = None) -> None:
-        self._host: str = (host or os.getenv("OLLAMA_BASE_URL") or os.getenv(
-            "OLLAMA_HOST", "http://localhost:11434"
-        )).rstrip("/")
-        self._model: str = model or os.getenv("OLLAMA_MODEL") or os.getenv(
-            "OLLAMA_MODEL_EMBEDDING", "qwen3-embedding"
-        )
+        self._host = (
+            (host or os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST"))
+            or "http://localhost:11434"
+        ).rstrip("/")
+        # Fail closed before the Ollama SDK client is created (D5 / O1).
+        validate_model_provider_endpoint(self._host)
+        self._model = (
+            model or os.getenv("OLLAMA_MODEL") or os.getenv("OLLAMA_MODEL_EMBEDDING")
+        ) or "qwen3-embedding"
         dims_env = os.getenv("OLLAMA_EMBEDDING_DIMS", "1536")
         self._dims: int = int(dims_env)
         self._request_timeout_seconds = _get_positive_float_env(
@@ -140,7 +150,10 @@ class OllamaEmbedder(Embedder):
         endpoints.
         """
         now = time.monotonic()
-        if self._last_health_status is not None and (now - self._last_health_time) < _HEALTH_CACHE_TTL_SECONDS:
+        if (
+            self._last_health_status is not None
+            and (now - self._last_health_time) < _HEALTH_CACHE_TTL_SECONDS
+        ):
             return self._last_health_status
 
         try:

@@ -11,9 +11,14 @@ import os
 import time
 from typing import Any
 
+import httpx
 import openai
 
 from security.log_sanitizer import sanitize_log_value
+from security.safe_http import (
+    create_model_provider_async_client,
+    validate_model_provider_endpoint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,15 @@ BATCH_TOKEN_BUDGET = 4000  # approximate token budget per batch
 BATCH_MAX_RETRIES = 2  # retries per batch before skipping
 BATCH_RETRY_BASE_DELAY = 1.0  # seconds, multiplied by (attempt + 1)
 _LOG_TRUNCATE = 2000  # chars for prompt/response body logging
+
+# Preserve prior AsyncOpenAI/httpx defaults for local LLM chat (long read).
+# Factory default is 10s, which would regress multi-minute completions.
+_CHAT_HTTP_TIMEOUT = httpx.Timeout(
+    connect=5.0,
+    read=600.0,
+    write=600.0,
+    pool=600.0,
+)
 
 SYSTEM_PROMPT = """You are a knowledge graph extractor for motorcycle technical documentation.
 Extract entities and relationships from the provided text.
@@ -253,6 +267,10 @@ class GraphExtractor:
     Reads configuration from environment variables:
         GRAPH_EXTRACTION_ENDPOINT – OpenAI-compatible base URL (required)
         GRAPH_EXTRACTION_MODEL     – model name (required)
+
+    ``GRAPH_EXTRACTION_ENDPOINT`` must be public HTTPS or literal-loopback HTTP;
+    invalid endpoints raise ``EndpointPolicyError`` at construction. Outbound
+    calls use a policy-bound ``safe_http`` transport injected into AsyncOpenAI.
     """
 
     def __init__(self) -> None:
@@ -261,6 +279,7 @@ class GraphExtractor:
             raise ValueError(
                 "GRAPH_EXTRACTION_ENDPOINT environment variable must be set"
             )
+        _, self._policy = validate_model_provider_endpoint(endpoint)
         self._endpoint = endpoint
 
         model = os.getenv("GRAPH_EXTRACTION_MODEL")
@@ -268,10 +287,17 @@ class GraphExtractor:
             raise ValueError("GRAPH_EXTRACTION_MODEL environment variable must be set")
         self._model = model
 
-        # Cache a single client for the lifetime of the extractor instead of
-        # creating one per extract() call. AsyncOpenAI reuses the underlying
-        # httpx connection pool, which keeps the client lightweight to reuse.
-        self._client = openai.AsyncOpenAI(base_url=self._endpoint, api_key="local")
+        # Cache a single policy-bound httpx client (and OpenAI wrapper) for the
+        # lifetime of the extractor. AsyncOpenAI reuses the underlying pool.
+        http_client = create_model_provider_async_client(
+            self._policy,
+            timeout=_CHAT_HTTP_TIMEOUT,
+        )
+        self._client = openai.AsyncOpenAI(
+            base_url=self._endpoint,
+            api_key="local",
+            http_client=http_client,
+        )
 
     async def extract(
         self, text: str, source_document_id: str = ""

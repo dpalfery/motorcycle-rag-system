@@ -52,7 +52,7 @@ Before creating, moving, renaming, or placing source/test files, or changing nam
 2. The nearest scoped `AGENTS.md` supplies additional rules for its subtree; it may not weaken this file.
 3. Canonical system, component, deployment, and environment documentation provides detailed task-specific guidance. Scoped instructions link directly to the owning document; they are not a substitute for root policy.
 
-## Repository Configuration & Paths
+## Repository Configuration & Paths Registry (Config Reg)
 
 Agents and skills should look up the following properties dynamically to find the relevant documentation and references for this repository:
 
@@ -60,9 +60,13 @@ Agents and skills should look up the following properties dynamically to find th
 - **Clean Architecture Rules:** `6-Docs/rules/architecture-general.md`
 - **Component Catalog:** `6-Docs/catalog.md`
 - **Plan Index:** `6-Docs/plans/README.md`
-- **Developer Setup Standard:** `.agents/skills/setup-dev-environment/SKILL.md`
-- **MSBuild Modernization:** `.agents/skills/github-devops/references/msbuild-modernization.md`
-- **MSBuild Anti-patterns:** `.agents/skills/github-devops/references/msbuild-antipatterns.md`
-- **Directory.Build Organization:** `.agents/skills/github-devops/references/directory-build-organization.md`
-- **Build Performance:** `.agents/skills/github-devops/references/build-performance.md`
-- **Incremental Build:** `.agents/skills/github-devops/references/incremental-build.md`
+- **Developer Setup Standard:** `6-Docs/DevOps/developer-setup-standard.md`
+- **MSBuild Modernization:** `6-Docs/DevOps/msbuild-modernization.md`
+- **MSBuild Anti-patterns:** `6-Docs/DevOps/msbuild-antipatterns.md`
+- **Directory.Build Organization:** `6-Docs/DevOps/directory-build-organization.md`
+- **Build Performance:** `6-Docs/DevOps/build-performance.md`
+- **Incremental Build:** `6-Docs/DevOps/incremental-build.md`
+- **Test Coverage Config:** `5-Test/scripts/coverage-config.json`
+- **Test Runner Scripts:** `5-Test/scripts/run-comprehensive-tests.sh` (macOS/Linux), `5-Test/scripts/run-comprehensive-tests.ps1` (Windows)
+
+Skills and other portable instruction files SHALL reference these paths by the property name above (e.g. "the path declared as **Test Coverage Config** in the repository root `AGENTS.md`") rather than embedding a relative link that traverses out of the skill's own directory (e.g. `../../5-Test/...`). This keeps skill files self-contained and correct if repository layout changes — only this table needs updating.

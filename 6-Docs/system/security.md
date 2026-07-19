@@ -56,7 +56,18 @@ Do not bulk-dismiss static-analysis logging alerts. If a scanner does not recogn
 - Enforce HTTPS + HSTS on all web server configurations.
 - Remote outbound HTTP clients SHALL use HTTPS with normal certificate and hostname validation. `verify=False`, custom hostname bypasses, and open redirects are forbidden.
 - Plain HTTP is allowed only for literal loopback local-model endpoints (`localhost` / `127.0.0.1` / `::1`). Remote private, link-local, and credential-bearing URLs fail closed.
-- In the local processor, outbound calls go through `security.url_validation` and `security.safe_http` policy-bound transports.
+
+### Local processor outbound HTTP
+
+The local processor uses `security.url_validation` for structural URL checks and `security.safe_http` for policy-bound HTTP transports. Coverage is not identical on every outbound path:
+
+- **OpenAI-compatible model providers** (embedding discovery, OpenAI-compatible embed create and health checks, metadata probe and chat, graph chat): endpoints are validated at construct time with `validate_model_provider_endpoint` (public HTTPS or literal-loopback HTTP only). Traffic uses `create_model_provider_*_client` policy-bound transports injected into OpenAI SDK clients (`http_client=...`). Redirects are not followed; TLS verification stays enabled for HTTPS.
+- **MotorcycleRAG API** (`ApiClient`): validated HTTPS base URL and `create_api_https_async_client` (`API_HTTPS` policy). Every DNS answer must be globally routable.
+- **Ollama embedder**: the configured host (`OLLAMA_BASE_URL` / `OLLAMA_HOST`) is validated with the same endpoint policy at construct time before `ollama.AsyncClient` is created. **Residual:** Ollama SDK embed, list, and health traffic is not routed through `safe_http`; there is no mid-flight DNS pinning or redirect blocking inside the SDK.
+
+**Multi-address connect fallback:** after DNS resolution, `_SafeTransport` / `_SafeAsyncTransport` validate all answers against the selected policy, then dial validated numeric targets in order. On connection-establishment failure only (`httpx.ConnectError` / `httpcore.ConnectError` — not HTTP 4xx/5xx), the transport tries the next validated target. The original hostname is preserved in the Host header and TLS SNI; this is not a config rewrite of `localhost` to `127.0.0.1`. Fallback applies to all `EndpointPolicy` values (`LOOPBACK_HTTP`, `PUBLIC_HTTPS`, `API_HTTPS`).
+
+See [local processor architecture](../local-processing-service/architecture.md).
 
 ## Admin Desktop ↔ local processor control plane
 

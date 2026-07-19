@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -79,10 +78,10 @@ class TestMetadataExtractorInstantiation:
     def test_reads_env_overrides(self, monkeypatch):
         from extraction.metadata_extractor import MetadataExtractor
 
-        monkeypatch.setenv("GRAPH_EXTRACTION_ENDPOINT", "http://override:9999/v1")
+        monkeypatch.setenv("GRAPH_EXTRACTION_ENDPOINT", "http://127.0.0.1:9999/v1")
         monkeypatch.setenv("GRAPH_EXTRACTION_MODEL", "override-model")
         extractor = MetadataExtractor()
-        assert extractor._endpoint == "http://override:9999/v1"
+        assert extractor._endpoint == "http://127.0.0.1:9999/v1"
         assert extractor._model == "override-model"
 
 

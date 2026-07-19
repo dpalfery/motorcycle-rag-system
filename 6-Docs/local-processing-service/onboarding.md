@@ -28,6 +28,10 @@
 
 `get_embedder()` returns a lazy proxy. Module import and factory construction perform no embedding-provider network I/O. Discovery and concrete embedder construction run on the first `check_status` or embed call (for example the first `/health` after start). If discovery or init fails, `check_status` reports `disconnected`, `/health` stays reachable, and the process remains up. Embedding calls used by jobs raise a clear runtime error until the provider is available.
 
+### Local model endpoint URLs
+
+Use literal loopback URLs such as `http://localhost:1234/v1` for LM Studio or other OpenAI-compatible providers. The processor validates the URL and dials all resolved loopback addresses until one connects — you do not need to rewrite `localhost` to `127.0.0.1`. Ollama hosts (`OLLAMA_BASE_URL` / `OLLAMA_HOST`) follow the same endpoint policy at embedder construction; see [architecture — Outbound HTTP policy](architecture.md#outbound-http-policy) for the Ollama SDK residual.
+
 ### Admin Desktop exit status 1
 
 If Start fails with a message that the processor exited early (often `exit status: 1`):

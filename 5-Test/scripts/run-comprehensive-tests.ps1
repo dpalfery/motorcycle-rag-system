@@ -151,7 +151,7 @@ try {
     # Unit Tests
     if ($UnitTests) {
         Write-Header "Running Unit Tests"
-        $unitTestPath = "5-Test/tests/MotorcycleRAG.UnitTests/MotorcycleRAG.UnitTests.csproj"
+        $unitTestPath = "MotorcycleRAG.UnitTests.slnf"
         
         $unitTestArgs = @(
             "test", $unitTestPath,

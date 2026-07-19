@@ -6,6 +6,42 @@ The overall schema deployment strategy — including the canonical `schema.sql` 
 
 Use it only with a local or explicitly approved development database. Supply passwords through secure prompts or environment/secret mechanisms; never add real values to documentation, scripts, or issue reports.
 
+## Local development startup
+
+The repo includes `docker-compose.yml` with a SQL Server service. Ask before starting it because this creates/starts a local container. Do not run `docker build`, `docker push`, `az acr build`, or any image publishing command.
+
+```sh
+docker compose up -d sqlserver
+docker ps
+```
+
+Provision the schema and application login with the CLI:
+
+```sh
+cd 7-Deployment/DbSetup/MotorcycleRAG.DbSetup
+dotnet run -- --env-vars-in-proc
+```
+
+Interactive mode is preferred for local development because it prompts for the SQL Server SA password and avoids placing secrets in command history. Use `--env-vars-in-proc` by default so the CLI does not persist database passwords or connection strings as user-level environment variables — its default behavior persists them at the user level, which is not the approved durable app-configuration path; do not use that default unless the user explicitly approves it after being told what it stores. Ask separately before passing `--seed-test-data`.
+
+The CLI creates the database and application login/user, deploys `4-Persistence/MotorcycleRAG.Persistence/Sql/schema.sql`, and optionally seeds test data.
+
+### Secrets
+
+- Never print or log SA passwords, app passwords, or connection strings.
+- Never write `.env` files.
+- Do not paste secrets into command examples.
+- If non-interactive mode is required, prefer already-set environment variables over command-line password arguments.
+
+### Validate
+
+```sh
+dotnet run --project 7-Deployment/DbSetup/MotorcycleRAG.DbSetup -- --help
+docker ps
+```
+
+Use SQL connectivity checks only if credentials are available securely. Avoid echoing connection strings.
+
 ## Internal architecture
 
 `Program` is the CLI composition root and wires the CLI-local `SqlDbSetupConnectionFactory` into the provisioner. That factory is the sole production owner of `SqlConnection` construction; preflight, provisioning, and schema operations receive connections through the injected factory. The boundary keeps command behavior unchanged while permitting unit tests to substitute fake connections without a SQL Server.

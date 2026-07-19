@@ -1,5 +1,7 @@
 # macOS Setup
 
+Part of the [Developer Machine Setup Standard](developer-setup-standard.md).
+
 Support Apple Silicon and Intel macOS. Prefer Homebrew for CLI tools.
 
 ## Package Manager

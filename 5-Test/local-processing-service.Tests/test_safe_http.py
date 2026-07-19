@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import httpcore
 import httpx
 import pytest
 
@@ -30,6 +31,119 @@ class _AsyncResolver:
     async def resolve(self, host: str, port: int) -> tuple[str, ...]:
         self.calls.append((host, port))
         return self._addresses
+
+
+class _SyncResolver:
+    def __init__(self, addresses: tuple[str, ...]) -> None:
+        self._addresses = addresses
+        self.calls: list[tuple[str, int]] = []
+
+    def resolve(self, host: str, port: int) -> tuple[str, ...]:
+        self.calls.append((host, port))
+        return self._addresses
+
+
+def _decode_core_host(host: bytes | str | None) -> str:
+    if host is None:
+        return ""
+    if isinstance(host, bytes):
+        return host.decode("ascii")
+    return host
+
+
+def _install_async_pool_with_target_behavior(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    captured_requests: list[object],
+    fail_targets: frozenset[str] = frozenset(),
+    connect_errors: dict[str, Exception] | None = None,
+    redirect_on_targets: frozenset[str] = frozenset(),
+    closed_pools: list[bool] | None = None,
+) -> None:
+    errors = connect_errors or {}
+
+    async def response_body():
+        yield b"{}"
+
+    class TargetAwareAsyncConnectionPool:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        async def handle_async_request(self, request: object) -> object:
+            captured_requests.append(request)
+            target = _decode_core_host(request.url.host)
+            if target in fail_targets:
+                error = errors.get(target)
+                if error is not None:
+                    raise error
+                raise safe_http.httpcore.ConnectError(
+                    f"connection refused for {target}"
+                )
+            if target in redirect_on_targets:
+                return safe_http.httpcore.Response(
+                    302,
+                    headers=[
+                        (b"location", b"https://169.254.169.254/latest/meta-data")
+                    ],
+                    content=response_body(),
+                )
+            return safe_http.httpcore.Response(200, content=response_body())
+
+        async def aclose(self) -> None:
+            if closed_pools is not None:
+                closed_pools.append(True)
+
+    monkeypatch.setattr(
+        safe_http.httpcore,
+        "AsyncConnectionPool",
+        TargetAwareAsyncConnectionPool,
+    )
+
+
+def _install_sync_pool_with_target_behavior(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    captured_requests: list[httpcore.Request],
+    fail_targets: frozenset[str] = frozenset(),
+    connect_errors: dict[str, Exception] | None = None,
+    redirect_on_targets: frozenset[str] = frozenset(),
+    closed_pools: list[bool] | None = None,
+) -> None:
+    errors = connect_errors or {}
+
+    class TargetAwareConnectionPool:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def handle_request(self, request: httpcore.Request) -> httpcore.Response:
+            captured_requests.append(request)
+            target = _decode_core_host(request.url.host)
+            if target in fail_targets:
+                error = errors.get(target)
+                if error is not None:
+                    raise error
+                raise safe_http.httpcore.ConnectError(
+                    f"connection refused for {target}"
+                )
+            if target in redirect_on_targets:
+                return safe_http.httpcore.Response(
+                    302,
+                    headers=[
+                        (b"location", b"https://169.254.169.254/latest/meta-data")
+                    ],
+                    content=[b"{}"],
+                )
+            return safe_http.httpcore.Response(200, content=[b"{}"])
+
+        def close(self) -> None:
+            if closed_pools is not None:
+                closed_pools.append(True)
+
+    monkeypatch.setattr(
+        safe_http.httpcore,
+        "ConnectionPool",
+        TargetAwareConnectionPool,
+    )
 
 
 @pytest.mark.parametrize(
@@ -240,7 +354,9 @@ async def test_api_https_client_when_request_has_params_preserves_them_for_trans
     )
 
 
-async def test_model_http_client_when_localhost_resolves_off_loopback_rejects_before_connecting() -> None:
+async def test_model_http_client_when_localhost_resolves_off_loopback_rejects_before_connecting() -> (
+    None
+):
     endpoint, policy = validate_model_discovery_endpoint("http://localhost:5272")
     resolver = _AsyncResolver(("93.184.216.34",))
 
@@ -252,6 +368,229 @@ async def test_model_http_client_when_localhost_resolves_off_loopback_rejects_be
             await client.get(endpoint)
 
     assert resolver.calls == [("localhost", 5272)]
+
+
+async def test_loopback_client_when_first_resolved_target_refuses_connection_falls_back_to_second_preserving_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """T1(a): validated multi-address loopback DNS must dial every target on connect failure."""
+    captured_requests: list[object] = []
+    _install_async_pool_with_target_behavior(
+        monkeypatch,
+        captured_requests=captured_requests,
+        fail_targets=frozenset({"::1"}),
+    )
+    endpoint, policy = validate_model_discovery_endpoint("http://localhost:5272")
+    resolver = _AsyncResolver(("::1", "127.0.0.1"))
+
+    async with create_model_discovery_async_client(
+        policy,
+        resolver=resolver,
+    ) as client:
+        response = await client.get(f"{endpoint}/v1/models")
+
+    core_request = captured_requests[-1]
+
+    assert response.status_code == 200
+    assert resolver.calls == [("localhost", 5272)]
+    assert len(captured_requests) == 2
+    assert _decode_core_host(captured_requests[0].url.host) == "::1"
+    assert _decode_core_host(core_request.url.host) == "127.0.0.1"
+    assert [value for key, value in core_request.headers if key.lower() == b"host"] == [
+        b"localhost:5272"
+    ]
+
+
+async def test_public_https_client_when_first_resolved_target_refuses_connection_falls_back_to_second_preserving_host_and_sni(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """T1(b): PUBLIC_HTTPS must apply the same connect-fallback rule as loopback."""
+    captured_requests: list[object] = []
+    first_public = "2606:2800:220:1:248:1893:25c8:1946"
+    second_public = "93.184.216.34"
+    _install_async_pool_with_target_behavior(
+        monkeypatch,
+        captured_requests=captured_requests,
+        fail_targets=frozenset({first_public}),
+    )
+    resolver = _AsyncResolver((first_public, second_public))
+
+    async with create_public_https_async_client(resolver=resolver) as client:
+        response = await client.get("https://models.example.test/status")
+
+    core_request = captured_requests[-1]
+
+    assert response.status_code == 200
+    assert resolver.calls == [("models.example.test", 443)]
+    assert len(captured_requests) == 2
+    assert _decode_core_host(captured_requests[0].url.host) == first_public
+    assert _decode_core_host(core_request.url.host) == second_public
+    assert [value for key, value in core_request.headers if key.lower() == b"host"] == [
+        b"models.example.test"
+    ]
+    assert core_request.extensions["sni_hostname"] == "models.example.test"
+
+
+async def test_loopback_client_when_dns_mixes_loopback_and_private_addresses_rejects_before_dialing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """T1(c): unsafe mixed DNS answers must fail validation before any dial attempt."""
+    dial_attempted = False
+
+    class ConnectionMustNotBeCreated:
+        def __init__(self, **_: object) -> None:
+            nonlocal dial_attempted
+            dial_attempted = True
+            raise AssertionError(
+                "unsafe mixed DNS answers must be blocked before connecting"
+            )
+
+    monkeypatch.setattr(
+        safe_http.httpcore,
+        "AsyncConnectionPool",
+        ConnectionMustNotBeCreated,
+    )
+    endpoint, policy = validate_model_discovery_endpoint("http://localhost:5272")
+    resolver = _AsyncResolver(("127.0.0.1", "10.0.0.4"))
+
+    async with create_model_discovery_async_client(
+        policy,
+        resolver=resolver,
+    ) as client:
+        with pytest.raises(UnsafeResolvedAddressError):
+            await client.get(f"{endpoint}/v1/models")
+
+    assert resolver.calls == [("localhost", 5272)]
+    assert dial_attempted is False
+
+
+async def test_loopback_client_when_fallback_succeeds_redirect_responses_remain_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """T1(d): connect fallback must not follow redirects on the successful dial target."""
+    captured_requests: list[object] = []
+    _install_async_pool_with_target_behavior(
+        monkeypatch,
+        captured_requests=captured_requests,
+        fail_targets=frozenset({"::1"}),
+        redirect_on_targets=frozenset({"127.0.0.1"}),
+    )
+    endpoint, policy = validate_model_discovery_endpoint("http://localhost:5272")
+    resolver = _AsyncResolver(("::1", "127.0.0.1"))
+
+    async with create_model_discovery_async_client(
+        policy,
+        resolver=resolver,
+    ) as client:
+        response = await client.get(f"{endpoint}/v1/models")
+
+    assert len(captured_requests) == 2
+    assert response.status_code == 302
+    assert response.headers["location"] == "https://169.254.169.254/latest/meta-data"
+    assert response.url == httpx.URL(f"{endpoint}/v1/models")
+    with pytest.raises(RedirectBlockedError):
+        require_non_redirect_success(response)
+
+
+async def test_loopback_client_when_all_resolved_targets_refuse_connection_raises_last_connect_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """T1(e): every validated target may be tried; the last connect error is propagated."""
+    captured_requests: list[object] = []
+    closed_pools: list[bool] = []
+    _install_async_pool_with_target_behavior(
+        monkeypatch,
+        captured_requests=captured_requests,
+        fail_targets=frozenset({"::1", "127.0.0.1"}),
+        connect_errors={
+            "::1": safe_http.httpcore.ConnectError("connection refused for ::1"),
+            "127.0.0.1": safe_http.httpcore.ConnectError(
+                "connection refused for 127.0.0.1"
+            ),
+        },
+        closed_pools=closed_pools,
+    )
+    endpoint, policy = validate_model_discovery_endpoint("http://localhost:5272")
+    resolver = _AsyncResolver(("::1", "127.0.0.1"))
+
+    async with create_model_discovery_async_client(
+        policy,
+        resolver=resolver,
+    ) as client:
+        with pytest.raises(safe_http.httpcore.ConnectError, match="127.0.0.1"):
+            await client.get(f"{endpoint}/v1/models")
+
+    assert resolver.calls == [("localhost", 5272)]
+    assert len(captured_requests) == 2
+    assert _decode_core_host(captured_requests[0].url.host) == "::1"
+    assert _decode_core_host(captured_requests[1].url.host) == "127.0.0.1"
+    assert closed_pools == [True, True]
+
+
+def test_loopback_sync_client_when_first_resolved_target_refuses_connection_falls_back_to_second_preserving_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """T1(a) sync: validated multi-address loopback DNS must dial every target on connect failure."""
+    captured_requests: list[httpcore.Request] = []
+    _install_sync_pool_with_target_behavior(
+        monkeypatch,
+        captured_requests=captured_requests,
+        fail_targets=frozenset({"::1"}),
+    )
+    endpoint, policy = validate_model_discovery_endpoint("http://localhost:5272")
+    resolver = _SyncResolver(("::1", "127.0.0.1"))
+
+    with safe_http.create_model_discovery_client(
+        policy,
+        resolver=resolver,
+    ) as client:
+        response = client.get(f"{endpoint}/v1/models")
+
+    core_request = captured_requests[-1]
+
+    assert response.status_code == 200
+    assert resolver.calls == [("localhost", 5272)]
+    assert len(captured_requests) == 2
+    assert _decode_core_host(captured_requests[0].url.host) == "::1"
+    assert _decode_core_host(core_request.url.host) == "127.0.0.1"
+    assert [value for key, value in core_request.headers if key.lower() == b"host"] == [
+        b"localhost:5272"
+    ]
+
+
+def test_loopback_sync_client_when_all_resolved_targets_refuse_connection_raises_last_connect_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """T1(e) sync: every validated target may be tried; the last connect error is propagated."""
+    captured_requests: list[httpcore.Request] = []
+    closed_pools: list[bool] = []
+    _install_sync_pool_with_target_behavior(
+        monkeypatch,
+        captured_requests=captured_requests,
+        fail_targets=frozenset({"::1", "127.0.0.1"}),
+        connect_errors={
+            "::1": safe_http.httpcore.ConnectError("connection refused for ::1"),
+            "127.0.0.1": safe_http.httpcore.ConnectError(
+                "connection refused for 127.0.0.1"
+            ),
+        },
+        closed_pools=closed_pools,
+    )
+    endpoint, policy = validate_model_discovery_endpoint("http://localhost:5272")
+    resolver = _SyncResolver(("::1", "127.0.0.1"))
+
+    with safe_http.create_model_discovery_client(
+        policy,
+        resolver=resolver,
+    ) as client:
+        with pytest.raises(safe_http.httpcore.ConnectError, match="127.0.0.1"):
+            client.get(f"{endpoint}/v1/models")
+
+    assert resolver.calls == [("localhost", 5272)]
+    assert len(captured_requests) == 2
+    assert _decode_core_host(captured_requests[0].url.host) == "::1"
+    assert _decode_core_host(captured_requests[1].url.host) == "127.0.0.1"
+    assert closed_pools == [True, True]
 
 
 def test_require_public_addresses_when_dns_results_are_public_returns_numeric_dial_targets() -> (
@@ -318,7 +657,9 @@ def test_require_public_addresses_when_dns_returns_no_addresses_rejects() -> Non
         require_public_addresses("api.example.test", ())
 
 
-def test_require_public_addresses_when_dns_returns_non_numeric_address_rejects() -> None:
+def test_require_public_addresses_when_dns_returns_non_numeric_address_rejects() -> (
+    None
+):
     with pytest.raises(UnsafeResolvedAddressError, match="non-numeric"):
         require_public_addresses("api.example.test", ("not-an-ip",))
 

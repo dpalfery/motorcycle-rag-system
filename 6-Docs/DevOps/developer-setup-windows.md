@@ -1,5 +1,7 @@
 # Windows Setup
 
+Part of the [Developer Machine Setup Standard](developer-setup-standard.md).
+
 Default to Windows-native setup. Use WSL only if the user explicitly wants a Linux development path.
 
 ## Package Manager

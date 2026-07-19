@@ -7,8 +7,13 @@ import logging
 import os
 import time
 
-import httpx
 import openai
+
+from security.safe_http import (
+    create_model_provider_async_client,
+    require_non_redirect_success,
+    validate_model_provider_endpoint,
+)
 
 from .embedder import Embedder
 
@@ -76,6 +81,10 @@ class OpenAIEmbedder(Embedder):
     :class:`~embeddings.truncating_embedder.TruncatingEmbedder` can slice
     them client-side.  Set ``EMBEDDING_DIMS`` or leave unset to use the
     default of 1536.
+
+    Outbound HTTP uses policy-bound ``safe_http`` transports (public HTTPS or
+    literal-loopback HTTP). Invalid endpoints raise ``EndpointPolicyError``
+    at construction.
     """
 
     def __init__(
@@ -92,32 +101,41 @@ class OpenAIEmbedder(Embedder):
             or os.getenv("EMBEDDING_PROVIDER_ENDPOINT")
             or "http://localhost:1234/v1"
         )
-        self._model: str = (
-            model
-            or os.getenv("EMBEDDING_MODEL")
-            or "qwen3-embedding"
-        )
+        _, self._policy = validate_model_provider_endpoint(self._endpoint)
+        self._model: str = model or os.getenv("EMBEDDING_MODEL") or "qwen3-embedding"
         self._api_key: str = (
             api_key
             or os.getenv("EMBEDDING_PROVIDER_API_KEY")
             or _LOCAL_PLACEHOLDER_API_KEY
         )
         self._dims: int = dims or int(os.getenv("EMBEDDING_DIMS", "1536"))
-        self._request_timeout_seconds = request_timeout_seconds or _get_positive_float_env(
-            "EMBEDDING_REQUEST_TIMEOUT_SECONDS",
-            _DEFAULT_REQUEST_TIMEOUT_SECONDS,
+        self._request_timeout_seconds = (
+            request_timeout_seconds
+            or _get_positive_float_env(
+                "EMBEDDING_REQUEST_TIMEOUT_SECONDS",
+                _DEFAULT_REQUEST_TIMEOUT_SECONDS,
+            )
         )
-        self._health_timeout_seconds = health_timeout_seconds or _get_positive_float_env(
-            "EMBEDDING_HEALTH_TIMEOUT_SECONDS",
-            _DEFAULT_HEALTH_TIMEOUT_SECONDS,
+        self._health_timeout_seconds = (
+            health_timeout_seconds
+            or _get_positive_float_env(
+                "EMBEDDING_HEALTH_TIMEOUT_SECONDS",
+                _DEFAULT_HEALTH_TIMEOUT_SECONDS,
+            )
         )
         self._last_health_status: str | None = None
         self._last_health_time: float = 0.0
 
     def _create_client(self) -> openai.AsyncOpenAI:
+        """Build an OpenAI client bound to a policy-aware httpx transport."""
+        http_client = create_model_provider_async_client(
+            self._policy,
+            timeout=self._request_timeout_seconds,
+        )
         return openai.AsyncOpenAI(
             base_url=self._endpoint,
             api_key=self._api_key,  # may be _LOCAL_PLACEHOLDER_API_KEY for unauthenticated servers
+            http_client=http_client,
         )
 
     async def _close_client(self, client: openai.AsyncOpenAI) -> None:
@@ -190,15 +208,19 @@ class OpenAIEmbedder(Embedder):
 
     async def check_status(self) -> str:
         now = time.monotonic()
-        if self._last_health_status is not None and (now - self._last_health_time) < _HEALTH_CACHE_TTL_SECONDS:
+        if (
+            self._last_health_status is not None
+            and (now - self._last_health_time) < _HEALTH_CACHE_TTL_SECONDS
+        ):
             return self._last_health_status
 
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(self._health_timeout_seconds)
+            async with create_model_provider_async_client(
+                self._policy,
+                timeout=self._health_timeout_seconds,
             ) as client:
                 response = await client.get(self._endpoint)
-                response.raise_for_status()
+                require_non_redirect_success(response)
             self._last_health_status = "connected"
         except Exception:
             self._last_health_status = "disconnected"

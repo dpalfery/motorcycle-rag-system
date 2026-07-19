@@ -26,7 +26,7 @@ metadata:
 4. **Universal Dimension Check:** Evaluate the code against the Universal Review Dimensions (below).
 5. **Technology-Specific Check:** Evaluate the code against the checklists found in the references loaded in Step 3.
 6. **Security Review (always):** Perform a branch-diff vulnerability pass following [Security Review](references/security-review.md) — identify HIGH-CONFIDENCE (≥8/10) exploitable vulnerabilities newly introduced by the change, applying its false-positive exclusions.
-7. **Pre-Merge Test & Coverage Gate (always — blocking):** Run the unified test + coverage suite to confirm every test passes **and** the mandatory unit-coverage thresholds declared in [`5-Test/scripts/coverage-config.json`](../../5-Test/scripts/coverage-config.json) are met. This gate is **non-negotiable** for an Approve verdict; failing it downgrades the verdict to `Needs Changes` regardless of how clean the other findings are.
+7. **Pre-Merge Test & Coverage Gate (always — blocking):** Run the unified test + coverage suite to confirm every test passes **and** the mandatory unit-coverage thresholds declared in the coverage config (path declared as **Test Coverage Config** in the repository root `AGENTS.md`) are met. This gate is **non-negotiable** for an Approve verdict; failing it downgrades the verdict to `Needs Changes` regardless of how clean the other findings are.
    - **macOS / Linux (default):**
      ```bash
      bash 5-Test/scripts/run-comprehensive-tests.sh

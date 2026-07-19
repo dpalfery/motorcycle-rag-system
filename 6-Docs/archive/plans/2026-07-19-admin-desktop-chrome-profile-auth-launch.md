@@ -1,7 +1,8 @@
 # Admin Desktop — Chrome profile enumeration and auth browser launch (macOS)
 
-**Status:** Ready  
+**Status:** Archived  
 **Date:** 2026-07-19  
+**Archived:** 2026-07-19  
 **Goal:** Fix Admin Desktop so Chrome profiles enumerate correctly on macOS and Login reliably opens the Entra auth page in the selected Chrome profile.
 
 ---
@@ -84,8 +85,8 @@ These two bugs are related in UX (both appear on the sign-in screen) but have di
 | T3 | Rust | macOS `open_browser` | Implement D3 binary-first launch; keep `spawn` error mapping clear (`failed to open Chrome on macOS: …`). Symbol: `open_browser` in `auth.rs`. | `tauri-dev` |
 | T4 | React | SignInScreen / auth UX | Surface enumeration failure; add **System default browser** option (pass `null`/`undefined` to `auth_sign_in`); fix invoke error extraction so Tauri string errors display. Files: `SignInScreen.tsx`, `auth.ts` as needed. | `react-dev` |
 | T5 | Verify | Unit + manual | `cargo test` auth module; `npm test` / `npx tsc --noEmit` as applicable; manual macOS: Chrome already running + ≥2 real profiles → dropdown lists them; Login opens Entra URL in selected profile; default-browser path still works. | `test-dev`, `tauri-dev`, `react-dev` |
-| T6 | Docs | Canonical auth doc | Update `6-Docs/MotorcycleRAG.AdminDesktop/authentication.md` for enumeration failure UX and macOS launch command. | `app-docs-standard` |
-| T7 | Review | Quality gates | Code review + security review of auth launch / path handling (no command injection via profile directory; validate profile directory as Chrome profile folder name pattern). | `code-review`, `security-review` |
+| T6 | Docs | Canonical auth doc | Update `6-Docs/MotorcycleRAG.AdminDesktop/authentication.md` for enumeration failure UX and macOS launch command. **Done 2026-07-19:** verified against `auth.rs` / `lib.rs` / `SignInScreen.tsx` / `auth.ts`; catalog last-reviewed bumped. | `app-docs-standard` |
+| T7 | Review | Quality gates | Code review + security review of auth launch / path handling (no command injection via profile directory; validate profile directory as Chrome profile folder name pattern). **Done 2026-07-19:** code-reviewer Approve; security-review 0 medium/high/critical. | `code-review`, `security-review` |
 
 ### Acceptance criteria / test contract
 
@@ -171,3 +172,19 @@ T1 (failing tests)
 - `1-Presentation/MotorcycleRAG.AdminDesktop/src/screens/SignInScreen.tsx`
 - `1-Presentation/MotorcycleRAG.AdminDesktop/src/lib/auth.ts`
 - `6-Docs/MotorcycleRAG.AdminDesktop/authentication.md`
+
+---
+
+## 10. Closeout verification (2026-07-19)
+
+| Criterion | Verdict | Evidence |
+| --- | --- | --- |
+| **AC1 — Enumeration** | Met | `ChromeProfilesResult` + pure `parse_chrome_profiles_from_local_state`; failures return empty `profiles` + diagnostic (never silent sole `Default`). Sign-in UI warns and offers **System default browser**. Automated: `cargo test auth::` (16 passed); Vitest auth + SignInScreen (28 passed). |
+| **AC2 — Launch (macOS)** | Met (implementation + automated); residual operator check | Binary-first launch + `open -na` fallback via `build_macos_chrome_launch_command`; spawn errors map to `failed to open Chrome on macOS: …`; `formatInvokeError` surfaces Rust string errors. Unit coverage for argv builder. **Residual:** operator should confirm at runtime that Login with Chrome already running opens the Entra page in the selected profile. |
+| **AC3 — Regression** | Met | Windows/Linux launch shapes unchanged; keyring / PKCE / restore / refresh untouched except shared helpers. code-reviewer: Approve; security-review: 0 medium/high/critical. |
+| **T6 Docs** | Met | Canonical `6-Docs/MotorcycleRAG.AdminDesktop/authentication.md` already documents enumeration failure UX, system-default escape hatch, profile-directory validation, and macOS binary/`-na` launch. Catalog last-reviewed 2026-07-19. |
+| **T7 Reviews** | Met | code-reviewer Approve (minors applied); security-review clean. |
+
+**Canonical guidance:** [`6-Docs/MotorcycleRAG.AdminDesktop/authentication.md`](../../MotorcycleRAG.AdminDesktop/authentication.md) (§Chrome Profile Selection, §Chrome launch by platform, `auth_list_chrome_profiles`).
+
+**Residual operator check (non-blocking):** Manual macOS smoke — Chrome already running, ≥2 real profiles → dropdown lists them; Login opens Entra in the selected profile; system-default-browser path still works.

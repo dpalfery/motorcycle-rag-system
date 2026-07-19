@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -51,7 +52,7 @@ public class AccessRequestService {
             _logger.LogInformation(
                 "Returning existing access request state for {Provider}/{Email}",
                 request.Provider,
-                normalizedEmail);  // codeql[cs/log-forging]
+                PiiMasking.MaskEmailForLog(normalizedEmail));  // codeql[cs/exposure-of-sensitive-information]
 
             _telemetryService.TrackOnboardingTransition(
                 existingRequest.RequestId,
@@ -73,7 +74,7 @@ public class AccessRequestService {
                 ex,
                 "Access-request creation raced with an existing request for {Provider}/{Email}",
                 request.Provider,
-                normalizedEmail);  // codeql[cs/log-forging]
+                PiiMasking.MaskEmailForLog(normalizedEmail));  // codeql[cs/exposure-of-sensitive-information]
 
             existingRequest = await _accessRequestRepository.GetByProviderAndEmailAsync(normalizedEmail, request.Provider);
             if (existingRequest != null) {

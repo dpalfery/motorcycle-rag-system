@@ -76,7 +76,7 @@ All auth commands are registered in `lib.rs` via `tauri::generate_handler![]` an
 1. Generate PKCE `code_verifier` and `code_challenge` via `oauth2::PkceCodeChallenge::new_random_sha256()`.
 2. Bind `tokio::net::TcpListener` on `127.0.0.1:0` (random ephemeral port).
 3. Build the Entra authorize URL with scopes: `{scope}`, `openid`, `profile`, `offline_access`.
-4. Open the URL in the system browser. If `profile_directory` is `Some`, launch Google Chrome with `--profile-directory` flag (platform-specific: `open -a` on macOS, direct path on Windows, `google-chrome` on Linux). If `None`, open the default browser via `open` (macOS), `cmd /c start` (Windows), or `xdg-open` (Linux).
+4. Open the authorize URL. If `profile_directory` is `Some`, launch **Google Chrome stable** with `--profile-directory` (see [Chrome launch by platform](#chrome-launch-by-platform)). The directory value is validated as a Chrome profile folder name before spawn. If `None`, open the system default browser via `open` (macOS), `cmd /c start` (Windows), or `xdg-open` (Linux).
 5. Accept one TCP connection on the loopback listener, read the GET request, write a "Sign-in complete" HTML response, extract `code` + `state` from the query string.
 6. Validate CSRF state (mismatch → hard error).
 7. Exchange the authorization code for tokens via `POST {authority}/oauth2/v2.0/token` using the `oauth2` crate's `exchange_code()` with PKCE verifier.
@@ -134,19 +134,23 @@ Deletes the persisted session tokens from the OS keyring via `delete_tokens()`. 
 
 | Aspect | Detail |
 | --- | --- |
-| **File** | `auth.rs` → `list_chrome_profiles()` |
-| **Signature** | `fn list_chrome_profiles() -> Vec<ChromeProfile>` |
-| **Tauri command** | `fn auth_list_chrome_profiles()` |
+| **File** | `auth.rs` → `list_chrome_profiles()` / `discover_chrome_profiles_at()` / `parse_chrome_profiles_from_local_state()` |
+| **Signature** | `fn list_chrome_profiles() -> ChromeProfilesResult` |
+| **Tauri command** | `fn auth_list_chrome_profiles() -> ChromeProfilesResult` |
+| **Return shape** | `{ profiles: ChromeProfile[], error: string \| null }` (camelCase over IPC) |
+
+**Scope:** Google Chrome **stable** only (`Google/Chrome` / `google-chrome` Local State paths). Chrome Beta, Canary, Chromium, Edge, and Arc are out of scope for this picker.
 
 **Flow:**
 
-1. Resolve the Chrome `Local State` file path (platform-specific):
+1. Resolve the Chrome stable `Local State` file path (platform-specific):
    - macOS: `~/Library/Application Support/Google/Chrome/Local State`
    - Windows: `%LOCALAPPDATA%\Google\Chrome\User Data\Local State`
    - Linux: `~/.config/google-chrome/Local State`
-2. Parse the JSON `profile.info_cache` object to extract each profile's `directory`, `name`, and `user_name`.
+2. Read the file and parse the JSON `profile.info_cache` object into each profile's `directory`, `name`, and `user_name` (pure helper `parse_chrome_profiles_from_local_state`).
 3. Sort: `"Default"` first, then alphabetical by directory.
-4. If Chrome is not installed or the file cannot be parsed, return `[{ directory: "Default", name: "Default" }]`.
+4. On success: return `{ profiles: [...], error: null }`.
+5. On failure (unsupported platform path, I/O error, invalid JSON, or missing/non-object `info_cache`): return `{ profiles: [], error: "<diagnostic>" }`. **Never** invent a silent sole fake `Default` profile that looks like successful discovery.
 
 ## Keyring Storage
 
@@ -233,13 +237,24 @@ This is fire-and-forget — the UI never blocks on it. If a valid session is res
 
 ## Chrome Profile Selection
 
-The `SignInScreen` component offers a Chrome profile picker before sign-in:
+The `SignInScreen` browser picker (`listChromeProfiles()` → `auth_list_chrome_profiles`) works as follows:
 
-1. On mount, calls `invoke("auth_list_chrome_profiles")` to enumerate profiles from Chrome's `Local State` file.
-2. Displays a `<select>` dropdown showing each profile's `name` and optional `userName`.
-3. The selected profile is persisted to the Tauri config store as `selectedChromeProfile`.
-4. When the user clicks "Sign in with Microsoft", the selected profile directory is passed to `auth_sign_in` as `profileDirectory`.
-5. If no Chrome profile is selected, the system default browser is used.
+1. On mount, loads `{ profiles, error }` from Chrome stable's `Local State` (see [`auth_list_chrome_profiles`](#auth_list_chrome_profiles)).
+2. Always offers **System default browser (recommended)** (`SYSTEM_DEFAULT_BROWSER` = `""` in `auth.ts`). Choosing it passes `profileDirectory: null` to `auth_sign_in`, which opens the OS default browser (not a Chrome profile).
+3. When enumeration succeeds, appends each real Chrome profile (`name` and optional `userName`) to the `<select>`.
+4. When enumeration fails or returns no profiles, shows a warning with the diagnostic (or `"Could not read Chrome profiles"`) and defaults the selection to system default browser. Sign-in remains available via that escape hatch; Full Disk Access is not a shipping prerequisite.
+5. Persists the selection in the Tauri config store as `selectedChromeProfile` (empty string for system default; otherwise a Chrome profile directory such as `Default` or `Profile 1`).
+6. Sign-in invoke failures (including Rust launch/timeout/CSRF strings) are shown in the error banner via `formatInvokeError` (string errors are not collapsed to a generic `"Sign-in failed."`).
+
+### Chrome launch by platform
+
+When `profileDirectory` is non-null, Rust validates it with `is_valid_chrome_profile_directory` (non-empty, ≤128 chars, no path separators or `..`, ASCII alphanumeric plus space / `.` / `_` / `-` / `'`) before spawning. Invalid values return an actionable error such as `invalid Chrome profile directory '…': expected a Chrome profile folder name`.
+
+| Platform | Launch behavior |
+| --- | --- |
+| **macOS** | Prefer the Chrome stable binary at `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` with argv `--profile-directory={dir}` and the authorize URL. If that binary is missing, fall back to `open -na "Google Chrome" --args --profile-directory={dir} {url}` (`-n` / `-na` required so args apply when Chrome is already running). Do **not** use `open -a` without `-n`. Spawn failures map to `failed to open Chrome on macOS: …`. |
+| **Windows** | Try `C:\Program Files\Google\Chrome\Application\chrome.exe` then the `(x86)` path with `--profile-directory` + URL. |
+| **Linux** | `google-chrome --profile-directory={dir} {url}`. |
 
 ## Sign-out Flow
 
@@ -286,6 +301,15 @@ interface ChromeProfile {
   name: string;
   userName?: string;
 }
+
+/** Result of auth_list_chrome_profiles — never a silent fake sole Default. */
+interface ChromeProfilesResult {
+  profiles: ChromeProfile[];
+  error: string | null;
+}
+
+/** Select value / persisted marker for system-default-browser sign-in. */
+const SYSTEM_DEFAULT_BROWSER = "";
 ```
 
 ## Zustand Store (`useAuth`)
@@ -301,7 +325,7 @@ interface ChromeProfile {
 | Action | Description |
 | --- | --- |
 | `setSession(token, account, expiresAt)` | Sets session fields and flips `signedIn = true` |
-| `signIn(chromeProfileDirectory?)` | Calls `auth_sign_in` Rust command, then `setSession` |
+| `signIn(chromeProfileDirectory?)` | Calls `auth_sign_in` with a Chrome profile directory, or `null`/`undefined` for system default browser; then `setSession` |
 | `signOut()` | Calls `auth_sign_out` Rust command, then clears all state |
 | `restoreSession()` | Calls `auth_restore_session` Rust command; returns `true` if session restored |
 | `refreshToken()` | Calls `auth_refresh_token` Rust command; guarded by `isRefreshing` |

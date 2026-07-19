@@ -6,7 +6,7 @@ This catalog defines the maintained documentation surface. `Current` means the R
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | MotorcycleRAG system | System | repository root | [README](../README.md) | [system](system/) | Maintainers | 2026-07-18 | Current |
 | MotorcycleRAG API | Application | `1-Presentation/MotorcycleRAG.API` | [README](../1-Presentation/MotorcycleRAG.API/README.md) | [API docs](MotorcycleRAG.API/) | API maintainers | 2026-07-13 | Current |
-| MotorcycleRAG Admin Desktop | Application | `1-Presentation/MotorcycleRAG.AdminDesktop` | [README](../1-Presentation/MotorcycleRAG.AdminDesktop/README.md) | [Admin docs](MotorcycleRAG.AdminDesktop/) | Admin Desktop maintainers | 2026-07-18 | Current |
+| MotorcycleRAG Admin Desktop | Application | `1-Presentation/MotorcycleRAG.AdminDesktop` | [README](../1-Presentation/MotorcycleRAG.AdminDesktop/README.md) | [Admin docs](MotorcycleRAG.AdminDesktop/) | Admin Desktop maintainers | 2026-07-19 | Current |
 | MotorcycleRAG Mobile App | Application | `1-Presentation/MotorcycleRAG.MobileApp` | [README](../1-Presentation/MotorcycleRAG.MobileApp/README.md) | [Mobile docs](MotorcycleRAG.MobileApp/) | Mobile maintainers | 2026-07-13 | Current |
 | MotorcycleRAG Web UI and BFF | Application pair | `1-Presentation/MotorcycleRag.WebUI`, `1-Presentation/MotorcycleRag.WebUI.BFF` | [README](../1-Presentation/MotorcycleRag.WebUI/README.md) | [Web UI docs](MotorcycleRag.WebUI/) | Web UI maintainers | 2026-07-13 | Current |
 | Local Processing Service | Service | `2-Application/local-processing-service` | [README](../2-Application/local-processing-service/README.md) | [Processor docs](local-processing-service/) | Ingestion maintainers | 2026-07-18 | Current |

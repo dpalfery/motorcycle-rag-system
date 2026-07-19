@@ -52,8 +52,6 @@ export default function SignInScreen() {
         const match = result.profiles.find((p) => p.directory === persisted);
         if (match) {
           setSelectedProfile(match.directory);
-        } else if (persisted === SYSTEM_DEFAULT_BROWSER) {
-          setSelectedProfile(SYSTEM_DEFAULT_BROWSER);
         } else {
           // Recommended when no persisted Chrome profile match.
           setSelectedProfile(SYSTEM_DEFAULT_BROWSER);

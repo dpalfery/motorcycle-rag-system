@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories {
@@ -63,7 +64,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get access request for {Provider}/{Email}",
-                    provider, email);  // codeql[cs/log-forging]
+                    provider, PiiMasking.MaskEmailForLog(email));  // codeql[cs/exposure-of-sensitive-information]
                 throw new InvalidOperationException($"Failed to get access request for {email}", ex);
             }
         }
@@ -431,7 +432,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create access request for {Provider}/{Email}",
-                    request.Provider, request.Email);  // codeql[cs/log-forging]
+                    request.Provider, PiiMasking.MaskEmailForLog(request.Email));  // codeql[cs/exposure-of-sensitive-information]
                 throw new InvalidOperationException($"Failed to create access request for {request.Email}", ex);
             }
         }
@@ -455,7 +456,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to check pending access request for {Provider}/{Email}",
-                    provider, email);
+                    provider, PiiMasking.MaskEmailForLog(email));  // codeql[cs/exposure-of-sensitive-information]
                 throw new InvalidOperationException($"Failed to check access request for {email}", ex);
             }
         }

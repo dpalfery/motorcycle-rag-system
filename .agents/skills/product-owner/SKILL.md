@@ -1,7 +1,9 @@
 ---
 name: product-owner
 description: Use when authoring a feature spec's requirements (EARS), technical design, or test-driven task list — the phase playbooks for the product-owner planning flow.
+license: MIT
 metadata:
+  author: David R Palfery
   version: 1.0.0
 ---
 

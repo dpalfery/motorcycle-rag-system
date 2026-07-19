@@ -75,7 +75,7 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   signIn: async (chromeProfileDirectory?: string | null) => {
     const session = await invoke<AuthSession>("auth_sign_in", {
-      profileDirectory: chromeProfileDirectory ?? null,
+      profileDirectory: chromeProfileDirectory ? chromeProfileDirectory : null,
     });
     get().setSession(session.accessToken, session.account, session.expiresAt);
   },

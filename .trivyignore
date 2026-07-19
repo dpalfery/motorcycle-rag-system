@@ -11,3 +11,38 @@
 # does not exist in how these images are deployed.
 # Revisit and remove once the base image ships a patched util-linux (>= 2.41.4).
 CVE-2026-27456
+
+# The following OS-package CVEs have no fixed version available yet upstream (Trivy
+# reports a blank "Fixed Version") in the mcr.microsoft.com/dotnet/aspnet:10.0 base image.
+# Each requires an API surface or execution context this container never exercises:
+# single-process ASP.NET Core app running as non-root `USER app`, no local multi-user
+# shell, no PKCS#11 RPC server, no journald ForwardToWall, no direct calls to the
+# specific deprecated glibc resolver/iconv functions involved.
+#   - CVE-2026-6238, CVE-2026-5435, CVE-2026-4438, CVE-2026-4437, CVE-2026-4046 (libc6/libc-bin):
+#     deprecated glibc resolver-print functions (ns_printrr/fp_nquery), gethostbyaddr with a
+#     DNS nsswitch backend, and iconv() with the IBM1390/1399 charsets — none of which this
+#     app calls.
+#   - CVE-2026-13757 (libp11-kit0): unbounded recursion in the PKCS#11 RPC message parser;
+#     no PKCS#11 RPC server runs in this container.
+#   - CVE-2025-5222 (libicu74): stack overflow in the `genrb` resource-bundle compiler tool,
+#     which is not invoked at runtime by this app.
+#   - CVE-2024-2236 (libgcrypt20): timing side-channel in libgcrypt's RSA path; .NET's crypto
+#     stack does not route through libgcrypt.
+#   - CVE-2024-56433 (login/passwd — shadow-utils): default /etc/subuid range; irrelevant with
+#     no local multi-user accounts.
+#   - CVE-2026-40228 (libsystemd0/libudev1): systemd-journald ANSI-escape forwarding, gated on
+#     `ForwardToWall=yes` and a local multi-user terminal; neither exists here.
+#   - CVE-2026-27171 (zlib1g): unbounded loop in crc32_combine64/crc32_combine_gen64, reachable
+#     only via a caller-supplied crc32 combine call this app never makes.
+# Revisit and remove entries individually once each package ships a fix upstream.
+CVE-2026-6238
+CVE-2026-5435
+CVE-2026-4438
+CVE-2026-4437
+CVE-2026-4046
+CVE-2026-13757
+CVE-2025-5222
+CVE-2024-2236
+CVE-2024-56433
+CVE-2026-40228
+CVE-2026-27171

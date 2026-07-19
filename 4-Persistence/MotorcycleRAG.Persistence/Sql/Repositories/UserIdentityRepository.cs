@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories {
@@ -44,7 +45,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to resolve managed user identity for {Provider}/{Email}",
-                    provider, email);
+                    provider, PiiMasking.MaskEmailForLog(email));  // codeql[cs/exposure-of-sensitive-information]
                 throw new InvalidOperationException($"Failed to resolve identity for {email}", ex);
             }
         }

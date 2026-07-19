@@ -917,20 +917,11 @@ mod tests {
     fn test_parse_chrome_profiles_from_local_state_invalid_json_not_fake_default() {
         let result = parse_chrome_profiles_from_local_state("{ not valid json");
 
-        match result {
-            Ok(profiles) => {
-                assert!(
-                    profiles.is_empty(),
-                    "invalid JSON may return empty Ok, not invented profiles"
-                );
-                assert!(
-                    !looks_like_silent_fake_default(&profiles),
-                    "silent vec![Default] success is forbidden for invalid JSON"
-                );
-            }
-            Err(ChromeProfileParseError::InvalidJson) => {}
-            Err(other) => panic!("expected InvalidJson or empty Ok, got {other:?}"),
-        }
+        assert_eq!(
+            result,
+            Err(ChromeProfileParseError::InvalidJson),
+            "invalid JSON must return Err(InvalidJson), not Ok (including silent Default)"
+        );
     }
 
     #[test]
@@ -938,20 +929,11 @@ mod tests {
         let json = r#"{"profile":{"last_used":"Default"}}"#;
         let result = parse_chrome_profiles_from_local_state(json);
 
-        match result {
-            Ok(profiles) => {
-                assert!(
-                    profiles.is_empty(),
-                    "missing info_cache may return empty Ok, not invented profiles"
-                );
-                assert!(
-                    !looks_like_silent_fake_default(&profiles),
-                    "silent vec![Default] success is forbidden when info_cache is missing"
-                );
-            }
-            Err(ChromeProfileParseError::MissingInfoCache) => {}
-            Err(other) => panic!("expected MissingInfoCache or empty Ok, got {other:?}"),
-        }
+        assert_eq!(
+            result,
+            Err(ChromeProfileParseError::MissingInfoCache),
+            "missing info_cache must return Err(MissingInfoCache), not Ok (including silent Default)"
+        );
     }
 
     #[test]

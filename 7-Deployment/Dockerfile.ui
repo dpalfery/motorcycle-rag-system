@@ -1,4 +1,10 @@
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# Pick up Ubuntu security point-release patches ahead of the next base-image rebuild
+# (e.g. tar, gzip, perl-base) without waiting on Microsoft's image cadence.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 EXPOSE 8080
 

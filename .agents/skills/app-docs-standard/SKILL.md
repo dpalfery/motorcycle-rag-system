@@ -1,7 +1,9 @@
 ---
 name: app-docs-standard
 description: Apply the repository documentation standard when creating or updating application, service, tool, or system documentation.
+license: MIT
 metadata:
+  author: David R Palfery
   version: 1.1.0
 ---
 

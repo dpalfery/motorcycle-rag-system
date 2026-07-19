@@ -7,6 +7,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Domain.Enums;
+using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories {
@@ -130,7 +131,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<UserDTO>(sql, new { Email = email });
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get user by email {Email}", email);
+                _logger.LogError(ex, "Failed to get user by email {Email}", PiiMasking.MaskEmailForLog(email));  // codeql[cs/exposure-of-sensitive-information]
                 throw new InvalidOperationException($"Failed to get user by email {email}", ex);
             }
         }

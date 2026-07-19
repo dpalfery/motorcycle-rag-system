@@ -136,10 +136,20 @@ describe("auth store", () => {
     it("passes optional profile directory to auth_sign_in", async () => {
       vi.mocked(invoke).mockResolvedValue(mockAuthSession());
 
-      await useAuth.getState().signIn("/path/to/chrome/profile");
+      await useAuth.getState().signIn("Profile 1");
 
       expect(invoke).toHaveBeenCalledWith("auth_sign_in", {
-        profileDirectory: "/path/to/chrome/profile",
+        profileDirectory: "Profile 1",
+      });
+    });
+
+    it("treats empty string as system default (null profileDirectory)", async () => {
+      vi.mocked(invoke).mockResolvedValue(mockAuthSession());
+
+      await useAuth.getState().signIn("");
+
+      expect(invoke).toHaveBeenCalledWith("auth_sign_in", {
+        profileDirectory: null,
       });
     });
   });

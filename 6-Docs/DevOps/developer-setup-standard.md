@@ -23,11 +23,34 @@ This document does not replace per-component onboarding. Once the tooling below 
 - VS Code (or VS Code Insiders) with the extensions listed in `.vscode/extensions.json`.
 - MCP servers configured from `.mcp.json` and `.codex/config.toml`.
 - Ollama.
+- Pulumi CLI — only for developers who need to inspect or author IaC. Agents must never deploy with it.
 
 Platform-specific additions:
 
 - **macOS:** Xcode or Command Line Tools, with `DEVELOPER_DIR` set appropriately.
 - **Windows:** Visual Studio Build Tools or Visual Studio workloads needed for .NET, MAUI, and Tauri.
+
+## Preflight Inventory
+
+Read these repository-wide files before planning installs:
+
+- `AGENTS.md`
+- `global.json`
+- `MotorcycleRAG.sln`
+- `Directory.Build.props`
+- `NuGet.config`
+- `.vscode/extensions.json`
+- `.mcp.json`
+- `.codex/config.toml`
+- `docker-compose.yml`
+
+And each component's dependency manifest:
+
+- Web UI: `1-Presentation/MotorcycleRag.WebUI/package.json`
+- Admin Desktop: `1-Presentation/MotorcycleRAG.AdminDesktop/package.json`, `1-Presentation/MotorcycleRAG.AdminDesktop/src-tauri/Cargo.toml`
+- Local Processing Service: `2-Application/local-processing-service/pyproject.toml`
+- DbSetup CLI: `7-Deployment/DbSetup/README.md`, `7-Deployment/DbSetup/MotorcycleRAG.DbSetup/MotorcycleRAG.DbSetup.csproj`
+- Infrastructure: `7-Deployment/infrastructure/Pulumi.yaml`
 
 ## Platform Setup
 

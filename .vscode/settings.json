@@ -97,11 +97,13 @@
     "chat.exploreAgent.defaultModel": "rogueone//qwen3.5-9bt (customendpoint)",
     "chat.newSession.defaultMode": "orchestrator",
     "python.defaultInterpreterPath": "${workspaceFolder}/2-Application/local-processing-service/.venv/bin/python",
-    "python.testing.cwd": "${workspaceFolder}/2-Application/local-processing-service",
     "python.testing.pytestPath": "${workspaceFolder}/2-Application/local-processing-service/.venv/bin/pytest",
     "python.testing.pytestArgs": [
-        "tests",
-        "--ignore=tests/integration",
+        "-c",
+        "2-Application/local-processing-service/pyproject.toml",
+        "--rootdir=2-Application/local-processing-service",
+        "5-Test/local-processing-service.Tests",
+        "--ignore=5-Test/local-processing-service.Tests/integration",
         "-m",
         "not slow"
     ],

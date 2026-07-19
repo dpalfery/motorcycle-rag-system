@@ -63,14 +63,7 @@ Both API and BFF implement `HostHeaderValidationMiddleware` to prevent host head
 ## Rate Limiting
 
 ### Configuration (API `Program.cs`)
-Uses `RateLimitPartition` with role-based policies partitioned by user OID:
-
-| Role / Plan | Rate Limit | Window |
-|---|---|---|
-| `Roadrunner` (admin) | Unlimited | — |
-| Admin role | Unlimited | — |
-| `ProUser` | 500 requests | Per hour |
-| Default (Free/Plus) | 50 requests | Per hour |
+Uses `RateLimitPartition` with role-based policies partitioned by user OID. The per-role hourly/daily limits are declared as **Auth Design** (§7 Rate Limiting) in the root `AGENTS.md` registry — do not restate the specific numbers here, they drift independently of this skill.
 
 ### Implementation Rules
 - Partition key: User's OID from JWT claims
@@ -83,13 +76,7 @@ Uses `RateLimitPartition` with role-based policies partitioned by user OID:
 ## Authorization
 
 ### Policies
-| Policy | Requirements | Usage |
-|---|---|---|
-| Default | Authenticated user (JWT Bearer) | All API endpoints |
-| `mcr-api-admin` | Scope + Admin role + Client ID (`azp`) validation | Admin-only endpoints |
-
-### Client Isolation (Admin Endpoints)
-Admin endpoints MUST validate the `azp` (Authorized Party) claim matches the Admin App Client ID. This prevents other registered applications from accessing admin APIs.
+The specific policy names, scope/role requirements, and client-isolation (`azp` claim) rules are declared as **Auth Design** (§5.2, §5.3, §6) in the root `AGENTS.md` registry — do not restate them here. In general: every endpoint requires an authenticated user; admin endpoints additionally require the admin scope, admin role, and client-isolation check.
 
 ### Patterns
 ```csharp

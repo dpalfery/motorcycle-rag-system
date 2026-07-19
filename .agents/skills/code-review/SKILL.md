@@ -1,10 +1,10 @@
 ---
 name: code-review
-description: "Universal code review skill. Reviews code for correctness, security, performance, maintainability, and tech-specific best practices (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions). Enforces a mandatory pre-merge test + coverage gate via run-comprehensive-tests. Includes branch-diff security-vulnerability review and Snyk security scanning (SCA/SAST/IaC/container) — the single skill for all code review."
+description: "Universal code review skill. Reviews code for correctness, security, performance, maintainability, and tech-specific best practices (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions). Enforces a mandatory pre-merge test + coverage gate via run-comprehensive-tests. Includes a branch-diff security-vulnerability review — the single skill for all code review."
 license: MIT
 metadata:
   author: David R Palfery
-  version: 3.1.0
+  version: 3.2.0
 ---
 
 # Code Review Instructions for Code Review Agent
@@ -25,7 +25,7 @@ metadata:
    - [GitHub Actions](references/github-actions.md)
 4. **Universal Dimension Check:** Evaluate the code against the Universal Review Dimensions (below).
 5. **Technology-Specific Check:** Evaluate the code against the checklists found in the references loaded in Step 3.
-6. **Security Review (always):** Perform a branch-diff vulnerability pass following [Security Review](references/security-review.md) — identify HIGH-CONFIDENCE (≥8/10) exploitable vulnerabilities newly introduced by the change, applying its false-positive exclusions.
+6. **Security Review (always):** Invoke the `security-review` skill to perform a branch-diff vulnerability pass — identify HIGH-CONFIDENCE (≥8/10) exploitable vulnerabilities newly introduced by the change, applying its false-positive exclusions. Do not duplicate that skill's methodology here.
 7. **Pre-Merge Test & Coverage Gate (always — blocking):** Run the unified test + coverage suite to confirm every test passes **and** the mandatory unit-coverage thresholds declared in the coverage config (path declared as **Test Coverage Config** in the repository root `AGENTS.md`) are met. This gate is **non-negotiable** for an Approve verdict; failing it downgrades the verdict to `Needs Changes` regardless of how clean the other findings are.
    - **macOS / Linux (default):**
      ```bash
@@ -39,7 +39,7 @@ metadata:
      ```bash
      bash 5-Test/scripts/run-comprehensive-tests.sh --unit-coverage --coverage-threshold 85
      ```
-   - **Threshold enforcement:** the script reads `thresholds.fileLinePercent` and `thresholds.classLinePercent` from `5-Test/scripts/coverage-config.json` (both default to **85%**). Treat the higher of the two configured values as the mandatory floor for this gate and pass it via `--coverage-threshold` only when an override is required.
+   - **Threshold enforcement:** the script reads `thresholds.fileLinePercent` and `thresholds.classLinePercent` from the path declared as **Test Coverage Config** in the root `AGENTS.md` registry. Treat the higher of the two configured values as the mandatory floor for this gate and pass it via `--coverage-threshold` only when an override is required.
    - **What MUST pass to approve:**
      - Build succeeds (`dotnet build` step inside the script).
      - Unit tests (`.NET` `MotorcycleRAG.UnitTests.slnf`, Python `local-processing-service`, Admin Desktop Node, WebUI Node) all green.
@@ -50,8 +50,7 @@ metadata:
      - `--azure-integration-tests` — requires live Azure credentials; only required if the diff touches Azure-integrated code paths.
      - `--load-tests` — requires the API running locally; only required for performance-sensitive changes.
    - **On failure:** record each failing suite/coverage shortfall as a `Critical` finding in the "Pre-Merge Gate Findings" section of the report, including the exact failing test path, the command that was run, and the threshold gap. Do **not** return `Approve` until the gate is re-run green.
-8. **Snyk Scan (when tooling is available):** For dependency, SAST, IaC, or container coverage, run automated scans per [Snyk Security](references/snyk-security.md). Skip only if the Snyk MCP server is unavailable, and note that in the report.
-9. **Compile Feedback:** Create a structured output of findings as requested, folding Pre-Merge Gate, security-review, and Snyk findings into the same report. The Pre-Merge Gate status (pass/fail) MUST appear in the Overall Assessment.
+8. **Compile Feedback:** Create a structured output of findings as requested, folding Pre-Merge Gate and security-review findings into the same report. The Pre-Merge Gate status (pass/fail) MUST appear in the Overall Assessment.
 
 ## Universal Code Review Dimensions
 
@@ -76,7 +75,7 @@ Record the result of Step 7 first — it is the gating verdict. A failing gate f
   - **Location:** failing test path(s) and/or under-covered file(s) from the generated report (`TestResults/UnitCoverage/...`).
   - **Explanation:** Why the failure blocks merge (regression risk, coverage regression, threshold breach).
   - **Suggestion:** Actionable fix — failing test remediation, added unit test for uncovered branch, or threshold-rationale discussion if the floor is genuinely unattainable.
-- If the gate passes, emit a single line: `Pre-Merge Gate: PASS — run-comprehensive-tests green; coverage ≥ 85% file/class line.`
+- If the gate passes, emit a single line: `Pre-Merge Gate: PASS — run-comprehensive-tests green; coverage ≥ the Test Coverage Config threshold, file/class line.`
 
 ### Findings
 List each issue found clearly:
@@ -88,5 +87,5 @@ List each issue found clearly:
 ### Overall Assessment
 - **Verdict:** (Approve / Needs Changes)
 - **Pre-Merge Gate:** (PASS / FAIL) — reference the `run-comprehensive-tests` output artifact path.
-- **Coverage:** file-line / class-line percentages vs. the 85% floor (or other configured value).
+- **Coverage:** file-line / class-line percentages vs. the **Test Coverage Config** floor.
 - **Summary:** A brief summary of the overall code quality and a clear next step. When the Pre-Merge Gate is FAIL, the next step is the remediation actions listed in the Pre-Merge Gate Findings section, not additional code-style polish.

@@ -58,7 +58,7 @@ using var connection = await _connectionFactory.CreateOpenConnectionAsync();
 ```
 
 ### Connection String Rules
-- Retrieved from environment variable `MCR_API_SQL_CONNECTION_STRING`
+- Retrieved via the standard `IConfiguration` / Azure App Configuration + Key Vault process — never via environment variables. See the policy declared as **Configuration Policy** in the root `AGENTS.md` registry.
 - **NEVER** hardcode connection strings
 - **NEVER** embed credentials — Azure AD / Managed Identity authentication is enforced
 - Factory validates authentication method before creating connections

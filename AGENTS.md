@@ -68,5 +68,8 @@ Agents and skills should look up the following properties dynamically to find th
 - **Incremental Build:** `6-Docs/DevOps/incremental-build.md`
 - **Test Coverage Config:** `5-Test/scripts/coverage-config.json`
 - **Test Runner Scripts:** `5-Test/scripts/run-comprehensive-tests.sh` (macOS/Linux), `5-Test/scripts/run-comprehensive-tests.ps1` (Windows)
+- **Configuration Policy:** `6-Docs/reference/environment-variables.md`
+- **Auth Design:** `6-Docs/reference/auth-design.md`
+- **Azure Naming Standard:** `6-Docs/reference/azure-naming-standards.md`
 
 Skills and other portable instruction files SHALL reference these paths by the property name above (e.g. "the path declared as **Test Coverage Config** in the repository root `AGENTS.md`") rather than embedding a relative link that traverses out of the skill's own directory (e.g. `../../5-Test/...`). This keeps skill files self-contained and correct if repository layout changes — only this table needs updating.

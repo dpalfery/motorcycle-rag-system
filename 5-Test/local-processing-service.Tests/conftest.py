@@ -1,8 +1,29 @@
 """Shared pytest configuration for the local-processing-service tests."""
 
 import os
+import sys
+from pathlib import Path
 
 import pytest
+
+
+# Make the service source tree importable when pytest is launched from this
+# folder (e.g. VS Code Test Explorer right-click "Run Tests" on this folder).
+# The canonical CI / coverage command continues to use
+# `pytest -c pyproject.toml --rootdir=.` from `2-Application/local-processing-service/`
+# so it inherits `pythonpath = ["src"]` from `pyproject.toml`; this hook covers
+# the standalone case so the Test Explorer and any in-folder invocation work
+# without changing the source-of-truth config.
+_SERVICE_SRC = (
+    Path(__file__).resolve().parent.parent.parent
+    / "2-Application"
+    / "local-processing-service"
+    / "src"
+)
+if _SERVICE_SRC.is_dir():
+    src_str = str(_SERVICE_SRC)
+    if src_str not in sys.path:
+        sys.path.insert(0, src_str)
 
 
 # Enable auto mode so @pytest.mark.asyncio is applied to all async test functions.

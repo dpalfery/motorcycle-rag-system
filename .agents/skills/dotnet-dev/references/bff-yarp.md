@@ -94,8 +94,8 @@ React WebUI (SPA) → BFF (YARP + Auth) → Backend API
 
 ### OIDC Setup (Program.cs)
 - **Scheme**: Cookie authentication + OpenID Connect (Azure AD / Entra External ID)
-- **Scopes**: Prefer `api://<api-client-id>/read` and `api://<api-client-id>/chat` in new configs. Older environments may still expose equivalent `api://motorcyclerag-api/*` URIs.
-- **Client Secret**: Retrieved from environment variable `MCR_BFF_CLIENT_SECRET`
+- **Scopes**: See the scope convention declared as **Auth Design** in the root `AGENTS.md` registry — do not restate the exact scope URIs here, they evolve independently of this skill.
+- **Client Secret**: Retrieved via the standard `IConfiguration` / Azure App Configuration + Key Vault process — never via environment variables. See **Configuration Policy**.
 - **Token Storage**: Server-side in encrypted cookies (never exposed to browser)
 
 ### Auth Endpoints (`AuthController.cs`)
@@ -172,7 +172,7 @@ To add a new backend route through the BFF:
 
 ## MUST NOT
 - Expose access tokens to the browser (they stay server-side in cookies)
-- Store client secrets in appsettings or code — use `MCR_BFF_CLIENT_SECRET` environment variable
+- Store client secrets in appsettings, code, or environment variables — use the Azure App Configuration + Key Vault process (see **Configuration Policy**)
 - Add `unsafe-inline` to production CSP
 - Use wildcard CORS origins
 - Bypass YARP for direct API calls from the BFF (defeats the proxy pattern)

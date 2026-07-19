@@ -1,8 +1,6 @@
 name: Build & Deploy to Azure
 
 on:
-  push:
-    branches: ["main", "develop"]
   workflow_dispatch:
 
 concurrency:

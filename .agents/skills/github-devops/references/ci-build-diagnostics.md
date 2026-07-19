@@ -128,7 +128,7 @@ When a solution-level build fails and the error is deep in one project:
 
 ```bash
 # Build only the failing project to get a clean binlog
-dotnet build src/MotorcycleRAG.Application/MotorcycleRAG.Application.csproj /bl:app.binlog
+dotnet build <path-to-failing-project>.csproj /bl:app.binlog
 ```
 
 Isolating to one project reduces binlog size and makes error tracing faster.

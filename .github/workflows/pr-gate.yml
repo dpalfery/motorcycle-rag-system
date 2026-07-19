@@ -294,6 +294,8 @@ jobs:
             MODEL_PACK="motorcyclerag/python-log-sanitizer-models"
             SUITE="codeql/python-queries:codeql-suites/python-security-extended.qls"
           fi
+          "${{ steps.init.outputs.codeql-path }}" database finalize \
+            "${{ runner.temp }}/codeql_databases/${{ matrix.language }}"
           "${{ steps.init.outputs.codeql-path }}" database analyze \
             "${{ runner.temp }}/codeql_databases/${{ matrix.language }}" \
             "$SUITE" \

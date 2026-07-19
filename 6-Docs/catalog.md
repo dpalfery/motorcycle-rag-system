@@ -4,7 +4,7 @@ This catalog defines the maintained documentation surface. `Current` means the R
 
 | Component | Type | Source root | Overview | Detailed documentation | Owner | Last reviewed | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| MotorcycleRAG system | System | repository root | [README](../README.md) | [system](system/) | Maintainers | 2026-07-18 | Current |
+| MotorcycleRAG system | System | repository root | [README](../README.md) | [system](system/) | Maintainers | 2026-07-19 | Current |
 | MotorcycleRAG API | Application | `1-Presentation/MotorcycleRAG.API` | [README](../1-Presentation/MotorcycleRAG.API/README.md) | [API docs](MotorcycleRAG.API/) | API maintainers | 2026-07-13 | Current |
 | MotorcycleRAG Admin Desktop | Application | `1-Presentation/MotorcycleRAG.AdminDesktop` | [README](../1-Presentation/MotorcycleRAG.AdminDesktop/README.md) | [Admin docs](MotorcycleRAG.AdminDesktop/) | Admin Desktop maintainers | 2026-07-19 | Current |
 | MotorcycleRAG Mobile App | Application | `1-Presentation/MotorcycleRAG.MobileApp` | [README](../1-Presentation/MotorcycleRAG.MobileApp/README.md) | [Mobile docs](MotorcycleRAG.MobileApp/) | Mobile maintainers | 2026-07-13 | Current |
@@ -14,7 +14,7 @@ This catalog defines the maintained documentation surface. `Current` means the R
 | Test suites | Verification | `5-Test` | [root README](../README.md) | [architecture rules](rules/architecture-general.md) | Test maintainers | 2026-07-13 | Current |
 | MotorcycleRAG Persistence Tests | Test suite | `5-Test/MotorcycleRAG.Persistence.Tests` | [root README](../README.md) | [architecture rules](rules/architecture-general.md) | Test maintainers | 2026-07-13 | Current |
 | Azure Environment | Deployment environment | `7-Deployment/infrastructure` | [README](../7-Deployment/README.md) | [Azure Environment docs](AzureEnvironment/) | Platform maintainers | 2026-07-11 | Current |
-| IaC Security Scanning | Tooling suite | `7-Deployment/scanning` | [README](../7-Deployment/scanning/README.md) | [DevOps overview](DevOps/overview.md) | Platform maintainers | 2026-07-18 | Current |
+| IaC Security Scanning | Tooling suite | `7-Deployment/scanning` | [README](../7-Deployment/scanning/README.md) | [DevOps overview](DevOps/overview.md) | Platform maintainers | 2026-07-19 | Current |
 | Database Setup CLI | CLI tool | `7-Deployment/DbSetup` | [README](../7-Deployment/DbSetup/README.md) | [database setup reference](DevOps/database-setup.md), [schema deployment strategy](DevOps/database-schema.md) | Platform maintainers | 2026-07-18 | Current |
 | SkillForge | Vendored tool | `7-Deployment/tools/SkillForge` | [README](../7-Deployment/tools/SkillForge/README.md) | [SkillForge reference](reference/skillforge.md) | Developer-experience maintainers | 2026-07-11 | Current |
 | Caching services | Shared library | `2-Application/MotorcycleRAG.Application/Services/Caching` | [README](../2-Application/MotorcycleRAG.Application/Services/Caching/README.md) | [architecture rules](rules/architecture-general.md) | Application maintainers | 2026-07-11 | Current |

@@ -123,9 +123,9 @@ flowchart LR
 
 #### Phase 2 — Security gate (needs build-test)
 
-- `codeql`: Initializes CodeQL with `security-extended` queries for C#, Python, and JavaScript/TypeScript (including React), restores + builds the .NET solution, and runs the CodeQL analysis. Runs only when `code` or `infra` changed. Repository CodeQL default setup must remain disabled because this is an advanced CodeQL configuration.
+- `codeql`: Runs a **per-language matrix** (`csharp`, `python`, `javascript-typescript`) with `security-extended` queries. Each matrix leg initializes and uploads under its own SARIF category `/language:<language>` so Python and JavaScript findings are no longer attributed to the legacy `/language:csharp` bucket. The C# leg restores and builds the .NET solution before analysis. Runs only when `code` or `infra` changed. Repository CodeQL default setup must remain disabled because this is an advanced CodeQL configuration.
 
-  **Current category behavior (pending migration):** the init step still passes `languages: csharp, python, javascript-typescript`, but `github/codeql-action/analyze` uploads under the forced category `/language:csharp`. That legacy single-category upload contaminated alert history across languages. Per-language matrix legs with distinct automatic or language-specific categories are **not yet migrated**; they are blocked until the legacy category reaches zero open alerts after a successful default-branch analysis (see plan `6-Docs/plans/2026-07-18-security-quality-remediation.md` T17–T18).
+  **Log-sanitizer model packs:** For `csharp` and `python`, analysis uses the CodeQL CLI with `--model-packs` loading unpublished local packs under `.github/codeql/csharp-log-sanitizer-models` and `.github/codeql/python-log-sanitizer-models` (barrier models for `LogSanitizer.Sanitize` / `sanitize_log_value`). The `javascript-typescript` leg uses `github/codeql-action/analyze` without those packs. **Commit hygiene:** any change that depends on the PR CodeQL job must include those pack directories when they are new or modified; omitting them breaks the csharp/python analyze steps.
 - `trivy`: Downloads the pinned, SHA-256-verified Trivy CLI and fails the gate for high or critical dependency, misconfiguration, secret, or license findings. Uploads SARIF to GitHub Security. Runs only when `code` or `infra` changed.
 - `semgrep`: Installs the pinned Semgrep Community Edition CLI and fails the gate for `ERROR` security-rule findings. Telemetry is disabled and SARIF is uploaded to GitHub Security. Runs only when `code` or `infra` changed.
 - `iac-scan`: Runs Checkov against Dockerfiles and GitHub Actions workflows. Results are uploaded as SARIF to GitHub Security. Runs only when `infra` changed. Soft-fail mode (advisory) — findings never fail the gate.
@@ -149,7 +149,7 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 | Schedule | Jobs | Purpose |
 | --- | --- | --- |
 | Daily 02:00 UTC | Test suite (unit, integration, E2E, Azure integration, load, performance, SkillForge) | Full regression validation |
-| Daily 03:00 UTC | Snyk scans (SCA+SAST, container scans for API, UI, Local Processor images) | Comprehensive security posture |
+| Daily 03:00 UTC | Snyk (SCA+SAST + container) and Trivy container rebuild/scan for API, UI, and Local Processor images | Comprehensive security posture |
 
 **Test jobs (2 AM trigger):**
 
@@ -173,7 +173,16 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 - `snyk-container-ui`: Builds the UI Docker image and runs `snyk container test` with SARIF upload.
 - `snyk-container-processor`: Builds the Local Processor Docker image and runs `snyk container test` with SARIF upload.
 
-**Summary** (`test-summary`): Depends on all test and Snyk jobs, generates a consolidated markdown report.
+**Trivy container scan** (`trivy-container-scan`, 3 AM or `workflow_dispatch`):
+
+- Rebuilds `motorcycle-rag-api` and `motorcycle-rag-ui` from `7-Deployment/Dockerfile.api` / `Dockerfile.ui`, and the local-processor image from its service Dockerfile.
+- **API and UI** Trivy SARIF severity includes **MEDIUM,HIGH,CRITICAL** (categories `nightly-trivy-container-api` / `nightly-trivy-container-ui`) so OS-package MEDIUM alerts can close after pinned package upgrades land.
+- **Local processor** remains **HIGH,CRITICAL** only (`nightly-trivy-container-processor`).
+- Fail threshold is unchanged: SARIF upload only (no exit-code fail on findings). Gate fail policy for dependency Trivy in `pr-gate.yml` is separate and still HIGH/CRITICAL.
+
+**API/UI base image package pins:** `Dockerfile.api` and `Dockerfile.ui` explicitly install fixed Ubuntu noble versions of `tar`, `gzip`, and `perl-base` after `apt-get upgrade` so rebuilt images ship the CVE-fixed packages. Registry images refresh only through the deploy path (see §4.3); nightly rebuild/scan alone does not push to ACR.
+
+**Summary** (`test-summary`): Depends on all test, Snyk, and Trivy container-scan jobs, generates a consolidated markdown report.
 
 ### 4.3 Build & Deploy (`deploy.yml`)
 

@@ -1,7 +1,8 @@
 # CodeQL and Trivy Residual Alert Remediation
 
-**Status:** Ready
-**Date:** 2026-07-19
+**Status:** Archived  
+**Date:** 2026-07-19  
+**Archived:** 2026-07-19  
 **Goal:** Clear the listed open CodeQL and Trivy alerts on `develop` via CodeQL-visible hardening, CodeQL category remediation, justified narrow dismissals only where needed, Dockerfile OS package upgrades, CI/nightly MEDIUM-inclusive image rescans, and user-approved ACR republish of `motorcycle-rag-api` and `motorcycle-rag-ui`.
 
 ---
@@ -28,7 +29,7 @@ Verified root-cause chain:
 4. Dockerfiles run generic `apt-get upgrade -y`, but published/scanned images still ship vulnerable package versions; nightly container Trivy uploads only `HIGH,CRITICAL`, so MEDIUM findings linger.
 5. Registry images refresh only through `deploy.yml` ACR push; GitHub alert clearance also requires a MEDIUM-inclusive SARIF re-upload after rebuild.
 
-This plan is a focused residual slice. It does **not** reopen [2026-07-18 Security and Quality Alert Remediation](2026-07-18-security-quality-remediation.md) (`Review required`) as implementation authority; that plan remains for broader leftover gates (logging legacy volume, Semgrep #401, etc.).
+This plan is a focused residual slice. It does **not** reopen [2026-07-18 Security and Quality Alert Remediation](../../plans/2026-07-18-security-quality-remediation.md) (`Review required`) as implementation authority; that plan remains for broader leftover gates (logging legacy volume, Semgrep #401, etc.).
 
 ---
 
@@ -147,3 +148,30 @@ Orchestrator agent mapping hints (not plan authority): `test-dev`→test-dev; `p
 6. **Docs closeout:** T12 complete before archive.
 
 **Done when:** listed alerts are closed (or #405 narrowly dismissed), ACR images refreshed, reviews passed, and this plan archived per documentation standard.
+
+---
+
+## 10. Closeout verification (2026-07-19)
+
+| Criterion | Verdict | Evidence |
+| --- | --- | --- |
+| **T1–T2 Path injection** | Met (implementation) | CodeQL-visible containment in `path_validation.py`; plan-scoped path tests green. Post-merge CodeQL alert closure for #892/#259 is an operator follow-up (T9). |
+| **T3–T4 Partial SSRF** | Met (implementation) | Stage-report URL join + discovery probe hardening + tests green. #404/#405 clearance or narrow #405 dismissal awaits post-merge CodeQL (T9). |
+| **T5 SQL Encrypt** | Met (implementation) | `SqlDbSetupConnectionFactory` CodeQL-visible Encrypt form; DbSetup encrypt unit test green. #402 clearance awaits T9. |
+| **T6 CodeQL categories** | Met | `pr-gate.yml` matrix `csharp` / `python` / `javascript-typescript` with `/language:<language>` SARIF categories; csharp/python use local log-sanitizer model packs. |
+| **T7–T8 Container pins + MEDIUM Trivy** | Met (implementation) | `Dockerfile.api` / `Dockerfile.ui` pin `tar` / `gzip` / `perl-base`; nightly api/ui Trivy severity `MEDIUM,HIGH,CRITICAL`. Alert closure for #647–#713 awaits nightly rebuild SARIF after merge (T9). |
+| **T9 Rescan + #405 dismiss** | Deferred (non-blocking archive) | Not executed this session. Operator follow-up after commit/merge: await CodeQL + Trivy on `develop`; close listed alerts; if #405 remains under Python category with `safe_http` evidence, dismiss individually. |
+| **T10 ACR republish** | Deferred (D6) | Not executed this session. Requires **explicit user approval** before `deploy.yml` / ACR push for `motorcycle-rag-api` and `motorcycle-rag-ui`. |
+| **T11 Reviews** | Met (scoped) | Code review APPROVED (scoped; log-sanitizer unit-test failures waived per user direction). Security review APPROVED. Plan-scoped tests: python path/api/discovery green; DbSetup encrypt green; coverage 95.72% python / 97.57% unified with no plan-scope threshold breaches. |
+| **T12 Docs** | Met | Canonical updates in `6-Docs/DevOps/overview.md` (CodeQL matrix, log-sanitizer packs, nightly MEDIUM Trivy, Dockerfile pins) and `6-Docs/system/security.md`; catalog last-reviewed 2026-07-19 for system + IaC Security Scanning. |
+
+**Canonical guidance:** [`6-Docs/DevOps/overview.md`](../../DevOps/overview.md) §4.1 (`codeql` matrix + model packs), §4.2 (Trivy container MEDIUM for api/ui, package pins), §4.3 (ACR via deploy); [`6-Docs/system/security.md`](../../system/security.md) (CodeQL sole-owner + per-language categories).
+
+**Does not close:** [2026-07-18 Security and Quality Alert Remediation](../../plans/2026-07-18-security-quality-remediation.md) remains `Review required` (legacy logging volume, Semgrep #401, and other leftover gates).
+
+**Commit hygiene (operators):** when committing this work, include new/changed `.github/codeql/csharp-log-sanitizer-models` and `.github/codeql/python-log-sanitizer-models` (required by the csharp/python CodeQL legs in `pr-gate.yml`).
+
+**Residual operator follow-ups (non-blocking for archive):**
+
+1. **T9** — After merge to `develop`: confirm CodeQL + nightly/container Trivy; close #404/#402/#892/#259 and Trivy #647–#713; narrow individual dismiss of #405 only if still open under the Python category with `safe_http` evidence.
+2. **T10** — With explicit ACR approval (D6): run approved deploy path to republish `motorcycle-rag-api` and `motorcycle-rag-ui` (`latest` + SHA).

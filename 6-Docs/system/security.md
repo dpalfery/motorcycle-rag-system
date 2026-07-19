@@ -79,5 +79,5 @@ See [Admin Desktop architecture](../MotorcycleRAG.AdminDesktop/architecture.md) 
 ## Test and scanning tooling
 
 - Coverage and other test tooling that parse XML SHALL use `defusedxml` (or an equivalent XXE-safe parser). Do not use unsafe stock XML parsers on untrusted or attacker-influenced files.
-- The custom PR CodeQL workflow is the sole CodeQL owner; GitHub default setup remains disabled. Language-specific CodeQL matrix categories are introduced only after the legacy analysis category has closed the original alerts on the default branch. Operational detail lives in [DevOps overview](../DevOps/overview.md).
+- The custom PR CodeQL workflow is the sole CodeQL owner; GitHub default setup remains disabled. Analysis runs as a per-language matrix (`csharp`, `python`, `javascript-typescript`) with distinct SARIF categories `/language:<language>`. C# and Python legs load local log-sanitizer model packs under `.github/codeql/*-log-sanitizer-models` — include those packs when committing workflow-dependent changes. Operational detail lives in [DevOps overview](../DevOps/overview.md).
 - Narrow alert dismissals require per-alert evidence (test-only or trusted-script invariants). Logging alerts SHALL not be dismissed.

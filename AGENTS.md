@@ -66,4 +66,3 @@ Agents and skills should look up the following properties dynamically to find th
 - **Directory.Build Organization:** `.agents/skills/github-devops/references/directory-build-organization.md`
 - **Build Performance:** `.agents/skills/github-devops/references/build-performance.md`
 - **Incremental Build:** `.agents/skills/github-devops/references/incremental-build.md`
-

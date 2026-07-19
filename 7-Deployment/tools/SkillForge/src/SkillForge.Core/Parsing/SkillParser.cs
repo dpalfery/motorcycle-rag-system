@@ -37,9 +37,8 @@ public static class SkillParser
         "name", "description", "license", "compatibility", "metadata", "allowed-tools"
     };
 
-    // Relative path that looks like a bundled resource, e.g. scripts/run.py or references/schema.md
     private static readonly Regex InlinePathRegex =
-        new(@"(?<path>(?:\./)?(?:scripts|references|assets)/[A-Za-z0-9._\-/]+)", RegexOptions.Compiled);
+        new(@"(?<![A-Za-z0-9._\-/])(?<path>(?:\./)?(?:scripts|references|assets)/[A-Za-z0-9._\-/]+)", RegexOptions.Compiled);
 
     public static Skill ParseFile(string skillFilePath)
     {
@@ -138,7 +137,11 @@ public static class SkillParser
             if (string.IsNullOrWhiteSpace(target)) return;
             if (target.StartsWith("http://") || target.StartsWith("https://") || target.StartsWith("#") || target.StartsWith("mailto:"))
                 return;
-            var normalized = target.Replace("./", string.Empty).Trim();
+            var normalized = target.Trim();
+            if (normalized.StartsWith("./", StringComparison.Ordinal))
+            {
+                normalized = normalized.Substring(2);
+            }
             var resolves = ResolvesOnDisk(directoryPath, normalized);
             found[normalized] = resolves;
         }

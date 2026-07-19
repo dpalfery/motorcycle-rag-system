@@ -16,17 +16,17 @@ metadata:
 1. **Understand the Intent:** Review the provided PR description, task instructions, or code diffs to understand what the code *should* be doing.
 2. **Identify Technologies:** Identify all programming languages and frameworks modified in the changeset (e.g., C#, Python, React, SQL).
 3. **Load Specific References:** For each identified technology, you MUST read its corresponding detailed checklist in the `references/` folder before proceeding:
-   - [.NET (C#)](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/dotnet.md)
-   - [Python](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/python.md)
-   - [React](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/react.md)
-   - [SQL](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/sql.md)
-   - [Pulumi](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/pulumi.md)
-   - [Azure](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/azure.md)
-   - [GitHub Actions](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/github-actions.md)
+   - [.NET (C#)](references/dotnet.md)
+   - [Python](references/python.md)
+   - [React](references/react.md)
+   - [SQL](references/sql.md)
+   - [Pulumi](references/pulumi.md)
+   - [Azure](references/azure.md)
+   - [GitHub Actions](references/github-actions.md)
 4. **Universal Dimension Check:** Evaluate the code against the Universal Review Dimensions (below).
 5. **Technology-Specific Check:** Evaluate the code against the checklists found in the references loaded in Step 3.
-6. **Security Review (always):** Perform a branch-diff vulnerability pass following [Security Review](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/security-review.md) — identify HIGH-CONFIDENCE (≥8/10) exploitable vulnerabilities newly introduced by the change, applying its false-positive exclusions.
-7. **Snyk Scan (when tooling is available):** For dependency, SAST, IaC, or container coverage, run automated scans per [Snyk Security](file:///Users/dave/git/motorcycle-rag-system/.agents/skills/code-review/references/snyk-security.md). Skip only if the Snyk MCP server is unavailable, and note that in the report.
+6. **Security Review (always):** Perform a branch-diff vulnerability pass following [Security Review](references/security-review.md) — identify HIGH-CONFIDENCE (≥8/10) exploitable vulnerabilities newly introduced by the change, applying its false-positive exclusions.
+7. **Snyk Scan (when tooling is available):** For dependency, SAST, IaC, or container coverage, run automated scans per [Snyk Security](references/snyk-security.md). Skip only if the Snyk MCP server is unavailable, and note that in the report.
 8. **Compile Feedback:** Create a structured output of findings as requested, folding security-review and Snyk findings into the same report.
 
 ## Universal Code Review Dimensions

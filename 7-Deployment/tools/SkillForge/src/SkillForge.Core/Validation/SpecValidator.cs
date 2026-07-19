@@ -79,7 +79,7 @@ public static class SpecValidator
         // ---- angle brackets in front matter (system-prompt injection safety note) ----
         if (skill.RawFrontmatter.Contains('<') || skill.RawFrontmatter.Contains('>'))
         {
-            yield return new Diagnostic("SF-SPEC-008", Severity.Warning,
+            yield return new Diagnostic("SF-SPEC-008", Severity.Error,
                 "Front matter contains '<' or '>'. The spec advises avoiding angle brackets in front matter because they can inject content into the system prompt.",
                 skillId, file);
         }

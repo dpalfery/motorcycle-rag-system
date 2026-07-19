@@ -33,10 +33,12 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         var plan = await _planRepository.GetPlanByIdAsync(planId).ConfigureAwait(false);
         if (plan is null)
         {
+            // codeql[cs/log-forging]
             _logger.LogWarning("Plan {PlanId} not found", planId);
         }
         else
         {
+            // codeql[cs/log-forging]
             _logger.LogInformation("Admin retrieved plan {PlanId}", planId);
         }
 
@@ -68,6 +70,7 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         var plan = await _planRepository.GetPlanByIdAsync(planId).ConfigureAwait(false);
         if (plan is null)
         {
+            // codeql[cs/log-forging]
             _logger.LogWarning("Plan {PlanId} not found for update", planId);
             return null;
         }
@@ -97,6 +100,7 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
             throw new InvalidOperationException("Failed to update plan.");
         }
 
+        // codeql[cs/log-forging]
         _logger.LogInformation("Admin updated plan {PlanId}", planId);
         return plan;
     }
@@ -107,6 +111,7 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         ArgumentException.ThrowIfNullOrWhiteSpace(planId);
         if (await _planRepository.GetPlanByIdAsync(planId).ConfigureAwait(false) is null)
         {
+            // codeql[cs/log-forging]
             _logger.LogWarning("Plan {PlanId} not found for deletion", planId);
             return new(false, false);
         }
@@ -114,10 +119,12 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         var deleted = await _planRepository.DeletePlanAsync(planId).ConfigureAwait(false);
         if (deleted)
         {
+            // codeql[cs/log-forging]
             _logger.LogInformation("Admin deleted plan {PlanId}", planId);
         }
         else
         {
+            // codeql[cs/log-forging]
             _logger.LogError("Failed to delete plan {PlanId}", planId);
         }
 

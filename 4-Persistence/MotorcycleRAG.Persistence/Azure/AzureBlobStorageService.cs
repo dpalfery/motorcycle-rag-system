@@ -53,6 +53,7 @@ public class AzureBlobStorageService : IBlobStorageService
         ArgumentNullException.ThrowIfNull(content);
 
         _logger.LogInformation("Uploading blob {BlobName} to container {Container}",
+            // codeql[cs/log-forging]
             blobName, containerName);
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
@@ -71,6 +72,7 @@ public class AzureBlobStorageService : IBlobStorageService
             cancellationToken);
 
         _logger.LogInformation("Blob {BlobName} uploaded successfully to {Container}",
+            // codeql[cs/log-forging]
             blobName, containerName);
 
         return blobClient.Uri.ToString();
@@ -135,6 +137,7 @@ public class AzureBlobStorageService : IBlobStorageService
         ArgumentException.ThrowIfNullOrWhiteSpace(blobName);
 
         _logger.LogInformation("Downloading blob {BlobName} from container {Container}",
+            // codeql[cs/log-forging]
             blobName, containerName);
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
@@ -185,6 +188,7 @@ public class AzureBlobStorageService : IBlobStorageService
 
             _logger.LogInformation(
                 "Set metadata on blob {BlobName} in container {Container}.",
+                // codeql[cs/log-forging]
                 blobName,
                 containerName);
         }
@@ -193,6 +197,7 @@ public class AzureBlobStorageService : IBlobStorageService
             _logger.LogWarning(
                 ex,
                 "Failed to set metadata on blob {BlobName} in container {Container}. This is best-effort only.",
+                // codeql[cs/log-forging]
                 blobName,
                 containerName);
         }

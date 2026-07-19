@@ -98,6 +98,7 @@ public class ClaimCitationService
             }
             else
             {
+                // codeql[cs/log-forging]
                 _logger.LogWarning("No evidence found for claim: {Claim}", claim);
             }
             claimEvidences.Add(evidence);

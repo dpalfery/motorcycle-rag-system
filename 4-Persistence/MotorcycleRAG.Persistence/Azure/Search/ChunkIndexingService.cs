@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Exceptions;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.ValueObjects;
 using Microsoft.Extensions.Options;
 using Polly;
@@ -97,7 +98,7 @@ public sealed class ChunkIndexingService : IChunkIndexingService
                 _logger.LogWarning(
                     jsonEx,
                     "Failed to parse chunk line for upload {UploadId}. Line will be skipped.",
-                    uploadId);  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
             }
         }
 
@@ -116,7 +117,7 @@ public sealed class ChunkIndexingService : IChunkIndexingService
                 _logger.LogError(
                     "Search index {IndexName} does not exist for upload {UploadId}. Aborting before any batch is uploaded.",
                     indexName,
-                    uploadId);  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
                 throw new SearchIndexNotFoundException(indexName);
             }
         }
@@ -139,7 +140,7 @@ public sealed class ChunkIndexingService : IChunkIndexingService
             "Indexed {SuccessCount}/{TotalCount} chunks for upload {UploadId} across {CategoryCount} category indexes in {BatchCount} batches.",
             outcomes.Count(o => o.Succeeded),
             records.Count,
-            uploadId,  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(uploadId),  // codeql[cs/log-forging]
             groups.Count,
             batchCount);
 
@@ -241,7 +242,7 @@ public sealed class ChunkIndexingService : IChunkIndexingService
             batch.Count,
             indexName,
             category.Value,
-            uploadId);  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
 
         // T7: bound the synchronous indexing call with a per-batch timeout linked to the
         // incoming token. The Azure SDK honours the cancellation token passed to
@@ -310,7 +311,7 @@ public sealed class ChunkIndexingService : IChunkIndexingService
                 "Indexing batch of {BatchSize} chunks into category index {IndexName} for upload {UploadId} timed out after {TimeoutSeconds}s.",
                 batch.Count,
                 indexName,
-                uploadId,  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(uploadId),  // codeql[cs/log-forging]
                 batchTimeoutSeconds);
 
             var timeoutMessage = $"Indexing batch timed out after {batchTimeoutSeconds}s into index '{indexName}'.";
@@ -329,7 +330,7 @@ public sealed class ChunkIndexingService : IChunkIndexingService
                 "Error indexing batch of {BatchSize} chunks into category index {IndexName} for upload {UploadId}. Status={Status}.",
                 batch.Count,
                 indexName,
-                uploadId,  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(uploadId),  // codeql[cs/log-forging]
                 rfe.Status);
 
             RecordFailureForAllChunks(outcomes, batch, rfe.Message);
@@ -346,7 +347,7 @@ public sealed class ChunkIndexingService : IChunkIndexingService
                 "Error indexing batch of {BatchSize} chunks into category index {IndexName} for upload {UploadId}.",
                 batch.Count,
                 indexName,
-                uploadId);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
 
             RecordFailureForAllChunks(outcomes, batch, ex.Message);
 

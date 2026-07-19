@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
@@ -115,7 +116,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return row is null ? null : MapRow(row);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to query management row {RowId}", rowId);  // codeql[cs/log-forging]
+                _logger.LogError(ex, "Failed to query management row {RowId}", LogSanitizer.Sanitize(rowId));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to query management row {rowId}", ex);
             }
         }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -92,7 +93,7 @@ internal sealed class HostHeaderValidationMiddleware {
         if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
         {
 #pragma warning disable CA1848
-            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", context.Request.Path);  // codeql[cs/log-forging]
+            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", LogSanitizer.Sanitize(context.Request.Path));  // codeql[cs/log-forging]
 #pragma warning restore CA1848
             await _next(context).ConfigureAwait(false);
             return;

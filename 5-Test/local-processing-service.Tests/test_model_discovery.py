@@ -7,9 +7,13 @@ import pytest
 
 from embeddings.model_discovery import (
     ModelDiscoveryError,
+    _async_get_json,
     _normalize_endpoint,
+    _ollama_candidate_urls,
+    _openai_candidate_urls,
     _parse_ollama_payload,
     _parse_openai_payload,
+    _sync_get_json,
     discover_embedding_models,
     discover_embedding_models_sync,
 )
@@ -29,9 +33,14 @@ class _FakeResponse:
         return self._payload
 
 
+def _response_key(url: object) -> str:
+    """Normalize typed httpx.URL and string keys for fake response lookup."""
+    return str(url)
+
+
 class _FakeAsyncClient:
     def __init__(self, responses, **kwargs):
-        self._responses = responses
+        self._responses = {_response_key(key): value for key, value in responses.items()}
 
     async def __aenter__(self):
         return self
@@ -40,7 +49,7 @@ class _FakeAsyncClient:
         return False
 
     async def get(self, url, headers=None):
-        response = self._responses.get(url)
+        response = self._responses.get(_response_key(url))
         if isinstance(response, Exception):
             raise response
         if response is None:
@@ -50,7 +59,7 @@ class _FakeAsyncClient:
 
 class _FakeSyncClient:
     def __init__(self, responses, **kwargs):
-        self._responses = responses
+        self._responses = {_response_key(key): value for key, value in responses.items()}
 
     def __enter__(self):
         return self
@@ -59,7 +68,7 @@ class _FakeSyncClient:
         return False
 
     def get(self, url, headers=None):
-        response = self._responses.get(url)
+        response = self._responses.get(_response_key(url))
         if isinstance(response, Exception):
             raise response
         if response is None:
@@ -285,4 +294,136 @@ async def test_discover_embedding_models_when_safe_transport_blocks_redirect_doe
         with pytest.raises(RedirectBlockedError):
             await discover_embedding_models("https://models.example.test")
 
-    assert calls == ["https://models.example.test/v1/models"]
+    assert len(calls) == 1
+    assert isinstance(calls[0], httpx.URL)
+    assert str(calls[0]) == "https://models.example.test/v1/models"
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "expected_scheme", "expected_host", "expected_port"),
+    [
+        ("http://localhost:5272", "http", "localhost", 5272),
+        ("http://127.0.0.1:11434", "http", "127.0.0.1", 11434),
+        ("http://[::1]:11434", "http", "::1", 11434),
+        ("https://models.example.test", "https", "models.example.test", None),
+    ],
+    ids=["localhost-http", "loopback-ipv4-http", "loopback-ipv6-http", "public-https"],
+)
+def test_openai_candidate_urls_are_typed_urls_preserving_validated_authority(
+    endpoint, expected_scheme, expected_host, expected_port
+):
+    """T3/T4: discovery candidates are absolute httpx.URL values under safe_http policy.
+
+    Public HTTPS and literal-loopback HTTP remain allowed (D4). Fails until candidate
+    construction returns typed URLs built from the validated endpoint authority.
+    """
+    candidates = _openai_candidate_urls(endpoint)
+
+    assert candidates
+    assert all(isinstance(url, httpx.URL) for url in candidates)
+    for url in candidates:
+        assert url.scheme == expected_scheme
+        assert url.host == expected_host
+        assert url.port == expected_port
+        assert url.username is None or url.username == ""
+        assert url.password is None or url.password == ""
+        assert url.fragment is None or url.fragment == ""
+        assert url.path.endswith("/models")
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "expected_scheme", "expected_host"),
+    [
+        ("http://localhost:11434", "http", "localhost"),
+        ("https://models.example.test/v1", "https", "models.example.test"),
+    ],
+    ids=["loopback-http", "public-https"],
+)
+def test_ollama_candidate_urls_are_typed_urls_preserving_validated_authority(
+    endpoint, expected_scheme, expected_host
+):
+    """T3/T4: Ollama probe URLs keep only the policy-validated authority."""
+    candidates = _ollama_candidate_urls(endpoint)
+
+    assert len(candidates) == 1
+    url = candidates[0]
+    assert isinstance(url, httpx.URL)
+    assert url.scheme == expected_scheme
+    assert url.host == expected_host
+    assert url.path.endswith("/api/tags")
+
+
+async def test_async_get_json_revalidates_url_against_discovery_policy_before_get():
+    """T3/T4: only policy-validated absolute URLs may reach AsyncClient.get."""
+    validated = httpx.URL("http://127.0.0.1:5272/models")
+    get_urls: list[object] = []
+
+    class CaptureClient:
+        async def get(self, url, headers=None):
+            get_urls.append(url)
+            return _FakeResponse({"data": []})
+
+    with patch(
+        "embeddings.model_discovery.validate_model_discovery_endpoint",
+        return_value=(validated, EndpointPolicy.LOOPBACK_HTTP),
+    ) as validate:
+        payload = await _async_get_json(
+            CaptureClient(), "http://127.0.0.1:5272/models"
+        )
+
+    validate.assert_called()
+    assert payload == {"data": []}
+    assert len(get_urls) == 1
+    assert isinstance(get_urls[0], httpx.URL)
+    assert get_urls[0] == validated
+
+
+def test_sync_get_json_revalidates_url_against_discovery_policy_before_get():
+    """T3/T4: sync discovery path has the same call-site validation as async."""
+    validated = httpx.URL("https://models.example.test/v1/models")
+    get_urls: list[object] = []
+
+    class CaptureClient:
+        def get(self, url, headers=None):
+            get_urls.append(url)
+            return _FakeResponse({"data": []})
+
+    with patch(
+        "embeddings.model_discovery.validate_model_discovery_endpoint",
+        return_value=(validated, EndpointPolicy.PUBLIC_HTTPS),
+    ) as validate:
+        payload = _sync_get_json(CaptureClient(), "https://models.example.test/v1/models")
+
+    validate.assert_called()
+    assert payload == {"data": []}
+    assert len(get_urls) == 1
+    assert isinstance(get_urls[0], httpx.URL)
+    assert get_urls[0] == validated
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "expected_policy"),
+    [
+        ("http://localhost:5272", EndpointPolicy.LOOPBACK_HTTP),
+        ("http://127.0.0.1:5272", EndpointPolicy.LOOPBACK_HTTP),
+        ("https://models.example.test", EndpointPolicy.PUBLIC_HTTPS),
+    ],
+    ids=["localhost-http", "loopback-ipv4-http", "public-https"],
+)
+async def test_discover_embedding_models_still_allows_public_https_and_loopback_http(
+    endpoint, expected_policy
+):
+    """T3/D4: operator probes remain allowed for public HTTPS and literal loopback HTTP."""
+    success_url = f"{endpoint.rstrip('/')}/models"
+    responses = {success_url: _FakeResponse({"data": [{"id": "embedding-model"}]})}
+    safe_client = _FakeAsyncClient(responses)
+
+    with patch(
+        "embeddings.model_discovery.create_model_discovery_async_client",
+        return_value=safe_client,
+    ) as create_client:
+        result = await discover_embedding_models(endpoint)
+
+    assert create_client.call_args.args[0] is expected_policy
+    assert result.provider == "openai-compatible"
+    assert result.models == ["embedding-model"]

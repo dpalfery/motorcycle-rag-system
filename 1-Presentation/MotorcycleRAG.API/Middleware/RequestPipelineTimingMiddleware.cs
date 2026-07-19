@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.API.Middleware;
 
@@ -60,7 +61,7 @@ public sealed class RequestPipelineTimingMiddleware
             {
                 _logger.LogWarning(
                     "Slow request: {Method} {Path} completed in {ElapsedMs}ms (Status={StatusCode})",
-                    context.Request.Method,  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(context.Request.Method),  // codeql[cs/log-forging]
                     path,
                     elapsedMs,
                     statusCode);
@@ -69,7 +70,7 @@ public sealed class RequestPipelineTimingMiddleware
             {
                 _logger.LogDebug(
                     "Request: {Method} {Path} completed in {ElapsedMs}ms (Status={StatusCode})",
-                    context.Request.Method,  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(context.Request.Method),  // codeql[cs/log-forging]
                     path,
                     elapsedMs,
                     statusCode);

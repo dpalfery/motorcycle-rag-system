@@ -9,6 +9,7 @@ using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using System.Reflection;
@@ -258,10 +259,10 @@ public sealed class IngestionJobServiceCoverageTests {
     }
 
     [Fact]
-    public async Task FailJobAsync_ReasonContainsControlCharacters_LogsRawStructuredField() {
-        // Sanitization of control characters is the responsibility of the SanitizingLoggerProvider
-        // at runtime; the spy CapturingLogger bypasses the provider and therefore observes the
-        // raw (unsanitized) value the service forwards to the logger.
+    public async Task FailJobAsync_ReasonContainsControlCharacters_LogsSanitizedStructuredField() {
+        // The service now sanitizes the reason inline via LogSanitizer.Sanitize before logging
+        // (CWE-117 log-forging defense-in-depth alongside the runtime SanitizingLoggerProvider),
+        // so the spy CapturingLogger observes the escaped value, not the raw one.
         const string attackerReason = "processor\\name\r\nforged\tentry";
         var job = IngestionJob.Create(
             IngestionJobType.PDFManual,
@@ -278,7 +279,7 @@ public sealed class IngestionJobServiceCoverageTests {
         entry.LogLevel.Should().Be(LogLevel.Information);
         entry.Properties.Should().ContainKeys("JobId", "Reason", "{OriginalFormat}");
         entry.Properties["{OriginalFormat}"].Should().Be("Ingestion job {JobId} marked as failed: {Reason}");
-        entry.Properties["Reason"].Should().Be(attackerReason);
+        entry.Properties["Reason"].Should().Be(LogSanitizer.Sanitize(attackerReason));
     }
 
     private sealed class CapturingLogger<T> : ILogger<T> {
@@ -622,10 +623,11 @@ public sealed class IngestionJobServiceCoverageTests {
     }
 
     [Fact]
-    public async Task TransitionStageAsync_ControlCharactersInStageAndFailureReason_LogsRawStructuredFields() {
-        // Sanitization of control characters is the responsibility of the SanitizingLoggerProvider
-        // at runtime; the spy CapturingLogger bypasses the provider and therefore observes the
-        // raw (unsanitized) values the service forwards to the logger.
+    public async Task TransitionStageAsync_ControlCharactersInStageAndFailureReason_LogsSanitizedStructuredFields() {
+        // The service now sanitizes Stage/FailureReason inline via LogSanitizer.Sanitize before
+        // logging (CWE-117 log-forging defense-in-depth alongside the runtime
+        // SanitizingLoggerProvider), so the spy CapturingLogger observes the escaped values, not
+        // the raw ones.
         const string attackerStage = "chunk\\name\r\nforged\tentry";
         const string attackerFailureReason = "embedding\\failure\r\nforged\tentry";
         var job = MakeJob(Guid.NewGuid(), IngestionJobStatus.Processing, currentStage: "queued");
@@ -643,8 +645,8 @@ public sealed class IngestionJobServiceCoverageTests {
         entry.Properties.Should().ContainKeys("JobId", "Stage", "ChunksProcessed", "TotalChunks", "FailureReason", "{OriginalFormat}");
         entry.Properties["{OriginalFormat}"].Should().Be(
             "Ingestion job {JobId} stage transitioned to {Stage} (chunks={ChunksProcessed}/{TotalChunks}, failureReason={FailureReason}).");
-        entry.Properties["Stage"].Should().Be(attackerStage);
-        entry.Properties["FailureReason"].Should().Be(attackerFailureReason);
+        entry.Properties["Stage"].Should().Be(LogSanitizer.Sanitize(attackerStage));
+        entry.Properties["FailureReason"].Should().Be(LogSanitizer.Sanitize(attackerFailureReason));
     }
 
     [Fact]

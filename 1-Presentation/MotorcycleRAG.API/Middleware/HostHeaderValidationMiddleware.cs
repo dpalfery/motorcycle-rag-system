@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Utilities;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
@@ -78,7 +79,7 @@ public sealed class HostHeaderValidationMiddleware
         // which are not in the allowlist and would cause probe failures → replica kills.
         if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", context.Request.Path);  // codeql[cs/log-forging]
+            _logger.LogDebug("Skipping Host header validation for health check path: {Path}", LogSanitizer.Sanitize(context.Request.Path));  // codeql[cs/log-forging]
             await _next(context);
             return;
         }

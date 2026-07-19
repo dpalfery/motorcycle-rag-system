@@ -9,7 +9,12 @@ LOCAL_PROCESSOR_INPUT_DIR_ENV = "LOCAL_PROCESSOR_INPUT_DIR"
 
 
 def _resolve_local_path(local_file_path: str, allowed_suffix: str) -> Path:
-    """Resolve a caller-supplied local path under the configured input root."""
+    """Resolve a caller-supplied local path under the configured input root.
+
+    Absolute paths are kept absolute (Admin Desktop contract / D3). Relative
+    paths are joined under ``LOCAL_PROCESSOR_INPUT_DIR`` before canonicalization.
+    Resolved paths must remain inside the input root after symlink resolution.
+    """
     input_root_value = os.getenv(LOCAL_PROCESSOR_INPUT_DIR_ENV)
     if not input_root_value:
         raise HTTPException(
@@ -21,9 +26,9 @@ def _resolve_local_path(local_file_path: str, allowed_suffix: str) -> Path:
         )
 
     try:
-        # codeql[py/path-injection]: input_root itself is operator config (env var), not
-        # caller-supplied; the actual caller-supplied value (local_file_path, below) is
-        # contained by the resolve()+relative_to() check at the bottom of this function.
+        # codeql[py/path-injection]: input_root itself is operator config (env var),
+        # not caller-supplied. Caller-supplied paths are joined/canonicalized and
+        # containment-checked via commonpath + relative_to below.
         input_root = Path(input_root_value).expanduser().resolve(strict=True)
     except (OSError, RuntimeError) as exc:
         raise HTTPException(
@@ -40,7 +45,14 @@ def _resolve_local_path(local_file_path: str, allowed_suffix: str) -> Path:
             detail=f"{LOCAL_PROCESSOR_INPUT_DIR_ENV} does not point to an existing directory",
         )
 
-    candidate_path = Path(local_file_path).expanduser()  # codeql[py/path-injection]: canonicalized then containment-checked against input_root below via relative_to()
+    user_path = Path(local_file_path).expanduser()
+    # Relative → join under input_root before resolve (CodeQL join-under-root).
+    # Absolute → keep absolute (D3); still containment-checked after resolve.
+    if user_path.is_absolute():
+        candidate_path = user_path
+    else:
+        candidate_path = input_root / user_path
+
     try:
         resolved_path = candidate_path.resolve(strict=True)
     except FileNotFoundError as exc:
@@ -60,7 +72,19 @@ def _resolve_local_path(local_file_path: str, allowed_suffix: str) -> Path:
             detail="local_file_path contains invalid path components",
         ) from exc
 
-    # Verify the resolved path is inside the input root (prevents symlink traversal)
+    # CodeQL-visible containment barrier (os.path.commonpath).
+    input_root_str = os.path.realpath(str(input_root))
+    resolved_str = os.path.realpath(str(resolved_path))
+    try:
+        if os.path.commonpath([input_root_str, resolved_str]) != input_root_str:
+            raise ValueError("path escapes input root")
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="local_file_path must be inside the configured input directory",
+        ) from exc
+
+    # Secondary pathlib component-boundary check (symlink / prefix-collision).
     try:
         resolved_path.relative_to(input_root)
     except ValueError as exc:

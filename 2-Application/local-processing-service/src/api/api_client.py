@@ -353,7 +353,8 @@ class ApiClient:
         try:
             # processor_job_id is always str(uuid.uuid4()) (base_processor.py); reject
             # anything else before it becomes a path segment in an outbound URL.
-            uuid.UUID(processor_job_id)
+            # Use the canonical UUID string so braced/urn forms cannot alter the path.
+            job_id = str(uuid.UUID(processor_job_id))
         except ValueError:
             logger.warning(
                 "Stage report skipped: processor_job_id is not a UUID: %s",
@@ -361,7 +362,18 @@ class ApiClient:
             )
             return
 
-        url = f"{self._base_url}/api/ingestion/jobs/by-run/{processor_job_id}/status"  # codeql[py/partial-ssrf]: processor_job_id is UUID-validated above; base authority is fixed and pre-validated by validate_api_base_url
+        # Authority comes only from the validated API base; path segment is the
+        # canonical UUID. Typed join keeps host/scheme/port out of string concat.
+        # Normalize to a directory base first: httpx.URL.join follows RFC 3986 and
+        # replaces the final path segment when the base has no trailing slash
+        # (e.g. .../base + api/... must become .../base/api/..., not .../api/...).
+        base_url = httpx.URL(self._base_url)
+        directory_base = base_url.copy_with(
+            path=f"{base_url.path.rstrip('/')}/"
+        )
+        url = directory_base.join(
+            f"api/ingestion/jobs/by-run/{job_id}/status"
+        )
         payload = {
             "stage": stage,
             "chunksProcessed": chunks_processed,

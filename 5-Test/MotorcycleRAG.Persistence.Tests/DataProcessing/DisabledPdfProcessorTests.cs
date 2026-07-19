@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Persistence.DataProcessing;
 
 namespace MotorcycleRAG.Persistence.Tests.DataProcessing;
@@ -70,13 +71,11 @@ public class DisabledPdfProcessorTests
     }
 
     [Fact]
-    public async Task ProcessAsync_FileNameContainsControlCharacters_LogsOneEscapedPhysicalLine()
+    public async Task ProcessAsync_FileNameContainsControlCharacters_LogsSanitizedFileName()
     {
-        // Per Snyk CWE-117 remediation, sanitization moved to the SanitizingLoggerProvider boundary
-        // (see MotorcycleRAG.Core.Logging.SanitizingLoggerProvider, covered by Core.Tests).
-        // Processor call sites pass the raw value as a structured argument; production loggers
-        // wrap it before it reaches any sink. This test confirms the raw value reaches the logger
-        // pipeline (the provider boundary is responsible for escaping it before emission).
+        // The processor now sanitizes FileName inline via LogSanitizer.Sanitize before logging
+        // (CWE-117 log-forging defense-in-depth alongside the runtime SanitizingLoggerProvider),
+        // so the spy CapturingLogger observes the escaped value, not the raw one.
         const string attackerFileName = "manual\\name\r\nforged\tentry.pdf";
         var logger = new CapturingLogger<DisabledPdfProcessor>();
         var input = CreateValidPdfDocument();
@@ -89,7 +88,7 @@ public class DisabledPdfProcessorTests
         var entry = logger.Entries.Should().ContainSingle().Subject;
         var fileNameArg = entry.Properties.Should().ContainSingle(pair => pair.Key == "FileName")
             .Which.Value;
-        fileNameArg.Should().Be(attackerFileName);
+        fileNameArg.Should().Be(LogSanitizer.Sanitize(attackerFileName));
     }
 
     private sealed class CapturingLogger<T> : ILogger<T>

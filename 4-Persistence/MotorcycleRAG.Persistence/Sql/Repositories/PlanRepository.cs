@@ -3,6 +3,7 @@ using System.Data;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -77,7 +78,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<UserPlan>(sql, new { PlanId = planId });
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get plan by ID {PlanId}", planId);  // codeql[cs/log-forging]
+                _logger.LogError(ex, "Failed to get plan by ID {PlanId}", LogSanitizer.Sanitize(planId));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to get plan by ID {planId}", ex);
             }
         }
@@ -176,11 +177,11 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 int rowsAffected = await connection.ExecuteAsync(sql, new { PlanId = planId });
 
                 _logger.LogInformation("Deleted plan with ID {PlanId}, rows affected: {RowsAffected}",
-                    planId, rowsAffected);  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(planId), rowsAffected);  // codeql[cs/log-forging]
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to delete plan with ID {PlanId}", planId);  // codeql[cs/log-forging]
+                _logger.LogError(ex, "Failed to delete plan with ID {PlanId}", LogSanitizer.Sanitize(planId));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to delete plan with ID {planId}", ex);
             }
         }

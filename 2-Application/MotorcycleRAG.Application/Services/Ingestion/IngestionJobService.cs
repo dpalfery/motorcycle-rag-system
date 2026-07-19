@@ -6,6 +6,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
@@ -147,8 +148,8 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         _logger.LogInformation(
             "Deleted pending ingestion upload {UploadId} for document type {DocumentType}.",
-            uploadId,  // codeql[cs/log-forging]
-            documentType);  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(uploadId),  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(documentType));  // codeql[cs/log-forging]
     }
 
     /// <inheritdoc />
@@ -396,8 +397,8 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         _logger.LogInformation(
             "Queued ingestion job {JobId} for processor run {ProcessorRunId}.",
-            job.IngestionJobId,
-            request.ProcessorRunId);  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(job.IngestionJobId),
+            LogSanitizer.Sanitize(request.ProcessorRunId));  // codeql[cs/log-forging]
 
         return MapToResponse(job);
     }
@@ -540,8 +541,8 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         _logger.LogInformation(
             "Ingestion job {JobId} marked as failed: {Reason}",
-            jobId,
-            reason);  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(jobId),
+            LogSanitizer.Sanitize(reason));  // codeql[cs/log-forging]
     }
 
     /// <summary>Maps a domain <see cref="IngestionJob"/> to its response DTO.</summary>
@@ -719,10 +720,10 @@ public sealed class IngestionJobService : IIngestionJobService {
         _logger.LogInformation(
             "Ingestion job {JobId} stage transitioned to {Stage} (chunks={ChunksProcessed}/{TotalChunks}, failureReason={FailureReason}).",
             jobId,
-            request.Stage,  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(request.Stage),  // codeql[cs/log-forging]
             request.ChunksProcessed,
             request.TotalChunks,
-            request.FailureReason);  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(request.FailureReason));  // codeql[cs/log-forging]
 
         return MapToResponse(job);
     }

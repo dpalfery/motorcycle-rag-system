@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Application.Services {
@@ -39,26 +40,26 @@ namespace MotorcycleRAG.Application.Services {
 
             var user = await _userRepository.GetUserByIdAsync(userId);
             if (user == null) {
-                _logger.LogWarning("User {UserId} not found when setting enabled status", userId);  // codeql[cs/log-forging]
+                _logger.LogWarning("User {UserId} not found when setting enabled status", LogSanitizer.Sanitize(userId));  // codeql[cs/log-forging]
                 throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
             }
 
             // Check if status is actually changing
             if (user.IsEnabled == isEnabled) {
-                _logger.LogDebug("User {UserId} already has enabled status {IsEnabled}", userId, isEnabled);  // codeql[cs/log-forging]
+                _logger.LogDebug("User {UserId} already has enabled status {IsEnabled}", LogSanitizer.Sanitize(userId), LogSanitizer.Sanitize(isEnabled));  // codeql[cs/log-forging]
                 return user;
             }
 
             var success = await _userRepository.SetUserEnabledStatusAsync(userId, isEnabled);
             if (!success) {
-                _logger.LogError("Failed to set enabled status for user {UserId}", userId);  // codeql[cs/log-forging]
+                _logger.LogError("Failed to set enabled status for user {UserId}", LogSanitizer.Sanitize(userId));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to update user {userId}");
             }
 
             user.IsEnabled = isEnabled;
             user.LastUpdatedDate = DateTime.UtcNow;
 
-            _logger.LogInformation("User {UserId} enabled status set to {IsEnabled}", userId, isEnabled);  // codeql[cs/log-forging]
+            _logger.LogInformation("User {UserId} enabled status set to {IsEnabled}", LogSanitizer.Sanitize(userId), LogSanitizer.Sanitize(isEnabled));  // codeql[cs/log-forging]
             return user;
         }
 
@@ -76,19 +77,19 @@ namespace MotorcycleRAG.Application.Services {
 
             var user = await _userRepository.GetUserByIdAsync(userId);
             if (user == null) {
-                _logger.LogWarning("User {UserId} not found when assigning plan", userId);  // codeql[cs/log-forging]
+                _logger.LogWarning("User {UserId} not found when assigning plan", LogSanitizer.Sanitize(userId));  // codeql[cs/log-forging]
                 throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
             }
 
             var plan = await _planRepository.GetPlanByIdAsync(planId);
             if (plan == null) {
-                _logger.LogWarning("Plan {PlanId} not found when assigning to user", planId);  // codeql[cs/log-forging]
+                _logger.LogWarning("Plan {PlanId} not found when assigning to user", LogSanitizer.Sanitize(planId));  // codeql[cs/log-forging]
                 throw new ArgumentException($"Plan with ID {planId} not found", nameof(planId));
             }
 
             // Check if plan is already assigned
             if (user.PlanId == planId) {
-                _logger.LogDebug("User {UserId} already has plan {PlanId}", userId, planId);  // codeql[cs/log-forging]
+                _logger.LogDebug("User {UserId} already has plan {PlanId}", LogSanitizer.Sanitize(userId), LogSanitizer.Sanitize(planId));  // codeql[cs/log-forging]
                 return user;
             }
 
@@ -97,11 +98,11 @@ namespace MotorcycleRAG.Application.Services {
 
             var success = await _userRepository.UpdateUserAsync(user);
             if (!success) {
-                _logger.LogError("Failed to assign plan {PlanId} to user {UserId}", planId, userId);  // codeql[cs/log-forging]
+                _logger.LogError("Failed to assign plan {PlanId} to user {UserId}", LogSanitizer.Sanitize(planId), LogSanitizer.Sanitize(userId));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to assign plan {planId} to user {userId}");
             }
 
-            _logger.LogInformation("Assigned plan {PlanId} to user {UserId}", planId, userId);  // codeql[cs/log-forging]
+            _logger.LogInformation("Assigned plan {PlanId} to user {UserId}", LogSanitizer.Sanitize(planId), LogSanitizer.Sanitize(userId));  // codeql[cs/log-forging]
             return user;
         }
 

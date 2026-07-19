@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 using MotorcycleRAG.Persistence.Sql;
@@ -70,7 +71,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upsert indexed artifact {UploadId}", artifact.UploadId);  // codeql[cs/log-forging]
+            _logger.LogError(ex, "Failed to upsert indexed artifact {UploadId}", LogSanitizer.Sanitize(artifact.UploadId));  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Failed to upsert indexed artifact", ex);
         }
     }

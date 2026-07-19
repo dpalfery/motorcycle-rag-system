@@ -8,7 +8,6 @@ from typing import Any
 import httpx
 
 from security.safe_http import (
-    EndpointPolicy,
     RedirectBlockedError,
     create_model_discovery_async_client,
     create_model_discovery_client,
@@ -57,21 +56,60 @@ def _unique(values: list[str]) -> list[str]:
     return unique_values
 
 
-def _openai_candidate_urls(endpoint: str) -> list[str]:
+def _unique_urls(values: list[httpx.URL]) -> list[httpx.URL]:
+    seen: set[str] = set()
+    unique_values: list[httpx.URL] = []
+    for value in values:
+        key = str(value)
+        if key not in seen:
+            seen.add(key)
+            unique_values.append(value)
+    return unique_values
+
+
+def _validated_discovery_request_url(url: httpx.URL | str) -> httpx.URL:
+    """Return a policy-validated absolute discovery URL.
+
+    Re-runs ``validate_model_discovery_endpoint`` so only public-HTTPS or
+    literal-loopback HTTP authorities reach ``client.get`` (D4 / safe_http).
+    """
+    validated, _policy = validate_model_discovery_endpoint(str(url))
+    return validated
+
+
+def _join_discovery_path(base_url: httpx.URL, relative_path: str) -> httpx.URL:
+    """Join a relative path onto a validated base without replacing the last segment.
+
+    ``httpx.URL.join`` follows RFC 3986: a base path without a trailing slash
+    treats the final segment as replaceable. Discovery bases such as
+    ``.../v1`` must append ``models`` as ``.../v1/models``, so normalize the
+    base path to a directory form before joining.
+    """
+    directory_base = base_url.copy_with(path=f"{base_url.path.rstrip('/')}/")
+    return _validated_discovery_request_url(
+        directory_base.join(relative_path.lstrip("/"))
+    )
+
+
+def _openai_candidate_urls(endpoint: str) -> list[httpx.URL]:
     base = _normalize_endpoint(endpoint)
-    candidates: list[str] = []
+    base_url, _policy = validate_model_discovery_endpoint(base)
+    candidates: list[httpx.URL] = []
     if not base.lower().endswith("/v1"):
-        candidates.append(f"{base}/v1/models")
-    candidates.append(f"{base}/models")
-    return _unique(candidates)
+        candidates.append(_join_discovery_path(base_url, "v1/models"))
+    candidates.append(_join_discovery_path(base_url, "models"))
+    return _unique_urls(candidates)
 
 
-def _ollama_candidate_urls(endpoint: str) -> list[str]:
-    return [f"{_normalize_endpoint(endpoint)}/api/tags"]
+def _ollama_candidate_urls(endpoint: str) -> list[httpx.URL]:
+    base = _normalize_endpoint(endpoint)
+    base_url, _policy = validate_model_discovery_endpoint(base)
+    return [_join_discovery_path(base_url, "api/tags")]
 
 
-def _candidate_base_url(url: str, suffix: str) -> str:
-    return url[: -len(suffix)] if url.lower().endswith(suffix.lower()) else url
+def _candidate_base_url(url: httpx.URL | str, suffix: str) -> str:
+    url_str = str(url)
+    return url_str[: -len(suffix)] if url_str.lower().endswith(suffix.lower()) else url_str
 
 
 def _parse_openai_payload(payload: Any) -> list[str]:
@@ -108,24 +146,29 @@ def _parse_ollama_payload(payload: Any) -> list[str]:
 
 
 def _sync_get_json(
-    client: httpx.Client, url: str, headers: dict[str, str] | None = None
+    client: httpx.Client,
+    url: str | httpx.URL,
+    headers: dict[str, str] | None = None,
 ) -> Any:
-    response = client.get(url, headers=headers)
+    # Re-validate before every GET so sync/async paths share the same barrier.
+    validated_url = _validated_discovery_request_url(url)
+    response = client.get(validated_url, headers=headers)
     require_non_redirect_success(response)
     return response.json()
 
 
 async def _async_get_json(
-    client: httpx.AsyncClient, url: str, headers: dict[str, str] | None = None
+    client: httpx.AsyncClient,
+    url: str | httpx.URL,
+    headers: dict[str, str] | None = None,
 ) -> Any:
-    # codeql[py/partial-ssrf]: url is built from an operator-supplied provider endpoint by
-    # design (this function's job is to probe that endpoint). validate_model_discovery_endpoint()
-    # (called via _normalize_endpoint in _openai_candidate_urls/_ollama_candidate_urls) rejects
-    # non-public/non-loopback hosts, and `client` is created by create_model_discovery_async_client()
-    # whose _SafeAsyncTransport re-validates every DNS answer against the same policy before
-    # dialing and blocks redirects — see security/safe_http.py. Real SSRF (private/internal
-    # network access, DNS rebinding) is prevented at the transport layer, not by this call site.
-    response = await client.get(url, headers=headers)
+    # codeql[py/partial-ssrf]: operator-supplied provider endpoints are probed by
+    # design (D4). validate_model_discovery_endpoint() rejects non-public /
+    # non-loopback hosts at this call site and again when candidates are built;
+    # create_model_discovery_async_client()'s _SafeAsyncTransport re-validates
+    # every DNS answer before dialing and blocks redirects — see safe_http.py.
+    validated_url = _validated_discovery_request_url(url)
+    response = await client.get(validated_url, headers=headers)
     require_non_redirect_success(response)
     return response.json()
 

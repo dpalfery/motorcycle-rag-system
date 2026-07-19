@@ -52,7 +52,7 @@ public class AccessRequestService {
             _logger.LogInformation(
                 "Returning existing access request state for {Provider}/{Email}",
                 request.Provider,
-                PiiMasking.MaskEmailForLog(normalizedEmail));  // codeql[cs/exposure-of-sensitive-information]
+                LogSanitizer.Sanitize(PiiMasking.MaskEmailForLog(normalizedEmail)));  // codeql[cs/exposure-of-sensitive-information]
 
             _telemetryService.TrackOnboardingTransition(
                 existingRequest.RequestId,
@@ -74,7 +74,7 @@ public class AccessRequestService {
                 ex,
                 "Access-request creation raced with an existing request for {Provider}/{Email}",
                 request.Provider,
-                PiiMasking.MaskEmailForLog(normalizedEmail));  // codeql[cs/exposure-of-sensitive-information]
+                LogSanitizer.Sanitize(PiiMasking.MaskEmailForLog(normalizedEmail)));  // codeql[cs/exposure-of-sensitive-information]
 
             existingRequest = await _accessRequestRepository.GetByProviderAndEmailAsync(normalizedEmail, request.Provider);
             if (existingRequest != null) {

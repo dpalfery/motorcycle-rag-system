@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Persistence.Azure;
 
@@ -53,7 +54,7 @@ public class AzureBlobStorageService : IBlobStorageService
         ArgumentNullException.ThrowIfNull(content);
 
         _logger.LogInformation("Uploading blob {BlobName} to container {Container}",
-            blobName, containerName);  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(blobName), containerName);  // codeql[cs/log-forging]
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         await containerClient.CreateIfNotExistsAsync(
@@ -71,7 +72,7 @@ public class AzureBlobStorageService : IBlobStorageService
             cancellationToken);
 
         _logger.LogInformation("Blob {BlobName} uploaded successfully to {Container}",
-            blobName, containerName);  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(blobName), containerName);  // codeql[cs/log-forging]
 
         return blobClient.Uri.ToString();
     }
@@ -135,7 +136,7 @@ public class AzureBlobStorageService : IBlobStorageService
         ArgumentException.ThrowIfNullOrWhiteSpace(blobName);
 
         _logger.LogInformation("Downloading blob {BlobName} from container {Container}",
-            blobName, containerName);  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(blobName), containerName);  // codeql[cs/log-forging]
 
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
         var blobClient = containerClient.GetBlobClient(blobName);
@@ -185,7 +186,7 @@ public class AzureBlobStorageService : IBlobStorageService
 
             _logger.LogInformation(
                 "Set metadata on blob {BlobName} in container {Container}.",
-                blobName,  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(blobName),  // codeql[cs/log-forging]
                 containerName);
         }
         catch (Exception ex)
@@ -193,7 +194,7 @@ public class AzureBlobStorageService : IBlobStorageService
             _logger.LogWarning(
                 ex,
                 "Failed to set metadata on blob {BlobName} in container {Container}. This is best-effort only.",
-                blobName,  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(blobName),  // codeql[cs/log-forging]
                 containerName);
         }
     }

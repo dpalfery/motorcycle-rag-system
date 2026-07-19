@@ -3,6 +3,7 @@ using System.Data;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Extensions.Logging;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Contracts.Models.DTOs;
@@ -189,7 +190,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<WebSource>(sql, new { Url = url.ToString() });
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get web source by URL {Url}", url);  // codeql[cs/log-forging]
+                _logger.LogError(ex, "Failed to get web source by URL {Url}", LogSanitizer.Sanitize(url));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to get web source by URL {url}", ex);
             }
         }

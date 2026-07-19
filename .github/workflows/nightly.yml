@@ -554,13 +554,16 @@ jobs:
     - name: Build Local Processor image
       run: docker build -f 2-Application/local-processing-service/Dockerfile -t local-processor 2-Application/local-processing-service/
 
+    # MEDIUM included for api/ui so GitHub Security can close residual OS-package
+    # alerts (#647–#713) after Dockerfile package pins land and this job rebuilds.
+    # Fail threshold unchanged: no exit-code (default 0); SARIF upload only.
     - name: Run Trivy on API image
       uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master
       with:
         image-ref: motorcycle-rag-api
         format: sarif
         output: trivy-api.sarif
-        severity: HIGH,CRITICAL
+        severity: MEDIUM,HIGH,CRITICAL
 
     - name: Run Trivy on UI image
       uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master
@@ -568,7 +571,7 @@ jobs:
         image-ref: motorcycle-rag-ui
         format: sarif
         output: trivy-ui.sarif
-        severity: HIGH,CRITICAL
+        severity: MEDIUM,HIGH,CRITICAL
 
     - name: Run Trivy on Local Processor image
       uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master

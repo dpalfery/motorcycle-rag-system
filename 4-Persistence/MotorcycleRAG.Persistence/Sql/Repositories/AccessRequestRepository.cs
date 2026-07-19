@@ -64,7 +64,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get access request for {Provider}/{Email}",
-                    provider, PiiMasking.MaskEmailForLog(email));  // codeql[cs/exposure-of-sensitive-information]
+                    LogSanitizer.Sanitize(provider), LogSanitizer.Sanitize(PiiMasking.MaskEmailForLog(email)));  // codeql[cs/exposure-of-sensitive-information]
                 throw new InvalidOperationException($"Failed to get access request for {email}", ex);
             }
         }
@@ -121,7 +121,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Request ID must be a valid GUID", nameof(requestId), ex);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to get admin access request {RequestId}", requestId);  // codeql[cs/log-forging]
+                _logger.LogError(ex, "Failed to get admin access request {RequestId}", LogSanitizer.Sanitize(requestId));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to get access request {requestId}", ex);
             }
         }
@@ -432,7 +432,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create access request for {Provider}/{Email}",
-                    request.Provider, PiiMasking.MaskEmailForLog(request.Email));  // codeql[cs/exposure-of-sensitive-information]
+                    LogSanitizer.Sanitize(request.Provider), LogSanitizer.Sanitize(PiiMasking.MaskEmailForLog(request.Email)));  // codeql[cs/exposure-of-sensitive-information]
                 throw new InvalidOperationException($"Failed to create access request for {request.Email}", ex);
             }
         }
@@ -514,7 +514,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Request ID must be a valid GUID", nameof(requestId), ex);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "Failed to update access request {RequestId}", requestId);  // codeql[cs/log-forging]
+                _logger.LogError(ex, "Failed to update access request {RequestId}", LogSanitizer.Sanitize(requestId));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to update access request {requestId}", ex);
             }
         }

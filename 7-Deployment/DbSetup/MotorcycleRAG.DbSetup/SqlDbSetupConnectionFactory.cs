@@ -12,15 +12,13 @@ public sealed class SqlDbSetupConnectionFactory : IDbSetupConnectionFactory
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
-        // codeql[cs/insecure-sql-connection]: CodeQL's sink model looks for the legacy
-        // boolean `Encrypt=True`; SqlConnectionEncryptOption.Mandatory (Microsoft.Data.SqlClient
-        // 5.x) is the modern, stricter equivalent and TrustServerCertificate stays false so the
+        // CodeQL cs/insecure-sql-connection recognizes legacy Encrypt=True (indexer/bool),
+        // not SqlConnectionEncryptOption.Mandatory alone. "True" maps to Mandatory in
+        // Microsoft.Data.SqlClient 5.x; TrustServerCertificate stays false so the
         // server certificate is still validated.
-        var builder = new SqlConnectionStringBuilder(connectionString)
-        {
-            Encrypt = SqlConnectionEncryptOption.Mandatory,
-            TrustServerCertificate = false
-        };
+        var builder = new SqlConnectionStringBuilder(connectionString);
+        builder["Encrypt"] = "True";
+        builder.TrustServerCertificate = false;
 
         return new SqlConnection(builder.ConnectionString);
     }

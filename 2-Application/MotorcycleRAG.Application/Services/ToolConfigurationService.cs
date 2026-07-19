@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using System.Net;
 using System.Text.Json;
@@ -67,7 +68,7 @@ public class ToolConfigurationService : IToolConfigurationService {
             return await _configRepository.GetByToolIdAsync(toolId);
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error retrieving tool configuration for {ToolId}", toolId);  // codeql[cs/log-forging]
+            _logger.LogError(ex, "Error retrieving tool configuration for {ToolId}", LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error retrieving tool configuration for {toolId}", ex);
         }
     }
@@ -128,12 +129,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Created MCP tool {ToolId} ({ToolName})",
-                savedConfig.ToolId, savedConfig.Name);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(savedConfig.ToolId), LogSanitizer.Sanitize(savedConfig.Name));  // codeql[cs/log-forging]
 
             return savedConfig;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error creating MCP tool {ToolId}", configuration.ToolId);  // codeql[cs/log-forging]
+            _logger.LogError(ex, "Error creating MCP tool {ToolId}", LogSanitizer.Sanitize(configuration.ToolId));  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error creating MCP tool {configuration.ToolId}", ex);
         }
     }
@@ -189,12 +190,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Updated MCP tool {ToolId}",
-                toolId);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
 
             return updatedConfig;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error updating MCP tool {ToolId}", toolId);  // codeql[cs/log-forging]
+            _logger.LogError(ex, "Error updating MCP tool {ToolId}", LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error updating MCP tool {toolId}", ex);
         }
     }
@@ -260,12 +261,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Enabled MCP tool {ToolId}",
-                toolId);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
 
             return updatedConfig;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error enabling MCP tool {ToolId}", toolId);  // codeql[cs/log-forging]
+            _logger.LogError(ex, "Error enabling MCP tool {ToolId}", LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error enabling MCP tool {toolId}", ex);
         }
     }
@@ -310,12 +311,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Disabled MCP tool {ToolId} - Reason: {Reason}",
-                toolId, reason);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(toolId), LogSanitizer.Sanitize(reason));  // codeql[cs/log-forging]
 
             return updatedConfig;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error disabling MCP tool {ToolId}", toolId);  // codeql[cs/log-forging]
+            _logger.LogError(ex, "Error disabling MCP tool {ToolId}", LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error disabling MCP tool {toolId}", ex);
         }
     }
@@ -330,26 +331,26 @@ public class ToolConfigurationService : IToolConfigurationService {
 
         // CQ-002: Standardized null check using IsNullOrWhiteSpace
         if (!tool.IsEnabled && string.IsNullOrWhiteSpace(tool.DisabledReason)) {
-            _logger.LogWarning("Tool {ToolId} is disabled without reason", tool.ToolId);  // codeql[cs/log-forging]
+            _logger.LogWarning("Tool {ToolId} is disabled without reason", LogSanitizer.Sanitize(tool.ToolId));  // codeql[cs/log-forging]
             return false;
         }
 
         if (tool.ServerUrl == null) {
-            _logger.LogWarning("Tool {ToolId} has no server URL configured", tool.ToolId);  // codeql[cs/log-forging]
+            _logger.LogWarning("Tool {ToolId} has no server URL configured", LogSanitizer.Sanitize(tool.ToolId));  // codeql[cs/log-forging]
             return false;
         }
 
         // Validate URL with SSRF protection
         if (!IsValidMcpServerUrl(tool.ServerUrl)) {
             _logger.LogWarning("Tool {ToolId} has invalid or disallowed server URL: {ServerUrl}",
-                tool.ToolId, tool.ServerUrl);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(tool.ToolId), LogSanitizer.Sanitize(tool.ServerUrl));  // codeql[cs/log-forging]
             return false;
         }
 
         // Check timeout configuration
         if (tool.TimeoutMs.HasValue && tool.TimeoutMs <= 0) {
             _logger.LogWarning("Tool {ToolId} has invalid timeout configuration: {Timeout}ms",
-                tool.ToolId, tool.TimeoutMs);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(tool.ToolId), LogSanitizer.Sanitize(tool.TimeoutMs));  // codeql[cs/log-forging]
             return false;
         }
 
@@ -357,7 +358,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         if (!string.IsNullOrWhiteSpace(tool.ConfigurationJson)) {
             if (tool.ConfigurationJson.Length > 10240) // 10KB limit
             {
-                _logger.LogWarning("Tool {ToolId} configuration JSON exceeds 10KB limit", tool.ToolId);  // codeql[cs/log-forging]
+                _logger.LogWarning("Tool {ToolId} configuration JSON exceeds 10KB limit", LogSanitizer.Sanitize(tool.ToolId));  // codeql[cs/log-forging]
                 return false;
             }
 
@@ -365,12 +366,12 @@ public class ToolConfigurationService : IToolConfigurationService {
                 JsonDocument.Parse(tool.ConfigurationJson);
             }
             catch (JsonException ex) {
-                _logger.LogWarning(ex, "Tool {ToolId} has invalid configuration JSON", tool.ToolId);  // codeql[cs/log-forging]
+                _logger.LogWarning(ex, "Tool {ToolId} has invalid configuration JSON", LogSanitizer.Sanitize(tool.ToolId));  // codeql[cs/log-forging]
                 return false;
             }
         }
 
-        _logger.LogDebug("Tool {ToolId} validation passed", tool.ToolId);  // codeql[cs/log-forging]
+        _logger.LogDebug("Tool {ToolId} validation passed", LogSanitizer.Sanitize(tool.ToolId));  // codeql[cs/log-forging]
         return await Task.FromResult(true);
     }
 
@@ -384,7 +385,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         try {
             var config = await _configRepository.GetByToolIdAsync(toolId);
             if (config == null) {
-                _logger.LogWarning("Tool {ToolId} not found for deletion", toolId);  // codeql[cs/log-forging]
+                _logger.LogWarning("Tool {ToolId} not found for deletion", LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
                 return false;
             }
 
@@ -407,13 +408,13 @@ public class ToolConfigurationService : IToolConfigurationService {
 
                 _logger.LogInformation(
                     "Deleted MCP tool {ToolId}",
-                    toolId);  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
             }
 
             return deleted;
         }
         catch (Exception ex) {
-            _logger.LogError(ex, "Error deleting MCP tool {ToolId}", toolId);  // codeql[cs/log-forging]
+            _logger.LogError(ex, "Error deleting MCP tool {ToolId}", LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error deleting MCP tool {toolId}", ex);
         }
     }
@@ -448,7 +449,7 @@ public class ToolConfigurationService : IToolConfigurationService {
             if (!isLocalhost) {
                 _logger.LogWarning(
                     "Development port {Port} attempted on non-localhost address: {Host}",
-                    serverUrl.Port, serverUrl.Host);  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(serverUrl.Port), LogSanitizer.Sanitize(serverUrl.Host));  // codeql[cs/log-forging]
                 return false;
             }
         }

@@ -3,6 +3,7 @@ using System.Data;
 using System.Data.Common;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
 using MotorcycleRAG.Persistence.Sql;
@@ -968,13 +969,11 @@ public sealed class IngestionJobRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task GetLatestByInputAsync_InputRefContainsControlCharacters_LogsOneEscapedPhysicalLine()
+    public async Task GetLatestByInputAsync_InputRefContainsControlCharacters_LogsSanitizedInputRef()
     {
-        // Per Snyk CWE-117 remediation, sanitization moved to the SanitizingLoggerProvider boundary
-        // (see MotorcycleRAG.Core.Logging.SanitizingLoggerProvider, covered by Core.Tests).
-        // Repository call sites pass the raw value as a structured argument; production loggers
-        // wrap it before it reaches any sink. This test confirms the raw value reaches the logger
-        // pipeline (the provider boundary is responsible for escaping it before emission).
+        // The repository now sanitizes InputRef inline via LogSanitizer.Sanitize before logging
+        // (CWE-117 log-forging defense-in-depth alongside the runtime SanitizingLoggerProvider),
+        // so the mock logger observes the escaped value, not the raw one.
         const string attackerInputRef = "upload\\name\r\nforged\tentry";
         var factory = new Mock<ISqlConnectionFactory>();
         factory.Setup(x => x.CreateOpenConnectionAsync()).ThrowsAsync(new InvalidOperationException("sql down"));
@@ -988,7 +987,7 @@ public sealed class IngestionJobRepositoryTests : IDisposable
             .Arguments[2];
         var structured = state.Should().BeAssignableTo<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, object?>>>()
             .Subject;
-        structured.Should().Contain(pair => pair.Key == "InputRef" && Equals(pair.Value, attackerInputRef));
+        structured.Should().Contain(pair => pair.Key == "InputRef" && Equals(pair.Value, LogSanitizer.Sanitize(attackerInputRef)));
     }
 
     private static IngestionJobRepository CreateSut(FakeDbConnection? connection = null)

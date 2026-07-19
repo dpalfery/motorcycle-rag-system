@@ -80,7 +80,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get active identity link for managed user {ManagedUserId}",
-                    managedUserId);  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(managedUserId));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to get identity link for {managedUserId}", ex);
             }
         }
@@ -225,7 +225,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to revoke identity links for managed user {ManagedUserId}",
-                    managedUserId);  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(managedUserId));  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to revoke identity links for {managedUserId}", ex);
             }
         }

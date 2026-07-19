@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories;
@@ -165,13 +166,13 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
             });
 
             _logger.LogInformation("Tool configuration {ToolId} saved successfully",
-                configuration.ToolId);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(configuration.ToolId));  // codeql[cs/log-forging]
             return configuration;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving tool configuration {ToolId}",
-                configuration.ToolId);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(configuration.ToolId));  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error saving tool {nameof(configuration)} {configuration.ToolId}", ex);
         }
     }
@@ -240,7 +241,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving tool configuration by ToolId {ToolId}",
-                toolId);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(toolId));  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error retrieving tool configuration by ToolId {toolId}", ex);
         }
     }

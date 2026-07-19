@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Contracts.Models.DTOs;
 
 namespace MotorcycleRAG.Persistence.Sql.Repositories;
@@ -88,7 +89,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
 
                 _logger.LogInformation(
                     "Recorded audit entry for tool {ToolId}: {Action} by user {UserId}",
-                    toolId,  // codeql[cs/log-forging]
+                    LogSanitizer.Sanitize(toolId),  // codeql[cs/log-forging]
                     action,
                     userId ?? "system");
 
@@ -102,7 +103,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         catch (Exception ex) {
             _logger.LogError(ex,
                 "Error recording audit entry for tool {ToolId}: {Action}",
-                toolId, action);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(toolId), action);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error recording audit entry for tool {toolId}: {action}", ex);
         }
     }

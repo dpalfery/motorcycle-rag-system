@@ -888,3 +888,133 @@ async def test_report_stage_swallows_redirect_response(monkeypatch, caplog):
         record.getMessage() for record in caplog.records if record.levelname == "WARNING"
     ]
     assert any("Stage report failed" in message for message in warnings)
+
+
+@pytest.mark.parametrize(
+    "processor_job_id",
+    [
+        "not-a-uuid",
+        "../escape",
+        "12345678-1234-1234-1234-123456789012/extra",
+        "https://evil.example/status",
+        "12345678-1234-1234-1234-123456789012@evil.example",
+    ],
+    ids=[
+        "plain-text",
+        "path-traversal",
+        "path-suffix",
+        "absolute-url",
+        "userinfo-lookalike",
+    ],
+)
+async def test_report_stage_when_job_id_is_not_uuid_skips_outbound_request(
+    monkeypatch, processor_job_id
+):
+    """T3: non-UUID job ids never become stage-report path segments."""
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {
+        "access_token": "token",
+        "expires_in": 600,
+    }
+
+    class ReportClient:
+        def __init__(self):
+            self.urls = []
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def patch(self, url, **kwargs):
+            self.urls.append(url)
+            return httpx.Response(200, request=httpx.Request("PATCH", str(url)))
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    report = ReportClient()
+    with patch(
+        "api.api_client.create_api_https_async_client", return_value=report
+    ) as create_client:
+        await client.report_stage(processor_job_id, "embedding")
+
+    create_client.assert_not_called()
+    assert report.urls == []
+
+
+@pytest.mark.parametrize(
+    ("api_base_url", "expected_path"),
+    [
+        (
+            "https://api.example.test:8443",
+            "/api/ingestion/jobs/by-run/12345678-1234-1234-1234-123456789012/status",
+        ),
+        (
+            "https://api.example.test:8443/base",
+            "/base/api/ingestion/jobs/by-run/12345678-1234-1234-1234-123456789012/status",
+        ),
+    ],
+)
+async def test_report_stage_builds_typed_url_from_validated_base_and_canonical_uuid(
+    monkeypatch,
+    api_base_url,
+    expected_path,
+):
+    """T3/T4 contract: authority from validated base; UUID path via httpx.URL join.
+
+    Path-prefixed bases must keep their prefix (directory-base join), matching
+    ``model_discovery._join_discovery_path`` semantics.
+    """
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    monkeypatch.setenv("MCR_API_BASE_URL", api_base_url)
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {
+        "access_token": "token",
+        "expires_in": 600,
+    }
+
+    class ReportClient:
+        def __init__(self):
+            self.url = None
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def patch(self, url, **kwargs):
+            self.url = url
+            return httpx.Response(200, request=httpx.Request("PATCH", str(url)))
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    report = ReportClient()
+    raw_job_id = "{12345678-1234-1234-1234-123456789012}"
+    canonical_job_id = "12345678-1234-1234-1234-123456789012"
+    with patch("api.api_client.create_api_https_async_client", return_value=report):
+        await client.report_stage(raw_job_id, "embedding")
+
+    assert isinstance(report.url, httpx.URL)
+    assert report.url.scheme == "https"
+    assert report.url.host == "api.example.test"
+    assert report.url.port == 8443
+    assert report.url.username is None or report.url.username == ""
+    assert report.url.password is None or report.url.password == ""
+    assert report.url.fragment is None or report.url.fragment == ""
+    assert bytes(report.url.query) == b""
+    assert report.url.path == expected_path
+    # Path segment must be the canonical UUID, never the braced/raw form.
+    assert raw_job_id not in report.url.path
+    assert canonical_job_id in report.url.path
+    assert report.url.host == httpx.URL(client._base_url).host
+    assert report.url.scheme == httpx.URL(client._base_url).scheme
+    assert report.url.port == httpx.URL(client._base_url).port

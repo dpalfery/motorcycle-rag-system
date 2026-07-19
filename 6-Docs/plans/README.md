@@ -15,6 +15,7 @@ Read this file before opening a plan. Open a plan only when it is both relevant 
 
 | Plan | Status | Goal |
 | --- | --- | --- |
+| [2026-07-19 CodeQL and Trivy Residual Alert Remediation](2026-07-19-codeql-trivy-residual-remediation.md) | Ready | Clear CodeQL #404/#405/#402/#892/#259 and Trivy MEDIUM api/ui OS package alerts via CodeQL-visible hardening, per-language CodeQL categories, Dockerfile package upgrades, MEDIUM-inclusive rescan, and user-approved ACR republish. |
 | [2026-07-18 Security and Quality Alert Remediation](2026-07-18-security-quality-remediation.md) | Review required | Local T0–T15 implemented; canonical docs updated. T16 partial: #399 dismissed (`used in tests`); #401 awaits post-merge Semgrep. Not archived: T16/#401, T17 (124 open legacy CodeQL on develop), T18 matrix migration, and remaining T19 GitHub gates remain open. |
 | ~~2026-07-18 Snyk CWE-117 log forging — central provider remediation~~ | Archived | Completed 2026-07-18. SanitizingLoggerProvider + SanitizingLogger in MotorcycleRAG.Core.Logging, registered in all 5 .NET hosts. 126+ per-call LogSanitizer.Sanitize sites decommissioned; BFF SanitizeLogValue helper removed. DbSetup SanitizingLogger<T>/SecureLoggerExtensions deleted. 29 core tests + 8 registration-gate tests passing. Canonical guidance updated in 6-Docs/system/security.md §Log value encoding. |
 

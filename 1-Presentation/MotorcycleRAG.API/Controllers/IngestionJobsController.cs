@@ -9,6 +9,7 @@ using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Features.Ingestion.Validators;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -159,7 +160,7 @@ public sealed class IngestionJobsController : ControllerBase {
                 ex,
                 "Failed to upload ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
                 uploadId,
-                normalizedDocumentType);  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(normalizedDocumentType));  // codeql[cs/log-forging]
 
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Upload failed",
@@ -213,8 +214,8 @@ public sealed class IngestionJobsController : ControllerBase {
 
         _logger.LogInformation(
             "Starting ingestion job for UploadId={UploadId}, DocumentType={DocumentType}.",
-            request.UploadId,  // codeql[cs/log-forging]
-            request.DocumentType);  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(request.UploadId),  // codeql[cs/log-forging]
+            LogSanitizer.Sanitize(request.DocumentType));  // codeql[cs/log-forging]
 
         try {
             var result = await _ingestionJobService.StartJobAsync(request, userId, ct).ConfigureAwait(false);
@@ -224,8 +225,8 @@ public sealed class IngestionJobsController : ControllerBase {
             _logger.LogError(
                 ex,
                 "Failed to start ingestion job for UploadId={UploadId}, DocumentType={DocumentType}.",
-                request.UploadId,  // codeql[cs/log-forging]
-                request.DocumentType);
+                LogSanitizer.Sanitize(request.UploadId),  // codeql[cs/log-forging]
+                LogSanitizer.Sanitize(request.DocumentType));
 
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Failed to start ingestion job",

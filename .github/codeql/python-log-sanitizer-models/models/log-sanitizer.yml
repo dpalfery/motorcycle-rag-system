@@ -1,0 +1,9 @@
+extensions:
+  - addsTo:
+      pack: codeql/python-all
+      extensible: barrierModel
+    data:
+      # security.log_sanitizer.sanitize_log_value(value) — return value is clean for
+      # log-injection: CRLF/control characters are escaped before the sanitized string is
+      # returned.
+      - ["security", "Member[log_sanitizer].Member[sanitize_log_value].ReturnValue", "log-injection"]

@@ -1,0 +1,12 @@
+extensions:
+  - addsTo:
+      pack: codeql/csharp-all
+      extensible: barrierModel
+    data:
+      # MotorcycleRAG.Core.Utilities.LogSanitizer.Sanitize(string?, int?) — return value is
+      # clean for log-injection: CRLF/control characters are escaped before the sanitized
+      # string is returned.
+      - ["MotorcycleRAG.Core.Utilities", "LogSanitizer", false, "Sanitize", "(System.String,System.Nullable<System.Int32>)", "", "ReturnValue", "log-injection", "manual"]
+      # MotorcycleRAG.Core.Utilities.LogSanitizer.Sanitize(object?, int?) overload — delegates
+      # to the string overload above after ToString(), so its return value is equally clean.
+      - ["MotorcycleRAG.Core.Utilities", "LogSanitizer", false, "Sanitize", "(System.Object,System.Nullable<System.Int32>)", "", "ReturnValue", "log-injection", "manual"]

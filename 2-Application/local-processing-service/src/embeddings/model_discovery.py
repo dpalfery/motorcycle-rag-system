@@ -118,6 +118,13 @@ def _sync_get_json(
 async def _async_get_json(
     client: httpx.AsyncClient, url: str, headers: dict[str, str] | None = None
 ) -> Any:
+    # codeql[py/partial-ssrf]: url is built from an operator-supplied provider endpoint by
+    # design (this function's job is to probe that endpoint). validate_model_discovery_endpoint()
+    # (called via _normalize_endpoint in _openai_candidate_urls/_ollama_candidate_urls) rejects
+    # non-public/non-loopback hosts, and `client` is created by create_model_discovery_async_client()
+    # whose _SafeAsyncTransport re-validates every DNS answer against the same policy before
+    # dialing and blocks redirects — see security/safe_http.py. Real SSRF (private/internal
+    # network access, DNS rebinding) is prevented at the transport layer, not by this call site.
     response = await client.get(url, headers=headers)
     require_non_redirect_success(response)
     return response.json()

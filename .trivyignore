@@ -1,0 +1,13 @@
+# Trivy vulnerability ignore list.
+# Applies to both the pr-gate.yml `trivy fs` scan and the nightly.yml
+# container image scans (Trivy reads .trivyignore from the working directory).
+
+# CVE-2026-27456 — util-linux: TOCTOU in the mount program when setting up loop devices.
+# No fixed util-linux version is available yet in the mcr.microsoft.com/dotnet/aspnet:10.0
+# base image (Trivy reports no "Fixed Version"). Exploitation requires a local
+# unprivileged user plus an /etc/fstab entry using `user,loop` options pointing at an
+# attacker-writable path. Our containers run a single non-root app process (USER app)
+# with no multi-user shell access and no such fstab entries, so the attack precondition
+# does not exist in how these images are deployed.
+# Revisit and remove once the base image ships a patched util-linux (>= 2.41.4).
+CVE-2026-27456

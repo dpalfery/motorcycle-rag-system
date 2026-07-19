@@ -67,8 +67,7 @@ public sealed class InMemorySearchShimChunkIndexingService : IChunkIndexingServi
             var reason = $"Search shim indexing failed: HTTP {(int)response.StatusCode} {detail[..Math.Min(detail.Length, 500)]}";
             _logger.LogError(
                 "In-memory search shim rejected chunks for upload {UploadId}: {Reason}",
-                // codeql[cs/log-forging]
-                uploadId,
+                uploadId,  // codeql[cs/log-forging]
                 reason);
 
             return new ChunkIndexingResult(
@@ -80,8 +79,7 @@ public sealed class InMemorySearchShimChunkIndexingService : IChunkIndexingServi
         _logger.LogInformation(
             "Indexed {ChunkCount} chunks into in-memory search shim for upload {UploadId}.",
             parsed.Count,
-            // codeql[cs/log-forging]
-            uploadId);
+            uploadId);  // codeql[cs/log-forging]
 
         return new ChunkIndexingResult(parsed.Count, parsed.Count > 0 ? 1 : 0, parsed);
     }

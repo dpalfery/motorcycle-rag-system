@@ -523,8 +523,7 @@ async def list_embedding_models(
     try:
         logger.info(
             "Embedding model discovery requested endpoint=%s",
-            # codeql[py/log-injection]
-            sanitize_log_value(endpoint),
+            sanitize_log_value(endpoint),  # codeql[py/log-injection]
         )
         discovery = await discover_embedding_models(endpoint)
         logger.info(
@@ -546,8 +545,7 @@ async def list_embedding_models(
     except ModelDiscoveryError as exc:
         logger.warning(
             "Embedding model discovery failed for %s: %s",
-            # codeql[py/log-injection]
-            sanitize_log_value(endpoint),
+            sanitize_log_value(endpoint),  # codeql[py/log-injection]
             sanitize_log_value(str(exc)),
         )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -560,12 +558,9 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
     try:
         logger.info(
             "PDF processing request received upload_id=%s document_type=%s blob_container=%s has_source_access_token=%s has_local_file=%s",
-            # codeql[py/log-injection]
-            sanitize_log_value(request.upload_id),
-            # codeql[py/log-injection]
-            sanitize_log_value(request.document_type),
-            # codeql[py/log-injection]
-            sanitize_log_value(request.blob_container),
+            sanitize_log_value(request.upload_id),  # codeql[py/log-injection]
+            sanitize_log_value(request.document_type),  # codeql[py/log-injection]
+            sanitize_log_value(request.blob_container),  # codeql[py/log-injection]
             bool(request.source_access_token),
             bool(request.local_file_path),
         )
@@ -606,12 +601,9 @@ async def process_pdf(request: ProcessPDFRequest, background_tasks: BackgroundTa
         )
         logger.info(
             "PDF processing job accepted job_id=%s upload_id=%s document_type=%s",
-            # codeql[py/log-injection]
-            sanitize_log_value(job_id),
-            # codeql[py/log-injection]
-            sanitize_log_value(request.upload_id),
-            # codeql[py/log-injection]
-            sanitize_log_value(request.document_type),
+            sanitize_log_value(job_id),  # codeql[py/log-injection]
+            sanitize_log_value(request.upload_id),  # codeql[py/log-injection]
+            sanitize_log_value(request.document_type),  # codeql[py/log-injection]
         )
 
         return ProcessingStatusResponse(
@@ -765,8 +757,7 @@ async def get_job_status(job_id: str):
     except Exception as exc:
         logger.exception(
             "Unexpected error in /jobs/%s error=%s",
-            # codeql[py/log-injection]
-            sanitize_log_value(job_id),
+            sanitize_log_value(job_id),  # codeql[py/log-injection]
             sanitize_log_value(str(exc)),
         )
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
@@ -788,8 +779,7 @@ async def stop_job(job_id: str):
     except Exception as exc:
         logger.exception(
             "Unexpected error in /jobs/%s/stop error=%s",
-            # codeql[py/log-injection]
-            sanitize_log_value(job_id),
+            sanitize_log_value(job_id),  # codeql[py/log-injection]
             sanitize_log_value(str(exc)),
         )
         raise HTTPException(status_code=500, detail="An unexpected error occurred")

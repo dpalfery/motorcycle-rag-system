@@ -50,8 +50,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
 
         try {
             _logger.LogInformation("Starting CSV processing for file: {FileName}",
-                // codeql[cs/log-forging]
-                input.FileName);
+                input.FileName);  // codeql[cs/log-forging]
 
             // Validate input
             if (!ValidateInput(input, errors)) {
@@ -96,8 +95,7 @@ public class MotorcycleCsvProcessor : IDataProcessor<CSVFile> {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Fatal error processing CSV file: {FileName}",
-                // codeql[cs/log-forging]
-                input.FileName);
+                input.FileName);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Fatal error processing CSV: {ex.Message}", ex);
         }
     }

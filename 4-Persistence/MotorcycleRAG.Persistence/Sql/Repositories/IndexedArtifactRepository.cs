@@ -70,8 +70,7 @@ public class IndexedArtifactRepository : IIndexedArtifactRepository
         }
         catch (Exception ex)
         {
-            // codeql[cs/log-forging]
-            _logger.LogError(ex, "Failed to upsert indexed artifact {UploadId}", artifact.UploadId);
+            _logger.LogError(ex, "Failed to upsert indexed artifact {UploadId}", artifact.UploadId);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Failed to upsert indexed artifact", ex);
         }
     }

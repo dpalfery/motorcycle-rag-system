@@ -60,8 +60,7 @@ public sealed class RequestPipelineTimingMiddleware
             {
                 _logger.LogWarning(
                     "Slow request: {Method} {Path} completed in {ElapsedMs}ms (Status={StatusCode})",
-                    // codeql[cs/log-forging]
-                    context.Request.Method,
+                    context.Request.Method,  // codeql[cs/log-forging]
                     path,
                     elapsedMs,
                     statusCode);
@@ -70,8 +69,7 @@ public sealed class RequestPipelineTimingMiddleware
             {
                 _logger.LogDebug(
                     "Request: {Method} {Path} completed in {ElapsedMs}ms (Status={StatusCode})",
-                    // codeql[cs/log-forging]
-                    context.Request.Method,
+                    context.Request.Method,  // codeql[cs/log-forging]
                     path,
                     elapsedMs,
                     statusCode);

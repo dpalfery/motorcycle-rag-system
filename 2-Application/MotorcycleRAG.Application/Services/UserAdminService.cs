@@ -39,30 +39,26 @@ namespace MotorcycleRAG.Application.Services {
 
             var user = await _userRepository.GetUserByIdAsync(userId);
             if (user == null) {
-                // codeql[cs/log-forging]
-                _logger.LogWarning("User {UserId} not found when setting enabled status", userId);
+                _logger.LogWarning("User {UserId} not found when setting enabled status", userId);  // codeql[cs/log-forging]
                 throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
             }
 
             // Check if status is actually changing
             if (user.IsEnabled == isEnabled) {
-                // codeql[cs/log-forging]
-                _logger.LogDebug("User {UserId} already has enabled status {IsEnabled}", userId, isEnabled);
+                _logger.LogDebug("User {UserId} already has enabled status {IsEnabled}", userId, isEnabled);  // codeql[cs/log-forging]
                 return user;
             }
 
             var success = await _userRepository.SetUserEnabledStatusAsync(userId, isEnabled);
             if (!success) {
-                // codeql[cs/log-forging]
-                _logger.LogError("Failed to set enabled status for user {UserId}", userId);
+                _logger.LogError("Failed to set enabled status for user {UserId}", userId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to update user {userId}");
             }
 
             user.IsEnabled = isEnabled;
             user.LastUpdatedDate = DateTime.UtcNow;
 
-            // codeql[cs/log-forging]
-            _logger.LogInformation("User {UserId} enabled status set to {IsEnabled}", userId, isEnabled);
+            _logger.LogInformation("User {UserId} enabled status set to {IsEnabled}", userId, isEnabled);  // codeql[cs/log-forging]
             return user;
         }
 
@@ -80,22 +76,19 @@ namespace MotorcycleRAG.Application.Services {
 
             var user = await _userRepository.GetUserByIdAsync(userId);
             if (user == null) {
-                // codeql[cs/log-forging]
-                _logger.LogWarning("User {UserId} not found when assigning plan", userId);
+                _logger.LogWarning("User {UserId} not found when assigning plan", userId);  // codeql[cs/log-forging]
                 throw new ArgumentException($"User with ID {userId} not found", nameof(userId));
             }
 
             var plan = await _planRepository.GetPlanByIdAsync(planId);
             if (plan == null) {
-                // codeql[cs/log-forging]
-                _logger.LogWarning("Plan {PlanId} not found when assigning to user", planId);
+                _logger.LogWarning("Plan {PlanId} not found when assigning to user", planId);  // codeql[cs/log-forging]
                 throw new ArgumentException($"Plan with ID {planId} not found", nameof(planId));
             }
 
             // Check if plan is already assigned
             if (user.PlanId == planId) {
-                // codeql[cs/log-forging]
-                _logger.LogDebug("User {UserId} already has plan {PlanId}", userId, planId);
+                _logger.LogDebug("User {UserId} already has plan {PlanId}", userId, planId);  // codeql[cs/log-forging]
                 return user;
             }
 
@@ -104,13 +97,11 @@ namespace MotorcycleRAG.Application.Services {
 
             var success = await _userRepository.UpdateUserAsync(user);
             if (!success) {
-                // codeql[cs/log-forging]
-                _logger.LogError("Failed to assign plan {PlanId} to user {UserId}", planId, userId);
+                _logger.LogError("Failed to assign plan {PlanId} to user {UserId}", planId, userId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to assign plan {planId} to user {userId}");
             }
 
-            // codeql[cs/log-forging]
-            _logger.LogInformation("Assigned plan {PlanId} to user {UserId}", planId, userId);
+            _logger.LogInformation("Assigned plan {PlanId} to user {UserId}", planId, userId);  // codeql[cs/log-forging]
             return user;
         }
 

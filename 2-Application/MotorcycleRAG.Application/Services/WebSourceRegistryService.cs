@@ -49,8 +49,7 @@ public class WebSourceRegistryService {
 
         var createdSource = await _webSourceRepository.CreateWebSourceAsync(webSource);
         _logger.LogInformation("Added web source {SourceName} with ID {SourceId} by user {UserId}",
-            // codeql[cs/log-forging]
-            createdSource.Name, createdSource.Id, _currentUserService.UserId);
+            createdSource.Name, createdSource.Id, _currentUserService.UserId);  // codeql[cs/log-forging]
 
         return createdSource;
     }

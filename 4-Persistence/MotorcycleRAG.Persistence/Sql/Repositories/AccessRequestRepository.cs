@@ -63,8 +63,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to get access request for {Provider}/{Email}",
-                    // codeql[cs/log-forging]
-                    provider, email);
+                    provider, email);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to get access request for {email}", ex);
             }
         }
@@ -121,8 +120,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Request ID must be a valid GUID", nameof(requestId), ex);
             }
             catch (Exception ex) {
-                // codeql[cs/log-forging]
-                _logger.LogError(ex, "Failed to get admin access request {RequestId}", requestId);
+                _logger.LogError(ex, "Failed to get admin access request {RequestId}", requestId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to get access request {requestId}", ex);
             }
         }
@@ -433,8 +431,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to create access request for {Provider}/{Email}",
-                    // codeql[cs/log-forging]
-                    request.Provider, request.Email);
+                    request.Provider, request.Email);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to create access request for {request.Email}", ex);
             }
         }
@@ -516,8 +513,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 throw new ArgumentException("Request ID must be a valid GUID", nameof(requestId), ex);
             }
             catch (Exception ex) {
-                // codeql[cs/log-forging]
-                _logger.LogError(ex, "Failed to update access request {RequestId}", requestId);
+                _logger.LogError(ex, "Failed to update access request {RequestId}", requestId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to update access request {requestId}", ex);
             }
         }

@@ -58,18 +58,15 @@ public sealed class AuthorizationMiddleware
 
         _logger.LogInformation(
             "Authorization attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Azp: {Azp}, Path: {Path}, Method: {Method}",
-            // codeql[cs/log-forging]
-            correlationId,
+            correlationId,  // codeql[cs/log-forging]
             userId,
             userRoles,
             rawRoleClaims,
             scopeClaims,
             altScopeClaims,
             azp,
-            // codeql[cs/log-forging]
-            context.Request.Path,
-            // codeql[cs/log-forging]
-            context.Request.Method);
+            context.Request.Path,  // codeql[cs/log-forging]
+            context.Request.Method);  // codeql[cs/log-forging]
 
         // Check if endpoint has authorization requirements
         var endpoint = context.GetEndpoint();
@@ -77,21 +74,17 @@ public sealed class AuthorizationMiddleware
         {
             _logger.LogDebug(
                 "Endpoint requires authorization - CorrelationId: {CorrelationId}, Path: {Path}",
-                // codeql[cs/log-forging]
-                correlationId,
-                // codeql[cs/log-forging]
-                context.Request.Path);
+                correlationId,  // codeql[cs/log-forging]
+                context.Request.Path);  // codeql[cs/log-forging]
 
             // Check if user is authenticated
             if (!context.User.Identity?.IsAuthenticated ?? false)
             {
                 _logger.LogWarning(
                     "Unauthorized access attempt - CorrelationId: {CorrelationId}, UserId: {UserId}, Path: {Path}",
-                    // codeql[cs/log-forging]
-                    correlationId,
+                    correlationId,  // codeql[cs/log-forging]
                     userId,
-                    // codeql[cs/log-forging]
-                    context.Request.Path);
+                    context.Request.Path);  // codeql[cs/log-forging]
             }
         }
 
@@ -104,40 +97,34 @@ public sealed class AuthorizationMiddleware
         {
             _logger.LogWarning(
                 "Authorization failed - Unauthorized - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Path: {Path}",
-                // codeql[cs/log-forging]
-                correlationId,
+                correlationId,  // codeql[cs/log-forging]
                 userId,
                 userRoles,
                 rawRoleClaims,
                 scopeClaims,
                 altScopeClaims,
-                // codeql[cs/log-forging]
-                context.Request.Path);
+                context.Request.Path);  // codeql[cs/log-forging]
         }
         else if (statusCode == StatusCodes.Status403Forbidden)
         {
             _logger.LogWarning(
                 "Authorization failed - Forbidden - CorrelationId: {CorrelationId}, UserId: {UserId}, Roles: {Roles}, RolesClaim: {RolesClaim}, Scopes: {Scopes}, AltScopes: {AltScopes}, Azp: {Azp}, Path: {Path}",
-                // codeql[cs/log-forging]
-                correlationId,
+                correlationId,  // codeql[cs/log-forging]
                 userId,
                 userRoles,
                 rawRoleClaims,
                 scopeClaims,
                 altScopeClaims,
                 azp,
-                // codeql[cs/log-forging]
-                context.Request.Path);
+                context.Request.Path);  // codeql[cs/log-forging]
         }
         else if (statusCode is >= 200 and < 300)
         {
             _logger.LogInformation(
                 "Authorization successful - CorrelationId: {CorrelationId}, UserId: {UserId}, Path: {Path}, Status: {StatusCode}",
-                // codeql[cs/log-forging]
-                correlationId,
+                correlationId,  // codeql[cs/log-forging]
                 userId,
-                // codeql[cs/log-forging]
-                context.Request.Path,
+                context.Request.Path,  // codeql[cs/log-forging]
                 statusCode);
         }
     }

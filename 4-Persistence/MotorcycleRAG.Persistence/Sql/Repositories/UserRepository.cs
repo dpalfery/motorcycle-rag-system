@@ -104,8 +104,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<UserDTO>(sql, new { UserId = userId });
             }
             catch (Exception ex) {
-                // codeql[cs/log-forging]
-                _logger.LogError(ex, "Failed to get user by ID {UserId}", userId);
+                _logger.LogError(ex, "Failed to get user by ID {UserId}", userId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to get user by ID {userId}", ex);
             }
         }
@@ -212,13 +211,11 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 });
 
                 _logger.LogInformation("Set user {UserId} enabled status to {IsEnabled}, rows affected: {RowsAffected}",
-                    // codeql[cs/log-forging]
-                    userId, isEnabled, rowsAffected);
+                    userId, isEnabled, rowsAffected);  // codeql[cs/log-forging]
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                // codeql[cs/log-forging]
-                _logger.LogError(ex, "Failed to set enabled status for user {UserId}", userId);
+                _logger.LogError(ex, "Failed to set enabled status for user {UserId}", userId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to set enabled status for user {userId}", ex);
             }
         }
@@ -255,8 +252,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to assign tier {TierLabel} for user {UserId}",
-                    // codeql[cs/log-forging]
-                    tierLabel, userId);
+                    tierLabel, userId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to assign tier for user {userId}", ex);
             }
         }
@@ -300,8 +296,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
             }
             catch (Exception ex) {
                 _logger.LogError(ex, "Failed to update access state {AccessState} for user {UserId}",
-                    // codeql[cs/log-forging]
-                    accessState, userId);
+                    accessState, userId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to update access state for user {userId}", ex);
             }
         }

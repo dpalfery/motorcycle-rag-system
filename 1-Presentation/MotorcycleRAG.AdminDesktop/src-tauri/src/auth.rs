@@ -8,8 +8,9 @@ use oauth2::{
     TokenResponse, TokenUrl,
 };
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command as StdCommand;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -99,13 +100,35 @@ impl std::fmt::Debug for AuthSession {
 }
 
 /// A Chrome user profile discovered on disk.
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ChromeProfile {
     pub(crate) directory: String,
     pub(crate) name: String,
     pub(crate) user_name: Option<String>,
 }
+
+/// Result of Chrome profile discovery for the sign-in picker (D2).
+///
+/// On I/O or parse failure, `profiles` is empty and `error` explains why —
+/// never a silent sole fake `Default`.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ChromeProfilesResult {
+    pub(crate) profiles: Vec<ChromeProfile>,
+    pub(crate) error: Option<String>,
+}
+
+/// Failure modes for pure Local State profile parsing (D2/D5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ChromeProfileParseError {
+    InvalidJson,
+    MissingInfoCache,
+}
+
+/// macOS Google Chrome stable binary path (D1/D3).
+pub(crate) const MACOS_CHROME_BINARY: &str =
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 /// Convert a stored token into the frontend-facing session shape.
 pub(crate) fn stored_token_to_session(token: &StoredToken) -> AuthSession {
@@ -180,28 +203,87 @@ fn chrome_local_state_path() -> Option<PathBuf> {
     }
 }
 
-/// Enumerate Chrome profiles from the `Local State` file.
-/// Returns `[Default]` if Chrome is not installed or the file cannot be parsed.
-pub(crate) fn list_chrome_profiles() -> Vec<ChromeProfile> {
+/// Enumerate Chrome profiles with an optional error diagnostic (D2).
+///
+/// Success: `profiles` from `profile.info_cache`, `error: None`.
+/// Failure (missing path, I/O, parse): empty `profiles` and a non-empty `error` —
+/// never a silent sole fake `Default`.
+pub(crate) fn list_chrome_profiles() -> ChromeProfilesResult {
     let path = match chrome_local_state_path() {
         Some(p) => p,
-        None => return vec![default_chrome_profile()],
+        None => {
+            let message = "Chrome Local State path is unavailable on this platform".to_string();
+            eprintln!("auth: chrome profile enumeration failed: {message}");
+            return ChromeProfilesResult {
+                profiles: vec![],
+                error: Some(message),
+            };
+        }
     };
 
-    let content = match fs::read_to_string(&path) {
+    discover_chrome_profiles_at(&path)
+}
+
+/// Read + parse Chrome profiles from a specific `Local State` path (D5 testability).
+fn discover_chrome_profiles_at(path: &Path) -> ChromeProfilesResult {
+    let content = match fs::read_to_string(path) {
         Ok(c) => c,
-        Err(_) => return vec![default_chrome_profile()],
+        Err(e) => {
+            let message = format!("could not read Chrome profiles at {}: {e}", path.display());
+            eprintln!("auth: chrome profile enumeration failed: {message}");
+            return ChromeProfilesResult {
+                profiles: vec![],
+                error: Some(message),
+            };
+        }
     };
 
-    let json: serde_json::Value = match serde_json::from_str(&content) {
-        Ok(v) => v,
-        Err(_) => return vec![default_chrome_profile()],
-    };
+    match parse_chrome_profiles_from_local_state(&content) {
+        Ok(profiles) => ChromeProfilesResult {
+            profiles,
+            error: None,
+        },
+        Err(ChromeProfileParseError::InvalidJson) => {
+            let message = format!(
+                "could not parse Chrome Local State as JSON ({})",
+                path.display()
+            );
+            eprintln!("auth: chrome profile enumeration failed: {message}");
+            ChromeProfilesResult {
+                profiles: vec![],
+                error: Some(message),
+            }
+        }
+        Err(ChromeProfileParseError::MissingInfoCache) => {
+            let message = format!(
+                "Chrome Local State is missing profile.info_cache ({})",
+                path.display()
+            );
+            eprintln!("auth: chrome profile enumeration failed: {message}");
+            ChromeProfilesResult {
+                profiles: vec![],
+                error: Some(message),
+            }
+        }
+    }
+}
 
-    let info_cache = match json.get("profile").and_then(|p| p.get("info_cache")) {
-        Some(cache) if cache.is_object() => cache.as_object().unwrap(),
-        _ => return vec![default_chrome_profile()],
-    };
+/// Pure parse of Chrome `Local State` JSON into sorted profiles (Default first).
+///
+/// Valid `profile.info_cache` object → all entries with directory/name/user_name.
+/// Invalid JSON → `Err(InvalidJson)`. Missing/non-object `info_cache` →
+/// `Err(MissingInfoCache)`. Never invents a silent fake sole Default.
+pub(crate) fn parse_chrome_profiles_from_local_state(
+    local_state_json: &str,
+) -> Result<Vec<ChromeProfile>, ChromeProfileParseError> {
+    let json: serde_json::Value =
+        serde_json::from_str(local_state_json).map_err(|_| ChromeProfileParseError::InvalidJson)?;
+
+    let info_cache = json
+        .get("profile")
+        .and_then(|p| p.get("info_cache"))
+        .and_then(|cache| cache.as_object())
+        .ok_or(ChromeProfileParseError::MissingInfoCache)?;
 
     let mut profiles: Vec<ChromeProfile> = info_cache
         .iter()
@@ -220,26 +302,61 @@ pub(crate) fn list_chrome_profiles() -> Vec<ChromeProfile> {
         .collect();
 
     // Sort: "Default" first, then alphabetical by directory.
-    profiles.sort_by(|a, b| {
-        if a.directory == "Default" {
-            std::cmp::Ordering::Less
-        } else if b.directory == "Default" {
-            std::cmp::Ordering::Greater
-        } else {
-            a.directory.cmp(&b.directory)
-        }
-    });
+    profiles.sort_by(
+        |a, b| match (a.directory == "Default", b.directory == "Default") {
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            _ => a.directory.cmp(&b.directory),
+        },
+    );
 
-    profiles
+    Ok(profiles)
 }
 
-/// Fallback profile used when Chrome is not found or parsing fails.
-fn default_chrome_profile() -> ChromeProfile {
-    ChromeProfile {
-        directory: "Default".to_string(),
-        name: "Default".to_string(),
-        user_name: None,
+/// Build macOS Chrome launch `(program, args)` without spawning (D3).
+///
+/// When `chrome_binary_available` is true: Chrome binary + `--profile-directory` + URL.
+/// Otherwise: `open -na "Google Chrome" --args --profile-directory=… URL`.
+pub(crate) fn build_macos_chrome_launch_command(
+    profile_directory: &str,
+    url: &str,
+    chrome_binary_available: bool,
+) -> (String, Vec<String>) {
+    let profile_arg = format!("--profile-directory={profile_directory}");
+    if chrome_binary_available {
+        (
+            MACOS_CHROME_BINARY.to_string(),
+            vec![profile_arg, url.to_string()],
+        )
+    } else {
+        (
+            "open".to_string(),
+            vec![
+                "-na".to_string(),
+                "Google Chrome".to_string(),
+                "--args".to_string(),
+                profile_arg,
+                url.to_string(),
+            ],
+        )
     }
+}
+
+/// Chrome profile folder names are short identifiers like `Default` or `Profile 1`.
+/// Reject path separators and shell metacharacters before they reach process argv.
+fn is_valid_chrome_profile_directory(profile_directory: &str) -> bool {
+    if profile_directory.is_empty() || profile_directory.len() > 128 {
+        return false;
+    }
+    if profile_directory.contains('/')
+        || profile_directory.contains('\\')
+        || profile_directory.contains("..")
+    {
+        return false;
+    }
+    profile_directory
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '.' | '_' | '-' | '\''))
 }
 
 // ── OAuth2 sign-in flow ───────────────────────────────────────────────────────
@@ -262,16 +379,19 @@ fn build_oidc_client(config: &AuthConfig, redirect_uri: &str) -> Result<OidcClie
 /// Open a URL in Google Chrome with a specific user profile.
 /// Platform-specific: uses `open -a` on macOS, direct path on Windows, `google-chrome` on Linux.
 fn open_browser(url: &str, profile_directory: &str) -> Result<(), String> {
+    if !is_valid_chrome_profile_directory(profile_directory) {
+        return Err(format!(
+            "invalid Chrome profile directory '{profile_directory}': expected a Chrome profile folder name"
+        ));
+    }
+
     #[cfg(target_os = "macos")]
     {
-        StdCommand::new("open")
-            .args([
-                "-a",
-                "Google Chrome",
-                "--args",
-                &format!("--profile-directory={profile_directory}"),
-                url,
-            ])
+        let chrome_binary_available = Path::new(MACOS_CHROME_BINARY).is_file();
+        let (program, args) =
+            build_macos_chrome_launch_command(profile_directory, url, chrome_binary_available);
+        StdCommand::new(&program)
+            .args(&args)
             .spawn()
             .map_err(|e| format!("failed to open Chrome on macOS: {e}"))?;
     }
@@ -660,10 +780,65 @@ mod tests {
     }
 
     #[test]
-    fn test_default_profile_when_no_chrome() {
-        let profiles = list_chrome_profiles();
-        assert!(!profiles.is_empty());
-        assert!(profiles.iter().any(|p| p.directory == "Default"));
+    fn test_list_chrome_profiles_failure_is_not_silent_fake_default() {
+        // D2: when discovery fails, return empty + diagnostic — never invent sole Default.
+        // When the host has a readable Local State, real profiles are fine.
+        let result = list_chrome_profiles();
+        if result.profiles.is_empty() {
+            assert!(
+                result.error.is_some(),
+                "empty discovery must surface an error diagnostic for the UI"
+            );
+            assert!(
+                !looks_like_silent_fake_default(&result.profiles),
+                "silent vec![Default] success is forbidden"
+            );
+        } else {
+            assert!(
+                result.error.is_none(),
+                "successful discovery must not set error; got {:?}",
+                result.error
+            );
+            assert!(result.profiles.iter().all(|p| !p.directory.is_empty()));
+        }
+    }
+
+    #[test]
+    fn test_discover_chrome_profiles_at_unreadable_path_is_empty_with_error() {
+        let missing = PathBuf::from("/nonexistent/chrome/Local State");
+        let result = discover_chrome_profiles_at(&missing);
+        assert!(result.profiles.is_empty());
+        assert!(result.error.is_some());
+        assert!(!looks_like_silent_fake_default(&result.profiles));
+    }
+
+    #[test]
+    fn test_discover_chrome_profiles_at_fixture_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("Local State");
+        fs::write(&path, multi_profile_local_state_fixture()).expect("write fixture");
+
+        let result = discover_chrome_profiles_at(&path);
+        assert!(
+            result.error.is_none(),
+            "unexpected error: {:?}",
+            result.error
+        );
+        assert_eq!(result.profiles.len(), 5);
+        assert_eq!(result.profiles[0].directory, "Default");
+        assert_eq!(result.profiles[1].directory, "Profile 1");
+    }
+
+    #[test]
+    fn test_is_valid_chrome_profile_directory() {
+        assert!(is_valid_chrome_profile_directory("Default"));
+        assert!(is_valid_chrome_profile_directory("Profile 1"));
+        assert!(is_valid_chrome_profile_directory("Guest Profile"));
+        assert!(!is_valid_chrome_profile_directory(""));
+        assert!(!is_valid_chrome_profile_directory("../etc"));
+        assert!(!is_valid_chrome_profile_directory("Default;rm -rf /"));
+        assert!(!is_valid_chrome_profile_directory("foo/bar"));
+        assert!(!is_valid_chrome_profile_directory("foo\\bar"));
     }
 
     #[test]
@@ -681,6 +856,151 @@ mod tests {
         let cache = sample["profile"]["info_cache"].as_object().unwrap();
         assert_eq!(cache.len(), 3);
         assert!(cache.contains_key("Default"));
+    }
+
+    /// Fixture: Default + Profile 1..4 (N=4 → N+1 = 5 profiles).
+    fn multi_profile_local_state_fixture() -> String {
+        serde_json::json!({
+            "profile": {
+                "info_cache": {
+                    "Profile 2": { "name": "Personal", "user_name": "user@gmail.com" },
+                    "Default": { "name": "Person 1", "user_name": "default@example.com" },
+                    "Profile 1": { "name": "Work", "user_name": "user@company.com" },
+                    "Profile 4": { "name": "Dev", "user_name": null },
+                    "Profile 3": { "name": "School", "user_name": "school@edu.edu" }
+                }
+            }
+        })
+        .to_string()
+    }
+
+    fn looks_like_silent_fake_default(profiles: &[ChromeProfile]) -> bool {
+        profiles.len() == 1
+            && profiles[0].directory == "Default"
+            && profiles[0].name == "Default"
+            && profiles[0].user_name.is_none()
+    }
+
+    #[test]
+    fn test_parse_chrome_profiles_from_local_state_multi_profile_sorted() {
+        let json = multi_profile_local_state_fixture();
+
+        let profiles = parse_chrome_profiles_from_local_state(&json)
+            .expect("valid Local State fixture must parse");
+
+        assert_eq!(
+            profiles.len(),
+            5,
+            "Default + Profile 1..4 must yield 5 profiles"
+        );
+        assert_eq!(profiles[0].directory, "Default");
+        assert_eq!(profiles[0].name, "Person 1");
+        assert_eq!(
+            profiles[0].user_name.as_deref(),
+            Some("default@example.com")
+        );
+        assert_eq!(profiles[1].directory, "Profile 1");
+        assert_eq!(profiles[1].name, "Work");
+        assert_eq!(profiles[1].user_name.as_deref(), Some("user@company.com"));
+        assert_eq!(profiles[2].directory, "Profile 2");
+        assert_eq!(profiles[2].name, "Personal");
+        assert_eq!(profiles[2].user_name.as_deref(), Some("user@gmail.com"));
+        assert_eq!(profiles[3].directory, "Profile 3");
+        assert_eq!(profiles[3].name, "School");
+        assert_eq!(profiles[3].user_name.as_deref(), Some("school@edu.edu"));
+        assert_eq!(profiles[4].directory, "Profile 4");
+        assert_eq!(profiles[4].name, "Dev");
+        assert_eq!(profiles[4].user_name, None);
+    }
+
+    #[test]
+    fn test_parse_chrome_profiles_from_local_state_invalid_json_not_fake_default() {
+        let result = parse_chrome_profiles_from_local_state("{ not valid json");
+
+        match result {
+            Ok(profiles) => {
+                assert!(
+                    profiles.is_empty(),
+                    "invalid JSON may return empty Ok, not invented profiles"
+                );
+                assert!(
+                    !looks_like_silent_fake_default(&profiles),
+                    "silent vec![Default] success is forbidden for invalid JSON"
+                );
+            }
+            Err(ChromeProfileParseError::InvalidJson) => {}
+            Err(other) => panic!("expected InvalidJson or empty Ok, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_chrome_profiles_from_local_state_missing_info_cache_not_fake_default() {
+        let json = r#"{"profile":{"last_used":"Default"}}"#;
+        let result = parse_chrome_profiles_from_local_state(json);
+
+        match result {
+            Ok(profiles) => {
+                assert!(
+                    profiles.is_empty(),
+                    "missing info_cache may return empty Ok, not invented profiles"
+                );
+                assert!(
+                    !looks_like_silent_fake_default(&profiles),
+                    "silent vec![Default] success is forbidden when info_cache is missing"
+                );
+            }
+            Err(ChromeProfileParseError::MissingInfoCache) => {}
+            Err(other) => panic!("expected MissingInfoCache or empty Ok, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_build_macos_chrome_launch_command_prefers_binary_path() {
+        let url = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?x=1";
+        let (program, args) = build_macos_chrome_launch_command("Profile 1", url, true);
+
+        assert_eq!(program, MACOS_CHROME_BINARY);
+        assert!(
+            args.iter().any(|a| a == "--profile-directory=Profile 1"
+                || a == "Profile 1" && args.iter().any(|f| f == "--profile-directory")),
+            "argv must include --profile-directory for Profile 1; got {args:?}"
+        );
+        assert!(
+            args.iter().any(|a| a == url),
+            "argv must include the auth URL; got {args:?}"
+        );
+        assert!(
+            !args.iter().any(|a| a == "-a"),
+            "binary launch must not use open -a; got {args:?}"
+        );
+    }
+
+    #[test]
+    fn test_build_macos_chrome_launch_command_open_na_fallback() {
+        let url = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?x=1";
+        let (program, args) = build_macos_chrome_launch_command("Default", url, false);
+
+        assert_eq!(program, "open");
+        assert!(
+            args.windows(2)
+                .any(|w| w[0] == "-na" && w[1] == "Google Chrome")
+                || (args.contains(&"-n".to_string())
+                    && args.contains(&"-a".to_string())
+                    && args.contains(&"Google Chrome".to_string())),
+            "fallback must use open -na (or -n -a) Google Chrome; got {args:?}"
+        );
+        assert!(
+            args.iter().any(|a| a == "--args"),
+            "fallback must pass --args; got {args:?}"
+        );
+        assert!(
+            args.iter().any(|a| a == "--profile-directory=Default"),
+            "fallback must include --profile-directory=Default; got {args:?}"
+        );
+        assert!(
+            args.iter().any(|a| a == url),
+            "fallback must include the auth URL; got {args:?}"
+        );
     }
 
     /// Build a fake (unsigned) JWT whose payload is the base64url-no-pad encoding

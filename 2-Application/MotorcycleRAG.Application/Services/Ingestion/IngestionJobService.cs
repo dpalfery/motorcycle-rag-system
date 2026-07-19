@@ -147,10 +147,8 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         _logger.LogInformation(
             "Deleted pending ingestion upload {UploadId} for document type {DocumentType}.",
-            // codeql[cs/log-forging]
-            uploadId,
-            // codeql[cs/log-forging]
-            documentType);
+            uploadId,  // codeql[cs/log-forging]
+            documentType);  // codeql[cs/log-forging]
     }
 
     /// <inheritdoc />
@@ -399,8 +397,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         _logger.LogInformation(
             "Queued ingestion job {JobId} for processor run {ProcessorRunId}.",
             job.IngestionJobId,
-            // codeql[cs/log-forging]
-            request.ProcessorRunId);
+            request.ProcessorRunId);  // codeql[cs/log-forging]
 
         return MapToResponse(job);
     }
@@ -544,8 +541,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         _logger.LogInformation(
             "Ingestion job {JobId} marked as failed: {Reason}",
             jobId,
-            // codeql[cs/log-forging]
-            reason);
+            reason);  // codeql[cs/log-forging]
     }
 
     /// <summary>Maps a domain <see cref="IngestionJob"/> to its response DTO.</summary>
@@ -723,12 +719,10 @@ public sealed class IngestionJobService : IIngestionJobService {
         _logger.LogInformation(
             "Ingestion job {JobId} stage transitioned to {Stage} (chunks={ChunksProcessed}/{TotalChunks}, failureReason={FailureReason}).",
             jobId,
-            // codeql[cs/log-forging]
-            request.Stage,
+            request.Stage,  // codeql[cs/log-forging]
             request.ChunksProcessed,
             request.TotalChunks,
-            // codeql[cs/log-forging]
-            request.FailureReason);
+            request.FailureReason);  // codeql[cs/log-forging]
 
         return MapToResponse(job);
     }

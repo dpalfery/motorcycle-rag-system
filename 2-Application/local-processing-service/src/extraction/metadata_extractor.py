@@ -221,8 +221,7 @@ class MetadataExtractor:
             except Exception:
                 logger.warning(
                     "Metadata extraction LLM call failed after all retries%s",
-                    # codeql[py/log-injection]
-                    jid_tag,
+                    jid_tag,  # codeql[py/log-injection]
                 )
                 break
             self._merge(best_result, parsed)
@@ -233,8 +232,7 @@ class MetadataExtractor:
             logger.info(
                 "component=metadata_extraction job_id=%s "
                 "sample_size=%d actual_pages=%d fill_rate=%.2f",
-                # codeql[py/log-injection]
-                safe_job_id or "?",
+                safe_job_id or "?",  # codeql[py/log-injection]
                 sample_size,
                 actual_size,
                 best_result["fill_rate"],
@@ -244,8 +242,7 @@ class MetadataExtractor:
                 logger.info(
                     "Metadata extraction reached 100%% fill rate after %d pages%s",
                     actual_size,
-                    # codeql[py/log-injection]
-                    jid_tag,
+                    jid_tag,  # codeql[py/log-injection]
                 )
                 break
 
@@ -254,8 +251,7 @@ class MetadataExtractor:
                 "Metadata extraction incomplete: %.0f%% fill rate after %d pages%s",
                 best_result["fill_rate"] * 100,
                 best_result["pages_sampled"],
-                # codeql[py/log-injection]
-                jid_tag,
+                jid_tag,  # codeql[py/log-injection]
             )
 
         return best_result
@@ -352,14 +348,12 @@ class MetadataExtractor:
                 "LLM response has no choices (model=%s, id=%s)%s",
                 sanitize_log_value(str(response.model)) if response else "N/A",
                 sanitize_log_value(str(response.id)) if response else "N/A",
-                # codeql[py/log-injection]
-                jid_suffix,
+                jid_suffix,  # codeql[py/log-injection]
             )
             logger.info(
                 "component=metadata_extraction job_id=%s model=%s endpoint=%s "
                 "input_chars=%d tokens_approx=%d elapsed_ms=%d result=%s",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id) or "?",
+                sanitize_log_value(job_id) or "?",  # codeql[py/log-injection]
                 sanitize_log_value(self._model),
                 sanitize_log_value(self._endpoint),
                 input_chars,
@@ -373,8 +367,7 @@ class MetadataExtractor:
         logger.info(
             "component=metadata_extraction job_id=%s model=%s endpoint=%s "
             "input_chars=%d tokens_approx=%d elapsed_ms=%d result=%s",
-            # codeql[py/log-injection]
-            sanitize_log_value(job_id) or "?",
+            sanitize_log_value(job_id) or "?",  # codeql[py/log-injection]
             sanitize_log_value(self._model),
             sanitize_log_value(self._endpoint),
             input_chars,
@@ -385,8 +378,7 @@ class MetadataExtractor:
 
         logger.debug(
             "component=metadata_extraction job_id=%s prompt=%s response=%s",
-            # codeql[py/log-injection]
-            sanitize_log_value(job_id) or "?",
+            sanitize_log_value(job_id) or "?",  # codeql[py/log-injection]
             sanitize_log_value(_truncate(user_content)),
             sanitize_log_value(_truncate(content)),
         )
@@ -398,8 +390,7 @@ class MetadataExtractor:
             "LLM response received: length=%d sha256_prefix=%s%s",
             len(content),
             sha_prefix,
-            # codeql[py/log-injection]
-            f" job_id={sanitize_log_value(job_id)}" if job_id else "",
+            f" job_id={sanitize_log_value(job_id)}" if job_id else "",  # codeql[py/log-injection]
         )
         return self._parse_llm_json(content)
 
@@ -437,8 +428,7 @@ class MetadataExtractor:
                     logger.warning(
                         "component=metadata_extraction job_id=%s "
                         "attempt=%d/%d error=%s retrying_in=%.1fs",
-                        # codeql[py/log-injection]
-                        sanitize_log_value(job_id) or "?",
+                        sanitize_log_value(job_id) or "?",  # codeql[py/log-injection]
                         attempt + 1,
                         max_retries + 1,
                         sanitize_log_value(str(exc)[:200]),
@@ -449,8 +439,7 @@ class MetadataExtractor:
                     logger.warning(
                         "component=metadata_extraction job_id=%s "
                         "attempt=%d/%d error=%s retries_exhausted",
-                        # codeql[py/log-injection]
-                        sanitize_log_value(job_id) or "?",
+                        sanitize_log_value(job_id) or "?",  # codeql[py/log-injection]
                         attempt + 1,
                         max_retries + 1,
                         sanitize_log_value(str(exc)[:200]),

@@ -408,8 +408,7 @@ class CSVProcessor:
             )
             logger.info(
                 "CSV processing completed for upload %s: %d chunks",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 len(chunks),
             )
 
@@ -418,14 +417,12 @@ class CSVProcessor:
             await self._report_cancelled(job_id)
             logger.info(
                 "CSV processing cancelled for upload %s",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
             )
         except Exception as exc:
             logger.error(
                 "CSV processing failed for upload %s error=%s",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 sanitize_log_value(str(exc)),
             )
             failure_reason = (

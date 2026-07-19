@@ -33,13 +33,11 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         var plan = await _planRepository.GetPlanByIdAsync(planId).ConfigureAwait(false);
         if (plan is null)
         {
-            // codeql[cs/log-forging]
-            _logger.LogWarning("Plan {PlanId} not found", planId);
+            _logger.LogWarning("Plan {PlanId} not found", planId);  // codeql[cs/log-forging]
         }
         else
         {
-            // codeql[cs/log-forging]
-            _logger.LogInformation("Admin retrieved plan {PlanId}", planId);
+            _logger.LogInformation("Admin retrieved plan {PlanId}", planId);  // codeql[cs/log-forging]
         }
 
         return plan;
@@ -70,8 +68,7 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         var plan = await _planRepository.GetPlanByIdAsync(planId).ConfigureAwait(false);
         if (plan is null)
         {
-            // codeql[cs/log-forging]
-            _logger.LogWarning("Plan {PlanId} not found for update", planId);
+            _logger.LogWarning("Plan {PlanId} not found for update", planId);  // codeql[cs/log-forging]
             return null;
         }
 
@@ -100,8 +97,7 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
             throw new InvalidOperationException("Failed to update plan.");
         }
 
-        // codeql[cs/log-forging]
-        _logger.LogInformation("Admin updated plan {PlanId}", planId);
+        _logger.LogInformation("Admin updated plan {PlanId}", planId);  // codeql[cs/log-forging]
         return plan;
     }
 
@@ -111,21 +107,18 @@ public sealed class PlanAdministrationService : IPlanAdministrationService
         ArgumentException.ThrowIfNullOrWhiteSpace(planId);
         if (await _planRepository.GetPlanByIdAsync(planId).ConfigureAwait(false) is null)
         {
-            // codeql[cs/log-forging]
-            _logger.LogWarning("Plan {PlanId} not found for deletion", planId);
+            _logger.LogWarning("Plan {PlanId} not found for deletion", planId);  // codeql[cs/log-forging]
             return new(false, false);
         }
 
         var deleted = await _planRepository.DeletePlanAsync(planId).ConfigureAwait(false);
         if (deleted)
         {
-            // codeql[cs/log-forging]
-            _logger.LogInformation("Admin deleted plan {PlanId}", planId);
+            _logger.LogInformation("Admin deleted plan {PlanId}", planId);  // codeql[cs/log-forging]
         }
         else
         {
-            // codeql[cs/log-forging]
-            _logger.LogError("Failed to delete plan {PlanId}", planId);
+            _logger.LogError("Failed to delete plan {PlanId}", planId);  // codeql[cs/log-forging]
         }
 
         return new(true, deleted);

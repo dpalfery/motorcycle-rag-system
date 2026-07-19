@@ -25,8 +25,7 @@ public sealed class DisabledPdfProcessor : IDataProcessor<PDFDocument>
         ArgumentNullException.ThrowIfNull(input);
         _logger.LogWarning(
             "Legacy PDF processing was requested while disabled for file {FileName}",
-            // codeql[cs/log-forging]
-            input.FileName);
+            input.FileName);  // codeql[cs/log-forging]
         throw new InvalidOperationException(ErrorMessage);
     }
 }

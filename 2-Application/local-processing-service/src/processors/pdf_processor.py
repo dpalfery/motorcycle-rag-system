@@ -227,8 +227,7 @@ class PDFProcessor:
             job.pop("extracted_metadata", None)
             logger.info(
                 "component=pdf_processor job_id=%s message=resuming after manual metadata",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
             )
         else:
             _jobs[job_id] = _make_job(job_id, upload_id, document_type)
@@ -236,14 +235,10 @@ class PDFProcessor:
         logger.info(
             "component=pdf_processor job_id=%s upload_id=%s document_type=%s blob_container=%s "
             "has_source_access_token=%s has_local_file=%s resume=%s message=job queued",
-            # codeql[py/log-injection]
-            sanitize_log_value(job_id),
-            # codeql[py/log-injection]
-            sanitize_log_value(upload_id),
-            # codeql[py/log-injection]
-            sanitize_log_value(document_type),
-            # codeql[py/log-injection]
-            sanitize_log_value(blob_container),
+            sanitize_log_value(job_id),  # codeql[py/log-injection]
+            sanitize_log_value(upload_id),  # codeql[py/log-injection]
+            sanitize_log_value(document_type),  # codeql[py/log-injection]
+            sanitize_log_value(blob_container),  # codeql[py/log-injection]
             bool(source_access_token),
             bool(local_file_path),
             is_resume,
@@ -365,8 +360,7 @@ class PDFProcessor:
             logger.warning(
                 "component=pdf_processor job_id=%s "
                 "message=failed to report terminal processor failure error=%s",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
                 sanitize_log_value(str(exc)),
             )
 
@@ -389,8 +383,7 @@ class PDFProcessor:
             logger.warning(
                 "component=pdf_processor job_id=%s "
                 "message=failed to report needs-manual-metadata error=%s",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
                 sanitize_log_value(str(exc)),
             )
 
@@ -466,8 +459,7 @@ class PDFProcessor:
             )
             logger.info(
                 "component=pdf_processor job_id=%s stage=%s elapsed_ms=%d",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
                 sanitize_log_value(self._current_stage),
                 elapsed_ms,
             )
@@ -557,12 +549,9 @@ class PDFProcessor:
         try:
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s document_type=%s message=job started",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(document_type),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
+                sanitize_log_value(document_type),  # codeql[py/log-injection]
             )
 
             # ── Stage 0: Copying ──────────────────────────────
@@ -585,10 +574,8 @@ class PDFProcessor:
             self._raise_if_cancelled(job_id)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s message=Docling conversion completed",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
             )
 
             # ── Stage 2: Extracting metadata ─────────────────
@@ -601,8 +588,7 @@ class PDFProcessor:
                 )
                 logger.info(
                     "component=pdf_processor job_id=%s message=resuming after manual metadata, skipping LLM extraction",
-                    # codeql[py/log-injection]
-                    sanitize_log_value(job_id),
+                    sanitize_log_value(job_id),  # codeql[py/log-injection]
                 )
             else:
                 self._set_stage(
@@ -621,8 +607,7 @@ class PDFProcessor:
                     metadata = _merge_metadata(metadata, metadata_result)
                     logger.info(
                         "component=pdf_processor job_id=%s fill_rate=%.2f pages_sampled=%d message=metadata extracted",
-                        # codeql[py/log-injection]
-                        sanitize_log_value(job_id),
+                        sanitize_log_value(job_id),  # codeql[py/log-injection]
                         metadata_result["fill_rate"],
                         metadata_result["pages_sampled"],
                     )
@@ -640,8 +625,7 @@ class PDFProcessor:
                     await self._report_paused(job_id, failure_reason)
                     logger.info(
                         "component=pdf_processor job_id=%s fill_rate=%.2f pages_sampled=%d message=paused for manual metadata",
-                        # codeql[py/log-injection]
-                        sanitize_log_value(job_id),
+                        sanitize_log_value(job_id),  # codeql[py/log-injection]
                         metadata_result["fill_rate"],
                         metadata_result["pages_sampled"],
                     )
@@ -651,19 +635,15 @@ class PDFProcessor:
             self._set_stage(job_id, "chunking", "Loading chunker tokenizer", 0.1)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s max_tokens=%d message=loading chunker tokenizer",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 PDF_CHUNKER_MAX_TOKENS,
             )
             tokenizer = get_pdf_chunker_tokenizer(PDF_CHUNKER_MAX_TOKENS)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s tokenizer_class=%s message=tokenizer loaded",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 sanitize_log_value(type(tokenizer).__name__),
             )
 
@@ -674,20 +654,16 @@ class PDFProcessor:
             total_chunks = len(chunks)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s chunk_count=%d message=chunking completed",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 total_chunks,
             )
 
             if not chunks:
                 logger.warning(
                     "component=pdf_processor job_id=%s upload_id=%s message=no chunks extracted",
-                    # codeql[py/log-injection]
-                    sanitize_log_value(job_id),
-                    # codeql[py/log-injection]
-                    sanitize_log_value(upload_id),
+                    sanitize_log_value(job_id),  # codeql[py/log-injection]
+                    sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 )
                 _jobs[job_id]["progress"] = 1.0
                 self._mark_failed(job_id, "No chunks extracted from PDF")
@@ -717,10 +693,8 @@ class PDFProcessor:
                 if i == 0 or (i + 1) == total_chunks or (i + 1) % 10 == 0:
                     logger.info(
                         "component=pdf_processor job_id=%s upload_id=%s chunk_index=%d total_chunks=%d message=embedding progress",
-                        # codeql[py/log-injection]
-                        sanitize_log_value(job_id),
-                        # codeql[py/log-injection]
-                        sanitize_log_value(upload_id),
+                        sanitize_log_value(job_id),  # codeql[py/log-injection]
+                        sanitize_log_value(upload_id),  # codeql[py/log-injection]
                         i + 1,
                         total_chunks,
                     )
@@ -783,10 +757,8 @@ class PDFProcessor:
             )
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s record_count=%d message=uploading search chunks",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 len(records),
             )
 
@@ -798,10 +770,8 @@ class PDFProcessor:
             self._raise_if_cancelled(job_id)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s byte_count=%d message=search chunks uploaded",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 len(chunks_bytes),
             )
 
@@ -814,10 +784,8 @@ class PDFProcessor:
             )
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s chunk_count=%d message=extracting graph entities",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 total_chunks,
             )
 
@@ -830,16 +798,14 @@ class PDFProcessor:
             logger.info(
                 "component=pdf_processor job_id=%s stage=extracting_graph "
                 "combined_chars=%d combined_tokens_approx=%d expected_batches=%d",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
                 combined_chars,
                 combined_tokens_approx,
                 expected_batches,
             )
             logger.debug(
                 "component=pdf_processor job_id=%s combined_text_preview=%s",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
                 sanitize_log_value(
                     combined_text[:2000]
                     + ("...[truncated]" if len(combined_text) > 2000 else "")
@@ -857,8 +823,7 @@ class PDFProcessor:
                 logger.info(
                     "component=pdf_processor job_id=%s stage=extracting_graph "
                     "result=ok nodes=%d edges=%d",
-                    # codeql[py/log-injection]
-                    sanitize_log_value(job_id),
+                    sanitize_log_value(job_id),  # codeql[py/log-injection]
                     node_count,
                     edge_count,
                 )
@@ -873,10 +838,8 @@ class PDFProcessor:
             self._raise_if_cancelled(job_id)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s byte_count=%d message=graph entities uploaded",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 len(entities_bytes),
             )
 
@@ -903,10 +866,8 @@ class PDFProcessor:
             )
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s chunk_count=%d message=job completed",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 len(records),
             )
 
@@ -915,20 +876,16 @@ class PDFProcessor:
             await self._report_cancelled(job_id)
             logger.info(
                 "component=pdf_processor job_id=%s upload_id=%s message=processing cancelled",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
             )
         except Exception as exc:
             failure = _format_safe_failure(exc)
             logger.error(
                 "component=pdf_processor job_id=%s upload_id=%s "
                 "message=processing failed error=%s",
-                # codeql[py/log-injection]
-                sanitize_log_value(job_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(job_id),  # codeql[py/log-injection]
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 sanitize_log_value(failure["error"]),
             )
             self._mark_failed(job_id, failure["message"], failure["error"])
@@ -948,16 +905,14 @@ class PDFProcessor:
                 raise RuntimeError("Local PDF source path is not a file.")
             logger.info(
                 "component=pdf_processor upload_id=%s message=using local PDF source",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
             )
             return source_path
 
         if source_access_token:
             logger.info(
                 "component=pdf_processor upload_id=%s message=downloading source via API access token",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
             )
             pdf_bytes = await self._api_client.download_source(
                 upload_id, document_type, source_access_token
@@ -967,8 +922,7 @@ class PDFProcessor:
         if self._api_client.is_configured():
             logger.info(
                 "component=pdf_processor upload_id=%s message=downloading source via API machine credentials",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
             )
             pdf_bytes = await self._api_client.download_source(upload_id, document_type)
             return await self._write_temp_pdf(upload_id, pdf_bytes)
@@ -989,8 +943,7 @@ class PDFProcessor:
         path = await asyncio.to_thread(write_file)
         logger.info(
             "component=pdf_processor upload_id=%s byte_count=%d message=temporary file created",
-            # codeql[py/log-injection]
-            sanitize_log_value(upload_id),
+            sanitize_log_value(upload_id),  # codeql[py/log-injection]
             len(pdf_bytes),
         )
         return path

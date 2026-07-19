@@ -62,18 +62,15 @@ public sealed class UsersAdminController : ControllerBase {
 
         try {
             var user = await _userAdminService.SetUserEnabledStatusAsync(userId, request.IsEnabled);
-            // codeql[cs/log-forging]
-            _logger.LogInformation("Admin set user {UserId} enabled status to {IsEnabled}", userId, request.IsEnabled);
+            _logger.LogInformation("Admin set user {UserId} enabled status to {IsEnabled}", userId, request.IsEnabled);  // codeql[cs/log-forging]
             return Ok(user);
         }
         catch (ArgumentException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Invalid request to set user enabled status for {UserId}", userId);
+            _logger.LogWarning(ex, "Invalid request to set user enabled status for {UserId}", userId);  // codeql[cs/log-forging]
             return BadRequest(new { error = ex.Message });
         }
         catch (Exception ex) {
-            // codeql[cs/log-forging]
-            _logger.LogError(ex, "Error setting user enabled status for {UserId}", userId);
+            _logger.LogError(ex, "Error setting user enabled status for {UserId}", userId);  // codeql[cs/log-forging]
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
@@ -105,18 +102,15 @@ public sealed class UsersAdminController : ControllerBase {
 
         try {
             var user = await _userAdminService.AssignPlanToUserAsync(userId, request.PlanId);
-            // codeql[cs/log-forging]
-            _logger.LogInformation("Admin assigned plan {PlanId} to user {UserId}", request.PlanId, userId);
+            _logger.LogInformation("Admin assigned plan {PlanId} to user {UserId}", request.PlanId, userId);  // codeql[cs/log-forging]
             return Ok(user);
         }
         catch (ArgumentException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Invalid request to assign plan to user {UserId}", userId);
+            _logger.LogWarning(ex, "Invalid request to assign plan to user {UserId}", userId);  // codeql[cs/log-forging]
             return BadRequest(new { error = ex.Message });
         }
         catch (Exception ex) {
-            // codeql[cs/log-forging]
-            _logger.LogError(ex, "Error assigning plan to user {UserId}", userId);
+            _logger.LogError(ex, "Error assigning plan to user {UserId}", userId);  // codeql[cs/log-forging]
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }
     }
@@ -148,13 +142,11 @@ public sealed class UsersAdminController : ControllerBase {
             return Ok(response);
         }
         catch (ArgumentException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Invalid tier-change request for user {UserId}", userId);
+            _logger.LogWarning(ex, "Invalid tier-change request for user {UserId}", userId);  // codeql[cs/log-forging]
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidOperationException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Tier change could not be completed for user {UserId}", userId);
+            _logger.LogWarning(ex, "Tier change could not be completed for user {UserId}", userId);  // codeql[cs/log-forging]
             return Conflict(new { error = ex.Message });
         }
     }
@@ -187,13 +179,11 @@ public sealed class UsersAdminController : ControllerBase {
             return Ok(response);
         }
         catch (ArgumentException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Invalid cancellation request for user {UserId}", userId);
+            _logger.LogWarning(ex, "Invalid cancellation request for user {UserId}", userId);  // codeql[cs/log-forging]
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidOperationException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Cancellation could not be completed for user {UserId}", userId);
+            _logger.LogWarning(ex, "Cancellation could not be completed for user {UserId}", userId);  // codeql[cs/log-forging]
             return Conflict(new { error = ex.Message });
         }
     }

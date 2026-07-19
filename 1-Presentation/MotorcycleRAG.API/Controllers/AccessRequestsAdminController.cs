@@ -80,13 +80,11 @@ public sealed class AccessRequestsAdminController : ControllerBase {
             return Ok(response);
         }
         catch (ArgumentException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Invalid approval request for access request {RequestId}", requestId);
+            _logger.LogWarning(ex, "Invalid approval request for access request {RequestId}", requestId);  // codeql[cs/log-forging]
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidOperationException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Approval could not be completed for access request {RequestId}", requestId);
+            _logger.LogWarning(ex, "Approval could not be completed for access request {RequestId}", requestId);  // codeql[cs/log-forging]
             return Conflict(new { error = ex.Message });
         }
     }
@@ -117,13 +115,11 @@ public sealed class AccessRequestsAdminController : ControllerBase {
             return Ok(response);
         }
         catch (ArgumentException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Invalid retry request for access request {RequestId}", requestId);
+            _logger.LogWarning(ex, "Invalid retry request for access request {RequestId}", requestId);  // codeql[cs/log-forging]
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidOperationException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Retry could not be completed for access request {RequestId}", requestId);
+            _logger.LogWarning(ex, "Retry could not be completed for access request {RequestId}", requestId);  // codeql[cs/log-forging]
             return Conflict(new { error = ex.Message });
         }
     }
@@ -155,13 +151,11 @@ public sealed class AccessRequestsAdminController : ControllerBase {
             return Ok(response);
         }
         catch (ArgumentException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Invalid cancellation request for access request {RequestId}", requestId);
+            _logger.LogWarning(ex, "Invalid cancellation request for access request {RequestId}", requestId);  // codeql[cs/log-forging]
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidOperationException ex) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning(ex, "Cancellation could not be completed for access request {RequestId}", requestId);
+            _logger.LogWarning(ex, "Cancellation could not be completed for access request {RequestId}", requestId);  // codeql[cs/log-forging]
             return Conflict(new { error = ex.Message });
         }
     }

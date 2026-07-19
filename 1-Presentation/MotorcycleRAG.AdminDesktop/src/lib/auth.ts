@@ -18,6 +18,20 @@ export interface ChromeProfile {
   userName?: string;
 }
 
+/**
+ * Result of `auth_list_chrome_profiles` (D2).
+ * On I/O or parse failure `profiles` is empty and `error` explains why —
+ * never a silent sole fake Default.
+ */
+export interface ChromeProfilesResult {
+  profiles: ChromeProfile[];
+  /** Null on success; diagnostic string when discovery fails. */
+  error: string | null;
+}
+
+/** Select value / persisted config marker for system-default-browser sign-in. */
+export const SYSTEM_DEFAULT_BROWSER = "";
+
 // ── Store ────────────────────────────────────────────────────────────────────
 
 interface AuthState {
@@ -31,8 +45,11 @@ interface AuthState {
 
   /** Replace the current session fields and mark signedIn = true. */
   setSession: (token: string, account: string, expiresAt: number) => void;
-  /** Full Entra PKCE sign-in via Rust. Optional Chrome profile directory. */
-  signIn: (chromeProfileDirectory?: string) => Promise<void>;
+  /**
+   * Full Entra PKCE sign-in via Rust.
+   * Pass a Chrome profile directory, or `null`/`undefined` for the system default browser.
+   */
+  signIn: (chromeProfileDirectory?: string | null) => Promise<void>;
   /** Sign out: tells Rust to clear the keychain, then resets local state. */
   signOut: () => Promise<void>;
   /** Try to restore a previously-persisted session from the OS keychain. */
@@ -56,7 +73,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       signedIn: true,
     }),
 
-  signIn: async (chromeProfileDirectory?: string) => {
+  signIn: async (chromeProfileDirectory?: string | null) => {
     const session = await invoke<AuthSession>("auth_sign_in", {
       profileDirectory: chromeProfileDirectory ?? null,
     });
@@ -108,15 +125,16 @@ export async function getAccessToken(): Promise<string | null> {
   return useAuth.getState().accessToken;
 }
 
-/** List Chrome user profiles available on this machine. */
-export async function listChromeProfiles(): Promise<ChromeProfile[]> {
-  return invoke<ChromeProfile[]>("auth_list_chrome_profiles");
+/** List Chrome user profiles available on this machine (`{ profiles, error }`). */
+export async function listChromeProfiles(): Promise<ChromeProfilesResult> {
+  return invoke<ChromeProfilesResult>("auth_list_chrome_profiles");
 }
 
 /**
  * Convenience wrapper — delegates to the store's signIn method.
  * Existing components (e.g. SignInScreen) can import this directly.
+ * Pass `null`/`undefined` to open the system default browser.
  */
-export async function signIn(chromeProfileDirectory?: string): Promise<void> {
+export async function signIn(chromeProfileDirectory?: string | null): Promise<void> {
   return useAuth.getState().signIn(chromeProfileDirectory);
 }

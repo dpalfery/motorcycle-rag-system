@@ -54,8 +54,7 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
 
         try {
             _logger.LogInformation("Starting PDF processing for document: {FileName}",
-                // codeql[cs/log-forging]
-                input.FileName);
+                input.FileName);  // codeql[cs/log-forging]
 
             // Step 1: Extract text and structure using Document Intelligence
             var analysisResult = await ExtractDocumentContentAsync(input);
@@ -87,8 +86,7 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error processing PDF document: {FileName}",
-                // codeql[cs/log-forging]
-                input.FileName);
+                input.FileName);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Failed to process PDF: {ex.Message}", ex);
         }
         finally {
@@ -778,8 +776,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
                 if (embeddings.Length < 2) {
                     _logger.LogWarning("Failed to generate embeddings for similarity comparison between chunks {CurrentId} and {NextId}",
-                        // codeql[cs/log-forging]
-                        currentChunk.Id, nextChunk.Id);
+                        currentChunk.Id, nextChunk.Id);  // codeql[cs/log-forging]
                     refinedChunks.Add(currentChunk);
                     i++;
                     continue;
@@ -924,8 +921,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse PageNumber from metadata for chunk {ChunkId}, using fallback",
-                // codeql[cs/log-forging]
-                chunkId ?? string.Empty);
+                chunkId ?? string.Empty);  // codeql[cs/log-forging]
             pageNumber = fallbackPageNumber;
         }
 
@@ -938,8 +934,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse SectionLevel from metadata for chunk {ChunkId}, using default 0",
-                // codeql[cs/log-forging]
-                chunkId ?? string.Empty);
+                chunkId ?? string.Empty);  // codeql[cs/log-forging]
             sectionLevel = 0;
         }
 
@@ -949,8 +944,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse AllSectionHeadings from metadata for chunk {ChunkId}, using empty array",
-                // codeql[cs/log-forging]
-                chunkId ?? string.Empty);
+                chunkId ?? string.Empty);  // codeql[cs/log-forging]
             sectionHeadings = Array.Empty<string>();
         }
 
@@ -962,8 +956,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse ChunkIndex from metadata for chunk {ChunkId}, using default 0",
-                // codeql[cs/log-forging]
-                chunkId ?? string.Empty);
+                chunkId ?? string.Empty);  // codeql[cs/log-forging]
             chunkIndex = 0;
         }
 
@@ -973,8 +966,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse IsMultiPageTable from metadata for chunk {ChunkId}, using default false",
-                // codeql[cs/log-forging]
-                chunkId ?? string.Empty);
+                chunkId ?? string.Empty);  // codeql[cs/log-forging]
             isMultiPageTable = false;
         }
 

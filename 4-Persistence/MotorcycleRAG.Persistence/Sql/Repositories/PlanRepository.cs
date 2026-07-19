@@ -77,8 +77,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return await connection.QueryFirstOrDefaultAsync<UserPlan>(sql, new { PlanId = planId });
             }
             catch (Exception ex) {
-                // codeql[cs/log-forging]
-                _logger.LogError(ex, "Failed to get plan by ID {PlanId}", planId);
+                _logger.LogError(ex, "Failed to get plan by ID {PlanId}", planId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to get plan by ID {planId}", ex);
             }
         }
@@ -177,13 +176,11 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 int rowsAffected = await connection.ExecuteAsync(sql, new { PlanId = planId });
 
                 _logger.LogInformation("Deleted plan with ID {PlanId}, rows affected: {RowsAffected}",
-                    // codeql[cs/log-forging]
-                    planId, rowsAffected);
+                    planId, rowsAffected);  // codeql[cs/log-forging]
                 return rowsAffected > 0;
             }
             catch (Exception ex) {
-                // codeql[cs/log-forging]
-                _logger.LogError(ex, "Failed to delete plan with ID {PlanId}", planId);
+                _logger.LogError(ex, "Failed to delete plan with ID {PlanId}", planId);  // codeql[cs/log-forging]
                 throw new InvalidOperationException($"Failed to delete plan with ID {planId}", ex);
             }
         }

@@ -1,20 +1,35 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { LogIn } from "lucide-react";
-import { signIn, type ChromeProfile } from "@/lib/auth";
+import {
+  listChromeProfiles,
+  signIn,
+  SYSTEM_DEFAULT_BROWSER,
+  type ChromeProfile,
+} from "@/lib/auth";
 import { useConfig } from "@/lib/config";
 import { Button } from "@/components/ui";
+
+function formatInvokeError(e: unknown): string {
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  return "Sign-in failed.";
+}
 
 export default function SignInScreen() {
   const config = useConfig((s) => s.config);
   const saveConfig = useConfig((s) => s.save);
 
   const [profiles, setProfiles] = useState<ChromeProfile[]>([]);
-  const [selectedProfile, setSelectedProfile] = useState<string>(config.selectedChromeProfile);
+  const [profilesError, setProfilesError] = useState<string | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<string>(
+    config.selectedChromeProfile,
+  );
   const [loadingProfiles, setLoadingProfiles] = useState(true);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const profilesUnavailable = !loadingProfiles && (profilesError !== null || profiles.length === 0);
 
   // Fetch Chrome profiles on mount
   useEffect(() => {
@@ -22,17 +37,33 @@ export default function SignInScreen() {
 
     async function loadProfiles() {
       try {
-        const result = await invoke<ChromeProfile[]>("auth_list_chrome_profiles");
+        const result = await listChromeProfiles();
         if (cancelled) return;
-        setProfiles(result);
 
-        // Initialize selection: prefer persisted config value if it matches a real profile
+        setProfiles(result.profiles);
+        setProfilesError(result.error);
+
         const persisted = useConfig.getState().config.selectedChromeProfile;
-        const match = result.find((p) => p.directory === persisted);
-        setSelectedProfile(match ? match.directory : "Default");
+        if (result.error || result.profiles.length === 0) {
+          setSelectedProfile(SYSTEM_DEFAULT_BROWSER);
+          return;
+        }
+
+        const match = result.profiles.find((p) => p.directory === persisted);
+        if (match) {
+          setSelectedProfile(match.directory);
+        } else if (persisted === SYSTEM_DEFAULT_BROWSER) {
+          setSelectedProfile(SYSTEM_DEFAULT_BROWSER);
+        } else {
+          // Recommended when no persisted Chrome profile match.
+          setSelectedProfile(SYSTEM_DEFAULT_BROWSER);
+        }
       } catch (e) {
         if (!cancelled) {
           console.warn("Failed to load Chrome profiles:", e);
+          setProfiles([]);
+          setProfilesError(formatInvokeError(e));
+          setSelectedProfile(SYSTEM_DEFAULT_BROWSER);
         }
       } finally {
         if (!cancelled) {
@@ -51,9 +82,11 @@ export default function SignInScreen() {
     setBusy(true);
     setError(null);
     try {
-      await signIn(selectedProfile);
+      const profileDirectory =
+        selectedProfile === SYSTEM_DEFAULT_BROWSER ? null : selectedProfile;
+      await signIn(profileDirectory);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Sign-in failed.");
+      setError(formatInvokeError(e));
     } finally {
       setBusy(false);
     }
@@ -82,28 +115,34 @@ export default function SignInScreen() {
             htmlFor="chrome-profile-select"
             className="mb-1 block text-sm text-muted"
           >
-            Chrome Profile
+            Browser for sign-in
           </label>
           {loadingProfiles ? (
             <div className="text-sm text-muted">Loading profiles…</div>
-          ) : profiles.length === 0 ? (
-            <div className="text-sm text-muted">
-              No Chrome profiles detected. Using Default.
-            </div>
           ) : (
-            <select
-              id="chrome-profile-select"
-              className="w-full rounded border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              value={selectedProfile}
-              onChange={(e) => handleProfileChange(e.target.value)}
-            >
-              {profiles.map((p) => (
-                <option key={p.directory} value={p.directory}>
-                  {p.name}
-                  {p.userName ? ` (${p.userName})` : ""}
+            <div className="space-y-2">
+              {profilesUnavailable && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+                  {profilesError ?? "Could not read Chrome profiles"}
+                </div>
+              )}
+              <select
+                id="chrome-profile-select"
+                className="w-full rounded border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                value={selectedProfile}
+                onChange={(e) => handleProfileChange(e.target.value)}
+              >
+                <option value={SYSTEM_DEFAULT_BROWSER}>
+                  System default browser (recommended)
                 </option>
-              ))}
-            </select>
+                {profiles.map((p) => (
+                  <option key={p.directory} value={p.directory}>
+                    {p.name}
+                    {p.userName ? ` (${p.userName})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
 

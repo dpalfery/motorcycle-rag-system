@@ -159,8 +159,7 @@ public sealed class IngestionJobsController : ControllerBase {
                 ex,
                 "Failed to upload ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
                 uploadId,
-                // codeql[cs/log-forging]
-                normalizedDocumentType);
+                normalizedDocumentType);  // codeql[cs/log-forging]
 
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Upload failed",
@@ -214,10 +213,8 @@ public sealed class IngestionJobsController : ControllerBase {
 
         _logger.LogInformation(
             "Starting ingestion job for UploadId={UploadId}, DocumentType={DocumentType}.",
-            // codeql[cs/log-forging]
-            request.UploadId,
-            // codeql[cs/log-forging]
-            request.DocumentType);
+            request.UploadId,  // codeql[cs/log-forging]
+            request.DocumentType);  // codeql[cs/log-forging]
 
         try {
             var result = await _ingestionJobService.StartJobAsync(request, userId, ct).ConfigureAwait(false);
@@ -227,8 +224,7 @@ public sealed class IngestionJobsController : ControllerBase {
             _logger.LogError(
                 ex,
                 "Failed to start ingestion job for UploadId={UploadId}, DocumentType={DocumentType}.",
-                // codeql[cs/log-forging]
-                request.UploadId,
+                request.UploadId,  // codeql[cs/log-forging]
                 request.DocumentType);
 
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {

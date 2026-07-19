@@ -782,9 +782,7 @@ server.serve_forever()
     impl Drop for KillPidOnDrop {
         fn drop(&mut self) {
             if let Some(pid) = self.0.take() {
-                let _ = Command::new("kill")
-                    .args(["-9", &pid.to_string()])
-                    .status();
+                let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
             }
         }
     }

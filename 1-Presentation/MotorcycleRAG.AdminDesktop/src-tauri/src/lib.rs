@@ -959,8 +959,11 @@ async fn auth_sign_in(
 }
 
 /// List Chrome user profiles discovered on disk, for the sign-in profile picker.
+///
+/// Returns `{ profiles, error }`. On I/O/parse failure `profiles` is `[]` and
+/// `error` is a diagnostic string — never a silent sole fake Default (D2).
 #[tauri::command]
-fn auth_list_chrome_profiles() -> Vec<auth::ChromeProfile> {
+fn auth_list_chrome_profiles() -> auth::ChromeProfilesResult {
     auth::list_chrome_profiles()
 }
 

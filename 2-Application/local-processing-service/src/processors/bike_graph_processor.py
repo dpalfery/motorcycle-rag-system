@@ -136,10 +136,8 @@ class BikeGraphProcessor:
         }
         logger.info(
             "Bike graph job queued for upload %s (source=%s)",
-            # codeql[py/log-injection]
-            sanitize_log_value(upload_id),
-            # codeql[py/log-injection]
-            sanitize_log_value(local_file_path or f"blob:{blob_container}"),
+            sanitize_log_value(upload_id),  # codeql[py/log-injection]
+            sanitize_log_value(local_file_path or f"blob:{blob_container}"),  # codeql[py/log-injection]
         )
         task = asyncio.create_task(
             self._process_background(job_id, upload_id, blob_container, local_file_path)
@@ -293,17 +291,14 @@ class BikeGraphProcessor:
         try:
             logger.info(
                 "Bike graph processing started for upload %s (source=%s)",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
-                # codeql[py/log-injection]
-                sanitize_log_value(local_file_path or f"blob:{blob_container}"),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
+                sanitize_log_value(local_file_path or f"blob:{blob_container}"),  # codeql[py/log-injection]
             )
             self._set_stage(job_id, "copying", "Preparing bike graph source", 0.0)
             if local_file_path:
                 logger.info(
                     "Bike graph upload %s reading local CSV %s",
-                    # codeql[py/log-injection]
-                    sanitize_log_value(upload_id),
+                    sanitize_log_value(upload_id),  # codeql[py/log-injection]
                     sanitize_log_value(local_file_path),
                 )
                 self._raise_if_cancelled(job_id)
@@ -314,10 +309,8 @@ class BikeGraphProcessor:
             else:
                 logger.info(
                     "Bike graph upload %s downloading source CSV from blob container %s",
-                    # codeql[py/log-injection]
-                    sanitize_log_value(upload_id),
-                    # codeql[py/log-injection]
-                    sanitize_log_value(blob_container),
+                    sanitize_log_value(upload_id),  # codeql[py/log-injection]
+                    sanitize_log_value(blob_container),  # codeql[py/log-injection]
                 )
                 csv_bytes = await self.blob_writer.download_blob(
                     blob_container, f"{upload_id}.csv"
@@ -339,8 +332,7 @@ class BikeGraphProcessor:
 
             logger.info(
                 "Bike graph upload %s built local artifact with %d nodes and %d edges; embeddings are not used for this job type",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 len(nodes),
                 len(edges),
             )
@@ -357,8 +349,7 @@ class BikeGraphProcessor:
             )
             logger.info(
                 "Bike graph upload %s sending graph-entities artifact to backend API (%d bytes)",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 len(entities_bytes),
             )
             self._raise_if_cancelled(job_id)
@@ -378,8 +369,7 @@ class BikeGraphProcessor:
             _jobs[job_id]["status"] = "completed"
             logger.info(
                 "Bike graph processing completed for upload %s: %d nodes, %d edges",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 len(nodes),
                 len(edges),
             )
@@ -389,14 +379,12 @@ class BikeGraphProcessor:
             await self._report_cancelled(job_id)
             logger.info(
                 "Bike graph processing cancelled for upload %s",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
             )
         except Exception as exc:
             logger.error(
                 "Bike graph processing failed for upload %s error=%s",
-                # codeql[py/log-injection]
-                sanitize_log_value(upload_id),
+                sanitize_log_value(upload_id),  # codeql[py/log-injection]
                 sanitize_log_value(str(exc)),
             )
             failure_reason = (

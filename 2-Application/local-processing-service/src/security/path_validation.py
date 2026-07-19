@@ -21,6 +21,9 @@ def _resolve_local_path(local_file_path: str, allowed_suffix: str) -> Path:
         )
 
     try:
+        # codeql[py/path-injection]: input_root itself is operator config (env var), not
+        # caller-supplied; the actual caller-supplied value (local_file_path, below) is
+        # contained by the resolve()+relative_to() check at the bottom of this function.
         input_root = Path(input_root_value).expanduser().resolve(strict=True)
     except (OSError, RuntimeError) as exc:
         raise HTTPException(
@@ -37,7 +40,7 @@ def _resolve_local_path(local_file_path: str, allowed_suffix: str) -> Path:
             detail=f"{LOCAL_PROCESSOR_INPUT_DIR_ENV} does not point to an existing directory",
         )
 
-    candidate_path = Path(local_file_path).expanduser()
+    candidate_path = Path(local_file_path).expanduser()  # codeql[py/path-injection]: canonicalized then containment-checked against input_root below via relative_to()
     try:
         resolved_path = candidate_path.resolve(strict=True)
     except FileNotFoundError as exc:

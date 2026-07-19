@@ -88,8 +88,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
 
                 _logger.LogInformation(
                     "Recorded audit entry for tool {ToolId}: {Action} by user {UserId}",
-                    // codeql[cs/log-forging]
-                    toolId,
+                    toolId,  // codeql[cs/log-forging]
                     action,
                     userId ?? "system");
 
@@ -103,8 +102,7 @@ public class ToolConfigurationAuditRepository : IToolConfigurationAuditRepositor
         catch (Exception ex) {
             _logger.LogError(ex,
                 "Error recording audit entry for tool {ToolId}: {Action}",
-                // codeql[cs/log-forging]
-                toolId, action);
+                toolId, action);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error recording audit entry for tool {toolId}: {action}", ex);
         }
     }

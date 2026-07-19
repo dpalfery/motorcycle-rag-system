@@ -67,8 +67,7 @@ public class ToolConfigurationService : IToolConfigurationService {
             return await _configRepository.GetByToolIdAsync(toolId);
         }
         catch (Exception ex) {
-            // codeql[cs/log-forging]
-            _logger.LogError(ex, "Error retrieving tool configuration for {ToolId}", toolId);
+            _logger.LogError(ex, "Error retrieving tool configuration for {ToolId}", toolId);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error retrieving tool configuration for {toolId}", ex);
         }
     }
@@ -129,14 +128,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Created MCP tool {ToolId} ({ToolName})",
-                // codeql[cs/log-forging]
-                savedConfig.ToolId, savedConfig.Name);
+                savedConfig.ToolId, savedConfig.Name);  // codeql[cs/log-forging]
 
             return savedConfig;
         }
         catch (Exception ex) {
-            // codeql[cs/log-forging]
-            _logger.LogError(ex, "Error creating MCP tool {ToolId}", configuration.ToolId);
+            _logger.LogError(ex, "Error creating MCP tool {ToolId}", configuration.ToolId);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error creating MCP tool {configuration.ToolId}", ex);
         }
     }
@@ -192,14 +189,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Updated MCP tool {ToolId}",
-                // codeql[cs/log-forging]
-                toolId);
+                toolId);  // codeql[cs/log-forging]
 
             return updatedConfig;
         }
         catch (Exception ex) {
-            // codeql[cs/log-forging]
-            _logger.LogError(ex, "Error updating MCP tool {ToolId}", toolId);
+            _logger.LogError(ex, "Error updating MCP tool {ToolId}", toolId);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error updating MCP tool {toolId}", ex);
         }
     }
@@ -265,14 +260,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Enabled MCP tool {ToolId}",
-                // codeql[cs/log-forging]
-                toolId);
+                toolId);  // codeql[cs/log-forging]
 
             return updatedConfig;
         }
         catch (Exception ex) {
-            // codeql[cs/log-forging]
-            _logger.LogError(ex, "Error enabling MCP tool {ToolId}", toolId);
+            _logger.LogError(ex, "Error enabling MCP tool {ToolId}", toolId);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error enabling MCP tool {toolId}", ex);
         }
     }
@@ -317,14 +310,12 @@ public class ToolConfigurationService : IToolConfigurationService {
 
             _logger.LogInformation(
                 "Disabled MCP tool {ToolId} - Reason: {Reason}",
-                // codeql[cs/log-forging]
-                toolId, reason);
+                toolId, reason);  // codeql[cs/log-forging]
 
             return updatedConfig;
         }
         catch (Exception ex) {
-            // codeql[cs/log-forging]
-            _logger.LogError(ex, "Error disabling MCP tool {ToolId}", toolId);
+            _logger.LogError(ex, "Error disabling MCP tool {ToolId}", toolId);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error disabling MCP tool {toolId}", ex);
         }
     }
@@ -339,30 +330,26 @@ public class ToolConfigurationService : IToolConfigurationService {
 
         // CQ-002: Standardized null check using IsNullOrWhiteSpace
         if (!tool.IsEnabled && string.IsNullOrWhiteSpace(tool.DisabledReason)) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning("Tool {ToolId} is disabled without reason", tool.ToolId);
+            _logger.LogWarning("Tool {ToolId} is disabled without reason", tool.ToolId);  // codeql[cs/log-forging]
             return false;
         }
 
         if (tool.ServerUrl == null) {
-            // codeql[cs/log-forging]
-            _logger.LogWarning("Tool {ToolId} has no server URL configured", tool.ToolId);
+            _logger.LogWarning("Tool {ToolId} has no server URL configured", tool.ToolId);  // codeql[cs/log-forging]
             return false;
         }
 
         // Validate URL with SSRF protection
         if (!IsValidMcpServerUrl(tool.ServerUrl)) {
             _logger.LogWarning("Tool {ToolId} has invalid or disallowed server URL: {ServerUrl}",
-                // codeql[cs/log-forging]
-                tool.ToolId, tool.ServerUrl);
+                tool.ToolId, tool.ServerUrl);  // codeql[cs/log-forging]
             return false;
         }
 
         // Check timeout configuration
         if (tool.TimeoutMs.HasValue && tool.TimeoutMs <= 0) {
             _logger.LogWarning("Tool {ToolId} has invalid timeout configuration: {Timeout}ms",
-                // codeql[cs/log-forging]
-                tool.ToolId, tool.TimeoutMs);
+                tool.ToolId, tool.TimeoutMs);  // codeql[cs/log-forging]
             return false;
         }
 
@@ -370,8 +357,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         if (!string.IsNullOrWhiteSpace(tool.ConfigurationJson)) {
             if (tool.ConfigurationJson.Length > 10240) // 10KB limit
             {
-                // codeql[cs/log-forging]
-                _logger.LogWarning("Tool {ToolId} configuration JSON exceeds 10KB limit", tool.ToolId);
+                _logger.LogWarning("Tool {ToolId} configuration JSON exceeds 10KB limit", tool.ToolId);  // codeql[cs/log-forging]
                 return false;
             }
 
@@ -379,14 +365,12 @@ public class ToolConfigurationService : IToolConfigurationService {
                 JsonDocument.Parse(tool.ConfigurationJson);
             }
             catch (JsonException ex) {
-                // codeql[cs/log-forging]
-                _logger.LogWarning(ex, "Tool {ToolId} has invalid configuration JSON", tool.ToolId);
+                _logger.LogWarning(ex, "Tool {ToolId} has invalid configuration JSON", tool.ToolId);  // codeql[cs/log-forging]
                 return false;
             }
         }
 
-        // codeql[cs/log-forging]
-        _logger.LogDebug("Tool {ToolId} validation passed", tool.ToolId);
+        _logger.LogDebug("Tool {ToolId} validation passed", tool.ToolId);  // codeql[cs/log-forging]
         return await Task.FromResult(true);
     }
 
@@ -400,8 +384,7 @@ public class ToolConfigurationService : IToolConfigurationService {
         try {
             var config = await _configRepository.GetByToolIdAsync(toolId);
             if (config == null) {
-                // codeql[cs/log-forging]
-                _logger.LogWarning("Tool {ToolId} not found for deletion", toolId);
+                _logger.LogWarning("Tool {ToolId} not found for deletion", toolId);  // codeql[cs/log-forging]
                 return false;
             }
 
@@ -424,15 +407,13 @@ public class ToolConfigurationService : IToolConfigurationService {
 
                 _logger.LogInformation(
                     "Deleted MCP tool {ToolId}",
-                    // codeql[cs/log-forging]
-                    toolId);
+                    toolId);  // codeql[cs/log-forging]
             }
 
             return deleted;
         }
         catch (Exception ex) {
-            // codeql[cs/log-forging]
-            _logger.LogError(ex, "Error deleting MCP tool {ToolId}", toolId);
+            _logger.LogError(ex, "Error deleting MCP tool {ToolId}", toolId);  // codeql[cs/log-forging]
             throw new InvalidOperationException($"Error deleting MCP tool {toolId}", ex);
         }
     }
@@ -467,8 +448,7 @@ public class ToolConfigurationService : IToolConfigurationService {
             if (!isLocalhost) {
                 _logger.LogWarning(
                     "Development port {Port} attempted on non-localhost address: {Host}",
-                    // codeql[cs/log-forging]
-                    serverUrl.Port, serverUrl.Host);
+                    serverUrl.Port, serverUrl.Host);  // codeql[cs/log-forging]
                 return false;
             }
         }

@@ -235,15 +235,31 @@ describe("signIn (standalone)", () => {
 });
 
 describe("listChromeProfiles", () => {
-  it("calls auth_list_chrome_profiles and returns profiles", async () => {
-    const profiles = [
-      { directory: "/profiles/1", name: "Default", userName: "alice" },
-    ];
-    vi.mocked(invoke).mockResolvedValue(profiles);
+  it("calls auth_list_chrome_profiles and returns { profiles, error }", async () => {
+    const payload = {
+      profiles: [
+        { directory: "/profiles/1", name: "Default", userName: "alice" },
+      ],
+      error: null,
+    };
+    vi.mocked(invoke).mockResolvedValue(payload);
 
     const result = await listChromeProfiles();
 
-    expect(result).toEqual(profiles);
+    expect(result).toEqual(payload);
     expect(invoke).toHaveBeenCalledWith("auth_list_chrome_profiles");
+  });
+
+  it("surfaces discovery error from the Rust result shape", async () => {
+    const payload = {
+      profiles: [],
+      error: "Could not read Chrome Local State",
+    };
+    vi.mocked(invoke).mockResolvedValue(payload);
+
+    const result = await listChromeProfiles();
+
+    expect(result.profiles).toEqual([]);
+    expect(result.error).toBe("Could not read Chrome Local State");
   });
 });

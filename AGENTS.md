@@ -51,3 +51,19 @@ Before creating, moving, renaming, or placing source/test files, or changing nam
 1. This root file supplies repository-wide mandatory policy.
 2. The nearest scoped `AGENTS.md` supplies additional rules for its subtree; it may not weaken this file.
 3. Canonical system, component, deployment, and environment documentation provides detailed task-specific guidance. Scoped instructions link directly to the owning document; they are not a substitute for root policy.
+
+## Repository Configuration & Paths
+
+Agents and skills should look up the following properties dynamically to find the relevant documentation and references for this repository:
+
+- **Documentation Standard:** `6-Docs/documentation-standard.md`
+- **Clean Architecture Rules:** `6-Docs/rules/architecture-general.md`
+- **Component Catalog:** `6-Docs/catalog.md`
+- **Plan Index:** `6-Docs/plans/README.md`
+- **Developer Setup Standard:** `.agents/skills/setup-dev-environment/SKILL.md`
+- **MSBuild Modernization:** `.agents/skills/github-devops/references/msbuild-modernization.md`
+- **MSBuild Anti-patterns:** `.agents/skills/github-devops/references/msbuild-antipatterns.md`
+- **Directory.Build Organization:** `.agents/skills/github-devops/references/directory-build-organization.md`
+- **Build Performance:** `.agents/skills/github-devops/references/build-performance.md`
+- **Incremental Build:** `.agents/skills/github-devops/references/incremental-build.md`
+

@@ -232,6 +232,8 @@ pub fn local_processor_endpoint(port: u16, path: &str) -> Result<Url, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::child_stderr_capture::{append_processor_stderr_detail, ChildStderrCapture};
+    use crate::redact_processor_stderr::redact_processor_stderr;
     use std::fs;
     use std::io::{BufRead, BufReader};
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
@@ -480,6 +482,82 @@ server.serve_forever()
     }
 
     #[cfg(unix)]
+    const LIFECYCLE_FAILING_STDERR_PROCESSOR: &str = r#"#!/usr/bin/env python3
+import os
+import sys
+
+mode = os.environ.get("LIFECYCLE_STDERR_MODE", "discovery")
+if mode == "discovery":
+    print(
+        "Embedding discovery failed: connection refused while probing LM Studio",
+        file=sys.stderr,
+    )
+elif mode == "secrets":
+    token = os.environ.get("MCR_LOCAL_PROCESSOR_CONTROL_TOKEN", "")
+    upload = os.environ.get("PYTHON_UPLOAD_JOB_SECRET", "")
+    print(f"MCR_LOCAL_PROCESSOR_CONTROL_TOKEN={token}", file=sys.stderr)
+    print(f"Authorization: Bearer {token}", file=sys.stderr)
+    print(f"PYTHON_UPLOAD_JOB_SECRET={upload}", file=sys.stderr)
+elif mode == "empty":
+    pass
+else:
+    print(f"unknown LIFECYCLE_STDERR_MODE={mode}", file=sys.stderr)
+sys.exit(1)
+"#;
+
+    #[cfg(unix)]
+    fn create_lifecycle_failing_processor_layout(root: &Path) {
+        let source_directory = root.join("src");
+        let python_directory = root.join(".venv").join("bin");
+        fs::create_dir_all(&source_directory).expect("create failing lifecycle source directory");
+        fs::create_dir_all(&python_directory).expect("create failing lifecycle Python directory");
+        fs::write(
+            source_directory.join("main.py"),
+            "# failing lifecycle test shim\n",
+        )
+        .expect("create failing lifecycle main module");
+
+        let python = python_directory.join("python");
+        fs::write(&python, LIFECYCLE_FAILING_STDERR_PROCESSOR)
+            .expect("create failing lifecycle Python shim");
+        let mut permissions = fs::metadata(&python)
+            .expect("read failing lifecycle Python shim metadata")
+            .permissions();
+        permissions.set_mode(0o700);
+        fs::set_permissions(&python, permissions)
+            .expect("make failing lifecycle Python shim executable");
+    }
+
+    /// Mirrors `processor_start`'s piped-stderr capture / redact / append path for lifecycle tests.
+    #[cfg(unix)]
+    async fn wait_for_lifecycle_processor_with_stderr(
+        transport: &ProcessorTransport,
+        port: u16,
+        child: &mut Child,
+        timeout_secs: u64,
+        upload_job_secret: Option<&str>,
+    ) -> Result<(), String> {
+        let stderr_capture = ChildStderrCapture::start(child.stderr.take());
+        if let Err(err) =
+            crate::wait_for_processor_listening(transport, port, child, timeout_secs).await
+        {
+            let _ = child.kill();
+            let _ = child.wait();
+            let stderr_raw = stderr_capture.finish();
+            let (_, control_token) = transport.control_token_env();
+            let mut secrets: Vec<&str> = vec![control_token];
+            if let Some(secret) = upload_job_secret.filter(|value| !value.is_empty()) {
+                secrets.push(secret);
+            }
+            let stderr_safe = redact_processor_stderr(&stderr_raw, &secrets);
+            return Err(append_processor_stderr_detail(err, &stderr_safe));
+        }
+
+        stderr_capture.detach();
+        Ok(())
+    }
+
+    #[cfg(unix)]
     async fn start_lifecycle_test_processor(
         app: &tauri::App<tauri::test::MockRuntime>,
         port: u16,
@@ -494,11 +572,11 @@ server.serve_forever()
             .env(control_token_name, control_token)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| format!("failed to start lifecycle test processor: {error}"))?;
 
-        crate::wait_for_processor_listening(&transport, port, &mut child, 5).await?;
+        wait_for_lifecycle_processor_with_stderr(&transport, port, &mut child, 5, None).await?;
 
         let state = app.state::<crate::ProcessorState>();
         *state
@@ -515,6 +593,45 @@ server.serve_forever()
             .map_err(|_| "processor state lock poisoned".to_string())? = Some(transport);
 
         Ok(())
+    }
+
+    #[cfg(unix)]
+    async fn start_failing_lifecycle_processor(
+        port: u16,
+        working_dir: &Path,
+        stderr_mode: &str,
+        upload_job_secret: Option<&str>,
+    ) -> Result<(), String> {
+        let transport = ProcessorTransport::create()?;
+        let (control_token_name, control_token) = transport.control_token_env();
+        let launch = crate::resolve_python_launch(working_dir, port, &transport);
+        let mut command = Command::new(&launch.program);
+        command
+            .args(&launch.args)
+            .current_dir(&launch.working_dir)
+            .env(control_token_name, control_token)
+            .env("LIFECYCLE_STDERR_MODE", stderr_mode)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped());
+        if let Some(secret) = upload_job_secret {
+            command.env("PYTHON_UPLOAD_JOB_SECRET", secret);
+        }
+
+        let mut child = command
+            .spawn()
+            .map_err(|error| format!("failed to start failing lifecycle processor: {error}"))?;
+
+        let result = wait_for_lifecycle_processor_with_stderr(
+            &transport,
+            port,
+            &mut child,
+            5,
+            upload_job_secret,
+        )
+        .await;
+        let _ = transport.cleanup();
+        result
     }
 
     fn processor_root() -> PathBuf {
@@ -689,6 +806,122 @@ server.serve_forever()
         );
 
         server.force_stop();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn processor_start_when_child_exits_with_discovery_stderr_includes_that_text() {
+        let root = tempfile::tempdir().expect("create failing lifecycle processor root");
+        create_lifecycle_failing_processor_layout(root.path());
+        let port = available_loopback_port();
+
+        let error = tauri::async_runtime::block_on(start_failing_lifecycle_processor(
+            port,
+            root.path(),
+            "discovery",
+            None,
+        ))
+        .expect_err("failing shim must surface early exit");
+
+        assert!(
+            error.contains("processor process exited early"),
+            "error must still report early exit: {error}"
+        );
+        assert!(
+            error.contains("Embedding discovery failed"),
+            "error must include child stderr text, not only exit status: {error}"
+        );
+        assert!(
+            !error.contains("No stderr was captured"),
+            "stderr must have been captured: {error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn processor_start_when_stderr_contains_control_token_and_upload_secret_redacts_them() {
+        let root = tempfile::tempdir().expect("create failing lifecycle processor root");
+        create_lifecycle_failing_processor_layout(root.path());
+        let port = available_loopback_port();
+        let upload_secret = "upload-job-secret-value-for-redaction-test";
+
+        let error = tauri::async_runtime::block_on(start_failing_lifecycle_processor(
+            port,
+            root.path(),
+            "secrets",
+            Some(upload_secret),
+        ))
+        .expect_err("failing shim must surface early exit");
+
+        assert!(
+            error.contains("[REDACTED]"),
+            "secrets must be redacted in the returned error: {error}"
+        );
+        assert!(
+            !error.contains(upload_secret),
+            "upload secret must not leak in the returned error: {error}"
+        );
+        assert!(
+            !error.contains("Bearer ") || error.contains("Bearer [REDACTED]"),
+            "Bearer token values must be redacted: {error}"
+        );
+        // Labeled assignment redaction must work even when the exact token is unknown to callers
+        // that only inspect the returned error string (no secrets list in the assertion path).
+        assert!(
+            error.contains("MCR_LOCAL_PROCESSOR_CONTROL_TOKEN=[REDACTED]")
+                || error.contains("MCR_LOCAL_PROCESSOR_CONTROL_TOKEN:[REDACTED]"),
+            "labeled control token must be redacted without relying on the raw value: {error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn processor_start_when_stderr_is_empty_points_at_local_processor_log() {
+        let root = tempfile::tempdir().expect("create failing lifecycle processor root");
+        create_lifecycle_failing_processor_layout(root.path());
+        let port = available_loopback_port();
+
+        let error = tauri::async_runtime::block_on(start_failing_lifecycle_processor(
+            port,
+            root.path(),
+            "empty",
+            None,
+        ))
+        .expect_err("failing shim must surface early exit");
+
+        assert!(
+            error.contains("No stderr was captured"),
+            "empty stderr must add the log-path pointer: {error}"
+        );
+        assert!(
+            error.contains("logs/local-processor.log"),
+            "empty stderr guidance must mention the processor log path: {error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn processor_start_when_piped_stderr_is_used_happy_path_still_succeeds() {
+        let root = tempfile::tempdir().expect("create lifecycle test processor root");
+        create_lifecycle_test_processor_layout(root.path());
+        let app = lifecycle_test_app();
+        let port = available_loopback_port();
+
+        tauri::async_runtime::block_on(start_lifecycle_test_processor(&app, port, root.path()))
+            .expect("piped stderr + detach must not hang a healthy lifecycle processor");
+
+        assert!(crate::processor_running(app.state()));
+        let health = tauri::async_runtime::block_on(crate::processor_request(
+            app.state(),
+            "GET".to_string(),
+            "/health".to_string(),
+            None,
+            Some(port),
+        ))
+        .expect("healthy lifecycle processor must answer authenticated health");
+        assert_eq!(health["status"], "ok");
+
+        let _ = tauri::async_runtime::block_on(crate::processor_stop(app.state(), Some(port)));
     }
 
     #[cfg(unix)]

@@ -33,7 +33,7 @@ Admin Desktop is the trusted peer: it starts Uvicorn with TLS on `127.0.0.1`, su
 | `security.url_validation` / `security.safe_http` | Outbound endpoint policy and TLS-validated HTTP transports | Remote HTTPS; loopback-only plain HTTP for local models |
 | `WatchFolderWorker` | Polls and validates manifest/file pairs, then dispatches PDF or CSV work | `files/` and `manifests/` contract |
 | Processors | PDF extraction/chunking, CSV processing, and deterministic bike-graph import | Async job state and processor methods |
-| Embedder factory | Selects LM Studio/OpenAI-compatible or Ollama-compatible embeddings and applies truncation | Environment-driven provider configuration |
+| Embedder factory (`LazyEmbedder`) | Defers discovery and concrete embedder construction until first use; wraps LM Studio/OpenAI-compatible or Ollama-compatible embeddings with truncation | Environment-driven provider configuration; no network I/O at import |
 | Extractors | Metadata and graph extraction through configured compatible inference endpoints | Structured extraction models |
 | `BlobWriter` and `ApiClient` | Persist output artifacts and report stages to the central API | Blob storage and policy-bound authenticated API HTTP |
 
@@ -50,7 +50,7 @@ Admin Desktop is the trusted peer: it starts Uvicorn with TLS on `127.0.0.1`, su
 ## Error Handling
 
 - Missing or invalid bearer tokens return 401; a missing runtime control token returns 503 (fail closed).
-- `/health` reports unhealthy or degraded dependencies and whether new work can be accepted; PDF readiness includes tokenizer state.
+- `/health` reports unhealthy or degraded dependencies and whether new work can be accepted; PDF readiness includes tokenizer state. Admin Desktop treats HTTP 200 or 503 as “listening” for start; only `status` / `accepting_work` indicate readiness for ingestion. Embedding discovery runs on first embedder use, not at import — see [local processor integration](local-processor.md#listen-vs-healthy).
 - Processing endpoints validate required identifiers and require either a validated local source or required blob-source fields before starting background work.
 - Path validation rejects traversal, symlink escape, prefix collisions, missing/non-file paths, and wrong suffixes. The watcher rejects malformed manifests, traversal-like names, missing paired files, and size mismatches.
 - Outbound URL/TLS policy rejects credentials, fragments, malformed authorities, non-loopback HTTP, unsafe resolved addresses, and redirects.

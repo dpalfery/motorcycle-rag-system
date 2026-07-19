@@ -6,6 +6,7 @@ import logging
 import os
 
 from .embedder import Embedder
+from .lazy_embedder import LazyEmbedder
 from .model_discovery import discover_embedding_models_sync
 from .ollama_embedder import OllamaEmbedder
 from .openai_embedder import OpenAIEmbedder
@@ -42,26 +43,38 @@ def _resolve_target_dims(is_ollama: bool) -> int:
     return int(os.getenv(env_name, "1536"))
 
 
-def get_embedder() -> Embedder:
-    """Return the singleton embedder for the configured backend.
+def _configured_endpoint() -> str | None:
+    value = os.getenv("EMBEDDING_PROVIDER_ENDPOINT", "").strip()
+    return value or None
 
-    EMBEDDING_BACKEND env var selects the backend:
-        ollama  – local Ollama server (default)
-        openai  – any OpenAI-compatible server (LM Studio, Foundry Local, etc.)
 
-    The created embedder is wrapped in a :class:`TruncatingEmbedder` so
-    that vectors are sliced to the configured dimensionality client-side.
-    This is required for providers such as LM Studio that ignore the
-    ``dimensions`` request parameter and return full-length vectors
-    (e.g. 2560 dims from Qwen3-Embedding-4B).
+def _configured_model() -> str | None:
+    value = os.getenv("EMBEDDING_MODEL", "").strip()
+    return value or None
 
-    Raises:
-        ValueError: If EMBEDDING_BACKEND has an unrecognised value.
+
+def _configured_host() -> str | None:
+    """Host used for health reporting before lazy init (Ollama path)."""
+    if _configured_endpoint():
+        return None
+
+    backend = os.getenv("EMBEDDING_BACKEND", "ollama").lower().strip()
+    if backend != "ollama":
+        return None
+
+    return (
+        os.getenv("OLLAMA_BASE_URL")
+        or os.getenv("OLLAMA_HOST")
+        or "http://localhost:11434"
+    ).rstrip("/")
+
+
+def _create_configured_embedder() -> Embedder:
+    """Discover provider (when needed) and build the TruncatingEmbedder wrap.
+
+    This performs network I/O when ``EMBEDDING_PROVIDER_ENDPOINT`` is set.
+    Callers must not invoke it during module import.
     """
-    global _embedder_instance
-    if _embedder_instance is not None:
-        return _embedder_instance
-
     provider_endpoint = os.getenv("EMBEDDING_PROVIDER_ENDPOINT", "").strip()
     selected_model = os.getenv("EMBEDDING_MODEL", "").strip() or None
 
@@ -104,7 +117,39 @@ def get_embedder() -> Embedder:
     logger.info(
         "Wrapping embedder with TruncatingEmbedder (target_dims=%d)", target_dims
     )
-    _embedder_instance = TruncatingEmbedder(base_embedder, target_dims=target_dims)
+    return TruncatingEmbedder(base_embedder, target_dims=target_dims)
+
+
+def get_embedder() -> Embedder:
+    """Return the singleton embedder for the configured backend.
+
+    Returns a :class:`LazyEmbedder` that performs discovery and concrete
+    construction only on first use (``check_status`` / embed). Module
+    import and this call itself perform no network I/O.
+
+    EMBEDDING_BACKEND env var selects the backend when no provider
+    endpoint is set:
+        ollama  – local Ollama server (default)
+        openai  – any OpenAI-compatible server (LM Studio, Foundry Local, etc.)
+
+    The created embedder is wrapped in a :class:`TruncatingEmbedder` so
+    that vectors are sliced to the configured dimensionality client-side.
+    This is required for providers such as LM Studio that ignore the
+    ``dimensions`` request parameter and return full-length vectors
+    (e.g. 2560 dims from Qwen3-Embedding-4B).
+    """
+    global _embedder_instance
+    if _embedder_instance is not None:
+        return _embedder_instance
+
+    endpoint = _configured_endpoint()
+    _embedder_instance = LazyEmbedder(
+        _create_configured_embedder,
+        endpoint=endpoint,
+        host=_configured_host(),
+        base_url=endpoint,
+        model=_configured_model(),
+    )
     return _embedder_instance
 
 

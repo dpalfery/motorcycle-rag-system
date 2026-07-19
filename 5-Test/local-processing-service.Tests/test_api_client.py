@@ -4,12 +4,14 @@ import asyncio
 import base64
 import json
 import logging
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
 from api.api_client import ApiClient
+from security.safe_http import RedirectBlockedError
 
 
 @pytest.fixture(autouse=True)
@@ -511,7 +513,9 @@ async def test_upload_artifact_rejects_client_error_without_retry(monkeypatch):
 async def test_report_stage_skips_unconfigured_and_reports_payload(monkeypatch):
     unconfigured = ApiClient()
     with patch("api.api_client.httpx.AsyncClient") as constructor:
-        await unconfigured.report_stage("job", "parsing")
+        await unconfigured.report_stage(
+            "12345678-1234-1234-1234-123456789012", "parsing"
+        )
         await unconfigured.report_stage("", "parsing")
     constructor.assert_not_called()
 
@@ -545,7 +549,7 @@ async def test_report_stage_skips_unconfigured_and_reports_payload(monkeypatch):
         "api.api_client.httpx.AsyncClient", return_value=report
     ) as client_constructor:
         await configured.report_stage(
-            "job",
+            "12345678-1234-1234-1234-123456789012",
             "embedding",
             chunks_processed=2,
             total_chunks=3,
@@ -570,7 +574,7 @@ async def test_report_stage_swallows_transport_errors(monkeypatch):
         client = ApiClient()
     client._acquire_token_async = AsyncMock(side_effect=RuntimeError("offline"))
 
-    await client.report_stage("job", "failed")
+    await client.report_stage("12345678-1234-1234-1234-123456789012", "failed")
 
     client._acquire_token_async.assert_awaited_once()
 
@@ -605,3 +609,282 @@ async def test_report_stage_when_job_id_contains_controls_logs_reversible_saniti
     messages = [record.getMessage() for record in caplog.records]
     assert any("job-1\\r\\nforged-warning" in message for message in messages)
     assert all("job-1\r\nforged-warning" not in message for message in messages)
+
+
+async def test_download_source_with_access_token_raises_on_redirect(monkeypatch):
+    client = ApiClient()
+
+    class RedirectClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, *, params=None, **kwargs):
+            response = httpx.Response(
+                302,
+                headers={"location": "https://evil.example"},
+                request=httpx.Request("GET", url),
+            )
+            return response
+
+    with patch("api.api_client.httpx.AsyncClient", return_value=RedirectClient()):
+        with pytest.raises(RedirectBlockedError):
+            await client.download_source(
+                "upload-1", "manual-pdf", access_token="token-123"
+            )
+
+
+async def test_download_source_with_access_token_raises_on_non_success(monkeypatch):
+    client = ApiClient()
+
+    class NotFoundClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, *, params=None, **kwargs):
+            return httpx.Response(
+                404, text="missing", request=httpx.Request("GET", url)
+            )
+
+    with patch("api.api_client.httpx.AsyncClient", return_value=NotFoundClient()):
+        with pytest.raises(RuntimeError, match="HTTP 404"):
+            await client.download_source(
+                "upload-1", "manual-pdf", access_token="token-123"
+            )
+
+
+async def test_download_source_without_access_token_raises_on_redirect(monkeypatch):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {
+        "access_token": "token",
+        "expires_in": 600,
+    }
+
+    class RedirectClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, **kwargs):
+            return httpx.Response(
+                302,
+                headers={"location": "https://evil.example"},
+                request=httpx.Request("GET", url),
+            )
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    with patch("api.api_client.httpx.AsyncClient", return_value=RedirectClient()):
+        with pytest.raises(RedirectBlockedError):
+            await client.download_source("upload", "manual-pdf")
+
+
+def test_get_token_raises_when_client_not_configured(monkeypatch):
+    client = ApiClient()
+
+    with pytest.raises(RuntimeError, match="not configured"):
+        client._get_token()
+
+
+async def test_acquire_token_async_returns_cache_hit_found_after_lock_acquired(
+    monkeypatch,
+):
+    """Covers the double-checked-locking re-check: the outer check sees a
+    stale token, but the token became valid again by the time the lock was
+    acquired (e.g. a concurrent refresh completed in between)."""
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    client._token_cache = "cached-token"
+    client._token_expires_at = 100.0
+
+    with patch(
+        "api.api_client.time.monotonic", side_effect=[50.0, 30.0]
+    ):
+        result = await client._acquire_token_async()
+
+    assert result == "cached-token"
+    mock_msal.acquire_token_for_client.assert_not_called()
+
+
+async def test_acquire_token_async_raises_when_msal_app_missing_after_lock(
+    monkeypatch,
+):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=MagicMock()
+    ):
+        client = ApiClient()
+
+    client._token_cache = None
+    client._token_expires_at = 0.0
+    client._msal_app = None
+
+    with pytest.raises(RuntimeError, match="not configured"):
+        await client._acquire_token_async()
+
+
+async def test_upload_artifact_retries_on_redirect_and_eventually_fails(monkeypatch):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+
+    class RedirectAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, **kwargs):
+            return httpx.Response(
+                302,
+                headers={"location": "https://evil.example"},
+                request=httpx.Request("POST", url),
+            )
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    with patch(
+        "api.api_client.httpx.AsyncClient", return_value=RedirectAsyncClient()
+    ):
+        with pytest.raises(
+            RuntimeError, match="Artifact upload failed after 2 attempts"
+        ):
+            await client.upload_artifact(
+                b"{}",
+                "12345678-1234-1234-1234-123456789012",
+                "graph-entities",
+                "application/json",
+            )
+
+
+async def test_upload_artifact_retries_on_server_error_and_eventually_fails(
+    monkeypatch,
+):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+
+    post_calls = []
+
+    class ServerErrorAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, **kwargs):
+            post_calls.append(url)
+            return httpx.Response(
+                500, text="boom", request=httpx.Request("POST", url)
+            )
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    with patch(
+        "api.api_client.httpx.AsyncClient", return_value=ServerErrorAsyncClient()
+    ):
+        with pytest.raises(
+            RuntimeError, match="Artifact upload failed after 2 attempts: .*boom"
+        ):
+            await client.upload_artifact(
+                b"{}",
+                "12345678-1234-1234-1234-123456789012",
+                "graph-entities",
+                "application/json",
+            )
+
+    assert len(post_calls) == 2
+
+
+async def test_report_stage_logs_warning_on_non_success_response(monkeypatch, caplog):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    caplog.set_level(logging.WARNING, logger="api.api_client")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+
+    class ServerErrorReportClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def patch(self, url, **kwargs):
+            return httpx.Response(500, request=httpx.Request("PATCH", url))
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    with patch(
+        "api.api_client.httpx.AsyncClient", return_value=ServerErrorReportClient()
+    ):
+        await client.report_stage(
+            "12345678-1234-1234-1234-123456789012", "failed"
+        )
+
+    warnings = [
+        record.getMessage() for record in caplog.records if record.levelname == "WARNING"
+    ]
+    assert any("Stage report failed" in message for message in warnings)
+
+
+async def test_report_stage_swallows_redirect_response(monkeypatch, caplog):
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    caplog.set_level(logging.WARNING, logger="api.api_client")
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+
+    class RedirectReportClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def patch(self, url, **kwargs):
+            return httpx.Response(
+                302,
+                headers={"location": "https://evil.example"},
+                request=httpx.Request("PATCH", url),
+            )
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    with patch(
+        "api.api_client.httpx.AsyncClient", return_value=RedirectReportClient()
+    ):
+        await client.report_stage("12345678-1234-1234-1234-123456789012", "failed")
+
+    warnings = [
+        record.getMessage() for record in caplog.records if record.levelname == "WARNING"
+    ]
+    assert any("Stage report failed" in message for message in warnings)

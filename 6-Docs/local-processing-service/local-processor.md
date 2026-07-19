@@ -8,10 +8,40 @@ All communication with the Python processor goes through Rust commands, not brow
 
 | Command | What it does |
 | --- | --- |
-| `processor_start(config)` | Creates `ProcessorTransport` (ephemeral CA/leaf + bearer token), spawns Uvicorn on `127.0.0.1` with `--ssl-keyfile` / `--ssl-certfile`, sets `MCR_LOCAL_PROCESSOR_CONTROL_TOKEN`, and waits for authenticated HTTPS readiness |
+| `processor_start(config)` | Creates `ProcessorTransport` (ephemeral CA/leaf + bearer token), spawns Uvicorn on `127.0.0.1` with `--ssl-keyfile` / `--ssl-certfile`, sets `MCR_LOCAL_PROCESSOR_CONTROL_TOKEN`, pipes child stderr for diagnostics, and waits until authenticated `GET /health` responds with HTTP 200 or 503 |
 | `processor_stop()` | Authenticated HTTPS `POST /control/shutdown`, kills the child if needed, then removes private certificate material |
 | `processor_running()` | Returns whether a child handle exists |
 | `processor_request(method, path, body, port)` | Authenticated HTTPS proxy: GET/POST/PUT/DELETE to `https://127.0.0.1:{port}{path}` with the session bearer token; rejects HTTP and authority-changing paths |
+
+## Listen vs healthy
+
+Admin Desktop start success means the control plane is reachable, not that the processor is ready to accept ingestion work.
+
+| Concept | Meaning |
+| --- | --- |
+| Listening (Rust start gate) | `processor_start` succeeds when authenticated `GET /health` returns **HTTP 200 or 503** within the listen timeout. A 503 from a live process (for example embedding provider disconnected) still counts as listening. |
+| Healthy / accepting work | The `/health` JSON body reports `status` (`healthy`, `degraded`, or `unhealthy`) and `accepting_work`. Operators must inspect that body (or the Processor screen) before queueing jobs. |
+
+At import, the processor constructs a `LazyEmbedder` via `get_embedder()` (no network I/O); discovery and concrete provider construction run on first `check_status` / embed. Admin Desktop only spawns Uvicorn; it does not build the embedder. Init or discovery failure leaves the process up and reports `services.embedding_provider` as `disconnected` with overall `status: unhealthy` / `accepting_work: false` (typically HTTP 503). Jobs that call embed raise a clear runtime error instead of crashing the process.
+
+TypeScript preflight helpers that interpret “ready” for UI workflows are a separate concern from this Rust listen gate. Do not assume start success alone means the UI will treat the processor as ready for every ingestion path.
+
+## Start-failure diagnostics
+
+When the child exits early or does not answer `/health` in time, `processor_start` returns the listen/exit reason plus a **bounded, redacted** stderr tail (or a pointer to the log file when stderr was empty). Redaction covers the per-launch control token, the upload-job secret when known, bearer tokens, and secret-shaped values. Operators should read the stderr text in the error before assuming a generic “exit status 1” is unexplained.
+
+## Log path (Admin Desktop)
+
+The Python process writes a daily-rotated `local-processor.log` under `LOCAL_PROCESSOR_LOG_DIR` (default `./logs` relative to the process working directory).
+
+Admin Desktop sets the child working directory when it launches Uvicorn:
+
+| Launch mode | Working directory (`cwd`) | Default log file |
+| --- | --- | --- |
+| Project venv or system `python3` | `<processor-root>/src` | `<processor-root>/src/logs/local-processor.log` |
+| Poetry (`poetry run uvicorn …`) | `<processor-root>` | `<processor-root>/logs/local-processor.log` |
+
+Repository development normally uses the project venv path, so the common Admin Desktop log location is `2-Application/local-processing-service/src/logs/local-processor.log`.
 
 ## Trust material (per launch)
 

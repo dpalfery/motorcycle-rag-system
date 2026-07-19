@@ -21,7 +21,7 @@ class LazyEmbedder(Embedder):
     Configured endpoint/model attributes are exposed immediately so
     ``/health`` can report them before the inner embedder is ready.
     Init/discovery failures never raise from :meth:`check_status` (returns
-    ``\"disconnected\"``); embed methods raise :class:`RuntimeError` so jobs
+    ``'disconnected'``); embed methods raise :class:`RuntimeError` so jobs
     fail clearly while the process stays up.
     """
 
@@ -79,12 +79,19 @@ class LazyEmbedder(Embedder):
             try:
                 resolved = self._factory()
             except Exception as exc:
+                previous = self._init_error
                 self._init_error = exc
-                logger.error(
-                    "Embedding provider initialisation failed: %s",
-                    exc,
-                    exc_info=True,
-                )
+                # Retry on later health/embed calls so a late-started provider
+                # can recover; only log when the failure is new or changes.
+                if (
+                    previous is None
+                    or type(previous) is not type(exc)
+                    or str(previous) != str(exc)
+                ):
+                    logger.warning(
+                        "Embedding provider initialisation failed: %s",
+                        exc,
+                    )
                 return None
 
             concrete = getattr(resolved, "_embedder", resolved)
@@ -114,9 +121,7 @@ class LazyEmbedder(Embedder):
         detail = self._init_error or "unknown initialisation error"
         raise RuntimeError(
             f"Embedding provider failed to initialise: {detail}"
-        ) from (
-            self._init_error if isinstance(self._init_error, BaseException) else None
-        )
+        ) from self._init_error
 
     async def generate_embedding(self, text: str) -> list[float]:
         """Return a vector embedding for *text* via the resolved provider.
@@ -140,8 +145,8 @@ class LazyEmbedder(Embedder):
         """Return provider health; never raises on init/discovery failure.
 
         Returns:
-            ``\"connected\"`` / ``\"disconnected\"`` from the inner embedder,
-            or ``\"disconnected\"`` when initialisation has not succeeded.
+            ``'connected'`` / ``'disconnected'`` from the inner embedder,
+            or ``'disconnected'`` when initialisation has not succeeded.
         """
         resolved = self._try_resolve()
         if resolved is None:

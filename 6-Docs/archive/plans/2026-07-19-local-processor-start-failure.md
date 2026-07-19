@@ -1,7 +1,8 @@
 # Local processor start failure
 
-**Status:** Ready  
+**Status:** Archived  
 **Date:** 2026-07-19  
+**Archived:** 2026-07-19  
 **Goal:** Stop Admin Desktop processor starts from dying with exit status 1 during import-time embedding discovery, and surface the real Python error when start still fails.
 
 ---

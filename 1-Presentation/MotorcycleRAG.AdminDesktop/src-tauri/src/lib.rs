@@ -8,14 +8,19 @@ use tauri::path::BaseDirectory;
 use tauri::{Manager, State};
 
 mod auth;
+mod bounded_byte_tail;
+pub(crate) mod child_stderr_capture;
 pub mod local_ingestion_queue;
 mod processor_transport;
+pub(crate) mod redact_processor_stderr;
 use auth::AuthConfig;
+use child_stderr_capture::{append_processor_stderr_detail, ChildStderrCapture};
 use local_ingestion_queue::{
     queue_local_ingestion_work_item_to_watch_folder, LocalIngestionWorkItemRequest,
     LocalIngestionWorkItemResult,
 };
 use processor_transport::ProcessorTransport;
+use redact_processor_stderr::redact_processor_stderr;
 
 /// Supervises the local Python processor child process and remembers its port.
 #[derive(Default)]
@@ -587,6 +592,11 @@ async fn processor_start(
         "AZURE_STORAGE_ACCOUNT_URL".into(),
         azure_storage_account_url,
     );
+    let upload_job_secret_for_redact = config
+        .upload_job_secret
+        .as_deref()
+        .filter(|secret| !secret.is_empty())
+        .map(str::to_owned);
     if let Some(secret) = config.upload_job_secret {
         envs.insert("PYTHON_UPLOAD_JOB_SECRET".into(), secret);
     }
@@ -611,7 +621,7 @@ async fn processor_start(
         .envs(envs)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
 
     let mut child = match command.spawn() {
         Ok(child) => child,
@@ -629,14 +639,27 @@ async fn processor_start(
         }
     };
 
+    let stderr_capture = ChildStderrCapture::start(child.stderr.take());
+
     if let Err(err) = wait_for_processor_listening(&transport, port_value, &mut child, 45).await {
         let _ = child.kill();
         let _ = child.wait();
+        let stderr_raw = stderr_capture.finish();
+        let (_, control_token) = transport.control_token_env();
+        let mut secrets: Vec<&str> = vec![control_token];
+        if let Some(ref secret) = upload_job_secret_for_redact {
+            secrets.push(secret.as_str());
+        }
+        let stderr_safe = redact_processor_stderr(&stderr_raw, &secrets);
+        let err = append_processor_stderr_detail(err, &stderr_safe);
         return match transport.cleanup() {
             Ok(()) => Err(err),
             Err(cleanup_error) => Err(format!("{err}; {cleanup_error}")),
         };
     }
+
+    // Keep draining stderr so a healthy child cannot block on a full pipe buffer.
+    stderr_capture.detach();
 
     *state
         .child

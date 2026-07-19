@@ -74,6 +74,7 @@ jobs:
           policyPacks: ${{ github.workspace }}/7-Deployment/scanning/policy-packs/azure
           non-interactive: true
           diff: true
+          parallel: "3" # App Config store is Free tier (no guaranteed throughput); unbounded parallelism throttles KeyValue refresh/writes with 429s
         continue-on-error: true  # Advisory mode — scan results are informational only; never block deploys
         env:
           PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
@@ -93,6 +94,7 @@ jobs:
           stack-name: ${{ env.PULUMI_STACK }}
           work-dir: ${{ env.PULUMI_WORK_DIR }}
           refresh: true
+          parallel: "3" # App Config store is Free tier (no guaranteed throughput); unbounded parallelism throttles KeyValue refresh/writes with 429s
         env:
           PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
           PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}

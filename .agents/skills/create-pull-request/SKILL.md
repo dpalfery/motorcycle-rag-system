@@ -1,6 +1,6 @@
 ---
 name: create-pull-request
-description: Guides developers and agents through creating a Pull Request in the MotorcycleRAG repository. Covers the full lifecycle: pre-PR validation, branching conventions, template usage, CI checks, review expectations, and post-merge documentation closeout.
+description: Guides developers and agents through creating a Pull Request in the MotorcycleRAG repository. Covers the full lifecycle, pre-PR validation, branching conventions, template usage, CI checks, review expectations, and post-merge documentation closeout.
 license: MIT
 metadata:
   author: David R Palfery
@@ -9,7 +9,7 @@ metadata:
 
 # Create Pull Request — MotorcycleRAG
 
-Use this skill when preparing or creating a Pull Request in the MotorcycleRAG repository. It describes the project-specific standards, checks, and workflow that PR authors must follow. For the mechanical steps of creating the PR via GitHub or the `gh` CLI, see the [create-pull-request-github](../create-pull-request-github/SKILL.md) skill.
+Use this skill when preparing or creating a Pull Request in the MotorcycleRAG repository. It describes the project-specific standards, checks, and workflow that PR authors must follow. For the mechanical steps of creating the PR via GitHub or the `gh` CLI, consult the `create-pull-request-github` skill.
 
 ---
 
@@ -17,7 +17,7 @@ Use this skill when preparing or creating a Pull Request in the MotorcycleRAG re
 
 Before opening a PR, verify all of the following:
 
-- [ ] **Branch from the correct base.** PRs target `main` (production) or `develop` (integration). Feature and bugfix branches branch from `develop` unless the change is a hotfix targeting `main`. Confirm the parent branch conclusively — see [create-pull-request-github](../create-pull-request-github/SKILL.md#2-resolve-the-target-or-parent-branch-before-building-the-pr).
+- [ ] **Branch from the correct base.** PRs target `main` (production) or `develop` (integration). Feature and bugfix branches branch from `develop` unless the change is a hotfix targeting `main`. Confirm the parent branch conclusively — consult the `create-pull-request-github` skill.
 - [ ] **All local tests pass.** Run the relevant test suites:
   - .NET: `dotnet test MotorcycleRAG.sln --configuration Release`
   - Python (local processor): `cd 2-Application/local-processing-service && poetry run pytest`
@@ -25,12 +25,12 @@ Before opening a PR, verify all of the following:
   - Admin Desktop: `cd 1-Presentation/MotorcycleRAG.AdminDesktop && npm test`
 - [ ] **Code builds clean.** `dotnet build MotorcycleRAG.sln --configuration Release` completes with no errors.
 - [ ] **Lint and formatting pass.** Markdown files pass `markdownlint-cli2`; C# code follows `.editorconfig` and `dotnet format` conventions; Python follows `ruff` rules in `pyproject.toml`.
-- [ ] **Canonical documentation is updated.** If the change affects a component's public interface, configuration, architecture, runtime, operations, or workflow, the corresponding README and detailed documentation in `6-Docs/` have been updated. See the [documentation standard](../../6-Docs/documentation-standard.md) for the required shape.
-- [ ] **Catalog entry is current.** If the change introduces, moves, renames, or materially alters a component, update `6-Docs/catalog.md`.
+- [ ] **Canonical documentation is updated.** If the change affects a component's public interface, configuration, architecture, runtime, operations, or workflow, the corresponding README and detailed documentation have been updated. See the path defined by the **Documentation Standard** property in the root `AGENTS.md` for the required shape.
+- [ ] **Catalog entry is current.** If the change introduces, moves, renames, or materially alters a component, update the catalog at the path defined by the **Component Catalog** property in the root `AGENTS.md`.
 - [ ] **Scoped instructions are followed.** Every subtree has its own `AGENTS.md` with additional rules. Read the nearest scoped `AGENTS.md` before changing files in that subtree.
-- [ ] **Clean Architecture is preserved.** Inner layers never depend on outer layers. Contracts contains interfaces only; `Contracts.Models` contains shared DTOs only. Business invariants belong in Domain; Application services belong in `Services`. See [architecture rules](../../6-Docs/rules/architecture-general.md).
+- [ ] **Clean Architecture is preserved.** Inner layers never depend on outer layers. Contracts contains interfaces only; `Contracts.Models` contains shared DTOs only. Business invariants belong in Domain; Application services belong in `Services`. See the Clean Architecture rules at the path defined by the **Clean Architecture Rules** property in the root `AGENTS.md`.
 - [ ] **No secrets or credentials.** The change contains no tokens, connection strings, passwords, `.env` files, customer data, or unsafe deployment commands.
-- [ ] **Dev environment is ready.** If setting up from scratch, the [setup-dev-environment](../setup-dev-environment/SKILL.md) skill covers all tooling.
+- [ ] **Dev environment is ready.** If setting up from scratch, consult the `setup-dev-environment` skill which covers all tooling.
 
 ## 2. Branch naming conventions
 
@@ -65,7 +65,7 @@ Capitalize the first word of the description. Do not end with a period unless th
 
 ### Description body
 
-Fill out the [pull request template](../../.github/PULL_REQUEST_TEMPLATE.md) completely. Every section matters — see §4 below for detailed guidance on each field.
+Fill out the Pull Request template (`.github/PULL_REQUEST_TEMPLATE.md`) completely. Every section matters — see §4 below for detailed guidance on each field.
 
 ## 4. Using the PR template
 
@@ -84,9 +84,9 @@ Select exactly one. If more than one applies, pick the most impactful category a
 
 ### Component and boundaries
 
-- **Component identity:** Look up the owning component in `6-Docs/catalog.md`. If the change spans components, list all affected.
+- **Component identity:** Look up the owning component in the path defined by the **Component Catalog** property in the root `AGENTS.md`. If the change spans components, list all affected.
 - **Scoped instructions:** Check for a `AGENTS.md` in each affected subtree and verify compliance.
-- **Architecture boundaries:** Verify Clean Architecture layering (see [architecture rules](../../6-Docs/rules/architecture-general.md)).
+- **Architecture boundaries:** Verify Clean Architecture layering (see the Clean Architecture rules at the path defined by the **Clean Architecture Rules** property in the root `AGENTS.md`).
 
 ### Related Issues
 
@@ -107,7 +107,7 @@ This section drives the docs-dev plan-closeout workflow. Be honest:
 
 - Check "canonical documentation updated" only if you updated it in this PR.
 - If no update was needed, explain why (e.g., "Internal refactor with no public interface change").
-- Documentation updates are required when: public interface, configuration, architecture, runtime, operations, or workflow changes. See [documentation standard](../../6-Docs/documentation-standard.md#ownership-lifecycle-and-review).
+- Documentation updates are required when: public interface, configuration, architecture, runtime, operations, or workflow changes. See the Documentation Standard at the path defined by the **Documentation Standard** property in the root `AGENTS.md`.
 
 ### Security and operations
 
@@ -117,7 +117,7 @@ This section drives the docs-dev plan-closeout workflow. Be honest:
 
 ## 5. Required CI checks
 
-The [PR Gate](../../.github/workflows/pr-gate.yml) runs automatically on every PR targeting `main` or `develop`. The following jobs must pass or be explicitly waived:
+The PR Gate workflow (`.github/workflows/pr-gate.yml`) runs automatically on every PR targeting `main` or `develop`. The following jobs must pass or be explicitly waived:
 
 | Phase | Job | Trigger | Notes |
 |---|---|---|---|
@@ -169,12 +169,12 @@ Reviewers verify:
 
 ### For plan-backed work
 
-When the PR is merged, the orchestrator follows the plan closeout process defined in [AGENTS.md](../../AGENTS.md#plan-closeout):
+When the PR is merged, the orchestrator follows the plan closeout process defined in the root `AGENTS.md`:
 
 1. The orchestrator assigns a `docs-dev` plan-closeout task.
 2. The documentation specialist verifies the plan's acceptance criteria against the implemented behavior.
 3. The specialist updates the affected canonical documentation (if not already updated in the PR).
-4. The specialist maintains the [plan index](../../6-Docs/plans/README.md).
+4. The specialist maintains the plan index (at the path defined by the **Plan Index** or **Component Catalog** properties in the root `AGENTS.md`).
 5. The plan is archived under `6-Docs/archive/plans/` with status `Archived`.
 
 The PR is not the final step for plan-backed work — documentation verification and archiving are required before the plan is considered complete.
@@ -198,11 +198,11 @@ The PR is not the final step for plan-backed work — documentation verification
 
 ## See also
 
-- [Pull request template](../../.github/PULL_REQUEST_TEMPLATE.md) — the template every PR must fill out.
-- [create-pull-request-github](../create-pull-request-github/SKILL.md) — mechanical steps for creating the PR via GitHub MCP or `gh` CLI.
-- [PR Gate workflow](../../.github/workflows/pr-gate.yml) — the CI pipeline that validates every PR.
-- [Documentation standard](../../6-Docs/documentation-standard.md) — rules for documentation updates.
-- [Component catalog](../../6-Docs/catalog.md) — ownership and documentation status for every component.
-- [Architecture rules](../../6-Docs/rules/architecture-general.md) — Clean Architecture placement and layering rules.
-- [AGENTS.md](../../AGENTS.md) — repository-wide mandatory instructions.
-- [setup-dev-environment](../setup-dev-environment/SKILL.md) — dev environment setup and validation.
+- Pull Request template (`.github/PULL_REQUEST_TEMPLATE.md`) — the template every PR must fill out.
+- `create-pull-request-github` skill — mechanical steps for creating the PR via GitHub MCP or `gh` CLI.
+- PR Gate workflow (`.github/workflows/pr-gate.yml`) — the CI pipeline that validates every PR.
+- Documentation standard — defined by the **Documentation Standard** property in the root `AGENTS.md`.
+- Component catalog — defined by the **Component Catalog** property in the root `AGENTS.md`.
+- Architecture rules — defined by the **Clean Architecture Rules** property in the root `AGENTS.md`.
+- `AGENTS.md` — repository-wide mandatory instructions.
+- `setup-dev-environment` skill — dev environment setup and validation.

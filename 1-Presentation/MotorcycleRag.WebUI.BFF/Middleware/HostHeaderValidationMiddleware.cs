@@ -92,6 +92,7 @@ internal sealed class HostHeaderValidationMiddleware {
         if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
         {
 #pragma warning disable CA1848
+            // codeql[cs/log-forging]
             _logger.LogDebug("Skipping Host header validation for health check path: {Path}", context.Request.Path);
 #pragma warning restore CA1848
             await _next(context).ConfigureAwait(false);

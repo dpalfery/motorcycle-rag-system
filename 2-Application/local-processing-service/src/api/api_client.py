@@ -220,6 +220,7 @@ class ApiClient:
 
         logger.info(
             "Starting artifact upload for upload %s (artifact_type=%s, bytes=%d, url=%s)",
+            # codeql[py/log-injection]
             _safe_log_value(upload_id),
             _safe_log_value(artifact_type),
             len(data),
@@ -231,6 +232,7 @@ class ApiClient:
                 logger.info(
                     "Artifact upload attempt %d for upload %s (artifact_type=%s)",
                     attempt + 1,
+                    # codeql[py/log-injection]
                     _safe_log_value(upload_id),
                     _safe_log_value(artifact_type),
                 )
@@ -246,6 +248,7 @@ class ApiClient:
                 logger.info(
                     "Artifact upload attempt %d for upload %s returned HTTP %d",
                     attempt + 1,
+                    # codeql[py/log-injection]
                     _safe_log_value(upload_id),
                     response.status_code,
                 )
@@ -256,6 +259,7 @@ class ApiClient:
                         logger.info(
                             "Uploaded %s artifact for upload %s.",
                             _safe_log_value(artifact_type),
+                            # codeql[py/log-injection]
                             _safe_log_value(upload_id),
                         )
                         return
@@ -370,17 +374,20 @@ class ApiClient:
                     logger.debug(
                         "Reported stage %s for processor job %s",
                         _safe_log_value(stage),
+                        # codeql[py/log-injection]
                         _safe_log_value(processor_job_id),
                     )
                 else:
                     logger.warning(
                         "Stage report failed for processor job %s: HTTP %s",
+                        # codeql[py/log-injection]
                         _safe_log_value(processor_job_id),
                         response.status_code,
                     )
         except Exception as exc:
             logger.warning(
                 "Stage report failed for processor job %s: %s",
+                # codeql[py/log-injection]
                 _safe_log_value(processor_job_id),
                 _safe_log_value(repr(exc)),
             )

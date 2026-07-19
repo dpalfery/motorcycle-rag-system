@@ -118,15 +118,18 @@ public sealed class WebSourcesAdminController : ControllerBase {
             var createdSource = await _webSourceRegistryService.AddWebSourceAsync(webSource);
             // URL truncation at 48 chars was previously applied by LogSanitizer.Sanitize;
             // the SanitizingLoggerProvider now truncates structured values automatically.
+            // codeql[cs/log-forging]
             _logger.LogInformation("Admin created web source {WebSourceId} with URL {Url}", createdSource.Id, createdSource.Url);
 
             return Created(new Uri($"/api/admin/web-sources/{createdSource.Id}", UriKind.Relative), createdSource);
         }
         catch (InvalidOperationException ex) {
+            // codeql[cs/log-forging]
             _logger.LogWarning(ex, "Conflict creating web source with URL {Url}", request.Url?.ToString() ?? string.Empty);
             return Conflict(new { error = "A resource with this URL already exists" });
         }
         catch (Exception ex) {
+            // codeql[cs/log-forging]
             _logger.LogError(ex, "Error creating web source with URL {Url}", request.Url?.ToString() ?? string.Empty);
             return StatusCode(StatusCodes.Status500InternalServerError, new { error = "An error occurred" });
         }

@@ -115,6 +115,7 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories {
                 return row is null ? null : MapRow(row);
             }
             catch (Exception ex) {
+                // codeql[cs/log-forging]
                 _logger.LogError(ex, "Failed to query management row {RowId}", rowId);
                 throw new InvalidOperationException($"Failed to query management row {rowId}", ex);
             }

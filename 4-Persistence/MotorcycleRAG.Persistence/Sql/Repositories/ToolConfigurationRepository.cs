@@ -165,12 +165,14 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
             });
 
             _logger.LogInformation("Tool configuration {ToolId} saved successfully",
+                // codeql[cs/log-forging]
                 configuration.ToolId);
             return configuration;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving tool configuration {ToolId}",
+                // codeql[cs/log-forging]
                 configuration.ToolId);
             throw new InvalidOperationException($"Error saving tool {nameof(configuration)} {configuration.ToolId}", ex);
         }
@@ -240,6 +242,7 @@ public class ToolConfigurationRepository : IToolConfigurationRepository
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving tool configuration by ToolId {ToolId}",
+                // codeql[cs/log-forging]
                 toolId);
             throw new InvalidOperationException($"Error retrieving tool configuration by ToolId {toolId}", ex);
         }

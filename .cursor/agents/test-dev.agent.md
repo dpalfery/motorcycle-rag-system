@@ -1,7 +1,8 @@
 ---
-name: test-dev
-description: Authors and maintains the automated test suite — unit, integration, and end-to-end — for .NET (xUnit), Python (pytest), and frontend (Vitest/Playwright). Use whenever tests need to be written or updated. Does not implement application logic; only tests it.
 tools: [read/problems, read/readFile, search/fileSearch, search/listDirectory, search/textSearch, todo, edit/editFiles, run/runCommands]
+name: test-dev
+model: composer-2.5[]
+description: Authors and maintains the automated test suite — unit, integration, and end-to-end — for .NET (xUnit), Python (pytest), and frontend (Vitest/Playwright). Use whenever tests need to be written or updated. Does not implement application logic; only tests it.
 ---
 # Test Developer
 

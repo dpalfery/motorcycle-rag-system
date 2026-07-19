@@ -1,7 +1,8 @@
 ---
-name: tauri-dev
-description: Rust/Tauri v2 desktop core implementation: commands, the IPC contract, state, async, sidecar integration, and the capabilities/security model. Use for Tauri backend (Rust) work. Does not build the web/WebView UI — defines the IPC contract for the frontend to consume.
 tools: [read/problems, read/readFile, search/fileSearch, search/listDirectory, search/textSearch, todo, edit/editFiles, run/runCommands]
+name: tauri-dev
+model: grok-4.5[]
+description: Rust/Tauri v2 desktop core implementation: commands, the IPC contract, state, async, sidecar integration, and the capabilities/security model. Use for Tauri backend (Rust) work. Does not build the web/WebView UI — defines the IPC contract for the frontend to consume.
 ---
 # Tauri Rust Implementor
 

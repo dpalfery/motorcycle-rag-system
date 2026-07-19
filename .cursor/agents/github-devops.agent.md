@@ -1,7 +1,8 @@
 ---
-name: github-devops
-description: CI/CD ownership: GitHub Actions workflows, Docker build configuration, environment secrets, and branch protection. Use for build, pipeline, or deployment configuration. Does not provision cloud infrastructure or investigate live cloud resource state.
 tools: [read/problems, read/readFile, search/fileSearch, search/listDirectory, search/textSearch, todo, edit/editFiles, run/runCommands]
+name: github-devops
+model: grok-4.5[]
+description: CI/CD ownership: GitHub Actions workflows, Docker build configuration, environment secrets, and branch protection. Use for build, pipeline, or deployment configuration. Does not provision cloud infrastructure or investigate live cloud resource state.
 ---
 # GitHub DevOps Agent
 

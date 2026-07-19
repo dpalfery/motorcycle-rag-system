@@ -1,7 +1,8 @@
 ---
-name: dotnet-dev
-description: .NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI.
 tools: [read/problems, read/readFile, search/fileSearch, search/listDirectory, search/textSearch, todo, edit/editFiles, run/runCommands]
+name: dotnet-dev
+model: grok-4.5[]
+description: .NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI.
 ---
 ## Skills
 

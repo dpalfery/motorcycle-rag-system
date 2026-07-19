@@ -1,7 +1,8 @@
 ---
-name: product-owner
-description: Single-owner spec planning; produces requirements/design/tasks behind approval gates; planning artifacts only, does not implement.
 tools: [read/readFile, search/fileSearch, search/textSearch, edit/editFiles, skill, web_search, "task: research-agent"]
+name: product-owner
+model: claude-opus-4-8[]
+description: Single-owner spec planning; produces requirements/design/tasks behind approval gates; planning artifacts only, does not implement.
 ---
 
 # Product Owner

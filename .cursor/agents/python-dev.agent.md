@@ -1,7 +1,8 @@
 ---
-name: python-dev
-description: Python implementation: modules, typing, packaging, and Docker/deployment configuration following PEP 8 and clean-architecture practices. Use for Python code. Does not author test suites or own CI/CD pipeline configuration.
 tools: [read/problems, read/readFile, search/fileSearch, search/listDirectory, search/textSearch, todo, edit/editFiles, run/runCommands]
+name: python-dev
+model: grok-4.5[]
+description: Python implementation: modules, typing, packaging, and Docker/deployment configuration following PEP 8 and clean-architecture practices. Use for Python code. Does not author test suites or own CI/CD pipeline configuration.
 ---
 ## Role & Purpose
 

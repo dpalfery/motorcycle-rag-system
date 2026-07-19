@@ -244,7 +244,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
+        uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4
         with:
           languages: csharp, python, javascript-typescript
           queries: security-extended
@@ -262,7 +262,7 @@ jobs:
           dotnet build MotorcycleRAG.sln --configuration Release --no-restore
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
+        uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v4
         with:
           category: "/language:csharp"
 
@@ -536,6 +536,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
           sarif_file: skillforge-agents.sarif
+          category: skillforge-agents
 
       - name: Validate .claude/skills
         run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .claude/skills --format table
@@ -550,6 +551,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
           sarif_file: skillforge-claude.sarif
+          category: skillforge-claude
 
       - name: Validate .kilo/skills
         run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .kilo/skills --format table
@@ -564,6 +566,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
           sarif_file: skillforge-kilo.sarif
+          category: skillforge-kilo
 
   # ─────────────────────────────────────────────────────────────────────
   # Gate summary — single required check

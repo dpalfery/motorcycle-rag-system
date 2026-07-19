@@ -178,7 +178,8 @@ export function useResumeAfterMetadata({
         })
         .catch((err) => {
           console.error(
-            `Failed to resume processor for job ${job.jobId}:`,
+            "Failed to resume processor for job",
+            job.jobId,
             err instanceof Error ? err.message : err,
           );
           // Allow retry on next poll if the resume failed.

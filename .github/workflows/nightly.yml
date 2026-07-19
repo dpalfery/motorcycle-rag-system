@@ -51,20 +51,20 @@ jobs:
     if: github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
     - name: Setup Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: '3.12'
 
     - name: Setup Node
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version: '22'
         cache: 'npm'
@@ -97,7 +97,7 @@ jobs:
           --suite admindesktop-unit
 
     - name: Upload test results
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       if: always()
       with:
         name: unit-coverage-linux-results
@@ -110,10 +110,10 @@ jobs:
       - unit-coverage-linux
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Setup Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: '3.12'
 
@@ -121,7 +121,7 @@ jobs:
       run: python -m pip install --requirement 5-Test/scripts/requirements.txt
 
     - name: Download Linux coverage artifacts
-      uses: actions/download-artifact@v8
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         name: unit-coverage-linux-results
         path: TestResults/UnitCoverage
@@ -136,14 +136,14 @@ jobs:
           --suite admindesktop-unit
 
     - name: Upload merged coverage artifacts
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       if: always()
       with:
         name: unit-coverage-merged-results
         path: TestResults/UnitCoverage/CoverageReport/
 
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v7
+      uses: codecov/codecov-action@a99c28d3f0da835de33ff2feb2e15691c7b9641f # v7
       with:
         files: TestResults/UnitCoverage/CoverageReport/coverage-merged.cobertura.xml
         flags: unittests
@@ -155,10 +155,10 @@ jobs:
     needs: unit-tests
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -178,7 +178,7 @@ jobs:
           --filter "Category!=AzureIntegration"
 
     - name: Upload integration test results
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       if: always()
       with:
         name: integration-test-results
@@ -197,10 +197,10 @@ jobs:
           - 1080:1080
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -228,7 +228,7 @@ jobs:
         TestConfiguration__MockServerUrl: http://localhost:1080
 
     - name: Upload E2E test results
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       if: always()
       with:
         name: e2e-test-results
@@ -247,15 +247,15 @@ jobs:
       AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
     - name: Azure Login
-      uses: azure/login@v3
+      uses: azure/login@2dd0bbf4064d5a1812889dc200bb8eed2597f82a # v3
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -281,7 +281,7 @@ jobs:
         AzureAI__DocumentIntelligenceEndpoint: ${{ secrets.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT }}
 
     - name: Upload Azure integration test results
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       if: always()
       with:
         name: azure-integration-test-results
@@ -294,10 +294,10 @@ jobs:
     if: (github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch') && (github.event.inputs.run_load_tests == 'true' || github.event_name == 'schedule')
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -329,14 +329,14 @@ jobs:
         LoadTest__ConcurrentUsers: 20   # Reduced for CI environment
 
     - name: Upload load test results
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       if: always()
       with:
         name: load-test-results
         path: TestResults/LoadTests/
 
     - name: Upload NBomber reports
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       if: always()
       with:
         name: nbomber-reports
@@ -349,10 +349,10 @@ jobs:
     if: always() && (github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch') && (needs.load-tests.result == 'success' || needs.load-tests.result == 'skipped')
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Download test results
-      uses: actions/download-artifact@v8
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         path: TestResults/
 
@@ -407,7 +407,7 @@ jobs:
         python analyze_performance.py
 
     - name: Upload performance report
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       if: always()
       with:
         name: performance-report
@@ -420,12 +420,12 @@ jobs:
     needs: unit-tests
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       with:
         submodules: true
 
     - name: Setup .NET 10
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
       with:
         dotnet-version: '10.0.x'
 
@@ -442,7 +442,7 @@ jobs:
       run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .agents/skills --fail-on critical --format sarif > skillforge-agents.sarif
 
     - name: Upload .agents/skills SARIF
-      uses: github/codeql-action/upload-sarif@v4
+      uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
       with:
         sarif_file: skillforge-agents.sarif
 
@@ -456,7 +456,7 @@ jobs:
       run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .claude/skills --fail-on critical --format sarif > skillforge-claude.sarif
 
     - name: Upload .claude/skills SARIF
-      uses: github/codeql-action/upload-sarif@v4
+      uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
       with:
         sarif_file: skillforge-claude.sarif
 
@@ -470,7 +470,7 @@ jobs:
       run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .kilo/skills --fail-on critical --format sarif > skillforge-kilo.sarif
 
     - name: Upload .kilo/skills SARIF
-      uses: github/codeql-action/upload-sarif@v4
+      uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
       with:
         sarif_file: skillforge-kilo.sarif
 
@@ -487,10 +487,10 @@ jobs:
       security-events: write
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
       with:
         python-version: "3.12"
 
@@ -516,14 +516,14 @@ jobs:
       continue-on-error: true
 
     - name: Upload Dockerfile SARIF
-      uses: github/codeql-action/upload-sarif@v4
+      uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
       if: always() && hashFiles('checkov-dockerfile.sarif') != ''
       with:
         sarif_file: checkov-dockerfile.sarif
         category: "nightly-checkov-dockerfile"
 
     - name: Upload GitHub Actions SARIF
-      uses: github/codeql-action/upload-sarif@v4
+      uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
       if: always() && hashFiles('checkov-github-actions.sarif') != ''
       with:
         sarif_file: checkov-github-actions.sarif
@@ -543,7 +543,7 @@ jobs:
       security-events: write
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Build API image
       run: docker build -f 7-Deployment/Dockerfile.api -t motorcycle-rag-api .
@@ -555,7 +555,7 @@ jobs:
       run: docker build -f 2-Application/local-processing-service/Dockerfile -t local-processor 2-Application/local-processing-service/
 
     - name: Run Trivy on API image
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master
       with:
         image-ref: motorcycle-rag-api
         format: sarif
@@ -563,7 +563,7 @@ jobs:
         severity: HIGH,CRITICAL
 
     - name: Run Trivy on UI image
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master
       with:
         image-ref: motorcycle-rag-ui
         format: sarif
@@ -571,7 +571,7 @@ jobs:
         severity: HIGH,CRITICAL
 
     - name: Run Trivy on Local Processor image
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master
       with:
         image-ref: local-processor
         format: sarif
@@ -579,21 +579,21 @@ jobs:
         severity: HIGH,CRITICAL
 
     - name: Upload API SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@ddf5ce7296213f5548c91e2dd19df2d77d2b2d66 # v3
       if: always() && hashFiles('trivy-api.sarif') != ''
       with:
         sarif_file: trivy-api.sarif
         category: nightly-trivy-container-api
 
     - name: Upload UI SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@ddf5ce7296213f5548c91e2dd19df2d77d2b2d66 # v3
       if: always() && hashFiles('trivy-ui.sarif') != ''
       with:
         sarif_file: trivy-ui.sarif
         category: nightly-trivy-container-ui
 
     - name: Upload Processor SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@ddf5ce7296213f5548c91e2dd19df2d77d2b2d66 # v3
       if: always() && hashFiles('trivy-processor.sarif') != ''
       with:
         sarif_file: trivy-processor.sarif
@@ -611,7 +611,7 @@ jobs:
 
     steps:
     - name: Download all test results
-      uses: actions/download-artifact@v8
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         path: TestResults/
 
@@ -642,7 +642,7 @@ jobs:
         echo "Generated on: $(date)" >> test-summary.md
 
     - name: Upload test summary
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: test-summary
         path: test-summary.md

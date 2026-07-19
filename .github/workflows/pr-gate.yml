@@ -36,9 +36,9 @@ jobs:
       docs: ${{ steps.flags.outputs.docs }}
       infra: ${{ steps.flags.outputs.infra }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: dorny/paths-filter@v4
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         id: filter
         with:
           filters: |
@@ -86,22 +86,22 @@ jobs:
     if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           cache: true
           cache-dependency-path: 'MotorcycleRAG.sln'
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -134,7 +134,7 @@ jobs:
             --suite admindesktop-unit
 
       - name: Upload test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: unit-coverage-linux-results
@@ -145,7 +145,7 @@ jobs:
         run: dotnet build MotorcycleRAG.sln --configuration Release --no-restore
 
       - name: Upload build output
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: build-output
           path: |
@@ -184,12 +184,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
 
@@ -200,7 +200,7 @@ jobs:
         run: bash 7-Deployment/scripts/validate-docs.sh
 
       - name: Check internal documentation links
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
           args: >-
             --offline --no-progress
@@ -221,7 +221,7 @@ jobs:
             6-Docs/reference/README.md 6-Docs/reference/skillforge.md
 
       - name: Scan documentation changes for secrets
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -241,16 +241,16 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
           languages: csharp, python, javascript-typescript
           queries: security-extended
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           cache: true
@@ -262,7 +262,7 @@ jobs:
           dotnet build MotorcycleRAG.sln --configuration Release --no-restore
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
           category: "/language:csharp"
 
@@ -277,7 +277,7 @@ jobs:
       security-events: write
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Install verified Trivy CLI
         env:
@@ -309,7 +309,7 @@ jobs:
             .
 
       - name: Upload Trivy SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         if: always() && hashFiles('trivy.sarif') != ''
         with:
           sarif_file: trivy.sarif
@@ -326,10 +326,10 @@ jobs:
       security-events: write
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
 
@@ -346,11 +346,11 @@ jobs:
             --exclude '.kilo/**' \
             --exclude '.opencode/**' \
             --exclude '.pnpm-store/**' \
-            --sarif \
-            --output semgrep.sarif
+            --exclude '**/wwwroot/assets/**' \
+            --sarif-output semgrep.sarif
 
       - name: Upload Semgrep SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         if: always() && hashFiles('semgrep.sarif') != ''
         with:
           sarif_file: semgrep.sarif
@@ -371,10 +371,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
 
@@ -400,14 +400,14 @@ jobs:
         continue-on-error: true
 
       - name: Upload Dockerfile SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         if: always() && hashFiles('checkov-dockerfile.sarif') != ''
         with:
           sarif_file: checkov-dockerfile.sarif
           category: "checkov-dockerfile"
 
       - name: Upload GitHub Actions SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         if: always() && hashFiles('checkov-github-actions.sarif') != ''
         with:
           sarif_file: checkov-github-actions.sarif
@@ -423,15 +423,15 @@ jobs:
     if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Download build output
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: build-output
 
@@ -445,7 +445,7 @@ jobs:
             --filter "Category!=AzureIntegration"
 
       - name: Upload integration test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: integration-test-results
@@ -466,15 +466,15 @@ jobs:
           - 1080:1080
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Download build output
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: build-output
 
@@ -496,7 +496,7 @@ jobs:
           TestConfiguration__MockServerUrl: http://localhost:1080
 
       - name: Upload E2E test results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: e2e-test-results
@@ -511,12 +511,12 @@ jobs:
     if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: true
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: '10.0.x'
 
@@ -533,7 +533,7 @@ jobs:
         run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .agents/skills --fail-on critical --format sarif > skillforge-agents.sarif
 
       - name: Upload .agents/skills SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
           sarif_file: skillforge-agents.sarif
 
@@ -547,7 +547,7 @@ jobs:
         run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .claude/skills --fail-on critical --format sarif > skillforge-claude.sarif
 
       - name: Upload .claude/skills SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
           sarif_file: skillforge-claude.sarif
 
@@ -561,7 +561,7 @@ jobs:
         run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .kilo/skills --fail-on critical --format sarif > skillforge-kilo.sarif
 
       - name: Upload .kilo/skills SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
           sarif_file: skillforge-kilo.sarif
 
@@ -622,7 +622,7 @@ jobs:
           fi
 
       - name: Upload gate results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: pr-gate-results
@@ -631,7 +631,7 @@ jobs:
 
       - name: Comment PR with gate status
         if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v9
+        uses: actions/github-script@373c709c69115d41ff229c7e5df9f8788daa9553 # v9
         with:
           script: |
             const fs = require('fs');

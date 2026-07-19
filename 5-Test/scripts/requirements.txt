@@ -1,1 +1,8 @@
 defusedxml==0.7.1
+
+# Pin setuptools explicitly (transitive dependency) to remediate:
+# - CVE-2022-40897 (ReDoS) - fixed in 65.5.1
+# - CVE-2025-47273 (path traversal) - fixed in 78.1.1
+# - CVE-2024-6345 (code injection) - fixed in 70.0.0
+# The 78.1.1 floor satisfies all three CVEs at once.
+setuptools>=78.1.1

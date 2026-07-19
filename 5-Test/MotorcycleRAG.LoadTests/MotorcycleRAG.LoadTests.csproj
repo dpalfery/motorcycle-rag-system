@@ -15,6 +15,7 @@
     <PackageReference Include="FluentAssertions" Version="6.12.2" />
     <PackageReference Include="NBomber" Version="6.2.0" />
     <PackageReference Include="NBomber.Http" Version="6.1.0" />
+    <PackageReference Include="MessagePack" Version="2.5.301" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />

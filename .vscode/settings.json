@@ -106,5 +106,6 @@
         "not slow"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "semgrep.scan.onlyGitDirty": false
 }

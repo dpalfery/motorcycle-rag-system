@@ -18,6 +18,13 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+# Accepted risk: GHSA-wrw7-89jp-8q8g (glib, MODERATE) flagged via tauri -> gtk 0.18.2's
+# Linux webview backend, which pins glib to "^0.18". The fixed glib (0.20.0) is unobtainable:
+# upstream gtk3-rs was archived 2024-03-04 (unmaintained, no further 0.18.x-line releases
+# possible without a fork) and no Tauri 2.x release has moved off it. This repo's CI never
+# builds/ships a Linux target for this app (no cargo/tauri build step targets Linux), so the
+# affected code path isn't exercised by anything that reaches users. Revisit if Tauri ships a
+# gtk4-rs-based Linux backend, or if a Linux build target is ever added to CI.
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"

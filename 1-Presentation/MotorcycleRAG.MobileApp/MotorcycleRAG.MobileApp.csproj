@@ -69,6 +69,13 @@
 		<PackageReference Include="Microsoft.NET.ILLink.Tasks" Version="10.0.1" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
+		<!-- SQLitePCLRaw.bundle_green 2.1.11 (latest) still pulls native SQLite libs vulnerable to
+		     CVE-2025-6965 / GHSA-2m69-gcr7-jv3q (numeric truncation bug, fixed upstream in SQLite 3.50.2).
+		     No newer bundle_green has shipped, so pin the transitive native packages directly to 2.1.12,
+		     which bundles SQLite 3.53.3. Remove these overrides once bundle_green ships a fixed version. -->
+		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
+		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3.android" Version="2.1.12" />
+		<PackageReference Include="SQLitePCLRaw.lib.e_sqlite3.ios" Version="2.1.12" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -176,7 +176,8 @@ describe("useResumeAfterMetadata", () => {
     await waitFor(() => expect(resumeProcessPdf).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(error).toHaveBeenCalledWith(
-        "Failed to resume processor for job job-1:",
+        "Failed to resume processor for job",
+        "job-1",
         "processor unavailable",
       ),
     );

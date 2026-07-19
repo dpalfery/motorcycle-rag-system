@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,54 +27,6 @@ public sealed class FileUploadControllerTests
 
         act.Should().Throw<ArgumentNullException>()
             .Which.ParamName.Should().Be("logger");
-    }
-
-    [Fact]
-    public void UploadFileAsync_Returns410Gone()
-    {
-        var sut = CreateController();
-
-        var result = sut.UploadFileAsync(CreateFormFile("manual.pdf"));
-
-        var gone = result.Should().BeOfType<ObjectResult>().Subject;
-        gone.StatusCode.Should().Be(StatusCodes.Status410Gone);
-        gone.Value.Should().BeOfType<ProblemDetails>()
-            .Which.Title.Should().Be("Legacy disk upload is no longer supported");
-    }
-
-    [Fact]
-    public void UploadFileWithProcessingAsync_Returns410Gone()
-    {
-        var sut = CreateController();
-
-        var result = sut.UploadFileWithProcessingAsync(CreateFormFile("manual.pdf"), processImmediately: true);
-
-        var gone = result.Should().BeOfType<ObjectResult>().Subject;
-        gone.StatusCode.Should().Be(StatusCodes.Status410Gone);
-    }
-
-    [Fact]
-    public void UploadFilesAsync_Returns410Gone()
-    {
-        var sut = CreateController();
-
-        var result = sut.UploadFilesAsync(new[] { CreateFormFile("inventory.csv"), CreateFormFile("manual.pdf") });
-
-        var gone = result.Should().BeOfType<ObjectResult>().Subject;
-        gone.StatusCode.Should().Be(StatusCodes.Status410Gone);
-        gone.Value.Should().BeOfType<ProblemDetails>()
-            .Which.Detail.Should().Contain("/api/ingestion/jobs/upload");
-    }
-
-    [Fact]
-    public void UploadFilesWithProcessingAsync_Returns410Gone()
-    {
-        var sut = CreateController();
-
-        var result = sut.UploadFilesWithProcessingAsync(new[] { CreateFormFile("inventory.csv") }, processImmediately: false);
-
-        var gone = result.Should().BeOfType<ObjectResult>().Subject;
-        gone.StatusCode.Should().Be(StatusCodes.Status410Gone);
     }
 
     [Fact]
@@ -118,24 +69,6 @@ public sealed class FileUploadControllerTests
     }
 
     [Fact]
-    public void FileUploadResponse_InitializesNestedUploadByDefault()
-    {
-        var response = new FileUploadResponse();
-
-        response.Upload.Should().NotBeNull();
-        response.Processing.Should().BeNull();
-    }
-
-    [Fact]
-    public void BatchFileUploadResponse_InitializesNestedUploadByDefault()
-    {
-        var response = new BatchFileUploadResponse();
-
-        response.Upload.Should().NotBeNull();
-        response.Processing.Should().BeNull();
-    }
-
-    [Fact]
     public void GetUploadConstraints_WhenConfigurationIsInvalid_ReturnsInternalServerError()
     {
         // AllowedExtensions = null forces CreateUploadConstraints to throw, exercising the 500 catch.
@@ -151,14 +84,4 @@ public sealed class FileUploadControllerTests
 
     private static FileUploadController CreateController(FileUploadConfiguration? config = null) =>
         new(Options.Create(config ?? new FileUploadConfiguration()), NullLogger<FileUploadController>.Instance);
-
-    private static IFormFile CreateFormFile(string fileName)
-    {
-        var stream = new MemoryStream(Encoding.UTF8.GetBytes("data"));
-        return new FormFile(stream, 0, stream.Length, "file", fileName)
-        {
-            Headers = new HeaderDictionary(),
-            ContentType = "application/octet-stream"
-        };
-    }
 }

@@ -65,10 +65,12 @@ def main():
         for i, server in enumerate(servers):
             print(f"Starting server {i+1}/{len(servers)}: {server['cmd']}")
 
-            # Use shell=True to support commands with cd and &&
+            # Use shell=True to support commands with cd and &&. Safe here: this is a local
+            # dev/test harness and server['cmd'] comes from --server CLI args supplied by the
+            # invoking developer, not external/untrusted input; shell compound syntax is required.
             process = subprocess.Popen(
                 server['cmd'],
-                shell=True,
+                shell=True,  # nosemgrep: python.lang.security.audit.subprocess-shell-true.subprocess-shell-true
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )

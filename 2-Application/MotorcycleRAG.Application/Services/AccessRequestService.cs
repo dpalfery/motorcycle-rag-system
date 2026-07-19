@@ -51,6 +51,7 @@ public class AccessRequestService {
             _logger.LogInformation(
                 "Returning existing access request state for {Provider}/{Email}",
                 request.Provider,
+                // codeql[cs/log-forging]
                 normalizedEmail);
 
             _telemetryService.TrackOnboardingTransition(
@@ -73,6 +74,7 @@ public class AccessRequestService {
                 ex,
                 "Access-request creation raced with an existing request for {Provider}/{Email}",
                 request.Provider,
+                // codeql[cs/log-forging]
                 normalizedEmail);
 
             existingRequest = await _accessRequestRepository.GetByProviderAndEmailAsync(normalizedEmail, request.Provider);

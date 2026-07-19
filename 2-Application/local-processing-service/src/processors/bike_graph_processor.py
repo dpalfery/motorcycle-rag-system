@@ -136,7 +136,9 @@ class BikeGraphProcessor:
         }
         logger.info(
             "Bike graph job queued for upload %s (source=%s)",
+            # codeql[py/log-injection]
             sanitize_log_value(upload_id),
+            # codeql[py/log-injection]
             sanitize_log_value(local_file_path or f"blob:{blob_container}"),
         )
         task = asyncio.create_task(
@@ -291,13 +293,16 @@ class BikeGraphProcessor:
         try:
             logger.info(
                 "Bike graph processing started for upload %s (source=%s)",
+                # codeql[py/log-injection]
                 sanitize_log_value(upload_id),
+                # codeql[py/log-injection]
                 sanitize_log_value(local_file_path or f"blob:{blob_container}"),
             )
             self._set_stage(job_id, "copying", "Preparing bike graph source", 0.0)
             if local_file_path:
                 logger.info(
                     "Bike graph upload %s reading local CSV %s",
+                    # codeql[py/log-injection]
                     sanitize_log_value(upload_id),
                     sanitize_log_value(local_file_path),
                 )
@@ -309,7 +314,9 @@ class BikeGraphProcessor:
             else:
                 logger.info(
                     "Bike graph upload %s downloading source CSV from blob container %s",
+                    # codeql[py/log-injection]
                     sanitize_log_value(upload_id),
+                    # codeql[py/log-injection]
                     sanitize_log_value(blob_container),
                 )
                 csv_bytes = await self.blob_writer.download_blob(
@@ -332,6 +339,7 @@ class BikeGraphProcessor:
 
             logger.info(
                 "Bike graph upload %s built local artifact with %d nodes and %d edges; embeddings are not used for this job type",
+                # codeql[py/log-injection]
                 sanitize_log_value(upload_id),
                 len(nodes),
                 len(edges),
@@ -349,6 +357,7 @@ class BikeGraphProcessor:
             )
             logger.info(
                 "Bike graph upload %s sending graph-entities artifact to backend API (%d bytes)",
+                # codeql[py/log-injection]
                 sanitize_log_value(upload_id),
                 len(entities_bytes),
             )
@@ -369,6 +378,7 @@ class BikeGraphProcessor:
             _jobs[job_id]["status"] = "completed"
             logger.info(
                 "Bike graph processing completed for upload %s: %d nodes, %d edges",
+                # codeql[py/log-injection]
                 sanitize_log_value(upload_id),
                 len(nodes),
                 len(edges),
@@ -379,11 +389,13 @@ class BikeGraphProcessor:
             await self._report_cancelled(job_id)
             logger.info(
                 "Bike graph processing cancelled for upload %s",
+                # codeql[py/log-injection]
                 sanitize_log_value(upload_id),
             )
         except Exception as exc:
             logger.error(
                 "Bike graph processing failed for upload %s error=%s",
+                # codeql[py/log-injection]
                 sanitize_log_value(upload_id),
                 sanitize_log_value(str(exc)),
             )

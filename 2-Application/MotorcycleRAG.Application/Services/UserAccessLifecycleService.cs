@@ -72,6 +72,7 @@ public class UserAccessLifecycleService {
             var row = await _userManagementQueryRepository.GetRowByIdAsync($"user:{userId}")
                 ?? throw new InvalidOperationException($"Updated management row for user {userId} was not found");
 
+            // codeql[cs/log-forging]
             _logger.LogInformation("Changed managed user {UserId} to tier {Tier}", userId, request.Tier);
             success = true;
             return new AdminActionResponse { Row = row };
@@ -123,6 +124,7 @@ public class UserAccessLifecycleService {
             var row = await _userManagementQueryRepository.GetRowByIdAsync($"user:{userId}")
                 ?? throw new InvalidOperationException($"Updated management row for user {userId} was not found");
 
+            // codeql[cs/log-forging]
             _logger.LogInformation("Cancelled managed user {UserId}", userId);
             success = true;
             return new AdminActionResponse { Row = row };

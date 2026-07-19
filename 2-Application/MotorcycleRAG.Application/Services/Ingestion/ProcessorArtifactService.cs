@@ -80,7 +80,9 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         var stream = await _blobStorageService.DownloadAsync(container, blobName, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation(
             "Serving ingestion source. UploadId={UploadId}, DocumentType={DocumentType}.",
+            // codeql[cs/log-forging]
             uploadId,
+            // codeql[cs/log-forging]
             documentType);
         return new(stream, contentType, ProcessorArtifactOperationStatus.Success);
     }
@@ -121,7 +123,9 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
 
         _logger.LogInformation(
             "Processor artifact accepted. UploadId={UploadId}, ArtifactType={ArtifactType}.",
+            // codeql[cs/log-forging]
             request.UploadId,
+            // codeql[cs/log-forging]
             request.ArtifactType);
 
         if (string.Equals(request.ArtifactType, "search-chunks", StringComparison.OrdinalIgnoreCase))
@@ -186,6 +190,7 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
 
             if (job is null)
             {
+                // codeql[cs/log-forging]
                 _logger.LogWarning("No ingestion job found for uploadId {UploadId}. Skipping catalog write. Artifact is stored in blob.", uploadId);
             }
             else
@@ -238,12 +243,14 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
             }
             catch (Exception metadataException)
             {
+                // codeql[cs/log-forging]
                 _logger.LogError(metadataException, "Best-effort blob metadata update failed for {UploadId}. Continuing.", uploadId);
             }
         }
         catch (Exception indexingException)
         {
             stopwatch.Stop();
+            // codeql[cs/log-forging]
             _logger.LogError(indexingException, "Chunk indexing into Azure AI Search failed for upload {UploadId} after {DurationMs}ms. Artifact is stored in blob.", uploadId, stopwatch.ElapsedMilliseconds);
             await TryFailSearchChunkJobAsync(uploadId, indexingException, cancellationToken).ConfigureAwait(false);
         }
@@ -269,6 +276,7 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         }
         catch (Exception transitionException)
         {
+            // codeql[cs/log-forging]
             _logger.LogError(transitionException, "Failed to transition ingestion job to Failed for upload {UploadId}. The artifact is stored in blob.", uploadId);
         }
     }

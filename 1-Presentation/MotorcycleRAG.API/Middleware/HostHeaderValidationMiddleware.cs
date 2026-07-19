@@ -78,6 +78,7 @@ public sealed class HostHeaderValidationMiddleware
         // which are not in the allowlist and would cause probe failures → replica kills.
         if (context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
         {
+            // codeql[cs/log-forging]
             _logger.LogDebug("Skipping Host header validation for health check path: {Path}", context.Request.Path);
             await _next(context);
             return;

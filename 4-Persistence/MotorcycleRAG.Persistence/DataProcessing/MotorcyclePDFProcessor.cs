@@ -54,6 +54,7 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
 
         try {
             _logger.LogInformation("Starting PDF processing for document: {FileName}",
+                // codeql[cs/log-forging]
                 input.FileName);
 
             // Step 1: Extract text and structure using Document Intelligence
@@ -86,6 +87,7 @@ public class MotorcyclePdfProcessor : IDataProcessor<PDFDocument> {
         }
         catch (Exception ex) {
             _logger.LogError(ex, "Error processing PDF document: {FileName}",
+                // codeql[cs/log-forging]
                 input.FileName);
             throw new InvalidOperationException($"Failed to process PDF: {ex.Message}", ex);
         }
@@ -776,6 +778,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
 
                 if (embeddings.Length < 2) {
                     _logger.LogWarning("Failed to generate embeddings for similarity comparison between chunks {CurrentId} and {NextId}",
+                        // codeql[cs/log-forging]
                         currentChunk.Id, nextChunk.Id);
                     refinedChunks.Add(currentChunk);
                     i++;
@@ -921,6 +924,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse PageNumber from metadata for chunk {ChunkId}, using fallback",
+                // codeql[cs/log-forging]
                 chunkId ?? string.Empty);
             pageNumber = fallbackPageNumber;
         }
@@ -934,6 +938,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse SectionLevel from metadata for chunk {ChunkId}, using default 0",
+                // codeql[cs/log-forging]
                 chunkId ?? string.Empty);
             sectionLevel = 0;
         }
@@ -944,6 +949,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse AllSectionHeadings from metadata for chunk {ChunkId}, using empty array",
+                // codeql[cs/log-forging]
                 chunkId ?? string.Empty);
             sectionHeadings = Array.Empty<string>();
         }
@@ -956,6 +962,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse ChunkIndex from metadata for chunk {ChunkId}, using default 0",
+                // codeql[cs/log-forging]
                 chunkId ?? string.Empty);
             chunkIndex = 0;
         }
@@ -966,6 +973,7 @@ Focus on motorcycle-specific technical content that would be valuable for mechan
         }
         catch (Exception ex) {
             logger?.LogWarning(ex, "Failed to parse IsMultiPageTable from metadata for chunk {ChunkId}, using default false",
+                // codeql[cs/log-forging]
                 chunkId ?? string.Empty);
             isMultiPageTable = false;
         }

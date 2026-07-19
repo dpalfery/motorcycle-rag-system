@@ -132,13 +132,14 @@ mod tests {
 
     #[test]
     fn redact_processor_stderr_redacts_labeled_control_token_without_known_value() {
-        let input =
-            "MCR_LOCAL_PROCESSOR_CONTROL_TOKEN=AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_ab";
+        // Constructed fixture (low entropy) so secret scanners do not treat it as a real key.
+        let token_value = format!("test-control-token-{}", "a".repeat(24));
+        let input = format!("MCR_LOCAL_PROCESSOR_CONTROL_TOKEN={token_value}");
 
-        let redacted = redact_processor_stderr(input, &[]);
+        let redacted = redact_processor_stderr(&input, &[]);
 
         assert!(redacted.contains("MCR_LOCAL_PROCESSOR_CONTROL_TOKEN=[REDACTED]"));
-        assert!(!redacted.contains("AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_ab"));
+        assert!(!redacted.contains(&token_value));
     }
 
     #[test]
@@ -153,12 +154,14 @@ mod tests {
 
     #[test]
     fn redact_processor_stderr_redacts_bearer_tokens() {
-        let input = "Authorization: Bearer AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_token";
+        // Constructed fixture (low entropy) so secret scanners do not treat it as a real key.
+        let token_value = format!("test-bearer-token-{}", "b".repeat(24));
+        let input = format!("Authorization: Bearer {token_value}");
 
-        let redacted = redact_processor_stderr(input, &[]);
+        let redacted = redact_processor_stderr(&input, &[]);
 
         assert!(redacted.contains("Bearer [REDACTED]"));
-        assert!(!redacted.contains("AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_token"));
+        assert!(!redacted.contains(&token_value));
     }
 
     #[test]

@@ -1,5 +1,6 @@
 using Spectre.Console.Cli;
 using SkillForge.Cli.Commands;
+using SkillForge.Cli.Commands.Agents;
 
 var app = new CommandApp();
 app.Configure(config =>
@@ -34,6 +35,21 @@ app.Configure(config =>
     config.AddCommand<NewCommand>("new")
         .WithDescription("Scaffold a spec-correct skill from a template.")
         .WithExample("new", "password-reset", "--template", "sop");
+
+    // Agent Harness Governance Command Branch
+    config.AddBranch("agent", agent =>
+    {
+        agent.SetDescription("Manage and audit AI coding harness agent definitions (.codex, .cursor, .claude, etc.).");
+
+        agent.AddCommand<AgentValidateCommand>("validate")
+            .WithDescription("Validate individual harness agent manifests.");
+
+        agent.AddCommand<AgentSyncCheckCommand>("sync-check")
+            .WithDescription("Verify role parity and instruction drift across harness folders.");
+
+        agent.AddCommand<AgentCatalogCommand>("catalog")
+            .WithDescription("Display the role x harness governance matrix.");
+    });
 });
 
 return app.Run(args);

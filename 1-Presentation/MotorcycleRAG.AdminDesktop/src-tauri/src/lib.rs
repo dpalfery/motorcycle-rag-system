@@ -302,6 +302,108 @@ async fn processor_port_is_in_use(port: u16) -> bool {
         .is_ok()
 }
 
+/// Command-line fragments that identify a port listener as this app's local processor.
+///
+/// EVERY marker must be present before a process is force-killed. The processor is always
+/// launched as `uvicorn main:app` (see `resolve_python_launch`), so this matches our own
+/// orphans while refusing to terminate an unrelated service that happens to hold the port.
+const PROCESSOR_CMDLINE_MARKERS: [&str; 2] = ["uvicorn", "main:app"];
+
+fn looks_like_local_processor(command_line: &str) -> bool {
+    PROCESSOR_CMDLINE_MARKERS
+        .iter()
+        .all(|marker| command_line.contains(marker))
+}
+
+/// What was found holding the port, and what was done about it.
+#[derive(Debug, PartialEq, Eq)]
+enum PortReclaim {
+    /// Nothing is listening any more — safe to start.
+    Free,
+    /// An orphaned local processor was identified and terminated.
+    Reclaimed,
+    /// A process that is NOT this app's processor holds the port; it was left alone.
+    Foreign,
+}
+
+#[cfg(unix)]
+fn listener_pids_on_port(port: u16) -> Result<Vec<String>, String> {
+    let port_arg = format!("tcp:{port}");
+    let output = Command::new("lsof")
+        .args(["-ti", &port_arg])
+        .output()
+        .map_err(|e| format!("failed to run lsof for port {port}: {e}"))?;
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
+#[cfg(unix)]
+fn process_command_line(pid: &str) -> Option<String> {
+    let output = Command::new("ps")
+        .args(["-o", "command=", "-p", pid])
+        .output()
+        .ok()?;
+    let command_line = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    (!command_line.is_empty()).then_some(command_line)
+}
+
+/// Terminate orphaned local-processor listeners on `port`, leaving foreign processes alone.
+///
+/// A start that fails because the port is taken is a dead end for the user: after an app
+/// crash or reload the desktop no longer holds the orphan's control token, so it can
+/// neither talk to it nor stop it (`processor_stop` reports "not running" because the
+/// in-memory port is 0). Reclaiming the port here is what makes start self-healing.
+#[cfg(unix)]
+fn kill_orphaned_processor_listeners(port: u16) -> Result<PortReclaim, String> {
+    let pids = listener_pids_on_port(port)?;
+    if pids.is_empty() {
+        return Ok(PortReclaim::Free);
+    }
+
+    let mut killed_any = false;
+    let mut saw_foreign = false;
+    for pid in pids {
+        match process_command_line(&pid) {
+            // The process vanished between lsof and ps — treat the slot as freed.
+            None => continue,
+            Some(command_line) if !looks_like_local_processor(&command_line) => {
+                saw_foreign = true;
+            }
+            Some(_) => {
+                let status = Command::new("kill")
+                    .args(["-9", &pid])
+                    .status()
+                    .map_err(|e| format!("failed to kill pid {pid} on port {port}: {e}"))?;
+                if status.success() {
+                    killed_any = true;
+                }
+            }
+        }
+    }
+
+    if killed_any {
+        Ok(PortReclaim::Reclaimed)
+    } else if saw_foreign {
+        Ok(PortReclaim::Foreign)
+    } else {
+        Ok(PortReclaim::Free)
+    }
+}
+
+#[cfg(windows)]
+fn kill_orphaned_processor_listeners(port: u16) -> Result<PortReclaim, String> {
+    let _ = port;
+    // Mirrors force_kill_listeners_on_port: no Windows implementation yet. Reported as
+    // Foreign so the caller surfaces the manual-intervention message rather than
+    // claiming the port was reclaimed.
+    Ok(PortReclaim::Foreign)
+}
+
 async fn wait_for_processor_listening(
     transport: &ProcessorTransport,
     port: u16,
@@ -516,14 +618,61 @@ async fn processor_start(
         config.port
     };
 
+    // A busy port used to be a hard failure, which stranded the user: after an app reload
+    // the orphan's control token is gone, so it can be neither reached nor stopped from the
+    // UI. Reclaim it instead — graceful shutdown first, then a targeted kill of listeners
+    // that are recognisably ours.
     if processor_port_is_in_use(port_value).await {
-        *state
-            .port
+        // Take the stale transport out of state so its control token can be used for a
+        // clean /control/shutdown before falling back to SIGKILL. Taking (not borrowing)
+        // also keeps the lock off the await path.
+        let stale_transport = state
+            .transport
             .lock()
-            .map_err(|_| "processor state lock poisoned".to_string())? = port_value;
-        return Err(format!(
-            "local processor is already listening on port {port_value}; stop it before starting with new settings"
-        ));
+            .map_err(|_| "processor state lock poisoned".to_string())?
+            .take();
+
+        if let Some(transport) = stale_transport {
+            let _ = transport.session().shutdown(port_value).await;
+            let _ = transport.cleanup();
+        }
+
+        // Reap our own child handle if we still hold one, so the process is not left
+        // defunct while the port drains.
+        {
+            let mut child_guard = state
+                .child
+                .lock()
+                .map_err(|_| "processor state lock poisoned".to_string())?;
+            clear_child_process(&mut child_guard);
+        }
+
+        if !wait_for_processor_stopped(port_value, 5).await {
+            match kill_orphaned_processor_listeners(port_value)? {
+                PortReclaim::Foreign => {
+                    *state
+                        .port
+                        .lock()
+                        .map_err(|_| "processor state lock poisoned".to_string())? = port_value;
+                    return Err(format!(
+                        "port {port_value} is held by another application (not the local processor); \
+                         stop that process or choose a different processor port in Settings"
+                    ));
+                }
+                PortReclaim::Free | PortReclaim::Reclaimed => {}
+            }
+
+            if !wait_for_processor_stopped(port_value, 5).await {
+                *state
+                    .port
+                    .lock()
+                    .map_err(|_| "processor state lock poisoned".to_string())? = port_value;
+                return Err(format!(
+                    "local processor is still listening on port {port_value} after an automatic \
+                     restart attempt; stop it manually and try again"
+                ));
+            }
+        }
     }
 
     if config.graph_extraction_model.trim().is_empty() {
@@ -677,41 +826,19 @@ async fn processor_start(
     Ok(())
 }
 
-/// Force-stop any process listening on the given TCP port (orphaned uvicorn, etc.).
+/// Force-stop orphaned local-processor listeners on the given TCP port.
+///
+/// Delegates to the same ownership-checked reclaim used by `processor_start`: a process
+/// that does not look like our uvicorn processor is never killed, even here. Stop can
+/// reach this path after the child has already died and an unrelated service has taken
+/// the port, so "kill whatever holds it" would be terminating an innocent process.
 fn force_kill_listeners_on_port(port: u16) -> Result<(), String> {
-    #[cfg(unix)]
-    {
-        let port_arg = format!("tcp:{port}");
-        let output = Command::new("lsof")
-            .args(["-ti", &port_arg])
-            .output()
-            .map_err(|e| format!("failed to run lsof for port {port}: {e}"))?;
-
-        let pids = String::from_utf8_lossy(&output.stdout);
-        let mut killed = false;
-        for pid in pids.lines().map(str::trim).filter(|line| !line.is_empty()) {
-            let status = Command::new("kill")
-                .args(["-9", pid])
-                .status()
-                .map_err(|e| format!("failed to kill pid {pid} on port {port}: {e}"))?;
-            if status.success() {
-                killed = true;
-            }
-        }
-
-        if killed {
-            return Ok(());
-        }
+    match kill_orphaned_processor_listeners(port)? {
+        PortReclaim::Free | PortReclaim::Reclaimed => Ok(()),
+        PortReclaim::Foreign => Err(format!(
+            "port {port} is held by another application (not the local processor); it was left running"
+        )),
     }
-
-    #[cfg(windows)]
-    {
-        let _ = port;
-        return Err("force stop by port is not implemented on Windows".into());
-    }
-
-    #[cfg(unix)]
-    Ok(())
 }
 
 async fn wait_for_processor_stopped(port: u16, timeout_secs: u64) -> bool {
@@ -1071,6 +1198,82 @@ mod tests {
     fn create_processor_layout(root: &Path) {
         fs::create_dir_all(root.join("src")).expect("create src directory");
         fs::write(root.join("src").join("main.py"), "print('ok')\n").expect("create main.py");
+    }
+
+    #[test]
+    fn looks_like_local_processor_matches_every_documented_launch_form() {
+        // The three shapes resolve_python_launch can produce.
+        assert!(looks_like_local_processor(
+            "/repo/.venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8100"
+        ));
+        assert!(looks_like_local_processor(
+            "poetry run uvicorn main:app --host 127.0.0.1 --port 8100"
+        ));
+        assert!(looks_like_local_processor(
+            "python3 -m uvicorn main:app --host 127.0.0.1 --port 8100"
+        ));
+    }
+
+    #[test]
+    fn looks_like_local_processor_rejects_unrelated_processes() {
+        // Killing any of these would take down someone else's service on the same port.
+        assert!(!looks_like_local_processor(
+            "/usr/local/bin/node /srv/app/server.js --port 8100"
+        ));
+        assert!(!looks_like_local_processor("nginx: master process"));
+        assert!(!looks_like_local_processor("docker-proxy -container-port 8100"));
+        // A different uvicorn app is still not ours — both markers are required.
+        assert!(!looks_like_local_processor(
+            "python3 -m uvicorn other_service:app --port 8100"
+        ));
+        // ...and neither is a non-uvicorn runner that happens to serve main:app.
+        assert!(!looks_like_local_processor("gunicorn main:app --bind :8100"));
+        assert!(!looks_like_local_processor(""));
+    }
+
+    #[test]
+    fn kill_orphaned_processor_listeners_reports_free_for_an_unused_port() {
+        // Bind and immediately drop to obtain a port nothing is listening on.
+        let port = {
+            let listener =
+                std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).expect("bind");
+            listener.local_addr().expect("addr").port()
+        };
+
+        assert_eq!(
+            kill_orphaned_processor_listeners(port).expect("reclaim an idle port"),
+            PortReclaim::Free
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn kill_orphaned_processor_listeners_leaves_a_foreign_listener_running() {
+        // A plain TCP listener owned by the test process is definitively not our
+        // processor; reclaim must classify it Foreign and leave this process alive.
+        let listener =
+            std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+
+        let outcome = kill_orphaned_processor_listeners(port).expect("classify listener");
+
+        assert_eq!(outcome, PortReclaim::Foreign);
+        // Still bound — proof nothing was killed.
+        assert!(listener.local_addr().is_ok());
+        drop(listener);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn force_kill_listeners_on_port_surfaces_foreign_holders_as_an_error() {
+        let listener =
+            std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+
+        let error = force_kill_listeners_on_port(port).expect_err("foreign holder is an error");
+
+        assert!(error.contains("another application"), "unexpected: {error}");
+        drop(listener);
     }
 
     #[test]

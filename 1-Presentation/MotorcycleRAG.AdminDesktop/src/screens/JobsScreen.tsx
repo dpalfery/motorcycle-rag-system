@@ -134,12 +134,23 @@ export default function JobsScreen() {
     refetchInterval: 15_000,
   });
 
+  const [retryError, setRetryError] = useState<string | null>(null);
+
   const retry = useMutation({
     mutationFn: (id: string) => api.post<IngestionJobStatus>(`/api/ingestion/jobs/${id}/retry`),
     onMutate: async (id) => {
+      setRetryError(null);
       await Promise.all([
         qc.cancelQueries({ queryKey: ["jobs"] }),
         qc.cancelQueries({ queryKey: ["ingestion", "upload-jobs"] }),
+      ]);
+      // Snapshot before the optimistic write so a rejected retry can be rolled back.
+      // Without this the row flips to "queued", the refetch in onSettled restores
+      // "failed", and the only visible effect of a rejected retry is a brief flicker.
+      const previousJobs = qc.getQueriesData<IngestionJobStatus[]>({ queryKey: ["jobs"] });
+      const previousUploadJobs = qc.getQueryData<IngestionJobStatus[]>([
+        "ingestion",
+        "upload-jobs",
       ]);
       qc.setQueriesData<IngestionJobStatus[]>({ queryKey: ["jobs"] }, (old) =>
         updateIngestionJobInList(old, id, (job) => markIngestionJobRetrying(job)),
@@ -147,8 +158,36 @@ export default function JobsScreen() {
       qc.setQueryData<IngestionJobStatus[]>(["ingestion", "upload-jobs"], (old) =>
         updateIngestionJobInList(old, id, (job) => markIngestionJobRetrying(job)),
       );
+      return { previousJobs, previousUploadJobs };
+    },
+    onError: (err: unknown, _id, context) => {
+      // Restore the pre-retry rows immediately rather than waiting for the refetch,
+      // so the badge does not sit on a "queued" state the server never accepted.
+      context?.previousJobs?.forEach(([queryKey, data]) => {
+        qc.setQueryData(queryKey, data);
+      });
+      if (context?.previousUploadJobs) {
+        qc.setQueryData(["ingestion", "upload-jobs"], context.previousUploadJobs);
+      }
+
+      // A 409 carries the actionable reason (missing source blob, local-first job that
+      // must be re-queued from Admin Desktop) in ProblemDetails.detail.
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setRetryError(
+          err.response.data?.detail ?? "This job cannot be retried in its current state.",
+        );
+        return;
+      }
+      setRetryError(
+        formatAdminError(err, {
+          action: "Retrying ingestion job",
+          kind: "cloud-api",
+          apiBaseUrl,
+        }),
+      );
     },
     onSuccess: (res, id) => {
+      setRetryError(null);
       const retriedJob = res.data;
       if (retriedJob.jobId !== id) {
         setSupersededRetryJobIds((prev) => new Set(prev).add(id));
@@ -368,6 +407,22 @@ export default function JobsScreen() {
           <button
             className="shrink-0 rounded p-0.5 text-danger hover:bg-danger/20"
             onClick={() => setDeleteError(null)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {retryError && (
+        <div
+          role="alert"
+          className="mb-4 flex items-center gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger"
+        >
+          <span className="flex-1">{retryError}</span>
+          <button
+            aria-label="Dismiss retry error"
+            className="shrink-0 rounded p-0.5 text-danger hover:bg-danger/20"
+            onClick={() => setRetryError(null)}
           >
             <X className="h-3.5 w-3.5" />
           </button>

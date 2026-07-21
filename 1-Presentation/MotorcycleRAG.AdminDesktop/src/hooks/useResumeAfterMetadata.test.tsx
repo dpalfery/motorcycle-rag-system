@@ -191,10 +191,14 @@ describe("useResumeAfterMetadata", () => {
 
   it("ignores ineligible jobs and cleans pending entries for removed jobs", () => {
     const waiting = makeJob({ status: "Queued", currentStage: "queued" });
+    // The Props generic is inferred from `initialProps`, not from the callback's
+    // annotation — a bare `{ jobs: undefined }` would narrow it to `undefined` and
+    // reject every later rerender that passes an array.
+    const initialProps: { jobs: IngestionJobStatus[] | undefined } = { jobs: undefined };
     const { result, rerender } = renderHook(
       ({ jobs }: { jobs: IngestionJobStatus[] | undefined }) =>
         useResumeAfterMetadata({ jobs, localProcessorPort: 8100 }),
-      { initialProps: { jobs: undefined } },
+      { initialProps },
     );
 
     act(() => {

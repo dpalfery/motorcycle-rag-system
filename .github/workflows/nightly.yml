@@ -551,8 +551,10 @@ jobs:
     - name: Build UI image
       run: docker build -f 7-Deployment/Dockerfile.ui -t motorcycle-rag-ui .
 
-    - name: Build Local Processor image
-      run: docker build -f 2-Application/local-processing-service/Dockerfile -t local-processor 2-Application/local-processing-service/
+    # Only the API and UI images are deployed (see the two ContainerApps in
+    # 7-Deployment/infrastructure/Program.cs). The local processor runs as a local
+    # Python service under Admin Desktop and is never containerized or pushed to
+    # ACR, so there is no processor image to scan here.
 
     # MEDIUM included for api/ui so GitHub Security can close residual OS-package
     # alerts (#647–#713) after Dockerfile package pins land and this job rebuilds.
@@ -573,14 +575,6 @@ jobs:
         output: trivy-ui.sarif
         severity: MEDIUM,HIGH,CRITICAL
 
-    - name: Run Trivy on Local Processor image
-      uses: aquasecurity/trivy-action@c07df6fec6fa692e6fd1200d50aaa1fdd66f03c8 # master
-      with:
-        image-ref: local-processor
-        format: sarif
-        output: trivy-processor.sarif
-        severity: HIGH,CRITICAL
-
     - name: Upload API SARIF to GitHub Security
       uses: github/codeql-action/upload-sarif@ddf5ce7296213f5548c91e2dd19df2d77d2b2d66 # v3
       if: always() && hashFiles('trivy-api.sarif') != ''
@@ -594,13 +588,6 @@ jobs:
       with:
         sarif_file: trivy-ui.sarif
         category: nightly-trivy-container-ui
-
-    - name: Upload Processor SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@ddf5ce7296213f5548c91e2dd19df2d77d2b2d66 # v3
-      if: always() && hashFiles('trivy-processor.sarif') != ''
-      with:
-        sarif_file: trivy-processor.sarif
-        category: nightly-trivy-container-processor
 
   # ===========================================================================
   # SUMMARY

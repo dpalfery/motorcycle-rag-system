@@ -341,6 +341,7 @@ class ApiClient:
         chunks_processed: int = 0,
         total_chunks: int = 0,
         failure_reason: str | None = None,
+        metadata_json: str | None = None,
     ) -> None:
         """Report pipeline stage to the .NET API so jobs can be resumed.
 
@@ -381,6 +382,8 @@ class ApiClient:
         }
         if failure_reason:
             payload["failureReason"] = failure_reason
+        if metadata_json:
+            payload["metadataJson"] = metadata_json
 
         try:
             token = await self._acquire_token_async()

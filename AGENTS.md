@@ -44,7 +44,7 @@ Before creating, moving, renaming, or placing source/test files, or changing nam
 | Core, Application, Domain, Contracts, Persistence | nearest scoped `AGENTS.md` | [Architecture rules](6-Docs/rules/architecture-general.md) |
 | Tests | nearest test-suite `AGENTS.md` | affected component documentation and requirements |
 | Infrastructure | [Infrastructure AGENTS](7-Deployment/infrastructure/AGENTS.md) | [DevOps documentation](6-Docs/DevOps/) and [Azure environment](6-Docs/AzureEnvironment/) |
-| Codex configuration | [.codex AGENTS](.codex/AGENTS.md) | repository rules in this file remain controlling |
+
 
 ## Instruction hierarchy
 

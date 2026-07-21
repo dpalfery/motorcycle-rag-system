@@ -47,6 +47,15 @@ _CHAT_HTTP_TIMEOUT = httpx.Timeout(
 # cannot leave the background task blocked for the full chat read timeout.
 _PROBE_HTTP_TIMEOUT = 5.0
 
+# The extracted JSON object is tiny (~100 tokens), but reasoning models spend their
+# completion budget on chain-of-thought before emitting it. A 300-token cap truncated
+# those models mid-thought, so no JSON was ever produced and every job fell through to
+# manual entry. Size the ceiling for the reasoning preamble, not the answer — while
+# staying well inside a typical local model's context window, since some
+# OpenAI-compatible servers reject a max_tokens larger than the context rather than
+# clamping it.
+_MAX_COMPLETION_TOKENS = 8_000
+
 
 def _truncate(text: str, limit: int = _LOG_TRUNCATE) -> str:
     """Truncate text to ``limit`` chars, appending a count if truncated."""
@@ -369,7 +378,7 @@ class MetadataExtractor:
                 {"role": "user", "content": user_content},
             ],
             temperature=0.1,
-            max_tokens=300,
+            max_tokens=_MAX_COMPLETION_TOKENS,
             response_format={"type": "json_object"},
         )
         elapsed_ms = int((time.perf_counter() - call_start) * 1000)

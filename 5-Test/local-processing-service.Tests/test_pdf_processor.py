@@ -622,6 +622,14 @@ class TestMetadataExtraction:
         assert pause_calls
         assert "Manual entry required" in pause_calls[-1].kwargs["failure_reason"]
 
+        # Whatever extraction *did* determine is forwarded so the admin manual-entry form
+        # pre-fills. Processor bookkeeping (fill_rate/pages_sampled) is not sent.
+        forwarded = json.loads(pause_calls[-1].kwargs["metadata_json"])
+        assert forwarded["make"] == "Honda"
+        assert forwarded["model"] is None
+        assert "fill_rate" not in forwarded
+        assert "pages_sampled" not in forwarded
+
         # The pipeline stopped before chunking.
         MockChunker.return_value.chunk.assert_not_called()
 

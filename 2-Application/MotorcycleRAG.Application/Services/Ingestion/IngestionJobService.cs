@@ -710,6 +710,11 @@ public sealed class IngestionJobService : IIngestionJobService {
             // This is NOT a terminal state — the job resumes once an admin submits metadata.
             job.PauseForMetadata(request.FailureReason, request.Stage, stageSetAtUtc);
             await _repository.UpdateAsync(job, ct).ConfigureAwait(false);
+
+            // Persist whatever automated extraction *did* determine so the admin's manual-entry
+            // form pre-fills instead of opening blank. Best effort: a malformed or oversized
+            // blob must not block the pause transition that has already been committed above.
+            await PersistPartialMetadataAsync(jobId, job, request.MetadataJson, ct).ConfigureAwait(false);
         }
         else
         {
@@ -869,6 +874,44 @@ public sealed class IngestionJobService : IIngestionJobService {
             or IngestionJobStatus.Cancelled
             or IngestionJobStatus.AwaitingMetadata;
 
+    /// <summary>
+    /// Stores the local processor's partially-extracted metadata on a job that has just paused
+    /// for manual entry. Never throws: the pause transition is already committed, and failing to
+    /// pre-fill the form is strictly less bad than losing the pause.
+    /// </summary>
+    private async Task PersistPartialMetadataAsync(
+        Guid jobId,
+        IngestionJob job,
+        string? metadataJson,
+        CancellationToken ct) {
+        if (string.IsNullOrWhiteSpace(metadataJson) || metadataJson.Length > MetadataMaxJsonLength) {
+            return;
+        }
+
+        // Reject anything that is not a parseable JSON object — GetJobMetadataAsync would
+        // otherwise hand the admin UI a raw blob it cannot pre-fill from.
+        var parsed = TryParseMetadata(metadataJson);
+        if (parsed is null) {
+            _logger.LogWarning(
+                "Discarding unparseable partial metadata reported for job {JobId} at the needs-manual-metadata stage.",
+                jobId);
+            return;
+        }
+
+        try {
+            job.SetMetadata(metadataJson);
+            await _repository.UpdateMetadataAsync(jobId, metadataJson, ct).ConfigureAwait(false);
+            _logger.LogInformation(
+                "Stored partial extracted metadata for paused job {JobId}. FillRate={FillRate:F2}.",
+                jobId, parsed.FillRate);
+        }
+        catch (Exception ex) {
+            _logger.LogWarning(ex,
+                "Failed to persist partial extracted metadata for paused job {JobId}; the manual-entry form will open empty.",
+                jobId);
+        }
+    }
+
     private static bool ShouldTreatLocalProcessorFailureAsTerminal(
         IngestionJob job,
         IngestionJobStageRequest request) {
@@ -878,7 +921,12 @@ public sealed class IngestionJobService : IIngestionJobService {
 
         if (string.Equals(request.Stage, "completed", StringComparison.OrdinalIgnoreCase)
             || string.Equals(request.Stage, "cancelled", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(request.Stage, "failed", StringComparison.OrdinalIgnoreCase)) {
+            || string.Equals(request.Stage, "failed", StringComparison.OrdinalIgnoreCase)
+            // needs-manual-metadata is a *pause*, not a failure. The processor always sends a
+            // FailureReason with it (the "extraction incomplete, manual entry required" text),
+            // so without this exemption every local-processor pause was routed to the terminal
+            // Failed branch below and the admin UI never surfaced the manual-entry modal.
+            || string.Equals(request.Stage, NeedsManualMetadataStage, StringComparison.OrdinalIgnoreCase)) {
             return false;
         }
 
